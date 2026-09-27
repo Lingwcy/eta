@@ -7,12 +7,19 @@ catalogMode: prefer
 
 catalog:
   "@effect/platform-node": 4.0.0-rc.117
+  "@tailwindcss/vite": ^4.3.3
+  tailwindcss: ^4.3.3
   "@types/node": ^24
   effect: 4.0.0-rc.117
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0-rc.0
   vite-plus: 1.0.0-rc.0
   yaml: ^2.9.1
+  zustand: ^5.0.15
+  "@types/react": ^19.3.0
+  "@vitejs/plugin-react": ^6.1.1
+  "@base-ui/react": ^1.8.0
+  add: ^2.0.9
 overrides:
   vite@*: "catalog:"
 peerDependencyRules:

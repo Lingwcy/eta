@@ -1,0 +1,43 @@
+import { type CxOptions, cx } from "class-variance-authority";
+import * as Encoding from "effect/Encoding";
+import { extendTailwindMerge } from "tailwind-merge";
+
+const twMerge = extendTailwindMerge({ extend: { theme: { text: ["2xs", "3xs", "4xs", "5xs"] } } });
+
+export function cn(...inputs: CxOptions) {
+  return twMerge(cx(inputs));
+}
+
+export function isMacPlatform(platform: string): boolean {
+  return /mac|iphone|ipad|ipod/i.test(platform);
+}
+
+export function isWindowsPlatform(platform: string): boolean {
+  return /^win(dows)?/i.test(platform);
+}
+
+export function normalizeSearchText(value: string): string {
+  return value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+export function getLocalFileManagerName(platform: string): string {
+  if (isMacPlatform(platform)) {
+    return "Finder";
+  }
+  if (isWindowsPlatform(platform)) {
+    return "File Explorer";
+  }
+  return "Files";
+}
+
+export function randomHex(byteLength: number): string {
+  return Encoding.encodeHex(globalThis.crypto.getRandomValues(new Uint8Array(byteLength)));
+}
+
+export function randomUUID(): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Encoding.encodeHex(bytes);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
