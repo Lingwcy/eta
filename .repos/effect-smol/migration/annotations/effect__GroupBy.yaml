@@ -9,7 +9,7 @@ effect/GroupBy#GroupByTypeId:
   note: "Brand symbol for the removed GroupBy datatype; v4 groupBy results are plain Streams, discriminated with Stream.isStream if needed."
 effect/GroupBy#evaluate:
   replacement: "Stream.flatMap"
-  note: "Apply the per-group function over the [key, stream] pairs with Stream.flatMap (or Stream.mapEffect for an effectful result per group), using { concurrency: \"unbounded\" } to reproduce v3's parallel-groups/arbitrary-merge-order behavior; the v3 bufferSize option moved onto Stream.groupBy itself."
+  note: 'Apply the per-group function over the [key, stream] pairs with Stream.flatMap (or Stream.mapEffect for an effectful result per group), using { concurrency: "unbounded" } to reproduce v3''s parallel-groups/arbitrary-merge-order behavior; the v3 bufferSize option moved onto Stream.groupBy itself.'
   example: |
     // v3: stream.pipe(Stream.groupByKey(f), GroupBy.evaluate((key, s) => g(key, s)))
     stream.pipe(

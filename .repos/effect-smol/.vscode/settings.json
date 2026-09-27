@@ -41,9 +41,7 @@
   },
   "deno.enable": true,
   "deno.lint": false,
-  "deno.enablePaths": [
-    "./packages/platform/deno"
-  ],
+  "deno.enablePaths": ["./packages/platform/deno"],
   "js/ts.tsdk.path": "./node_modules/typescript/lib",
   "js/ts.tsdk.additionalLocations": ["./node_modules/typescript/lib"],
   "js/ts.tsdk.promptToUseWorkspaceVersion": true,

@@ -7,13 +7,13 @@
  *
  * @since 2.0.0
  */
-import * as Equ from "./Equivalence.ts"
-import { dual } from "./Function.ts"
-import * as Option from "./Option.ts"
-import * as order from "./Order.ts"
-import type { Ordering } from "./Ordering.ts"
-import * as predicate from "./Predicate.ts"
-import * as Reducer from "./Reducer.ts"
+import * as Equ from "./Equivalence.ts";
+import { dual } from "./Function.ts";
+import * as Option from "./Option.ts";
+import * as order from "./Order.ts";
+import type { Ordering } from "./Ordering.ts";
+import * as predicate from "./Predicate.ts";
+import * as Reducer from "./Reducer.ts";
 
 /**
  * Exposes the global number constructor.
@@ -42,7 +42,7 @@ import * as Reducer from "./Reducer.ts"
  * @category constructors
  * @since 4.0.0
  */
-export const Number = globalThis.Number
+export const Number = globalThis.Number;
 
 /**
  * Checks whether a value is a `number`.
@@ -63,7 +63,7 @@ export const Number = globalThis.Number
  * @category guards
  * @since 2.0.0
  */
-export const isNumber: (input: unknown) => input is number = predicate.isNumber
+export const isNumber: (input: unknown) => input is number = predicate.isNumber;
 
 /**
  * Provides an addition operation on `number`s.
@@ -86,9 +86,9 @@ export const isNumber: (input: unknown) => input is number = predicate.isNumber
  * @since 2.0.0
  */
 export const sum: {
-  (that: number): (self: number) => number
-  (self: number, that: number): number
-} = dual(2, (self: number, that: number): number => self + that)
+  (that: number): (self: number) => number;
+  (self: number, that: number): number;
+} = dual(2, (self: number, that: number): number => self + that);
 
 /**
  * Provides a multiplication operation on `number`s.
@@ -111,9 +111,9 @@ export const sum: {
  * @since 2.0.0
  */
 export const multiply: {
-  (that: number): (self: number) => number
-  (self: number, that: number): number
-} = dual(2, (self: number, that: number): number => self * that)
+  (that: number): (self: number) => number;
+  (self: number, that: number): number;
+} = dual(2, (self: number, that: number): number => self * that);
 
 /**
  * Provides a subtraction operation on `number`s.
@@ -134,9 +134,9 @@ export const multiply: {
  * @since 2.0.0
  */
 export const subtract: {
-  (that: number): (self: number) => number
-  (self: number, that: number): number
-} = dual(2, (self: number, that: number): number => self - that)
+  (that: number): (self: number) => number;
+  (self: number, that: number): number;
+} = dual(2, (self: number, that: number): number => self - that);
 
 /**
  * Divides `number`s safely, returning `Option.none()` if the divisor is `0`.
@@ -161,12 +161,11 @@ export const subtract: {
  * @since 2.0.0
  */
 export const divide: {
-  (that: number): (self: number) => Option.Option<number>
-  (self: number, that: number): Option.Option<number>
-} = dual(
-  2,
-  (self: number, that: number): Option.Option<number> => that === 0 ? Option.none() : Option.some(self / that)
-)
+  (that: number): (self: number) => Option.Option<number>;
+  (self: number, that: number): Option.Option<number>;
+} = dual(2, (self: number, that: number): Option.Option<number> =>
+  that === 0 ? Option.none() : Option.some(self / that),
+);
 
 /**
  * Divides two `number` values without returning an `Option`.
@@ -200,13 +199,11 @@ export const divide: {
  * @since 4.0.0
  */
 export const divideUnsafe: {
-  (that: number): (self: number) => number
-  (self: number, that: number): number
-} = dual(
-  2,
-  (self: number, that: number): number =>
-    Option.getOrThrowWith(divide(self, that), () => new RangeError("Division by zero"))
-)
+  (that: number): (self: number) => number;
+  (self: number, that: number): number;
+} = dual(2, (self: number, that: number): number =>
+  Option.getOrThrowWith(divide(self, that), () => new RangeError("Division by zero")),
+);
 
 /**
  * Returns the result of adding `1` to a given number.
@@ -226,7 +223,7 @@ export const divideUnsafe: {
  * @category math
  * @since 2.0.0
  */
-export const increment = (n: number): number => n + 1
+export const increment = (n: number): number => n + 1;
 
 /**
  * Decrements a number by `1`.
@@ -246,7 +243,7 @@ export const increment = (n: number): number => n + 1
  * @category math
  * @since 2.0.0
  */
-export const decrement = (n: number): number => n - 1
+export const decrement = (n: number): number => n - 1;
 
 /**
  * Order instance for `number` values.
@@ -269,7 +266,7 @@ export const decrement = (n: number): number => n - 1
  * @category instances
  * @since 2.0.0
  */
-export const Order: order.Order<number> = order.Number
+export const Order: order.Order<number> = order.Number;
 
 /**
  * Equivalence instance for numbers where `NaN` is considered equal to `NaN`.
@@ -292,7 +289,7 @@ export const Order: order.Order<number> = order.Number
  * @category instances
  * @since 2.0.0
  */
-export const Equivalence: Equ.Equivalence<number> = Equ.Number
+export const Equivalence: Equ.Equivalence<number> = Equ.Number;
 
 /**
  * Returns `true` if the first argument is less than the second, otherwise `false`.
@@ -315,9 +312,9 @@ export const Equivalence: Equ.Equivalence<number> = Equ.Number
  * @since 4.0.0
  */
 export const isLessThan: {
-  (that: number): (self: number) => boolean
-  (self: number, that: number): boolean
-} = order.isLessThan(Order)
+  (that: number): (self: number) => boolean;
+  (self: number, that: number): boolean;
+} = order.isLessThan(Order);
 
 /**
  * Returns a function that checks if a given `number` is less than or equal to the provided one.
@@ -340,9 +337,9 @@ export const isLessThan: {
  * @since 4.0.0
  */
 export const isLessThanOrEqualTo: {
-  (that: number): (self: number) => boolean
-  (self: number, that: number): boolean
-} = order.isLessThanOrEqualTo(Order)
+  (that: number): (self: number) => boolean;
+  (self: number, that: number): boolean;
+} = order.isLessThanOrEqualTo(Order);
 
 /**
  * Returns `true` if the first argument is greater than the second, otherwise `false`.
@@ -365,9 +362,9 @@ export const isLessThanOrEqualTo: {
  * @since 4.0.0
  */
 export const isGreaterThan: {
-  (that: number): (self: number) => boolean
-  (self: number, that: number): boolean
-} = order.isGreaterThan(Order)
+  (that: number): (self: number) => boolean;
+  (self: number, that: number): boolean;
+} = order.isGreaterThan(Order);
 
 /**
  * Returns a function that checks if a given `number` is greater than or equal to the provided one.
@@ -390,9 +387,9 @@ export const isGreaterThan: {
  * @since 4.0.0
  */
 export const isGreaterThanOrEqualTo: {
-  (that: number): (self: number) => boolean
-  (self: number, that: number): boolean
-} = order.isGreaterThanOrEqualTo(Order)
+  (that: number): (self: number) => boolean;
+  (self: number, that: number): boolean;
+} = order.isGreaterThanOrEqualTo(Order);
 
 /**
  * Checks whether a `number` is between a `minimum` and `maximum` value (inclusive).
@@ -419,15 +416,15 @@ export const isGreaterThanOrEqualTo: {
  * @since 2.0.0
  */
 export const between: {
-  (options: {
-    minimum: number
-    maximum: number
-  }): (self: number) => boolean
-  (self: number, options: {
-    minimum: number
-    maximum: number
-  }): boolean
-} = order.isBetween(Order)
+  (options: { minimum: number; maximum: number }): (self: number) => boolean;
+  (
+    self: number,
+    options: {
+      minimum: number;
+      maximum: number;
+    },
+  ): boolean;
+} = order.isBetween(Order);
 
 /**
  * Restricts the given `number` to be within the range specified by the `minimum` and `maximum` values.
@@ -462,15 +459,15 @@ export const between: {
  * @since 2.0.0
  */
 export const clamp: {
-  (options: {
-    minimum: number
-    maximum: number
-  }): (self: number) => number
-  (self: number, options: {
-    minimum: number
-    maximum: number
-  }): number
-} = order.clamp(Order)
+  (options: { minimum: number; maximum: number }): (self: number) => number;
+  (
+    self: number,
+    options: {
+      minimum: number;
+      maximum: number;
+    },
+  ): number;
+} = order.clamp(Order);
 
 /**
  * Returns the minimum between two `number`s.
@@ -493,9 +490,9 @@ export const clamp: {
  * @since 2.0.0
  */
 export const min: {
-  (that: number): (self: number) => number
-  (self: number, that: number): number
-} = order.min(Order)
+  (that: number): (self: number) => number;
+  (self: number, that: number): number;
+} = order.min(Order);
 
 /**
  * Returns the maximum between two `number`s.
@@ -518,9 +515,9 @@ export const min: {
  * @since 2.0.0
  */
 export const max: {
-  (that: number): (self: number) => number
-  (self: number, that: number): number
-} = order.max(Order)
+  (that: number): (self: number) => number;
+  (self: number, that: number): number;
+} = order.max(Order);
 
 /**
  * Determines the sign of a given `number`.
@@ -542,7 +539,7 @@ export const max: {
  * @category math
  * @since 2.0.0
  */
-export const sign = (n: number): Ordering => Order(n, 0)
+export const sign = (n: number): Ordering => Order(n, 0);
 
 /**
  * Takes an `Iterable` of `number`s and returns their sum as a single `number`.
@@ -566,12 +563,12 @@ export const sign = (n: number): Ordering => Order(n, 0)
  * @since 2.0.0
  */
 export const sumAll = (collection: Iterable<number>): number => {
-  let out = 0
+  let out = 0;
   for (const n of collection) {
-    out += n
+    out += n;
   }
-  return out
-}
+  return out;
+};
 
 /**
  * Takes an `Iterable` of `number`s and returns their multiplication as a single `number`.
@@ -595,15 +592,15 @@ export const sumAll = (collection: Iterable<number>): number => {
  * @since 2.0.0
  */
 export const multiplyAll = (collection: Iterable<number>): number => {
-  let out = 1
+  let out = 1;
   for (const n of collection) {
     if (n === 0) {
-      return 0
+      return 0;
     }
-    out *= n
+    out *= n;
   }
-  return out
-}
+  return out;
+};
 
 /**
  * Returns the remainder left over when one operand is divided by a second operand, always taking the sign of the dividend.
@@ -629,45 +626,49 @@ export const multiplyAll = (collection: Iterable<number>): number => {
  * @since 2.0.0
  */
 export const remainder: {
-  (divisor: number): (self: number) => number
-  (self: number, divisor: number): number
+  (divisor: number): (self: number) => number;
+  (self: number, divisor: number): number;
 } = dual(2, (self: number, divisor: number): number => {
-  const selfString = self.toString()
-  const divisorString = divisor.toString()
+  const selfString = self.toString();
+  const divisorString = divisor.toString();
   if (selfString.includes("e") || divisorString.includes("e")) {
-    if (!globalThis.Number.isFinite(self) || !globalThis.Number.isFinite(divisor) || divisor === 0) {
-      return NaN
+    if (
+      !globalThis.Number.isFinite(self) ||
+      !globalThis.Number.isFinite(divisor) ||
+      divisor === 0
+    ) {
+      return NaN;
     }
-    return remainderWithScientificNotation(self, divisor)
+    return remainderWithScientificNotation(self, divisor);
   }
-  const selfDecCount = (selfString.split(".")[1] || "").length
-  const divisorDecCount = (divisorString.split(".")[1] || "").length
-  const decCount = selfDecCount > divisorDecCount ? selfDecCount : divisorDecCount
-  const selfInt = self === 0 ? self : parseInt(self.toFixed(decCount).replace(".", ""))
-  const divisorInt = parseInt(divisor.toFixed(decCount).replace(".", ""))
-  return (selfInt % divisorInt) / Math.pow(10, decCount)
-})
+  const selfDecCount = (selfString.split(".")[1] || "").length;
+  const divisorDecCount = (divisorString.split(".")[1] || "").length;
+  const decCount = selfDecCount > divisorDecCount ? selfDecCount : divisorDecCount;
+  const selfInt = self === 0 ? self : parseInt(self.toFixed(decCount).replace(".", ""));
+  const divisorInt = parseInt(divisor.toFixed(decCount).replace(".", ""));
+  return (selfInt % divisorInt) / Math.pow(10, decCount);
+});
 
 function remainderWithScientificNotation(self: number, divisor: number): number {
-  const [selfCoefficient, selfExponent] = toScientificInteger(self)
-  const [divisorCoefficient, divisorExponent] = toScientificInteger(divisor)
-  const exponent = Math.min(selfExponent, divisorExponent)
-  const selfInteger = selfCoefficient * BigInt(10) ** BigInt(selfExponent - exponent)
-  const divisorInteger = divisorCoefficient * BigInt(10) ** BigInt(divisorExponent - exponent)
-  const out = selfInteger % divisorInteger
+  const [selfCoefficient, selfExponent] = toScientificInteger(self);
+  const [divisorCoefficient, divisorExponent] = toScientificInteger(divisor);
+  const exponent = Math.min(selfExponent, divisorExponent);
+  const selfInteger = selfCoefficient * BigInt(10) ** BigInt(selfExponent - exponent);
+  const divisorInteger = divisorCoefficient * BigInt(10) ** BigInt(divisorExponent - exponent);
+  const out = selfInteger % divisorInteger;
   if (out === BigInt(0)) {
-    return self < 0 || Object.is(self, -0) ? -0 : 0
+    return self < 0 || Object.is(self, -0) ? -0 : 0;
   }
-  const remainder = globalThis.Number(`${out}e${exponent}`)
-  return remainder === 0 ? Math.sign(self) * globalThis.Number.MIN_VALUE : remainder
+  const remainder = globalThis.Number(`${out}e${exponent}`);
+  return remainder === 0 ? Math.sign(self) * globalThis.Number.MIN_VALUE : remainder;
 }
 
 function toScientificInteger(n: number): readonly [coefficient: bigint, exponent: number] {
-  const scientific = Math.abs(n).toExponential()
-  const eIndex = scientific.indexOf("e")
-  const digits = scientific.slice(0, eIndex).replace(".", "")
-  const coefficient = BigInt(digits) * (n < 0 ? -BigInt(1) : BigInt(1))
-  return [coefficient, globalThis.Number(scientific.slice(eIndex + 1)) - digits.length + 1]
+  const scientific = Math.abs(n).toExponential();
+  const eIndex = scientific.indexOf("e");
+  const digits = scientific.slice(0, eIndex).replace(".", "");
+  const coefficient = BigInt(digits) * (n < 0 ? -BigInt(1) : BigInt(1));
+  return [coefficient, globalThis.Number(scientific.slice(eIndex + 1)) - digits.length + 1];
 }
 
 /**
@@ -690,9 +691,9 @@ function toScientificInteger(n: number): readonly [coefficient: bigint, exponent
  * @since 2.0.0
  */
 export const nextPow2 = (n: number): number => {
-  const nextPow = Math.ceil(Math.log(n) / Math.log(2))
-  return Math.max(Math.pow(2, nextPow), 2)
-}
+  const nextPow = Math.ceil(Math.log(n) / Math.log(2));
+  return Math.max(Math.pow(2, nextPow), 2);
+};
 
 /**
  * Parses a `number` from a `string` safely using the `Number()` function.
@@ -722,20 +723,20 @@ export const nextPow2 = (n: number): number => {
  */
 export const parse = (s: string): Option.Option<number> => {
   if (s === "NaN") {
-    return Option.some(NaN)
+    return Option.some(NaN);
   }
   if (s === "Infinity") {
-    return Option.some(Infinity)
+    return Option.some(Infinity);
   }
   if (s === "-Infinity") {
-    return Option.some(-Infinity)
+    return Option.some(-Infinity);
   }
   if (s.trim() === "") {
-    return Option.none()
+    return Option.none();
   }
-  const n = Number(s)
-  return Number.isNaN(n) ? Option.none() : Option.some(n)
-}
+  const n = Number(s);
+  return Number.isNaN(n) ? Option.none() : Option.some(n);
+};
 
 /**
  * Returns the number rounded with the given precision.
@@ -757,12 +758,12 @@ export const parse = (s: string): Option.Option<number> => {
  * @since 3.8.0
  */
 export const round: {
-  (precision: number): (self: number) => number
-  (self: number, precision: number): number
+  (precision: number): (self: number) => number;
+  (self: number, precision: number): number;
 } = dual(2, (self: number, precision: number): number => {
-  const factor = Math.pow(10, precision)
-  return Math.round(self * factor) / factor
-})
+  const factor = Math.pow(10, precision);
+  return Math.round(self * factor) / factor;
+});
 
 /**
  * Reducer for combining `number`s using addition.
@@ -781,7 +782,7 @@ export const round: {
  * @category math
  * @since 4.0.0
  */
-export const ReducerSum: Reducer.Reducer<number> = Reducer.make((a, b) => a + b, 0)
+export const ReducerSum: Reducer.Reducer<number> = Reducer.make((a, b) => a + b, 0);
 
 /**
  * Reducer for combining `number`s using multiplication.
@@ -804,14 +805,18 @@ export const ReducerSum: Reducer.Reducer<number> = Reducer.make((a, b) => a + b,
  * @category math
  * @since 4.0.0
  */
-export const ReducerMultiply: Reducer.Reducer<number> = Reducer.make((a, b) => a * b, 1, (collection) => {
-  let acc = 1
-  for (const n of collection) {
-    if (n === 0) return 0
-    acc *= n
-  }
-  return acc
-})
+export const ReducerMultiply: Reducer.Reducer<number> = Reducer.make(
+  (a, b) => a * b,
+  1,
+  (collection) => {
+    let acc = 1;
+    for (const n of collection) {
+      if (n === 0) return 0;
+      acc *= n;
+    }
+    return acc;
+  },
+);
 
 /**
  * Reducer for reducing `number`s by keeping the maximum value.
@@ -835,7 +840,10 @@ export const ReducerMultiply: Reducer.Reducer<number> = Reducer.make((a, b) => a
  * @category math
  * @since 4.0.0
  */
-export const ReducerMax: Reducer.Reducer<number> = Reducer.make((a, b) => Math.max(a, b), -Infinity)
+export const ReducerMax: Reducer.Reducer<number> = Reducer.make(
+  (a, b) => Math.max(a, b),
+  -Infinity,
+);
 
 /**
  * Reducer for reducing `number`s by keeping the minimum value.
@@ -859,4 +867,4 @@ export const ReducerMax: Reducer.Reducer<number> = Reducer.make((a, b) => Math.m
  * @category math
  * @since 4.0.0
  */
-export const ReducerMin: Reducer.Reducer<number> = Reducer.make((a, b) => Math.min(a, b), Infinity)
+export const ReducerMin: Reducer.Reducer<number> = Reducer.make((a, b) => Math.min(a, b), Infinity);

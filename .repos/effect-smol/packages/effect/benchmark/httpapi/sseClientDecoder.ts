@@ -1,23 +1,29 @@
-import { Effect, Schema, Stream } from "effect"
-import { HttpClient, HttpClientResponse } from "effect/unstable/http"
-import { HttpApi, HttpApiClient, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
-import { Bench } from "tinybench"
+import { Effect, Schema, Stream } from "effect";
+import { HttpClient, HttpClientResponse } from "effect/unstable/http";
+import {
+  HttpApi,
+  HttpApiClient,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  HttpApiSchema,
+} from "effect/unstable/httpapi";
+import { Bench } from "tinybench";
 
 const Event = Schema.Struct({
   event: Schema.Literal("tick"),
-  data: Schema.String
-})
+  data: Schema.String,
+});
 
 const Api = HttpApi.make("Api").add(
   HttpApiGroup.make("test").add(
     HttpApiEndpoint.get("events", "/events", {
       success: HttpApiSchema.StreamSse({
         events: Event,
-        error: Schema.String
-      })
-    })
-  )
-)
+        error: Schema.String,
+      }),
+    }),
+  ),
+);
 
 const httpClient = HttpClient.make((request) =>
   Effect.sync(() =>
@@ -25,28 +31,32 @@ const httpClient = HttpClient.make((request) =>
       request,
       new Response("event: tick\ndata: payload\n\n", {
         status: 200,
-        headers: { "content-type": "text/event-stream" }
-      })
-    )
-  )
-)
+        headers: { "content-type": "text/event-stream" },
+      }),
+    ),
+  ),
+);
 
-const client = await Effect.runPromise(HttpApiClient.makeWith(Api, {
-  baseUrl: "http://localhost",
-  httpClient
-}))
-const consumeResponse = Effect.flatMap(client.test.events({}), Stream.runDrain)
-const responsesPerIteration = 25
-const responses = Array.from({ length: responsesPerIteration })
+const client = await Effect.runPromise(
+  HttpApiClient.makeWith(Api, {
+    baseUrl: "http://localhost",
+    httpClient,
+  }),
+);
+const consumeResponse = Effect.flatMap(client.test.events({}), Stream.runDrain);
+const responsesPerIteration = 25;
+const responses = Array.from({ length: responsesPerIteration });
 const runIteration = Effect.forEach(responses, () => consumeResponse, {
   concurrency: 1,
-  discard: true
-})
+  discard: true,
+});
 
-const bench = new Bench({ time: 3000 })
+const bench = new Bench({ time: 3000 });
 
-bench.add(`${responsesPerIteration} sequential SSE responses through one client`, () => Effect.runPromise(runIteration))
+bench.add(`${responsesPerIteration} sequential SSE responses through one client`, () =>
+  Effect.runPromise(runIteration),
+);
 
-await bench.run()
+await bench.run();
 
-console.table(bench.table())
+console.table(bench.table());

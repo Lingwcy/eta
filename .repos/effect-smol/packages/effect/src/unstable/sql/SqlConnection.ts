@@ -9,11 +9,11 @@
  *
  * @since 4.0.0
  */
-import * as Context from "../../Context.ts"
-import type { Effect } from "../../Effect.ts"
-import type { Scope } from "../../Scope.ts"
-import type { Stream } from "../../Stream.ts"
-import type { SqlError } from "./SqlError.ts"
+import * as Context from "../../Context.ts";
+import type { Effect } from "../../Effect.ts";
+import type { Scope } from "../../Scope.ts";
+import type { Stream } from "../../Stream.ts";
+import type { SqlError } from "./SqlError.ts";
 
 /**
  * Low-level SQL driver connection capable of executing compiled SQL as
@@ -27,39 +27,36 @@ export interface Connection {
   readonly execute: (
     sql: string,
     params: ReadonlyArray<unknown>,
-    transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined
-  ) => Effect<ReadonlyArray<any>, SqlError>
+    transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined,
+  ) => Effect<ReadonlyArray<any>, SqlError>;
 
   /**
    * Execute the specified SQL query and return the raw results directly from
    * underlying SQL client.
    */
-  readonly executeRaw: (
-    sql: string,
-    params: ReadonlyArray<unknown>
-  ) => Effect<unknown, SqlError>
+  readonly executeRaw: (sql: string, params: ReadonlyArray<unknown>) => Effect<unknown, SqlError>;
 
   readonly executeStream: (
     sql: string,
     params: ReadonlyArray<unknown>,
-    transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined
-  ) => Stream<any, SqlError>
+    transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined,
+  ) => Stream<any, SqlError>;
 
   readonly executeValues: (
     sql: string,
-    params: ReadonlyArray<unknown>
-  ) => Effect<ReadonlyArray<ReadonlyArray<unknown>>, SqlError>
+    params: ReadonlyArray<unknown>,
+  ) => Effect<ReadonlyArray<ReadonlyArray<unknown>>, SqlError>;
 
   readonly executeValuesUnprepared: (
     sql: string,
-    params: ReadonlyArray<unknown>
-  ) => Effect<ReadonlyArray<ReadonlyArray<unknown>>, SqlError>
+    params: ReadonlyArray<unknown>,
+  ) => Effect<ReadonlyArray<ReadonlyArray<unknown>>, SqlError>;
 
   readonly executeUnprepared: (
     sql: string,
     params: ReadonlyArray<unknown>,
-    transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined
-  ) => Effect<ReadonlyArray<any>, SqlError>
+    transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined,
+  ) => Effect<ReadonlyArray<any>, SqlError>;
 }
 
 /**
@@ -69,7 +66,7 @@ export interface Connection {
  * @category models
  * @since 4.0.0
  */
-export type Acquirer = Effect<Connection, SqlError, Scope>
+export type Acquirer = Effect<Connection, SqlError, Scope>;
 
 /**
  * Lends a connection for the duration of one effect and takes it back on any
@@ -86,8 +83,8 @@ export type Acquirer = Effect<Connection, SqlError, Scope>
  * @since 4.0.0
  */
 export type Borrower = <A, E, R>(
-  f: (connection: Connection) => Effect<A, E, R>
-) => Effect<A, E | SqlError, R>
+  f: (connection: Connection) => Effect<A, E, R>,
+) => Effect<A, E | SqlError, R>;
 
 /**
  * Service tag for a low-level SQL `Connection`.
@@ -95,7 +92,7 @@ export type Borrower = <A, E, R>(
  * @category services
  * @since 4.0.0
  */
-export const Connection = Context.Service<Connection>("effect/sql/SqlConnection")
+export const Connection = Context.Service<Connection>("effect/sql/SqlConnection");
 
 /**
  * Generic SQL row shape mapping column names to unknown values.
@@ -103,4 +100,4 @@ export const Connection = Context.Service<Connection>("effect/sql/SqlConnection"
  * @category models
  * @since 4.0.0
  */
-export type Row = { readonly [column: string]: unknown }
+export type Row = { readonly [column: string]: unknown };

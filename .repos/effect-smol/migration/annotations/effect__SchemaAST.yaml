@@ -35,7 +35,7 @@
   replacement: "SchemaAST.Boolean"
   note: "The v4 SchemaAST redesign renamed this primitive, collection, or guard while preserving its role."
 "effect/SchemaAST#BrandAnnotation":
-  replacement: "Schema.Annotations.Bottom[\"brands\"]"
+  replacement: 'Schema.Annotations.Bottom["brands"]'
   note: "Brands are stored under the string-keyed brands annotation and normally added with Schema.brand."
 "effect/SchemaAST#BrandAnnotationId":
   replacement: "Schema.brand"
@@ -68,25 +68,25 @@
   replacement: "Schema.catchDecoding"
   note: "The symbol annotation was removed; attach decoding recovery with Schema.catchDecoding."
 "effect/SchemaAST#DefaultAnnotation":
-  replacement: "Schema.Annotations.Documentation[\"default\"]"
+  replacement: 'Schema.Annotations.Documentation["default"]'
   note: "Defaults are string-keyed schema annotations in v4."
 "effect/SchemaAST#DefaultAnnotationId":
-  replacement: "Schema.Annotations.Documentation[\"default\"]"
+  replacement: 'Schema.Annotations.Documentation["default"]'
   note: "Symbol annotation IDs were removed; use the default key."
 "effect/SchemaAST#defaultParseOption":
   replacement: "SchemaAST.defaultParseOptions"
   note: "The default parse options constant was pluralized."
 "effect/SchemaAST#DescriptionAnnotation":
-  replacement: "Schema.Annotations.Augment[\"description\"]"
+  replacement: 'Schema.Annotations.Augment["description"]'
   note: "Descriptions are string-keyed schema annotations in v4."
 "effect/SchemaAST#DescriptionAnnotationId":
-  replacement: "Schema.Annotations.Augment[\"description\"]"
+  replacement: 'Schema.Annotations.Augment["description"]'
   note: "Symbol annotation IDs were removed; use the description key."
 "effect/SchemaAST#DocumentationAnnotation":
-  replacement: "Schema.Annotations.Augment[\"documentation\"]"
+  replacement: 'Schema.Annotations.Augment["documentation"]'
   note: "Documentation is a string-keyed schema annotation in v4."
 "effect/SchemaAST#DocumentationAnnotationId":
-  replacement: "Schema.Annotations.Augment[\"documentation\"]"
+  replacement: 'Schema.Annotations.Augment["documentation"]'
   note: "Symbol annotation IDs were removed; use the documentation key."
 "effect/SchemaAST#encodedAST":
   replacement: "SchemaAST.toEncoded"
@@ -104,10 +104,10 @@
   replacement: "Schema.overrideToEquivalence"
   note: "The symbol annotation was removed; attach custom equivalence derivation with Schema.overrideToEquivalence."
 "effect/SchemaAST#ExamplesAnnotation":
-  replacement: "Schema.Annotations.Documentation[\"examples\"]"
+  replacement: 'Schema.Annotations.Documentation["examples"]'
   note: "Examples are string-keyed schema annotations in v4."
 "effect/SchemaAST#ExamplesAnnotationId":
-  replacement: "Schema.Annotations.Documentation[\"examples\"]"
+  replacement: 'Schema.Annotations.Documentation["examples"]'
   note: "Symbol annotation IDs were removed; use the examples key."
 "effect/SchemaAST#FinalTransformation":
   replacement: "SchemaTransformation.Transformation"
@@ -119,7 +119,7 @@
   replacement: "none"
   note: "Batching annotations were removed. ParseOptions.concurrency controls product child parsing only; configure request batching separately."
 "effect/SchemaAST#getBrandAnnotation":
-  replacement: "SchemaAST.resolveAt(\"brands\")"
+  replacement: 'SchemaAST.resolveAt("brands")'
   note: "Resolve the string-keyed brands annotation."
 "effect/SchemaAST#getCompiler":
   replacement: "none"
@@ -131,16 +131,16 @@
   replacement: "none"
   note: "Fallbacks are encoding middleware in v4, not readable annotations; attach them with Schema.catchDecoding."
 "effect/SchemaAST#getDefaultAnnotation":
-  replacement: "SchemaAST.resolveAt(\"default\")"
+  replacement: 'SchemaAST.resolveAt("default")'
   note: "Resolve the string-keyed default annotation."
 "effect/SchemaAST#getDescriptionAnnotation":
   replacement: "SchemaAST.resolveDescription"
   note: "Use the dedicated resolved-description helper."
 "effect/SchemaAST#getDocumentationAnnotation":
-  replacement: "SchemaAST.resolveAt(\"documentation\")"
+  replacement: 'SchemaAST.resolveAt("documentation")'
   note: "Resolve the string-keyed documentation annotation."
 "effect/SchemaAST#getExamplesAnnotation":
-  replacement: "SchemaAST.resolveAt(\"examples\")"
+  replacement: 'SchemaAST.resolveAt("examples")'
   note: "Resolve the string-keyed examples annotation."
 "effect/SchemaAST#getIdentifierAnnotation":
   replacement: "SchemaAST.resolveIdentifier"
@@ -152,13 +152,13 @@
   replacement: "SchemaAST.resolveIdentifier"
   note: "The separate JSON identifier annotation was removed; use identifier."
 "effect/SchemaAST#getJSONSchemaAnnotation":
-  replacement: "SchemaAST.resolveAt(\"toJsonSchema\")"
+  replacement: 'SchemaAST.resolveAt("toJsonSchema")'
   note: "JSON Schema generation hooks use the string-keyed toJsonSchema annotation on checks."
 "effect/SchemaAST#getMessageAnnotation":
-  replacement: "SchemaAST.resolveAt(\"message\")"
+  replacement: 'SchemaAST.resolveAt("message")'
   note: "Resolve the string-keyed message annotation."
 "effect/SchemaAST#getMissingMessageAnnotation":
-  replacement: "SchemaAST.resolveAt(\"messageMissingKey\")"
+  replacement: 'SchemaAST.resolveAt("messageMissingKey")'
   note: "Missing-key messages use the messageMissingKey key."
 "effect/SchemaAST#getParseIssueTitleAnnotation":
   replacement: "none"
@@ -173,7 +173,7 @@
   replacement: "SchemaAST.resolveIdentifier"
   note: "Schema IDs were consolidated into the identifier annotation."
 "effect/SchemaAST#getSurrogateAnnotation":
-  replacement: "SchemaAST.resolveAt(\"representation\")"
+  replacement: 'SchemaAST.resolveAt("representation")'
   note: "Surrogate AST annotations were replaced by representation annotations and declaration codec hooks."
 "effect/SchemaAST#getTemplateLiteralCapturingRegExp":
   replacement: "none"
@@ -185,13 +185,13 @@
   replacement: "SchemaAST.resolveTitle"
   note: "Use the dedicated resolved-title helper."
 "effect/SchemaAST#getTypeConstructorAnnotation":
-  replacement: "SchemaAST.resolveAt(\"toCodec\")"
+  replacement: 'SchemaAST.resolveAt("toCodec")'
   note: "Type-constructor behavior moved to declaration codec annotations."
 "effect/SchemaAST#IdentifierAnnotation":
-  replacement: "Schema.Annotations.Bottom[\"identifier\"]"
+  replacement: 'Schema.Annotations.Bottom["identifier"]'
   note: "Identifiers are string-keyed schema annotations in v4."
 "effect/SchemaAST#IdentifierAnnotationId":
-  replacement: "Schema.Annotations.Bottom[\"identifier\"]"
+  replacement: 'Schema.Annotations.Bottom["identifier"]'
   note: "Symbol annotation IDs were removed; use the identifier key."
 "effect/SchemaAST#IndexSignature":
   replacement: "SchemaAST.IndexSignature"
@@ -254,13 +254,13 @@
   replacement: "SchemaAST.isVoid"
   note: "The v4 SchemaAST redesign renamed this primitive, collection, or guard while preserving its role."
 "effect/SchemaAST#JSONIdentifierAnnotationId":
-  replacement: "Schema.Annotations.Bottom[\"identifier\"]"
+  replacement: 'Schema.Annotations.Bottom["identifier"]'
   note: "The separate JSON identifier symbol was removed; use identifier."
 "effect/SchemaAST#JSONSchemaAnnotation":
   replacement: "JsonSchema.JsonSchema"
   note: "JSON Schema values use the v4 JsonSchema model; generation hooks use Schema representation annotations."
 "effect/SchemaAST#JSONSchemaAnnotationId":
-  replacement: "Schema.Annotations.Filter[\"toJsonSchema\"]"
+  replacement: 'Schema.Annotations.Filter["toJsonSchema"]'
   note: "The symbol annotation was replaced by the toJsonSchema key on check annotations."
 "effect/SchemaAST#keyof":
   replacement: "none"
@@ -278,16 +278,16 @@
   replacement: "ReadonlyArray<SchemaAST.AST>"
   note: "Union members are ordinary readonly arrays in v4."
 "effect/SchemaAST#MessageAnnotation":
-  replacement: "Schema.Annotations.Bottom[\"message\"]"
+  replacement: 'Schema.Annotations.Bottom["message"]'
   note: "Messages are string-keyed annotations and no longer receive the old ParseIssue callback shape."
 "effect/SchemaAST#MessageAnnotationId":
-  replacement: "Schema.Annotations.Bottom[\"message\"]"
+  replacement: 'Schema.Annotations.Bottom["message"]'
   note: "Symbol annotation IDs were removed; use the message key."
 "effect/SchemaAST#MissingMessageAnnotation":
-  replacement: "Schema.Annotations.Key[\"messageMissingKey\"]"
+  replacement: 'Schema.Annotations.Key["messageMissingKey"]'
   note: "Missing-key messages use the messageMissingKey key."
 "effect/SchemaAST#MissingMessageAnnotationId":
-  replacement: "Schema.Annotations.Key[\"messageMissingKey\"]"
+  replacement: 'Schema.Annotations.Key["messageMissingKey"]'
   note: "Symbol annotation IDs were removed; use messageMissingKey."
 "effect/SchemaAST#mutable":
   replacement: "Schema.mutable"
@@ -353,10 +353,10 @@
   replacement: "Schema.mapFields + Struct.map(Schema.requiredKey)"
   note: "Required object transforms moved to schema field transforms."
 "effect/SchemaAST#SchemaIdAnnotation":
-  replacement: "Schema.Annotations.Bottom[\"identifier\"]"
+  replacement: 'Schema.Annotations.Bottom["identifier"]'
   note: "Schema IDs were consolidated into identifier annotations."
 "effect/SchemaAST#SchemaIdAnnotationId":
-  replacement: "Schema.Annotations.Bottom[\"identifier\"]"
+  replacement: 'Schema.Annotations.Bottom["identifier"]'
   note: "Symbol annotation IDs were removed; use identifier."
 "effect/SchemaAST#stringKeyword":
   replacement: "SchemaAST.string"
@@ -368,7 +368,7 @@
   replacement: "SchemaRepresentation.RepresentationAnnotation"
   note: "Surrogate AST metadata was replaced by schema representation annotations and declaration codec hooks."
 "effect/SchemaAST#SurrogateAnnotationId":
-  replacement: "Schema.Annotations.Declaration[\"representation\"]"
+  replacement: 'Schema.Annotations.Declaration["representation"]'
   note: "The symbol annotation was replaced by the representation key."
 "effect/SchemaAST#Suspend":
   replacement: "SchemaAST.Suspend"
@@ -386,10 +386,10 @@
   replacement: "SchemaAST.TemplateLiteral"
   note: "Template literal parts are represented directly as AST values in v4."
 "effect/SchemaAST#TitleAnnotation":
-  replacement: "Schema.Annotations.Augment[\"title\"]"
+  replacement: 'Schema.Annotations.Augment["title"]'
   note: "Titles are string-keyed schema annotations in v4."
 "effect/SchemaAST#TitleAnnotationId":
-  replacement: "Schema.Annotations.Augment[\"title\"]"
+  replacement: 'Schema.Annotations.Augment["title"]'
   note: "Symbol annotation IDs were removed; use title."
 "effect/SchemaAST#Transformation":
   replacement: "SchemaAST.Link"
@@ -407,10 +407,10 @@
   replacement: "SchemaAST.toType"
   note: "The type-side projection helper was renamed."
 "effect/SchemaAST#TypeConstructorAnnotation":
-  replacement: "Schema.Annotations.Declaration[\"toCodec\"]"
+  replacement: 'Schema.Annotations.Declaration["toCodec"]'
   note: "Type-constructor behavior moved to declaration codec annotations."
 "effect/SchemaAST#TypeConstructorAnnotationId":
-  replacement: "Schema.Annotations.Declaration[\"toCodec\"]"
+  replacement: 'Schema.Annotations.Declaration["toCodec"]'
   note: "Symbol annotation IDs were removed; use declaration codec annotation keys."
 "effect/SchemaAST#TypeLiteral":
   replacement: "SchemaAST.Objects"

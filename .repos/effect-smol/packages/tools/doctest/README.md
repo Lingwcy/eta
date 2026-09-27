@@ -27,7 +27,7 @@ Mark runnable fences with `import.meta.vitest`:
  * 1 + 1 // => 2
  * ```
  */
-export const value = 1
+export const value = 1;
 ````
 
 The optional `name="..."` metadata labels the test without appearing in the example body. Unnamed examples use the opening fence line, such as `line 12`; Vitest displays the containing file alongside it.
@@ -45,7 +45,7 @@ Add a trailing `// =>` comment to assert the value of an expression:
  * Array.get([1, 2, 3], 10) // => Option.none()
  * ```
  */
-export const value = 1
+export const value = 1;
 ````
 
 The expected value is a TypeScript expression evaluated in the same lexical scope. Values are compared with Effect's `Equal.equals` semantics, so the convention supports primitives, arrays, plain objects, and Effect data types such as `Option`, `Result`, `Exit`, and `HashMap` without converting them to console output.
@@ -63,7 +63,7 @@ An assertion may also trail a single initialized `const` declaration with an ide
  * Option.isSome(result) // => true
  * ```
  */
-export const value = 1
+export const value = 1;
 ````
 
 Markers must trail a complete expression statement or supported `const` declaration on the same line. Standalone markers, destructuring declarations, multiple declarations, and `let` or `var` declarations are not supported. The transform does not implicitly await promises, run Effects, or consume iterators; write those operations explicitly. Ordinary comments are ignored. Await asynchronous work so all assertions and cleanup occur before the snippet module finishes evaluating.
@@ -71,16 +71,16 @@ Markers must trail a complete expression statement or supported `const` declarat
 Regular tests can use `include` in the same project. Documentation sources use `includeSource`, which lets Vitest discard files without the marker before collection. The plugin resolves imports relative to each example's original TypeScript, Markdown, or MDX file:
 
 ```ts
-import * as Doctest from "@effect/doctest/Plugin"
-import { defineConfig } from "vitest/config"
+import * as Doctest from "@effect/doctest/Plugin";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [Doctest.plugin()],
   test: {
     include: ["test/**/*.test.ts"],
-    includeSource: ["src/**/*.ts", "docs/**/*.{md,mdx}"]
-  }
-})
+    includeSource: ["src/**/*.ts", "docs/**/*.{md,mdx}"],
+  },
+});
 ```
 
 Source files selected by `includeSource` are collected through generated doctest collectors and are not executed. Native in-source tests using `import.meta.vitest` are therefore not supported by this plugin. Regular test files included through `test.include` continue to run normally.

@@ -10,11 +10,15 @@
  *
  * @since 4.0.0
  */
-import * as Context from "effect/Context"
-import * as Layer from "effect/Layer"
-import * as Predicate from "effect/Predicate"
-import type { ParsedOpenApi, ParsedOperation, ParsedOperationHttpClientResponses } from "./ParsedOperation.ts"
-import * as Utils from "./Utils.ts"
+import * as Context from "effect/Context";
+import * as Layer from "effect/Layer";
+import * as Predicate from "effect/Predicate";
+import type {
+  ParsedOpenApi,
+  ParsedOperation,
+  ParsedOperationHttpClientResponses,
+} from "./ParsedOperation.ts";
+import * as Utils from "./Utils.ts";
 
 /**
  * Service used by the OpenAPI generator to render parsed operations as an
@@ -32,72 +36,79 @@ import * as Utils from "./Utils.ts"
 export class OpenApiTransformer extends Context.Service<
   OpenApiTransformer,
   {
-    readonly imports: (importName: string, parsed: ParsedOpenApi) => string
-    readonly toTypes: (importName: string, name: string, parsed: ParsedOpenApi) => string
-    readonly toImplementation: (importName: string, name: string, parsed: ParsedOpenApi) => string
+    readonly imports: (importName: string, parsed: ParsedOpenApi) => string;
+    readonly toTypes: (importName: string, name: string, parsed: ParsedOpenApi) => string;
+    readonly toImplementation: (importName: string, name: string, parsed: ParsedOpenApi) => string;
   }
 >()("OpenApiTransformer") {}
 
 interface ImportRequirements {
-  readonly eventStream: boolean
-  readonly eventStreamData: boolean
-  readonly eventStreamSchema: boolean
-  readonly octetStream: boolean
+  readonly eventStream: boolean;
+  readonly eventStreamData: boolean;
+  readonly eventStreamSchema: boolean;
+  readonly octetStream: boolean;
 }
 
-const computeImportRequirements = (operations: ReadonlyArray<ParsedOperation>): ImportRequirements => {
-  let eventStream = false
-  let eventStreamData = false
-  let eventStreamSchema = false
-  let octetStream = false
+const computeImportRequirements = (
+  operations: ReadonlyArray<ParsedOperation>,
+): ImportRequirements => {
+  let eventStream = false;
+  let eventStreamData = false;
+  let eventStreamSchema = false;
+  let octetStream = false;
   for (const op of operations) {
-    const responses = op.httpClientResponses
+    const responses = op.httpClientResponses;
     if (responses.sseSchema) {
-      eventStream = true
+      eventStream = true;
       if (responses.sseSchemaMode === "event") {
-        eventStreamSchema = true
+        eventStreamSchema = true;
       } else {
-        eventStreamData = true
+        eventStreamData = true;
       }
     }
     if (responses.binarySuccessStatuses.size > 0) {
-      octetStream = true
+      octetStream = true;
     }
   }
-  return { eventStream, eventStreamData, eventStreamSchema, octetStream }
-}
+  return { eventStream, eventStreamData, eventStreamSchema, octetStream };
+};
 
 const requiresStreaming = (requirements: ImportRequirements): boolean =>
-  requirements.eventStream || requirements.octetStream
+  requirements.eventStream || requirements.octetStream;
 
 const hasResponseVariants = (responses: ParsedOperationHttpClientResponses): boolean =>
   responses.binarySuccessStatuses.size > 0 ||
   responses.voidSuccessStatuses.size > 0 ||
-  responses.voidErrorStatuses.size > 0
+  responses.voidErrorStatuses.size > 0;
 
 const normalizeSuccessStatus = (
   responses: ParsedOperationHttpClientResponses,
-  status: string
+  status: string,
 ): string => {
-  const successCount = responses.successSchemas.size +
+  const successCount =
+    responses.successSchemas.size +
     responses.binarySuccessStatuses.size +
-    responses.voidSuccessStatuses.size
-  return successCount === 1 && status.startsWith("2") ? "2xx" : status
-}
+    responses.voidSuccessStatuses.size;
+  return successCount === 1 && status.startsWith("2") ? "2xx" : status;
+};
 
-const requestToImpl = (operation: ParsedOperation, pipeline: Array<string>, streaming = false): string => {
-  const request = `HttpClientRequest.${operation.method}`
-  const pipe = `.pipe(\n      ${pipeline.join(",\n      ")}\n    )`
+const requestToImpl = (
+  operation: ParsedOperation,
+  pipeline: Array<string>,
+  streaming = false,
+): string => {
+  const request = `HttpClientRequest.${operation.method}`;
+  const pipe = `.pipe(\n      ${pipeline.join(",\n      ")}\n    )`;
   if (operation.pathIds.length === 0) {
-    return `${request}(${operation.pathTemplate})${pipe}`
+    return `${request}(${operation.pathTemplate})${pipe}`;
   }
-  const effect = `__makePathRequest(${request}, [${
-    operation.pathIds.join(", ")
-  }], () => ${operation.pathTemplate}).pipe(
+  const effect = `__makePathRequest(${request}, [${operation.pathIds.join(
+    ", ",
+  )}], () => ${operation.pathTemplate}).pipe(
     Effect.${streaming ? "map" : "flatMap"}((request) => request${pipe})
-  )`
-  return streaming ? `Stream.unwrap(${effect})` : effect
-}
+  )`;
+  return streaming ? `Stream.unwrap(${effect})` : effect;
+};
 
 /**
  * Create the transformer used for schema-backed HttpClient output.
@@ -115,16 +126,16 @@ export const makeTransformerSchema = () => {
   const operationsToInterface = (
     _importName: string,
     name: string,
-    operations: ReadonlyArray<ParsedOperation>
+    operations: ReadonlyArray<ParsedOperation>,
   ) => {
-    const methods: Array<string> = []
+    const methods: Array<string> = [];
     for (const op of operations) {
-      methods.push(operationToMethod(name, op))
+      methods.push(operationToMethod(name, op));
       if (op.httpClientResponses.sseSchema) {
-        methods.push(operationToSseMethod(name, op))
+        methods.push(operationToSseMethod(name, op));
       }
       if (op.httpClientResponses.binarySuccessStatuses.size > 0) {
-        methods.push(operationToBinaryMethod(name, op))
+        methods.push(operationToBinaryMethod(name, op));
       }
     }
     return `export interface ${name} {
@@ -132,167 +143,178 @@ export const makeTransformerSchema = () => {
   ${methods.join("\n  ")}
 }
 
-${clientErrorSource(name)}`
-  }
+${clientErrorSource(name)}`;
+  };
 
   const operationToMethod = (name: string, operation: ParsedOperation) => {
-    const responses = operation.httpClientResponses
-    const args: Array<string> = []
+    const responses = operation.httpClientResponses;
+    const args: Array<string> = [];
     if (operation.pathIds.length > 0) {
-      Utils.spreadElementsInto(operation.pathIds.map((id) => `${id}: string`), args)
+      Utils.spreadElementsInto(
+        operation.pathIds.map((id) => `${id}: string`),
+        args,
+      );
     }
 
-    const options: Array<string> = []
+    const options: Array<string> = [];
     if (operation.params) {
-      const key = `readonly params${operation.paramsOptional ? "?" : ""}`
-      const type = `typeof ${operation.params}.Encoded${operation.paramsOptional ? " | undefined" : ""}`
-      options.push(`${key}: ${type}`)
+      const key = `readonly params${operation.paramsOptional ? "?" : ""}`;
+      const type = `typeof ${operation.params}.Encoded${operation.paramsOptional ? " | undefined" : ""}`;
+      options.push(`${key}: ${type}`);
     }
     if (operation.payload) {
-      const key = `readonly payload`
-      const type = `typeof ${operation.payload}.Encoded`
-      options.push(`${key}: ${type}`)
+      const key = `readonly payload`;
+      const type = `typeof ${operation.payload}.Encoded`;
+      options.push(`${key}: ${type}`);
     }
-    options.push("readonly config?: Config | undefined")
+    options.push("readonly config?: Config | undefined");
 
     // If all options are optional, the argument itself should be optional
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions) {
-      args.push(`options: { ${options.join("; ")} }`)
+      args.push(`options: { ${options.join("; ")} }`);
     } else {
-      args.push(`options: { ${options.join("; ")} } | undefined`)
+      args.push(`options: { ${options.join("; ")} } | undefined`);
     }
 
-    const successTypes = new Set(Array.from(responses.successSchemas.values(), (schema) => `typeof ${schema}.Type`))
+    const successTypes = new Set(
+      Array.from(responses.successSchemas.values(), (schema) => `typeof ${schema}.Type`),
+    );
     if (responses.binarySuccessStatuses.size > 0) {
-      successTypes.add("Uint8Array")
+      successTypes.add("Uint8Array");
     }
     if (responses.voidSuccessStatuses.size > 0) {
-      successTypes.add("void")
+      successTypes.add("void");
     }
-    const success = successTypes.size > 0 ? Array.from(successTypes).join(" | ") : "void"
-    const errors = ["HttpClientError.HttpClientError", "SchemaError"]
+    const success = successTypes.size > 0 ? Array.from(successTypes).join(" | ") : "void";
+    const errors = ["HttpClientError.HttpClientError", "SchemaError"];
     if (responses.errorSchemas.size > 0) {
       Utils.spreadElementsInto(
         Array.from(responses.errorSchemas.values()).map(
-          (schema) => `${name}Error<"${schema}", typeof ${schema}.Type>`
+          (schema) => `${name}Error<"${schema}", typeof ${schema}.Type>`,
         ),
-        errors
-      )
+        errors,
+      );
     }
     for (const status of responses.voidErrorStatuses) {
-      errors.push(`${name}Error<"${status}", undefined>`)
+      errors.push(`${name}Error<"${status}", undefined>`);
     }
 
-    const jsdoc = Utils.toComment(operation.description)
-    const methodKey = `readonly "${operation.id}"`
-    const generic = `<Config extends OperationConfig>`
-    const parameters = args.join(", ")
-    const returnType = `Effect.Effect<WithOptionalResponse<${success}, Config>, ${errors.join(" | ")}>`
-    return `${jsdoc}${methodKey}: ${generic}(${parameters}) => ${returnType}`
-  }
+    const jsdoc = Utils.toComment(operation.description);
+    const methodKey = `readonly "${operation.id}"`;
+    const generic = `<Config extends OperationConfig>`;
+    const parameters = args.join(", ");
+    const returnType = `Effect.Effect<WithOptionalResponse<${success}, Config>, ${errors.join(" | ")}>`;
+    return `${jsdoc}${methodKey}: ${generic}(${parameters}) => ${returnType}`;
+  };
 
   const operationToSseMethod = (_name: string, operation: ParsedOperation) => {
-    const responses = operation.httpClientResponses
-    const args: Array<string> = []
+    const responses = operation.httpClientResponses;
+    const args: Array<string> = [];
     if (operation.pathIds.length > 0) {
-      Utils.spreadElementsInto(operation.pathIds.map((id) => `${id}: string`), args)
+      Utils.spreadElementsInto(
+        operation.pathIds.map((id) => `${id}: string`),
+        args,
+      );
     }
 
-    const options: Array<string> = []
+    const options: Array<string> = [];
     if (operation.params) {
-      const key = `readonly params${operation.paramsOptional ? "?" : ""}`
-      const type = `typeof ${operation.params}.Encoded${operation.paramsOptional ? " | undefined" : ""}`
-      options.push(`${key}: ${type}`)
+      const key = `readonly params${operation.paramsOptional ? "?" : ""}`;
+      const type = `typeof ${operation.params}.Encoded${operation.paramsOptional ? " | undefined" : ""}`;
+      options.push(`${key}: ${type}`);
     }
     if (operation.payload) {
-      options.push(`readonly payload: typeof ${operation.payload}.Encoded`)
+      options.push(`readonly payload: typeof ${operation.payload}.Encoded`);
     }
 
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions) {
-      args.push(`options: { ${options.join("; ")} }`)
+      args.push(`options: { ${options.join("; ")} }`);
     } else if (options.length > 0) {
-      args.push(`options: { ${options.join("; ")} } | undefined`)
+      args.push(`options: { ${options.join("; ")} } | undefined`);
     }
 
-    const jsdoc = Utils.toComment(operation.description)
-    const methodKey = `readonly "${operation.id}Sse"`
-    const parameters = args.join(", ")
-    const value = responses.sseSchemaMode === "event"
-      ? `typeof ${responses.sseSchema}.Type`
-      : `{ readonly event: string; readonly id: string | undefined; readonly data: typeof ${responses.sseSchema}.Type }`
-    const returnType =
-      `Stream.Stream<${value}, HttpClientError.HttpClientError | SchemaError | Sse.Retry | Sse.SseError, typeof ${responses.sseSchema}.DecodingServices>`
-    return `${jsdoc}${methodKey}: (${parameters}) => ${returnType}`
-  }
+    const jsdoc = Utils.toComment(operation.description);
+    const methodKey = `readonly "${operation.id}Sse"`;
+    const parameters = args.join(", ");
+    const value =
+      responses.sseSchemaMode === "event"
+        ? `typeof ${responses.sseSchema}.Type`
+        : `{ readonly event: string; readonly id: string | undefined; readonly data: typeof ${responses.sseSchema}.Type }`;
+    const returnType = `Stream.Stream<${value}, HttpClientError.HttpClientError | SchemaError | Sse.Retry | Sse.SseError, typeof ${responses.sseSchema}.DecodingServices>`;
+    return `${jsdoc}${methodKey}: (${parameters}) => ${returnType}`;
+  };
 
   const operationToBinaryMethod = (_name: string, operation: ParsedOperation) => {
-    const args: Array<string> = []
+    const args: Array<string> = [];
     if (operation.pathIds.length > 0) {
-      Utils.spreadElementsInto(operation.pathIds.map((id) => `${id}: string`), args)
+      Utils.spreadElementsInto(
+        operation.pathIds.map((id) => `${id}: string`),
+        args,
+      );
     }
 
-    const options: Array<string> = []
+    const options: Array<string> = [];
     if (operation.params) {
-      const key = `readonly params${operation.paramsOptional ? "?" : ""}`
-      const type = `typeof ${operation.params}.Encoded${operation.paramsOptional ? " | undefined" : ""}`
-      options.push(`${key}: ${type}`)
+      const key = `readonly params${operation.paramsOptional ? "?" : ""}`;
+      const type = `typeof ${operation.params}.Encoded${operation.paramsOptional ? " | undefined" : ""}`;
+      options.push(`${key}: ${type}`);
     }
     if (operation.payload) {
-      options.push(`readonly payload: typeof ${operation.payload}.Encoded`)
+      options.push(`readonly payload: typeof ${operation.payload}.Encoded`);
     }
 
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions) {
-      args.push(`options: { ${options.join("; ")} }`)
+      args.push(`options: { ${options.join("; ")} }`);
     } else if (options.length > 0) {
-      args.push(`options: { ${options.join("; ")} } | undefined`)
+      args.push(`options: { ${options.join("; ")} } | undefined`);
     }
 
-    const jsdoc = Utils.toComment(operation.description)
-    const methodKey = `readonly "${operation.id}Stream"`
-    const parameters = args.join(", ")
-    const returnType = `Stream.Stream<Uint8Array, HttpClientError.HttpClientError>`
-    return `${jsdoc}${methodKey}: (${parameters}) => ${returnType}`
-  }
+    const jsdoc = Utils.toComment(operation.description);
+    const methodKey = `readonly "${operation.id}Stream"`;
+    const parameters = args.join(", ");
+    const returnType = `Stream.Stream<Uint8Array, HttpClientError.HttpClientError>`;
+    return `${jsdoc}${methodKey}: (${parameters}) => ${returnType}`;
+  };
 
   const operationsToImpl = (
     importName: string,
     name: string,
-    operations: ReadonlyArray<ParsedOperation>
+    operations: ReadonlyArray<ParsedOperation>,
   ) => {
-    const requirements = computeImportRequirements(operations)
-    const implMethods: Array<string> = []
+    const requirements = computeImportRequirements(operations);
+    const implMethods: Array<string> = [];
     for (const op of operations) {
-      implMethods.push(operationToImpl(op))
+      implMethods.push(operationToImpl(op));
       if (op.httpClientResponses.sseSchema) {
-        implMethods.push(operationToSseImpl(importName, op))
+        implMethods.push(operationToSseImpl(importName, op));
       }
       if (op.httpClientResponses.binarySuccessStatuses.size > 0) {
-        implMethods.push(operationToBinaryImpl(op))
+        implMethods.push(operationToBinaryImpl(op));
       }
     }
 
-    const helpers: Array<string> = [commonSource]
+    const helpers: Array<string> = [commonSource];
     if (operations.some((operation) => operation.pathIds.length > 0)) {
-      helpers.push(pathRequestSource)
+      helpers.push(pathRequestSource);
     }
     if (requiresStreaming(requirements)) {
-      helpers.push(executeStreamRequestSource)
+      helpers.push(executeStreamRequestSource);
     }
     if (requirements.eventStreamData) {
-      helpers.push(sseRequestSource(importName))
+      helpers.push(sseRequestSource(importName));
     }
     if (requirements.eventStreamSchema) {
-      helpers.push(sseEventRequestSource)
+      helpers.push(sseEventRequestSource);
     }
     if (requirements.octetStream) {
-      helpers.push(decodeBinarySource)
-      helpers.push(binaryRequestSource)
+      helpers.push(decodeBinarySource);
+      helpers.push(binaryRequestSource);
     }
     if (operations.some((operation) => operation.httpClientResponses.voidErrorStatuses.size > 0)) {
-      helpers.push(decodeVoidErrorSource(name))
+      helpers.push(decodeVoidErrorSource(name));
     }
     return `export interface OperationConfig {
   /**
@@ -338,189 +360,184 @@ export const make = (
     httpClient,
     ${implMethods.join(",\n    ")}
   }
-}`
-  }
+}`;
+  };
 
   const operationToImpl = (operation: ParsedOperation) => {
-    const responses = operation.httpClientResponses
-    const args: Array<string> = [...operation.pathIds, "options"]
-    const params = `${args.join(", ")}`
+    const responses = operation.httpClientResponses;
+    const args: Array<string> = [...operation.pathIds, "options"];
+    const params = `${args.join(", ")}`;
 
-    const pipeline: Array<string> = []
+    const pipeline: Array<string> = [];
 
     if (operation.params) {
-      const paramsAccessor = resolveParamsAccessor(operation, "options", "params")
+      const paramsAccessor = resolveParamsAccessor(operation, "options", "params");
 
       if (operation.urlParams.length > 0) {
         const props = operation.urlParams.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`
-        )
-        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`,
+        );
+        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`);
       }
       if (operation.headers.length > 0) {
         const props = operation.headers.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`
-        )
-        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`,
+        );
+        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`);
       }
     }
 
-    const payloadVarName = "options.payload"
+    const payloadVarName = "options.payload";
     if (operation.payloadFormData) {
-      pipeline.push(`HttpClientRequest.bodyFormDataRecord(${payloadVarName} as any)`)
+      pipeline.push(`HttpClientRequest.bodyFormDataRecord(${payloadVarName} as any)`);
     } else if (operation.payloadFormUrlEncoded) {
-      pipeline.push(`HttpClientRequest.bodyUrlParams(${payloadVarName} as any)`)
+      pipeline.push(`HttpClientRequest.bodyUrlParams(${payloadVarName} as any)`);
     } else if (operation.payload) {
-      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(${payloadVarName})`)
+      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(${payloadVarName})`);
     }
 
-    const decodes: Array<string> = []
+    const decodes: Array<string> = [];
     responses.successSchemas.forEach((schema, status) => {
-      decodes.push(`"${normalizeSuccessStatus(responses, status)}": decodeSuccess(${schema})`)
-    })
+      decodes.push(`"${normalizeSuccessStatus(responses, status)}": decodeSuccess(${schema})`);
+    });
     responses.binarySuccessStatuses.forEach((status) => {
-      decodes.push(`"${normalizeSuccessStatus(responses, status)}": decodeBinary`)
-    })
+      decodes.push(`"${normalizeSuccessStatus(responses, status)}": decodeBinary`);
+    });
     responses.errorSchemas.forEach((schema, status) => {
-      decodes.push(`"${status}": decodeError("${schema}", ${schema})`)
-    })
+      decodes.push(`"${status}": decodeError("${schema}", ${schema})`);
+    });
     responses.voidSuccessStatuses.forEach((status) => {
-      decodes.push(`"${status}": () => Effect.void`)
-    })
+      decodes.push(`"${status}": () => Effect.void`);
+    });
     responses.voidErrorStatuses.forEach((status) => {
-      decodes.push(`"${status}": decodeVoidError("${status}")`)
-    })
-    decodes.push(`orElse: unexpectedStatus`)
+      decodes.push(`"${status}": decodeVoidError("${status}")`);
+    });
+    decodes.push(`orElse: unexpectedStatus`);
 
-    const configAccessor = resolveConfigAccessor(operation, "options", "config")
+    const configAccessor = resolveConfigAccessor(operation, "options", "config");
     pipeline.push(`withResponse(${configAccessor})(HttpClientResponse.matchStatus({
       ${decodes.join(",\n      ")}
-    }))`)
+    }))`);
 
-    return (
-      `"${operation.id}": (${params}) => ` +
-      requestToImpl(operation, pipeline)
-    )
-  }
+    return `"${operation.id}": (${params}) => ` + requestToImpl(operation, pipeline);
+  };
 
   const operationToSseImpl = (_importName: string, operation: ParsedOperation) => {
-    const responses = operation.httpClientResponses
-    const args: Array<string> = [...operation.pathIds]
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const responses = operation.httpClientResponses;
+    const args: Array<string> = [...operation.pathIds];
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions || operation.params || operation.payload) {
-      args.push("options")
+      args.push("options");
     }
-    const params = args.join(", ")
+    const params = args.join(", ");
 
-    const pipeline: Array<string> = []
+    const pipeline: Array<string> = [];
 
     if (operation.params) {
-      const paramsAccessor = resolveParamsAccessor(operation, "options", "params")
+      const paramsAccessor = resolveParamsAccessor(operation, "options", "params");
       if (operation.urlParams.length > 0) {
         const props = operation.urlParams.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`
-        )
-        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`,
+        );
+        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`);
       }
       if (operation.headers.length > 0) {
         const props = operation.headers.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`
-        )
-        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`,
+        );
+        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`);
       }
     }
 
     if (operation.payloadFormData) {
-      pipeline.push(`HttpClientRequest.bodyFormDataRecord(options.payload as any)`)
+      pipeline.push(`HttpClientRequest.bodyFormDataRecord(options.payload as any)`);
     } else if (operation.payloadFormUrlEncoded) {
-      pipeline.push(`HttpClientRequest.bodyUrlParams(options.payload as any)`)
+      pipeline.push(`HttpClientRequest.bodyUrlParams(options.payload as any)`);
     } else if (operation.payload) {
-      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(options.payload)`)
+      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(options.payload)`);
     }
 
-    pipeline.push(`${responses.sseSchemaMode === "event" ? "sseEventRequest" : "sseRequest"}(${responses.sseSchema})`)
+    pipeline.push(
+      `${responses.sseSchemaMode === "event" ? "sseEventRequest" : "sseRequest"}(${responses.sseSchema})`,
+    );
 
-    return (
-      `"${operation.id}Sse": (${params}) => ` +
-      requestToImpl(operation, pipeline, true)
-    )
-  }
+    return `"${operation.id}Sse": (${params}) => ` + requestToImpl(operation, pipeline, true);
+  };
 
   const operationToBinaryImpl = (operation: ParsedOperation) => {
-    const args: Array<string> = [...operation.pathIds]
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const args: Array<string> = [...operation.pathIds];
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions || operation.params || operation.payload) {
-      args.push("options")
+      args.push("options");
     }
-    const params = args.join(", ")
+    const params = args.join(", ");
 
-    const pipeline: Array<string> = []
+    const pipeline: Array<string> = [];
 
     if (operation.params) {
-      const paramsAccessor = resolveParamsAccessor(operation, "options", "params")
+      const paramsAccessor = resolveParamsAccessor(operation, "options", "params");
       if (operation.urlParams.length > 0) {
         const props = operation.urlParams.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`
-        )
-        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`,
+        );
+        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`);
       }
       if (operation.headers.length > 0) {
         const props = operation.headers.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`
-        )
-        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`,
+        );
+        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`);
       }
     }
 
     if (operation.payloadFormData) {
-      pipeline.push(`HttpClientRequest.bodyFormDataRecord(options.payload as any)`)
+      pipeline.push(`HttpClientRequest.bodyFormDataRecord(options.payload as any)`);
     } else if (operation.payloadFormUrlEncoded) {
-      pipeline.push(`HttpClientRequest.bodyUrlParams(options.payload as any)`)
+      pipeline.push(`HttpClientRequest.bodyUrlParams(options.payload as any)`);
     } else if (operation.payload) {
-      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(options.payload)`)
+      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(options.payload)`);
     }
 
-    pipeline.push(`binaryRequest`)
+    pipeline.push(`binaryRequest`);
 
-    return (
-      `"${operation.id}Stream": (${params}) => ` +
-      requestToImpl(operation, pipeline, true)
-    )
-  }
+    return `"${operation.id}Stream": (${params}) => ` + requestToImpl(operation, pipeline, true);
+  };
 
   return OpenApiTransformer.of({
     imports: (importName, parsed) => {
-      const operations = parsed.operations
-      const requirements = computeImportRequirements(operations)
+      const operations = parsed.operations;
+      const requirements = computeImportRequirements(operations);
       const imports = [
         `import * as Data from "effect/Data"`,
         `import * as Effect from "effect/Effect"`,
         `import type { SchemaError } from "effect/Schema"`,
-        `import * as ${importName} from "effect/Schema"`
-      ]
+        `import * as ${importName} from "effect/Schema"`,
+      ];
       if (requiresStreaming(requirements)) {
-        imports.push(`import * as Stream from "effect/Stream"`)
+        imports.push(`import * as Stream from "effect/Stream"`);
       }
       if (requirements.eventStream) {
-        imports.push(`import * as Sse from "effect/unstable/encoding/Sse"`)
+        imports.push(`import * as Sse from "effect/unstable/encoding/Sse"`);
       }
       // HttpClient needs to be a value import when streaming is used (for filterStatusOk)
       if (requiresStreaming(requirements)) {
-        imports.push(`import * as HttpClient from "effect/unstable/http/HttpClient"`)
+        imports.push(`import * as HttpClient from "effect/unstable/http/HttpClient"`);
       } else {
-        imports.push(`import type * as HttpClient from "effect/unstable/http/HttpClient"`)
+        imports.push(`import type * as HttpClient from "effect/unstable/http/HttpClient"`);
       }
       imports.push(
         `import * as HttpClientError from "effect/unstable/http/HttpClientError"`,
         `import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"`,
-        `import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"`
-      )
-      return imports.join("\n")
+        `import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"`,
+      );
+      return imports.join("\n");
     },
-    toTypes: (importName, name, parsed) => operationsToInterface(importName, name, parsed.operations),
-    toImplementation: (importName, name, parsed) => operationsToImpl(importName, name, parsed.operations)
-  })
-}
+    toTypes: (importName, name, parsed) =>
+      operationsToInterface(importName, name, parsed.operations),
+    toImplementation: (importName, name, parsed) =>
+      operationsToImpl(importName, name, parsed.operations),
+  });
+};
 
 /**
  * Layer that provides the schema-backed OpenApiTransformer service.
@@ -533,10 +550,7 @@ export const make = (
  * @category layers
  * @since 4.0.0
  */
-export const layerTransformerSchema = Layer.sync(
-  OpenApiTransformer,
-  makeTransformerSchema
-)
+export const layerTransformerSchema = Layer.sync(OpenApiTransformer, makeTransformerSchema);
 
 /**
  * Create the transformer used for type-only HttpClient output.
@@ -555,16 +569,16 @@ export const makeTransformerTs = () => {
   const operationsToInterface = (
     _importName: string,
     name: string,
-    operations: ReadonlyArray<ParsedOperation>
+    operations: ReadonlyArray<ParsedOperation>,
   ) => {
-    const methods: Array<string> = []
+    const methods: Array<string> = [];
     for (const op of operations) {
-      methods.push(operationToMethod(name, op))
+      methods.push(operationToMethod(name, op));
       if (op.httpClientResponses.sseSchema) {
-        methods.push(operationToSseMethod(op))
+        methods.push(operationToSseMethod(op));
       }
       if (op.httpClientResponses.binarySuccessStatuses.size > 0) {
-        methods.push(operationToBinaryMethod(op))
+        methods.push(operationToBinaryMethod(op));
       }
     }
     return `export interface ${name} {
@@ -572,157 +586,168 @@ export const makeTransformerTs = () => {
   ${methods.join("\n  ")}
 }
 
-${clientErrorSource(name)}`
-  }
+${clientErrorSource(name)}`;
+  };
 
   const operationToMethod = (name: string, operation: ParsedOperation) => {
-    const responses = operation.httpClientResponses
-    const args: Array<string> = []
+    const responses = operation.httpClientResponses;
+    const args: Array<string> = [];
     if (operation.pathIds.length > 0) {
-      Utils.spreadElementsInto(operation.pathIds.map((id) => `${id}: string`), args)
+      Utils.spreadElementsInto(
+        operation.pathIds.map((id) => `${id}: string`),
+        args,
+      );
     }
 
-    const options: Array<string> = []
+    const options: Array<string> = [];
     if (operation.params) {
-      const key = `readonly params${operation.paramsOptional ? "?" : ""}`
-      const type = `${operation.params}${operation.paramsOptional ? " | undefined" : ""}`
-      options.push(`${key}: ${type}`)
+      const key = `readonly params${operation.paramsOptional ? "?" : ""}`;
+      const type = `${operation.params}${operation.paramsOptional ? " | undefined" : ""}`;
+      options.push(`${key}: ${type}`);
     }
     if (operation.payload) {
-      options.push(`readonly payload: ${operation.payload}`)
+      options.push(`readonly payload: ${operation.payload}`);
     }
-    options.push("readonly config?: Config | undefined")
+    options.push("readonly config?: Config | undefined");
 
     // If all options are optional, the argument itself should be optional
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions) {
-      args.push(`options: { ${options.join("; ")} }`)
+      args.push(`options: { ${options.join("; ")} }`);
     } else {
-      args.push(`options: { ${options.join("; ")} } | undefined`)
+      args.push(`options: { ${options.join("; ")} } | undefined`);
     }
 
-    const successTypes = new Set(responses.successSchemas.values())
+    const successTypes = new Set(responses.successSchemas.values());
     if (responses.binarySuccessStatuses.size > 0) {
-      successTypes.add("Uint8Array")
+      successTypes.add("Uint8Array");
     }
     if (responses.voidSuccessStatuses.size > 0) {
-      successTypes.add("void")
+      successTypes.add("void");
     }
-    const success = successTypes.size > 0 ? Array.from(successTypes).join(" | ") : "void"
+    const success = successTypes.size > 0 ? Array.from(successTypes).join(" | ") : "void";
 
-    const errors = ["HttpClientError.HttpClientError"]
+    const errors = ["HttpClientError.HttpClientError"];
     if (responses.errorSchemas.size > 0) {
       for (const schema of responses.errorSchemas.values()) {
-        errors.push(`${name}Error<"${schema}", ${schema}>`)
+        errors.push(`${name}Error<"${schema}", ${schema}>`);
       }
     }
     for (const status of responses.voidErrorStatuses) {
-      errors.push(`${name}Error<"${status}", undefined>`)
+      errors.push(`${name}Error<"${status}", undefined>`);
     }
 
-    const jsdoc = Utils.toComment(operation.description)
-    const methodKey = `readonly "${operation.id}"`
-    const generic = `<Config extends OperationConfig>`
-    const parameters = args.join(", ")
-    const returnType = `Effect.Effect<WithOptionalResponse<${success}, Config>, ${errors.join(" | ")}>`
-    return `${jsdoc}${methodKey}: ${generic}(${parameters}) => ${returnType}`
-  }
+    const jsdoc = Utils.toComment(operation.description);
+    const methodKey = `readonly "${operation.id}"`;
+    const generic = `<Config extends OperationConfig>`;
+    const parameters = args.join(", ");
+    const returnType = `Effect.Effect<WithOptionalResponse<${success}, Config>, ${errors.join(" | ")}>`;
+    return `${jsdoc}${methodKey}: ${generic}(${parameters}) => ${returnType}`;
+  };
 
   const operationToSseMethod = (operation: ParsedOperation) => {
-    const responses = operation.httpClientResponses
-    const args: Array<string> = []
+    const responses = operation.httpClientResponses;
+    const args: Array<string> = [];
     if (operation.pathIds.length > 0) {
-      Utils.spreadElementsInto(operation.pathIds.map((id) => `${id}: string`), args)
+      Utils.spreadElementsInto(
+        operation.pathIds.map((id) => `${id}: string`),
+        args,
+      );
     }
 
-    const options: Array<string> = []
+    const options: Array<string> = [];
     if (operation.params) {
-      const key = `readonly params${operation.paramsOptional ? "?" : ""}`
-      const type = `${operation.params}${operation.paramsOptional ? " | undefined" : ""}`
-      options.push(`${key}: ${type}`)
+      const key = `readonly params${operation.paramsOptional ? "?" : ""}`;
+      const type = `${operation.params}${operation.paramsOptional ? " | undefined" : ""}`;
+      options.push(`${key}: ${type}`);
     }
     if (operation.payload) {
-      options.push(`readonly payload: ${operation.payload}`)
+      options.push(`readonly payload: ${operation.payload}`);
     }
 
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions) {
-      args.push(`options: { ${options.join("; ")} }`)
+      args.push(`options: { ${options.join("; ")} }`);
     } else if (options.length > 0) {
-      args.push(`options: { ${options.join("; ")} } | undefined`)
+      args.push(`options: { ${options.join("; ")} } | undefined`);
     }
 
-    const jsdoc = Utils.toComment(operation.description)
-    const methodKey = `readonly "${operation.id}Sse"`
-    const parameters = args.join(", ")
-    const returnType = `Stream.Stream<${responses.sseSchema}, HttpClientError.HttpClientError>`
-    return `${jsdoc}${methodKey}: (${parameters}) => ${returnType}`
-  }
+    const jsdoc = Utils.toComment(operation.description);
+    const methodKey = `readonly "${operation.id}Sse"`;
+    const parameters = args.join(", ");
+    const returnType = `Stream.Stream<${responses.sseSchema}, HttpClientError.HttpClientError>`;
+    return `${jsdoc}${methodKey}: (${parameters}) => ${returnType}`;
+  };
 
   const operationToBinaryMethod = (operation: ParsedOperation) => {
-    const args: Array<string> = []
+    const args: Array<string> = [];
     if (operation.pathIds.length > 0) {
-      Utils.spreadElementsInto(operation.pathIds.map((id) => `${id}: string`), args)
+      Utils.spreadElementsInto(
+        operation.pathIds.map((id) => `${id}: string`),
+        args,
+      );
     }
 
-    const options: Array<string> = []
+    const options: Array<string> = [];
     if (operation.params) {
-      const key = `readonly params${operation.paramsOptional ? "?" : ""}`
-      const type = `${operation.params}${operation.paramsOptional ? " | undefined" : ""}`
-      options.push(`${key}: ${type}`)
+      const key = `readonly params${operation.paramsOptional ? "?" : ""}`;
+      const type = `${operation.params}${operation.paramsOptional ? " | undefined" : ""}`;
+      options.push(`${key}: ${type}`);
     }
     if (operation.payload) {
-      options.push(`readonly payload: ${operation.payload}`)
+      options.push(`readonly payload: ${operation.payload}`);
     }
 
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions) {
-      args.push(`options: { ${options.join("; ")} }`)
+      args.push(`options: { ${options.join("; ")} }`);
     } else if (options.length > 0) {
-      args.push(`options: { ${options.join("; ")} } | undefined`)
+      args.push(`options: { ${options.join("; ")} } | undefined`);
     }
 
-    const jsdoc = Utils.toComment(operation.description)
-    const methodKey = `readonly "${operation.id}Stream"`
-    const parameters = args.join(", ")
-    const returnType = `Stream.Stream<Uint8Array, HttpClientError.HttpClientError>`
-    return `${jsdoc}${methodKey}: (${parameters}) => ${returnType}`
-  }
+    const jsdoc = Utils.toComment(operation.description);
+    const methodKey = `readonly "${operation.id}Stream"`;
+    const parameters = args.join(", ");
+    const returnType = `Stream.Stream<Uint8Array, HttpClientError.HttpClientError>`;
+    return `${jsdoc}${methodKey}: (${parameters}) => ${returnType}`;
+  };
 
   const operationsToImpl = (
     _importName: string,
     name: string,
-    operations: ReadonlyArray<ParsedOperation>
+    operations: ReadonlyArray<ParsedOperation>,
   ) => {
-    const requirements = computeImportRequirements(operations)
-    const implMethods: Array<string> = []
+    const requirements = computeImportRequirements(operations);
+    const implMethods: Array<string> = [];
     for (const op of operations) {
-      implMethods.push(operationToImpl(op))
+      implMethods.push(operationToImpl(op));
       if (op.httpClientResponses.sseSchema) {
-        implMethods.push(operationToSseImpl(op))
+        implMethods.push(operationToSseImpl(op));
       }
       if (op.httpClientResponses.binarySuccessStatuses.size > 0) {
-        implMethods.push(operationToBinaryImpl(op))
+        implMethods.push(operationToBinaryImpl(op));
       }
     }
 
-    const helpers: Array<string> = [commonSource]
+    const helpers: Array<string> = [commonSource];
     if (operations.some((operation) => operation.pathIds.length > 0)) {
-      helpers.push(pathRequestSource)
+      helpers.push(pathRequestSource);
     }
     if (requiresStreaming(requirements)) {
-      helpers.push(executeStreamRequestSource)
+      helpers.push(executeStreamRequestSource);
     }
     if (requirements.eventStream) {
-      helpers.push(sseRequestSourceTs)
+      helpers.push(sseRequestSourceTs);
     }
-    const withResponseVariants = operations.some((op) => hasResponseVariants(op.httpClientResponses))
+    const withResponseVariants = operations.some((op) =>
+      hasResponseVariants(op.httpClientResponses),
+    );
     if (withResponseVariants) {
-      helpers.push(decodeBinarySource)
-      helpers.push(decodeVoidErrorSource(name))
+      helpers.push(decodeBinarySource);
+      helpers.push(decodeVoidErrorSource(name));
     }
     if (requirements.octetStream) {
-      helpers.push(binaryRequestSourceTs)
+      helpers.push(binaryRequestSourceTs);
     }
 
     return `export interface OperationConfig {
@@ -775,182 +800,176 @@ export const make = (
     httpClient,
     ${implMethods.join(",\n    ")}
   }
-}`
-  }
+}`;
+  };
 
   const operationToImpl = (operation: ParsedOperation) => {
-    const responses = operation.httpClientResponses
-    const args: Array<string> = [...operation.pathIds, "options"]
-    const params = `${args.join(", ")}`
+    const responses = operation.httpClientResponses;
+    const args: Array<string> = [...operation.pathIds, "options"];
+    const params = `${args.join(", ")}`;
 
-    const pipeline: Array<string> = []
+    const pipeline: Array<string> = [];
 
     if (operation.params) {
-      const paramsAccessor = resolveParamsAccessor(operation, "options", "params")
+      const paramsAccessor = resolveParamsAccessor(operation, "options", "params");
 
       if (operation.urlParams.length > 0) {
         const props = operation.urlParams.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`
-        )
-        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`,
+        );
+        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`);
       }
       if (operation.headers.length > 0) {
         const props = operation.headers.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`
-        )
-        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`,
+        );
+        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`);
       }
     }
 
-    const payloadAccessor = "options.payload"
+    const payloadAccessor = "options.payload";
     if (operation.payloadFormData) {
-      pipeline.push(`HttpClientRequest.bodyFormDataRecord(${payloadAccessor} as any)`)
+      pipeline.push(`HttpClientRequest.bodyFormDataRecord(${payloadAccessor} as any)`);
     } else if (operation.payloadFormUrlEncoded) {
-      pipeline.push(`HttpClientRequest.bodyUrlParams(${payloadAccessor} as any)`)
+      pipeline.push(`HttpClientRequest.bodyUrlParams(${payloadAccessor} as any)`);
     } else if (operation.payload) {
-      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(${payloadAccessor})`)
+      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(${payloadAccessor})`);
     }
 
-    const successCodes = Array.from(
-      responses.successSchemas.keys(),
-      (status) => JSON.stringify(normalizeSuccessStatus(responses, status))
-    ).join(", ")
-    const errorCodes = responses.errorSchemas.size > 0 &&
-      Object.fromEntries(responses.errorSchemas.entries())
-    const configAccessor = resolveConfigAccessor(operation, "options", "config")
-    const requestArgs = [`[${successCodes}]`]
+    const successCodes = Array.from(responses.successSchemas.keys(), (status) =>
+      JSON.stringify(normalizeSuccessStatus(responses, status)),
+    ).join(", ");
+    const errorCodes =
+      responses.errorSchemas.size > 0 && Object.fromEntries(responses.errorSchemas.entries());
+    const configAccessor = resolveConfigAccessor(operation, "options", "config");
+    const requestArgs = [`[${successCodes}]`];
     if (hasResponseVariants(responses)) {
       const responseCodes = {
-        binary: Array.from(
-          responses.binarySuccessStatuses,
-          (status) => normalizeSuccessStatus(responses, status)
+        binary: Array.from(responses.binarySuccessStatuses, (status) =>
+          normalizeSuccessStatus(responses, status),
         ),
         voidSuccess: Array.from(responses.voidSuccessStatuses),
-        voidError: Array.from(responses.voidErrorStatuses)
-      }
-      requestArgs.push(errorCodes ? JSON.stringify(errorCodes) : "undefined", JSON.stringify(responseCodes))
+        voidError: Array.from(responses.voidErrorStatuses),
+      };
+      requestArgs.push(
+        errorCodes ? JSON.stringify(errorCodes) : "undefined",
+        JSON.stringify(responseCodes),
+      );
     } else if (errorCodes) {
-      requestArgs.push(JSON.stringify(errorCodes))
+      requestArgs.push(JSON.stringify(errorCodes));
     }
-    pipeline.push(`onRequest(${configAccessor})(${requestArgs.join(", ")})`)
+    pipeline.push(`onRequest(${configAccessor})(${requestArgs.join(", ")})`);
 
-    return (
-      `"${operation.id}": (${params}) => ` +
-      requestToImpl(operation, pipeline)
-    )
-  }
+    return `"${operation.id}": (${params}) => ` + requestToImpl(operation, pipeline);
+  };
 
   const operationToSseImpl = (operation: ParsedOperation) => {
-    const args: Array<string> = [...operation.pathIds]
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const args: Array<string> = [...operation.pathIds];
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions || operation.params || operation.payload) {
-      args.push("options")
+      args.push("options");
     }
-    const params = args.join(", ")
+    const params = args.join(", ");
 
-    const pipeline: Array<string> = []
+    const pipeline: Array<string> = [];
 
     if (operation.params) {
-      const paramsAccessor = resolveParamsAccessor(operation, "options", "params")
+      const paramsAccessor = resolveParamsAccessor(operation, "options", "params");
       if (operation.urlParams.length > 0) {
         const props = operation.urlParams.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`
-        )
-        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`,
+        );
+        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`);
       }
       if (operation.headers.length > 0) {
         const props = operation.headers.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`
-        )
-        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`,
+        );
+        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`);
       }
     }
 
     if (operation.payloadFormData) {
-      pipeline.push(`HttpClientRequest.bodyFormDataRecord(options.payload as any)`)
+      pipeline.push(`HttpClientRequest.bodyFormDataRecord(options.payload as any)`);
     } else if (operation.payloadFormUrlEncoded) {
-      pipeline.push(`HttpClientRequest.bodyUrlParams(options.payload as any)`)
+      pipeline.push(`HttpClientRequest.bodyUrlParams(options.payload as any)`);
     } else if (operation.payload) {
-      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(options.payload)`)
+      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(options.payload)`);
     }
 
-    pipeline.push(`sseRequest`)
+    pipeline.push(`sseRequest`);
 
-    return (
-      `"${operation.id}Sse": (${params}) => ` +
-      requestToImpl(operation, pipeline, true)
-    )
-  }
+    return `"${operation.id}Sse": (${params}) => ` + requestToImpl(operation, pipeline, true);
+  };
 
   const operationToBinaryImpl = (operation: ParsedOperation) => {
-    const args: Array<string> = [...operation.pathIds]
-    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload
+    const args: Array<string> = [...operation.pathIds];
+    const hasOptions = (operation.params && !operation.paramsOptional) || operation.payload;
     if (hasOptions || operation.params || operation.payload) {
-      args.push("options")
+      args.push("options");
     }
-    const params = args.join(", ")
+    const params = args.join(", ");
 
-    const pipeline: Array<string> = []
+    const pipeline: Array<string> = [];
 
     if (operation.params) {
-      const paramsAccessor = resolveParamsAccessor(operation, "options", "params")
+      const paramsAccessor = resolveParamsAccessor(operation, "options", "params");
       if (operation.urlParams.length > 0) {
         const props = operation.urlParams.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`
-        )
-        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] as any`,
+        );
+        pipeline.push(`HttpClientRequest.setUrlParams({ ${props.join(", ")} })`);
       }
       if (operation.headers.length > 0) {
         const props = operation.headers.map(
-          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`
-        )
-        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`)
+          (param) => `"${param}": ${paramsAccessor}["${param}"] ?? undefined`,
+        );
+        pipeline.push(`HttpClientRequest.setHeaders({ ${props.join(", ")} })`);
       }
     }
 
     if (operation.payloadFormData) {
-      pipeline.push(`HttpClientRequest.bodyFormDataRecord(options.payload as any)`)
+      pipeline.push(`HttpClientRequest.bodyFormDataRecord(options.payload as any)`);
     } else if (operation.payloadFormUrlEncoded) {
-      pipeline.push(`HttpClientRequest.bodyUrlParams(options.payload as any)`)
+      pipeline.push(`HttpClientRequest.bodyUrlParams(options.payload as any)`);
     } else if (operation.payload) {
-      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(options.payload)`)
+      pipeline.push(`HttpClientRequest.bodyJsonUnsafe(options.payload)`);
     }
 
-    pipeline.push(`binaryRequest`)
+    pipeline.push(`binaryRequest`);
 
-    return (
-      `"${operation.id}Stream": (${params}) => ` +
-      requestToImpl(operation, pipeline, true)
-    )
-  }
+    return `"${operation.id}Stream": (${params}) => ` + requestToImpl(operation, pipeline, true);
+  };
 
   return OpenApiTransformer.of({
     imports: (_importName, parsed) => {
-      const operations = parsed.operations
-      const requirements = computeImportRequirements(operations)
+      const operations = parsed.operations;
+      const requirements = computeImportRequirements(operations);
       const imports = [
         `import * as Data from "effect/Data"`,
-        `import * as Effect from "effect/Effect"`
-      ]
+        `import * as Effect from "effect/Effect"`,
+      ];
       if (requiresStreaming(requirements)) {
         imports.push(
           `import * as Stream from "effect/Stream"`,
-          `import * as HttpClient from "effect/unstable/http/HttpClient"`
-        )
+          `import * as HttpClient from "effect/unstable/http/HttpClient"`,
+        );
       } else {
-        imports.push(`import type * as HttpClient from "effect/unstable/http/HttpClient"`)
+        imports.push(`import type * as HttpClient from "effect/unstable/http/HttpClient"`);
       }
       imports.push(
         `import * as HttpClientError from "effect/unstable/http/HttpClientError"`,
         `import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"`,
-        `import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"`
-      )
-      return imports.join("\n")
+        `import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"`,
+      );
+      return imports.join("\n");
     },
-    toTypes: (importName, name, parsed) => operationsToInterface(importName, name, parsed.operations),
-    toImplementation: (importName, name, parsed) => operationsToImpl(importName, name, parsed.operations)
-  })
-}
+    toTypes: (importName, name, parsed) =>
+      operationsToInterface(importName, name, parsed.operations),
+    toImplementation: (importName, name, parsed) =>
+      operationsToImpl(importName, name, parsed.operations),
+  });
+};
 
 /**
  * Layer that provides the type-only OpenApiTransformer service.
@@ -964,10 +983,7 @@ export const make = (
  * @category layers
  * @since 4.0.0
  */
-export const layerTransformerTs = Layer.sync(
-  OpenApiTransformer,
-  makeTransformerTs
-)
+export const layerTransformerTs = Layer.sync(OpenApiTransformer, makeTransformerTs);
 
 const pathRequestSource = `const __encodePathParam = encodeURIComponent
   const __makePathRequest = (
@@ -997,7 +1013,7 @@ const pathRequestSource = `const __encodePathParam = encodeURIComponent
       return fail("Request paths cannot contain dot segments")
     }
     return Effect.succeed(method(path))
-  })`
+  })`;
 
 const commonSource = `const unexpectedStatus = (response: HttpClientResponse.HttpClientResponse) =>
     Effect.flatMap(
@@ -1028,15 +1044,15 @@ const commonSource = `const unexpectedStatus = (response: HttpClientResponse.Htt
             withOptionalResponse
           )
       : (request) => Effect.flatMap(httpClient.execute(request), withOptionalResponse)
-  }`
+  }`;
 
 const decodeBinarySource = `const decodeBinary = (response: HttpClientResponse.HttpClientResponse) =>
-    Effect.map(response.arrayBuffer, (buffer) => new Uint8Array(buffer))`
+    Effect.map(response.arrayBuffer, (buffer) => new Uint8Array(buffer))`;
 
 const decodeVoidErrorSource = (name: string) =>
   `const decodeVoidError = <const Tag extends string>(tag: Tag) =>
     (response: HttpClientResponse.HttpClientResponse) =>
-      Effect.fail(${name}Error(tag, undefined, response))`
+      Effect.fail(${name}Error(tag, undefined, response))`;
 
 const onRequestSource = (withResponseVariants: boolean) => {
   const responseCodesParam = withResponseVariants
@@ -1046,7 +1062,7 @@ const onRequestSource = (withResponseVariants: boolean) => {
       readonly voidSuccess: ReadonlyArray<string>
       readonly voidError: ReadonlyArray<string>
     } = { binary: [], voidSuccess: [], voidError: [] },`
-    : ""
+    : "";
   const responseCodesCases = withResponseVariants
     ? `
     for (const code of responseCodes.binary) {
@@ -1058,10 +1074,10 @@ const onRequestSource = (withResponseVariants: boolean) => {
     for (const code of responseCodes.voidError) {
       cases[code] = decodeVoidError(code)
     }`
-    : ""
+    : "";
   const voidFallbackCondition = withResponseVariants
     ? "successCodes.length === 0 && responseCodes.binary.length === 0 && responseCodes.voidSuccess.length === 0"
-    : "successCodes.length === 0"
+    : "successCodes.length === 0";
   return `const onRequest = <Config extends OperationConfig>(config: Config | undefined) => (
     successCodes: ReadonlyArray<string>,
     errorCodes?: Record<string, string>,${responseCodesParam}
@@ -1079,15 +1095,15 @@ const onRequestSource = (withResponseVariants: boolean) => {
       cases["2xx"] = decodeVoid
     }
     return withResponse(config)(HttpClientResponse.matchStatus(cases) as any)
-  }`
-}
+  }`;
+};
 
 const executeStreamRequestSource = `const executeStreamRequest = (request: HttpClientRequest.HttpClientRequest) =>
     Effect.suspend(() =>
       options.transformClient
         ? Effect.flatMap(options.transformClient(httpClient), (client) => HttpClient.filterStatusOk(client).execute(request))
         : HttpClient.filterStatusOk(httpClient).execute(request)
-    )`
+    )`;
 
 const sseRequestSource = (_importName: string) =>
   `const sseRequest = <
@@ -1108,7 +1124,7 @@ const sseRequestSource = (_importName: string) =>
         Stream.unwrap,
         Stream.decodeText(),
         Stream.pipeThroughChannel(Sse.decodeDataSchema(schema))
-      )`
+      )`;
 
 const sseEventRequestSource = `const sseEventRequest = <S extends Sse.EventCodec>(schema: S) =>
     (
@@ -1123,18 +1139,16 @@ const sseEventRequestSource = `const sseEventRequest = <S extends Sse.EventCodec
         Stream.unwrap,
         Stream.decodeText(),
         Stream.pipeThroughChannel(Sse.decodeSchema(schema))
-      )`
+      )`;
 
-const binaryRequestSource =
-  `const binaryRequest = (request: HttpClientRequest.HttpClientRequest): Stream.Stream<Uint8Array, HttpClientError.HttpClientError> =>
+const binaryRequestSource = `const binaryRequest = (request: HttpClientRequest.HttpClientRequest): Stream.Stream<Uint8Array, HttpClientError.HttpClientError> =>
     executeStreamRequest(request).pipe(
       Effect.map((response) => response.stream),
       Stream.unwrap
-    )`
+    )`;
 
 // Type-only mode helpers (no schema decoding)
-const sseRequestSourceTs =
-  `const sseRequest = (request: HttpClientRequest.HttpClientRequest): Stream.Stream<unknown, HttpClientError.HttpClientError> =>
+const sseRequestSourceTs = `const sseRequest = (request: HttpClientRequest.HttpClientRequest): Stream.Stream<unknown, HttpClientError.HttpClientError> =>
     executeStreamRequest(request).pipe(
       Effect.map((response) => response.stream),
       Stream.unwrap,
@@ -1142,18 +1156,15 @@ const sseRequestSourceTs =
       Stream.splitLines,
       Stream.filter((line) => line.startsWith("data: ")),
       Stream.map((line) => JSON.parse(line.slice(6)))
-    )`
+    )`;
 
-const binaryRequestSourceTs =
-  `const binaryRequest = (request: HttpClientRequest.HttpClientRequest): Stream.Stream<Uint8Array, HttpClientError.HttpClientError> =>
+const binaryRequestSourceTs = `const binaryRequest = (request: HttpClientRequest.HttpClientRequest): Stream.Stream<Uint8Array, HttpClientError.HttpClientError> =>
     executeStreamRequest(request).pipe(
       Effect.map((response) => response.stream),
       Stream.unwrap
-    )`
+    )`;
 
-const clientErrorSource = (
-  name: string
-) =>
+const clientErrorSource = (name: string) =>
   `export interface ${name}Error<Tag extends string, E> {
   readonly _tag: Tag
   readonly request: HttpClientRequest.HttpClientRequest
@@ -1178,34 +1189,42 @@ export const ${name}Error = <Tag extends string, E>(
     cause,
     response,
     request: response.request,
-  }) as any`
+  }) as any`;
 
-const resolveConfigAccessor = (operation: ParsedOperation, rootKey: string, configKey: string): string => {
+const resolveConfigAccessor = (
+  operation: ParsedOperation,
+  rootKey: string,
+  configKey: string,
+): string => {
   // If an operation payload is defined, then the root object must exist
   if (Predicate.isNotUndefined(operation.payload)) {
-    return `${rootKey}.${configKey}`
+    return `${rootKey}.${configKey}`;
   }
 
   // If operation parameters are defined and non-optional, then the root object must exist
   if (Predicate.isNotUndefined(operation.params) && !operation.paramsOptional) {
-    return `${rootKey}.${configKey}`
+    return `${rootKey}.${configKey}`;
   }
 
   // User-specified arguments are allowed but are not required, so the root object is optional
-  return `${rootKey}?.${configKey}`
-}
+  return `${rootKey}?.${configKey}`;
+};
 
-const resolveParamsAccessor = (operation: ParsedOperation, rootKey: string, paramsKey: string): string => {
+const resolveParamsAccessor = (
+  operation: ParsedOperation,
+  rootKey: string,
+  paramsKey: string,
+): string => {
   // If an operation payload is not defined and parameters are optional, then the
   // root object may or may not exist and parameters must be marked as optional
   if (Predicate.isUndefined(operation.payload) && operation.paramsOptional) {
-    return `${rootKey}?.${paramsKey}?.`
+    return `${rootKey}?.${paramsKey}?.`;
   }
 
   // If parameters are optional, they must be marked as optional
   if (operation.paramsOptional) {
-    return `${rootKey}.${paramsKey}?.`
+    return `${rootKey}.${paramsKey}?.`;
   }
 
-  return `${rootKey}.${paramsKey}`
-}
+  return `${rootKey}.${paramsKey}`;
+};

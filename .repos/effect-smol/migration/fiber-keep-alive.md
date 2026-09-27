@@ -17,15 +17,15 @@ In v4, **the keep-alive mechanism is built into the core runtime**.
 Consider the following program:
 
 ```ts
-import { Deferred, Effect } from "effect"
+import { Deferred, Effect } from "effect";
 
-const program = Effect.gen(function*() {
-  const deferred = yield* Deferred.make<string>()
+const program = Effect.gen(function* () {
+  const deferred = yield* Deferred.make<string>();
 
-  yield* Deferred.await(deferred)
-})
+  yield* Deferred.await(deferred);
+});
 
-Effect.runPromise(program)
+Effect.runPromise(program);
 ```
 
 In v3, when the main fiber reached `yield* Deferred.await(deferred)`, it suspended
@@ -37,9 +37,9 @@ The workaround was to use `runMain` from the platform package, which installs
 a timer that holds the process open until the root fiber completes:
 
 ```ts
-import { NodeRuntime } from "@effect/platform-node"
+import { NodeRuntime } from "@effect/platform-node";
 
-NodeRuntime.runMain(program)
+NodeRuntime.runMain(program);
 ```
 
 ## What Changed in v4
@@ -50,16 +50,16 @@ keep-alive timer.
 This means the following program works in v4 **without** `runMain`:
 
 ```ts
-import { Deferred, Effect, Fiber } from "effect"
+import { Deferred, Effect, Fiber } from "effect";
 
-const program = Effect.gen(function*() {
-  const deferred = yield* Deferred.make<string>()
+const program = Effect.gen(function* () {
+  const deferred = yield* Deferred.make<string>();
 
   // The process stays alive while waiting — no runMain needed
-  yield* Deferred.await(deferred)
-})
+  yield* Deferred.await(deferred);
+});
 
-Effect.runPromise(program)
+Effect.runPromise(program);
 ```
 
 ## `runMain` Is Still Recommended

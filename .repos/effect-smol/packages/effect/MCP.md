@@ -9,38 +9,38 @@ It's important to understand the architecture of the Effect MCP server.
 Here is an example of a MCP server implementation:
 
 ```typescript
-import { NodeRuntime, NodeStdio } from "@effect/platform-node"
-import { Effect, Layer, Logger, Schema } from "effect"
-import { McpProtocol, McpServer, Tool, Toolkit } from "effect/unstable/ai"
+import { NodeRuntime, NodeStdio } from "@effect/platform-node";
+import { Effect, Layer, Logger, Schema } from "effect";
+import { McpProtocol, McpServer, Tool, Toolkit } from "effect/unstable/ai";
 
 // Define a simple tool
 const DemoTool = Tool.make("DemoTool", {
   description: "A demo tool that echoes back the input",
   parameters: Schema.Struct({
-    message: Schema.String
+    message: Schema.String,
   }),
-  success: Schema.String
-})
+  success: Schema.String,
+});
 
-const MyToolkit = Toolkit.make(DemoTool)
+const MyToolkit = Toolkit.make(DemoTool);
 
 const DemoResource = McpServer.resource({
   uri: "file:///demo.txt",
   name: "Demo Resource",
-  content: Effect.succeed("# Demo Content\nThis is a demo resource.")
-})
+  content: Effect.succeed("# Demo Content\nThis is a demo resource."),
+});
 
 const DemoPrompt = McpServer.prompt({
   name: "Demo Prompt",
   description: "A demo prompt",
   parameters: {
-    topic: Schema.String
+    topic: Schema.String,
   },
   completion: {
-    topic: () => Effect.succeed(["AI", "programming", "Effect"])
+    topic: () => Effect.succeed(["AI", "programming", "Effect"]),
   },
-  content: ({ topic }) => Effect.succeed(`Tell me about ${topic}`)
-})
+  content: ({ topic }) => Effect.succeed(`Tell me about ${topic}`),
+});
 
 const ServerLayer = Layer.mergeAll(
   DemoResource,
@@ -48,24 +48,24 @@ const ServerLayer = Layer.mergeAll(
   McpServer.toolkit(MyToolkit).pipe(
     Layer.provideMerge(
       MyToolkit.toLayer({
-        DemoTool: ({ message }) => Effect.succeed(`Echo: ${message}`)
-      })
-    )
-  )
+        DemoTool: ({ message }) => Effect.succeed(`Echo: ${message}`),
+      }),
+    ),
+  ),
 ).pipe(
   Layer.provide(
     McpServer.layerStdio({
       name: "Demo MCP Server",
       version: "1.0.0",
-      protocols: [McpProtocol.v2025_06_18]
-    })
+      protocols: [McpProtocol.v2025_06_18],
+    }),
   ),
   Layer.provide(NodeStdio.layer),
   Layer.provide(Logger.layer([Logger.consolePretty()])),
-  Layer.provideMerge(Layer.succeed(Logger.LogToStderr, true))
-)
+  Layer.provideMerge(Layer.succeed(Logger.LogToStderr, true)),
+);
 
-Layer.launch(ServerLayer).pipe(NodeRuntime.runMain)
+Layer.launch(ServerLayer).pipe(NodeRuntime.runMain);
 ```
 
 The server exposes three main parts:
@@ -98,31 +98,31 @@ resource is defined as a template that specifies its location, behavior, and met
 parameters, completions, and content generation.
 
 ```typescript
-import { Effect, Schema } from "effect"
-import { McpSchema, McpServer } from "effect/unstable/ai"
+import { Effect, Schema } from "effect";
+import { McpSchema, McpServer } from "effect/unstable/ai";
 
 const SimpleResource = McpServer.resource({
   uri: "file:///demo.txt",
   name: "Demo Resource",
   description: "A simple demo resource",
   mimeType: "text/plain",
-  content: Effect.succeed("This is demo content")
-})
+  content: Effect.succeed("This is demo content"),
+});
 
-const idParam = McpSchema.param("id", Schema.NumberFromString)
+const idParam = McpSchema.param("id", Schema.NumberFromString);
 
 const TemplateResource = McpServer.resource`file://path/to/file/${idParam}`({
   name: "Demo Resource Template",
   description: "A parameterized resource template",
   completion: {
-    id: (_: string) => Effect.succeed([1, 2, 3, 4, 5])
+    id: (_: string) => Effect.succeed([1, 2, 3, 4, 5]),
   },
-  content: Effect.fn(function*(_uri, id) {
-    return `# MCP Server Demo - ID: ${id}`
+  content: Effect.fn(function* (_uri, id) {
+    return `# MCP Server Demo - ID: ${id}`;
   }),
   mimeType: "text/x-markdown",
-  audience: ["assistant", "user"]
-})
+  audience: ["assistant", "user"],
+});
 ```
 
 In this example, the resource is parameterized by an `id` that forms part of the URI. The
@@ -139,20 +139,20 @@ structured, parameterized instructions or messages that the client can send to t
 generation logic in a declarative way.
 
 ```typescript
-import { Effect, Schema } from "effect"
-import { McpServer } from "effect/unstable/ai"
+import { Effect, Schema } from "effect";
+import { McpServer } from "effect/unstable/ai";
 
 const DemoPrompt = McpServer.prompt({
   name: "Demo Prompt",
   description: "A demo prompt to demonstrate MCP server capabilities",
   parameters: {
-    name: Schema.String
+    name: Schema.String,
   },
   completion: {
-    name: () => Effect.succeed(["Tom", "Tim", "Jerry"])
+    name: () => Effect.succeed(["Tom", "Tim", "Jerry"]),
   },
-  content: ({ name }) => Effect.succeed(`Use the greetings tool to write a greeting for ${name}.`)
-})
+  content: ({ name }) => Effect.succeed(`Use the greetings tool to write a greeting for ${name}.`),
+});
 ```
 
 In this example, the prompt defines a single parameter, `name`. The `completion` property provides
@@ -166,36 +166,36 @@ contract while the actual logic is provided separately through an implementation
 grouped into toolkits, which can be combined and converted into layers.
 
 ```typescript
-import { Effect, Layer, Schema } from "effect"
-import { McpServer, Tool, Toolkit } from "effect/unstable/ai"
+import { Effect, Layer, Schema } from "effect";
+import { McpServer, Tool, Toolkit } from "effect/unstable/ai";
 
 const DemoTool = Tool.make("DemoTool", {
   description: "This is a demo tool for the documentation",
   parameters: Schema.Struct({
     demoId: Schema.Number,
-    demoName: Schema.String
+    demoName: Schema.String,
   }),
-  success: Schema.String
-})
+  success: Schema.String,
+});
 
 const OtherDemoTool = Tool.make("OtherDemoTool", {
   description: "Another demo tool",
   parameters: Schema.Struct({
-    value: Schema.Number
+    value: Schema.Number,
   }),
-  success: Schema.String
-})
+  success: Schema.String,
+});
 
-const MyToolkit = Toolkit.make(DemoTool, OtherDemoTool)
+const MyToolkit = Toolkit.make(DemoTool, OtherDemoTool);
 
 const ToolkitLayer = McpServer.toolkit(MyToolkit).pipe(
   Layer.provideMerge(
     MyToolkit.toLayer({
       DemoTool: ({ demoId, demoName }) => Effect.succeed(`Processed ${demoName} with ID ${demoId}`),
-      OtherDemoTool: ({ value }) => Effect.succeed(`Other tool result: ${value * 2}`)
-    })
-  )
-)
+      OtherDemoTool: ({ value }) => Effect.succeed(`Other tool result: ${value * 2}`),
+    }),
+  ),
+);
 ```
 
 In this example, `Tool.make` defines new tools with typed parameters and result schemas for success
@@ -213,19 +213,19 @@ defines both the message shown to the user and the expected response schema, ens
 validated user input.
 
 ```typescript
-import { Effect, Schema } from "effect"
-import { McpServer } from "effect/unstable/ai"
+import { Effect, Schema } from "effect";
+import { McpServer } from "effect/unstable/ai";
 
 const DemoElicitation = McpServer.elicit({
   message: `Please answer the question ("yes" | "no") (default "no"):`,
   schema: Schema.Struct({
-    answer: Schema.Union([Schema.Literal("yes"), Schema.Literal("no")])
-  })
+    answer: Schema.Union([Schema.Literal("yes"), Schema.Literal("no")]),
+  }),
 }).pipe(
   Effect.catchTag("ElicitationDeclined", (_error) => {
-    return Effect.succeed({ answer: "no" })
-  })
-)
+    return Effect.succeed({ answer: "no" });
+  }),
+);
 ```
 
 In this example, the server poses a simple yes/no question to the user. The input is validated
@@ -238,19 +238,19 @@ is `"no"`.
 Here's a complete, copy/pastable MCP server example that combines all the concepts:
 
 ```typescript
-import { NodeRuntime, NodeStdio } from "@effect/platform-node"
-import { Effect, Layer, Logger, Schema } from "effect"
-import { McpProtocol, McpSchema, McpServer, Tool, Toolkit } from "effect/unstable/ai"
+import { NodeRuntime, NodeStdio } from "@effect/platform-node";
+import { Effect, Layer, Logger, Schema } from "effect";
+import { McpProtocol, McpSchema, McpServer, Tool, Toolkit } from "effect/unstable/ai";
 
 // Define tools
 const GreetTool = Tool.make("GreetTool", {
   description: "Generate a greeting message",
   parameters: Schema.Struct({
     name: Schema.String,
-    style: Schema.Union([Schema.Literal("formal"), Schema.Literal("casual")])
+    style: Schema.Union([Schema.Literal("formal"), Schema.Literal("casual")]),
   }),
-  success: Schema.String
-})
+  success: Schema.String,
+});
 
 const CalculatorTool = Tool.make("CalculatorTool", {
   description: "Perform basic arithmetic operations",
@@ -259,16 +259,16 @@ const CalculatorTool = Tool.make("CalculatorTool", {
       Schema.Literal("add"),
       Schema.Literal("subtract"),
       Schema.Literal("multiply"),
-      Schema.Literal("divide")
+      Schema.Literal("divide"),
     ]),
     a: Schema.Number,
-    b: Schema.Number
+    b: Schema.Number,
   }),
-  success: Schema.Number
-})
+  success: Schema.Number,
+});
 
 // Create toolkit
-const MyToolkit = Toolkit.make(GreetTool, CalculatorTool)
+const MyToolkit = Toolkit.make(GreetTool, CalculatorTool);
 
 // Define a resource
 const ReadmeResource = McpServer.resource({
@@ -276,31 +276,31 @@ const ReadmeResource = McpServer.resource({
   name: "README",
   description: "Project README file",
   mimeType: "text/markdown",
-  content: Effect.succeed("# MCP Server Demo\n\nThis is a demo MCP server built with Effect.")
-})
+  content: Effect.succeed("# MCP Server Demo\n\nThis is a demo MCP server built with Effect."),
+});
 
 // Define a parameterized resource
-const idParam = McpSchema.param("id", Schema.NumberFromString)
+const idParam = McpSchema.param("id", Schema.NumberFromString);
 
 const UserResource = McpServer.resource`file://users/${idParam}.json`({
   name: "User Data",
   description: "User information by ID",
   completion: {
-    id: (_: string) => Effect.succeed([1, 2, 3, 4, 5])
+    id: (_: string) => Effect.succeed([1, 2, 3, 4, 5]),
   },
-  content: Effect.fn(function*(_uri, id) {
+  content: Effect.fn(function* (_uri, id) {
     return JSON.stringify(
       {
         id,
         name: `User ${id}`,
-        email: `user${id}@example.com`
+        email: `user${id}@example.com`,
       },
       null,
-      2
-    )
+      2,
+    );
   }),
-  mimeType: "application/json"
-})
+  mimeType: "application/json",
+});
 
 // Define a prompt
 const AnalysisPrompt = McpServer.prompt({
@@ -308,17 +308,17 @@ const AnalysisPrompt = McpServer.prompt({
   description: "Analyze data and provide insights",
   parameters: {
     dataType: Schema.String,
-    focus: Schema.Union([Schema.Literal("summary"), Schema.Literal("details")])
+    focus: Schema.Union([Schema.Literal("summary"), Schema.Literal("details")]),
   },
   completion: {
     dataType: () => Effect.succeed(["sales", "users", "metrics"]),
-    focus: () => Effect.succeed(["summary" as const, "details" as const])
+    focus: () => Effect.succeed(["summary" as const, "details" as const]),
   },
   content: ({ dataType, focus }) =>
     Effect.succeed(
-      `Please analyze the ${dataType} data and provide a ${focus} analysis. Use available tools to gather information.`
-    )
-})
+      `Please analyze the ${dataType} data and provide a ${focus} analysis. Use available tools to gather information.`,
+    ),
+});
 
 // Create the server layer
 const ServerLayer = Layer.mergeAll(
@@ -329,44 +329,45 @@ const ServerLayer = Layer.mergeAll(
     Layer.provideMerge(
       MyToolkit.toLayer({
         GreetTool: ({ name, style }) => {
-          const greeting = style === "formal"
-            ? `Good day, ${name}. It is a pleasure to meet you.`
-            : `Hey ${name}! What's up?`
-          return Effect.succeed(greeting)
+          const greeting =
+            style === "formal"
+              ? `Good day, ${name}. It is a pleasure to meet you.`
+              : `Hey ${name}! What's up?`;
+          return Effect.succeed(greeting);
         },
         CalculatorTool: ({ operation, a, b }) => {
-          let result: number
+          let result: number;
           switch (operation) {
             case "add":
-              result = a + b
-              break
+              result = a + b;
+              break;
             case "subtract":
-              result = a - b
-              break
+              result = a - b;
+              break;
             case "multiply":
-              result = a * b
-              break
+              result = a * b;
+              break;
             case "divide":
-              result = a / b
-              break
+              result = a / b;
+              break;
           }
-          return Effect.succeed(result)
-        }
-      })
-    )
-  )
+          return Effect.succeed(result);
+        },
+      }),
+    ),
+  ),
 ).pipe(
   Layer.provide(
     McpServer.layerStdio({
       name: "Demo MCP Server",
       version: "1.0.0",
-      protocols: [McpProtocol.v2025_06_18]
-    })
+      protocols: [McpProtocol.v2025_06_18],
+    }),
   ),
   Layer.provide(NodeStdio.layer),
-  Layer.provideMerge(Layer.succeed(Logger.LogToStderr, true))
-)
+  Layer.provideMerge(Layer.succeed(Logger.LogToStderr, true)),
+);
 
 // Run the server
-Layer.launch(ServerLayer).pipe(NodeRuntime.runMain)
+Layer.launch(ServerLayer).pipe(NodeRuntime.runMain);
 ```

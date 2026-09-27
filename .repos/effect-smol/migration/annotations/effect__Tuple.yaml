@@ -24,7 +24,7 @@
   note: "Use Tuple.evolve(self, [undefined, f]); undefined preserves the first position."
 "effect/Tuple#swap":
   replacement: "Tuple.renameIndices"
-  note: "Swap a pair with Tuple.renameIndices(self, [\"1\", \"0\"])."
+  note: 'Swap a pair with Tuple.renameIndices(self, ["1", "0"]).'
 "effect/Tuple#TupleTypeLambda":
   replacement: "none"
   note: "Removed with tuple Bicovariant support; use the concrete tuple type or a local HKT TypeLambda."

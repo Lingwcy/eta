@@ -7,11 +7,11 @@
  *
  * @since 4.0.0
  */
-import { dual } from "effect/Function"
-import * as String from "effect/String"
-import type { Span } from "effect/Tracer"
-import type { Simplify } from "effect/Types"
-import * as Telemetry from "effect/unstable/ai/Telemetry"
+import { dual } from "effect/Function";
+import * as String from "effect/String";
+import type { Span } from "effect/Tracer";
+import type { Simplify } from "effect/Types";
+import * as Telemetry from "effect/unstable/ai/Telemetry";
 
 /**
  * The attributes used to describe telemetry in the context of Generative
@@ -27,10 +27,10 @@ import * as Telemetry from "effect/unstable/ai/Telemetry"
  * @since 4.0.0
  */
 export type OpenAiTelemetryAttributes = Simplify<
-  & Telemetry.GenAITelemetryAttributes
-  & Telemetry.AttributesWithPrefix<RequestAttributes, "gen_ai.openai.request">
-  & Telemetry.AttributesWithPrefix<ResponseAttributes, "gen_ai.openai.response">
->
+  Telemetry.GenAITelemetryAttributes &
+    Telemetry.AttributesWithPrefix<RequestAttributes, "gen_ai.openai.request"> &
+    Telemetry.AttributesWithPrefix<ResponseAttributes, "gen_ai.openai.response">
+>;
 
 /**
  * All telemetry attributes which are part of the GenAI specification,
@@ -39,7 +39,7 @@ export type OpenAiTelemetryAttributes = Simplify<
  * @category models
  * @since 4.0.0
  */
-export type AllAttributes = Telemetry.AllAttributes & RequestAttributes & ResponseAttributes
+export type AllAttributes = Telemetry.AllAttributes & RequestAttributes & ResponseAttributes;
 
 /**
  * Telemetry attributes which are part of the GenAI specification and are
@@ -52,11 +52,11 @@ export interface RequestAttributes {
   /**
    * The response format that is requested.
    */
-  readonly responseFormat?: (string & {}) | WellKnownResponseFormat | null | undefined
+  readonly responseFormat?: (string & {}) | WellKnownResponseFormat | null | undefined;
   /**
    * The service tier requested. May be a specific tier, `default`, or `auto`.
    */
-  readonly serviceTier?: (string & {}) | WellKnownServiceTier | null | undefined
+  readonly serviceTier?: (string & {}) | WellKnownServiceTier | null | undefined;
 }
 
 /**
@@ -70,12 +70,12 @@ export interface ResponseAttributes {
   /**
    * The service tier used for the response.
    */
-  readonly serviceTier?: string | null | undefined
+  readonly serviceTier?: string | null | undefined;
   /**
    * A fingerprint to track any eventual change in the Generative AI
    * environment.
    */
-  readonly systemFingerprint?: string | null | undefined
+  readonly systemFingerprint?: string | null | undefined;
 }
 
 /**
@@ -90,7 +90,7 @@ export interface ResponseAttributes {
  * @category models
  * @since 4.0.0
  */
-export type WellKnownResponseFormat = "json_object" | "json_schema" | "text"
+export type WellKnownResponseFormat = "json_object" | "json_schema" | "text";
 
 /**
  * The `gen_ai.openai.request.service_tier` attribute has the following
@@ -104,7 +104,7 @@ export type WellKnownResponseFormat = "json_object" | "json_schema" | "text"
  * @category models
  * @since 4.0.0
  */
-export type WellKnownServiceTier = "auto" | "default"
+export type WellKnownServiceTier = "auto" | "default";
 
 /**
  * Options accepted by `addGenAIAnnotations`, combining standard GenAI
@@ -114,18 +114,22 @@ export type WellKnownServiceTier = "auto" | "default"
  * @since 4.0.0
  */
 export type OpenAiTelemetryAttributeOptions = Telemetry.GenAITelemetryAttributeOptions & {
-  openai?: {
-    request?: RequestAttributes | undefined
-    response?: ResponseAttributes | undefined
-  } | undefined
-}
+  openai?:
+    | {
+        request?: RequestAttributes | undefined;
+        response?: ResponseAttributes | undefined;
+      }
+    | undefined;
+};
 
-const addOpenAiRequestAttributes = Telemetry.addSpanAttributes("gen_ai.openai.request", String.camelToSnake)<
-  RequestAttributes
->
-const addOpenAiResponseAttributes = Telemetry.addSpanAttributes("gen_ai.openai.response", String.camelToSnake)<
-  ResponseAttributes
->
+const addOpenAiRequestAttributes = Telemetry.addSpanAttributes(
+  "gen_ai.openai.request",
+  String.camelToSnake,
+)<RequestAttributes>;
+const addOpenAiResponseAttributes = Telemetry.addSpanAttributes(
+  "gen_ai.openai.response",
+  String.camelToSnake,
+)<ResponseAttributes>;
 
 /**
  * Applies the specified OpenAI GenAI telemetry attributes to the provided
@@ -147,16 +151,16 @@ const addOpenAiResponseAttributes = Telemetry.addSpanAttributes("gen_ai.openai.r
  * @since 4.0.0
  */
 export const addGenAIAnnotations: {
-  (options: OpenAiTelemetryAttributeOptions): (span: Span) => void
-  (span: Span, options: OpenAiTelemetryAttributeOptions): void
+  (options: OpenAiTelemetryAttributeOptions): (span: Span) => void;
+  (span: Span, options: OpenAiTelemetryAttributeOptions): void;
 } = dual(2, (span: Span, options: OpenAiTelemetryAttributeOptions) => {
-  Telemetry.addGenAIAnnotations(span, options)
+  Telemetry.addGenAIAnnotations(span, options);
   if (options.openai != null) {
     if (options.openai.request != null) {
-      addOpenAiRequestAttributes(span, options.openai.request)
+      addOpenAiRequestAttributes(span, options.openai.request);
     }
     if (options.openai.response != null) {
-      addOpenAiResponseAttributes(span, options.openai.response)
+      addOpenAiResponseAttributes(span, options.openai.response);
     }
   }
-})
+});

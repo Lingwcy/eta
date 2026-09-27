@@ -17,7 +17,7 @@ effect/Stream#mapBoth:
 effect/Stream#partition:
   include: true
   replacement: "Stream.partition"
-  note: "Pass a Result-returning Filter instead of a boolean predicate or refinement; Filter.fromPredicate(predicate) adapts existing predicates. The tuple order is now [passes, fails], the reverse of v3 [excluded, satisfying]. Rename bufferSize to capacity (default 16; also accepts \"unbounded\"). Acquisition is scoped and does not fail with E; the returned streams carry E."
+  note: 'Pass a Result-returning Filter instead of a boolean predicate or refinement; Filter.fromPredicate(predicate) adapts existing predicates. The tuple order is now [passes, fails], the reverse of v3 [excluded, satisfying]. Rename bufferSize to capacity (default 16; also accepts "unbounded"). Acquisition is scoped and does not fail with E; the returned streams carry E.'
 effect/Stream#scan:
   include: true
   replacement: "Stream.scan"
@@ -36,7 +36,7 @@ effect/Stream#let:
   note: "Retained in v4 and aligned with Effect.let: the field name may re-bind an existing key (the computed value replaces it) and the record type is Simplify<Omit<A, N> & Record<N, B>>."
 effect/Stream#Stream:
   replacement: "Stream"
-  note: "The Stream<A, E, R> interface is unchanged in shape and keeps the effect/Stream import path; the type-id key is now the string literal \"~effect/Stream\" instead of a unique symbol."
+  note: 'The Stream<A, E, R> interface is unchanged in shape and keeps the effect/Stream import path; the type-id key is now the string literal "~effect/Stream" instead of a unique symbol.'
 effect/Stream#Stream.Context:
   replacement: "Stream.Services"
   note: "Type-level extractor of the R parameter renamed from Stream.Context<T> to Stream.Services<T>; identical conditional-infer semantics."
@@ -48,7 +48,7 @@ effect/Stream#Stream.DynamicTupleOf:
   note: "Recursive tuple-builder helper removed with Stream.DynamicTuple; Types.TupleOf<N, T> is the v4 equivalent."
 effect/Stream#StreamTypeId:
   replacement: "Stream.TypeId"
-  note: "Renamed StreamTypeId -> TypeId and changed from a unique symbol to the string literal \"~effect/Stream\" (both the const and the type)."
+  note: 'Renamed StreamTypeId -> TypeId and changed from a unique symbol to the string literal "~effect/Stream" (both the const and the type).'
 effect/Stream#StreamUnify:
   replacement: "Stream.StreamUnify"
   note: "Still exported under the same name in v4 (extends Effect.EffectUnify); no change needed besides any Chunk-related element types."
@@ -248,7 +248,7 @@ effect/Stream#mergeEither:
   note: "Either replaced by Result: Stream.mergeResult(self, that) yields Result.Result<A, A2> with self -> Result.succeed and that -> Result.fail (v3 put self in Either.left and that in Either.right, so the success/left roles swap sides)."
 effect/Stream#mergeWith:
   replacement: "Stream.merge(Stream.map(self, onSelf), Stream.map(that, onOther), { haltStrategy })"
-  note: "Removed; pre-map both streams to the common type and use Stream.merge, whose options accept the same haltStrategy union (\"left\" | \"right\" | \"both\" | \"either\")."
+  note: 'Removed; pre-map both streams to the common type and use Stream.merge, whose options accept the same haltStrategy union ("left" | "right" | "both" | "either").'
 effect/Stream#mergeWithTag:
   replacement: "none"
   note: "Struct-to-tagged-union merge removed. Recreate with Stream.mergeAll over the entries, tagging each stream first."

@@ -7,25 +7,25 @@
  *
  * @since 4.0.0
  */
-import type { Path, SourceError } from "./ConfigProvider.ts"
-import * as ConfigProvider from "./ConfigProvider.ts"
-import * as Effect from "./Effect.ts"
-import * as Effectable from "./Effectable.ts"
-import { dual, memoize } from "./Function.ts"
-import * as InternalRecord from "./internal/record.ts"
-import * as LogLevel_ from "./LogLevel.ts"
-import * as Option from "./Option.ts"
-import * as Predicate from "./Predicate.ts"
-import * as Rec from "./Record.ts"
-import * as Result from "./Result.ts"
-import * as Schema from "./Schema.ts"
-import * as SchemaAST from "./SchemaAST.ts"
-import * as SchemaGetter from "./SchemaGetter.ts"
-import * as SchemaIssue from "./SchemaIssue.ts"
-import * as SchemaParser from "./SchemaParser.ts"
-import * as SchemaTransformation from "./SchemaTransformation.ts"
+import type { Path, SourceError } from "./ConfigProvider.ts";
+import * as ConfigProvider from "./ConfigProvider.ts";
+import * as Effect from "./Effect.ts";
+import * as Effectable from "./Effectable.ts";
+import { dual, memoize } from "./Function.ts";
+import * as InternalRecord from "./internal/record.ts";
+import * as LogLevel_ from "./LogLevel.ts";
+import * as Option from "./Option.ts";
+import * as Predicate from "./Predicate.ts";
+import * as Rec from "./Record.ts";
+import * as Result from "./Result.ts";
+import * as Schema from "./Schema.ts";
+import * as SchemaAST from "./SchemaAST.ts";
+import * as SchemaGetter from "./SchemaGetter.ts";
+import * as SchemaIssue from "./SchemaIssue.ts";
+import * as SchemaParser from "./SchemaParser.ts";
+import * as SchemaTransformation from "./SchemaTransformation.ts";
 
-const TypeId = "~effect/Config"
+const TypeId = "~effect/Config";
 
 /**
  * Returns `true` if `u` is a `Config` instance.
@@ -47,7 +47,7 @@ const TypeId = "~effect/Config"
  * @category guards
  * @since 2.0.0
  */
-export const isConfig = (u: unknown): u is Config<unknown> => Predicate.hasProperty(u, TypeId)
+export const isConfig = (u: unknown): u is Config<unknown> => Predicate.hasProperty(u, TypeId);
 
 /**
  * Represents the error type produced when config loading or validation fails.
@@ -70,17 +70,17 @@ export const isConfig = (u: unknown): u is Config<unknown> => Predicate.hasPrope
  * @since 4.0.0
  */
 export class ConfigError {
-  readonly _tag = "ConfigError"
-  readonly name: string = "ConfigError"
-  readonly cause: SourceError | Schema.SchemaError
+  readonly _tag = "ConfigError";
+  readonly name: string = "ConfigError";
+  readonly cause: SourceError | Schema.SchemaError;
   constructor(cause: SourceError | Schema.SchemaError) {
-    this.cause = cause
+    this.cause = cause;
   }
   get message() {
-    return this.cause.toString()
+    return this.cause.toString();
   }
   toString() {
-    return `ConfigError(${this.message})`
+    return `ConfigError(${this.message})`;
   }
 }
 
@@ -106,8 +106,8 @@ export class ConfigError {
  * @since 2.0.0
  */
 export interface Config<out T> extends Effect.Effect<T, ConfigError> {
-  readonly [TypeId]: typeof TypeId
-  readonly parse: (provider: ConfigProvider.ConfigProvider) => Effect.Effect<T, ConfigError>
+  readonly [TypeId]: typeof TypeId;
+  readonly parse: (provider: ConfigProvider.ConfigProvider) => Effect.Effect<T, ConfigError>;
 }
 
 // Config composition needs to distinguish an absent recipe from a hard failure
@@ -116,112 +116,114 @@ export interface Config<out T> extends Effect.Effect<T, ConfigError> {
 // as `undefined` and values supplied by defaults are not evidence of input.
 // Hard failures carry the same evidence so recovery cannot erase it.
 interface Resolved<out T> {
-  readonly _tag: "Resolved"
-  readonly value: T
-  readonly hasInput: boolean
+  readonly _tag: "Resolved";
+  readonly value: T;
+  readonly hasInput: boolean;
 }
 
 interface Absent {
-  readonly _tag: "Absent"
-  readonly error: ConfigError
+  readonly _tag: "Absent";
+  readonly error: ConfigError;
 }
 
-type Resolution<T> = Resolved<T> | Absent
+type Resolution<T> = Resolved<T> | Absent;
 
 interface EvaluationFailure {
-  readonly error: ConfigError
-  readonly hasInput: boolean
+  readonly error: ConfigError;
+  readonly hasInput: boolean;
 }
 
 type Evaluator<T> = (
   provider: ConfigProvider.ConfigProvider,
-  pathPrefix: Path
-) => Effect.Effect<Resolution<T>, EvaluationFailure>
+  pathPrefix: Path,
+) => Effect.Effect<Resolution<T>, EvaluationFailure>;
 
 interface ConfigImpl<out T> extends Config<T> {
-  readonly evaluator: Evaluator<T>
+  readonly evaluator: Evaluator<T>;
 }
 
 const Proto = {
   ...Effectable.Prototype<Config<any>>({
     label: "Config",
     evaluate(fiber) {
-      return this.parse(fiber.getRef(ConfigProvider.ConfigProvider))
-    }
+      return this.parse(fiber.getRef(ConfigProvider.ConfigProvider));
+    },
   }),
   [TypeId]: TypeId,
   toJSON(this: Config<unknown>) {
     return {
-      _id: "Config"
-    }
-  }
-}
+      _id: "Config",
+    };
+  },
+};
 
-function make<T>(
-  evaluator: Evaluator<T>
-): Config<T> {
-  const self = Object.create(Proto)
-  self.evaluator = evaluator
+function make<T>(evaluator: Evaluator<T>): Config<T> {
+  const self = Object.create(Proto);
+  self.evaluator = evaluator;
   self.parse = (provider: ConfigProvider.ConfigProvider) =>
     evaluator(provider, []).pipe(
       Effect.mapErrorEager((failure) => failure.error),
       Effect.flatMapEager((resolution) =>
-        resolution._tag === "Resolved" ? Effect.succeed(resolution.value) : Effect.fail(resolution.error)
-      )
-    )
-  return self
+        resolution._tag === "Resolved"
+          ? Effect.succeed(resolution.value)
+          : Effect.fail(resolution.error),
+      ),
+    );
+  return self;
 }
 
 const evaluateAt = <T>(
   self: Config<T>,
   provider: ConfigProvider.ConfigProvider,
-  pathPrefix: Path
-): Effect.Effect<Resolution<T>, EvaluationFailure> => (self as ConfigImpl<T>).evaluator(provider, pathPrefix)
+  pathPrefix: Path,
+): Effect.Effect<Resolution<T>, EvaluationFailure> =>
+  (self as ConfigImpl<T>).evaluator(provider, pathPrefix);
 
 const resolved = <T>(value: T, hasInput: boolean): Resolution<T> => ({
   _tag: "Resolved",
   value,
-  hasInput
-})
+  hasInput,
+});
 
 const absent = (error: ConfigError): Absent => ({
   _tag: "Absent",
-  error
-})
+  error,
+});
 
 const evaluationFailure = (error: ConfigError, hasInput: boolean): EvaluationFailure => ({
   error,
-  hasInput
-})
+  hasInput,
+});
 
-const isSourceError = (u: unknown): u is ConfigProvider.SourceError => Predicate.isTagged(u, "SourceError")
+const isSourceError = (u: unknown): u is ConfigProvider.SourceError =>
+  Predicate.isTagged(u, "SourceError");
 
 const catchSourceError = <A, E, R>(
   self: Effect.Effect<A, E, R>,
-  hasInput: boolean
+  hasInput: boolean,
 ): Effect.Effect<A, E | EvaluationFailure, R> =>
   self.pipe(
     Effect.catchDefect((defect) =>
       isSourceError(defect)
         ? Effect.fail(evaluationFailure(new ConfigError(defect), hasInput))
-        : Effect.die(defect)
-    )
-  )
+        : Effect.die(defect),
+    ),
+  );
 
 const preserveInputEvidence = <T>(
   self: Effect.Effect<Resolution<T>, EvaluationFailure>,
-  hasInput: boolean
+  hasInput: boolean,
 ): Effect.Effect<Resolution<T>, EvaluationFailure> => {
-  if (!hasInput) return self
+  if (!hasInput) return self;
   return self.pipe(
     Effect.mapErrorEager((failure) => evaluationFailure(failure.error, true)),
     Effect.flatMapEager((resolution) =>
       resolution._tag === "Resolved"
         ? Effect.succeed(resolved(resolution.value, true))
-        : Effect.fail(evaluationFailure(resolution.error, true))
-    )
-  )
-}
+        : Effect.fail(evaluationFailure(resolution.error, true)),
+    ),
+  );
+};
 
 /**
  * Transforms the parsed value of a config with a pure function.
@@ -250,16 +252,17 @@ const preserveInputEvidence = <T>(
  * @since 2.0.0
  */
 export const map: {
-  <A, B>(f: (a: A) => B): (self: Config<A>) => Config<B>
-  <A, B>(self: Config<A>, f: (a: A) => B): Config<B>
+  <A, B>(f: (a: A) => B): (self: Config<A>) => Config<B>;
+  <A, B>(self: Config<A>, f: (a: A) => B): Config<B>;
 } = dual(2, <A, B>(self: Config<A>, f: (a: A) => B): Config<B> => {
   return make((provider, pathPrefix) =>
     Effect.map(evaluateAt(self, provider, pathPrefix), (resolution) =>
       resolution._tag === "Resolved"
         ? resolved(f(resolution.value), resolution.hasInput)
-        : resolution)
-  )
-})
+        : resolution,
+    ),
+  );
+});
 
 /**
  * Transforms the parsed value with a function that may fail.
@@ -287,19 +290,20 @@ export const map: {
  * @since 2.0.0
  */
 export const mapEffect: {
-  <A, B>(f: (a: A) => Effect.Effect<B, ConfigError>): (self: Config<A>) => Config<B>
-  <A, B>(self: Config<A>, f: (a: A) => Effect.Effect<B, ConfigError>): Config<B>
+  <A, B>(f: (a: A) => Effect.Effect<B, ConfigError>): (self: Config<A>) => Config<B>;
+  <A, B>(self: Config<A>, f: (a: A) => Effect.Effect<B, ConfigError>): Config<B>;
 } = dual(2, <A, B>(self: Config<A>, f: (a: A) => Effect.Effect<B, ConfigError>): Config<B> => {
   return make((provider, pathPrefix) =>
     Effect.flatMap(evaluateAt(self, provider, pathPrefix), (resolution) =>
       resolution._tag === "Resolved"
         ? f(resolution.value).pipe(
-          Effect.mapEager((value) => resolved(value, resolution.hasInput)),
-          Effect.mapErrorEager((error) => evaluationFailure(error, resolution.hasInput))
-        )
-        : Effect.succeed(resolution))
-  )
-})
+            Effect.mapEager((value) => resolved(value, resolution.hasInput)),
+            Effect.mapErrorEager((error) => evaluationFailure(error, resolution.hasInput)),
+          )
+        : Effect.succeed(resolution),
+    ),
+  );
+});
 
 /**
  * Provides a fallback config when parsing fails with a `ConfigError`.
@@ -340,23 +344,23 @@ export const mapEffect: {
  * @since 2.0.0
  */
 export const orElse: {
-  <A2>(that: (error: ConfigError) => Config<A2>): <A>(self: Config<A>) => Config<A2 | A>
-  <A, A2>(self: Config<A>, that: (error: ConfigError) => Config<A2>): Config<A | A2>
+  <A2>(that: (error: ConfigError) => Config<A2>): <A>(self: Config<A>) => Config<A2 | A>;
+  <A, A2>(self: Config<A>, that: (error: ConfigError) => Config<A2>): Config<A | A2>;
 } = dual(2, <A, A2>(self: Config<A>, that: (error: ConfigError) => Config<A2>): Config<A | A2> => {
   return make<A | A2>((provider, pathPrefix) =>
     Effect.matchEffect(evaluateAt(self, provider, pathPrefix), {
       onFailure: (failure) =>
         preserveInputEvidence(
           evaluateAt(that(failure.error), provider, pathPrefix),
-          failure.hasInput
+          failure.hasInput,
         ),
       onSuccess: (resolution): Effect.Effect<Resolution<A | A2>, EvaluationFailure> =>
         resolution._tag === "Absent"
           ? evaluateAt(that(resolution.error), provider, pathPrefix)
-          : Effect.succeed(resolution)
-    })
-  )
-})
+          : Effect.succeed(resolution),
+    }),
+  );
+});
 
 /**
  * Combines multiple configs into a single config that parses all of them.
@@ -398,99 +402,110 @@ export const orElse: {
  * @since 2.0.0
  */
 export function all<const Arg extends Iterable<Config<any>> | Record<string, Config<any>>>(
-  arg: Arg
+  arg: Arg,
 ): Config<
-  [Arg] extends [ReadonlyArray<Config<any>>] ? {
-      -readonly [K in keyof Arg]: [Arg[K]] extends [Config<infer A>] ? A : never
-    }
-    : [Arg] extends [Iterable<Config<infer A>>] ? Array<A>
-    : [Arg] extends [Record<string, Config<any>>] ? {
-        -readonly [K in keyof Arg]: [Arg[K]] extends [Config<infer A>] ? A : never
+  [Arg] extends [ReadonlyArray<Config<any>>]
+    ? {
+        -readonly [K in keyof Arg]: [Arg[K]] extends [Config<infer A>] ? A : never;
       }
-    : never
+    : [Arg] extends [Iterable<Config<infer A>>]
+      ? Array<A>
+      : [Arg] extends [Record<string, Config<any>>]
+        ? {
+            -readonly [K in keyof Arg]: [Arg[K]] extends [Config<infer A>] ? A : never;
+          }
+        : never
 > {
   const configs: Array<Config<any>> | Record<string, Config<any>> = globalThis.Array.isArray(arg)
     ? arg
     : Symbol.iterator in arg
-    ? [...arg as any]
-    : arg
+      ? [...(arg as any)]
+      : arg;
   if (globalThis.Array.isArray(configs)) {
     return make((provider, pathPrefix) =>
       Effect.flatMapEager(
-        Effect.all(configs.map((config) => Effect.result(evaluateAt(config, provider, pathPrefix)))),
-        resolveArray
-      )
-    ) as any
+        Effect.all(
+          configs.map((config) => Effect.result(evaluateAt(config, provider, pathPrefix))),
+        ),
+        resolveArray,
+      ),
+    ) as any;
   } else {
     return make((provider, pathPrefix) =>
       Effect.flatMapEager(
-        Effect.all(Rec.map(configs, (config) => Effect.result(evaluateAt(config, provider, pathPrefix)))),
-        resolveRecord
-      )
-    ) as any
+        Effect.all(
+          Rec.map(configs, (config) => Effect.result(evaluateAt(config, provider, pathPrefix))),
+        ),
+        resolveRecord,
+      ),
+    ) as any;
   }
 }
 
 const resolveArray = (
-  results: ReadonlyArray<Result.Result<Resolution<any>, EvaluationFailure>>
+  results: ReadonlyArray<Result.Result<Resolution<any>, EvaluationFailure>>,
 ): Effect.Effect<Resolution<Array<any>>, EvaluationFailure> => {
-  const values: Array<any> = []
-  let firstFailure: EvaluationFailure | undefined
-  let firstAbsent: Absent | undefined
-  let hasInput = false
+  const values: Array<any> = [];
+  let firstFailure: EvaluationFailure | undefined;
+  let firstAbsent: Absent | undefined;
+  let hasInput = false;
   for (const result of results) {
     if (Result.isFailure(result)) {
-      firstFailure ??= result.failure
-      hasInput = hasInput || result.failure.hasInput
-      continue
+      firstFailure ??= result.failure;
+      hasInput = hasInput || result.failure.hasInput;
+      continue;
     }
-    const resolution = result.success
+    const resolution = result.success;
     if (resolution._tag === "Absent") {
-      firstAbsent ??= resolution
+      firstAbsent ??= resolution;
     } else {
-      values.push(resolution.value)
-      hasInput = hasInput || resolution.hasInput
+      values.push(resolution.value);
+      hasInput = hasInput || resolution.hasInput;
     }
   }
   if (firstFailure !== undefined) {
-    return Effect.fail(evaluationFailure(firstFailure.error, hasInput))
+    return Effect.fail(evaluationFailure(firstFailure.error, hasInput));
   }
   if (firstAbsent !== undefined) {
-    return hasInput ? Effect.fail(evaluationFailure(firstAbsent.error, true)) : Effect.succeed(firstAbsent)
+    return hasInput
+      ? Effect.fail(evaluationFailure(firstAbsent.error, true))
+      : Effect.succeed(firstAbsent);
   }
-  return Effect.succeed(resolved(values, hasInput))
-}
+  return Effect.succeed(resolved(values, hasInput));
+};
 
 const resolveRecord = (
-  results: Record<string, Result.Result<Resolution<any>, EvaluationFailure>>
+  results: Record<string, Result.Result<Resolution<any>, EvaluationFailure>>,
 ): Effect.Effect<Resolution<Record<string, any>>, EvaluationFailure> => {
-  const values: Record<string, any> = {}
-  let firstFailure: EvaluationFailure | undefined
-  let firstAbsent: Absent | undefined
-  let hasInput = false
+  const values: Record<string, any> = {};
+  let firstFailure: EvaluationFailure | undefined;
+  let firstAbsent: Absent | undefined;
+  let hasInput = false;
   for (const key in results) {
-    const result = results[key]
+    const result = results[key];
     if (Result.isFailure(result)) {
-      firstFailure ??= result.failure
-      hasInput = hasInput || result.failure.hasInput
-      continue
+      firstFailure ??= result.failure;
+      hasInput = hasInput || result.failure.hasInput;
+      continue;
     }
-    const resolution = result.success
+    const resolution = result.success;
     if (resolution._tag === "Absent") {
-      firstAbsent ??= resolution
+      firstAbsent ??= resolution;
     } else {
-      InternalRecord.assignProperty(values, key, resolution.value)
-      hasInput = hasInput || resolution.hasInput
+      InternalRecord.assignProperty(values, key, resolution.value);
+      hasInput = hasInput || resolution.hasInput;
     }
   }
   if (firstFailure !== undefined) {
-    return Effect.fail(evaluationFailure(firstFailure.error, hasInput))
+    return Effect.fail(evaluationFailure(firstFailure.error, hasInput));
   }
   if (firstAbsent !== undefined) {
-    return hasInput ? Effect.fail(evaluationFailure(firstAbsent.error, true)) : Effect.succeed(firstAbsent)
+    return hasInput
+      ? Effect.fail(evaluationFailure(firstAbsent.error, true))
+      : Effect.succeed(firstAbsent);
   }
-  return Effect.succeed(resolved(values, hasInput))
-}
+  return Effect.succeed(resolved(values, hasInput));
+};
 
 /**
  * Provides a fallback value when the config cannot resolve because none of its
@@ -526,16 +541,15 @@ const resolveRecord = (
  * @since 2.0.0
  */
 export const withDefault: {
-  <const A2>(defaultValue: A2): <A>(self: Config<A>) => Config<A2 | A>
-  <A, const A2>(self: Config<A>, defaultValue: A2): Config<A | A2>
+  <const A2>(defaultValue: A2): <A>(self: Config<A>) => Config<A2 | A>;
+  <A, const A2>(self: Config<A>, defaultValue: A2): Config<A | A2>;
 } = dual(2, <A, const A2>(self: Config<A>, defaultValue: A2): Config<A | A2> => {
   return make<A | A2>((provider, pathPrefix) =>
-    Effect.mapEager(
-      evaluateAt(self, provider, pathPrefix),
-      (resolution) => resolution._tag === "Absent" ? resolved(defaultValue, false) : resolution
-    )
-  )
-})
+    Effect.mapEager(evaluateAt(self, provider, pathPrefix), (resolution) =>
+      resolution._tag === "Absent" ? resolved(defaultValue, false) : resolution,
+    ),
+  );
+});
 
 /**
  * Makes a config optional: returns `Some(value)` on success and `None` when the
@@ -570,7 +584,7 @@ export const withDefault: {
  * @since 2.0.0
  */
 export const option = <A>(self: Config<A>): Config<Option.Option<A>> =>
-  self.pipe(map(Option.some), withDefault(Option.none()))
+  self.pipe(map(Option.some), withDefault(Option.none()));
 
 /**
  * Extracts the successfully parsed value type from a `Config`.
@@ -586,7 +600,7 @@ export const option = <A>(self: Config<A>): Config<Option.Option<A>> =>
  * @category utility types
  * @since 2.5.0
  */
-export type Success<T> = [T] extends [Config<infer A>] ? A : never
+export type Success<T> = [T] extends [Config<infer A>] ? A : never;
 
 /**
  * Utility type that recursively replaces primitives with `Config` in a nested
@@ -606,15 +620,19 @@ export type Success<T> = [T] extends [Config<infer A>] ? A : never
  * @category utility types
  * @since 2.0.0
  */
-export type Wrap<A> = [NonNullable<A>] extends [infer T] ? [IsPlainObject<T>] extends [true] ?
-      | { readonly [K in keyof A]: Wrap<A[K]> }
-      | Config<A>
-  : Config<A>
-  : Config<A>
+export type Wrap<A> = [NonNullable<A>] extends [infer T]
+  ? [IsPlainObject<T>] extends [true]
+    ? { readonly [K in keyof A]: Wrap<A[K]> } | Config<A>
+    : Config<A>
+  : Config<A>;
 
 type IsPlainObject<A> = [A] extends [Record<string, any>]
-  ? [keyof A] extends [never] ? false : [keyof A] extends [string] ? true : false
-  : false
+  ? [keyof A] extends [never]
+    ? false
+    : [keyof A] extends [string]
+      ? true
+      : false
+  : false;
 
 /**
  * Constructs a `Config<T>` from a value matching `Wrap<T>`.
@@ -652,146 +670,152 @@ type IsPlainObject<A> = [A] extends [Record<string, any>]
  * @since 2.0.0
  */
 export const unwrap = <T>(wrapped: Wrap<T>): Config<T> => {
-  if (isConfig(wrapped)) return wrapped
-  return all(Rec.map(wrapped as Record<string, Wrap<any>>, (config) => unwrap(config))) as Config<T>
-}
+  if (isConfig(wrapped)) return wrapped;
+  return all(
+    Rec.map(wrapped as Record<string, Wrap<any>>, (config) => unwrap(config)),
+  ) as Config<T>;
+};
 
 // -----------------------------------------------------------------------------
 // schema
 // -----------------------------------------------------------------------------
 
 interface ConfigCursor {
-  readonly provider: ConfigProvider.ConfigProvider
-  readonly path: Path
-  readonly node: ConfigProvider.Node | undefined
-  readonly toString: () => string
+  readonly provider: ConfigProvider.ConfigProvider;
+  readonly path: Path;
+  readonly node: ConfigProvider.Node | undefined;
+  readonly toString: () => string;
 }
 
-const cursorToString = (): string => "<configuration>"
+const cursorToString = (): string => "<configuration>";
 
 const loadCursor: (
   provider: ConfigProvider.ConfigProvider,
-  path: Path
+  path: Path,
 ) => Effect.Effect<ConfigCursor> = (provider, path) =>
   provider.load(path).pipe(
     Effect.orDie,
-    Effect.mapEager((node) => ({ provider, path, node, toString: cursorToString }))
-  )
+    Effect.mapEager((node) => ({ provider, path, node, toString: cursorToString })),
+  );
 
-const loadChildCursor = (cursor: ConfigCursor, segment: string | number): Effect.Effect<ConfigCursor> =>
-  loadCursor(cursor.provider, [...cursor.path, segment])
+const loadChildCursor = (
+  cursor: ConfigCursor,
+  segment: string | number,
+): Effect.Effect<ConfigCursor> => loadCursor(cursor.provider, [...cursor.path, segment]);
 
-const getScalar = (node: ConfigProvider.Node | undefined): string | undefined => node?.value
+const getScalar = (node: ConfigProvider.Node | undefined): string | undefined => node?.value;
 
 const decodeFromCursor = (
   ast: SchemaAST.AST,
-  decode: (cursor: ConfigCursor) => Effect.Effect<unknown, SchemaIssue.Issue>
+  decode: (cursor: ConfigCursor) => Effect.Effect<unknown, SchemaIssue.Issue>,
 ): SchemaAST.AST =>
   SchemaAST.decodeTo(
     SchemaAST.unknown,
     ast,
     new SchemaTransformation.Transformation(
       SchemaGetter.transformEffect((input: unknown) => decode(input as ConfigCursor)),
-      SchemaGetter.passthrough()
-    )
-  )
+      SchemaGetter.passthrough(),
+    ),
+  );
 
 const isScalarInput = (ast: SchemaAST.AST): boolean => {
   switch (ast._tag) {
     case "Union":
-      return ast.types.every(isScalarInput)
+      return ast.types.every(isScalarInput);
     case "Objects":
     case "Arrays":
     case "Suspend":
-      return false
+      return false;
     default:
-      return true
+      return true;
   }
-}
+};
 
-const hasProviderInput = (
-  ast: SchemaAST.AST,
-  node: ConfigProvider.Node | undefined
-): boolean => {
+const hasProviderInput = (ast: SchemaAST.AST, node: ConfigProvider.Node | undefined): boolean => {
   switch (ast._tag) {
     case "Objects":
-      return node?._tag === "Record"
+      return node?._tag === "Record";
     case "Arrays":
-      return node?._tag === "Array"
+      return node?._tag === "Array";
     case "Union":
-      return ast.types.some((ast) => hasProviderInput(ast, node))
+      return ast.types.some((ast) => hasProviderInput(ast, node));
     case "Suspend":
-      return hasProviderInput(ast.thunk(), node)
+      return hasProviderInput(ast.thunk(), node);
     default:
-      return getScalar(node) !== undefined
+      return getScalar(node) !== undefined;
   }
-}
+};
 
 const toConfigCursorAST = memoize((root: SchemaAST.AST): SchemaAST.AST => {
-  const seen = new WeakSet<SchemaAST.AST>()
+  const seen = new WeakSet<SchemaAST.AST>();
   const recur = SchemaAST.applyToSelfOrLastLinkEncoding((ast) => {
-    seen.add(ast)
+    seen.add(ast);
     switch (ast._tag) {
       case "Objects": {
-        const matchesIndex = ast.indexSignatures.map((is) => SchemaParser._is(is.parameter))
-        const materialize = Effect.fnUntraced(function*(cursor: ConfigCursor) {
+        const matchesIndex = ast.indexSignatures.map((is) => SchemaParser._is(is.parameter));
+        const materialize = Effect.fnUntraced(function* (cursor: ConfigCursor) {
           if (cursor.node?._tag !== "Record") {
-            return undefined
+            return undefined;
           }
-          const node = cursor.node
-          const keys = new Set<string>()
+          const node = cursor.node;
+          const keys = new Set<string>();
           for (const property of ast.propertySignatures) {
-            if (typeof property.name === "string") keys.add(property.name)
+            if (typeof property.name === "string") keys.add(property.name);
           }
           if (matchesIndex.length > 0) {
             for (const key of node.keys) {
-              if (matchesIndex.some((matches) => matches(key))) keys.add(key)
+              if (matchesIndex.some((matches) => matches(key))) keys.add(key);
             }
           }
-          const out: Record<string, ConfigCursor> = {}
+          const out: Record<string, ConfigCursor> = {};
           for (const key of keys) {
-            const child = yield* loadChildCursor(cursor, key)
-            if (child.node !== undefined) InternalRecord.assignProperty(out, key, child)
+            const child = yield* loadChildCursor(cursor, key);
+            if (child.node !== undefined) InternalRecord.assignProperty(out, key, child);
           }
-          return out
-        })
-        return decodeFromCursor(ast.recur(recur, (ast) => ast), materialize)
+          return out;
+        });
+        return decodeFromCursor(
+          ast.recur(recur, (ast) => ast),
+          materialize,
+        );
       }
       case "Arrays": {
-        const materialize = Effect.fnUntraced(function*(cursor: ConfigCursor) {
+        const materialize = Effect.fnUntraced(function* (cursor: ConfigCursor) {
           if (cursor.node?._tag !== "Array") {
-            return undefined
+            return undefined;
           }
-          const out: Array<ConfigCursor> = []
+          const out: Array<ConfigCursor> = [];
           for (let i = 0; i < cursor.node.length; i++) {
-            out.push(yield* loadChildCursor(cursor, i))
+            out.push(yield* loadChildCursor(cursor, i));
           }
-          return out
-        })
-        return decodeFromCursor(ast.recur(recur), materialize)
+          return out;
+        });
+        return decodeFromCursor(ast.recur(recur), materialize);
       }
       case "Union":
         for (const member of ast.types) {
-          recur(member)
+          recur(member);
         }
         return isScalarInput(ast)
           ? decodeFromCursor(ast, (cursor) => Effect.succeed(getScalar(cursor.node)))
-          : ast.recur(recur)
+          : ast.recur(recur);
       case "Suspend": {
-        const target = ast.thunk()
+        const target = ast.thunk();
         // Force new branches so opaque encodings fail when the Config is constructed.
-        if (!seen.has(target)) recur(target)
-        return ast.recur(recur)
+        if (!seen.has(target)) recur(target);
+        return ast.recur(recur);
       }
       case "Declaration":
       case "Any":
-        throw new globalThis.Error("Config.schema does not support opaque StringTree encodings", { cause: ast })
+        throw new globalThis.Error("Config.schema does not support opaque StringTree encodings", {
+          cause: ast,
+        });
       default:
-        return decodeFromCursor(ast, (cursor) => Effect.succeed(getScalar(cursor.node)))
+        return decodeFromCursor(ast, (cursor) => Effect.succeed(getScalar(cursor.node)));
     }
-  })
-  return recur(root)
-})
+  });
+  return recur(root);
+});
 
 /**
  * Creates a `Config<T>` from a `Schema.Codec`.
@@ -874,51 +898,57 @@ const toConfigCursorAST = memoize((root: SchemaAST.AST): SchemaAST.AST => {
  * @category schemas
  * @since 4.0.0
  */
-export function schema<T>(codec: Schema.ConstraintCodec<T, unknown>, path?: string | ConfigProvider.Path): Config<T> {
-  const codecStringTree = Schema.toCodecStringTree(codec)
-  const encodedAst = SchemaAST.toEncoded(codecStringTree.ast)
+export function schema<T>(
+  codec: Schema.ConstraintCodec<T, unknown>,
+  path?: string | ConfigProvider.Path,
+): Config<T> {
+  const codecStringTree = Schema.toCodecStringTree(codec);
+  const encodedAst = SchemaAST.toEncoded(codecStringTree.ast);
   const decodeCursor = SchemaParser.decodeUnknownEffect(
-    Schema.make<Schema.Codec<T, ConfigCursor>>(toConfigCursorAST(codecStringTree.ast))
-  )
-  const localPath = typeof path === "string" ? [path] : path ?? []
+    Schema.make<Schema.Codec<T, ConfigCursor>>(toConfigCursorAST(codecStringTree.ast)),
+  );
+  const localPath = typeof path === "string" ? [path] : (path ?? []);
   return make((provider, pathPrefix) => {
-    const fullPath = [...pathPrefix, ...localPath]
+    const fullPath = [...pathPrefix, ...localPath];
     return catchSourceError(loadCursor(provider, fullPath), false).pipe(
       Effect.flatMapEager((cursor) => {
-        const hasInput = hasProviderInput(encodedAst, cursor.node)
+        const hasInput = hasProviderInput(encodedAst, cursor.node);
         return catchSourceError(
           decodeCursor(cursor).pipe(
             Effect.mapEager((value) => resolved(value, hasInput)),
             Effect.catchEager((issue) => {
               const error = new ConfigError(
-                new Schema.SchemaError(fullPath.length > 0 ? new SchemaIssue.Pointer(fullPath, issue) : issue)
-              )
+                new Schema.SchemaError(
+                  fullPath.length > 0 ? new SchemaIssue.Pointer(fullPath, issue) : issue,
+                ),
+              );
               return hasInput
                 ? Effect.fail(evaluationFailure(error, true))
-                : Effect.succeed(absent(error))
-            })
+                : Effect.succeed(absent(error));
+            }),
           ),
-          hasInput
-        )
-      })
-    )
-  })
+          hasInput,
+        );
+      }),
+    );
+  });
 }
 
-const PortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }))
+const PortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }));
 
-const LogLevelSchema = Schema.Literals(LogLevel_.values)
+const LogLevelSchema = Schema.Literals(LogLevel_.values);
 
 interface ArrayOptions {
-  readonly separator?: string | undefined
+  readonly separator?: string | undefined;
 }
 
 interface RecordOptions {
-  readonly separator?: string | undefined
-  readonly keyValueSeparator?: string | undefined
+  readonly separator?: string | undefined;
+  readonly keyValueSeparator?: string | undefined;
 }
 
-const isPath = (u: unknown): u is string | Path => Predicate.isString(u) || globalThis.Array.isArray(u)
+const isPath = (u: unknown): u is string | Path =>
+  Predicate.isString(u) || globalThis.Array.isArray(u);
 
 // -----------------------------------------------------------------------------
 // constructors
@@ -936,7 +966,7 @@ const isPath = (u: unknown): u is string | Path => Predicate.isString(u) || glob
  * @since 2.0.0
  */
 export function fail(err: SourceError | Schema.SchemaError) {
-  return make(() => Effect.fail(evaluationFailure(new ConfigError(err), false)))
+  return make(() => Effect.fail(evaluationFailure(new ConfigError(err), false)));
 }
 
 /**
@@ -964,7 +994,7 @@ export function fail(err: SourceError | Schema.SchemaError) {
  * @since 2.0.0
  */
 export function succeed<T>(value: T) {
-  return make(() => Effect.succeed(resolved(value, false)))
+  return make(() => Effect.succeed(resolved(value, false)));
 }
 
 /**
@@ -996,7 +1026,7 @@ export function succeed<T>(value: T) {
  * @since 2.0.0
  */
 export function String(name?: string) {
-  return schema(Schema.String, name)
+  return schema(Schema.String, name);
 }
 
 /**
@@ -1017,7 +1047,7 @@ export function String(name?: string) {
  * @since 3.7.0
  */
 export function NonEmptyString(name?: string) {
-  return schema(Schema.NonEmptyString, name)
+  return schema(Schema.NonEmptyString, name);
 }
 
 /**
@@ -1039,7 +1069,7 @@ export function NonEmptyString(name?: string) {
  * @since 2.0.0
  */
 export function Number(name?: string) {
-  return schema(Schema.Number, name)
+  return schema(Schema.Number, name);
 }
 
 /**
@@ -1060,7 +1090,7 @@ export function Number(name?: string) {
  * @since 4.0.0
  */
 export function Finite(name?: string) {
-  return schema(Schema.Finite, name)
+  return schema(Schema.Finite, name);
 }
 
 /**
@@ -1081,7 +1111,7 @@ export function Finite(name?: string) {
  * @since 4.0.0
  */
 export function Int(name?: string) {
-  return schema(Schema.Int, name)
+  return schema(Schema.Int, name);
 }
 
 /**
@@ -1110,7 +1140,7 @@ export function Int(name?: string) {
  * @since 2.0.0
  */
 export function Literal<L extends SchemaAST.LiteralValue>(literal: L, name?: string) {
-  return schema(Schema.Literal(literal), name)
+  return schema(Schema.Literal(literal), name);
 }
 
 /**
@@ -1139,8 +1169,11 @@ export function Literal<L extends SchemaAST.LiteralValue>(literal: L, name?: str
  * @category constructors
  * @since 4.0.0
  */
-export function Literals<const L extends ReadonlyArray<SchemaAST.LiteralValue>>(literals: L, name?: string) {
-  return schema(Schema.Literals(literals), name)
+export function Literals<const L extends ReadonlyArray<SchemaAST.LiteralValue>>(
+  literals: L,
+  name?: string,
+) {
+  return schema(Schema.Literals(literals), name);
 }
 
 /**
@@ -1174,32 +1207,32 @@ export function Literals<const L extends ReadonlyArray<SchemaAST.LiteralValue>>(
  */
 export function Array<V extends Schema.ConstraintCodec<unknown, unknown>>(
   value: V,
-  options?: ArrayOptions
-): Config<ReadonlyArray<V["Type"]>>
+  options?: ArrayOptions,
+): Config<ReadonlyArray<V["Type"]>>;
 export function Array<V extends Schema.ConstraintCodec<unknown, unknown>>(
   value: V,
   path: string | Path,
-  options?: ArrayOptions
-): Config<ReadonlyArray<V["Type"]>>
+  options?: ArrayOptions,
+): Config<ReadonlyArray<V["Type"]>>;
 export function Array<V extends Schema.ConstraintCodec<unknown, unknown>>(
   value: V,
   pathOrOptions?: string | Path | ArrayOptions,
-  options?: ArrayOptions
+  options?: ArrayOptions,
 ) {
-  const hasPath = isPath(pathOrOptions)
-  const resolvedOptions = hasPath ? options : pathOrOptions
-  const array = Schema.Array(value)
-  const separator = resolvedOptions?.separator ?? ","
+  const hasPath = isPath(pathOrOptions);
+  const resolvedOptions = hasPath ? options : pathOrOptions;
+  const array = Schema.Array(value);
+  const separator = resolvedOptions?.separator ?? ",";
   const arrayString = Schema.String.pipe(
     Schema.decodeTo(Schema.toCodecStringTree(array), {
       decode: SchemaGetter.split(resolvedOptions),
       encode: SchemaGetter.compose(
         SchemaGetter.passthrough<ReadonlyArray<string>, Schema.StringTree>({ strict: false }),
-        SchemaGetter.transform((input) => input.join(separator))
-      )
-    })
-  )
-  return schema(Schema.Union([arrayString, array]), hasPath ? pathOrOptions : undefined)
+        SchemaGetter.transform((input) => input.join(separator)),
+      ),
+    }),
+  );
+  return schema(Schema.Union([arrayString, array]), hasPath ? pathOrOptions : undefined);
 }
 
 /**
@@ -1241,43 +1274,29 @@ export function Array<V extends Schema.ConstraintCodec<unknown, unknown>>(
  */
 export function Record<
   K extends Schema.Record.Key & Schema.ConstraintCodec<unknown, unknown>,
-  V extends Schema.ConstraintCodec<unknown, unknown>
->(
-  key: K,
-  value: V,
-  options?: RecordOptions
-): Config<Schema.Record.Type<K, V>>
+  V extends Schema.ConstraintCodec<unknown, unknown>,
+>(key: K, value: V, options?: RecordOptions): Config<Schema.Record.Type<K, V>>;
 export function Record<
   K extends Schema.Record.Key & Schema.ConstraintCodec<unknown, unknown>,
-  V extends Schema.ConstraintCodec<unknown, unknown>
->(
-  key: K,
-  value: V,
-  path: string | Path,
-  options?: RecordOptions
-): Config<Schema.Record.Type<K, V>>
+  V extends Schema.ConstraintCodec<unknown, unknown>,
+>(key: K, value: V, path: string | Path, options?: RecordOptions): Config<Schema.Record.Type<K, V>>;
 export function Record<
   K extends Schema.Record.Key & Schema.ConstraintCodec<unknown, unknown>,
-  V extends Schema.ConstraintCodec<unknown, unknown>
->(
-  key: K,
-  value: V,
-  pathOrOptions?: string | Path | RecordOptions,
-  options?: RecordOptions
-) {
-  const hasPath = isPath(pathOrOptions)
-  const record = Schema.Record(key, value)
-  const split = SchemaTransformation.splitKeyValue(hasPath ? options : pathOrOptions)
+  V extends Schema.ConstraintCodec<unknown, unknown>,
+>(key: K, value: V, pathOrOptions?: string | Path | RecordOptions, options?: RecordOptions) {
+  const hasPath = isPath(pathOrOptions);
+  const record = Schema.Record(key, value);
+  const split = SchemaTransformation.splitKeyValue(hasPath ? options : pathOrOptions);
   const recordString = Schema.String.pipe(
     Schema.decodeTo(Schema.toCodecStringTree(record), {
       decode: split.decode,
       encode: SchemaGetter.compose(
         SchemaGetter.passthrough<Record<string, string>, Schema.StringTree>({ strict: false }),
-        split.encode
-      )
-    })
-  )
-  return schema(Schema.Union([record, recordString]), hasPath ? pathOrOptions : undefined)
+        split.encode,
+      ),
+    }),
+  );
+  return schema(Schema.Union([record, recordString]), hasPath ? pathOrOptions : undefined);
 }
 
 /**
@@ -1315,7 +1334,7 @@ export function Record<
  * @since 2.0.0
  */
 export function Boolean(name?: string) {
-  return schema(Schema.BooleanLiterals, name)
+  return schema(Schema.BooleanLiterals, name);
 }
 
 /**
@@ -1357,7 +1376,7 @@ export function Boolean(name?: string) {
  * @since 2.5.0
  */
 export function Duration(name?: string) {
-  return schema(Schema.DurationFromString, name)
+  return schema(Schema.DurationFromString, name);
 }
 
 /**
@@ -1372,7 +1391,7 @@ export function Duration(name?: string) {
  * @since 4.0.0
  */
 export function ByteSize(name?: string) {
-  return schema(Schema.ByteSize, name)
+  return schema(Schema.ByteSize, name);
 }
 
 /**
@@ -1410,7 +1429,7 @@ export function ByteSize(name?: string) {
  * @since 3.16.0
  */
 export function Port(name?: string) {
-  return schema(PortSchema, name)
+  return schema(PortSchema, name);
 }
 
 /**
@@ -1447,7 +1466,7 @@ export function Port(name?: string) {
  * @since 2.0.0
  */
 export function LogLevel(name?: string) {
-  return schema(LogLevelSchema, name)
+  return schema(LogLevelSchema, name);
 }
 
 /**
@@ -1487,7 +1506,7 @@ export function LogLevel(name?: string) {
  * @since 2.0.0
  */
 export function Redacted(name?: string) {
-  return schema(Schema.Redacted(Schema.String), name)
+  return schema(Schema.Redacted(Schema.String), name);
 }
 
 /**
@@ -1529,7 +1548,7 @@ export function Redacted(name?: string) {
  * @since 3.11.0
  */
 export function URL(name?: string) {
-  return schema(Schema.URL, name)
+  return schema(Schema.URL, name);
 }
 
 /**
@@ -1562,7 +1581,7 @@ export function URL(name?: string) {
  * @since 2.0.0
  */
 export function Date(name?: string) {
-  return schema(Schema.Date, name)
+  return schema(Schema.Date, name);
 }
 
 /**
@@ -1617,10 +1636,8 @@ export function Date(name?: string) {
  * @since 2.0.0
  */
 export const nested: {
-  (name: string): <A>(self: Config<A>) => Config<A>
-  <A>(self: Config<A>, name: string): Config<A>
-} = dual(
-  2,
-  <A>(self: Config<A>, name: string): Config<A> =>
-    make((provider, pathPrefix) => evaluateAt(self, provider, [...pathPrefix, name]))
-)
+  (name: string): <A>(self: Config<A>) => Config<A>;
+  <A>(self: Config<A>, name: string): Config<A>;
+} = dual(2, <A>(self: Config<A>, name: string): Config<A> =>
+  make((provider, pathPrefix) => evaluateAt(self, provider, [...pathPrefix, name])),
+);

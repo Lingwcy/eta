@@ -135,20 +135,13 @@ const types = {
     "msi",
     "msp",
     "msm",
-    "buffer"
+    "buffer",
   ],
   "application/oda": ["oda"],
   "application/oebps-package+xml": ["opf"],
   "application/ogg": ["ogx"],
   "application/omdoc+xml": ["omdoc"],
-  "application/onenote": [
-    "onetoc",
-    "onetoc2",
-    "onetmp",
-    "onepkg",
-    "one",
-    "onea"
-  ],
+  "application/onenote": ["onetoc", "onetoc2", "onetmp", "onepkg", "one", "onea"],
   "application/oxps": ["oxps"],
   "application/p2p-overlay+xml": ["relo"],
   "application/patch-ops-error+xml": ["xer"],
@@ -386,10 +379,10 @@ const types = {
   "video/mpeg": ["mpeg", "mpg", "mpe", "m1v", "m2v"],
   "video/ogg": ["ogv"],
   "video/quicktime": ["qt", "mov"],
-  "video/webm": ["webm"]
-} as const satisfies Readonly<{ [key: string]: Array<string> }>
+  "video/webm": ["webm"],
+} as const satisfies Readonly<{ [key: string]: Array<string> }>;
 
 // Make readonly
-Object.freeze(types)
+Object.freeze(types);
 
-export default types
+export default types;

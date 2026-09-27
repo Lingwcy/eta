@@ -1,41 +1,22 @@
 {
   "name": "@effect/platform-deno",
-  "type": "module",
   "version": "4.0.0-rc.117",
-  "license": "MIT",
   "description": "Platform specific implementations for the Deno runtime",
+  "keywords": [
+    "algebraic-data-types",
+    "deno",
+    "functional-programming",
+    "typescript"
+  ],
   "homepage": "https://effect.website",
+  "bugs": {
+    "url": "https://github.com/Effect-TS/effect/issues"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/platform/deno"
-  },
-  "bugs": {
-    "url": "https://github.com/Effect-TS/effect/issues"
-  },
-  "tags": [
-    "deno",
-    "typescript",
-    "algebraic-data-types",
-    "functional-programming"
-  ],
-  "keywords": [
-    "deno",
-    "typescript",
-    "algebraic-data-types",
-    "functional-programming"
-  ],
-  "engines": {
-    "deno": ">=2.8.3"
-  },
-  "sideEffects": [],
-  "exports": {
-    "./package.json": "./package.json",
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./internal/*": null,
-    "./index": null,
-    "./*/index": null
   },
   "files": [
     "src/**/*.ts",
@@ -47,9 +28,17 @@
     "CLAUDE.md",
     "ai-docs/**/*"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts",
+    "./internal/*": null,
+    "./index": null,
+    "./*/index": null
+  },
   "publishConfig": {
-    "access": "public",
-    "provenance": true,
     "exports": {
       "./package.json": "./package.json",
       ".": "./dist/index.js",
@@ -57,7 +46,9 @@
       "./internal/*": null,
       "./index": null,
       "./*/index": null
-    }
+    },
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "codegen": "effect-utils codegen",
@@ -71,13 +62,22 @@
     "@std/path": "jsr:^1.1.6",
     "@std/streams": "jsr:^1.1.2"
   },
-  "peerDependencies": {
-    "effect": "workspace:^"
-  },
   "devDependencies": {
     "@std/assert": "jsr:^1.0.19",
     "@testcontainers/redis": "^12.1.0",
     "@types/deno": "^2.7.0",
     "effect": "workspace:^"
-  }
+  },
+  "peerDependencies": {
+    "effect": "workspace:^"
+  },
+  "engines": {
+    "deno": ">=2.8.3"
+  },
+  "tags": [
+    "deno",
+    "typescript",
+    "algebraic-data-types",
+    "functional-programming"
+  ]
 }

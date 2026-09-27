@@ -10,20 +10,20 @@
  * @since 4.0.0
  */
 
-import * as Effect from "./Effect.ts"
-import { dual } from "./Function.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import { NodeInspectSymbol, toJson } from "./Inspectable.ts"
-import type { Option } from "./Option.ts"
-import * as O from "./Option.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { pipeArguments } from "./Pipeable.ts"
-import { hasProperty } from "./Predicate.ts"
-import type { Result } from "./Result.ts"
-import * as Res from "./Result.ts"
-import * as TxRef from "./TxRef.ts"
+import * as Effect from "./Effect.ts";
+import { dual } from "./Function.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import { NodeInspectSymbol, toJson } from "./Inspectable.ts";
+import type { Option } from "./Option.ts";
+import * as O from "./Option.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { pipeArguments } from "./Pipeable.ts";
+import { hasProperty } from "./Predicate.ts";
+import type { Result } from "./Result.ts";
+import * as Res from "./Result.ts";
+import * as TxRef from "./TxRef.ts";
 
-const TypeId = "~effect/TxDeferred"
+const TypeId = "~effect/TxDeferred";
 
 /**
  * A transactional deferred is a write-once cell readable within transactions.
@@ -61,30 +61,30 @@ const TypeId = "~effect/TxDeferred"
  * @since 4.0.0
  */
 export interface TxDeferred<in out A, in out E = never> extends Inspectable, Pipeable {
-  readonly [TypeId]: typeof TypeId
-  readonly ref: TxRef.TxRef<Option<Result<A, E>>>
+  readonly [TypeId]: typeof TypeId;
+  readonly ref: TxRef.TxRef<Option<Result<A, E>>>;
 }
 
 const TxDeferredProto: Omit<TxDeferred<unknown, unknown>, typeof TypeId | "ref"> = {
   [NodeInspectSymbol](this: TxDeferred<unknown, unknown>) {
-    return toJson(this)
+    return toJson(this);
   },
   toJSON(this: TxDeferred<unknown, unknown>) {
     return {
-      _id: "TxDeferred"
-    }
+      _id: "TxDeferred",
+    };
   },
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+    return pipeArguments(this, arguments);
+  },
+};
 
 const makeTxDeferred = <A, E>(ref: TxRef.TxRef<Option<Result<A, E>>>): TxDeferred<A, E> => {
-  const self = Object.create(TxDeferredProto)
-  self[TypeId] = TypeId
-  self.ref = ref
-  return self
-}
+  const self = Object.create(TxDeferredProto);
+  self[TypeId] = TypeId;
+  self.ref = ref;
+  return self;
+};
 
 /**
  * Creates a new empty `TxDeferred`.
@@ -110,7 +110,7 @@ const makeTxDeferred = <A, E>(ref: TxRef.TxRef<Option<Result<A, E>>>): TxDeferre
  * @since 2.0.0
  */
 export const make = <A, E = never>(): Effect.Effect<TxDeferred<A, E>> =>
-  Effect.map(TxRef.make<Option<Result<A, E>>>(O.none()), makeTxDeferred)
+  Effect.map(TxRef.make<Option<Result<A, E>>>(O.none()), makeTxDeferred);
 
 /**
  * Reads the deferred value. Retries the transaction if the deferred has not
@@ -134,15 +134,15 @@ export const make = <A, E = never>(): Effect.Effect<TxDeferred<A, E>> =>
  * @since 4.0.0
  */
 const await_ = <A, E>(self: TxDeferred<A, E>): Effect.Effect<A, E> =>
-  Effect.gen(function*() {
-    const option = yield* TxRef.get(self.ref)
+  Effect.gen(function* () {
+    const option = yield* TxRef.get(self.ref);
     if (O.isNone(option)) {
-      return yield* Effect.txRetry
+      return yield* Effect.txRetry;
     }
     return Res.isSuccess(option.value)
       ? option.value.success
-      : yield* Effect.fail(option.value.failure)
-  }).pipe(Effect.tx)
+      : yield* Effect.fail(option.value.failure);
+  }).pipe(Effect.tx);
 
 export {
   /**
@@ -159,8 +159,8 @@ export {
    * @category getters
    * @since 4.0.0
    */
-  await_ as await
-}
+  await_ as await,
+};
 
 /**
  * Reads the current state of the deferred without retrying. Returns `None` if
@@ -190,7 +190,8 @@ export {
  * @category getters
  * @since 2.0.0
  */
-export const poll = <A, E>(self: TxDeferred<A, E>): Effect.Effect<Option<Result<A, E>>> => TxRef.get(self.ref)
+export const poll = <A, E>(self: TxDeferred<A, E>): Effect.Effect<Option<Result<A, E>>> =>
+  TxRef.get(self.ref);
 
 /**
  * Completes the deferred with a `Result`. Returns `true` if this was the first
@@ -219,18 +220,16 @@ export const poll = <A, E>(self: TxDeferred<A, E>): Effect.Effect<Option<Result<
  * @since 2.0.0
  */
 export const done: {
-  <A, E>(result: Result<A, E>): (self: TxDeferred<A, E>) => Effect.Effect<boolean>
-  <A, E>(self: TxDeferred<A, E>, result: Result<A, E>): Effect.Effect<boolean>
-} = dual(
-  2,
-  <A, E>(self: TxDeferred<A, E>, result: Result<A, E>): Effect.Effect<boolean> =>
-    TxRef.modify(self.ref, (current) => {
-      if (O.isSome(current)) {
-        return [false, current]
-      }
-      return [true, O.some(result)]
-    })
-)
+  <A, E>(result: Result<A, E>): (self: TxDeferred<A, E>) => Effect.Effect<boolean>;
+  <A, E>(self: TxDeferred<A, E>, result: Result<A, E>): Effect.Effect<boolean>;
+} = dual(2, <A, E>(self: TxDeferred<A, E>, result: Result<A, E>): Effect.Effect<boolean> =>
+  TxRef.modify(self.ref, (current) => {
+    if (O.isSome(current)) {
+      return [false, current];
+    }
+    return [true, O.some(result)];
+  }),
+);
 
 /**
  * Completes the deferred with a success value. Returns `true` if this was the
@@ -259,12 +258,11 @@ export const done: {
  * @since 2.0.0
  */
 export const succeed: {
-  <A>(value: A): <E>(self: TxDeferred<A, E>) => Effect.Effect<boolean>
-  <A, E>(self: TxDeferred<A, E>, value: A): Effect.Effect<boolean>
-} = dual(
-  2,
-  <A, E>(self: TxDeferred<A, E>, value: A): Effect.Effect<boolean> => done(self, Res.succeed(value))
-)
+  <A>(value: A): <E>(self: TxDeferred<A, E>) => Effect.Effect<boolean>;
+  <A, E>(self: TxDeferred<A, E>, value: A): Effect.Effect<boolean>;
+} = dual(2, <A, E>(self: TxDeferred<A, E>, value: A): Effect.Effect<boolean> =>
+  done(self, Res.succeed(value)),
+);
 
 /**
  * Completes the deferred with a failure. Returns `true` if this was the first
@@ -294,12 +292,11 @@ export const succeed: {
  * @since 2.0.0
  */
 export const fail: {
-  <E>(error: E): <A>(self: TxDeferred<A, E>) => Effect.Effect<boolean>
-  <A, E>(self: TxDeferred<A, E>, error: E): Effect.Effect<boolean>
-} = dual(
-  2,
-  <A, E>(self: TxDeferred<A, E>, error: E): Effect.Effect<boolean> => done(self, Res.fail(error))
-)
+  <E>(error: E): <A>(self: TxDeferred<A, E>) => Effect.Effect<boolean>;
+  <A, E>(self: TxDeferred<A, E>, error: E): Effect.Effect<boolean>;
+} = dual(2, <A, E>(self: TxDeferred<A, E>, error: E): Effect.Effect<boolean> =>
+  done(self, Res.fail(error)),
+);
 
 /**
  * Determines if the provided value is a `TxDeferred`.
@@ -324,4 +321,5 @@ export const fail: {
  * @category guards
  * @since 4.0.0
  */
-export const isTxDeferred = (u: unknown): u is TxDeferred<unknown, unknown> => hasProperty(u, TypeId)
+export const isTxDeferred = (u: unknown): u is TxDeferred<unknown, unknown> =>
+  hasProperty(u, TypeId);

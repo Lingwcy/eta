@@ -1,2 +1,2 @@
 /** @internal */
-export const sqlCleanupBatchSize = 1000
+export const sqlCleanupBatchSize = 1000;

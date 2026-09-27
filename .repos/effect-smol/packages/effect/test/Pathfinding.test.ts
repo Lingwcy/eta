@@ -1,6 +1,6 @@
-import { describe, it } from "@effect/vitest"
-import { Data, Graph, Option, type Types } from "effect"
-import { AssertionError } from "node:assert"
+import { describe, it } from "@effect/vitest";
+import { Data, Graph, Option, type Types } from "effect";
+import { AssertionError } from "node:assert";
 
 // TODO: Add more terrains
 const terrains = {
@@ -20,50 +20,51 @@ const terrains = {
     #...^^^^^....####....~~~~....#
     #................#...........#
     ##############################
-  `
-} as const
+  `,
+} as const;
 
 describe("Dijkstra", () => {
   it("should find paths using Dijkstra algorithm", () => {
-    const parsed = parseTerrain(terrains.simple)
+    const parsed = parseTerrain(terrains.simple);
     const result = Graph.dijkstra(parsed.graph, {
       source: parsed.nodes.get("1:1")!,
       target: parsed.nodes.get("28:13")!,
-      cost: (weight: number) => weight
-    })
+      cost: (weight: number) => weight,
+    });
 
-    assertPath(parsed, result, "1:1;↓↓↓→→→→→→→→→→→→→→→→→↓↓↓↓↓↓↓↓↓→→→→→→→→→→")
-  })
-})
+    assertPath(parsed, result, "1:1;↓↓↓→→→→→→→→→→→→→→→→→↓↓↓↓↓↓↓↓↓→→→→→→→→→→");
+  });
+});
 
 describe("Bellman-Ford", () => {
   it("should find paths using Bellman-Ford algorithm", () => {
-    const parsed = parseTerrain(terrains.simple)
+    const parsed = parseTerrain(terrains.simple);
     const result = Graph.bellmanFord(parsed.graph, {
       source: parsed.nodes.get("1:1")!,
       target: parsed.nodes.get("28:13")!,
-      cost: (weight: number) => weight
-    })
+      cost: (weight: number) => weight,
+    });
 
-    assertPath(parsed, result, "1:1;→→→→→→→↓↓→→→→→→→→→→→↓↓→→→→→→→→→↓↓↓↓↓↓↓↓")
-  })
-})
+    assertPath(parsed, result, "1:1;→→→→→→→↓↓→→→→→→→→→→→↓↓→→→→→→→→→↓↓↓↓↓↓↓↓");
+  });
+});
 
 describe("A*", () => {
   it("should find paths using A* algorithm", () => {
-    const parsed = parseTerrain(terrains.simple)
+    const parsed = parseTerrain(terrains.simple);
     const result = Graph.astar(parsed.graph, {
       source: parsed.nodes.get("1:1")!,
       target: parsed.nodes.get("28:13")!,
       cost: (weight: number) => weight,
       // Manhattan distance heuristic
       heuristic: (sourceNodeData: TerrainNode, targetNodeData: TerrainNode) =>
-        Math.abs(targetNodeData.x - sourceNodeData.x) + Math.abs(targetNodeData.y - sourceNodeData.y)
-    })
+        Math.abs(targetNodeData.x - sourceNodeData.x) +
+        Math.abs(targetNodeData.y - sourceNodeData.y),
+    });
 
-    assertPath(parsed, result, "1:1;↓↓↓↓→→→→→→→↓→→→→→→→↑↑→→→↓↓↓↓↓↓↓↓↓→→→→→→→→→→")
-  })
-})
+    assertPath(parsed, result, "1:1;↓↓↓↓→→→→→→→↓→→→→→→→↑↑→→→↓↓↓↓↓↓↓↓↓→→→→→→→→→→");
+  });
+});
 
 // =============================================================================
 // Assertion Helpers
@@ -75,131 +76,128 @@ describe("A*", () => {
 const assertPath = (
   terrain: Terrain,
   actual: Option.Option<Graph.PathResult<number>>,
-  sequence: Sequence
+  sequence: Sequence,
 ) => {
-  const derived = sequenceFromPath(terrain, actual)
+  const derived = sequenceFromPath(terrain, actual);
   if (derived !== sequence) {
-    let message = "Path finding result did not match the expected sequence"
-    message += `\n`
-    message += `\nExpected: ${sequence}`
-    message += `\nActual:   ${derived}`
-    message += `\n`
-    message += `\nExpected Path:`
-    message += `\n${printSolution(terrain, pathFromSequence(terrain, sequence))}`
-    message += `\n`
-    message += `\nActual Path:`
-    message += `\n${printSolution(terrain, Option.getOrUndefined(actual))}`
+    let message = "Path finding result did not match the expected sequence";
+    message += `\n`;
+    message += `\nExpected: ${sequence}`;
+    message += `\nActual:   ${derived}`;
+    message += `\n`;
+    message += `\nExpected Path:`;
+    message += `\n${printSolution(terrain, pathFromSequence(terrain, sequence))}`;
+    message += `\n`;
+    message += `\nActual Path:`;
+    message += `\n${printSolution(terrain, Option.getOrUndefined(actual))}`;
 
-    throw new AssertionError({ message, stackStartFn: assertPath })
+    throw new AssertionError({ message, stackStartFn: assertPath });
   }
-}
+};
 
-type Sequence = `${number}:${number};${string}`
+type Sequence = `${number}:${number};${string}`;
 
 /**
  * Make a path from a sequence of moves.
  */
-const pathFromSequence = (
-  terrain: Terrain,
-  sequence: Sequence
-): Graph.PathResult<number> => {
-  const [start, rest] = sequence.split(";") as [`${number}:${number}`, string]
+const pathFromSequence = (terrain: Terrain, sequence: Sequence): Graph.PathResult<number> => {
+  const [start, rest] = sequence.split(";") as [`${number}:${number}`, string];
   if (!terrain.nodes.has(start)) {
-    throw new Error(`Start location ${start} not found in terrain`)
+    throw new Error(`Start location ${start} not found in terrain`);
   }
 
-  const index = terrain.nodes.get(start)!
+  const index = terrain.nodes.get(start)!;
   const output: Types.Mutable<Graph.PathResult<number>> = {
     distance: 0,
     costs: [],
     edges: [],
-    path: [index]
-  }
+    path: [index],
+  };
 
-  let [x, y] = start.split(":").map(Number) as [number, number]
+  let [x, y] = start.split(":").map(Number) as [number, number];
   for (const location of rest.split("")) {
     if (location === "↓") {
-      y++
+      y++;
     } else if (location === "↑") {
-      y--
+      y--;
     } else if (location === "←") {
-      x--
+      x--;
     } else if (location === "→") {
-      x++
+      x++;
     } else {
-      throw new Error(`Invalid move ${location} in sequence ${sequence}`)
+      throw new Error(`Invalid move ${location} in sequence ${sequence}`);
     }
 
     if (!terrain.nodes.has(`${x}:${y}`)) {
-      continue
+      continue;
     }
 
-    const index = terrain.nodes.get(`${x}:${y}`)!
+    const index = terrain.nodes.get(`${x}:${y}`)!;
     const node = Graph.getNode(terrain.graph, index).pipe(
-      Option.getOrThrowWith(() => new Error(`Location ${location} not found in terrain`))
-    )
+      Option.getOrThrowWith(() => new Error(`Location ${location} not found in terrain`)),
+    );
 
-    output.distance += node.weight
-    output.costs.push(node.weight)
-    const previousIndex = output.path[output.path.length - 1]
-    const edge = Graph.edgesBetween(terrain.graph, previousIndex, index)[0]
+    output.distance += node.weight;
+    output.costs.push(node.weight);
+    const previousIndex = output.path[output.path.length - 1];
+    const edge = Graph.edgesBetween(terrain.graph, previousIndex, index)[0];
     if (edge === undefined) {
-      throw new Error(`No edge from ${previousIndex} to ${index}`)
+      throw new Error(`No edge from ${previousIndex} to ${index}`);
     }
-    output.edges.push(edge)
-    output.path.push(index)
+    output.edges.push(edge);
+    output.path.push(index);
   }
 
-  return output
-}
+  return output;
+};
 
 /**
  * Derive a sequence of moves from a path.
  */
 const sequenceFromPath = (
   terrain: Terrain,
-  path: Option.Option<Graph.PathResult<number>>
+  path: Option.Option<Graph.PathResult<number>>,
 ): Sequence | undefined => {
   if (Option.isNone(path) || path.value.path.length === 0) {
-    return undefined
+    return undefined;
   }
 
-  const pathValue = path.value
+  const pathValue = path.value;
 
-  const sequence = []
-  const start = terrain.coordinates.get(pathValue.path[0])!
+  const sequence = [];
+  const start = terrain.coordinates.get(pathValue.path[0])!;
   let previous = Graph.getNode(terrain.graph, terrain.nodes.get(start)!).pipe(
-    Option.getOrThrowWith(() => new Error(`Start location ${start} not found in terrain`))
-  )
+    Option.getOrThrowWith(() => new Error(`Start location ${start} not found in terrain`)),
+  );
 
   for (const index of pathValue.path.slice(1)) {
     const current = Graph.getNode(terrain.graph, index).pipe(
-      Option.getOrThrowWith(() => new Error(`Location ${index} not found in terrain`))
-    )
+      Option.getOrThrowWith(() => new Error(`Location ${index} not found in terrain`)),
+    );
 
     if (current.x === previous.x) {
       if (current.y === previous.y - 1) {
-        sequence.push("↑")
+        sequence.push("↑");
       } else if (current.y === previous.y + 1) {
-        sequence.push("↓")
+        sequence.push("↓");
       } else {
-        throw new Error(`Invalid move ${current.x}:${current.y} -> ${previous.x}:${previous.y}`)
+        throw new Error(`Invalid move ${current.x}:${current.y} -> ${previous.x}:${previous.y}`);
       }
     } else if (current.y === previous.y) {
       if (current.x === previous.x - 1) {
-        sequence.push("←")
+        sequence.push("←");
       } else if (current.x === previous.x + 1) {
-        sequence.push("→")
+        sequence.push("→");
       } else {
-        throw new Error(`Invalid move ${current.x}:${current.y} -> ${previous.x}:${previous.y}`)
+        throw new Error(`Invalid move ${current.x}:${current.y} -> ${previous.x}:${previous.y}`);
       }
     }
 
-    previous = current
+    previous = current;
   }
 
-  return `${start};${sequence.join("")}`
-}
+  return `${start};${sequence.join("")}`;
+};
 
 // =============================================================================
 // Terrain Parser
@@ -209,22 +207,22 @@ const sequenceFromPath = (
  * Represents a node in terrain with its grid coordinates and terrain type.
  */
 class TerrainNode extends Data.TaggedClass("TerrainNode")<{
-  readonly x: number
-  readonly y: number
-  readonly type: string
-  readonly weight: number
+  readonly x: number;
+  readonly y: number;
+  readonly type: string;
+  readonly weight: number;
 }> {}
 
 /**
  * Result of parsing terrain ASCII art into a graph.
  */
 interface Terrain {
-  readonly graph: Graph.DirectedGraph<TerrainNode, number>
-  readonly grid: Array<Array<string>>
-  readonly width: number
-  readonly height: number
-  readonly nodes: Map<`${number}:${number}`, Graph.NodeIndex>
-  readonly coordinates: Map<Graph.NodeIndex, `${number}:${number}`>
+  readonly graph: Graph.DirectedGraph<TerrainNode, number>;
+  readonly grid: Array<Array<string>>;
+  readonly width: number;
+  readonly height: number;
+  readonly nodes: Map<`${number}:${number}`, Graph.NodeIndex>;
+  readonly coordinates: Map<Graph.NodeIndex, `${number}:${number}`>;
 }
 
 /**
@@ -234,54 +232,58 @@ interface Terrain {
  * a node, and edges connect adjacent walkable cells with weights based on terrain type.
  */
 const parseTerrain = (ascii: string): Terrain => {
-  const lines = ascii.trim().split("\n").map((line) => line.trim()).filter((line) => line.length > 0)
+  const lines = ascii
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
   if (lines.length === 0) {
-    throw new Error("Terrain must have at least one line")
+    throw new Error("Terrain must have at least one line");
   }
 
-  const width = lines[0].length
-  const height = lines.length
+  const width = lines[0].length;
+  const height = lines.length;
   // Validate all lines have same width
   for (const line of lines) {
     if (line.length !== width) {
-      throw new Error("All terrain lines must have the same width")
+      throw new Error("All terrain lines must have the same width");
     }
   }
 
-  const grid = lines.map((line) => line.split(""))
-  const nodes = new Map<`${number}:${number}`, Graph.NodeIndex>()
-  const coordinates = new Map<Graph.NodeIndex, `${number}:${number}`>()
+  const grid = lines.map((line) => line.split(""));
+  const nodes = new Map<`${number}:${number}`, Graph.NodeIndex>();
+  const coordinates = new Map<Graph.NodeIndex, `${number}:${number}`>();
   const graph = Graph.directed<TerrainNode, number>((mutable) => {
     // First pass: create all nodes
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const char = lines[y][x]
-        const weight = weights.get(char) ?? 1
+        const char = lines[y][x];
+        const weight = weights.get(char) ?? 1;
         if (weight === Infinity) {
           // Skip impassable terrain
-          continue
+          continue;
         }
 
-        const node = new TerrainNode({ x, y, type: char, weight })
-        const index = Graph.addNode(mutable, node)
-        nodes.set(`${x}:${y}`, index)
-        coordinates.set(index, `${x}:${y}`)
+        const node = new TerrainNode({ x, y, type: char, weight });
+        const index = Graph.addNode(mutable, node);
+        nodes.set(`${x}:${y}`, index);
+        coordinates.set(index, `${x}:${y}`);
       }
     }
 
     // Second pass: create edges between adjacent walkable cells
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const char = lines[y][x]
-        const weight = weights.get(char) ?? 1
+        const char = lines[y][x];
+        const weight = weights.get(char) ?? 1;
         if (weight === Infinity) {
           // Skip impassable terrain
-          continue
+          continue;
         }
 
-        const node = nodes.get(`${x}:${y}`)
+        const node = nodes.get(`${x}:${y}`);
         if (node === undefined) {
-          continue
+          continue;
         }
 
         // Check 4-directional adjacency (up, down, left, right)
@@ -289,33 +291,33 @@ const parseTerrain = (ascii: string): Terrain => {
           [0, -1], // up
           [0, 1], // down
           [-1, 0], // left
-          [1, 0] // right
-        ] as const
+          [1, 0], // right
+        ] as const;
 
         for (const [dx, dy] of directions) {
-          const adjacentX = x + dx
-          const adjacentY = y + dy
+          const adjacentX = x + dx;
+          const adjacentY = y + dy;
 
           // Check bounds
           if (adjacentX < 0 || adjacentX >= width || adjacentY < 0 || adjacentY >= height) {
-            continue
+            continue;
           }
 
-          const adjacentChar = lines[adjacentY][adjacentX]
-          const adjacentWeight = weights.get(adjacentChar) ?? 1
+          const adjacentChar = lines[adjacentY][adjacentX];
+          const adjacentWeight = weights.get(adjacentChar) ?? 1;
           if (adjacentWeight === Infinity) {
             // Skip impassable adjacent terrain
-            continue
+            continue;
           }
 
-          const adjacentNode = nodes.get(`${adjacentX}:${adjacentY}`)
+          const adjacentNode = nodes.get(`${adjacentX}:${adjacentY}`);
           if (adjacentNode !== undefined) {
-            Graph.addEdge(mutable, node, adjacentNode, adjacentWeight)
+            Graph.addEdge(mutable, node, adjacentNode, adjacentWeight);
           }
         }
       }
     }
-  })
+  });
 
   return {
     graph,
@@ -323,9 +325,9 @@ const parseTerrain = (ascii: string): Terrain => {
     height,
     grid,
     nodes,
-    coordinates
-  }
-}
+    coordinates,
+  };
+};
 
 /**
  * Weights for common terrain types.
@@ -335,8 +337,8 @@ const weights = new Map([
   [".", 1], // Open terrain
   ["~", 3], // Water
   ["^", 5], // Mountains
-  ["M", 2] // Mud
-])
+  ["M", 2], // Mud
+]);
 
 // =============================================================================
 // Terrain Printer
@@ -347,30 +349,30 @@ const weights = new Map([
  */
 const printSolution = (terrain: Terrain, solution?: Graph.PathResult<number>): string => {
   // Clone the grid to avoid mutating the original
-  const grid = terrain.grid.map((line) => line.slice())
-  const steps = solution === undefined ? [] : solution.path
+  const grid = terrain.grid.map((line) => line.slice());
+  const steps = solution === undefined ? [] : solution.path;
 
   for (const [key, index] of steps.entries()) {
     const node = Graph.getNode(terrain.graph, index).pipe(
-      Option.getOrThrowWith(() => new Error("Path coordinates outside of terrain"))
-    )
+      Option.getOrThrowWith(() => new Error("Path coordinates outside of terrain")),
+    );
 
-    const marker = key === 0 ? "S" : key === steps.length - 1 ? "E" : "*"
-    grid[node.y][node.x] = marker
+    const marker = key === 0 ? "S" : key === steps.length - 1 ? "E" : "*";
+    grid[node.y][node.x] = marker;
   }
 
   for (let x = 0; x < terrain.width; x++) {
     for (let y = 0; y < terrain.height; y++) {
-      const character = grid[y][x]
-      const color = colors.colors.get(character)
+      const character = grid[y][x];
+      const color = colors.colors.get(character);
       if (color !== undefined) {
-        grid[y][x] = color + character + colors.reset
+        grid[y][x] = color + character + colors.reset;
       }
     }
   }
 
-  return grid.map((line) => line.join("")).join("\n")
-}
+  return grid.map((line) => line.join("")).join("\n");
+};
 
 /**
  * ANSI color codes for terminal output.
@@ -408,8 +410,8 @@ const ANSI = {
   BgBlue: "\x1b[44m",
   BgMagenta: "\x1b[45m",
   BgCyan: "\x1b[46m",
-  BgWhite: "\x1b[47m"
-} as const
+  BgWhite: "\x1b[47m",
+} as const;
 
 /**
  * Default color configuration for common terrain types.
@@ -423,7 +425,7 @@ const colors = {
     ["M", ANSI.Yellow], // Mud - yellow
     ["S", ANSI.BrightGreen], // Start - bright green
     ["E", ANSI.BrightRed], // End - bright red
-    ["*", ANSI.BrightYellow] // Path - bright yellow
+    ["*", ANSI.BrightYellow], // Path - bright yellow
   ]),
-  reset: ANSI.Reset
-} as const
+  reset: ANSI.Reset,
+} as const;

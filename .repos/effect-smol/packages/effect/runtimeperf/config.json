@@ -20,14 +20,7 @@
             "tier": 1,
             "implementation": "effect",
             "family": "arbitrary",
-            "astTags": [
-              "Objects",
-              "Arrays",
-              "String",
-              "Number",
-              "Declaration",
-              "Suspend"
-            ],
+            "astTags": ["Objects", "Arrays", "String", "Number", "Declaration", "Suspend"],
             "path": "valid"
           },
           "cases": [
@@ -51,10 +44,7 @@
               "export": "optionalStructSample128",
               "scenario": "arbitrary-optional-struct-sample-128",
               "operation": "sample-optional-struct",
-              "astTags": [
-                "Objects",
-                "Number"
-              ],
+              "astTags": ["Objects", "Number"],
               "size": 128
             },
             {
@@ -62,9 +52,7 @@
               "export": "constrainedStringSample128",
               "scenario": "arbitrary-constrained-string-sample-128",
               "operation": "sample",
-              "astTags": [
-                "String"
-              ],
+              "astTags": ["String"],
               "size": 128
             },
             {
@@ -73,9 +61,7 @@
               "scenario": "arbitrary-cold-regexp-first-sample",
               "operation": "derive-and-sample-pattern",
               "path": "cold",
-              "astTags": [
-                "String"
-              ],
+              "astTags": ["String"],
               "size": 1
             },
             {
@@ -83,9 +69,7 @@
               "export": "regExpSample64",
               "scenario": "arbitrary-regexp-sample-64",
               "operation": "sample-pattern",
-              "astTags": [
-                "String"
-              ],
+              "astTags": ["String"],
               "size": 64
             },
             {
@@ -94,9 +78,7 @@
               "scenario": "arbitrary-regexp-check-falsify-shrink",
               "operation": "check-pattern-and-shrink",
               "path": "failure",
-              "astTags": [
-                "String"
-              ],
+              "astTags": ["String"],
               "size": 1
             },
             {
@@ -104,9 +86,7 @@
               "export": "boundedNumberSample128",
               "scenario": "arbitrary-bounded-number-sample-128",
               "operation": "sample",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 128
             },
             {
@@ -114,11 +94,7 @@
               "export": "uint8ArraySample128",
               "scenario": "arbitrary-uint8-array-sample-128",
               "operation": "sample",
-              "astTags": [
-                "Declaration",
-                "Arrays",
-                "Number"
-              ],
+              "astTags": ["Declaration", "Arrays", "Number"],
               "size": 128
             },
             {
@@ -126,12 +102,7 @@
               "export": "bigDecimalSample128",
               "scenario": "arbitrary-big-decimal-sample-128",
               "operation": "sample",
-              "astTags": [
-                "Declaration",
-                "Objects",
-                "BigInt",
-                "Number"
-              ],
+              "astTags": ["Declaration", "Objects", "BigInt", "Number"],
               "size": 128
             },
             {
@@ -139,10 +110,7 @@
               "export": "dateTimeUtcSample128",
               "scenario": "arbitrary-date-time-utc-sample-128",
               "operation": "sample",
-              "astTags": [
-                "Declaration",
-                "Number"
-              ],
+              "astTags": ["Declaration", "Number"],
               "size": 128
             },
             {
@@ -150,10 +118,7 @@
               "export": "timeZoneNamedSample128",
               "scenario": "arbitrary-time-zone-named-sample-128",
               "operation": "sample",
-              "astTags": [
-                "Declaration",
-                "Literal"
-              ],
+              "astTags": ["Declaration", "Literal"],
               "size": 128
             },
             {
@@ -161,12 +126,7 @@
               "export": "timeZoneSample128",
               "scenario": "arbitrary-time-zone-sample-128",
               "operation": "sample",
-              "astTags": [
-                "Declaration",
-                "Union",
-                "Number",
-                "Literal"
-              ],
+              "astTags": ["Declaration", "Union", "Number", "Literal"],
               "size": 128
             },
             {
@@ -174,13 +134,7 @@
               "export": "dateTimeZonedSample128",
               "scenario": "arbitrary-date-time-zoned-sample-128",
               "operation": "sample",
-              "astTags": [
-                "Declaration",
-                "Objects",
-                "Union",
-                "Number",
-                "Literal"
-              ],
+              "astTags": ["Declaration", "Objects", "Union", "Number", "Literal"],
               "size": 128
             },
             {
@@ -188,9 +142,7 @@
               "export": "rareFilterSample32",
               "scenario": "arbitrary-rare-filter-sample-32",
               "operation": "sample",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 32
             },
             {
@@ -198,10 +150,7 @@
               "export": "uniqueArraySample32",
               "scenario": "arbitrary-unique-array-sample-32",
               "operation": "sample",
-              "astTags": [
-                "Arrays",
-                "Number"
-              ],
+              "astTags": ["Arrays", "Number"],
               "size": 32
             },
             {
@@ -209,9 +158,7 @@
               "export": "literalSample128",
               "scenario": "arbitrary-literal-sample-128",
               "operation": "sample",
-              "astTags": [
-                "Literal"
-              ],
+              "astTags": ["Literal"],
               "size": 128
             },
             {
@@ -219,9 +166,7 @@
               "export": "mapSample128",
               "scenario": "arbitrary-map-sample-128",
               "operation": "sample-map",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 128
             },
             {
@@ -229,9 +174,7 @@
               "export": "passingFilterSample128",
               "scenario": "arbitrary-passing-filter-sample-128",
               "operation": "sample-filter",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 128
             },
             {
@@ -239,9 +182,7 @@
               "export": "selectiveFilterSample32",
               "scenario": "arbitrary-selective-filter-sample-32",
               "operation": "sample-filter",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 32
             },
             {
@@ -249,9 +190,7 @@
               "export": "filterMapSample128",
               "scenario": "arbitrary-filter-map-sample-128",
               "operation": "sample-filter-map",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 128
             },
             {
@@ -260,9 +199,7 @@
               "scenario": "arbitrary-filter-check-falsify-shrink",
               "operation": "check-filter-and-shrink",
               "path": "failure",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 1
             },
             {
@@ -270,9 +207,7 @@
               "export": "allTupleSample128",
               "scenario": "arbitrary-all-tuple-sample-128",
               "operation": "sample-all-tuple",
-              "astTags": [
-                "Literal"
-              ],
+              "astTags": ["Literal"],
               "size": 128
             },
             {
@@ -280,11 +215,7 @@
               "export": "allRecordSample128",
               "scenario": "arbitrary-all-record-sample-128",
               "operation": "sample-all-record",
-              "astTags": [
-                "Union",
-                "Literal",
-                "Number"
-              ],
+              "astTags": ["Union", "Literal", "Number"],
               "size": 128
             },
             {
@@ -292,10 +223,7 @@
               "export": "flatMapSample128",
               "scenario": "arbitrary-flat-map-sample-128",
               "operation": "sample-flat-map",
-              "astTags": [
-                "Arrays",
-                "Number"
-              ],
+              "astTags": ["Arrays", "Number"],
               "size": 128
             },
             {
@@ -304,10 +232,7 @@
               "scenario": "arbitrary-flat-map-check-falsify-shrink",
               "operation": "check-flat-map-and-shrink",
               "path": "failure",
-              "astTags": [
-                "Arrays",
-                "Number"
-              ],
+              "astTags": ["Arrays", "Number"],
               "size": 1
             },
             {
@@ -316,10 +241,7 @@
               "scenario": "arbitrary-flat-map-check-replay",
               "operation": "replay-flat-map",
               "path": "failure",
-              "astTags": [
-                "Arrays",
-                "Number"
-              ],
+              "astTags": ["Arrays", "Number"],
               "size": 1
             },
             {
@@ -342,9 +264,7 @@
               "export": "checkPass100",
               "scenario": "arbitrary-check-pass-100",
               "operation": "check",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 100
             },
             {
@@ -352,9 +272,7 @@
               "export": "testSchemaVerifyGeneration100",
               "scenario": "test-schema-verify-generation-100",
               "operation": "derive-and-check",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 100
             },
             {
@@ -363,9 +281,7 @@
               "scenario": "arbitrary-check-falsify-shrink",
               "operation": "check-and-shrink",
               "path": "failure",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 1
             },
             {
@@ -374,9 +290,7 @@
               "scenario": "arbitrary-check-replay",
               "operation": "replay",
               "path": "failure",
-              "astTags": [
-                "Number"
-              ],
+              "astTags": ["Number"],
               "size": 1
             }
           ]
@@ -651,9 +565,7 @@
               "scenario": "object-32-valid",
               "implementation": "effect",
               "family": "objects",
-              "astTags": [
-                "Objects"
-              ],
+              "astTags": ["Objects"],
               "path": "valid",
               "size": 32
             },
@@ -663,9 +575,7 @@
               "scenario": "object-32-invalid-last",
               "implementation": "effect",
               "family": "objects",
-              "astTags": [
-                "Objects"
-              ],
+              "astTags": ["Objects"],
               "path": "invalid",
               "size": 32
             },
@@ -675,9 +585,7 @@
               "scenario": "array-32-valid",
               "implementation": "effect",
               "family": "arrays",
-              "astTags": [
-                "Arrays"
-              ],
+              "astTags": ["Arrays"],
               "path": "valid",
               "size": 32
             },
@@ -687,9 +595,7 @@
               "scenario": "array-32-invalid-last",
               "implementation": "effect",
               "family": "arrays",
-              "astTags": [
-                "Arrays"
-              ],
+              "astTags": ["Arrays"],
               "path": "invalid",
               "size": 32
             },
@@ -699,9 +605,7 @@
               "scenario": "record-32-valid",
               "implementation": "effect",
               "family": "records",
-              "astTags": [
-                "Objects"
-              ],
+              "astTags": ["Objects"],
               "path": "valid",
               "size": 32
             },
@@ -711,9 +615,7 @@
               "scenario": "record-32-invalid-last",
               "implementation": "effect",
               "family": "records",
-              "astTags": [
-                "Objects"
-              ],
+              "astTags": ["Objects"],
               "path": "invalid",
               "size": 32
             },
@@ -723,10 +625,7 @@
               "scenario": "literal-100-valid-last",
               "implementation": "effect",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Literal"
-              ],
+              "astTags": ["Union", "Literal"],
               "path": "valid",
               "size": 100
             },
@@ -736,10 +635,7 @@
               "scenario": "literal-100-invalid",
               "implementation": "effect",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Literal"
-              ],
+              "astTags": ["Union", "Literal"],
               "path": "invalid",
               "size": 100
             },
@@ -749,11 +645,7 @@
               "scenario": "tagged-100-valid-last",
               "implementation": "effect",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal"
-              ],
+              "astTags": ["Union", "Objects", "Literal"],
               "path": "valid",
               "size": 100
             },
@@ -763,11 +655,7 @@
               "scenario": "tagged-100-invalid-selected",
               "implementation": "effect",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal"
-              ],
+              "astTags": ["Union", "Objects", "Literal"],
               "path": "invalid",
               "size": 100
             },
@@ -777,11 +665,7 @@
               "scenario": "tagged-100-invalid-tag",
               "implementation": "effect",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal"
-              ],
+              "astTags": ["Union", "Objects", "Literal"],
               "path": "invalid",
               "size": 100
             },
@@ -791,11 +675,7 @@
               "scenario": "multi-sentinel-100-valid-first",
               "implementation": "effect",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal"
-              ],
+              "astTags": ["Union", "Objects", "Literal"],
               "path": "valid",
               "size": 100
             },
@@ -805,11 +685,7 @@
               "scenario": "multi-sentinel-100-invalid-variant",
               "implementation": "effect",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal"
-              ],
+              "astTags": ["Union", "Objects", "Literal"],
               "path": "invalid",
               "size": 100
             }
@@ -828,9 +704,7 @@
               "export": "checksInvalidFirst",
               "scenario": "checks-invalid-first",
               "family": "checks",
-              "astTags": [
-                "String"
-              ],
+              "astTags": ["String"],
               "path": "invalid",
               "size": 2
             },
@@ -839,9 +713,7 @@
               "export": "checksInvalidLast",
               "scenario": "checks-invalid-last",
               "family": "checks",
-              "astTags": [
-                "String"
-              ],
+              "astTags": ["String"],
               "path": "invalid",
               "size": 2
             },
@@ -850,9 +722,7 @@
               "export": "encodingCheckValid",
               "scenario": "encoding-check-valid",
               "family": "checks",
-              "astTags": [
-                "String"
-              ],
+              "astTags": ["String"],
               "path": "valid",
               "size": 1
             },
@@ -861,10 +731,7 @@
               "export": "templateLiteralLinearValid",
               "scenario": "template-literal-linear-valid",
               "family": "template-literal",
-              "astTags": [
-                "TemplateLiteral",
-                "Arrays"
-              ],
+              "astTags": ["TemplateLiteral", "Arrays"],
               "path": "valid",
               "size": 5
             },
@@ -873,10 +740,7 @@
               "export": "templateLiteralLinearInvalid",
               "scenario": "template-literal-linear-invalid",
               "family": "template-literal",
-              "astTags": [
-                "TemplateLiteral",
-                "Arrays"
-              ],
+              "astTags": ["TemplateLiteral", "Arrays"],
               "path": "invalid",
               "size": 5
             },
@@ -885,11 +749,7 @@
               "export": "templateLiteralBacktrackingValid",
               "scenario": "template-literal-backtracking-valid",
               "family": "template-literal",
-              "astTags": [
-                "TemplateLiteral",
-                "Arrays",
-                "String"
-              ],
+              "astTags": ["TemplateLiteral", "Arrays", "String"],
               "path": "valid",
               "size": 4
             },
@@ -898,11 +758,7 @@
               "export": "templateLiteralBacktrackingInvalid",
               "scenario": "template-literal-backtracking-invalid",
               "family": "template-literal",
-              "astTags": [
-                "TemplateLiteral",
-                "Arrays",
-                "String"
-              ],
+              "astTags": ["TemplateLiteral", "Arrays", "String"],
               "path": "invalid",
               "size": 4
             },
@@ -911,12 +767,7 @@
               "export": "templateLiteralTransformedValid",
               "scenario": "template-literal-transformed-valid",
               "family": "template-literal",
-              "astTags": [
-                "TemplateLiteral",
-                "Arrays",
-                "String",
-                "Number"
-              ],
+              "astTags": ["TemplateLiteral", "Arrays", "String", "Number"],
               "path": "valid",
               "size": 3
             },
@@ -925,12 +776,7 @@
               "export": "templateLiteralRecord32Valid",
               "scenario": "template-literal-record-32-valid",
               "family": "template-literal",
-              "astTags": [
-                "TemplateLiteral",
-                "Objects",
-                "String",
-                "Number"
-              ],
+              "astTags": ["TemplateLiteral", "Objects", "String", "Number"],
               "path": "valid",
               "size": 32
             },
@@ -939,10 +785,7 @@
               "export": "transformationDecodeValid",
               "scenario": "transformation-decode-valid",
               "family": "transformation",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "path": "valid",
               "size": 1
             },
@@ -951,10 +794,7 @@
               "export": "transformationDecodeInvalid",
               "scenario": "transformation-decode-invalid",
               "family": "transformation",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "path": "invalid",
               "size": 1
             },
@@ -963,10 +803,7 @@
               "export": "transformationEncodeValid",
               "scenario": "transformation-encode-valid",
               "family": "transformation",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "operation": "encode",
               "path": "valid",
               "size": 1
@@ -976,10 +813,7 @@
               "export": "encodingChain8DecodeValid",
               "scenario": "encoding-chain-8-decode-valid",
               "family": "transformation",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "path": "valid",
               "size": 8
             },
@@ -988,10 +822,7 @@
               "export": "encodingChain8DecodeInvalid",
               "scenario": "encoding-chain-8-decode-invalid",
               "family": "transformation",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "path": "invalid",
               "size": 8
             },
@@ -1000,10 +831,7 @@
               "export": "encodingChain8EncodeValid",
               "scenario": "encoding-chain-8-encode-valid",
               "family": "transformation",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "operation": "encode",
               "path": "valid",
               "size": 8
@@ -1013,10 +841,7 @@
               "export": "transformedKeyRecordValid",
               "scenario": "record-32-transformed-keys-valid",
               "family": "records",
-              "astTags": [
-                "Objects",
-                "String"
-              ],
+              "astTags": ["Objects", "String"],
               "path": "valid",
               "size": 32
             },
@@ -1025,11 +850,7 @@
               "export": "optionalValid",
               "scenario": "optional-valid",
               "family": "optional",
-              "astTags": [
-                "Objects",
-                "Union",
-                "Undefined"
-              ],
+              "astTags": ["Objects", "Union", "Undefined"],
               "path": "valid",
               "size": 3
             },
@@ -1038,11 +859,7 @@
               "export": "optionalPresentValid",
               "scenario": "optional-present-valid",
               "family": "optional",
-              "astTags": [
-                "Objects",
-                "Union",
-                "Undefined"
-              ],
+              "astTags": ["Objects", "Union", "Undefined"],
               "path": "valid",
               "size": 3
             },
@@ -1051,11 +868,7 @@
               "export": "optionalPresentInvalid",
               "scenario": "optional-present-invalid",
               "family": "optional",
-              "astTags": [
-                "Objects",
-                "Union",
-                "Undefined"
-              ],
+              "astTags": ["Objects", "Union", "Undefined"],
               "path": "invalid",
               "size": 3
             },
@@ -1064,11 +877,7 @@
               "export": "object32SuspendedMiddleValid",
               "scenario": "object-32-suspended-middle-valid",
               "family": "objects",
-              "astTags": [
-                "Objects",
-                "String",
-                "Transformation"
-              ],
+              "astTags": ["Objects", "String", "Transformation"],
               "path": "valid",
               "size": 32
             },
@@ -1077,11 +886,7 @@
               "export": "array32SuspendedConcurrent4",
               "scenario": "array-32-suspended-concurrency-4",
               "family": "arrays",
-              "astTags": [
-                "Arrays",
-                "String",
-                "Transformation"
-              ],
+              "astTags": ["Arrays", "String", "Transformation"],
               "path": "valid",
               "size": 32
             },
@@ -1090,11 +895,7 @@
               "export": "object32SuspendedConcurrent4",
               "scenario": "object-32-suspended-concurrency-4",
               "family": "objects",
-              "astTags": [
-                "Objects",
-                "String",
-                "Transformation"
-              ],
+              "astTags": ["Objects", "String", "Transformation"],
               "path": "valid",
               "size": 32
             },
@@ -1103,11 +904,7 @@
               "export": "record32SuspendedConcurrent4",
               "scenario": "record-32-suspended-concurrency-4",
               "family": "records",
-              "astTags": [
-                "Objects",
-                "String",
-                "Transformation"
-              ],
+              "astTags": ["Objects", "String", "Transformation"],
               "path": "valid",
               "size": 32
             },
@@ -1116,10 +913,7 @@
               "export": "literal2ValidLast",
               "scenario": "literal-2-valid-last",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Literal"
-              ],
+              "astTags": ["Union", "Literal"],
               "path": "valid",
               "size": 2
             },
@@ -1128,10 +922,7 @@
               "export": "literal100ValidFirst",
               "scenario": "literal-100-valid-first",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Literal"
-              ],
+              "astTags": ["Union", "Literal"],
               "path": "valid",
               "size": 100
             },
@@ -1140,10 +931,7 @@
               "export": "homogeneousUnion100Invalid",
               "scenario": "homogeneous-union-100-invalid",
               "family": "union",
-              "astTags": [
-                "Union",
-                "String"
-              ],
+              "astTags": ["Union", "String"],
               "path": "invalid",
               "size": 100
             },
@@ -1152,11 +940,7 @@
               "export": "tagged2ValidLast",
               "scenario": "tagged-2-valid-last",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal"
-              ],
+              "astTags": ["Union", "Objects", "Literal"],
               "path": "valid",
               "size": 2
             },
@@ -1165,11 +949,7 @@
               "export": "taggedWithFallbackValid",
               "scenario": "tagged-with-fallback-valid",
               "family": "union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal"
-              ],
+              "astTags": ["Union", "Objects", "Literal"],
               "path": "valid",
               "size": 2
             },
@@ -1178,11 +958,7 @@
               "export": "recursiveTreeDepth16Valid",
               "scenario": "recursive-tree-depth-16-valid",
               "family": "recursion",
-              "astTags": [
-                "Objects",
-                "Arrays",
-                "Suspend"
-              ],
+              "astTags": ["Objects", "Arrays", "Suspend"],
               "path": "valid",
               "size": 16
             }
@@ -1194,9 +970,7 @@
             "tier": 2,
             "implementation": "effect",
             "family": "adapters",
-            "astTags": [
-              "Objects"
-            ],
+            "astTags": ["Objects"],
             "path": "valid",
             "size": 2
           },
@@ -1276,9 +1050,7 @@
           "defaults": {
             "tier": 2,
             "family": "cold",
-            "astTags": [
-              "Objects"
-            ],
+            "astTags": ["Objects"],
             "path": "valid",
             "size": 32
           },
@@ -1327,9 +1099,7 @@
               "scenario": "schema-creation-template-literal",
               "implementation": "effect",
               "operation": "schema",
-              "astTags": [
-                "TemplateLiteral"
-              ],
+              "astTags": ["TemplateLiteral"],
               "size": 5
             },
             {
@@ -1338,9 +1108,7 @@
               "scenario": "schema-creation-template-literal-256",
               "implementation": "effect",
               "operation": "schema",
-              "astTags": [
-                "TemplateLiteral"
-              ],
+              "astTags": ["TemplateLiteral"],
               "size": 256
             },
             {
@@ -1356,9 +1124,7 @@
               "scenario": "first-decode-template-literal",
               "implementation": "effect",
               "operation": "first-decode",
-              "astTags": [
-                "TemplateLiteral"
-              ],
+              "astTags": ["TemplateLiteral"],
               "size": 5
             },
             {
@@ -1374,10 +1140,7 @@
               "scenario": "first-decode-literal-100",
               "implementation": "effect",
               "operation": "first-decode",
-              "astTags": [
-                "Union",
-                "Literal"
-              ],
+              "astTags": ["Union", "Literal"],
               "size": 100
             },
             {
@@ -1386,11 +1149,7 @@
               "scenario": "first-decode-tagged-100",
               "implementation": "effect",
               "operation": "first-decode",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal"
-              ],
+              "astTags": ["Union", "Objects", "Literal"],
               "size": 100
             },
             {
@@ -1399,10 +1158,7 @@
               "scenario": "first-decode-encoding-chain-8",
               "implementation": "effect",
               "operation": "first-decode",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "size": 8
             }
           ]
@@ -1556,15 +1312,7 @@
             "tier": 3,
             "implementation": "effect",
             "family": "schema-benchmarks",
-            "astTags": [
-              "Objects",
-              "Arrays",
-              "Literal",
-              "String",
-              "Number",
-              "Null",
-              "Declaration"
-            ],
+            "astTags": ["Objects", "Arrays", "Literal", "String", "Number", "Null", "Declaration"],
             "size": "product"
           },
           "cases": [
@@ -1658,10 +1406,7 @@
               "scenario": "schema-benchmarks-codec-typed-encode",
               "operation": "encode-sync",
               "path": "valid",
-              "astTags": [
-                "String",
-                "BigInt"
-              ],
+              "astTags": ["String", "BigInt"],
               "size": 1
             },
             {
@@ -1670,10 +1415,7 @@
               "scenario": "schema-benchmarks-codec-typed-decode",
               "operation": "decode-sync",
               "path": "valid",
-              "astTags": [
-                "String",
-                "BigInt"
-              ],
+              "astTags": ["String", "BigInt"],
               "size": 1
             },
             {
@@ -1682,10 +1424,7 @@
               "scenario": "schema-benchmarks-codec-unknown-encode",
               "operation": "encode-unknown-sync",
               "path": "valid",
-              "astTags": [
-                "String",
-                "BigInt"
-              ],
+              "astTags": ["String", "BigInt"],
               "size": 1
             },
             {
@@ -1694,10 +1433,7 @@
               "scenario": "schema-benchmarks-codec-unknown-decode",
               "operation": "decode-unknown-sync",
               "path": "valid",
-              "astTags": [
-                "String",
-                "BigInt"
-              ],
+              "astTags": ["String", "BigInt"],
               "size": 1
             }
           ]
@@ -2153,12 +1889,7 @@
             "tier": 1,
             "family": "interpreted",
             "implementation": "effect",
-            "astTags": [
-              "Objects",
-              "String",
-              "Number",
-              "Boolean"
-            ],
+            "astTags": ["Objects", "String", "Number", "Boolean"],
             "operation": "decode",
             "path": "valid",
             "size": 3
@@ -2209,26 +1940,14 @@
               "name": "interpreted-nested",
               "export": "nested",
               "scenario": "compiler-rebuild-nested",
-              "astTags": [
-                "Objects",
-                "Arrays",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Objects", "Arrays", "String", "Number", "Boolean"],
               "size": 2
             },
             {
               "name": "interpreted-array",
               "export": "array",
               "scenario": "compiler-rebuild-array",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2236,25 +1955,14 @@
               "export": "arrayInvalid",
               "scenario": "compiler-rebuild-arrayInvalid",
               "path": "invalid",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 33
             },
             {
               "name": "interpreted-tuple",
               "export": "tuple",
               "scenario": "compiler-rebuild-tuple",
-              "astTags": [
-                "Arrays",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "String", "Number", "Boolean"],
               "size": 34
             },
             {
@@ -2267,45 +1975,28 @@
               "name": "interpreted-recordTransformedKeys",
               "export": "recordTransformedKeys",
               "scenario": "compiler-rebuild-recordTransformedKeys",
-              "astTags": [
-                "Objects",
-                "String"
-              ],
+              "astTags": ["Objects", "String"],
               "size": 32
             },
             {
               "name": "interpreted-union",
               "export": "union",
               "scenario": "compiler-rebuild-union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "Literal", "Number"],
               "size": 8
             },
             {
               "name": "interpreted-oneOf",
               "export": "oneOf",
               "scenario": "compiler-rebuild-oneOf",
-              "astTags": [
-                "Union",
-                "Objects",
-                "String",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "String", "Number"],
               "size": 2
             },
             {
               "name": "interpreted-transform",
               "export": "transform",
               "scenario": "compiler-rebuild-transform",
-              "astTags": [
-                "Objects",
-                "String",
-                "Number"
-              ],
+              "astTags": ["Objects", "String", "Number"],
               "size": 32
             },
             {
@@ -2313,20 +2004,14 @@
               "export": "transformInvalid",
               "scenario": "compiler-rebuild-transformInvalid",
               "path": "invalid",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "size": 1
             },
             {
               "name": "interpreted-rootTransform",
               "export": "rootTransform",
               "scenario": "compiler-rebuild-rootTransform",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "size": 1
             },
             {
@@ -2338,36 +2023,21 @@
               "name": "interpreted-recursive",
               "export": "recursive",
               "scenario": "compiler-rebuild-recursive",
-              "astTags": [
-                "Objects",
-                "Arrays",
-                "Suspend",
-                "Number"
-              ],
+              "astTags": ["Objects", "Arrays", "Suspend", "Number"],
               "size": 31
             },
             {
               "name": "interpreted-suspendRoot",
               "export": "suspendRoot",
               "scenario": "compiler-rebuild-suspendRoot",
-              "astTags": [
-                "Suspend",
-                "Objects",
-                "Number"
-              ],
+              "astTags": ["Suspend", "Objects", "Number"],
               "size": 1
             },
             {
               "name": "interpreted-declaration",
               "export": "declaration",
               "scenario": "compiler-rebuild-declaration",
-              "astTags": [
-                "Declaration",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Declaration", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2375,10 +2045,7 @@
               "export": "makeStruct",
               "scenario": "compiler-rebuild-makeStruct",
               "operation": "make",
-              "astTags": [
-                "Objects",
-                "Number"
-              ],
+              "astTags": ["Objects", "Number"],
               "size": 32
             },
             {
@@ -2386,13 +2053,7 @@
               "export": "makeArray",
               "scenario": "compiler-rebuild-makeArray",
               "operation": "make",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2400,12 +2061,7 @@
               "export": "makeUnion",
               "scenario": "compiler-rebuild-makeUnion",
               "operation": "make",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "Literal", "Number"],
               "size": 8
             }
           ]
@@ -2416,12 +2072,7 @@
             "tier": 1,
             "family": "jit",
             "implementation": "effect-jit",
-            "astTags": [
-              "Objects",
-              "String",
-              "Number",
-              "Boolean"
-            ],
+            "astTags": ["Objects", "String", "Number", "Boolean"],
             "operation": "decode",
             "path": "valid",
             "size": 3
@@ -2472,26 +2123,14 @@
               "name": "jit-nested",
               "export": "nested",
               "scenario": "compiler-rebuild-nested",
-              "astTags": [
-                "Objects",
-                "Arrays",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Objects", "Arrays", "String", "Number", "Boolean"],
               "size": 2
             },
             {
               "name": "jit-array",
               "export": "array",
               "scenario": "compiler-rebuild-array",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2499,25 +2138,14 @@
               "export": "arrayInvalid",
               "scenario": "compiler-rebuild-arrayInvalid",
               "path": "invalid",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 33
             },
             {
               "name": "jit-tuple",
               "export": "tuple",
               "scenario": "compiler-rebuild-tuple",
-              "astTags": [
-                "Arrays",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "String", "Number", "Boolean"],
               "size": 34
             },
             {
@@ -2530,45 +2158,28 @@
               "name": "jit-recordTransformedKeys",
               "export": "recordTransformedKeys",
               "scenario": "compiler-rebuild-recordTransformedKeys",
-              "astTags": [
-                "Objects",
-                "String"
-              ],
+              "astTags": ["Objects", "String"],
               "size": 32
             },
             {
               "name": "jit-union",
               "export": "union",
               "scenario": "compiler-rebuild-union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "Literal", "Number"],
               "size": 8
             },
             {
               "name": "jit-oneOf",
               "export": "oneOf",
               "scenario": "compiler-rebuild-oneOf",
-              "astTags": [
-                "Union",
-                "Objects",
-                "String",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "String", "Number"],
               "size": 2
             },
             {
               "name": "jit-transform",
               "export": "transform",
               "scenario": "compiler-rebuild-transform",
-              "astTags": [
-                "Objects",
-                "String",
-                "Number"
-              ],
+              "astTags": ["Objects", "String", "Number"],
               "size": 32
             },
             {
@@ -2576,20 +2187,14 @@
               "export": "transformInvalid",
               "scenario": "compiler-rebuild-transformInvalid",
               "path": "invalid",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "size": 1
             },
             {
               "name": "jit-rootTransform",
               "export": "rootTransform",
               "scenario": "compiler-rebuild-rootTransform",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "size": 1
             },
             {
@@ -2601,36 +2206,21 @@
               "name": "jit-recursive",
               "export": "recursive",
               "scenario": "compiler-rebuild-recursive",
-              "astTags": [
-                "Objects",
-                "Arrays",
-                "Suspend",
-                "Number"
-              ],
+              "astTags": ["Objects", "Arrays", "Suspend", "Number"],
               "size": 31
             },
             {
               "name": "jit-suspendRoot",
               "export": "suspendRoot",
               "scenario": "compiler-rebuild-suspendRoot",
-              "astTags": [
-                "Suspend",
-                "Objects",
-                "Number"
-              ],
+              "astTags": ["Suspend", "Objects", "Number"],
               "size": 1
             },
             {
               "name": "jit-declaration",
               "export": "declaration",
               "scenario": "compiler-rebuild-declaration",
-              "astTags": [
-                "Declaration",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Declaration", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2638,10 +2228,7 @@
               "export": "makeStruct",
               "scenario": "compiler-rebuild-makeStruct",
               "operation": "make",
-              "astTags": [
-                "Objects",
-                "Number"
-              ],
+              "astTags": ["Objects", "Number"],
               "size": 32
             },
             {
@@ -2649,13 +2236,7 @@
               "export": "makeArray",
               "scenario": "compiler-rebuild-makeArray",
               "operation": "make",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2663,12 +2244,7 @@
               "export": "makeUnion",
               "scenario": "compiler-rebuild-makeUnion",
               "operation": "make",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "Literal", "Number"],
               "size": 8
             }
           ]
@@ -2679,12 +2255,7 @@
             "tier": 1,
             "family": "aot",
             "implementation": "effect-aot",
-            "astTags": [
-              "Objects",
-              "String",
-              "Number",
-              "Boolean"
-            ],
+            "astTags": ["Objects", "String", "Number", "Boolean"],
             "operation": "decode",
             "path": "valid",
             "size": 3
@@ -2735,26 +2306,14 @@
               "name": "aot-nested",
               "export": "nested",
               "scenario": "compiler-rebuild-nested",
-              "astTags": [
-                "Objects",
-                "Arrays",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Objects", "Arrays", "String", "Number", "Boolean"],
               "size": 2
             },
             {
               "name": "aot-array",
               "export": "array",
               "scenario": "compiler-rebuild-array",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2762,25 +2321,14 @@
               "export": "arrayInvalid",
               "scenario": "compiler-rebuild-arrayInvalid",
               "path": "invalid",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 33
             },
             {
               "name": "aot-tuple",
               "export": "tuple",
               "scenario": "compiler-rebuild-tuple",
-              "astTags": [
-                "Arrays",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "String", "Number", "Boolean"],
               "size": 34
             },
             {
@@ -2793,45 +2341,28 @@
               "name": "aot-recordTransformedKeys",
               "export": "recordTransformedKeys",
               "scenario": "compiler-rebuild-recordTransformedKeys",
-              "astTags": [
-                "Objects",
-                "String"
-              ],
+              "astTags": ["Objects", "String"],
               "size": 32
             },
             {
               "name": "aot-union",
               "export": "union",
               "scenario": "compiler-rebuild-union",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "Literal", "Number"],
               "size": 8
             },
             {
               "name": "aot-oneOf",
               "export": "oneOf",
               "scenario": "compiler-rebuild-oneOf",
-              "astTags": [
-                "Union",
-                "Objects",
-                "String",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "String", "Number"],
               "size": 2
             },
             {
               "name": "aot-transform",
               "export": "transform",
               "scenario": "compiler-rebuild-transform",
-              "astTags": [
-                "Objects",
-                "String",
-                "Number"
-              ],
+              "astTags": ["Objects", "String", "Number"],
               "size": 32
             },
             {
@@ -2839,20 +2370,14 @@
               "export": "transformInvalid",
               "scenario": "compiler-rebuild-transformInvalid",
               "path": "invalid",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "size": 1
             },
             {
               "name": "aot-rootTransform",
               "export": "rootTransform",
               "scenario": "compiler-rebuild-rootTransform",
-              "astTags": [
-                "String",
-                "Number"
-              ],
+              "astTags": ["String", "Number"],
               "size": 1
             },
             {
@@ -2864,36 +2389,21 @@
               "name": "aot-recursive",
               "export": "recursive",
               "scenario": "compiler-rebuild-recursive",
-              "astTags": [
-                "Objects",
-                "Arrays",
-                "Suspend",
-                "Number"
-              ],
+              "astTags": ["Objects", "Arrays", "Suspend", "Number"],
               "size": 31
             },
             {
               "name": "aot-suspendRoot",
               "export": "suspendRoot",
               "scenario": "compiler-rebuild-suspendRoot",
-              "astTags": [
-                "Suspend",
-                "Objects",
-                "Number"
-              ],
+              "astTags": ["Suspend", "Objects", "Number"],
               "size": 1
             },
             {
               "name": "aot-declaration",
               "export": "declaration",
               "scenario": "compiler-rebuild-declaration",
-              "astTags": [
-                "Declaration",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Declaration", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2901,10 +2411,7 @@
               "export": "makeStruct",
               "scenario": "compiler-rebuild-makeStruct",
               "operation": "make",
-              "astTags": [
-                "Objects",
-                "Number"
-              ],
+              "astTags": ["Objects", "Number"],
               "size": 32
             },
             {
@@ -2912,13 +2419,7 @@
               "export": "makeArray",
               "scenario": "compiler-rebuild-makeArray",
               "operation": "make",
-              "astTags": [
-                "Arrays",
-                "Objects",
-                "String",
-                "Number",
-                "Boolean"
-              ],
+              "astTags": ["Arrays", "Objects", "String", "Number", "Boolean"],
               "size": 32
             },
             {
@@ -2926,12 +2427,7 @@
               "export": "makeUnion",
               "scenario": "compiler-rebuild-makeUnion",
               "operation": "make",
-              "astTags": [
-                "Union",
-                "Objects",
-                "Literal",
-                "Number"
-              ],
+              "astTags": ["Union", "Objects", "Literal", "Number"],
               "size": 8
             }
           ]

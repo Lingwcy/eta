@@ -9,18 +9,18 @@
  *
  * @since 2.0.0
  */
-import * as Effect from "./Effect.ts"
-import { dual, identity } from "./Function.ts"
-import { PipeInspectableProto } from "./internal/core.ts"
-import * as Option from "./Option.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { hasProperty } from "./Predicate.ts"
-import * as PubSub from "./PubSub.ts"
-import * as Semaphore from "./Semaphore.ts"
-import * as Stream from "./Stream.ts"
-import type { Invariant } from "./Types.ts"
+import * as Effect from "./Effect.ts";
+import { dual, identity } from "./Function.ts";
+import { PipeInspectableProto } from "./internal/core.ts";
+import * as Option from "./Option.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { hasProperty } from "./Predicate.ts";
+import * as PubSub from "./PubSub.ts";
+import * as Semaphore from "./Semaphore.ts";
+import * as Stream from "./Stream.ts";
+import type { Invariant } from "./Types.ts";
 
-const TypeId = "~effect/SubscriptionRef"
+const TypeId = "~effect/SubscriptionRef";
 
 /**
  * A mutable reference whose updates are serialized and published to
@@ -35,9 +35,9 @@ const TypeId = "~effect/SubscriptionRef"
  * @since 2.0.0
  */
 export interface SubscriptionRef<in out A> extends SubscriptionRef.Variance<A>, Pipeable {
-  value: A
-  readonly semaphore: Semaphore.Semaphore
-  readonly pubsub: PubSub.PubSub<A>
+  value: A;
+  readonly semaphore: Semaphore.Semaphore;
+  readonly pubsub: PubSub.PubSub<A>;
 }
 
 /**
@@ -52,8 +52,8 @@ export interface SubscriptionRef<in out A> extends SubscriptionRef.Variance<A>, 
  * @since 4.0.0
  */
 export const isSubscriptionRef: (u: unknown) => u is SubscriptionRef<unknown> = (
-  u: unknown
-): u is SubscriptionRef<unknown> => hasProperty(u, TypeId)
+  u: unknown,
+): u is SubscriptionRef<unknown> => hasProperty(u, TypeId);
 
 /**
  * The `SubscriptionRef` namespace containing type definitions associated with
@@ -71,23 +71,23 @@ export declare namespace SubscriptionRef {
    */
   export interface Variance<in out A> {
     readonly [TypeId]: {
-      readonly _A: Invariant<A>
-    }
+      readonly _A: Invariant<A>;
+    };
   }
 }
 
 const Proto = {
   ...PipeInspectableProto,
   [TypeId]: {
-    _A: identity
+    _A: identity,
   },
   toJSON(this: SubscriptionRef<unknown>) {
     return {
       _id: "SubscriptionRef",
-      value: this.value
-    }
-  }
-}
+      value: this.value,
+    };
+  },
+};
 
 /**
  * Constructs a new `SubscriptionRef` from an initial value.
@@ -110,13 +110,13 @@ const Proto = {
  */
 export const make = <A>(value: A): Effect.Effect<SubscriptionRef<A>> =>
   Effect.map(PubSub.unbounded<A>({ replay: 1 }), (pubsub) => {
-    const self = Object.create(Proto)
-    self.semaphore = Semaphore.makeUnsafe(1)
-    self.value = value
-    self.pubsub = pubsub
-    PubSub.publishUnsafe(self.pubsub, value)
-    return self
-  })
+    const self = Object.create(Proto);
+    self.semaphore = Semaphore.makeUnsafe(1);
+    self.value = value;
+    self.pubsub = pubsub;
+    PubSub.publishUnsafe(self.pubsub, value);
+    return self;
+  });
 
 /**
  * Creates a stream that emits the current value and all subsequent changes to
@@ -157,7 +157,8 @@ export const make = <A>(value: A): Effect.Effect<SubscriptionRef<A>> =>
  * @category subscriptions
  * @since 4.0.0
  */
-export const changes = <A>(self: SubscriptionRef<A>): Stream.Stream<A> => Stream.fromPubSub(self.pubsub)
+export const changes = <A>(self: SubscriptionRef<A>): Stream.Stream<A> =>
+  Stream.fromPubSub(self.pubsub);
 
 /**
  * Retrieves the current value of the `SubscriptionRef` unsafely.
@@ -190,7 +191,7 @@ export const changes = <A>(self: SubscriptionRef<A>): Stream.Stream<A> => Stream
  * @category getters
  * @since 4.0.0
  */
-export const getUnsafe = <A>(self: SubscriptionRef<A>): A => self.value
+export const getUnsafe = <A>(self: SubscriptionRef<A>): A => self.value;
 
 /**
  * Retrieves the current value of the `SubscriptionRef`.
@@ -212,7 +213,7 @@ export const getUnsafe = <A>(self: SubscriptionRef<A>): A => self.value
  * @category getters
  * @since 2.0.0
  */
-export const get = <A>(self: SubscriptionRef<A>): Effect.Effect<A> => Effect.sync(() => self.value)
+export const get = <A>(self: SubscriptionRef<A>): Effect.Effect<A> => Effect.sync(() => self.value);
 
 /**
  * Retrieves the current value and sets a new value atomically, notifying
@@ -238,19 +239,22 @@ export const get = <A>(self: SubscriptionRef<A>): Effect.Effect<A> => Effect.syn
  * @since 2.0.0
  */
 export const getAndSet: {
-  <A>(value: A): (self: SubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: SubscriptionRef<A>, value: A): Effect.Effect<A>
+  <A>(value: A): (self: SubscriptionRef<A>) => Effect.Effect<A>;
+  <A>(self: SubscriptionRef<A>, value: A): Effect.Effect<A>;
 } = dual(2, <A>(self: SubscriptionRef<A>, value: A) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    const current = self.value
-    setUnsafe(self, value)
-    return current
-  })))
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      const current = self.value;
+      setUnsafe(self, value);
+      return current;
+    }),
+  ),
+);
 
 const setUnsafe = <A>(self: SubscriptionRef<A>, value: A) => {
-  self.value = value
-  PubSub.publishUnsafe(self.pubsub, value)
-}
+  self.value = value;
+  PubSub.publishUnsafe(self.pubsub, value);
+};
 
 /**
  * Retrieves the current value and updates it atomically with the result of
@@ -276,15 +280,18 @@ const setUnsafe = <A>(self: SubscriptionRef<A>, value: A) => {
  * @since 2.0.0
  */
 export const getAndUpdate: {
-  <A>(update: (a: A) => A): (self: SubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: SubscriptionRef<A>, update: (a: A) => A): Effect.Effect<A>
+  <A>(update: (a: A) => A): (self: SubscriptionRef<A>) => Effect.Effect<A>;
+  <A>(self: SubscriptionRef<A>, update: (a: A) => A): Effect.Effect<A>;
 } = dual(2, <A>(self: SubscriptionRef<A>, update: (a: A) => A) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    const current = self.value
-    const newValue = update(current)
-    setUnsafe(self, newValue)
-    return current
-  })))
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      const current = self.value;
+      const newValue = update(current);
+      setUnsafe(self, newValue);
+      return current;
+    }),
+  ),
+);
 
 /**
  * Retrieves the current value and updates it atomically with the result of
@@ -313,19 +320,24 @@ export const getAndUpdate: {
  * @since 2.0.0
  */
 export const getAndUpdateEffect: {
-  <A, E, R>(update: (a: A) => Effect.Effect<A, E, R>): (self: SubscriptionRef<A>) => Effect.Effect<A, E, R>
-  <A, E, R>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
-} = dual(2, <A, E, R>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Effect.Effect<A, E, R>
-) =>
-  self.semaphore.withPermit(Effect.suspend(() => {
-    const current = self.value
-    return Effect.map(update(current), (newValue) => {
-      setUnsafe(self, newValue)
-      return current
-    })
-  })))
+  <A, E, R>(
+    update: (a: A) => Effect.Effect<A, E, R>,
+  ): (self: SubscriptionRef<A>) => Effect.Effect<A, E, R>;
+  <A, E, R>(
+    self: SubscriptionRef<A>,
+    update: (a: A) => Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, E, R>;
+} = dual(2, <A, E, R>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<A, E, R>) =>
+  self.semaphore.withPermit(
+    Effect.suspend(() => {
+      const current = self.value;
+      return Effect.map(update(current), (newValue) => {
+        setUnsafe(self, newValue);
+        return current;
+      });
+    }),
+  ),
+);
 
 /**
  * Retrieves the current value and optionally updates the reference.
@@ -364,21 +376,21 @@ export const getAndUpdateEffect: {
  * @since 2.0.0
  */
 export const getAndUpdateSome: {
-  <A>(update: (a: A) => Option.Option<A>): (self: SubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>): Effect.Effect<A>
-} = dual(2, <A>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Option.Option<A>
-) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    const current = self.value
-    const option = update(current)
-    if (Option.isNone(option)) {
-      return current
-    }
-    setUnsafe(self, option.value)
-    return current
-  })))
+  <A>(update: (a: A) => Option.Option<A>): (self: SubscriptionRef<A>) => Effect.Effect<A>;
+  <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>): Effect.Effect<A>;
+} = dual(2, <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>) =>
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      const current = self.value;
+      const option = update(current);
+      if (Option.isNone(option)) {
+        return current;
+      }
+      setUnsafe(self, option.value);
+      return current;
+    }),
+  ),
+);
 
 /**
  * Retrieves the current value and optionally updates the reference effectfully.
@@ -418,24 +430,26 @@ export const getAndUpdateSome: {
  */
 export const getAndUpdateSomeEffect: {
   <A, R, E>(
-    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>
-  ): (self: SubscriptionRef<A>) => Effect.Effect<A, E, R>
+    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>,
+  ): (self: SubscriptionRef<A>) => Effect.Effect<A, E, R>;
   <A, R, E>(
     self: SubscriptionRef<A>,
-    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>
-  ): Effect.Effect<A, E, R>
-} = dual(2, <A, R, E>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Effect.Effect<Option.Option<A>, E, R>
-) =>
-  self.semaphore.withPermit(Effect.suspend(() => {
-    const current = self.value
-    return Effect.map(update(current), (option) => {
-      if (Option.isNone(option)) return current
-      setUnsafe(self, option.value)
-      return current
-    })
-  })))
+    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>,
+  ): Effect.Effect<A, E, R>;
+} = dual(
+  2,
+  <A, R, E>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<Option.Option<A>, E, R>) =>
+    self.semaphore.withPermit(
+      Effect.suspend(() => {
+        const current = self.value;
+        return Effect.map(update(current), (option) => {
+          if (Option.isNone(option)) return current;
+          setUnsafe(self, option.value);
+          return current;
+        });
+      }),
+    ),
+);
 
 /**
  * Modifies the `SubscriptionRef` atomically with a function that computes a
@@ -464,17 +478,17 @@ export const getAndUpdateSomeEffect: {
  * @since 2.0.0
  */
 export const modify: {
-  <A, B>(modify: (a: A) => readonly [B, A]): (self: SubscriptionRef<A>) => Effect.Effect<B>
-  <A, B>(self: SubscriptionRef<A>, f: (a: A) => readonly [B, A]): Effect.Effect<B>
-} = dual(2, <A, B>(
-  self: SubscriptionRef<A>,
-  modify: (a: A) => readonly [B, A]
-) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    const [b, newValue] = modify(self.value)
-    setUnsafe(self, newValue)
-    return b
-  })))
+  <A, B>(modify: (a: A) => readonly [B, A]): (self: SubscriptionRef<A>) => Effect.Effect<B>;
+  <A, B>(self: SubscriptionRef<A>, f: (a: A) => readonly [B, A]): Effect.Effect<B>;
+} = dual(2, <A, B>(self: SubscriptionRef<A>, modify: (a: A) => readonly [B, A]) =>
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      const [b, newValue] = modify(self.value);
+      setUnsafe(self, newValue);
+      return b;
+    }),
+  ),
+);
 
 /**
  * Modifies the `SubscriptionRef` atomically with an effectful function that
@@ -505,22 +519,27 @@ export const modify: {
  */
 export const modifyEffect: {
   <B, A, E, R>(
-    modify: (a: A) => Effect.Effect<readonly [B, A], E, R>
-  ): (self: SubscriptionRef<A>) => Effect.Effect<B, E, R>
+    modify: (a: A) => Effect.Effect<readonly [B, A], E, R>,
+  ): (self: SubscriptionRef<A>) => Effect.Effect<B, E, R>;
   <A, B, E, R>(
     self: SubscriptionRef<A>,
-    modify: (a: A) => Effect.Effect<readonly [B, A], E, R>
-  ): Effect.Effect<B, E, R>
-} = dual(2, <A, B, E, R>(
-  self: SubscriptionRef<A>,
-  modify: (a: A) => Effect.Effect<readonly [B, A], E, R>
-): Effect.Effect<B, E, R> =>
-  self.semaphore.withPermit(Effect.suspend(() =>
-    Effect.map(modify(self.value), ([b, newValue]) => {
-      setUnsafe(self, newValue)
-      return b
-    })
-  )))
+    modify: (a: A) => Effect.Effect<readonly [B, A], E, R>,
+  ): Effect.Effect<B, E, R>;
+} = dual(
+  2,
+  <A, B, E, R>(
+    self: SubscriptionRef<A>,
+    modify: (a: A) => Effect.Effect<readonly [B, A], E, R>,
+  ): Effect.Effect<B, E, R> =>
+    self.semaphore.withPermit(
+      Effect.suspend(() =>
+        Effect.map(modify(self.value), ([b, newValue]) => {
+          setUnsafe(self, newValue);
+          return b;
+        }),
+      ),
+    ),
+);
 
 /**
  * Computes a return value and optionally updates the reference.
@@ -561,22 +580,22 @@ export const modifyEffect: {
  */
 export const modifySome: {
   <B, A>(
-    modify: (a: A) => readonly [B, Option.Option<A>]
-  ): (self: SubscriptionRef<A>) => Effect.Effect<B>
+    modify: (a: A) => readonly [B, Option.Option<A>],
+  ): (self: SubscriptionRef<A>) => Effect.Effect<B>;
   <A, B>(
     self: SubscriptionRef<A>,
-    modify: (a: A) => readonly [B, Option.Option<A>]
-  ): Effect.Effect<B>
-} = dual(2, <A, B>(
-  self: SubscriptionRef<A>,
-  modify: (a: A) => readonly [B, Option.Option<A>]
-) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    const [b, option] = modify(self.value)
-    if (Option.isNone(option)) return b
-    setUnsafe(self, option.value)
-    return b
-  })))
+    modify: (a: A) => readonly [B, Option.Option<A>],
+  ): Effect.Effect<B>;
+} = dual(2, <A, B>(self: SubscriptionRef<A>, modify: (a: A) => readonly [B, Option.Option<A>]) =>
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      const [b, option] = modify(self.value);
+      if (Option.isNone(option)) return b;
+      setUnsafe(self, option.value);
+      return b;
+    }),
+  ),
+);
 
 /**
  * Computes a return value and optionally updates the reference effectfully.
@@ -621,23 +640,28 @@ export const modifySome: {
  */
 export const modifySomeEffect: {
   <A, B, R, E>(
-    modify: (a: A) => Effect.Effect<readonly [B, Option.Option<A>], E, R>
-  ): (self: SubscriptionRef<A>) => Effect.Effect<B, E, R>
+    modify: (a: A) => Effect.Effect<readonly [B, Option.Option<A>], E, R>,
+  ): (self: SubscriptionRef<A>) => Effect.Effect<B, E, R>;
   <A, B, R, E>(
     self: SubscriptionRef<A>,
-    modify: (a: A) => Effect.Effect<readonly [B, Option.Option<A>], E, R>
-  ): Effect.Effect<B, E, R>
-} = dual(2, <A, B, R, E>(
-  self: SubscriptionRef<A>,
-  modify: (a: A) => Effect.Effect<readonly [B, Option.Option<A>], E, R>
-) =>
-  self.semaphore.withPermit(Effect.suspend(() =>
-    Effect.map(modify(self.value), ([b, option]) => {
-      if (Option.isNone(option)) return b
-      setUnsafe(self, option.value)
-      return b
-    })
-  )))
+    modify: (a: A) => Effect.Effect<readonly [B, Option.Option<A>], E, R>,
+  ): Effect.Effect<B, E, R>;
+} = dual(
+  2,
+  <A, B, R, E>(
+    self: SubscriptionRef<A>,
+    modify: (a: A) => Effect.Effect<readonly [B, Option.Option<A>], E, R>,
+  ) =>
+    self.semaphore.withPermit(
+      Effect.suspend(() =>
+        Effect.map(modify(self.value), ([b, option]) => {
+          if (Option.isNone(option)) return b;
+          setUnsafe(self, option.value);
+          return b;
+        }),
+      ),
+    ),
+);
 
 /**
  * Sets the value of the `SubscriptionRef`, notifying all subscribers of the
@@ -663,12 +687,11 @@ export const modifySomeEffect: {
  * @since 2.0.0
  */
 export const set: {
-  <A>(value: A): (self: SubscriptionRef<A>) => Effect.Effect<void>
-  <A>(self: SubscriptionRef<A>, value: A): Effect.Effect<void>
-} = dual(
-  2,
-  <A>(self: SubscriptionRef<A>, value: A) => self.semaphore.withPermit(Effect.sync(() => setUnsafe(self, value)))
-)
+  <A>(value: A): (self: SubscriptionRef<A>) => Effect.Effect<void>;
+  <A>(self: SubscriptionRef<A>, value: A): Effect.Effect<void>;
+} = dual(2, <A>(self: SubscriptionRef<A>, value: A) =>
+  self.semaphore.withPermit(Effect.sync(() => setUnsafe(self, value))),
+);
 
 /**
  * Sets the value of the `SubscriptionRef` and returns the new value,
@@ -692,13 +715,16 @@ export const set: {
  * @since 2.0.0
  */
 export const setAndGet: {
-  <A>(value: A): (self: SubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: SubscriptionRef<A>, value: A): Effect.Effect<A>
+  <A>(value: A): (self: SubscriptionRef<A>) => Effect.Effect<A>;
+  <A>(self: SubscriptionRef<A>, value: A): Effect.Effect<A>;
 } = dual(2, <A>(self: SubscriptionRef<A>, value: A) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    setUnsafe(self, value)
-    return value
-  })))
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      setUnsafe(self, value);
+      return value;
+    }),
+  ),
+);
 
 /**
  * Updates the value of the `SubscriptionRef` with the result of applying a
@@ -724,13 +750,11 @@ export const setAndGet: {
  * @since 2.0.0
  */
 export const update: {
-  <A>(update: (a: A) => A): (self: SubscriptionRef<A>) => Effect.Effect<void>
-  <A>(self: SubscriptionRef<A>, update: (a: A) => A): Effect.Effect<void>
-} = dual(
-  2,
-  <A>(self: SubscriptionRef<A>, update: (a: A) => A) =>
-    self.semaphore.withPermit(Effect.sync(() => setUnsafe(self, update(self.value))))
-)
+  <A>(update: (a: A) => A): (self: SubscriptionRef<A>) => Effect.Effect<void>;
+  <A>(self: SubscriptionRef<A>, update: (a: A) => A): Effect.Effect<void>;
+} = dual(2, <A>(self: SubscriptionRef<A>, update: (a: A) => A) =>
+  self.semaphore.withPermit(Effect.sync(() => setUnsafe(self, update(self.value)))),
+);
 
 /**
  * Updates the value of the `SubscriptionRef` with the result of applying an
@@ -756,15 +780,18 @@ export const update: {
  * @since 2.0.0
  */
 export const updateEffect: {
-  <A, E, R>(update: (a: A) => Effect.Effect<A, E, R>): (self: SubscriptionRef<A>) => Effect.Effect<void, E, R>
-  <A, E, R>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<A, E, R>): Effect.Effect<void, E, R>
-} = dual(2, <A, E, R>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Effect.Effect<A, E, R>
-) =>
+  <A, E, R>(
+    update: (a: A) => Effect.Effect<A, E, R>,
+  ): (self: SubscriptionRef<A>) => Effect.Effect<void, E, R>;
+  <A, E, R>(
+    self: SubscriptionRef<A>,
+    update: (a: A) => Effect.Effect<A, E, R>,
+  ): Effect.Effect<void, E, R>;
+} = dual(2, <A, E, R>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<A, E, R>) =>
   self.semaphore.withPermit(
-    Effect.suspend(() => Effect.map(update(self.value), (newValue) => setUnsafe(self, newValue)))
-  ))
+    Effect.suspend(() => Effect.map(update(self.value), (newValue) => setUnsafe(self, newValue))),
+  ),
+);
 
 /**
  * Updates the value of the `SubscriptionRef` with the result of applying a
@@ -788,14 +815,17 @@ export const updateEffect: {
  * @since 2.0.0
  */
 export const updateAndGet: {
-  <A>(update: (a: A) => A): (self: SubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: SubscriptionRef<A>, update: (a: A) => A): Effect.Effect<A>
+  <A>(update: (a: A) => A): (self: SubscriptionRef<A>) => Effect.Effect<A>;
+  <A>(self: SubscriptionRef<A>, update: (a: A) => A): Effect.Effect<A>;
 } = dual(2, <A>(self: SubscriptionRef<A>, update: (a: A) => A) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    const newValue = update(self.value)
-    setUnsafe(self, newValue)
-    return newValue
-  })))
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      const newValue = update(self.value);
+      setUnsafe(self, newValue);
+      return newValue;
+    }),
+  ),
+);
 
 /**
  * Updates the value of the `SubscriptionRef` with the result of applying an
@@ -823,18 +853,23 @@ export const updateAndGet: {
  * @since 2.0.0
  */
 export const updateAndGetEffect: {
-  <A, E, R>(update: (a: A) => Effect.Effect<A, E, R>): (self: SubscriptionRef<A>) => Effect.Effect<A, E, R>
-  <A, E, R>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
-} = dual(2, <A, E, R>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Effect.Effect<A, E, R>
-) =>
-  self.semaphore.withPermit(Effect.suspend(() =>
-    Effect.map(update(self.value), (newValue) => {
-      setUnsafe(self, newValue)
-      return newValue
-    })
-  )))
+  <A, E, R>(
+    update: (a: A) => Effect.Effect<A, E, R>,
+  ): (self: SubscriptionRef<A>) => Effect.Effect<A, E, R>;
+  <A, E, R>(
+    self: SubscriptionRef<A>,
+    update: (a: A) => Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, E, R>;
+} = dual(2, <A, E, R>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<A, E, R>) =>
+  self.semaphore.withPermit(
+    Effect.suspend(() =>
+      Effect.map(update(self.value), (newValue) => {
+        setUnsafe(self, newValue);
+        return newValue;
+      }),
+    ),
+  ),
+);
 
 /**
  * Applies an update function to the current value. If it returns
@@ -864,17 +899,17 @@ export const updateAndGetEffect: {
  * @since 2.0.0
  */
 export const updateSome: {
-  <A>(update: (a: A) => Option.Option<A>): (self: SubscriptionRef<A>) => Effect.Effect<void>
-  <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>): Effect.Effect<void>
-} = dual(2, <A>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Option.Option<A>
-) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    const option = update(self.value)
-    if (Option.isNone(option)) return
-    setUnsafe(self, option.value)
-  })))
+  <A>(update: (a: A) => Option.Option<A>): (self: SubscriptionRef<A>) => Effect.Effect<void>;
+  <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>): Effect.Effect<void>;
+} = dual(2, <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>) =>
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      const option = update(self.value);
+      if (Option.isNone(option)) return;
+      setUnsafe(self, option.value);
+    }),
+  ),
+);
 
 /**
  * Applies an effectful update only when it produces a new value.
@@ -914,22 +949,24 @@ export const updateSome: {
  */
 export const updateSomeEffect: {
   <A, E, R>(
-    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>
-  ): (self: SubscriptionRef<A>) => Effect.Effect<void, E, R>
+    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>,
+  ): (self: SubscriptionRef<A>) => Effect.Effect<void, E, R>;
   <A, E, R>(
     self: SubscriptionRef<A>,
-    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>
-  ): Effect.Effect<void, E, R>
-} = dual(2, <A, R, E>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Effect.Effect<Option.Option<A>, E, R>
-) =>
-  self.semaphore.withPermit(Effect.suspend(() =>
-    Effect.map(update(self.value), (option) => {
-      if (Option.isNone(option)) return
-      setUnsafe(self, option.value)
-    })
-  )))
+    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>,
+  ): Effect.Effect<void, E, R>;
+} = dual(
+  2,
+  <A, R, E>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<Option.Option<A>, E, R>) =>
+    self.semaphore.withPermit(
+      Effect.suspend(() =>
+        Effect.map(update(self.value), (option) => {
+          if (Option.isNone(option)) return;
+          setUnsafe(self, option.value);
+        }),
+      ),
+    ),
+);
 
 /**
  * Applies an optional update and returns the current value afterward.
@@ -966,19 +1003,19 @@ export const updateSomeEffect: {
  * @since 2.0.0
  */
 export const updateSomeAndGet: {
-  <A>(update: (a: A) => Option.Option<A>): (self: SubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>): Effect.Effect<A>
-} = dual(2, <A>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Option.Option<A>
-) =>
-  self.semaphore.withPermit(Effect.sync(() => {
-    const current = self.value
-    const option = update(current)
-    if (Option.isNone(option)) return current
-    setUnsafe(self, option.value)
-    return option.value
-  })))
+  <A>(update: (a: A) => Option.Option<A>): (self: SubscriptionRef<A>) => Effect.Effect<A>;
+  <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>): Effect.Effect<A>;
+} = dual(2, <A>(self: SubscriptionRef<A>, update: (a: A) => Option.Option<A>) =>
+  self.semaphore.withPermit(
+    Effect.sync(() => {
+      const current = self.value;
+      const option = update(current);
+      if (Option.isNone(option)) return current;
+      setUnsafe(self, option.value);
+      return option.value;
+    }),
+  ),
+);
 
 /**
  * Applies an effectful optional update and returns the current value afterward.
@@ -1016,18 +1053,23 @@ export const updateSomeAndGet: {
  */
 export const updateSomeAndGetEffect: {
   <A, E, R>(
-    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>
-  ): (self: SubscriptionRef<A>) => Effect.Effect<A, E, R>
-  <A, E, R>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<Option.Option<A>, E, R>): Effect.Effect<A, E, R>
-} = dual(2, <A, E, R>(
-  self: SubscriptionRef<A>,
-  update: (a: A) => Effect.Effect<Option.Option<A>, E, R>
-) =>
-  self.semaphore.withPermit(Effect.suspend(() => {
-    const current = self.value
-    return Effect.map(update(current), (option) => {
-      if (Option.isNone(option)) return current
-      setUnsafe(self, option.value)
-      return option.value
-    })
-  })))
+    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>,
+  ): (self: SubscriptionRef<A>) => Effect.Effect<A, E, R>;
+  <A, E, R>(
+    self: SubscriptionRef<A>,
+    update: (a: A) => Effect.Effect<Option.Option<A>, E, R>,
+  ): Effect.Effect<A, E, R>;
+} = dual(
+  2,
+  <A, E, R>(self: SubscriptionRef<A>, update: (a: A) => Effect.Effect<Option.Option<A>, E, R>) =>
+    self.semaphore.withPermit(
+      Effect.suspend(() => {
+        const current = self.value;
+        return Effect.map(update(current), (option) => {
+          if (Option.isNone(option)) return current;
+          setUnsafe(self, option.value);
+          return option.value;
+        });
+      }),
+    ),
+);

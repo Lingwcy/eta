@@ -10,17 +10,17 @@
  *
  * @since 4.0.0
  */
-import type * as Cause from "./Cause.ts"
-import type * as Context from "./Context.ts"
-import * as Effect from "./Effect.ts"
-import type * as Fiber from "./Fiber.ts"
-import * as effect from "./internal/effect.ts"
-import * as references from "./internal/references.ts"
-import * as Layer from "./Layer.ts"
-import * as LogLevel from "./LogLevel.ts"
-import type { Severity } from "./LogLevel.ts"
-import type { ReadonlyRecord } from "./Record.ts"
-import type * as Scope from "./Scope.ts"
+import type * as Cause from "./Cause.ts";
+import type * as Context from "./Context.ts";
+import * as Effect from "./Effect.ts";
+import type * as Fiber from "./Fiber.ts";
+import * as effect from "./internal/effect.ts";
+import * as references from "./internal/references.ts";
+import * as Layer from "./Layer.ts";
+import * as LogLevel from "./LogLevel.ts";
+import type { Severity } from "./LogLevel.ts";
+import type { ReadonlyRecord } from "./Record.ts";
+import type * as Scope from "./Scope.ts";
 
 /**
  * String literal type used as the runtime type identifier for
@@ -33,7 +33,7 @@ import type * as Scope from "./Scope.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/ErrorReporter"
+export type TypeId = "~effect/ErrorReporter";
 
 /**
  * Runtime type identifier attached to `ErrorReporter` values.
@@ -47,7 +47,7 @@ export type TypeId = "~effect/ErrorReporter"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~effect/ErrorReporter"
+export const TypeId: TypeId = "~effect/ErrorReporter";
 
 /**
  * An `ErrorReporter` receives reported failures and forwards them to an
@@ -74,12 +74,12 @@ export const TypeId: TypeId = "~effect/ErrorReporter"
  * @since 4.0.0
  */
 export interface ErrorReporter {
-  readonly [TypeId]: TypeId
+  readonly [TypeId]: TypeId;
   report(options: {
-    readonly cause: Cause.Cause<unknown>
-    readonly fiber: Fiber.Fiber<unknown, unknown>
-    readonly timestamp: bigint
-  }): void
+    readonly cause: Cause.Cause<unknown>;
+    readonly fiber: Fiber.Fiber<unknown, unknown>;
+    readonly timestamp: bigint;
+  }): void;
 }
 
 /**
@@ -125,41 +125,41 @@ export interface ErrorReporter {
  */
 export const make = (
   report: (options: {
-    readonly cause: Cause.Cause<unknown>
-    readonly error: Error
-    readonly attributes: ReadonlyRecord<string, unknown>
-    readonly severity: Severity
-    readonly fiber: Fiber.Fiber<unknown, unknown>
-    readonly timestamp: bigint
-  }) => void
+    readonly cause: Cause.Cause<unknown>;
+    readonly error: Error;
+    readonly attributes: ReadonlyRecord<string, unknown>;
+    readonly severity: Severity;
+    readonly fiber: Fiber.Fiber<unknown, unknown>;
+    readonly timestamp: bigint;
+  }) => void,
 ): ErrorReporter => {
-  const reported = new WeakSet<Cause.Cause<unknown> | object>()
+  const reported = new WeakSet<Cause.Cause<unknown> | object>();
   return {
     [TypeId]: TypeId,
     report(options) {
-      if (reported.has(options.cause)) return
-      reported.add(options.cause)
+      if (reported.has(options.cause)) return;
+      reported.add(options.cause);
       for (let i = 0; i < options.cause.reasons.length; i++) {
-        const reason = options.cause.reasons[i]
-        if (reason._tag === "Interrupt") continue
-        const original = reason._tag === "Fail" ? reason.error : reason.defect
-        const isObject = typeof original === "object" && original !== null
+        const reason = options.cause.reasons[i];
+        if (reason._tag === "Interrupt") continue;
+        const original = reason._tag === "Fail" ? reason.error : reason.defect;
+        const isObject = typeof original === "object" && original !== null;
         if (isObject) {
-          if (reported.has(original)) continue
-          reported.add(original)
+          if (reported.has(original)) continue;
+          reported.add(original);
         }
-        if (isIgnored(original)) continue
-        const pretty = effect.causePrettyError(original as any, reason.annotations)
+        if (isIgnored(original)) continue;
+        const pretty = effect.causePrettyError(original as any, reason.annotations);
         report({
           ...options,
           error: pretty,
           severity: isObject ? getSeverity(original) : "Info",
-          attributes: isObject ? getAttributes(original) : emptyAttributes
-        })
+          attributes: isObject ? getAttributes(original) : emptyAttributes,
+        });
       }
-    }
-  }
-}
+    },
+  };
+};
 
 /**
  * Context reference that holds the set of active error reporters for the
@@ -173,7 +173,8 @@ export const make = (
  * @category services
  * @since 4.0.0
  */
-export const CurrentErrorReporters: Context.Reference<ReadonlySet<ErrorReporter>> = references.CurrentErrorReporters
+export const CurrentErrorReporters: Context.Reference<ReadonlySet<ErrorReporter>> =
+  references.CurrentErrorReporters;
 
 /**
  * Creates a `Layer` that registers one or more `ErrorReporter`s.
@@ -232,30 +233,29 @@ export const CurrentErrorReporters: Context.Reference<ReadonlySet<ErrorReporter>
  * @since 4.0.0
  */
 export const layer = <
-  const Reporters extends ReadonlyArray<ErrorReporter | Effect.Effect<ErrorReporter, any, any>>
+  const Reporters extends ReadonlyArray<ErrorReporter | Effect.Effect<ErrorReporter, any, any>>,
 >(
   reporters: Reporters,
-  options?: { readonly mergeWithExisting?: boolean | undefined } | undefined
+  options?: { readonly mergeWithExisting?: boolean | undefined } | undefined,
 ): Layer.Layer<
   never,
   Reporters extends readonly [] ? never : Effect.Error<Reporters[number]>,
-  Exclude<
-    Reporters extends readonly [] ? never : Effect.Services<Reporters[number]>,
-    Scope.Scope
-  >
+  Exclude<Reporters extends readonly [] ? never : Effect.Services<Reporters[number]>, Scope.Scope>
 > =>
   Layer.effect(
     CurrentErrorReporters,
-    Effect.withFiber(Effect.fnUntraced(function*(fiber) {
-      const currentReporters = new Set(
-        options?.mergeWithExisting === true ? fiber.getRef(references.CurrentErrorReporters) : []
-      )
-      for (const reporter of reporters) {
-        currentReporters.add(Effect.isEffect(reporter) ? yield* reporter : reporter)
-      }
-      return currentReporters
-    }))
-  )
+    Effect.withFiber(
+      Effect.fnUntraced(function* (fiber) {
+        const currentReporters = new Set(
+          options?.mergeWithExisting === true ? fiber.getRef(references.CurrentErrorReporters) : [],
+        );
+        for (const reporter of reporters) {
+          currentReporters.add(Effect.isEffect(reporter) ? yield* reporter : reporter);
+        }
+        return currentReporters;
+      }),
+    ),
+  );
 
 /**
  * Runs all registered error reporters on the current fiber for a `Cause`.
@@ -289,9 +289,9 @@ export const layer = <
  */
 export const report = <E>(cause: Cause.Cause<E>): Effect.Effect<void> =>
   Effect.withFiber((fiber) => {
-    effect.reportCauseUnsafe(fiber, cause)
-    return Effect.void
-  })
+    effect.reportCauseUnsafe(fiber, cause);
+    return Effect.void;
+  });
 
 /**
  * Interface that object errors can implement to control reporting behavior.
@@ -319,9 +319,9 @@ export const report = <E>(cause: Cause.Cause<E>): Effect.Effect<void> =>
  * @since 4.0.0
  */
 export interface Reportable {
-  readonly [ignore]?: boolean
-  readonly [severity]?: Severity
-  readonly [attributes]?: ReadonlyRecord<string, unknown>
+  readonly [ignore]?: boolean;
+  readonly [severity]?: Severity;
+  readonly [attributes]?: ReadonlyRecord<string, unknown>;
 }
 
 declare global {
@@ -346,7 +346,7 @@ declare global {
  * @category annotations
  * @since 4.0.0
  */
-export type ignore = "~effect/ErrorReporter/ignore"
+export type ignore = "~effect/ErrorReporter/ignore";
 
 /**
  * Defines the runtime property key used to mark an object error as ignored by error
@@ -382,7 +382,7 @@ export type ignore = "~effect/ErrorReporter/ignore"
  * @category annotations
  * @since 4.0.0
  */
-export const ignore: ignore = "~effect/ErrorReporter/ignore"
+export const ignore: ignore = "~effect/ErrorReporter/ignore";
 
 /**
  * Returns `true` if the given value has the `ErrorReporter.ignore` annotation
@@ -399,7 +399,7 @@ export const ignore: ignore = "~effect/ErrorReporter/ignore"
  * @since 4.0.0
  */
 export const isIgnored = (u: unknown): boolean =>
-  typeof u === "object" && u !== null && ignore in u && u[ignore] === true
+  typeof u === "object" && u !== null && ignore in u && u[ignore] === true;
 
 /**
  * Defines the string property key used to override the severity level of an object error.
@@ -417,7 +417,7 @@ export const isIgnored = (u: unknown): boolean =>
  * @category annotations
  * @since 4.0.0
  */
-export type severity = "~effect/ErrorReporter/severity"
+export type severity = "~effect/ErrorReporter/severity";
 
 /**
  * Defines the runtime property key used to override the severity level of an object error.
@@ -451,7 +451,7 @@ export type severity = "~effect/ErrorReporter/severity"
  * @category annotations
  * @since 4.0.0
  */
-export const severity: severity = "~effect/ErrorReporter/severity"
+export const severity: severity = "~effect/ErrorReporter/severity";
 
 /**
  * Reads the `ErrorReporter.severity` annotation from an error object,
@@ -470,10 +470,10 @@ export const severity: severity = "~effect/ErrorReporter/severity"
  */
 export const getSeverity = (error: object): Severity => {
   if (severity in error && LogLevel.values.includes(error[severity] as Severity)) {
-    return error[severity] as Severity
+    return error[severity] as Severity;
   }
-  return "Info"
-}
+  return "Info";
+};
 
 /**
  * Defines the string property key used to attach extra key/value metadata to an object
@@ -492,7 +492,7 @@ export const getSeverity = (error: object): Severity => {
  * @category annotations
  * @since 4.0.0
  */
-export type attributes = "~effect/ErrorReporter/attributes"
+export type attributes = "~effect/ErrorReporter/attributes";
 
 /**
  * Defines the runtime property key used to attach extra key/value metadata to an object
@@ -533,7 +533,7 @@ export type attributes = "~effect/ErrorReporter/attributes"
  * @category annotations
  * @since 4.0.0
  */
-export const attributes: attributes = "~effect/ErrorReporter/attributes"
+export const attributes: attributes = "~effect/ErrorReporter/attributes";
 
 /**
  * Reads the `ErrorReporter.attributes` annotation from an error object,
@@ -561,7 +561,7 @@ export const attributes: attributes = "~effect/ErrorReporter/attributes"
  * @since 4.0.0
  */
 export const getAttributes = (error: object): ReadonlyRecord<string, unknown> => {
-  return attributes in error ? error[attributes] as any : emptyAttributes
-}
+  return attributes in error ? (error[attributes] as any) : emptyAttributes;
+};
 
-const emptyAttributes: ReadonlyRecord<string, unknown> = {}
+const emptyAttributes: ReadonlyRecord<string, unknown> = {};

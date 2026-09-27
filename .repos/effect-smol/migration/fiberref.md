@@ -28,23 +28,23 @@ services — `yield*` them directly.
 **v3**
 
 ```ts
-import { Effect, FiberRef } from "effect"
+import { Effect, FiberRef } from "effect";
 
-const program = Effect.gen(function*() {
-  const level = yield* FiberRef.get(FiberRef.currentLogLevel)
-  console.log(level)
-})
+const program = Effect.gen(function* () {
+  const level = yield* FiberRef.get(FiberRef.currentLogLevel);
+  console.log(level);
+});
 ```
 
 **v4**
 
 ```ts
-import { Effect, References } from "effect"
+import { Effect, References } from "effect";
 
-const program = Effect.gen(function*() {
-  const level = yield* References.CurrentLogLevel
-  console.log(level) // "Info" (default)
-})
+const program = Effect.gen(function* () {
+  const level = yield* References.CurrentLogLevel;
+  console.log(level); // "Info" (default)
+});
 ```
 
 ## Scoped Updates (`Effect.locally` → `Effect.provideService`)
@@ -55,25 +55,17 @@ v4, use `Effect.provideService` with the reference.
 **v3**
 
 ```ts
-import { Effect, FiberRef, LogLevel } from "effect"
+import { Effect, FiberRef, LogLevel } from "effect";
 
-const program = Effect.locally(
-  myEffect,
-  FiberRef.currentLogLevel,
-  LogLevel.Debug
-)
+const program = Effect.locally(myEffect, FiberRef.currentLogLevel, LogLevel.Debug);
 ```
 
 **v4**
 
 ```ts
-import { Effect, References } from "effect"
+import { Effect, References } from "effect";
 
-const program = Effect.provideService(
-  myEffect,
-  References.CurrentLogLevel,
-  "Debug"
-)
+const program = Effect.provideService(myEffect, References.CurrentLogLevel, "Debug");
 ```
 
 ## Writing References
@@ -84,25 +76,25 @@ set via `Effect.provideService`, which scopes the value to the provided effect.
 **v3**
 
 ```ts
-import { Effect, FiberRef } from "effect"
+import { Effect, FiberRef } from "effect";
 
-const program = Effect.gen(function*() {
-  yield* FiberRef.set(FiberRef.currentMaxOpsBeforeYield, 500)
+const program = Effect.gen(function* () {
+  yield* FiberRef.set(FiberRef.currentMaxOpsBeforeYield, 500);
   // subsequent code sees maxOpsBeforeYield = 500
-})
+});
 ```
 
 **v4**
 
 ```ts
-import { Effect, References } from "effect"
+import { Effect, References } from "effect";
 
 const program = Effect.provideService(
-  Effect.gen(function*() {
-    const maxOps = yield* References.MaxOpsBeforeYield
-    console.log(maxOps) // 500
+  Effect.gen(function* () {
+    const maxOps = yield* References.MaxOpsBeforeYield;
+    console.log(maxOps); // 500
   }),
   References.MaxOpsBeforeYield,
-  500
-)
+  500,
+);
 ```

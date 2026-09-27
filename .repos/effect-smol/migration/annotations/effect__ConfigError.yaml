@@ -20,7 +20,7 @@
   replacement: "new Config.ConfigError(new Schema.SchemaError(issue))"
   note: "Invalid configuration is now expressed as a SchemaIssue wrapped by SchemaError and Config.ConfigError."
 "effect/ConfigError#isAnd":
-  replacement: "error.cause.issue._tag === \"Composite\""
+  replacement: 'error.cause.issue._tag === "Composite"'
   note: "After narrowing cause with Schema.isSchemaError, inspect the SchemaIssue tag; the old And node no longer exists."
 "effect/ConfigError#isConfigError":
   replacement: "error instanceof Config.ConfigError"
@@ -35,7 +35,7 @@
   replacement: "Config.withDefault / Config.option"
   note: "The public classifier was removed. These combinators use provider lookup evidence rather than recursively classifying SchemaIssue values."
 "effect/ConfigError#isOr":
-  replacement: "error.cause.issue._tag === \"AnyOf\""
+  replacement: 'error.cause.issue._tag === "AnyOf"'
   note: "After narrowing cause with Schema.isSchemaError, inspect the SchemaIssue tag; the old Or node no longer exists."
 "effect/ConfigError#isSourceUnavailable":
   replacement: "error.cause instanceof ConfigProvider.SourceError"

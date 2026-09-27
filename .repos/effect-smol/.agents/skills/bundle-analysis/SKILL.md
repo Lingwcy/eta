@@ -8,7 +8,7 @@ Read `packages/tools/bundle/README.md`, then select one workflow:
 - **Stable comparison:** `pnpm bundle-compare <base-ref>`. Use `HEAD~1` for the
   latest commit. Read `tmp/bundle-stats.txt` and report non-zero differences.
 - **Selected comparison:** `pnpm bundle-compare-selected --base <ref>
-  scratchpad/<fixture>.ts`. Use only user-named or investigation-local fixtures;
+scratchpad/<fixture>.ts`. Use only user-named or investigation-local fixtures;
   keep temporary fixtures out of the stable corpus.
 - **Composition:** `pnpm bundle-analyze scratchpad/<fixture>.ts`. Read raw data
   first and report the largest modules, dependency groups, and surprising

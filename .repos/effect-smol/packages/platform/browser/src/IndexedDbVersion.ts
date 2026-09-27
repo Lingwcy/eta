@@ -17,12 +17,12 @@
  *
  * @since 4.0.0
  */
-import type { NonEmptyReadonlyArray } from "effect/Array"
-import type { Pipeable } from "effect/Pipeable"
-import { pipeArguments } from "effect/Pipeable"
-import type * as IndexedDbTable from "./IndexedDbTable.ts"
+import type { NonEmptyReadonlyArray } from "effect/Array";
+import type { Pipeable } from "effect/Pipeable";
+import { pipeArguments } from "effect/Pipeable";
+import type * as IndexedDbTable from "./IndexedDbTable.ts";
 
-const TypeId = "~@effect/platform-browser/IndexedDbVersion"
+const TypeId = "~@effect/platform-browser/IndexedDbVersion";
 
 /**
  * Typed IndexedDB version definition containing the tables available in that schema version.
@@ -30,12 +30,10 @@ const TypeId = "~@effect/platform-browser/IndexedDbVersion"
  * @category models
  * @since 4.0.0
  */
-export interface IndexedDbVersion<
-  out Tables extends IndexedDbTable.AnyWithProps
-> extends Pipeable {
-  new(_: never): {}
-  readonly [TypeId]: typeof TypeId
-  readonly tables: ReadonlyMap<string, Tables>
+export interface IndexedDbVersion<out Tables extends IndexedDbTable.AnyWithProps> extends Pipeable {
+  new (_: never): {};
+  readonly [TypeId]: typeof TypeId;
+  readonly tables: ReadonlyMap<string, Tables>;
 }
 
 /**
@@ -45,7 +43,7 @@ export interface IndexedDbVersion<
  * @since 4.0.0
  */
 export interface Any {
-  readonly [TypeId]: typeof TypeId
+  readonly [TypeId]: typeof TypeId;
 }
 
 /**
@@ -54,7 +52,7 @@ export interface Any {
  * @category models
  * @since 4.0.0
  */
-export type AnyWithProps = IndexedDbVersion<IndexedDbTable.AnyWithProps>
+export type AnyWithProps = IndexedDbVersion<IndexedDbTable.AnyWithProps>;
 
 /**
  * Extracts the table union from an `IndexedDbVersion`.
@@ -62,7 +60,7 @@ export type AnyWithProps = IndexedDbVersion<IndexedDbTable.AnyWithProps>
  * @category utility types
  * @since 4.0.0
  */
-export type Tables<Db extends Any> = Db extends IndexedDbVersion<infer _Tables> ? _Tables : never
+export type Tables<Db extends Any> = Db extends IndexedDbVersion<infer _Tables> ? _Tables : never;
 
 /**
  * Selects a table by name from an `IndexedDbVersion`.
@@ -70,10 +68,10 @@ export type Tables<Db extends Any> = Db extends IndexedDbVersion<infer _Tables> 
  * @category utility types
  * @since 4.0.0
  */
-export type TableWithName<
-  Db extends Any,
-  TableName extends string
-> = IndexedDbTable.WithName<Tables<Db>, TableName>
+export type TableWithName<Db extends Any, TableName extends string> = IndexedDbTable.WithName<
+  Tables<Db>,
+  TableName
+>;
 
 /**
  * Extracts the schema for a named table within an `IndexedDbVersion`.
@@ -81,27 +79,26 @@ export type TableWithName<
  * @category utility types
  * @since 4.0.0
  */
-export type SchemaWithName<
-  Db extends Any,
-  TableName extends string
-> = IndexedDbTable.TableSchema<IndexedDbTable.WithName<Tables<Db>, TableName>>
+export type SchemaWithName<Db extends Any, TableName extends string> = IndexedDbTable.TableSchema<
+  IndexedDbTable.WithName<Tables<Db>, TableName>
+>;
 
 const Proto = {
   [TypeId]: TypeId,
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+    return pipeArguments(this, arguments);
+  },
+};
 
 const makeProto = <Tables extends IndexedDbTable.AnyWithProps>(options: {
-  readonly tables: ReadonlyMap<string, Tables>
+  readonly tables: ReadonlyMap<string, Tables>;
 }): IndexedDbVersion<Tables> => {
   // oxlint-disable-next-line typescript/no-extraneous-class
   class Version {}
-  Object.assign(Version, Proto)
-  ;(Version as any).tables = options.tables
-  return Version as any
-}
+  Object.assign(Version, Proto);
+  (Version as any).tables = options.tables;
+  return Version as any;
+};
 
 /**
  * Creates an `IndexedDbVersion` from one or more table definitions.
@@ -128,11 +125,9 @@ const makeProto = <Tables extends IndexedDbTable.AnyWithProps>(options: {
  * @category constructors
  * @since 4.0.0
  */
-export const make = <
-  const Tables extends NonEmptyReadonlyArray<IndexedDbTable.AnyWithProps>
->(
+export const make = <const Tables extends NonEmptyReadonlyArray<IndexedDbTable.AnyWithProps>>(
   ...tables: Tables
 ): IndexedDbVersion<Tables[number]> =>
   makeProto({
-    tables: new Map(tables.map((table) => [table.tableName, table]))
-  })
+    tables: new Map(tables.map((table) => [table.tableName, table])),
+  });

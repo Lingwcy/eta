@@ -161,10 +161,10 @@
   replacement: "vitest/runtime#VmEnvironmentReturn"
   note: "This was a deprecated root re-export. Import it from vitest/runtime; Vitest 5 exposes custom environments through vitest/runtime."
 "@effect/vitest/index#HappyDOMOptions":
-  replacement: "NonNullable<import(\"vitest/node\").EnvironmentOptions[\"happyDOM\"]>"
+  replacement: 'NonNullable<import("vitest/node").EnvironmentOptions["happyDOM"]>'
   note: "Vitest 5 keeps this shape only as a property of EnvironmentOptions; derive it from the public vitest/node type."
 "@effect/vitest/index#JSDOMOptions":
-  replacement: "NonNullable<import(\"vitest/node\").EnvironmentOptions[\"jsdom\"]>"
+  replacement: 'NonNullable<import("vitest/node").EnvironmentOptions["jsdom"]>'
   note: "Vitest 5 keeps this shape only as a property of EnvironmentOptions; derive it from the public vitest/node type."
 "@effect/vitest/index#ArgumentsType":
   replacement: "T extends (...args: infer A) => any ? A : never"
@@ -206,7 +206,7 @@
   replacement: "none"
   note: "Vitest 5 deprecates @vitest/runner and does not expose this internal state type. Extend TestRunner from vitest and use its public methods instead."
 "@effect/vitest/index#SuiteHooks":
-  replacement: "ReturnType<typeof import(\"vitest\").TestRunner.getSuiteHooks>"
+  replacement: 'ReturnType<typeof import("vitest").TestRunner.getSuiteHooks>'
   note: "Derive the hook collection from Vitest 5's public TestRunner API; ordinary tests should use public hook functions."
 "@effect/vitest/index#DoneCallback":
   replacement: "none"
@@ -216,7 +216,7 @@
   note: "No named Vitest 5 export replaces this alias. Let the hook return type infer, or type the cleanup function locally."
 "@effect/vitest/index#HookListener":
   replacement: "none"
-  note: "Infer the callback from the public hook function, or derive it with Parameters<typeof import(\"vitest\").beforeAll>[0] and the corresponding hook name."
+  note: 'Infer the callback from the public hook function, or derive it with Parameters<typeof import("vitest").beforeAll>[0] and the corresponding hook name.'
 "@effect/vitest/index#ModuleCache":
   replacement: "none"
   note: "Vitest 3 marked this unused internal cache shape deprecated; Vitest 5 has no public replacement."
@@ -260,7 +260,7 @@
   replacement: "vitest#BenchmarkProvider"
   note: "Vitest 5 runs benchmarks through providers. Export a BenchmarkProvider with an asynchronous run(group) method for a custom engine."
 "@effect/vitest/index#ExpectPollOptions":
-  replacement: "NonNullable<Parameters<typeof import(\"vitest\").expect.poll>[1]>"
+  replacement: 'NonNullable<Parameters<typeof import("vitest").expect.poll>[1]>'
   note: "Vitest 5 removes the named options export; derive the options from the public expect.poll function."
 "@effect/vitest/index#Assertion":
   replacement: "vitest#Assertion"

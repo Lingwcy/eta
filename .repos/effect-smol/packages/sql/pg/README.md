@@ -14,17 +14,17 @@ Use `startupParameters` to establish PostgreSQL session defaults when each physi
 connection opens, including replacement connections in a pool:
 
 ```ts
-import { PgClient } from "@effect/sql-pg"
-import { Redacted } from "effect"
+import { PgClient } from "@effect/sql-pg";
+import { Redacted } from "effect";
 
 const PostgresLive = PgClient.layer({
   url: Redacted.make("postgres://user:password@localhost/app"),
   startupParameters: {
     statement_timeout: "5s",
-    search_path: "app, public"
+    search_path: "app, public",
   },
-  startupOptions: "-c lock_timeout=1000"
-})
+  startupOptions: "-c lock_timeout=1000",
+});
 ```
 
 These settings are sent in the startup packet. PostgreSQL's `RESET ALL` restores
@@ -63,15 +63,15 @@ Columns whose type OID has no codec are decoded as UTF-8 text, so user-defined
 enums read as plain strings:
 
 ```ts
-import { PgClient } from "@effect/sql-pg"
-import { Effect } from "effect"
+import { PgClient } from "@effect/sql-pg";
+import { Effect } from "effect";
 
 // CREATE TYPE capability AS ENUM ('use_key', 'manage')
-const program = Effect.gen(function*() {
-  const sql = yield* PgClient.PgClient
-  const rows = yield* sql`SELECT 'use_key'::capability AS capability`
+const program = Effect.gen(function* () {
+  const sql = yield* PgClient.PgClient;
+  const rows = yield* sql`SELECT 'use_key'::capability AS capability`;
   // rows[0].capability === "use_key"
-})
+});
 ```
 
 Strings bind to enum columns without any setup; the server infers the type.
@@ -100,33 +100,33 @@ to the client as `types`. The registry builds the array codec from the element
 codec:
 
 ```ts
-import { PgClient, PgTypes } from "@effect/sql-pg"
-import { Redacted, Result } from "effect"
+import { PgClient, PgTypes } from "@effect/sql-pg";
+import { Redacted, Result } from "effect";
 
 // SELECT oid, typarray FROM pg_type WHERE typname = 'capability'
-declare const capabilityOid: number
-declare const capabilityArrayOid: number
+declare const capabilityOid: number;
+declare const capabilityArrayOid: number;
 
-const decoder = new TextDecoder("utf-8", { fatal: true })
+const decoder = new TextDecoder("utf-8", { fatal: true });
 
 const utf8: PgTypes.Codec<string> = {
   encode: (value) => Result.succeed(new TextEncoder().encode(value)),
   decode: (bytes) => {
     try {
-      return Result.succeed(decoder.decode(bytes))
+      return Result.succeed(decoder.decode(bytes));
     } catch {
-      return Result.fail(new PgTypes.CodecError({ message: "Invalid UTF-8 in capability" }))
+      return Result.fail(new PgTypes.CodecError({ message: "Invalid UTF-8 in capability" }));
     }
-  }
-}
+  },
+};
 
-const types = PgTypes.makeRegistry()
-types.register(capabilityOid, utf8, { arrayOid: capabilityArrayOid })
+const types = PgTypes.makeRegistry();
+types.register(capabilityOid, utf8, { arrayOid: capabilityArrayOid });
 
 const PostgresLive = PgClient.layer({
   url: Redacted.make("postgres://user:password@localhost/app"),
-  types
-})
+  types,
+});
 ```
 
 OIDs of user-defined types are assigned per database, so look them up in

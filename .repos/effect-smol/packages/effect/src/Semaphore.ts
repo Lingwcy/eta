@@ -10,12 +10,12 @@
  *
  * @since 4.0.0
  */
-import type * as Effect from "./Effect.ts"
-import type { Fiber } from "./Fiber.ts"
-import { dual } from "./Function.ts"
-import * as core from "./internal/core.ts"
-import * as internal from "./internal/effect.ts"
-import type * as Option from "./Option.ts"
+import type * as Effect from "./Effect.ts";
+import type { Fiber } from "./Fiber.ts";
+import { dual } from "./Function.ts";
+import * as core from "./internal/core.ts";
+import * as internal from "./internal/effect.ts";
+import type * as Option from "./Option.ts";
 
 /**
  * A counting semaphore that coordinates concurrent access with permits.
@@ -62,7 +62,7 @@ export interface Semaphore {
    *
    * Use to change the total permit count of an existing semaphore.
    */
-  resize(this: Semaphore, permits: number): Effect.Effect<void>
+  resize(this: Semaphore, permits: number): Effect.Effect<void>;
 
   /**
    * Runs an effect with the given number of permits and releases the permits
@@ -79,7 +79,10 @@ export interface Semaphore {
    * If insufficient permits are available, the function will wait until they
    * are released by other tasks.
    */
-  withPermits(this: Semaphore, permits: number): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+  withPermits(
+    this: Semaphore,
+    permits: number,
+  ): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
 
   /**
    * Runs an effect with the given number of permits and releases the permits
@@ -96,7 +99,7 @@ export interface Semaphore {
    * If insufficient permits are available, the function will wait until they
    * are released by other tasks.
    */
-  withPermit<A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
+  withPermit<A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>;
 
   /**
    * Runs an effect only if the specified number of permits are immediately
@@ -116,8 +119,8 @@ export interface Semaphore {
    */
   withPermitsIfAvailable(
     this: Semaphore,
-    permits: number
-  ): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<Option.Option<A>, E, R>
+    permits: number,
+  ): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<Option.Option<A>, E, R>;
 
   /**
    * Acquires the specified number of permits and returns the acquired permit
@@ -130,7 +133,7 @@ export interface Semaphore {
    *
    * Use to manually acquire permits for lower-level coordination protocols.
    */
-  take(this: Semaphore, permits: number): Effect.Effect<number>
+  take(this: Semaphore, permits: number): Effect.Effect<number>;
 
   /**
    * Acquires the specified number of permits only if they are immediately
@@ -140,7 +143,7 @@ export interface Semaphore {
    *
    * Use to manually acquire permits without waiting, paired with `release`.
    */
-  takeIfAvailable(this: Semaphore, permits: number): Effect.Effect<boolean>
+  takeIfAvailable(this: Semaphore, permits: number): Effect.Effect<boolean>;
 
   /**
    * Releases the specified number of permits and returns the resulting
@@ -151,7 +154,7 @@ export interface Semaphore {
    * Use to manually return permits acquired by a lower-level coordination
    * protocol.
    */
-  release(this: Semaphore, permits: number): Effect.Effect<number>
+  release(this: Semaphore, permits: number): Effect.Effect<number>;
 
   /**
    * Releases all permits held by this semaphore and returns the resulting available permits.
@@ -160,7 +163,7 @@ export interface Semaphore {
    *
    * Use to return every currently taken permit to the semaphore at once.
    */
-  readonly releaseAll: Effect.Effect<number>
+  readonly releaseAll: Effect.Effect<number>;
 }
 
 /**
@@ -202,86 +205,86 @@ export interface Semaphore {
  * @category constructors
  * @since 4.0.0
  */
-export const makeUnsafe = (permits: number): Semaphore => new SemaphoreImpl(permits)
+export const makeUnsafe = (permits: number): Semaphore => new SemaphoreImpl(permits);
 
 const waitForPermits = <A, E, R>(
   self: SemaphoreImpl,
   n: number,
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E, R> =>
   internal.callback((resume) => {
-    if (self.free >= n) return resume(effect)
+    if (self.free >= n) return resume(effect);
     const observer = () => {
-      if (self.free < n) return
-      self.waiters.delete(observer)
-      resume(effect)
-    }
-    self.waiters.add(observer)
+      if (self.free < n) return;
+      self.waiters.delete(observer);
+      resume(effect);
+    };
+    self.waiters.add(observer);
     return internal.sync(() => {
-      self.waiters.delete(observer)
-    })
-  })
+      self.waiters.delete(observer);
+    });
+  });
 
 class SemaphoreImpl implements Semaphore {
-  public waiters = new Set<() => void>()
-  public taken = 0
-  public permits: number
+  public waiters = new Set<() => void>();
+  public taken = 0;
+  public permits: number;
 
   constructor(permits: number) {
-    this.permits = permits
+    this.permits = permits;
   }
 
   get free() {
-    return this.permits - this.taken
+    return this.permits - this.taken;
   }
 
   take(n: number): Effect.Effect<number> {
     const take: Effect.Effect<number> = internal.suspend(() => {
       if (this.free < n) {
-        return waitForPermits(this, n, take)
+        return waitForPermits(this, n, take);
       }
-      this.taken += n
-      return internal.succeed(n)
-    })
-    return take
+      this.taken += n;
+      return internal.succeed(n);
+    });
+    return take;
   }
 
   takeIfAvailable(n: number): Effect.Effect<boolean> {
     return internal.suspend(() => {
-      if (this.free < n) return internal.succeed(false)
-      this.taken += n
-      return internal.succeed(true)
-    })
+      if (this.free < n) return internal.succeed(false);
+      this.taken += n;
+      return internal.succeed(true);
+    });
   }
 
   releaseUnsafe(fiber: Fiber<any, any>, n: number): number {
-    this.taken -= n
+    this.taken -= n;
     if (this.waiters.size > 0) {
       fiber.currentDispatcher.scheduleTask(() => {
         for (const observer of this.waiters) {
-          if (this.free <= 0) break
-          observer()
+          if (this.free <= 0) break;
+          observer();
         }
-      }, 0)
+      }, 0);
     }
-    return this.free
+    return this.free;
   }
 
   resize(permits: number) {
     return core.withFiber((fiber) => {
-      this.permits = permits
-      if (this.free < 0) return internal.void
-      this.releaseUnsafe(fiber, 0)
-      return internal.void
-    })
+      this.permits = permits;
+      if (this.free < 0) return internal.void;
+      this.releaseUnsafe(fiber, 0);
+      return internal.void;
+    });
   }
 
   release(n: number): Effect.Effect<number> {
-    return core.withFiber((fiber) => internal.succeed(this.releaseUnsafe(fiber, n)))
+    return core.withFiber((fiber) => internal.succeed(this.releaseUnsafe(fiber, n)));
   }
 
   get releaseAll(): Effect.Effect<number> {
-    return core.withFiber((fiber) => internal.succeed(this.releaseUnsafe(fiber, this.taken)))
+    return core.withFiber((fiber) => internal.succeed(this.releaseUnsafe(fiber, this.taken)));
   }
 
   withPermits(n: number) {
@@ -289,35 +292,39 @@ class SemaphoreImpl implements Semaphore {
       internal.uninterruptibleMask((restore) => {
         const acquire: Effect.Effect<A, E, R> = internal.suspend(() => {
           if (this.free < n) {
-            const wait = waitForPermits(this, n, internal.void)
-            return internal.flatMap(restore(wait), () => acquire)
+            const wait = waitForPermits(this, n, internal.void);
+            return internal.flatMap(restore(wait), () => acquire);
           }
-          this.taken += n
+          this.taken += n;
           return internal.onExitPrimitive(
             restore(self),
             () => {
-              this.releaseUnsafe(internal.getCurrentFiber()!, n)
-              return undefined
+              this.releaseUnsafe(internal.getCurrentFiber()!, n);
+              return undefined;
             },
-            true
-          )
-        })
-        return acquire
-      })
+            true,
+          );
+        });
+        return acquire;
+      });
   }
 
-  readonly withPermit = this.withPermits(1)
+  readonly withPermit = this.withPermits(1);
 
   withPermitsIfAvailable(n: number) {
     return <A, E, R>(self: Effect.Effect<A, E, R>) =>
       internal.uninterruptibleMask((restore) => {
-        if (this.free < n) return internal.succeedNone
-        this.taken += n
-        return internal.onExitPrimitive(restore(internal.asSome(self)), () => {
-          this.releaseUnsafe(internal.getCurrentFiber()!, n)
-          return undefined
-        }, true)
-      })
+        if (this.free < n) return internal.succeedNone;
+        this.taken += n;
+        return internal.onExitPrimitive(
+          restore(internal.asSome(self)),
+          () => {
+            this.releaseUnsafe(internal.getCurrentFiber()!, n);
+            return undefined;
+          },
+          true,
+        );
+      });
   }
 }
 
@@ -355,7 +362,8 @@ class SemaphoreImpl implements Semaphore {
  * @category constructors
  * @since 4.0.0
  */
-export const make = (permits: number): Effect.Effect<Semaphore> => internal.sync(() => new SemaphoreImpl(permits))
+export const make = (permits: number): Effect.Effect<Semaphore> =>
+  internal.sync(() => new SemaphoreImpl(permits));
 
 /**
  * Sets the total number of permits managed by the semaphore.
@@ -378,9 +386,9 @@ export const make = (permits: number): Effect.Effect<Semaphore> => internal.sync
  * @since 4.0.0
  */
 export const resize: {
-  (permits: number): (self: Semaphore) => Effect.Effect<void>
-  (self: Semaphore, permits: number): Effect.Effect<void>
-} = dual(2, (self: Semaphore, permits: number) => self.resize(permits))
+  (permits: number): (self: Semaphore) => Effect.Effect<void>;
+  (self: Semaphore, permits: number): Effect.Effect<void>;
+} = dual(2, (self: Semaphore, permits: number) => self.resize(permits));
 
 /**
  * Runs an effect with the given number of permits and releases the permits when
@@ -405,12 +413,19 @@ export const resize: {
  * @since 4.0.0
  */
 export const withPermits: {
-  (self: Semaphore, permits: number): <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
-  <A, E, R>(self: Semaphore, permits: number, effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
+  (
+    self: Semaphore,
+    permits: number,
+  ): <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
+  <A, E, R>(
+    self: Semaphore,
+    permits: number,
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, E, R>;
 } = ((self: Semaphore, permits: number, effect?: Effect.Effect<any, any, any>) => {
-  const withPermits = self.withPermits(permits)
-  return effect ? withPermits(effect) : withPermits
-}) as any
+  const withPermits = self.withPermits(permits);
+  return effect ? withPermits(effect) : withPermits;
+}) as any;
 
 /**
  * Runs an effect with a single permit and releases the permit when the effect
@@ -430,12 +445,12 @@ export const withPermits: {
  * @since 4.0.0
  */
 export const withPermit: {
-  (self: Semaphore): <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
-  <A, E, R>(self: Semaphore, effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
+  (self: Semaphore): <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
+  <A, E, R>(self: Semaphore, effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>;
 } = ((self: Semaphore, effect?: Effect.Effect<any, any, any>) => {
-  if (!effect) return self.withPermit
-  return self.withPermit(effect)
-}) as any
+  if (!effect) return self.withPermit;
+  return self.withPermit(effect);
+}) as any;
 
 /**
  * Runs an effect only if the specified number of permits are immediately
@@ -459,16 +474,19 @@ export const withPermit: {
  * @since 4.0.0
  */
 export const withPermitsIfAvailable: {
-  (self: Semaphore, permits: number): <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<Option.Option<A>, E, R>
+  (
+    self: Semaphore,
+    permits: number,
+  ): <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<Option.Option<A>, E, R>;
   <A, E, R>(
     self: Semaphore,
     permits: number,
-    effect: Effect.Effect<A, E, R>
-  ): Effect.Effect<Option.Option<A>, E, R>
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<Option.Option<A>, E, R>;
 } = ((self: Semaphore, permits: number, effect?: Effect.Effect<any, any, any>) => {
-  const withPermits = self.withPermitsIfAvailable(permits)
-  return effect ? withPermits(effect) : withPermits
-}) as any
+  const withPermits = self.withPermitsIfAvailable(permits);
+  return effect ? withPermits(effect) : withPermits;
+}) as any;
 
 /**
  * Acquires the specified number of permits and returns the acquired permit
@@ -492,9 +510,9 @@ export const withPermitsIfAvailable: {
  * @since 4.0.0
  */
 export const take: {
-  (permits: number): (self: Semaphore) => Effect.Effect<number>
-  (self: Semaphore, permits: number): Effect.Effect<number>
-} = dual(2, (self: Semaphore, permits: number) => self.take(permits))
+  (permits: number): (self: Semaphore) => Effect.Effect<number>;
+  (self: Semaphore, permits: number): Effect.Effect<number>;
+} = dual(2, (self: Semaphore, permits: number) => self.take(permits));
 
 /**
  * Acquires the specified number of permits only if they are immediately
@@ -519,9 +537,9 @@ export const take: {
  * @since 4.0.0
  */
 export const takeIfAvailable: {
-  (permits: number): (self: Semaphore) => Effect.Effect<boolean>
-  (self: Semaphore, permits: number): Effect.Effect<boolean>
-} = dual(2, (self: Semaphore, permits: number) => self.takeIfAvailable(permits))
+  (permits: number): (self: Semaphore) => Effect.Effect<boolean>;
+  (self: Semaphore, permits: number): Effect.Effect<boolean>;
+} = dual(2, (self: Semaphore, permits: number) => self.takeIfAvailable(permits));
 
 /**
  * Releases the specified number of permits and returns the resulting available
@@ -552,9 +570,9 @@ export const takeIfAvailable: {
  * @since 4.0.0
  */
 export const release: {
-  (permits: number): (self: Semaphore) => Effect.Effect<number>
-  (self: Semaphore, permits: number): Effect.Effect<number>
-} = dual(2, (self: Semaphore, permits: number) => self.release(permits))
+  (permits: number): (self: Semaphore) => Effect.Effect<number>;
+  (self: Semaphore, permits: number): Effect.Effect<number>;
+} = dual(2, (self: Semaphore, permits: number) => self.release(permits));
 
 /**
  * Releases all permits held by this semaphore and returns the resulting
@@ -571,4 +589,4 @@ export const release: {
  * @category combinators
  * @since 4.0.0
  */
-export const releaseAll = (self: Semaphore): Effect.Effect<number> => self.releaseAll
+export const releaseAll = (self: Semaphore): Effect.Effect<number> => self.releaseAll;

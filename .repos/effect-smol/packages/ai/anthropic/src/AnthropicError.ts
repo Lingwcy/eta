@@ -25,12 +25,12 @@ export type AnthropicErrorMetadata = {
   /**
    * The Anthropic error type returned by the API.
    */
-  readonly errorType: string | null
+  readonly errorType: string | null;
   /**
    * The unique request ID for debugging with Anthropic support.
    */
-  readonly requestId: string | null
-}
+  readonly requestId: string | null;
+};
 
 /**
  * Anthropic-specific rate limit metadata fields.
@@ -46,28 +46,28 @@ export type AnthropicRateLimitMetadata = AnthropicErrorMetadata & {
   /**
    * Number of requests allowed in the current period.
    */
-  readonly requestsLimit: number | null
+  readonly requestsLimit: number | null;
   /**
    * Number of requests remaining in the current period.
    */
-  readonly requestsRemaining: number | null
+  readonly requestsRemaining: number | null;
   /**
    * Time when the request rate limit resets.
    */
-  readonly requestsReset: string | null
+  readonly requestsReset: string | null;
   /**
    * Number of tokens allowed in the current period.
    */
-  readonly tokensLimit: number | null
+  readonly tokensLimit: number | null;
   /**
    * Number of tokens remaining in the current period.
    */
-  readonly tokensRemaining: number | null
+  readonly tokensRemaining: number | null;
   /**
    * Time when the token rate limit resets.
    */
-  readonly tokensReset: string | null
-}
+  readonly tokensReset: string | null;
+};
 
 declare module "effect/unstable/ai/AiError" {
   /**
@@ -81,7 +81,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface RateLimitErrorMetadata {
-    readonly anthropic?: AnthropicRateLimitMetadata | null
+    readonly anthropic?: AnthropicRateLimitMetadata | null;
   }
 
   /**
@@ -95,7 +95,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface QuotaExhaustedErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 
   /**
@@ -109,7 +109,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface AuthenticationErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 
   /**
@@ -123,7 +123,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface ContentPolicyErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 
   /**
@@ -137,7 +137,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface InvalidRequestErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 
   /**
@@ -151,7 +151,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface InternalProviderErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 
   /**
@@ -165,7 +165,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface InvalidOutputErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 
   /**
@@ -179,7 +179,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface StructuredOutputErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 
   /**
@@ -193,7 +193,7 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface UnsupportedSchemaErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 
   /**
@@ -207,6 +207,6 @@ declare module "effect/unstable/ai/AiError" {
    * @since 4.0.0
    */
   export interface UnknownErrorMetadata {
-    readonly anthropic?: AnthropicErrorMetadata | null
+    readonly anthropic?: AnthropicErrorMetadata | null;
   }
 }

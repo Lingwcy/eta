@@ -8,19 +8,19 @@
  *
  * @since 4.0.0
  */
-import type { Crypto } from "effect/Crypto"
-import type { FileSystem } from "effect/FileSystem"
-import * as Layer from "effect/Layer"
-import type { Path } from "effect/Path"
-import type { Stdio } from "effect/Stdio"
-import type { Terminal } from "effect/Terminal"
-import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
-import * as DenoChildProcessSpawner from "./DenoChildProcessSpawner.ts"
-import * as DenoCrypto from "./DenoCrypto.ts"
-import * as DenoFileSystem from "./DenoFileSystem.ts"
-import * as DenoPath from "./DenoPath.ts"
-import * as DenoStdio from "./DenoStdio.ts"
-import * as DenoTerminal from "./DenoTerminal.ts"
+import type { Crypto } from "effect/Crypto";
+import type { FileSystem } from "effect/FileSystem";
+import * as Layer from "effect/Layer";
+import type { Path } from "effect/Path";
+import type { Stdio } from "effect/Stdio";
+import type { Terminal } from "effect/Terminal";
+import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";
+import * as DenoChildProcessSpawner from "./DenoChildProcessSpawner.ts";
+import * as DenoCrypto from "./DenoCrypto.ts";
+import * as DenoFileSystem from "./DenoFileSystem.ts";
+import * as DenoPath from "./DenoPath.ts";
+import * as DenoStdio from "./DenoStdio.ts";
+import * as DenoTerminal from "./DenoTerminal.ts";
 
 /**
  * The union of core services provided by the Deno platform layer, including
@@ -29,7 +29,7 @@ import * as DenoTerminal from "./DenoTerminal.ts"
  * @category models
  * @since 4.0.0
  */
-export type DenoServices = ChildProcessSpawner | Crypto | FileSystem | Path | Terminal | Stdio
+export type DenoServices = ChildProcessSpawner | Crypto | FileSystem | Path | Terminal | Stdio;
 
 /**
  * Provides the default Deno implementations for child process spawning,
@@ -39,11 +39,13 @@ export type DenoServices = ChildProcessSpawner | Crypto | FileSystem | Path | Te
  * @since 4.0.0
  */
 export const layer: Layer.Layer<DenoServices> = DenoChildProcessSpawner.layer.pipe(
-  Layer.provideMerge(Layer.mergeAll(
-    DenoFileSystem.layer,
-    DenoCrypto.layer,
-    DenoPath.layer,
-    DenoStdio.layer,
-    DenoTerminal.layer
-  ))
-)
+  Layer.provideMerge(
+    Layer.mergeAll(
+      DenoFileSystem.layer,
+      DenoCrypto.layer,
+      DenoPath.layer,
+      DenoStdio.layer,
+      DenoTerminal.layer,
+    ),
+  ),
+);

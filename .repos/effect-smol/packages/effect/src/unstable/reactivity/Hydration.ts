@@ -10,10 +10,10 @@
  *
  * @since 4.0.0
  */
-import * as Schema from "../../Schema.ts"
-import * as AsyncResult from "./AsyncResult.ts"
-import * as Atom from "./Atom.ts"
-import type * as AtomRegistry from "./AtomRegistry.ts"
+import * as Schema from "../../Schema.ts";
+import * as AsyncResult from "./AsyncResult.ts";
+import * as Atom from "./Atom.ts";
+import type * as AtomRegistry from "./AtomRegistry.ts";
 
 /**
  * Marker interface for entries in a dehydrated atom registry state.
@@ -22,7 +22,7 @@ import type * as AtomRegistry from "./AtomRegistry.ts"
  * @since 4.0.0
  */
 export interface DehydratedAtom {
-  readonly "~effect/reactivity/Hydration/DehydratedAtom": true
+  readonly "~effect/reactivity/Hydration/DehydratedAtom": true;
 }
 
 /**
@@ -38,25 +38,22 @@ export interface DehydratedAtom {
  * @since 4.0.0
  */
 export interface DehydratedAtomValue extends DehydratedAtom {
-  readonly key: string
-  readonly value: unknown
-  readonly dehydratedAt: number
-  readonly resultPromise?: Promise<unknown> | undefined
+  readonly key: string;
+  readonly value: unknown;
+  readonly dehydratedAt: number;
+  readonly resultPromise?: Promise<unknown> | undefined;
 }
 
-const Skipped = Symbol.for("effect/reactivity/Hydration/Skipped")
+const Skipped = Symbol.for("effect/reactivity/Hydration/Skipped");
 
-const encodeOrSkip = (
-  atom: Atom.Atom<any> & Atom.Serializable<any>,
-  value: unknown
-): unknown => {
+const encodeOrSkip = (atom: Atom.Atom<any> & Atom.Serializable<any>, value: unknown): unknown => {
   try {
-    return atom[Atom.SerializableTypeId].encode(value)
+    return atom[Atom.SerializableTypeId].encode(value);
   } catch (error) {
-    if (Schema.isSchemaError(error)) return Skipped
-    throw error
+    if (Schema.isSchemaError(error)) return Skipped;
+    throw error;
   }
-}
+};
 
 /**
  * Encodes the serializable atoms currently stored in a registry into dehydrated
@@ -79,32 +76,32 @@ export const dehydrate = (
     /**
      * How to encode `AsyncResult.Initial` values. Default is "ignore".
      */
-    readonly encodeInitialAs?: "ignore" | "promise" | "value-only" | undefined
-  }
+    readonly encodeInitialAs?: "ignore" | "promise" | "value-only" | undefined;
+  },
 ): Array<DehydratedAtom> => {
-  const encodeInitialResultMode = options?.encodeInitialAs ?? "ignore"
-  const arr: Array<DehydratedAtomValue> = []
-  const now = Date.now()
+  const encodeInitialResultMode = options?.encodeInitialAs ?? "ignore";
+  const arr: Array<DehydratedAtomValue> = [];
+  const now = Date.now();
   registry.getNodes().forEach((node, key) => {
-    if (!Atom.isSerializable(node.atom)) return
-    const atom = node.atom
-    const value = node.value()
-    const isInitial = AsyncResult.isAsyncResult(value) && AsyncResult.isInitial(value)
-    if (encodeInitialResultMode === "ignore" && isInitial) return
-    const encodedValue = encodeOrSkip(atom, value)
-    if (encodedValue === Skipped) return
+    if (!Atom.isSerializable(node.atom)) return;
+    const atom = node.atom;
+    const value = node.value();
+    const isInitial = AsyncResult.isAsyncResult(value) && AsyncResult.isInitial(value);
+    if (encodeInitialResultMode === "ignore" && isInitial) return;
+    const encodedValue = encodeOrSkip(atom, value);
+    if (encodedValue === Skipped) return;
 
     // Create a promise that resolves when the atom moves out of Initial state
-    let resultPromise: Promise<unknown> | undefined
+    let resultPromise: Promise<unknown> | undefined;
     if (encodeInitialResultMode === "promise" && isInitial) {
       resultPromise = new Promise((resolve) => {
         const unsubscribe = registry.subscribe(atom, (newValue) => {
           if (AsyncResult.isAsyncResult(newValue) && !AsyncResult.isInitial(newValue)) {
-            unsubscribe()
-            resolve(encodeOrSkip(atom, newValue))
+            unsubscribe();
+            resolve(encodeOrSkip(atom, newValue));
           }
-        })
-      })
+        });
+      });
     }
 
     arr.push({
@@ -112,11 +109,11 @@ export const dehydrate = (
       key: key as string,
       value: encodedValue,
       dehydratedAt: now,
-      resultPromise
-    })
-  })
-  return arr as any
-}
+      resultPromise,
+    });
+  });
+  return arr as any;
+};
 
 /**
  * Returns dehydrated state entries as `DehydratedAtomValue` records.
@@ -124,7 +121,8 @@ export const dehydrate = (
  * @category converting
  * @since 4.0.0
  */
-export const toValues = (state: ReadonlyArray<DehydratedAtom>): Array<DehydratedAtomValue> => state as any
+export const toValues = (state: ReadonlyArray<DehydratedAtom>): Array<DehydratedAtomValue> =>
+  state as any;
 
 /**
  * Applies dehydrated atom state to a registry.
@@ -145,30 +143,30 @@ export const toValues = (state: ReadonlyArray<DehydratedAtom>): Array<Dehydrated
  */
 export const hydrate = (
   registry: AtomRegistry.AtomRegistry,
-  dehydratedState: Iterable<DehydratedAtom>
+  dehydratedState: Iterable<DehydratedAtom>,
 ): void => {
-  for (const datom of (dehydratedState as Iterable<DehydratedAtomValue>)) {
-    registry.setSerializable(datom.key, datom.value)
+  for (const datom of dehydratedState as Iterable<DehydratedAtomValue>) {
+    registry.setSerializable(datom.key, datom.value);
 
     // If there's a resultPromise, it means this was in Initial state when dehydrated
     // and we should wait for it to resolve to a non-Initial state, then update the registry
-    if (!datom.resultPromise) continue
+    if (!datom.resultPromise) continue;
     datom.resultPromise.then((resolvedValue) => {
-      if (resolvedValue === Skipped) return
+      if (resolvedValue === Skipped) return;
       // Try to update the existing node directly instead of using setSerializable
-      const nodes = registry.getNodes()
-      const node = nodes.get(datom.key)
+      const nodes = registry.getNodes();
+      const node = nodes.get(datom.key);
       if (node) {
         // Decode the resolved value using the node's atom serializable decoder
-        const atom = node.atom as any
+        const atom = node.atom as any;
         if (atom[Atom.SerializableTypeId]) {
-          const decoded = atom[Atom.SerializableTypeId].decode(resolvedValue)
-          ;(node as any).setValue(decoded)
+          const decoded = atom[Atom.SerializableTypeId].decode(resolvedValue);
+          (node as any).setValue(decoded);
         }
       } else {
         // Fallback to setSerializable if node doesn't exist yet
-        registry.setSerializable(datom.key, resolvedValue)
+        registry.setSerializable(datom.key, resolvedValue);
       }
-    })
+    });
   }
-}
+};

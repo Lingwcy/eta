@@ -1,17 +1,17 @@
-import type * as Cause from "../../Cause.ts"
-import * as Equal from "../../Equal.ts"
-import * as Equivalence from "../../Equivalence.ts"
-import { memoize } from "../../Function.ts"
-import * as Predicate from "../../Predicate.ts"
-import type * as Schema from "../../Schema.ts"
-import * as SchemaAST from "../../SchemaAST.ts"
-import * as SchemaParser from "../../SchemaParser.ts"
-import * as InternalAnnotations from "./annotations.ts"
+import type * as Cause from "../../Cause.ts";
+import * as Equal from "../../Equal.ts";
+import * as Equivalence from "../../Equivalence.ts";
+import { memoize } from "../../Function.ts";
+import * as Predicate from "../../Predicate.ts";
+import type * as Schema from "../../Schema.ts";
+import * as SchemaAST from "../../SchemaAST.ts";
+import * as SchemaParser from "../../SchemaParser.ts";
+import * as InternalAnnotations from "./annotations.ts";
 
 /** @internal */
 export const toEquivalence = memoize((ast: SchemaAST.AST): Equivalence.Equivalence<any> => {
-  return recur(ast, [])
-})
+  return recur(ast, []);
+});
 
 function recur(ast: SchemaAST.AST, path: ReadonlyArray<PropertyKey>): Equivalence.Equivalence<any> {
   // ---------------------------------------------
@@ -19,15 +19,17 @@ function recur(ast: SchemaAST.AST, path: ReadonlyArray<PropertyKey>): Equivalenc
   // ---------------------------------------------
   const annotation = InternalAnnotations.resolve(ast)?.["toEquivalence"] as
     | Schema.Annotations.ToEquivalence.Declaration<any, ReadonlyArray<any>>
-    | undefined
+    | undefined;
   if (annotation) {
-    return annotation(SchemaAST.isDeclaration(ast) ? ast.typeParameters.map((tp) => recur(tp, path)) : [])
+    return annotation(
+      SchemaAST.isDeclaration(ast) ? ast.typeParameters.map((tp) => recur(tp, path)) : [],
+    );
   }
   switch (ast._tag) {
     case "Never":
-      return Equivalence.strictEqual()
+      return Equivalence.strictEqual();
     case "Declaration":
-      return declarationEquivalence(ast, path)
+      return declarationEquivalence(ast, path);
     case "Null":
     case "Undefined":
     case "Void":
@@ -43,36 +45,36 @@ function recur(ast: SchemaAST.AST, path: ReadonlyArray<PropertyKey>): Equivalenc
     case "ObjectKeyword":
     case "Enum":
     case "TemplateLiteral":
-      return Equal.equals
+      return Equal.equals;
     case "Arrays": {
-      const elements = ast.elements.map((e, i) => recur(e, [...path, i]))
-      const len = ast.elements.length
-      const rest = ast.rest.map((r, i) => recur(r, [...path, len + i]))
+      const elements = ast.elements.map((e, i) => recur(e, [...path, i]));
+      const len = ast.elements.length;
+      const rest = ast.rest.map((r, i) => recur(r, [...path, len + i]));
       return Equivalence.make((a, b) => {
         if (!Array.isArray(a) || !Array.isArray(b)) {
-          return false
+          return false;
         }
-        const len = a.length
+        const len = a.length;
         if (len !== b.length) {
-          return false
+          return false;
         }
         // ---------------------------------------------
         // handle elements
         // ---------------------------------------------
-        let i = 0
+        let i = 0;
         for (; i < Math.min(len, ast.elements.length); i++) {
           if (!elements[i](a[i], b[i])) {
-            return false
+            return false;
           }
         }
         // ---------------------------------------------
         // handle rest element
         // ---------------------------------------------
         if (rest.length > 0) {
-          const [head, ...tail] = rest
+          const [head, ...tail] = rest;
           for (; i < len - tail.length; i++) {
             if (!head(a[i], b[i])) {
-              return false
+              return false;
             }
           }
           // ---------------------------------------------
@@ -80,155 +82,162 @@ function recur(ast: SchemaAST.AST, path: ReadonlyArray<PropertyKey>): Equivalenc
           // ---------------------------------------------
           for (let j = 0; j < tail.length; j++) {
             if (!tail[j](a[i + j], b[i + j])) {
-              return false
+              return false;
             }
           }
         }
-        return true
-      })
+        return true;
+      });
     }
     case "Objects": {
       if (ast.propertySignatures.length === 0 && ast.indexSignatures.length === 0) {
-        return Equal.equals
+        return Equal.equals;
       }
-      const propertySignatures = ast.propertySignatures.map((ps) => recur(ps.type, [...path, ps.name]))
-      const indexSignatures = ast.indexSignatures.map((is) => recur(is.type, path))
+      const propertySignatures = ast.propertySignatures.map((ps) =>
+        recur(ps.type, [...path, ps.name]),
+      );
+      const indexSignatures = ast.indexSignatures.map((is) => recur(is.type, path));
       return Equivalence.make((a, b) => {
         if (!Predicate.isObject(a) || !Predicate.isObject(b)) {
-          return false
+          return false;
         }
         // ---------------------------------------------
         // handle property signatures
         // ---------------------------------------------
         for (let i = 0; i < propertySignatures.length; i++) {
-          const ps = ast.propertySignatures[i]
-          const name = ps.name
-          const aHas = Object.hasOwn(a, name)
-          const bHas = Object.hasOwn(b, name)
+          const ps = ast.propertySignatures[i];
+          const name = ps.name;
+          const aHas = Object.hasOwn(a, name);
+          const bHas = Object.hasOwn(b, name);
           if (SchemaAST.isOptional(ps.type)) {
             if (aHas !== bHas) {
-              return false
+              return false;
             }
           }
           if (aHas && bHas && !propertySignatures[i](a[name], b[name])) {
-            return false
+            return false;
           }
         }
         // ---------------------------------------------
         // handle index signatures
         // ---------------------------------------------
         for (let i = 0; i < indexSignatures.length; i++) {
-          const is = ast.indexSignatures[i]
-          const aKeys = SchemaAST.getIndexSignatureKeys(a, is.parameter)
-          const bKeys = SchemaAST.getIndexSignatureKeys(b, is.parameter)
+          const is = ast.indexSignatures[i];
+          const aKeys = SchemaAST.getIndexSignatureKeys(a, is.parameter);
+          const bKeys = SchemaAST.getIndexSignatureKeys(b, is.parameter);
 
-          if (aKeys.length !== bKeys.length) return false
+          if (aKeys.length !== bKeys.length) return false;
 
           for (let j = 0; j < aKeys.length; j++) {
-            const key = aKeys[j]
+            const key = aKeys[j];
             if (!Object.hasOwn(b, key) || !indexSignatures[i](a[key], b[key])) {
-              return false
+              return false;
             }
           }
         }
-        return true
-      })
+        return true;
+      });
     }
     case "Union": {
-      const types = SchemaAST.toType(ast).types
+      const types = SchemaAST.toType(ast).types;
       const compiled = new Map(
-        types.map((candidate, i) =>
-          [candidate, [SchemaParser._is(candidate), recur(ast.types[i], path)] as const] as const
-        )
-      )
+        types.map(
+          (candidate, i) =>
+            [candidate, [SchemaParser._is(candidate), recur(ast.types[i], path)] as const] as const,
+        ),
+      );
       return Equivalence.make((a, b) => {
-        const candidates = SchemaAST.getCandidates(a, types)
+        const candidates = SchemaAST.getCandidates(a, types);
         for (let i = 0; i < candidates.length; i++) {
-          const [is, equivalence] = compiled.get(candidates[i])!
+          const [is, equivalence] = compiled.get(candidates[i])!;
           if (is(a) && is(b)) {
-            return equivalence(a, b)
+            return equivalence(a, b);
           }
         }
-        return false
-      })
+        return false;
+      });
     }
     case "Suspend": {
-      let equivalence: Equivalence.Equivalence<any>
-      return Equivalence.make((a, b) => (equivalence ??= recur(ast.thunk(), path))(a, b))
+      let equivalence: Equivalence.Equivalence<any>;
+      return Equivalence.make((a, b) => (equivalence ??= recur(ast.thunk(), path))(a, b));
     }
   }
 }
 
 function declarationEquivalence(
   ast: SchemaAST.Declaration,
-  path: ReadonlyArray<PropertyKey>
+  path: ReadonlyArray<PropertyKey>,
 ): Equivalence.Equivalence<any> {
-  const representation = (ast.annotations as Schema.Annotations.Declaration<any> | undefined)?.representation
-  if (representation === undefined) return Equal.equals
+  const representation = (ast.annotations as Schema.Annotations.Declaration<any> | undefined)
+    ?.representation;
+  if (representation === undefined) return Equal.equals;
   switch (representation.id) {
     case "effect/schema/Option": {
-      const [value] = declarationTypeParameters(ast, path)
-      return (a, b) => a._tag === b._tag && (a._tag === "None" || value(a.value, b.value))
+      const [value] = declarationTypeParameters(ast, path);
+      return (a, b) => a._tag === b._tag && (a._tag === "None" || value(a.value, b.value));
     }
     case "effect/schema/Result": {
-      const [success, failure] = declarationTypeParameters(ast, path)
+      const [success, failure] = declarationTypeParameters(ast, path);
       return (a, b) =>
         a._tag === b._tag &&
-        (a._tag === "Success" ? success(a.success, b.success) : failure(a.failure, b.failure))
+        (a._tag === "Success" ? success(a.success, b.success) : failure(a.failure, b.failure));
     }
     case "effect/schema/CauseReason": {
-      const [error, defect] = declarationTypeParameters(ast, path)
-      return causeReasonEquivalence(error, defect)
+      const [error, defect] = declarationTypeParameters(ast, path);
+      return causeReasonEquivalence(error, defect);
     }
     case "effect/schema/Cause": {
-      const [error, defect] = declarationTypeParameters(ast, path)
-      return causeEquivalence(error, defect)
+      const [error, defect] = declarationTypeParameters(ast, path);
+      return causeEquivalence(error, defect);
     }
     case "effect/schema/Exit": {
-      const [value, error, defect] = declarationTypeParameters(ast, path)
-      const cause = causeEquivalence(error, defect)
-      return (a, b) => a._tag === b._tag && (a._tag === "Success" ? value(a.value, b.value) : cause(a.cause, b.cause))
+      const [value, error, defect] = declarationTypeParameters(ast, path);
+      const cause = causeEquivalence(error, defect);
+      return (a, b) =>
+        a._tag === b._tag &&
+        (a._tag === "Success" ? value(a.value, b.value) : cause(a.cause, b.cause));
     }
     case "effect/schema/ReadonlyMap": {
-      const [key, value] = declarationTypeParameters(ast, path)
-      return Equal.makeCompareMap(key, value)
+      const [key, value] = declarationTypeParameters(ast, path);
+      return Equal.makeCompareMap(key, value);
     }
     case "effect/schema/ReadonlySet":
-      return Equal.makeCompareSet(declarationTypeParameters(ast, path)[0])
+      return Equal.makeCompareSet(declarationTypeParameters(ast, path)[0]);
     case "effect/schema/RegExp":
-      return (a: globalThis.RegExp, b: globalThis.RegExp) => a.source === b.source && a.flags === b.flags
+      return (a: globalThis.RegExp, b: globalThis.RegExp) =>
+        a.source === b.source && a.flags === b.flags;
     case "effect/schema/URL":
-      return (a: globalThis.URL, b: globalThis.URL) => a.toString() === b.toString()
+      return (a: globalThis.URL, b: globalThis.URL) => a.toString() === b.toString();
     default:
-      return Equal.equals
+      return Equal.equals;
   }
 }
 
 function declarationTypeParameters(ast: SchemaAST.Declaration, path: ReadonlyArray<PropertyKey>) {
-  return ast.typeParameters.map((parameter) => recur(parameter, path))
+  return ast.typeParameters.map((parameter) => recur(parameter, path));
 }
 
 function causeReasonEquivalence<E>(
   error: Equivalence.Equivalence<E>,
-  defect: Equivalence.Equivalence<unknown>
+  defect: Equivalence.Equivalence<unknown>,
 ): Equivalence.Equivalence<Cause.Reason<E>> {
   return (a, b) => {
-    if (a._tag !== b._tag) return false
+    if (a._tag !== b._tag) return false;
     switch (a._tag) {
       case "Fail":
-        return error(a.error, (b as Cause.Fail<E>).error)
+        return error(a.error, (b as Cause.Fail<E>).error);
       case "Die":
-        return defect(a.defect, (b as Cause.Die).defect)
+        return defect(a.defect, (b as Cause.Die).defect);
       case "Interrupt":
-        return a.fiberId === (b as Cause.Interrupt).fiberId
+        return a.fiberId === (b as Cause.Interrupt).fiberId;
     }
-  }
+  };
 }
 
 function causeEquivalence<E>(
   error: Equivalence.Equivalence<E>,
-  defect: Equivalence.Equivalence<unknown>
+  defect: Equivalence.Equivalence<unknown>,
 ): Equivalence.Equivalence<Cause.Cause<E>> {
-  const reasons = Equivalence.Array(causeReasonEquivalence(error, defect))
-  return (a, b) => reasons(a.reasons, b.reasons)
+  const reasons = Equivalence.Array(causeReasonEquivalence(error, defect));
+  return (a, b) => reasons(a.reasons, b.reasons);
 }

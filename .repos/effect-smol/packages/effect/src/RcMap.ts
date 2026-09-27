@@ -11,22 +11,22 @@
  *
  * @since 3.5.0
  */
-import * as Cause from "./Cause.ts"
-import { Clock } from "./Clock.ts"
-import * as Context from "./Context.ts"
-import * as Deferred from "./Deferred.ts"
-import * as Duration from "./Duration.ts"
-import * as Effect from "./Effect.ts"
-import * as Exit from "./Exit.ts"
-import * as Fiber from "./Fiber.ts"
-import { constant, dual, flow } from "./Function.ts"
-import * as MutableHashMap from "./MutableHashMap.ts"
-import type * as Option from "./Option.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { pipeArguments } from "./Pipeable.ts"
-import * as Scope from "./Scope.ts"
+import * as Cause from "./Cause.ts";
+import { Clock } from "./Clock.ts";
+import * as Context from "./Context.ts";
+import * as Deferred from "./Deferred.ts";
+import * as Duration from "./Duration.ts";
+import * as Effect from "./Effect.ts";
+import * as Exit from "./Exit.ts";
+import * as Fiber from "./Fiber.ts";
+import { constant, dual, flow } from "./Function.ts";
+import * as MutableHashMap from "./MutableHashMap.ts";
+import type * as Option from "./Option.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { pipeArguments } from "./Pipeable.ts";
+import * as Scope from "./Scope.ts";
 
-const TypeId = "~effect/RcMap"
+const TypeId = "~effect/RcMap";
 
 /**
  * An `RcMap` is a reference-counted map data structure that manages the lifecycle
@@ -71,13 +71,13 @@ const TypeId = "~effect/RcMap"
  * @since 3.5.0
  */
 export interface RcMap<in out K, in out A, in out E = never> extends Pipeable {
-  readonly [TypeId]: typeof TypeId
-  readonly lookup: (key: K) => Effect.Effect<A, E, Scope.Scope>
-  readonly context: Context.Context<never>
-  readonly scope: Scope.Scope
-  readonly idleTimeToLive: (key: K) => Duration.Duration
-  readonly capacity: number
-  state: State<K, A, E>
+  readonly [TypeId]: typeof TypeId;
+  readonly lookup: (key: K) => Effect.Effect<A, E, Scope.Scope>;
+  readonly context: Context.Context<never>;
+  readonly scope: Scope.Scope;
+  readonly idleTimeToLive: (key: K) => Duration.Duration;
+  readonly capacity: number;
+  state: State<K, A, E>;
 }
 
 /**
@@ -96,7 +96,7 @@ export interface RcMap<in out K, in out A, in out E = never> extends Pipeable {
  * @category models
  * @since 4.0.0
  */
-export type State<K, A, E> = State.Open<K, A, E> | State.Closed
+export type State<K, A, E> = State.Open<K, A, E> | State.Closed;
 
 /**
  * Namespace containing the internal state types for RcMap.
@@ -122,8 +122,8 @@ export declare namespace State {
    * @since 4.0.0
    */
   export interface Open<K, A, E> {
-    readonly _tag: "Open"
-    readonly map: MutableHashMap.MutableHashMap<K, Entry<A, E>>
+    readonly _tag: "Open";
+    readonly map: MutableHashMap.MutableHashMap<K, Entry<A, E>>;
   }
 
   /**
@@ -138,7 +138,7 @@ export declare namespace State {
    * @since 4.0.0
    */
   export interface Closed {
-    readonly _tag: "Closed"
+    readonly _tag: "Closed";
   }
 
   /**
@@ -154,22 +154,22 @@ export declare namespace State {
    * @since 4.0.0
    */
   export interface Entry<A, E> {
-    readonly deferred: Deferred.Deferred<A, E>
-    readonly scope: Scope.Closeable
-    readonly finalizer: Effect.Effect<void>
-    readonly idleTimeToLive: Duration.Duration
-    fiber: Fiber.Fiber<void> | undefined
-    expiresAt: number
-    refCount: number
+    readonly deferred: Deferred.Deferred<A, E>;
+    readonly scope: Scope.Closeable;
+    readonly finalizer: Effect.Effect<void>;
+    readonly idleTimeToLive: Duration.Duration;
+    fiber: Fiber.Fiber<void> | undefined;
+    expiresAt: number;
+    refCount: number;
   }
 }
 
 const makeUnsafe = <K, A, E>(options: {
-  readonly lookup: (key: K) => Effect.Effect<A, E, Scope.Scope>
-  readonly context: Context.Context<never>
-  readonly scope: Scope.Scope
-  readonly idleTimeToLive: (key: K) => Duration.Duration
-  readonly capacity: number
+  readonly lookup: (key: K) => Effect.Effect<A, E, Scope.Scope>;
+  readonly context: Context.Context<never>;
+  readonly scope: Scope.Scope;
+  readonly idleTimeToLive: (key: K) => Duration.Duration;
+  readonly capacity: number;
 }): RcMap<K, A, E> => ({
   [TypeId]: TypeId,
   lookup: options.lookup,
@@ -179,12 +179,12 @@ const makeUnsafe = <K, A, E>(options: {
   capacity: options.capacity,
   state: {
     _tag: "Open",
-    map: MutableHashMap.empty()
+    map: MutableHashMap.empty(),
   },
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-})
+    return pipeArguments(this, arguments);
+  },
+});
 
 /**
  * Creates an `RcMap` that can contain multiple reference counted resources that can be indexed
@@ -239,53 +239,51 @@ const makeUnsafe = <K, A, E>(options: {
  */
 export const make: {
   <K, A, E, R>(options: {
-    readonly lookup: (key: K) => Effect.Effect<A, E, R>
-    readonly idleTimeToLive?: Duration.Input | ((key: K) => Duration.Input) | undefined
-    readonly capacity?: undefined
-  }): Effect.Effect<RcMap<K, A, E>, never, Scope.Scope | R>
+    readonly lookup: (key: K) => Effect.Effect<A, E, R>;
+    readonly idleTimeToLive?: Duration.Input | ((key: K) => Duration.Input) | undefined;
+    readonly capacity?: undefined;
+  }): Effect.Effect<RcMap<K, A, E>, never, Scope.Scope | R>;
   <K, A, E, R>(options: {
-    readonly lookup: (key: K) => Effect.Effect<A, E, R>
-    readonly idleTimeToLive?: Duration.Input | ((key: K) => Duration.Input) | undefined
-    readonly capacity: number
-  }): Effect.Effect<RcMap<K, A, E | Cause.ExceededCapacityError>, never, Scope.Scope | R>
+    readonly lookup: (key: K) => Effect.Effect<A, E, R>;
+    readonly idleTimeToLive?: Duration.Input | ((key: K) => Duration.Input) | undefined;
+    readonly capacity: number;
+  }): Effect.Effect<RcMap<K, A, E | Cause.ExceededCapacityError>, never, Scope.Scope | R>;
 } = <K, A, E, R>(options: {
-  readonly lookup: (key: K) => Effect.Effect<A, E, R>
-  readonly idleTimeToLive?: Duration.Input | ((key: K) => Duration.Input) | undefined
-  readonly capacity?: number | undefined
+  readonly lookup: (key: K) => Effect.Effect<A, E, R>;
+  readonly idleTimeToLive?: Duration.Input | ((key: K) => Duration.Input) | undefined;
+  readonly capacity?: number | undefined;
 }) =>
   Effect.withFiber<RcMap<K, A, E>, never, R | Scope.Scope>((fiber) => {
-    const context = fiber.context as Context.Context<R | Scope.Scope>
-    const scope = Context.get(context, Scope.Scope)
+    const context = fiber.context as Context.Context<R | Scope.Scope>;
+    const scope = Context.get(context, Scope.Scope);
     const self = makeUnsafe<K, A, E>({
       lookup: options.lookup as any,
       context,
       scope,
-      idleTimeToLive: typeof options.idleTimeToLive === "function"
-        ? flow(options.idleTimeToLive, Duration.fromInputUnsafe)
-        : constant(Duration.fromInputUnsafe(options.idleTimeToLive ?? Duration.zero)),
-      capacity: Math.max(options.capacity ?? Number.POSITIVE_INFINITY, 0)
-    })
+      idleTimeToLive:
+        typeof options.idleTimeToLive === "function"
+          ? flow(options.idleTimeToLive, Duration.fromInputUnsafe)
+          : constant(Duration.fromInputUnsafe(options.idleTimeToLive ?? Duration.zero)),
+      capacity: Math.max(options.capacity ?? Number.POSITIVE_INFINITY, 0),
+    });
     return Effect.as(
       Scope.addFinalizerExit(scope, () => {
         if (self.state._tag === "Closed") {
-          return Effect.void
+          return Effect.void;
         }
-        const map = self.state.map
-        self.state = { _tag: "Closed" }
-        return Effect.forEach(
-          map,
-          ([, entry]) => Effect.exit(closeEntry(entry))
-        ).pipe(
+        const map = self.state.map;
+        self.state = { _tag: "Closed" };
+        return Effect.forEach(map, ([, entry]) => Effect.exit(closeEntry(entry))).pipe(
           Effect.tap(() =>
             Effect.sync(() => {
-              MutableHashMap.clear(map)
-            })
-          )
-        )
+              MutableHashMap.clear(map);
+            }),
+          ),
+        );
       }),
-      self
-    )
-  })
+      self,
+    );
+  });
 
 /**
  * Gets the resource for a key, acquiring it with the map's lookup function when
@@ -333,54 +331,54 @@ export const make: {
  * @since 3.5.0
  */
 export const get: {
-  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<A, E, Scope.Scope>
-  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<A, E, Scope.Scope>
-} = dual(
-  2,
-  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<A, E, Scope.Scope> =>
-    Effect.uninterruptibleMask((restore) => {
-      if (self.state._tag === "Closed") {
-        return Effect.interrupt
-      }
-      const state = self.state
-      const parent = Fiber.getCurrent()!
-      const o = MutableHashMap.get(state.map, key)
-      let entry: State.Entry<A, E>
-      if (o._tag === "Some") {
-        entry = o.value
-        entry.refCount++
-      } else if (Number.isFinite(self.capacity) && MutableHashMap.size(self.state.map) >= self.capacity) {
-        return Effect.fail(
-          new Cause.ExceededCapacityError(`RcMap attempted to exceed capacity of ${self.capacity}`)
-        ) as Effect.Effect<never>
-      } else {
-        entry = {
-          deferred: Deferred.makeUnsafe(),
-          scope: Scope.makeUnsafe(),
-          idleTimeToLive: self.idleTimeToLive(key),
-          finalizer: undefined as any,
-          fiber: undefined,
-          expiresAt: 0,
-          refCount: 1
-        }
-        ;(entry as any).finalizer = release(self, key, entry)
-        MutableHashMap.set(state.map, key, entry)
-        const context = new Map(self.context.mapUnsafe)
-        parent.context.mapUnsafe.forEach((value, key) => {
-          context.set(key, value)
-        })
-        context.set(Scope.Scope.key, entry.scope)
-        Effect.suspend(() => self.lookup(key)).pipe(
-          Effect.runForkWith(Context.makeUnsafe(context)),
-          Fiber.runIn(entry.scope)
-        ).addObserver((exit) => Deferred.doneUnsafe(entry.deferred, exit))
-      }
-      const scope = Context.getUnsafe(parent.context, Scope.Scope)
-      return Scope.addFinalizer(scope, entry.finalizer).pipe(
-        Effect.andThen(restore(Deferred.await(entry.deferred)))
-      )
-    })
-)
+  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<A, E, Scope.Scope>;
+  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<A, E, Scope.Scope>;
+} = dual(2, <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<A, E, Scope.Scope> =>
+  Effect.uninterruptibleMask((restore) => {
+    if (self.state._tag === "Closed") {
+      return Effect.interrupt;
+    }
+    const state = self.state;
+    const parent = Fiber.getCurrent()!;
+    const o = MutableHashMap.get(state.map, key);
+    let entry: State.Entry<A, E>;
+    if (o._tag === "Some") {
+      entry = o.value;
+      entry.refCount++;
+    } else if (
+      Number.isFinite(self.capacity) &&
+      MutableHashMap.size(self.state.map) >= self.capacity
+    ) {
+      return Effect.fail(
+        new Cause.ExceededCapacityError(`RcMap attempted to exceed capacity of ${self.capacity}`),
+      ) as Effect.Effect<never>;
+    } else {
+      entry = {
+        deferred: Deferred.makeUnsafe(),
+        scope: Scope.makeUnsafe(),
+        idleTimeToLive: self.idleTimeToLive(key),
+        finalizer: undefined as any,
+        fiber: undefined,
+        expiresAt: 0,
+        refCount: 1,
+      };
+      (entry as any).finalizer = release(self, key, entry);
+      MutableHashMap.set(state.map, key, entry);
+      const context = new Map(self.context.mapUnsafe);
+      parent.context.mapUnsafe.forEach((value, key) => {
+        context.set(key, value);
+      });
+      context.set(Scope.Scope.key, entry.scope);
+      Effect.suspend(() => self.lookup(key))
+        .pipe(Effect.runForkWith(Context.makeUnsafe(context)), Fiber.runIn(entry.scope))
+        .addObserver((exit) => Deferred.doneUnsafe(entry.deferred, exit));
+    }
+    const scope = Context.getUnsafe(parent.context, Scope.Scope);
+    return Scope.addFinalizer(scope, entry.finalizer).pipe(
+      Effect.andThen(restore(Deferred.await(entry.deferred))),
+    );
+  }),
+);
 
 /**
  * Retains and returns an existing resource without invoking the map's lookup
@@ -427,76 +425,78 @@ export const get: {
  * @since 4.0.0
  */
 export const getOption: {
-  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<Option.Option<A>, E, Scope.Scope>
-  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<Option.Option<A>, E, Scope.Scope>
+  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<Option.Option<A>, E, Scope.Scope>;
+  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<Option.Option<A>, E, Scope.Scope>;
 } = dual(
   2,
   <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<Option.Option<A>, E, Scope.Scope> =>
     Effect.uninterruptibleMask((restore) => {
       if (self.state._tag === "Closed") {
-        return Effect.succeedNone
+        return Effect.succeedNone;
       }
-      const o = MutableHashMap.get(self.state.map, key)
+      const o = MutableHashMap.get(self.state.map, key);
       if (o._tag === "None") {
-        return Effect.succeedNone
+        return Effect.succeedNone;
       }
-      const entry = o.value
-      entry.refCount++
-      const scope = Context.getUnsafe(Fiber.getCurrent()!.context, Scope.Scope)
+      const entry = o.value;
+      entry.refCount++;
+      const scope = Context.getUnsafe(Fiber.getCurrent()!.context, Scope.Scope);
       return Scope.addFinalizer(scope, entry.finalizer).pipe(
-        Effect.andThen(Effect.asSome(restore(Deferred.await(entry.deferred))))
-      )
-    })
-)
+        Effect.andThen(Effect.asSome(restore(Deferred.await(entry.deferred)))),
+      );
+    }),
+);
 
 const closeEntry = <A, E>(entry: State.Entry<A, E>) =>
   entry.fiber
     ? Fiber.interrupt(entry.fiber).pipe(Effect.andThen(Scope.close(entry.scope, Exit.void)))
-    : Scope.close(entry.scope, Exit.void)
+    : Scope.close(entry.scope, Exit.void);
 
 const release = <K, A, E>(self: RcMap<K, A, E>, key: K, entry: State.Entry<A, E>) =>
   Effect.withFiber((fiber) => {
-    entry.refCount--
+    entry.refCount--;
     if (entry.refCount > 0) {
-      return Effect.void
+      return Effect.void;
     } else if (self.state._tag === "Closed") {
-      return closeEntry(entry)
+      return closeEntry(entry);
     }
 
-    const o = MutableHashMap.get(self.state.map, key)
+    const o = MutableHashMap.get(self.state.map, key);
     if (o._tag === "None" || o.value !== entry) {
-      return closeEntry(entry)
+      return closeEntry(entry);
     } else if (Duration.isZero(entry.idleTimeToLive)) {
-      MutableHashMap.remove(self.state.map, key)
-      return closeEntry(entry)
+      MutableHashMap.remove(self.state.map, key);
+      return closeEntry(entry);
     } else if (!Duration.isFinite(entry.idleTimeToLive)) {
-      return Effect.void
+      return Effect.void;
     }
 
-    const clock = fiber.getRef(Clock)
-    entry.expiresAt = clock.currentTimeMillisUnsafe() + Duration.toMillis(entry.idleTimeToLive)
-    if (entry.fiber) return Effect.void
+    const clock = fiber.getRef(Clock);
+    entry.expiresAt = clock.currentTimeMillisUnsafe() + Duration.toMillis(entry.idleTimeToLive);
+    if (entry.fiber) return Effect.void;
 
     entry.fiber = Effect.interruptibleMask(function loop(restore): Effect.Effect<void> {
-      const now = clock.currentTimeMillisUnsafe()
-      const remaining = entry.expiresAt - now
+      const now = clock.currentTimeMillisUnsafe();
+      const remaining = entry.expiresAt - now;
       if (remaining <= 0) {
-        if (self.state._tag === "Closed" || entry.refCount > 0) return Effect.void
-        const o = MutableHashMap.get(self.state.map, key)
-        if (o._tag === "None" || o.value !== entry) return Effect.void
-        MutableHashMap.remove(self.state.map, key)
-        return restore(Scope.close(entry.scope, Exit.void))
+        if (self.state._tag === "Closed" || entry.refCount > 0) return Effect.void;
+        const o = MutableHashMap.get(self.state.map, key);
+        if (o._tag === "None" || o.value !== entry) return Effect.void;
+        MutableHashMap.remove(self.state.map, key);
+        return restore(Scope.close(entry.scope, Exit.void));
       }
-      return Effect.flatMap(clock.sleep(Duration.millis(remaining)), () => loop(restore))
+      return Effect.flatMap(clock.sleep(Duration.millis(remaining)), () => loop(restore));
     }).pipe(
-      Effect.ensuring(Effect.sync(() => {
-        entry.fiber = undefined
-      })),
+      Effect.ensuring(
+        Effect.sync(() => {
+          entry.fiber = undefined;
+        }),
+      ),
       Effect.runForkWith(fiber.context),
-      Fiber.runIn(self.scope)
-    )
-    return Effect.void
-  })
+      Fiber.runIn(self.scope),
+    );
+    return Effect.void;
+  });
 
 /**
  * Returns an iterable of all keys currently stored in the `RcMap`.
@@ -539,9 +539,11 @@ const release = <K, A, E>(self: RcMap<K, A, E>, key: K, entry: State.Entry<A, E>
  */
 export const keys = <K, A, E>(self: RcMap<K, A, E>): Effect.Effect<Iterable<K>> => {
   return Effect.suspend(() =>
-    self.state._tag === "Closed" ? Effect.interrupt : Effect.succeed(MutableHashMap.keys(self.state.map))
-  )
-}
+    self.state._tag === "Closed"
+      ? Effect.interrupt
+      : Effect.succeed(MutableHashMap.keys(self.state.map)),
+  );
+};
 
 /**
  * Invalidates and removes a specific key from the RcMap. If the resource is not
@@ -589,20 +591,20 @@ export const keys = <K, A, E>(self: RcMap<K, A, E>): Effect.Effect<Iterable<K>> 
  * @since 3.13.0
  */
 export const invalidate: {
-  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<void>
-  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<void>
+  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<void>;
+  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<void>;
 } = dual(
   2,
-  Effect.fnUntraced(function*<K, A, E>(self: RcMap<K, A, E>, key: K) {
-    if (self.state._tag === "Closed") return
-    const o = MutableHashMap.get(self.state.map, key)
-    if (o._tag === "None") return
-    const entry = o.value
-    MutableHashMap.remove(self.state.map, key)
-    if (entry.refCount > 0) return
-    yield* closeEntry(entry)
-  }, Effect.uninterruptible)
-)
+  Effect.fnUntraced(function* <K, A, E>(self: RcMap<K, A, E>, key: K) {
+    if (self.state._tag === "Closed") return;
+    const o = MutableHashMap.get(self.state.map, key);
+    if (o._tag === "None") return;
+    const entry = o.value;
+    MutableHashMap.remove(self.state.map, key);
+    if (entry.refCount > 0) return;
+    yield* closeEntry(entry);
+  }, Effect.uninterruptible),
+);
 
 /**
  * Returns whether the `RcMap` currently contains an entry for the specified
@@ -629,16 +631,14 @@ export const invalidate: {
  * @since 3.17.7
  */
 export const has: {
-  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<boolean>
-  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<boolean>
-} = dual(
-  2,
-  <K, A, E>(self: RcMap<K, A, E>, key: K) =>
-    Effect.sync(() => {
-      if (self.state._tag === "Closed") return false
-      return MutableHashMap.has(self.state.map, key)
-    })
-)
+  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<boolean>;
+  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<boolean>;
+} = dual(2, <K, A, E>(self: RcMap<K, A, E>, key: K) =>
+  Effect.sync(() => {
+    if (self.state._tag === "Closed") return false;
+    return MutableHashMap.has(self.state.map, key);
+  }),
+);
 
 /**
  * Extends the idle time for a resource in the RcMap. If the RcMap has an
@@ -687,21 +687,19 @@ export const has: {
  * @since 3.13.0
  */
 export const touch: {
-  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<void>
-  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<void>
-} = dual(
-  2,
-  <K, A, E>(self: RcMap<K, A, E>, key: K) =>
-    Effect.clockWith((clock) => {
-      if (self.state._tag === "Closed") {
-        return Effect.void
-      }
-      const o = MutableHashMap.get(self.state.map, key)
-      if (o._tag === "None" || Duration.isZero(o.value.idleTimeToLive)) {
-        return Effect.void
-      }
-      const entry = o.value
-      entry.expiresAt = clock.currentTimeMillisUnsafe() + Duration.toMillis(entry.idleTimeToLive)
-      return Effect.void
-    })
-)
+  <K>(key: K): <A, E>(self: RcMap<K, A, E>) => Effect.Effect<void>;
+  <K, A, E>(self: RcMap<K, A, E>, key: K): Effect.Effect<void>;
+} = dual(2, <K, A, E>(self: RcMap<K, A, E>, key: K) =>
+  Effect.clockWith((clock) => {
+    if (self.state._tag === "Closed") {
+      return Effect.void;
+    }
+    const o = MutableHashMap.get(self.state.map, key);
+    if (o._tag === "None" || Duration.isZero(o.value.idleTimeToLive)) {
+      return Effect.void;
+    }
+    const entry = o.value;
+    entry.expiresAt = clock.currentTimeMillisUnsafe() + Duration.toMillis(entry.idleTimeToLive);
+    return Effect.void;
+  }),
+);

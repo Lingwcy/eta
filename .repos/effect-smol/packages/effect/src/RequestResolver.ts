@@ -9,31 +9,31 @@
  *
  * @since 2.0.0
  */
-import type { NonEmptyArray } from "./Array.ts"
-import * as Arr from "./Array.ts"
-import * as Cache from "./Cache.ts"
-import * as Context from "./Context.ts"
-import type * as Duration from "./Duration.ts"
-import * as Effect from "./Effect.ts"
-import * as Exit from "./Exit.ts"
-import { constTrue, dual, identity } from "./Function.ts"
-import { exitSucceed } from "./internal/core.ts"
-import * as Count from "./internal/count.ts"
-import * as effect from "./internal/effect.ts"
-import * as internal from "./internal/request.ts"
-import * as Iterable from "./Iterable.ts"
-import * as MutableHashMap from "./MutableHashMap.ts"
-import { type Pipeable, pipeArguments } from "./Pipeable.ts"
-import { hasProperty } from "./Predicate.ts"
-import type * as Request from "./Request.ts"
-import type * as Schema from "./Schema.ts"
-import type { Scope } from "./Scope.ts"
-import * as Tracer from "./Tracer.ts"
-import type * as Types from "./Types.ts"
-import type * as Persistable from "./unstable/persistence/Persistable.ts"
-import * as Persistence from "./unstable/persistence/Persistence.ts"
+import type { NonEmptyArray } from "./Array.ts";
+import * as Arr from "./Array.ts";
+import * as Cache from "./Cache.ts";
+import * as Context from "./Context.ts";
+import type * as Duration from "./Duration.ts";
+import * as Effect from "./Effect.ts";
+import * as Exit from "./Exit.ts";
+import { constTrue, dual, identity } from "./Function.ts";
+import { exitSucceed } from "./internal/core.ts";
+import * as Count from "./internal/count.ts";
+import * as effect from "./internal/effect.ts";
+import * as internal from "./internal/request.ts";
+import * as Iterable from "./Iterable.ts";
+import * as MutableHashMap from "./MutableHashMap.ts";
+import { type Pipeable, pipeArguments } from "./Pipeable.ts";
+import { hasProperty } from "./Predicate.ts";
+import type * as Request from "./Request.ts";
+import type * as Schema from "./Schema.ts";
+import type { Scope } from "./Scope.ts";
+import * as Tracer from "./Tracer.ts";
+import type * as Types from "./Types.ts";
+import type * as Persistable from "./unstable/persistence/Persistable.ts";
+import * as Persistence from "./unstable/persistence/Persistence.ts";
 
-const TypeId = "~effect/RequestResolver"
+const TypeId = "~effect/RequestResolver";
 
 /**
  * A resolver that executes and completes batched `Request` entries.
@@ -78,31 +78,35 @@ const TypeId = "~effect/RequestResolver"
  * @category models
  * @since 2.0.0
  */
-export interface RequestResolver<in A extends Request.Any> extends RequestResolver.Variance<A>, Pipeable {
-  readonly delay: Effect.Effect<void>
+export interface RequestResolver<in A extends Request.Any>
+  extends RequestResolver.Variance<A>, Pipeable {
+  readonly delay: Effect.Effect<void>;
 
   /**
    * Get a batch key for the given request.
    */
-  batchKey(entry: Request.Entry<A>): unknown
+  batchKey(entry: Request.Entry<A>): unknown;
 
   /**
    * An optional pre-check function that can be used to filter requests before
    * they are added to a batch. If the function returns `false`, the request
    * will not be processed.
    */
-  readonly preCheck: ((entry: Request.Entry<A>) => boolean) | undefined
+  readonly preCheck: ((entry: Request.Entry<A>) => boolean) | undefined;
 
   /**
    * Should the resolver continue collecting requests? Otherwise, it will
    * immediately execute the collected requests cutting the delay short.
    */
-  collectWhile(entries: ReadonlySet<Request.Entry<A>>): boolean
+  collectWhile(entries: ReadonlySet<Request.Entry<A>>): boolean;
 
   /**
    * Execute a collection of requests.
    */
-  runAll(entries: NonEmptyArray<Request.Entry<A>>, key: unknown): Effect.Effect<void, Request.Error<A>>
+  runAll(
+    entries: NonEmptyArray<Request.Entry<A>>,
+    key: unknown,
+  ): Effect.Effect<void, Request.Error<A>>;
 }
 
 /**
@@ -124,20 +128,20 @@ export declare namespace RequestResolver {
    */
   export interface Variance<in A> {
     readonly [TypeId]: {
-      readonly _A: Types.Contravariant<A>
-    }
+      readonly _A: Types.Contravariant<A>;
+    };
   }
 }
 
 const RequestResolverProto = {
   [TypeId]: {
     _A: identity,
-    _R: identity
+    _R: identity,
   },
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+    return pipeArguments(this, arguments);
+  },
+};
 
 /**
  * Returns `true` if the specified value is a `RequestResolver`, `false` otherwise.
@@ -152,7 +156,7 @@ const RequestResolverProto = {
  * @category guards
  * @since 2.0.0
  */
-export const isRequestResolver = (u: unknown): u is RequestResolver<any> => hasProperty(u, TypeId)
+export const isRequestResolver = (u: unknown): u is RequestResolver<any> => hasProperty(u, TypeId);
 
 /**
  * Creates a request resolver with fine-grained
@@ -183,23 +187,26 @@ export const isRequestResolver = (u: unknown): u is RequestResolver<any> => hasP
  * @since 4.0.0
  */
 export const makeWith = <A extends Request.Any>(options: {
-  readonly batchKey: (request: Request.Entry<A>) => unknown
-  readonly preCheck?: ((entry: Request.Entry<A>) => boolean) | undefined
-  readonly delay: Effect.Effect<void>
-  readonly collectWhile: (requests: ReadonlySet<Request.Entry<A>>) => boolean
-  readonly runAll: (entries: NonEmptyArray<Request.Entry<A>>, key: unknown) => Effect.Effect<void, Request.Error<A>>
+  readonly batchKey: (request: Request.Entry<A>) => unknown;
+  readonly preCheck?: ((entry: Request.Entry<A>) => boolean) | undefined;
+  readonly delay: Effect.Effect<void>;
+  readonly collectWhile: (requests: ReadonlySet<Request.Entry<A>>) => boolean;
+  readonly runAll: (
+    entries: NonEmptyArray<Request.Entry<A>>,
+    key: unknown,
+  ) => Effect.Effect<void, Request.Error<A>>;
 }): RequestResolver<A> => {
-  const self = Object.create(RequestResolverProto)
-  self.batchKey = options.batchKey
-  self.preCheck = options.preCheck
-  self.delay = options.delay
-  self.collectWhile = options.collectWhile
-  self.runAll = options.runAll
-  return self
-}
+  const self = Object.create(RequestResolverProto);
+  self.batchKey = options.batchKey;
+  self.preCheck = options.preCheck;
+  self.delay = options.delay;
+  self.collectWhile = options.collectWhile;
+  self.runAll = options.runAll;
+  return self;
+};
 
-const defaultKeyObject = {}
-const defaultKey = (_request: unknown): unknown => defaultKeyObject
+const defaultKeyObject = {};
+const defaultKey = (_request: unknown): unknown => defaultKeyObject;
 
 /**
  * Constructs a request resolver with the specified method to run requests.
@@ -235,14 +242,17 @@ const defaultKey = (_request: unknown): unknown => defaultKeyObject
  * @since 2.0.0
  */
 export const make = <A extends Request.Any>(
-  runAll: (entries: NonEmptyArray<Request.Entry<A>>, key: unknown) => Effect.Effect<void, Request.Error<A>>
+  runAll: (
+    entries: NonEmptyArray<Request.Entry<A>>,
+    key: unknown,
+  ) => Effect.Effect<void, Request.Error<A>>,
 ): RequestResolver<A> =>
   makeWith({
     batchKey: defaultKey,
     delay: Effect.yieldNow,
     collectWhile: constTrue,
-    runAll
-  })
+    runAll,
+  });
 
 /**
  * Constructs a request resolver with the requests grouped by a calculated key.
@@ -293,28 +303,31 @@ export const make = <A extends Request.Any>(
  * @since 4.0.0
  */
 export const makeGrouped = <A extends Request.Any, K>(options: {
-  readonly key: (entry: Request.Entry<A>) => K
-  readonly resolver: (entries: NonEmptyArray<Request.Entry<A>>, key: K) => Effect.Effect<void, Request.Error<A>>
+  readonly key: (entry: Request.Entry<A>) => K;
+  readonly resolver: (
+    entries: NonEmptyArray<Request.Entry<A>>,
+    key: K,
+  ) => Effect.Effect<void, Request.Error<A>>;
 }): RequestResolver<A> =>
   makeWith({
     batchKey: hashGroupKey(options.key),
     delay: Effect.yieldNow,
     collectWhile: constTrue,
-    runAll: options.resolver as any
-  })
+    runAll: options.resolver as any,
+  });
 
 const hashGroupKey = <A, K>(get: (entry: Request.Entry<A>) => K) => {
-  const groupKeys = MutableHashMap.empty<K, K>()
+  const groupKeys = MutableHashMap.empty<K, K>();
   return (entry: Request.Entry<A>): unknown => {
-    const key = get(entry)
-    const okey = MutableHashMap.get(groupKeys, key)
+    const key = get(entry);
+    const okey = MutableHashMap.get(groupKeys, key);
     if (okey._tag === "Some") {
-      return okey.value
+      return okey.value;
     }
-    MutableHashMap.set(groupKeys, key, key)
-    return key
-  }
-}
+    MutableHashMap.set(groupKeys, key, key);
+    return key;
+  };
+};
 
 /**
  * Constructs a request resolver from a pure function.
@@ -347,17 +360,16 @@ const hashGroupKey = <A, K>(get: (entry: Request.Entry<A>) => K) => {
  * @since 2.0.0
  */
 export const fromFunction = <A extends Request.Any>(
-  f: (entry: Request.Entry<A>) => Request.Success<A>
+  f: (entry: Request.Entry<A>) => Request.Success<A>,
 ): RequestResolver<A> =>
-  make(
-    (entries) =>
-      Effect.sync(() => {
-        for (let i = 0; i < entries.length; i++) {
-          const entry = entries[i]
-          entry.completeUnsafe(exitSucceed(f(entry)))
-        }
-      })
-  )
+  make((entries) =>
+    Effect.sync(() => {
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        entry.completeUnsafe(exitSucceed(f(entry)));
+      }
+    }),
+  );
 
 /**
  * Constructs a request resolver from a pure function that takes a list of requests
@@ -392,18 +404,17 @@ export const fromFunction = <A extends Request.Any>(
  * @since 2.0.0
  */
 export const fromFunctionBatched = <A extends Request.Any>(
-  f: (entries: NonEmptyArray<Request.Entry<A>>) => Iterable<Request.Success<A>>
+  f: (entries: NonEmptyArray<Request.Entry<A>>) => Iterable<Request.Success<A>>,
 ): RequestResolver<A> =>
-  make(
-    (entries) =>
-      Effect.sync(() => {
-        let i = 0
-        for (const result of f(entries)) {
-          const entry = entries[i++]
-          entry.completeUnsafe(exitSucceed(result))
-        }
-      })
-  )
+  make((entries) =>
+    Effect.sync(() => {
+      let i = 0;
+      for (const result of f(entries)) {
+        const entry = entries[i++];
+        entry.completeUnsafe(exitSucceed(result));
+      }
+    }),
+  );
 
 /**
  * Constructs a request resolver from an effectual function.
@@ -438,27 +449,27 @@ export const fromFunctionBatched = <A extends Request.Any>(
  * @since 2.0.0
  */
 export const fromEffect = <A extends Request.Any>(
-  f: (entry: Request.Entry<A>) => Effect.Effect<Request.Success<A>, Request.Error<A>>
+  f: (entry: Request.Entry<A>) => Effect.Effect<Request.Success<A>, Request.Error<A>>,
 ): RequestResolver<A> => {
-  effect.interruptChildrenPatch() // ensure middleware is registered
+  effect.interruptChildrenPatch(); // ensure middleware is registered
   return make((entries) =>
     Effect.callback<void>((resume) => {
-      const parent = effect.getCurrentFiber()!
-      let done = 0
+      const parent = effect.getCurrentFiber()!;
+      let done = 0;
       for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i]
-        const fiber = effect.forkUnsafe(parent as any, f(entry), true)
+        const entry = entries[i];
+        const fiber = effect.forkUnsafe(parent as any, f(entry), true);
         fiber.addObserver((exit) => {
-          entry.completeUnsafe(exit)
-          done++
+          entry.completeUnsafe(exit);
+          done++;
           if (done === entries.length) {
-            resume(effect.void)
+            resume(effect.void);
           }
-        })
+        });
       }
-    })
-  )
-}
+    }),
+  );
+};
 
 /**
  * Constructs a request resolver from a list of tags paired to functions, that takes
@@ -503,51 +514,53 @@ export const fromEffect = <A extends Request.Any>(
  * @category constructors
  * @since 2.0.0
  */
-export const fromEffectTagged = <A extends Request.Any & { readonly _tag: string }>() =>
-<
-  Fns extends {
-    readonly [Tag in A["_tag"]]: [Extract<A, { readonly _tag: Tag }>] extends [infer Req]
-      ? Req extends Request.Request<infer ReqA, infer ReqE, infer _ReqR> ?
-        (requests: Array<Request.Entry<Req>>) => Effect.Effect<Iterable<ReqA>, ReqE>
-      : never
-      : never
-  }
->(
-  fns: Fns
-): RequestResolver<A> =>
-  make<A>(
-    (entries): Effect.Effect<void> => {
-      const grouped = new Map<A["_tag"], Array<Request.Entry<A>>>()
+export const fromEffectTagged =
+  <A extends Request.Any & { readonly _tag: string }>() =>
+  <
+    Fns extends {
+      readonly [Tag in A["_tag"]]: [Extract<A, { readonly _tag: Tag }>] extends [infer Req]
+        ? Req extends Request.Request<infer ReqA, infer ReqE, infer _ReqR>
+          ? (requests: Array<Request.Entry<Req>>) => Effect.Effect<Iterable<ReqA>, ReqE>
+          : never
+        : never;
+    },
+  >(
+    fns: Fns,
+  ): RequestResolver<A> =>
+    make<A>((entries): Effect.Effect<void> => {
+      const grouped = new Map<A["_tag"], Array<Request.Entry<A>>>();
       for (let i = 0, len = entries.length; i < len; i++) {
-        const group = grouped.get(entries[i].request._tag)
+        const group = grouped.get(entries[i].request._tag);
         if (group) {
-          group.push(entries[i])
+          group.push(entries[i]);
         } else {
-          grouped.set(entries[i].request._tag, [entries[i]])
+          grouped.set(entries[i].request._tag, [entries[i]]);
         }
       }
       return Effect.forEach(
         grouped,
         ([tag, requests]) =>
-          Effect.matchCause((fns[tag] as any)(requests) as Effect.Effect<Iterable<any>, unknown, unknown>, {
-            onFailure: (cause) => {
-              for (let i = 0; i < requests.length; i++) {
-                const entry = requests[i]
-                entry.completeUnsafe(Exit.failCause(cause) as any)
-              }
+          Effect.matchCause(
+            (fns[tag] as any)(requests) as Effect.Effect<Iterable<any>, unknown, unknown>,
+            {
+              onFailure: (cause) => {
+                for (let i = 0; i < requests.length; i++) {
+                  const entry = requests[i];
+                  entry.completeUnsafe(Exit.failCause(cause) as any);
+                }
+              },
+              onSuccess: (res) => {
+                let i = 0;
+                for (const result of res) {
+                  const entry = requests[i++];
+                  entry.completeUnsafe(exitSucceed(result) as any);
+                }
+              },
             },
-            onSuccess: (res) => {
-              let i = 0
-              for (const result of res) {
-                const entry = requests[i++]
-                entry.completeUnsafe(exitSucceed(result) as any)
-              }
-            }
-          }),
-        { concurrency: "unbounded", discard: true }
-      ) as Effect.Effect<void>
-    }
-  ) as any
+          ),
+        { concurrency: "unbounded", discard: true },
+      ) as Effect.Effect<void>;
+    }) as any;
 
 /**
  * Sets the batch delay effect for this request resolver.
@@ -588,16 +601,21 @@ export const fromEffectTagged = <A extends Request.Any & { readonly _tag: string
  * @since 4.0.0
  */
 export const setDelayEffect: {
-  (delay: Effect.Effect<void>): <A extends Request.Any>(self: RequestResolver<A>) => RequestResolver<A>
-  <A extends Request.Any>(self: RequestResolver<A>, delay: Effect.Effect<void>): RequestResolver<A>
+  (
+    delay: Effect.Effect<void>,
+  ): <A extends Request.Any>(self: RequestResolver<A>) => RequestResolver<A>;
+  <A extends Request.Any>(self: RequestResolver<A>, delay: Effect.Effect<void>): RequestResolver<A>;
 } = dual(
   2,
-  <A extends Request.Any>(self: RequestResolver<A>, delay: Effect.Effect<void>): RequestResolver<A> =>
+  <A extends Request.Any>(
+    self: RequestResolver<A>,
+    delay: Effect.Effect<void>,
+  ): RequestResolver<A> =>
     makeWith({
       ...self,
-      delay
-    })
-)
+      delay,
+    }),
+);
 
 /**
  * Sets the batch delay window for this request resolver to the specified duration.
@@ -631,16 +649,18 @@ export const setDelayEffect: {
  * @since 4.0.0
  */
 export const setDelay: {
-  (duration: Duration.Input): <A extends Request.Any>(self: RequestResolver<A>) => RequestResolver<A>
-  <A extends Request.Any>(self: RequestResolver<A>, duration: Duration.Input): RequestResolver<A>
+  (
+    duration: Duration.Input,
+  ): <A extends Request.Any>(self: RequestResolver<A>) => RequestResolver<A>;
+  <A extends Request.Any>(self: RequestResolver<A>, duration: Duration.Input): RequestResolver<A>;
 } = dual(
   2,
   <A extends Request.Any>(self: RequestResolver<A>, duration: Duration.Input): RequestResolver<A> =>
     makeWith({
       ...self,
-      delay: Effect.sleep(duration)
-    })
-)
+      delay: Effect.sleep(duration),
+    }),
+);
 
 /**
  * Wraps request resolver execution between `before` and `after` effects.
@@ -691,28 +711,46 @@ export const setDelay: {
  */
 export const around: {
   <A extends Request.Any, A2, X>(
-    before: (entries: NonEmptyArray<Request.Entry<NoInfer<A>>>) => Effect.Effect<A2, Request.Error<A>>,
-    after: (entries: NonEmptyArray<Request.Entry<NoInfer<A>>>, a: A2) => Effect.Effect<X, Request.Error<A>>
-  ): (self: RequestResolver<A>) => RequestResolver<A>
+    before: (
+      entries: NonEmptyArray<Request.Entry<NoInfer<A>>>,
+    ) => Effect.Effect<A2, Request.Error<A>>,
+    after: (
+      entries: NonEmptyArray<Request.Entry<NoInfer<A>>>,
+      a: A2,
+    ) => Effect.Effect<X, Request.Error<A>>,
+  ): (self: RequestResolver<A>) => RequestResolver<A>;
   <A extends Request.Any, A2, X>(
     self: RequestResolver<A>,
-    before: (entries: NonEmptyArray<Request.Entry<NoInfer<A>>>) => Effect.Effect<A2, Request.Error<A>>,
-    after: (entries: NonEmptyArray<Request.Entry<NoInfer<A>>>, a: A2) => Effect.Effect<X, Request.Error<A>>
-  ): RequestResolver<A>
-} = dual(3, <A extends Request.Any, A2, X>(
-  self: RequestResolver<A>,
-  before: (entries: NonEmptyArray<Request.Entry<NoInfer<A>>>) => Effect.Effect<A2, Request.Error<A>>,
-  after: (entries: NonEmptyArray<Request.Entry<NoInfer<A>>>, a: A2) => Effect.Effect<X, Request.Error<A>>
-): RequestResolver<A> =>
-  makeWith({
-    ...self,
-    runAll: (entries, key) =>
-      Effect.acquireUseRelease(
-        before(entries),
-        () => self.runAll(entries, key),
-        (a) => after(entries, a)
-      )
-  }))
+    before: (
+      entries: NonEmptyArray<Request.Entry<NoInfer<A>>>,
+    ) => Effect.Effect<A2, Request.Error<A>>,
+    after: (
+      entries: NonEmptyArray<Request.Entry<NoInfer<A>>>,
+      a: A2,
+    ) => Effect.Effect<X, Request.Error<A>>,
+  ): RequestResolver<A>;
+} = dual(
+  3,
+  <A extends Request.Any, A2, X>(
+    self: RequestResolver<A>,
+    before: (
+      entries: NonEmptyArray<Request.Entry<NoInfer<A>>>,
+    ) => Effect.Effect<A2, Request.Error<A>>,
+    after: (
+      entries: NonEmptyArray<Request.Entry<NoInfer<A>>>,
+      a: A2,
+    ) => Effect.Effect<X, Request.Error<A>>,
+  ): RequestResolver<A> =>
+    makeWith({
+      ...self,
+      runAll: (entries, key) =>
+        Effect.acquireUseRelease(
+          before(entries),
+          () => self.runAll(entries, key),
+          (a) => after(entries, a),
+        ),
+    }),
+);
 
 /**
  * Creates a request resolver that never executes requests.
@@ -732,7 +770,7 @@ export const around: {
  * @category constructors
  * @since 2.0.0
  */
-export const never: RequestResolver<never> = make(() => Effect.never)
+export const never: RequestResolver<never> = make(() => Effect.never);
 
 /**
  * Returns a request resolver that collects at most `n` requests into each
@@ -788,15 +826,15 @@ export const never: RequestResolver<never> = make(() => Effect.never)
  * @since 2.0.0
  */
 export const batchN: {
-  (n: number): <A extends Request.Any>(self: RequestResolver<A>) => RequestResolver<A>
-  <A extends Request.Any>(self: RequestResolver<A>, n: number): RequestResolver<A>
+  (n: number): <A extends Request.Any>(self: RequestResolver<A>) => RequestResolver<A>;
+  <A extends Request.Any>(self: RequestResolver<A>, n: number): RequestResolver<A>;
 } = dual(2, <A extends Request.Any>(self: RequestResolver<A>, n: number): RequestResolver<A> => {
-  const size = Count.normalizeNonEmpty(n)
+  const size = Count.normalizeNonEmpty(n);
   return makeWith({
     ...self,
-    collectWhile: (requests) => requests.size < size
-  })
-})
+    collectWhile: (requests) => requests.size < size,
+  });
+});
 
 /**
  * Transforms a request resolver by grouping requests using the specified key
@@ -859,16 +897,24 @@ export const batchN: {
  * @since 4.0.0
  */
 export const grouped: {
-  <A extends Request.Any, K>(f: (entry: Request.Entry<A>) => K): (self: RequestResolver<A>) => RequestResolver<A>
-  <A extends Request.Any, K>(self: RequestResolver<A>, f: (entry: Request.Entry<A>) => K): RequestResolver<A>
+  <A extends Request.Any, K>(
+    f: (entry: Request.Entry<A>) => K,
+  ): (self: RequestResolver<A>) => RequestResolver<A>;
+  <A extends Request.Any, K>(
+    self: RequestResolver<A>,
+    f: (entry: Request.Entry<A>) => K,
+  ): RequestResolver<A>;
 } = dual(
   2,
-  <A extends Request.Any, K>(self: RequestResolver<A>, f: (entry: Request.Entry<A>) => K): RequestResolver<A> =>
+  <A extends Request.Any, K>(
+    self: RequestResolver<A>,
+    f: (entry: Request.Entry<A>) => K,
+  ): RequestResolver<A> =>
     makeWith({
       ...self,
-      batchKey: hashGroupKey(f)
-    })
-)
+      batchKey: hashGroupKey(f),
+    }),
+);
 
 /**
  * Returns a request resolver that sends each batch to both resolvers and
@@ -921,19 +967,20 @@ export const grouped: {
  */
 export const race: {
   <A2 extends Request.Any>(
-    that: RequestResolver<A2>
-  ): <A extends Request.Any>(self: RequestResolver<A>) => RequestResolver<A2 & A>
+    that: RequestResolver<A2>,
+  ): <A extends Request.Any>(self: RequestResolver<A>) => RequestResolver<A2 & A>;
   <A extends Request.Any, A2 extends Request.Any>(
     self: RequestResolver<A>,
-    that: RequestResolver<A2>
-  ): RequestResolver<A & A2>
-} = dual(2, <A extends Request.Any, A2 extends Request.Any>(
-  self: RequestResolver<A>,
-  that: RequestResolver<A2>
-): RequestResolver<A & A2> =>
-  make(
-    (requests, key) => effect.race(self.runAll(requests, key), that.runAll(requests, key))
-  ))
+    that: RequestResolver<A2>,
+  ): RequestResolver<A & A2>;
+} = dual(
+  2,
+  <A extends Request.Any, A2 extends Request.Any>(
+    self: RequestResolver<A>,
+    that: RequestResolver<A2>,
+  ): RequestResolver<A & A2> =>
+    make((requests, key) => effect.race(self.runAll(requests, key), that.runAll(requests, key))),
+);
 
 /**
  * Adds a tracing span to the request resolver, which will also add any span
@@ -981,41 +1028,53 @@ export const race: {
 export const withSpan: {
   <A extends Request.Any>(
     name: string,
-    options?: Tracer.SpanOptions | ((entries: NonEmptyArray<Request.Entry<A>>) => Tracer.SpanOptions) | undefined
-  ): (self: RequestResolver<A>) => RequestResolver<A>
+    options?:
+      | Tracer.SpanOptions
+      | ((entries: NonEmptyArray<Request.Entry<A>>) => Tracer.SpanOptions)
+      | undefined,
+  ): (self: RequestResolver<A>) => RequestResolver<A>;
   <A extends Request.Any>(
     self: RequestResolver<A>,
     name: string,
-    options?: Tracer.SpanOptions | ((entries: NonEmptyArray<Request.Entry<A>>) => Tracer.SpanOptions) | undefined
-  ): RequestResolver<A>
-} = dual((args) => isRequestResolver(args[0]), <A extends Request.Any>(
-  self: RequestResolver<A>,
-  name: string,
-  options?: Tracer.SpanOptions | ((entries: NonEmptyArray<Request.Entry<A>>) => Tracer.SpanOptions) | undefined
-): RequestResolver<A> =>
-  makeWith({
-    ...self,
-    runAll: (entries, key) =>
-      Effect.suspend(() => {
-        const opts = typeof options === "function" ? options(entries) : options
-        const links = opts?.links ? opts.links.slice() : []
-        const seen = new Set<Tracer.AnySpan>()
-        for (const entry of entries) {
-          const span = Context.getOption(entry.context, Tracer.ParentSpan)
-          if (span._tag === "None" || seen.has(span.value)) continue
-          seen.add(span.value)
-          links.push({ span: span.value, attributes: {} })
-        }
-        return Effect.withSpan(self.runAll(entries, key), name, {
-          ...options,
-          links,
-          attributes: {
-            batchSize: entries.length,
-            ...opts?.attributes
+    options?:
+      | Tracer.SpanOptions
+      | ((entries: NonEmptyArray<Request.Entry<A>>) => Tracer.SpanOptions)
+      | undefined,
+  ): RequestResolver<A>;
+} = dual(
+  (args) => isRequestResolver(args[0]),
+  <A extends Request.Any>(
+    self: RequestResolver<A>,
+    name: string,
+    options?:
+      | Tracer.SpanOptions
+      | ((entries: NonEmptyArray<Request.Entry<A>>) => Tracer.SpanOptions)
+      | undefined,
+  ): RequestResolver<A> =>
+    makeWith({
+      ...self,
+      runAll: (entries, key) =>
+        Effect.suspend(() => {
+          const opts = typeof options === "function" ? options(entries) : options;
+          const links = opts?.links ? opts.links.slice() : [];
+          const seen = new Set<Tracer.AnySpan>();
+          for (const entry of entries) {
+            const span = Context.getOption(entry.context, Tracer.ParentSpan);
+            if (span._tag === "None" || seen.has(span.value)) continue;
+            seen.add(span.value);
+            links.push({ span: span.value, attributes: {} });
           }
-        })
-      })
-  }))
+          return Effect.withSpan(self.runAll(entries, key), name, {
+            ...options,
+            links,
+            attributes: {
+              batchSize: entries.length,
+              ...opts?.attributes,
+            },
+          });
+        }),
+    }),
+);
 
 /**
  * Wraps a request resolver in a cache, allowing it to cache results up to a
@@ -1045,14 +1104,13 @@ export const withSpan: {
  * @since 4.0.0
  */
 export const asCache: {
-  <
-    A extends Request.Any,
-    ServiceMode extends "lookup" | "construction" = never
-  >(options: {
-    readonly capacity: number
-    readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined
-    readonly requireServicesAt?: ServiceMode | undefined
-  }): (self: RequestResolver<A>) => Effect.Effect<
+  <A extends Request.Any, ServiceMode extends "lookup" | "construction" = never>(options: {
+    readonly capacity: number;
+    readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined;
+    readonly requireServicesAt?: ServiceMode | undefined;
+  }): (
+    self: RequestResolver<A>,
+  ) => Effect.Effect<
     Cache.Cache<
       A,
       Request.Success<A>,
@@ -1061,15 +1119,15 @@ export const asCache: {
     >,
     never,
     "construction" extends ServiceMode ? Request.Services<A> : never
-  >
-  <
-    A extends Request.Any,
-    ServiceMode extends "lookup" | "construction" = never
-  >(self: RequestResolver<A>, options: {
-    readonly capacity: number
-    readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined
-    readonly requireServicesAt?: ServiceMode | undefined
-  }): Effect.Effect<
+  >;
+  <A extends Request.Any, ServiceMode extends "lookup" | "construction" = never>(
+    self: RequestResolver<A>,
+    options: {
+      readonly capacity: number;
+      readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined;
+      readonly requireServicesAt?: ServiceMode | undefined;
+    },
+  ): Effect.Effect<
     Cache.Cache<
       A,
       Request.Success<A>,
@@ -1078,29 +1136,32 @@ export const asCache: {
     >,
     never,
     "construction" extends ServiceMode ? Request.Services<A> : never
-  >
-} = dual(2, <
-  A extends Request.Any,
-  ServiceMode extends "lookup" | "construction" = never
->(self: RequestResolver<A>, options: {
-  readonly capacity: number
-  readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined
-  readonly requireServicesAt?: ServiceMode | undefined
-}): Effect.Effect<
-  Cache.Cache<
-    A,
-    Request.Success<A>,
-    Request.Error<A>,
-    "construction" extends ServiceMode ? never : Request.Services<A>
-  >,
-  never,
-  "construction" extends ServiceMode ? Request.Services<A> : never
-> =>
-  Cache.makeWith((req: A) => internal.request(req, self), {
-    capacity: options.capacity,
-    timeToLive: options.timeToLive as any,
-    requireServicesAt: options.requireServicesAt ?? "lookup" as ServiceMode
-  }) as any)
+  >;
+} = dual(
+  2,
+  <A extends Request.Any, ServiceMode extends "lookup" | "construction" = never>(
+    self: RequestResolver<A>,
+    options: {
+      readonly capacity: number;
+      readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined;
+      readonly requireServicesAt?: ServiceMode | undefined;
+    },
+  ): Effect.Effect<
+    Cache.Cache<
+      A,
+      Request.Success<A>,
+      Request.Error<A>,
+      "construction" extends ServiceMode ? never : Request.Services<A>
+    >,
+    never,
+    "construction" extends ServiceMode ? Request.Services<A> : never
+  > =>
+    Cache.makeWith((req: A) => internal.request(req, self), {
+      capacity: options.capacity,
+      timeToLive: options.timeToLive as any,
+      requireServicesAt: options.requireServicesAt ?? ("lookup" as ServiceMode),
+    }) as any,
+);
 
 /**
  * Adds a bounded in-memory cache to a request resolver.
@@ -1131,77 +1192,89 @@ export const asCache: {
  */
 export const withCache: {
   <A extends Request.Any>(options: {
-    readonly capacity: number
-    readonly strategy?: "lru" | "fifo" | undefined
-  }): (self: RequestResolver<A>) => Effect.Effect<RequestResolver<A>>
-  <A extends Request.Any>(self: RequestResolver<A>, options: {
-    readonly capacity: number
-    readonly strategy?: "lru" | "fifo" | undefined
-  }): Effect.Effect<RequestResolver<A>>
-} = dual(2, <A extends Request.Any>(self: RequestResolver<A>, options: {
-  readonly capacity: number
-  readonly strategy?: "lru" | "fifo" | undefined
-}): Effect.Effect<RequestResolver<A>> =>
-  Effect.sync(() => {
-    const strategy = options.strategy ?? "lru"
-    const cache = MutableHashMap.empty<A, {
-      readonly entry: Request.Entry<A>
-      exit: Request.Result<A> | undefined
-    }>()
-    return makeWith({
-      ...self,
-      runAll(entries, key) {
-        return Effect.onExit(self.runAll(entries, key), () => {
-          let toRemove = MutableHashMap.size(cache) - options.capacity
-          if (toRemove <= 0) return Effect.void
-          for (const k of MutableHashMap.keys(cache)) {
-            MutableHashMap.remove(cache, k)
-            toRemove--
-            if (toRemove <= 0) break
-          }
-          return Effect.void
-        })
-      },
-      preCheck(entry) {
-        const ocached = MutableHashMap.get(cache, entry.request)
-        if (ocached._tag === "None") {
-          const cached = { entry, exit: undefined as Request.Result<A> | undefined }
-          MutableHashMap.set(cache, entry.request, cached)
-          const prevComplete = entry.completeUnsafe
-          entry.completeUnsafe = function(exit) {
-            if (Exit.hasInterrupts(exit)) {
-              if (cached.exit === undefined) {
-                const current = MutableHashMap.get(cache, entry.request)
-                if (current._tag === "Some" && current.value === cached) {
-                  MutableHashMap.remove(cache, entry.request)
-                }
-              }
-            } else {
-              cached.exit = exit as any
+    readonly capacity: number;
+    readonly strategy?: "lru" | "fifo" | undefined;
+  }): (self: RequestResolver<A>) => Effect.Effect<RequestResolver<A>>;
+  <A extends Request.Any>(
+    self: RequestResolver<A>,
+    options: {
+      readonly capacity: number;
+      readonly strategy?: "lru" | "fifo" | undefined;
+    },
+  ): Effect.Effect<RequestResolver<A>>;
+} = dual(
+  2,
+  <A extends Request.Any>(
+    self: RequestResolver<A>,
+    options: {
+      readonly capacity: number;
+      readonly strategy?: "lru" | "fifo" | undefined;
+    },
+  ): Effect.Effect<RequestResolver<A>> =>
+    Effect.sync(() => {
+      const strategy = options.strategy ?? "lru";
+      const cache = MutableHashMap.empty<
+        A,
+        {
+          readonly entry: Request.Entry<A>;
+          exit: Request.Result<A> | undefined;
+        }
+      >();
+      return makeWith({
+        ...self,
+        runAll(entries, key) {
+          return Effect.onExit(self.runAll(entries, key), () => {
+            let toRemove = MutableHashMap.size(cache) - options.capacity;
+            if (toRemove <= 0) return Effect.void;
+            for (const k of MutableHashMap.keys(cache)) {
+              MutableHashMap.remove(cache, k);
+              toRemove--;
+              if (toRemove <= 0) break;
             }
-            prevComplete(exit)
+            return Effect.void;
+          });
+        },
+        preCheck(entry) {
+          const ocached = MutableHashMap.get(cache, entry.request);
+          if (ocached._tag === "None") {
+            const cached = { entry, exit: undefined as Request.Result<A> | undefined };
+            MutableHashMap.set(cache, entry.request, cached);
+            const prevComplete = entry.completeUnsafe;
+            entry.completeUnsafe = function (exit) {
+              if (Exit.hasInterrupts(exit)) {
+                if (cached.exit === undefined) {
+                  const current = MutableHashMap.get(cache, entry.request);
+                  if (current._tag === "Some" && current.value === cached) {
+                    MutableHashMap.remove(cache, entry.request);
+                  }
+                }
+              } else {
+                cached.exit = exit as any;
+              }
+              prevComplete(exit);
+            };
+            return true;
           }
-          return true
-        }
-        const cached = ocached.value
-        if (cached.exit) {
-          if (strategy === "lru") {
-            MutableHashMap.remove(cache, cached.entry.request)
-            MutableHashMap.set(cache, cached.entry.request, cached)
+          const cached = ocached.value;
+          if (cached.exit) {
+            if (strategy === "lru") {
+              MutableHashMap.remove(cache, cached.entry.request);
+              MutableHashMap.set(cache, cached.entry.request, cached);
+            }
+            entry.completeUnsafe(cached.exit as any);
+          } else {
+            cached.entry.uninterruptible = true;
+            const prevComplete = cached.entry.completeUnsafe;
+            cached.entry.completeUnsafe = function (exit) {
+              prevComplete(exit);
+              entry.completeUnsafe(exit);
+            };
           }
-          entry.completeUnsafe(cached.exit as any)
-        } else {
-          cached.entry.uninterruptible = true
-          const prevComplete = cached.entry.completeUnsafe
-          cached.entry.completeUnsafe = function(exit) {
-            prevComplete(exit)
-            entry.completeUnsafe(exit)
-          }
-        }
-        return false
-      }
-    })
-  }))
+          return false;
+        },
+      });
+    }),
+);
 
 /**
  * Wraps a request resolver with persistent storage for persistable requests.
@@ -1227,89 +1300,94 @@ export const withCache: {
  * @since 4.0.0
  */
 export const persisted: {
-  <A extends Request.Request<any, Persistence.PersistenceError | Schema.SchemaError, any> & Persistable.Any>(
-    options: {
-      readonly storeId: string
-      readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined
-      readonly staleWhileRevalidate?: ((exit: Request.Result<A>, request: A) => boolean) | undefined
-    }
-  ): (self: RequestResolver<A>) => Effect.Effect<
-    RequestResolver<A>,
-    never,
-    Persistence.Persistence | Scope
-  >
   <
-    A extends Request.Request<any, Persistence.PersistenceError | Schema.SchemaError, any> & Persistable.Any
+    A extends Request.Request<any, Persistence.PersistenceError | Schema.SchemaError, any> &
+      Persistable.Any,
+  >(options: {
+    readonly storeId: string;
+    readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined;
+    readonly staleWhileRevalidate?: ((exit: Request.Result<A>, request: A) => boolean) | undefined;
+  }): (
+    self: RequestResolver<A>,
+  ) => Effect.Effect<RequestResolver<A>, never, Persistence.Persistence | Scope>;
+  <
+    A extends Request.Request<any, Persistence.PersistenceError | Schema.SchemaError, any> &
+      Persistable.Any,
   >(
     self: RequestResolver<A>,
     options: {
-      readonly storeId: string
-      readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined
-      readonly staleWhileRevalidate?: ((exit: Request.Result<A>, request: A) => boolean) | undefined
-    }
-  ): Effect.Effect<
-    RequestResolver<A>,
-    never,
-    Persistence.Persistence | Scope
-  >
+      readonly storeId: string;
+      readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined;
+      readonly staleWhileRevalidate?:
+        | ((exit: Request.Result<A>, request: A) => boolean)
+        | undefined;
+    },
+  ): Effect.Effect<RequestResolver<A>, never, Persistence.Persistence | Scope>;
 } = dual(
   2,
-  Effect.fnUntraced(function*<
-    A extends Request.Request<any, Persistence.PersistenceError | Schema.SchemaError, any> & Persistable.Any
+  Effect.fnUntraced(function* <
+    A extends Request.Request<any, Persistence.PersistenceError | Schema.SchemaError, any> &
+      Persistable.Any,
   >(
     self: RequestResolver<A>,
     options: {
-      readonly storeId: string
-      readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined
-      readonly staleWhileRevalidate?: ((exit: Request.Result<A>, request: A) => boolean) | undefined
-    }
+      readonly storeId: string;
+      readonly timeToLive?: ((exit: Request.Result<A>, request: A) => Duration.Input) | undefined;
+      readonly staleWhileRevalidate?:
+        | ((exit: Request.Result<A>, request: A) => boolean)
+        | undefined;
+    },
   ) {
-    const store = yield* (yield* Persistence.Persistence).make(options as any)
+    const store = yield* (yield* Persistence.Persistence).make(options as any);
     return makeWith<A>({
       ...self,
-      runAll: Effect.fnUntraced(function*(entries, key) {
-        const results = yield* (store.getMany(Iterable.map(entries, (_) => _.request)).pipe(
-          Effect.provideContext(entries[0].context)
-        ) as Effect.Effect<
+      runAll: Effect.fnUntraced(function* (entries, key) {
+        const results = yield* store
+          .getMany(Iterable.map(entries, (_) => _.request))
+          .pipe(Effect.provideContext(entries[0].context)) as Effect.Effect<
           Array<Exit.Exit<unknown, unknown> | undefined>,
           Request.Error<A>
-        >)
-        const leftover: Array<Request.Entry<A>> = []
-        const toPersist = new Map<A, Request.Result<A>>()
-        const completed = new Set<Request.Entry<A>>()
+        >;
+        const leftover: Array<Request.Entry<A>> = [];
+        const toPersist = new Map<A, Request.Result<A>>();
+        const completed = new Set<Request.Entry<A>>();
         for (let i = 0; i < results.length; i++) {
-          const entry = entries[i]
-          const exit = results[i]
+          const entry = entries[i];
+          const exit = results[i];
           if (
             exit === undefined ||
-            (options.staleWhileRevalidate && options.staleWhileRevalidate(exit as any, entry.request))
+            (options.staleWhileRevalidate &&
+              options.staleWhileRevalidate(exit as any, entry.request))
           ) {
-            const prevComplete = entry.completeUnsafe
-            entry.completeUnsafe = function(exit) {
-              completed.add(entry)
-              toPersist.set(entry.request, exit as any)
-              prevComplete(exit)
-            }
-            leftover.push(entry)
-            if (exit === undefined) continue
+            const prevComplete = entry.completeUnsafe;
+            entry.completeUnsafe = function (exit) {
+              completed.add(entry);
+              toPersist.set(entry.request, exit as any);
+              prevComplete(exit);
+            };
+            leftover.push(entry);
+            if (exit === undefined) continue;
           }
-          entry.completeUnsafe(exit as any)
+          entry.completeUnsafe(exit as any);
         }
         if (!Arr.isArrayNonEmpty(leftover)) {
-          return
+          return;
         }
-        yield* Effect.catchCause(Effect.suspend(() => self.runAll(leftover, key)), (cause) => {
-          for (let i = 0; i < leftover.length; i++) {
-            const entry = leftover[i]
-            if (completed.has(entry)) continue
-            entry.completeUnsafe(Exit.failCause(cause) as any)
-          }
-          return Effect.void
-        })
-        yield* (store.setMany(toPersist).pipe(
-          Effect.provideContext(entries[0].context)
-        ) as Effect.Effect<void, Request.Error<A>>)
-      })
-    })
-  })
-)
+        yield* Effect.catchCause(
+          Effect.suspend(() => self.runAll(leftover, key)),
+          (cause) => {
+            for (let i = 0; i < leftover.length; i++) {
+              const entry = leftover[i];
+              if (completed.has(entry)) continue;
+              entry.completeUnsafe(Exit.failCause(cause) as any);
+            }
+            return Effect.void;
+          },
+        );
+        yield* store
+          .setMany(toPersist)
+          .pipe(Effect.provideContext(entries[0].context)) as Effect.Effect<void, Request.Error<A>>;
+      }),
+    });
+  }),
+);

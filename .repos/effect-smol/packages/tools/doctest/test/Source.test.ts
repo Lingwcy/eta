@@ -1,5 +1,5 @@
-import * as Source from "@effect/doctest/Source"
-import { assert, describe, it } from "@effect/vitest"
+import * as Source from "@effect/doctest/Source";
+import { assert, describe, it } from "@effect/vitest";
 
 describe("Source", () => {
   describe("JSDoc", () => {
@@ -17,14 +17,14 @@ describe("Source", () => {
         " * const second = 2",
         " * ~~~",
         " */",
-        "const second = 2"
-      ].join("\n")
+        "const second = 2",
+      ].join("\n");
 
       assert.deepStrictEqual(Source.extract(source), [
         { source: "const first = 1", line: 3, name: "first" },
-        { source: "const second = 2", line: 9, name: "second example" }
-      ])
-    })
+        { source: "const second = 2", line: 9, name: "second example" },
+      ]);
+    });
 
     it("ignores fences outside JSDoc comments", () => {
       const source = [
@@ -35,13 +35,13 @@ describe("Source", () => {
         " * ```ts import.meta.vitest",
         " * const inside = true",
         " * ```",
-        " */"
-      ].join("\n")
+        " */",
+      ].join("\n");
 
       assert.deepStrictEqual(Source.extract(source), [
-        { source: "const inside = true", line: 5, name: undefined }
-      ])
-    })
+        { source: "const inside = true", line: 5, name: undefined },
+      ]);
+    });
 
     it("ignores unmarked and non-TypeScript fences", () => {
       const source = [
@@ -52,11 +52,11 @@ describe("Source", () => {
         " * ```js import.meta.vitest",
         " * const javascript = true",
         " * ```",
-        " */"
-      ].join("\n")
+        " */",
+      ].join("\n");
 
-      assert.isEmpty(Source.extract(source))
-    })
+      assert.isEmpty(Source.extract(source));
+    });
 
     it("preserves assertion comments in snippet source", () => {
       const source = [
@@ -64,15 +64,17 @@ describe("Source", () => {
         " * ```ts import.meta.vitest",
         " * const value = 1 // => 1",
         " * ```",
-        " */"
-      ].join("\n")
+        " */",
+      ].join("\n");
 
-      assert.deepStrictEqual(Source.extract(source), [{
-        source: "const value = 1 // => 1",
-        line: 2,
-        name: undefined
-      }])
-    })
+      assert.deepStrictEqual(Source.extract(source), [
+        {
+          source: "const value = 1 // => 1",
+          line: 2,
+          name: undefined,
+        },
+      ]);
+    });
 
     it("extracts inline output and ignores explanatory comments", () => {
       const source = [
@@ -82,20 +84,22 @@ describe("Source", () => {
         " * const value = 0 // ordinary inline comment",
         " * console.log(1) // > 1",
         " * ```",
-        " */"
-      ].join("\n")
+        " */",
+      ].join("\n");
 
-      assert.deepStrictEqual(Source.extract(source), [{
-        source: [
-          "// Explain the output to the reader.",
-          "const value = 0 // ordinary inline comment",
-          "console.log(1) // > 1"
-        ].join("\n"),
-        line: 2,
-        name: undefined
-      }])
-    })
-  })
+      assert.deepStrictEqual(Source.extract(source), [
+        {
+          source: [
+            "// Explain the output to the reader.",
+            "const value = 0 // ordinary inline comment",
+            "console.log(1) // > 1",
+          ].join("\n"),
+          line: 2,
+          name: undefined,
+        },
+      ]);
+    });
+  });
 
   describe("Markdown", () => {
     it("extracts only marked TypeScript fences", () => {
@@ -108,14 +112,14 @@ describe("Source", () => {
         "",
         "~~~typescript import.meta.vitest name=example",
         "const value = 1",
-        "~~~"
-      ].join("\n")
+        "~~~",
+      ].join("\n");
 
       assert.deepStrictEqual(Source.extract(source, "markdown"), [
-        { source: "const value = 1", line: 7, name: "example" }
-      ])
-    })
-  })
+        { source: "const value = 1", line: 7, name: "example" },
+      ]);
+    });
+  });
 
   describe("MDX", () => {
     it("extracts marked TypeScript fences from mdx content", () => {
@@ -128,12 +132,12 @@ describe("Source", () => {
         "",
         "```ts import.meta.vitest",
         "const result = 42",
-        "```"
-      ].join("\n")
+        "```",
+      ].join("\n");
 
       assert.deepStrictEqual(Source.extract(source, "markdown"), [
-        { source: "const result = 42", line: 7, name: undefined }
-      ])
-    })
-  })
-})
+        { source: "const result = 42", line: 7, name: undefined },
+      ]);
+    });
+  });
+});

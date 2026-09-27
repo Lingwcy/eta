@@ -1,5 +1,5 @@
-import { defineWebWorkers } from "@vitest/web-worker/pure"
+import { defineWebWorkers } from "@vitest/web-worker/pure";
 
 defineWebWorkers({
-  clone: "none"
-})
+  clone: "none",
+});

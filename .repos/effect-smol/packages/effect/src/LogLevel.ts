@@ -6,12 +6,12 @@
  *
  * @since 2.0.0
  */
-import type * as Effect from "./Effect.ts"
-import * as Equ from "./Equivalence.ts"
-import * as core from "./internal/core.ts"
-import * as effect from "./internal/effect.ts"
-import * as Ord from "./Order.ts"
-import * as References from "./References.ts"
+import type * as Effect from "./Effect.ts";
+import * as Equ from "./Equivalence.ts";
+import * as core from "./internal/core.ts";
+import * as effect from "./internal/effect.ts";
+import * as Ord from "./Order.ts";
+import * as References from "./References.ts";
 
 /**
  * Represents every level used by Effect logging, including concrete message
@@ -64,7 +64,7 @@ import * as References from "./References.ts"
  * @category models
  * @since 2.0.0
  */
-export type LogLevel = "All" | "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "Trace" | "None"
+export type LogLevel = "All" | "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "Trace" | "None";
 
 /**
  * Log levels that represent actual message severities, excluding the `All` and
@@ -84,7 +84,7 @@ export type LogLevel = "All" | "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "
  * @category models
  * @since 4.0.0
  */
-export type Severity = "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "Trace"
+export type Severity = "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "Trace";
 
 /**
  * Returns all `LogLevel` values in order from `All` through the concrete severities to
@@ -111,7 +111,16 @@ export type Severity = "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "Trace"
  * @category constants
  * @since 4.0.0
  */
-export const values: ReadonlyArray<LogLevel> = ["All", "Fatal", "Error", "Warn", "Info", "Debug", "Trace", "None"]
+export const values: ReadonlyArray<LogLevel> = [
+  "All",
+  "Fatal",
+  "Error",
+  "Warn",
+  "Info",
+  "Debug",
+  "Trace",
+  "None",
+];
 
 /**
  * Order instance for `LogLevel` that defines the severity ordering.
@@ -138,7 +147,7 @@ export const values: ReadonlyArray<LogLevel> = ["All", "Fatal", "Error", "Warn",
  * @category ordering
  * @since 2.0.0
  */
-export const Order: Ord.Order<LogLevel> = effect.LogLevelOrder
+export const Order: Ord.Order<LogLevel> = effect.LogLevelOrder;
 
 /**
  * Equivalence instance for log levels using strict equality (`===`).
@@ -167,7 +176,7 @@ export const Order: Ord.Order<LogLevel> = effect.LogLevelOrder
  * @category instances
  * @since 4.0.0
  */
-export const Equivalence: Equ.Equivalence<LogLevel> = Equ.strictEqual<LogLevel>()
+export const Equivalence: Equ.Equivalence<LogLevel> = Equ.strictEqual<LogLevel>();
 
 /**
  * Returns the ordinal value of the log level.
@@ -195,7 +204,7 @@ export const Equivalence: Equ.Equivalence<LogLevel> = Equ.strictEqual<LogLevel>(
  * @category ordering
  * @since 4.0.0
  */
-export const getOrdinal = (self: LogLevel): number => effect.logLevelToOrder(self)
+export const getOrdinal = (self: LogLevel): number => effect.logLevelToOrder(self);
 
 /**
  * Determines if the first log level is more severe than the second.
@@ -234,9 +243,9 @@ export const getOrdinal = (self: LogLevel): number => effect.logLevelToOrder(sel
  * @since 4.0.0
  */
 export const isGreaterThan: {
-  (that: LogLevel): (self: LogLevel) => boolean
-  (self: LogLevel, that: LogLevel): boolean
-} = effect.isLogLevelGreaterThan
+  (that: LogLevel): (self: LogLevel) => boolean;
+  (self: LogLevel, that: LogLevel): boolean;
+} = effect.isLogLevelGreaterThan;
 
 /**
  * Determines if the first log level is more severe than or equal to the second.
@@ -267,9 +276,9 @@ export const isGreaterThan: {
  * @since 4.0.0
  */
 export const isGreaterThanOrEqualTo: {
-  (that: LogLevel): (self: LogLevel) => boolean
-  (self: LogLevel, that: LogLevel): boolean
-} = Ord.isGreaterThanOrEqualTo(Order)
+  (that: LogLevel): (self: LogLevel) => boolean;
+  (self: LogLevel, that: LogLevel): boolean;
+} = Ord.isGreaterThanOrEqualTo(Order);
 
 /**
  * Determines if the first log level is less severe than the second.
@@ -308,9 +317,9 @@ export const isGreaterThanOrEqualTo: {
  * @since 4.0.0
  */
 export const isLessThan: {
-  (that: LogLevel): (self: LogLevel) => boolean
-  (self: LogLevel, that: LogLevel): boolean
-} = Ord.isLessThan(Order)
+  (that: LogLevel): (self: LogLevel) => boolean;
+  (self: LogLevel, that: LogLevel): boolean;
+} = Ord.isLessThan(Order);
 
 /**
  * Determines if the first log level is less severe than or equal to the second.
@@ -341,9 +350,9 @@ export const isLessThan: {
  * @since 4.0.0
  */
 export const isLessThanOrEqualTo: {
-  (that: LogLevel): (self: LogLevel) => boolean
-  (self: LogLevel, that: LogLevel): boolean
-} = Ord.isLessThanOrEqualTo(Order)
+  (that: LogLevel): (self: LogLevel) => boolean;
+  (self: LogLevel, that: LogLevel): boolean;
+} = Ord.isLessThanOrEqualTo(Order);
 
 /**
  * Checks whether a given log level is enabled for the current fiber.
@@ -381,4 +390,6 @@ export const isLessThanOrEqualTo: {
  * @since 4.0.0
  */
 export const isEnabled = (self: LogLevel): Effect.Effect<boolean> =>
-  core.withFiber((fiber) => effect.succeed(!isGreaterThan(fiber.getRef(References.MinimumLogLevel), self)))
+  core.withFiber((fiber) =>
+    effect.succeed(!isGreaterThan(fiber.getRef(References.MinimumLogLevel), self)),
+  );

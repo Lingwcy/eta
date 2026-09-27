@@ -8,9 +8,9 @@
  *
  * @since 4.0.0
  */
-import * as InternalRecord from "./internal/record.ts"
-import { formatUriFragment, parseUriFragment } from "./JsonPointer.ts"
-import * as Predicate from "./Predicate.ts"
+import * as InternalRecord from "./internal/record.ts";
+import { formatUriFragment, parseUriFragment } from "./JsonPointer.ts";
+import * as Predicate from "./Predicate.ts";
 
 /**
  * A plain object representing a single JSON Schema node.
@@ -28,7 +28,7 @@ import * as Predicate from "./Predicate.ts"
  * @since 4.0.0
  */
 export interface JsonSchema {
-  [x: string]: unknown
+  [x: string]: unknown;
 }
 
 /**
@@ -52,7 +52,7 @@ export interface JsonSchema {
  * @category models
  * @since 4.0.0
  */
-export type Dialect = "draft-04" | "draft-07" | "draft-2020-12" | "openapi-3.1" | "openapi-3.0"
+export type Dialect = "draft-04" | "draft-07" | "draft-2020-12" | "openapi-3.1" | "openapi-3.0";
 
 /**
  * The JSON Schema primitive type names.
@@ -64,7 +64,7 @@ export type Dialect = "draft-04" | "draft-07" | "draft-2020-12" | "openapi-3.1" 
  * @category models
  * @since 4.0.0
  */
-export type Type = "string" | "number" | "boolean" | "array" | "object" | "null" | "integer"
+export type Type = "string" | "number" | "boolean" | "array" | "object" | "null" | "integer";
 
 /**
  * A record of named JSON Schema definitions, keyed by definition name.
@@ -127,9 +127,9 @@ export interface Definitions extends Record<string, JsonSchema> {}
  * @since 4.0.0
  */
 export interface Document<D extends Dialect> {
-  readonly dialect: D
-  readonly schema: JsonSchema
-  readonly definitions: Definitions
+  readonly dialect: D;
+  readonly schema: JsonSchema;
+  readonly definitions: Definitions;
 }
 
 /**
@@ -151,9 +151,9 @@ export interface Document<D extends Dialect> {
  * @since 4.0.0
  */
 export interface MultiDocument<D extends Dialect> {
-  readonly dialect: D
-  readonly schemas: readonly [JsonSchema, ...Array<JsonSchema>]
-  readonly definitions: Definitions
+  readonly dialect: D;
+  readonly schemas: readonly [JsonSchema, ...Array<JsonSchema>];
+  readonly definitions: Definitions;
 }
 
 /**
@@ -168,7 +168,7 @@ export interface MultiDocument<D extends Dialect> {
  * @category constants
  * @since 4.0.0
  */
-export const META_SCHEMA_URI_DRAFT_04 = "http://json-schema.org/draft-04/schema#"
+export const META_SCHEMA_URI_DRAFT_04 = "http://json-schema.org/draft-04/schema#";
 
 /**
  * Represents the `$schema` meta-schema URI for JSON Schema Draft-07.
@@ -189,7 +189,7 @@ export const META_SCHEMA_URI_DRAFT_04 = "http://json-schema.org/draft-04/schema#
  * @category constants
  * @since 4.0.0
  */
-export const META_SCHEMA_URI_DRAFT_07 = "http://json-schema.org/draft-07/schema#"
+export const META_SCHEMA_URI_DRAFT_07 = "http://json-schema.org/draft-07/schema#";
 
 /**
  * Represents the `$schema` meta-schema URI for JSON Schema Draft 2020-12.
@@ -209,22 +209,22 @@ export const META_SCHEMA_URI_DRAFT_07 = "http://json-schema.org/draft-07/schema#
  * @category constants
  * @since 4.0.0
  */
-export const META_SCHEMA_URI_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
+export const META_SCHEMA_URI_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
 
-const META_SCHEMA_URI_OPEN_API_3_1 = "https://spec.openapis.org/oas/3.1/dialect/base"
+const META_SCHEMA_URI_OPEN_API_3_1 = "https://spec.openapis.org/oas/3.1/dialect/base";
 
 function isMetaSchemaUri(value: unknown, uri: string): boolean {
-  return value === uri || value === (uri.endsWith("#") ? uri.slice(0, -1) : `${uri}#`)
+  return value === uri || value === (uri.endsWith("#") ? uri.slice(0, -1) : `${uri}#`);
 }
 
 function rewriteOpenApiComponentsReference(reference: string): string {
-  const path = reference.startsWith("#") ? parseUriFragment(reference) : undefined
+  const path = reference.startsWith("#") ? parseUriFragment(reference) : undefined;
   return path !== undefined && path[0] === "components" && path[1] === "schemas"
     ? formatUriFragment(["$defs", ...path.slice(2)])
-    : reference
+    : reference;
 }
 
-const OPEN_API_31_TARGET_COLLISIONS = ["example", "discriminator", "xml", "externalDocs"]
+const OPEN_API_31_TARGET_COLLISIONS = ["example", "discriminator", "xml", "externalDocs"];
 
 /**
  * Parses a raw Draft-07 JSON Schema into a `Document<"draft-2020-12">`.
@@ -280,7 +280,7 @@ const OPEN_API_31_TARGET_COLLISIONS = ["example", "discriminator", "xml", "exter
  * @since 4.0.0
  */
 export function fromSchemaDraft07(js: JsonSchema): Document<"draft-2020-12"> {
-  return fromSchemaDraft2020_12(convertDraft07(js))
+  return fromSchemaDraft2020_12(convertDraft07(js));
 }
 
 /**
@@ -317,12 +317,12 @@ export function fromSchemaDraft07(js: JsonSchema): Document<"draft-2020-12"> {
  * @since 4.0.0
  */
 export function fromSchemaDraft2020_12(js: JsonSchema): Document<"draft-2020-12"> {
-  const { $defs, ...schema } = js
+  const { $defs, ...schema } = js;
   return {
     dialect: "draft-2020-12",
     schema,
-    definitions: Predicate.isObject($defs) ? ($defs as Definitions) : {}
-  }
+    definitions: Predicate.isObject($defs) ? ($defs as Definitions) : {},
+  };
 }
 
 /**
@@ -369,21 +369,22 @@ export function fromSchemaDraft2020_12(js: JsonSchema): Document<"draft-2020-12"
  * @since 4.0.0
  */
 export function fromSchemaOpenApi3_1(js: JsonSchema): Document<"draft-2020-12"> {
-  const isRootResource = createsResource(js.$id)
+  const isRootResource = createsResource(js.$id);
   const schema = transformSchema(js, (schema, inEmbeddedResource) => {
-    if (!isRootResource && !inEmbeddedResource) rewriteSchemaRef(schema, rewriteOpenApiComponentsReference)
+    if (!isRootResource && !inEmbeddedResource)
+      rewriteSchemaRef(schema, rewriteOpenApiComponentsReference);
     if (isMetaSchemaUri(schema.$schema, META_SCHEMA_URI_OPEN_API_3_1)) {
-      InternalRecord.assignProperty(schema, "$schema", META_SCHEMA_URI_DRAFT_2020_12)
+      InternalRecord.assignProperty(schema, "$schema", META_SCHEMA_URI_DRAFT_2020_12);
     }
     if (Object.hasOwn(schema, "example")) {
-      const examples = schema.examples
+      const examples = schema.examples;
       if (examples === undefined || Array.isArray(examples)) {
-        InternalRecord.assignProperty(schema, "examples", [schema.example, ...(examples ?? [])])
-        delete schema.example
+        InternalRecord.assignProperty(schema, "examples", [schema.example, ...(examples ?? [])]);
+        delete schema.example;
       }
     }
-  }) as JsonSchema
-  return fromSchemaDraft2020_12(schema)
+  }) as JsonSchema;
+  return fromSchemaDraft2020_12(schema);
 }
 
 /**
@@ -430,7 +431,7 @@ export function fromSchemaOpenApi3_1(js: JsonSchema): Document<"draft-2020-12"> 
  * @since 4.0.0
  */
 export function fromSchemaOpenApi3_0(schema: JsonSchema): Document<"draft-2020-12"> {
-  return fromSchemaDraft2020_12(convertOpenApi30(schema))
+  return fromSchemaDraft2020_12(convertOpenApi30(schema));
 }
 
 /**
@@ -486,8 +487,8 @@ export function fromSchemaOpenApi3_0(schema: JsonSchema): Document<"draft-2020-1
 export function toDocumentDraft07(document: Document<"draft-2020-12">): Document<"draft-07"> {
   return {
     dialect: "draft-07",
-    ...convertDocument(document, draft07Adapter)
-  }
+    ...convertDocument(document, draft07Adapter),
+  };
 }
 
 /**
@@ -539,9 +540,9 @@ export function toDocumentDraft04(document: Document<"draft-2020-12">): Document
   return {
     dialect: "draft-04",
     ...convertDocument(document, draft04Adapter, {
-      booleanAdapter: (schema) => schema ? {} : { not: {} }
-    })
-  }
+      booleanAdapter: (schema) => (schema ? {} : { not: {} }),
+    }),
+  };
 }
 
 /**
@@ -595,41 +596,47 @@ export function toDocumentDraft04(document: Document<"draft-2020-12">): Document
  * @category encoding
  * @since 4.0.0
  */
-export function toMultiDocumentOpenApi3_1(multiDocument: MultiDocument<"draft-2020-12">): MultiDocument<"openapi-3.1"> {
-  const definitionKeys = Object.keys(multiDocument.definitions)
-  const keyMap = new Map<string, string>()
-  const usedKeys = new Set(definitionKeys.filter((key) => VALID_OPEN_API_COMPONENTS_SCHEMAS_KEY_REGEXP.test(key)))
+export function toMultiDocumentOpenApi3_1(
+  multiDocument: MultiDocument<"draft-2020-12">,
+): MultiDocument<"openapi-3.1"> {
+  const definitionKeys = Object.keys(multiDocument.definitions);
+  const keyMap = new Map<string, string>();
+  const usedKeys = new Set(
+    definitionKeys.filter((key) => VALID_OPEN_API_COMPONENTS_SCHEMAS_KEY_REGEXP.test(key)),
+  );
   const invalidKeys = definitionKeys
     .filter((key) => !VALID_OPEN_API_COMPONENTS_SCHEMAS_KEY_REGEXP.test(key))
     .sort()
-    .map((key) => [key, sanitizeOpenApiComponentsSchemasKey(key)] as const)
+    .map((key) => [key, sanitizeOpenApiComponentsSchemasKey(key)] as const);
   for (const [key, base] of invalidKeys) {
-    if (usedKeys.has(base)) continue
-    usedKeys.add(base)
-    keyMap.set(key, base)
+    if (usedKeys.has(base)) continue;
+    usedKeys.add(base);
+    keyMap.set(key, base);
   }
   for (const [key, base] of invalidKeys) {
-    if (keyMap.has(key)) continue
-    let candidate: string
-    let suffix = 0
-    do candidate = `${base}_${++suffix}`
-    while (usedKeys.has(candidate))
-    usedKeys.add(candidate)
-    keyMap.set(key, candidate)
+    if (keyMap.has(key)) continue;
+    let candidate: string;
+    let suffix = 0;
+    do candidate = `${base}_${++suffix}`;
+    while (usedKeys.has(candidate));
+    usedKeys.add(candidate);
+    keyMap.set(key, candidate);
   }
 
-  function rewrite(
-    schema: JsonSchema,
-    rejectSharedDefinitionRefs = false
-  ): JsonSchema {
-    const isRootResource = createsResource(schema.$id)
-    const localDefinitions = Predicate.isObject(schema.$defs) ? schema.$defs : undefined
+  function rewrite(schema: JsonSchema, rejectSharedDefinitionRefs = false): JsonSchema {
+    const isRootResource = createsResource(schema.$id);
+    const localDefinitions = Predicate.isObject(schema.$defs) ? schema.$defs : undefined;
     return transformSchema(schema, (schema, inEmbeddedResource) => {
-      rejectKeywordCollisions(schema, OPEN_API_31_TARGET_COLLISIONS, "OpenAPI 3.1", "Draft 2020-12")
+      rejectKeywordCollisions(
+        schema,
+        OPEN_API_31_TARGET_COLLISIONS,
+        "OpenAPI 3.1",
+        "Draft 2020-12",
+      );
       rewriteSchemaRef(schema, (reference, keyword) => {
-        const path = reference.startsWith("#") ? parseUriFragment(reference) : undefined
-        if (path === undefined || path[0] !== "$defs" || path.length < 2) return reference
-        const key = path[1]
+        const path = reference.startsWith("#") ? parseUriFragment(reference) : undefined;
+        if (path === undefined || path[0] !== "$defs" || path.length < 2) return reference;
+        const key = path[1];
         if (isRootResource) {
           if (
             rejectSharedDefinitionRefs &&
@@ -637,38 +644,42 @@ export function toMultiDocumentOpenApi3_1(multiDocument: MultiDocument<"draft-20
             Object.hasOwn(multiDocument.definitions, key) &&
             (localDefinitions === undefined || !Object.hasOwn(localDefinitions, key))
           ) {
-            unsupported(keyword, "OpenAPI 3.1", "a schema resource cannot reference the shared definitions pool")
+            unsupported(
+              keyword,
+              "OpenAPI 3.1",
+              "a schema resource cannot reference the shared definitions pool",
+            );
           }
-          return reference
+          return reference;
         }
         return inEmbeddedResource
           ? reference
-          : formatUriFragment(["components", "schemas", keyMap.get(key) ?? key, ...path.slice(2)])
-      })
-    }) as JsonSchema
+          : formatUriFragment(["components", "schemas", keyMap.get(key) ?? key, ...path.slice(2)]);
+      });
+    }) as JsonSchema;
   }
 
-  const schemas = multiDocument.schemas.map((schema) => rewrite(schema, true)) as unknown as MultiDocument<
-    "openapi-3.1"
-  >["schemas"]
-  const definitions: Definitions = {}
+  const schemas = multiDocument.schemas.map((schema) =>
+    rewrite(schema, true),
+  ) as unknown as MultiDocument<"openapi-3.1">["schemas"];
+  const definitions: Definitions = {};
   for (const key of definitionKeys) {
     InternalRecord.assignProperty(
       definitions,
       keyMap.get(key) ?? key,
-      rewrite(multiDocument.definitions[key])
-    )
+      rewrite(multiDocument.definitions[key]),
+    );
   }
 
   return {
     dialect: "openapi-3.1",
     schemas,
-    definitions
-  }
+    definitions,
+  };
 }
 
 /** @internal */
-export const VALID_OPEN_API_COMPONENTS_SCHEMAS_KEY_REGEXP = /^[a-zA-Z0-9.\-_]+$/
+export const VALID_OPEN_API_COMPONENTS_SCHEMAS_KEY_REGEXP = /^[a-zA-Z0-9.\-_]+$/;
 
 /**
  * Returns a sanitized key for an OpenAPI component schema.
@@ -677,44 +688,44 @@ export const VALID_OPEN_API_COMPONENTS_SCHEMAS_KEY_REGEXP = /^[a-zA-Z0-9.\-_]+$/
  * @internal
  */
 export function sanitizeOpenApiComponentsSchemasKey(s: string): string {
-  return s.length === 0 ? "_" : s.replace(/[^a-zA-Z0-9._-]/gu, "_")
+  return s.length === 0 ? "_" : s.replace(/[^a-zA-Z0-9._-]/gu, "_");
 }
 
 /** @internal */
 export function getReferenceKey($ref: string): string | undefined {
-  const path = $ref.startsWith("#") ? parseUriFragment($ref) : undefined
-  return path !== undefined && path.length === 2 && path[0] === "$defs"
-    ? path[1]
-    : undefined
+  const path = $ref.startsWith("#") ? parseUriFragment($ref) : undefined;
+  return path !== undefined && path.length === 2 && path[0] === "$defs" ? path[1] : undefined;
 }
 
 function transformSchema(
   node: unknown,
-  transform: (schema: Record<string, unknown>, inEmbeddedResource: boolean) => void
+  transform: (schema: Record<string, unknown>, inEmbeddedResource: boolean) => void,
 ): unknown {
-  return walk(node, false, true)
+  return walk(node, false, true);
 
   function walk(node: unknown, inheritedResource: boolean, isRoot = false): unknown {
-    if (!Predicate.isObject(node)) return node
-    const inEmbeddedResource = inheritedResource || (!isRoot && createsResource(node.$id))
+    if (!Predicate.isObject(node)) return node;
+    const inEmbeddedResource = inheritedResource || (!isRoot && createsResource(node.$id));
 
-    const out: Record<string, unknown> = {}
+    const out: Record<string, unknown> = {};
     for (const key of Object.keys(node)) {
-      const value = node[key]
-      let transformed = value
+      const value = node[key];
+      let transformed = value;
       switch (key) {
         case "$defs":
         case "properties":
         case "patternProperties":
         case "dependentSchemas":
-          transformed = mapObject(value, (value) => walk(value, inEmbeddedResource)) ?? value
-          break
+          transformed = mapObject(value, (value) => walk(value, inEmbeddedResource)) ?? value;
+          break;
         case "allOf":
         case "anyOf":
         case "oneOf":
         case "prefixItems":
-          transformed = Array.isArray(value) ? value.map((value) => walk(value, inEmbeddedResource)) : value
-          break
+          transformed = Array.isArray(value)
+            ? value.map((value) => walk(value, inEmbeddedResource))
+            : value;
+          break;
         case "not":
         case "additionalProperties":
         case "propertyNames":
@@ -726,242 +737,263 @@ function transformSchema(
         case "then":
         case "else":
         case "contentSchema":
-          transformed = walk(value, inEmbeddedResource)
+          transformed = walk(value, inEmbeddedResource);
       }
-      InternalRecord.assignProperty(out, key, transformed)
+      InternalRecord.assignProperty(out, key, transformed);
     }
-    transform(out, inEmbeddedResource)
-    return out
+    transform(out, inEmbeddedResource);
+    return out;
   }
 }
 
 /** @internal */
 export function rewriteRefs(schema: JsonSchema, rewrite: ($ref: string) => string): JsonSchema {
   return transformSchema(schema, (schema) => {
-    rewriteSchemaRef(schema, rewrite)
-  }) as JsonSchema
+    rewriteSchemaRef(schema, rewrite);
+  }) as JsonSchema;
 }
 
 function rewriteSchemaRef(
   schema: Record<string, unknown>,
-  rewrite: ($ref: string, keyword: "$ref" | "$dynamicRef") => string
+  rewrite: ($ref: string, keyword: "$ref" | "$dynamicRef") => string,
 ): void {
   if (typeof schema.$ref === "string") {
-    InternalRecord.assignProperty(schema, "$ref", rewrite(schema.$ref, "$ref"))
+    InternalRecord.assignProperty(schema, "$ref", rewrite(schema.$ref, "$ref"));
   }
   if (typeof schema.$dynamicRef === "string") {
-    InternalRecord.assignProperty(schema, "$dynamicRef", rewrite(schema.$dynamicRef, "$dynamicRef"))
+    InternalRecord.assignProperty(
+      schema,
+      "$dynamicRef",
+      rewrite(schema.$dynamicRef, "$dynamicRef"),
+    );
   }
 }
 
 function mapObject(
   value: unknown,
-  f: (node: unknown, key: string) => unknown
+  f: (node: unknown, key: string) => unknown,
 ): Record<string, unknown> | undefined {
-  if (!Predicate.isObject(value)) return undefined
-  const out: Record<string, unknown> = {}
+  if (!Predicate.isObject(value)) return undefined;
+  const out: Record<string, unknown> = {};
   for (const key of Object.keys(value)) {
-    InternalRecord.assignProperty(out, key, f(value[key], key))
+    InternalRecord.assignProperty(out, key, f(value[key], key));
   }
-  return out
+  return out;
 }
 
-type Path = ReadonlyArray<string>
-type Convert = (root: unknown, sourcePath?: Path, targetPath?: Path) => unknown
+type Path = ReadonlyArray<string>;
+type Convert = (root: unknown, sourcePath?: Path, targetPath?: Path) => unknown;
 
 interface Context {
-  readonly isDocumentRoot: boolean
-  readonly schema: (value: unknown, sourceKey: string, targetKey?: string) => unknown
-  readonly schemaAt: (value: unknown, sourcePath: Path, targetPath: Path) => unknown
-  readonly schemaArray: (value: unknown, sourceKey: string, targetKey?: string) => unknown
-  readonly schemaMap: (value: unknown, sourceKey: string, targetKey?: string) => unknown
-  readonly reference: (out: JsonSchema, value: unknown) => void
+  readonly isDocumentRoot: boolean;
+  readonly schema: (value: unknown, sourceKey: string, targetKey?: string) => unknown;
+  readonly schemaAt: (value: unknown, sourcePath: Path, targetPath: Path) => unknown;
+  readonly schemaArray: (value: unknown, sourceKey: string, targetKey?: string) => unknown;
+  readonly schemaMap: (value: unknown, sourceKey: string, targetKey?: string) => unknown;
+  readonly reference: (out: JsonSchema, value: unknown) => void;
 }
 
-type Adapter = (schema: JsonSchema, context: Context) => JsonSchema
+type Adapter = (schema: JsonSchema, context: Context) => JsonSchema;
 
-type PendingReference = readonly [out: JsonSchema, value: string, sourceResource: string]
+type PendingReference = readonly [out: JsonSchema, value: string, sourceResource: string];
 
 interface ResourceScope {
-  readonly parent?: ResourceScope
-  readonly sourceRoot: Path
-  readonly targetRoot: Path
-  readonly uri: string
+  readonly parent?: ResourceScope;
+  readonly sourceRoot: Path;
+  readonly targetRoot: Path;
+  readonly uri: string;
 }
 
 interface ConverterOptions {
-  readonly booleanAdapter?: (schema: boolean) => JsonSchema | boolean
-  readonly trackIds?: boolean
-  readonly ignoreRefSiblings?: boolean
+  readonly booleanAdapter?: (schema: boolean) => JsonSchema | boolean;
+  readonly trackIds?: boolean;
+  readonly ignoreRefSiblings?: boolean;
 }
 
 // Adapters decide which values are schemas. The kernel only handles recursion,
 // resource scopes, and reference relocation between structural source/target paths.
-function runConverter<A>(adapter: Adapter, options: ConverterOptions | undefined, use: (convert: Convert) => A): A {
-  const locations = new Map<string, Path>()
-  const references: Array<PendingReference> = []
-  let rootUri = ROOT_URI
+function runConverter<A>(
+  adapter: Adapter,
+  options: ConverterOptions | undefined,
+  use: (convert: Convert) => A,
+): A {
+  const locations = new Map<string, Path>();
+  const references: Array<PendingReference> = [];
+  let rootUri = ROOT_URI;
 
   function convert(root: unknown, sourcePath: Path = [], targetPath: Path = []): unknown {
     if (sourcePath.length === 0 && options?.trackIds) {
-      const id = Predicate.isObject(root) ? getResourceId(root) : undefined
-      rootUri = resolveResourceUri(id, ROOT_URI) ?? ROOT_URI
+      const id = Predicate.isObject(root) ? getResourceId(root) : undefined;
+      rootUri = resolveResourceUri(id, ROOT_URI) ?? ROOT_URI;
     }
-    return loop(root, sourcePath, targetPath, { sourceRoot: [], targetRoot: [], uri: rootUri })
+    return loop(root, sourcePath, targetPath, { sourceRoot: [], targetRoot: [], uri: rootUri });
   }
 
   function finish(): void {
     for (const [out, value, sourceResource] of references) {
-      let reference = value
-      const resolved = resolveUrl(value, sourceResource)
+      let reference = value;
+      const resolved = resolveUrl(value, sourceResource);
       if (resolved !== undefined) {
-        const sourcePointer = parseUriFragment(resolved.hash)
-        resolved.hash = ""
+        const sourcePointer = parseUriFragment(resolved.hash);
+        resolved.hash = "";
         if (sourcePointer !== undefined) {
-          const targetPath = locations.get(locationKey(resolved.href, sourcePointer))
-          if (targetPath !== undefined) reference = relocateReference(value, targetPath)
+          const targetPath = locations.get(locationKey(resolved.href, sourcePointer));
+          if (targetPath !== undefined) reference = relocateReference(value, targetPath);
         }
       }
-      InternalRecord.assignProperty(out, "$ref", reference)
+      InternalRecord.assignProperty(out, "$ref", reference);
     }
   }
 
-  const out = use(convert)
-  finish()
-  return out
+  const out = use(convert);
+  finish();
+  return out;
 
   function loop(
     node: unknown,
     sourcePath: Path,
     targetPath: Path,
-    resourceScope: ResourceScope
+    resourceScope: ResourceScope,
   ): unknown {
     if (typeof node === "boolean") {
-      recordLocations(sourcePath, targetPath, resourceScope)
-      return options?.booleanAdapter?.(node) ?? node
+      recordLocations(sourcePath, targetPath, resourceScope);
+      return options?.booleanAdapter?.(node) ?? node;
     }
-    if (!Predicate.isObject(node)) return node
+    if (!Predicate.isObject(node)) return node;
 
-    let currentResourceScope = resourceScope
-    const id = getResourceId(node)
+    let currentResourceScope = resourceScope;
+    const id = getResourceId(node);
     if (sourcePath.length > 0 && options?.trackIds && createsResource(id)) {
-      const uri = resolveResourceUri(id, resourceScope.uri)
+      const uri = resolveResourceUri(id, resourceScope.uri);
       if (uri !== undefined) {
         currentResourceScope = {
           parent: resourceScope,
           sourceRoot: sourcePath,
           targetRoot: targetPath,
-          uri
-        }
+          uri,
+        };
       }
     }
-    recordLocations(sourcePath, targetPath, currentResourceScope)
-    const currentResource = currentResourceScope.uri
+    recordLocations(sourcePath, targetPath, currentResourceScope);
+    const currentResource = currentResourceScope.uri;
 
     const context: Context = {
       isDocumentRoot: sourcePath.length === 0,
       schema(value, sourceKey, targetKey = sourceKey) {
-        return loop(value, [...sourcePath, sourceKey], [...targetPath, targetKey], currentResourceScope)
+        return loop(
+          value,
+          [...sourcePath, sourceKey],
+          [...targetPath, targetKey],
+          currentResourceScope,
+        );
       },
       schemaAt(value, sourceSuffix, targetSuffix) {
-        return loop(value, [...sourcePath, ...sourceSuffix], [...targetPath, ...targetSuffix], currentResourceScope)
+        return loop(
+          value,
+          [...sourcePath, ...sourceSuffix],
+          [...targetPath, ...targetSuffix],
+          currentResourceScope,
+        );
       },
       schemaArray(value, sourceKey, targetKey = sourceKey) {
         return Array.isArray(value)
           ? value.map((item, index) =>
-            loop(
-              item,
-              [...sourcePath, sourceKey, String(index)],
-              [...targetPath, targetKey, String(index)],
-              currentResourceScope
+              loop(
+                item,
+                [...sourcePath, sourceKey, String(index)],
+                [...targetPath, targetKey, String(index)],
+                currentResourceScope,
+              ),
             )
-          )
-          : value
+          : value;
       },
       schemaMap(value, sourceKey, targetKey = sourceKey) {
-        if (!Predicate.isObject(value)) return value
+        if (!Predicate.isObject(value)) return value;
         return mapObject(value, (item, key) =>
           loop(
             item,
             [...sourcePath, sourceKey, key],
             [...targetPath, targetKey, key],
-            currentResourceScope
-          ))
+            currentResourceScope,
+          ),
+        );
       },
       reference(out, value) {
         if (typeof value === "string") {
-          references.push([out, value, currentResource])
+          references.push([out, value, currentResource]);
         } else {
-          InternalRecord.assignProperty(out, "$ref", value)
+          InternalRecord.assignProperty(out, "$ref", value);
         }
-      }
-    }
-    return adapter(node, context)
+      },
+    };
+    return adapter(node, context);
   }
 
   function getResourceId(schema: JsonSchema): unknown {
-    return options?.ignoreRefSiblings === true && typeof schema.$ref === "string" ? undefined : schema.$id
+    return options?.ignoreRefSiblings === true && typeof schema.$ref === "string"
+      ? undefined
+      : schema.$id;
   }
 
   function recordLocations(sourcePath: Path, targetPath: Path, scope: ResourceScope): void {
     // A JSON Pointer can address an embedded schema from any containing resource.
-    if (scope.parent !== undefined) recordLocations(sourcePath, targetPath, scope.parent)
+    if (scope.parent !== undefined) recordLocations(sourcePath, targetPath, scope.parent);
     locations.set(
       locationKey(scope.uri, sourcePath.slice(scope.sourceRoot.length)),
-      targetPath.slice(scope.targetRoot.length)
-    )
+      targetPath.slice(scope.targetRoot.length),
+    );
   }
 }
 
-const ROOT_URI = "https://effect.invalid/.json-schema/"
+const ROOT_URI = "https://effect.invalid/.json-schema/";
 
 function resolveUrl(value: string, base: string): URL | undefined {
-  return URL.canParse(value, base) ? new URL(value, base) : undefined
+  return URL.canParse(value, base) ? new URL(value, base) : undefined;
 }
 
 function resolveResourceUri(value: unknown, base: string): string | undefined {
-  if (typeof value !== "string") return undefined
-  const url = resolveUrl(value, base)
-  if (url === undefined) return undefined
-  url.hash = ""
-  return url.href
+  if (typeof value !== "string") return undefined;
+  const url = resolveUrl(value, base);
+  if (url === undefined) return undefined;
+  url.hash = "";
+  return url.href;
 }
 
 function relocateReference(reference: string, targetPath: Path): string {
-  const index = reference.indexOf("#")
-  if (index === -1 && targetPath.length === 0) return reference
-  const uri = index === -1 ? reference : reference.slice(0, index)
-  return `${uri}${formatUriFragment(targetPath)}`
+  const index = reference.indexOf("#");
+  if (index === -1 && targetPath.length === 0) return reference;
+  const uri = index === -1 ? reference : reference.slice(0, index);
+  return `${uri}${formatUriFragment(targetPath)}`;
 }
 
 function locationKey(resource: string, pointer: Path): string {
-  return `${resource}\u0000${JSON.stringify(pointer)}`
+  return `${resource}\u0000${JSON.stringify(pointer)}`;
 }
 
 function createsResource(id: unknown): boolean {
-  return typeof id === "string" && id.length > 0 && id[0] !== "#"
+  return typeof id === "string" && id.length > 0 && id[0] !== "#";
 }
 
 function convertSchema(root: JsonSchema, adapter: Adapter, options?: ConverterOptions): JsonSchema {
-  return runConverter(adapter, options, (convert) => convert(root) as JsonSchema)
+  return runConverter(adapter, options, (convert) => convert(root) as JsonSchema);
 }
 
 function convertDocument(
   document: Document<"draft-2020-12">,
   adapter: Adapter,
-  options?: ConverterOptions
+  options?: ConverterOptions,
 ): { readonly schema: JsonSchema; readonly definitions: Definitions } {
   return runConverter(adapter, { ...options, trackIds: true }, (convert) => ({
     schema: convert(document.schema) as JsonSchema,
     definitions: mapObject(
       document.definitions,
-      (definition, key) => convert(definition, ["$defs", key], ["definitions", key]) as JsonSchema
-    ) as Definitions
-  }))
+      (definition, key) => convert(definition, ["$defs", key], ["definitions", key]) as JsonSchema,
+    ) as Definitions,
+  }));
 }
 
-const SCHEMA_MAP_KEYWORDS = new Set(["properties", "patternProperties"])
-const SCHEMA_ARRAY_KEYWORDS = new Set(["allOf", "anyOf", "oneOf"])
+const SCHEMA_MAP_KEYWORDS = new Set(["properties", "patternProperties"]);
+const SCHEMA_ARRAY_KEYWORDS = new Set(["allOf", "anyOf", "oneOf"]);
 const JSON_SCHEMA_SINGLE_KEYWORDS = new Set([
   "not",
   "additionalProperties",
@@ -970,11 +1002,11 @@ const JSON_SCHEMA_SINGLE_KEYWORDS = new Set([
   "if",
   "then",
   "else",
-  "contentSchema"
-])
-const OPEN_API_30_SCHEMA_MAP_KEYWORDS = new Set(["properties"])
-const OPEN_API_30_SCHEMA_SINGLE_KEYWORDS = new Set(["not", "items", "additionalProperties"])
-const DRAFT_04_SCHEMA_SINGLE_KEYWORDS = new Set(["not", "additionalProperties", "contentSchema"])
+  "contentSchema",
+]);
+const OPEN_API_30_SCHEMA_MAP_KEYWORDS = new Set(["properties"]);
+const OPEN_API_30_SCHEMA_SINGLE_KEYWORDS = new Set(["not", "items", "additionalProperties"]);
+const DRAFT_04_SCHEMA_SINGLE_KEYWORDS = new Set(["not", "additionalProperties", "contentSchema"]);
 
 function convertSubschemaKeyword(
   out: JsonSchema,
@@ -982,15 +1014,15 @@ function convertSubschemaKeyword(
   value: unknown,
   context: Context,
   singleKeywords: ReadonlySet<string>,
-  mapKeywords: ReadonlySet<string> = SCHEMA_MAP_KEYWORDS
+  mapKeywords: ReadonlySet<string> = SCHEMA_MAP_KEYWORDS,
 ): boolean {
-  let converted: unknown
-  if (mapKeywords.has(key)) converted = context.schemaMap(value, key)
-  else if (SCHEMA_ARRAY_KEYWORDS.has(key)) converted = context.schemaArray(value, key)
-  else if (singleKeywords.has(key)) converted = context.schema(value, key)
-  else return false
-  InternalRecord.assignProperty(out, key, converted)
-  return true
+  let converted: unknown;
+  if (mapKeywords.has(key)) converted = context.schemaMap(value, key);
+  else if (SCHEMA_ARRAY_KEYWORDS.has(key)) converted = context.schemaArray(value, key);
+  else if (singleKeywords.has(key)) converted = context.schema(value, key);
+  else return false;
+  InternalRecord.assignProperty(out, key, converted);
+  return true;
 }
 
 const PRE_2020_TO_2020_COLLISIONS = [
@@ -1006,9 +1038,9 @@ const PRE_2020_TO_2020_COLLISIONS = [
   "minContains",
   "prefixItems",
   "unevaluatedItems",
-  "unevaluatedProperties"
-]
-const DRAFT_07_TO_2020_COLLISIONS = [...PRE_2020_TO_2020_COLLISIONS, "deprecated"]
+  "unevaluatedProperties",
+];
+const DRAFT_07_TO_2020_COLLISIONS = [...PRE_2020_TO_2020_COLLISIONS, "deprecated"];
 const OPEN_API_30_TO_2020_COLLISIONS = [
   ...PRE_2020_TO_2020_COLLISIONS,
   "$comment",
@@ -1023,245 +1055,297 @@ const OPEN_API_30_TO_2020_COLLISIONS = [
   "if",
   "patternProperties",
   "propertyNames",
-  "then"
-]
-const ANCHOR_REGEXP = /^[A-Za-z_][-A-Za-z0-9._]*$/
-const LEGACY_ID_FRAGMENT_REGEXP = /^[A-Za-z][-A-Za-z0-9._:]*$/
+  "then",
+];
+const ANCHOR_REGEXP = /^[A-Za-z_][-A-Za-z0-9._]*$/;
+const LEGACY_ID_FRAGMENT_REGEXP = /^[A-Za-z][-A-Za-z0-9._:]*$/;
 
 function convertDraft07(root: JsonSchema): JsonSchema {
-  return convertSchema(root, (source, context) => {
-    const out: JsonSchema = {}
+  return convertSchema(
+    root,
+    (source, context) => {
+      const out: JsonSchema = {};
 
-    if (typeof source.$ref === "string") {
-      context.reference(out, source.$ref)
-      if (Object.hasOwn(source, "definitions")) {
-        InternalRecord.assignProperty(out, "$defs", context.schemaMap(source.definitions, "definitions", "$defs"))
-      }
-      return out
-    }
-    rejectKeywordCollisions(source, DRAFT_07_TO_2020_COLLISIONS, "Draft 2020-12", "Draft-07")
-
-    let items: unknown = undefined
-    let additionalItems: unknown = undefined
-
-    for (const key of Object.keys(source)) {
-      const value = source[key]
-      if (convertSubschemaKeyword(out, key, value, context, JSON_SCHEMA_SINGLE_KEYWORDS)) continue
-      switch (key) {
-        case "$schema":
+      if (typeof source.$ref === "string") {
+        context.reference(out, source.$ref);
+        if (Object.hasOwn(source, "definitions")) {
           InternalRecord.assignProperty(
             out,
-            key,
-            isMetaSchemaUri(value, META_SCHEMA_URI_DRAFT_07) ? META_SCHEMA_URI_DRAFT_2020_12 : value
-          )
-          break
-        case "$id":
-          convertDraft07Id(out, value)
-          break
-        case "definitions":
-          InternalRecord.assignProperty(out, "$defs", context.schemaMap(value, key, "$defs"))
-          break
-        case "dependencies": {
-          if (!Predicate.isObject(value)) {
-            InternalRecord.assignProperty(out, key, value)
-            break
-          }
-          const dependentRequired: JsonSchema = {}
-          const dependentSchemas: JsonSchema = {}
-          for (const dependency of Object.keys(value)) {
-            const dependencyValue = value[dependency]
+            "$defs",
+            context.schemaMap(source.definitions, "definitions", "$defs"),
+          );
+        }
+        return out;
+      }
+      rejectKeywordCollisions(source, DRAFT_07_TO_2020_COLLISIONS, "Draft 2020-12", "Draft-07");
+
+      let items: unknown = undefined;
+      let additionalItems: unknown = undefined;
+
+      for (const key of Object.keys(source)) {
+        const value = source[key];
+        if (convertSubschemaKeyword(out, key, value, context, JSON_SCHEMA_SINGLE_KEYWORDS))
+          continue;
+        switch (key) {
+          case "$schema":
             InternalRecord.assignProperty(
-              Array.isArray(dependencyValue) ? dependentRequired : dependentSchemas,
-              dependency,
-              Array.isArray(dependencyValue)
-                ? dependencyValue
-                : context.schemaAt(
-                  dependencyValue,
-                  ["dependencies", dependency],
-                  ["dependentSchemas", dependency]
-                )
-            )
+              out,
+              key,
+              isMetaSchemaUri(value, META_SCHEMA_URI_DRAFT_07)
+                ? META_SCHEMA_URI_DRAFT_2020_12
+                : value,
+            );
+            break;
+          case "$id":
+            convertDraft07Id(out, value);
+            break;
+          case "definitions":
+            InternalRecord.assignProperty(out, "$defs", context.schemaMap(value, key, "$defs"));
+            break;
+          case "dependencies": {
+            if (!Predicate.isObject(value)) {
+              InternalRecord.assignProperty(out, key, value);
+              break;
+            }
+            const dependentRequired: JsonSchema = {};
+            const dependentSchemas: JsonSchema = {};
+            for (const dependency of Object.keys(value)) {
+              const dependencyValue = value[dependency];
+              InternalRecord.assignProperty(
+                Array.isArray(dependencyValue) ? dependentRequired : dependentSchemas,
+                dependency,
+                Array.isArray(dependencyValue)
+                  ? dependencyValue
+                  : context.schemaAt(
+                      dependencyValue,
+                      ["dependencies", dependency],
+                      ["dependentSchemas", dependency],
+                    ),
+              );
+            }
+            if (Object.keys(dependentRequired).length > 0) {
+              InternalRecord.assignProperty(out, "dependentRequired", dependentRequired);
+            }
+            if (Object.keys(dependentSchemas).length > 0) {
+              InternalRecord.assignProperty(out, "dependentSchemas", dependentSchemas);
+            }
+            break;
           }
-          if (Object.keys(dependentRequired).length > 0) {
-            InternalRecord.assignProperty(out, "dependentRequired", dependentRequired)
-          }
-          if (Object.keys(dependentSchemas).length > 0) {
-            InternalRecord.assignProperty(out, "dependentSchemas", dependentSchemas)
-          }
-          break
+          case "items":
+            items = value;
+            break;
+          case "additionalItems":
+            additionalItems = value;
+            break;
+          default:
+            InternalRecord.assignProperty(out, key, value);
         }
-        case "items":
-          items = value
-          break
-        case "additionalItems":
-          additionalItems = value
-          break
-        default:
-          InternalRecord.assignProperty(out, key, value)
       }
-    }
 
-    if (items !== undefined) {
-      if (Array.isArray(items)) {
-        InternalRecord.assignProperty(out, "prefixItems", context.schemaArray(items, "items", "prefixItems"))
-        if (additionalItems !== undefined) {
-          InternalRecord.assignProperty(out, "items", context.schema(additionalItems, "additionalItems", "items"))
+      if (items !== undefined) {
+        if (Array.isArray(items)) {
+          InternalRecord.assignProperty(
+            out,
+            "prefixItems",
+            context.schemaArray(items, "items", "prefixItems"),
+          );
+          if (additionalItems !== undefined) {
+            InternalRecord.assignProperty(
+              out,
+              "items",
+              context.schema(additionalItems, "additionalItems", "items"),
+            );
+          }
+        } else {
+          InternalRecord.assignProperty(out, "items", context.schema(items, "items"));
         }
-      } else {
-        InternalRecord.assignProperty(out, "items", context.schema(items, "items"))
       }
-    }
 
-    return out
-  }, { trackIds: true, ignoreRefSiblings: true })
+      return out;
+    },
+    { trackIds: true, ignoreRefSiblings: true },
+  );
 }
 
 function convertDraft07Id(out: JsonSchema, value: unknown): void {
   if (typeof value !== "string" || !value.includes("#")) {
-    InternalRecord.assignProperty(out, "$id", value)
-    return
+    InternalRecord.assignProperty(out, "$id", value);
+    return;
   }
-  const fragmentIndex = value.indexOf("#")
-  const id = value.slice(0, fragmentIndex)
-  const anchor = value.slice(fragmentIndex + 1)
+  const fragmentIndex = value.indexOf("#");
+  const id = value.slice(0, fragmentIndex);
+  const anchor = value.slice(fragmentIndex + 1);
   if (anchor.length === 0) {
-    if (id.length > 0) InternalRecord.assignProperty(out, "$id", id)
-    return
+    if (id.length > 0) InternalRecord.assignProperty(out, "$id", id);
+    return;
   }
   if (!ANCHOR_REGEXP.test(anchor)) {
-    unsupported("$id", "Draft 2020-12", `fragment "#${anchor}" is not a valid $anchor`)
+    unsupported("$id", "Draft 2020-12", `fragment "#${anchor}" is not a valid $anchor`);
   }
-  if (id.length > 0) InternalRecord.assignProperty(out, "$id", id)
-  InternalRecord.assignProperty(out, "$anchor", anchor)
+  if (id.length > 0) InternalRecord.assignProperty(out, "$id", id);
+  InternalRecord.assignProperty(out, "$anchor", anchor);
 }
 
 function unsupported(keyword: string, dialect: string, details: string): never {
-  throw new Error(`Cannot convert JSON Schema keyword "${keyword}" to ${dialect}: ${details}`)
+  throw new Error(`Cannot convert JSON Schema keyword "${keyword}" to ${dialect}: ${details}`);
 }
 
 function rejectKeywordCollisions(
   source: JsonSchema,
   keywords: ReadonlyArray<string>,
   targetDialect: string,
-  sourceDialect: string
+  sourceDialect: string,
 ): void {
   for (const keyword of keywords) {
     if (Object.hasOwn(source, keyword)) {
-      unsupported(keyword, targetDialect, `it is not active in ${sourceDialect} but would become active in the target`)
+      unsupported(
+        keyword,
+        targetDialect,
+        `it is not active in ${sourceDialect} but would become active in the target`,
+      );
     }
   }
 }
 
-const DRAFT_07_TARGET_COLLISIONS = ["additionalItems", "definitions", "dependencies"]
+const DRAFT_07_TARGET_COLLISIONS = ["additionalItems", "definitions", "dependencies"];
 
 function convertMetaSchemaKeyword(
   out: JsonSchema,
   value: unknown,
   context: Context,
   targetUri: string,
-  targetDialect: string
+  targetDialect: string,
 ): void {
   if (context.isDocumentRoot) {
     InternalRecord.assignProperty(
       out,
       "$schema",
-      isMetaSchemaUri(value, META_SCHEMA_URI_DRAFT_2020_12) ? targetUri : value
-    )
+      isMetaSchemaUri(value, META_SCHEMA_URI_DRAFT_2020_12) ? targetUri : value,
+    );
   } else if (!isMetaSchemaUri(value, META_SCHEMA_URI_DRAFT_2020_12)) {
-    unsupported("$schema", targetDialect, "an embedded resource cannot declare a different dialect")
+    unsupported(
+      "$schema",
+      targetDialect,
+      "an embedded resource cannot declare a different dialect",
+    );
   }
 }
 
 function draft07Adapter(source: JsonSchema, context: Context): JsonSchema {
-  rejectKeywordCollisions(source, DRAFT_07_TARGET_COLLISIONS, "Draft-07", "Draft 2020-12")
-  const out: JsonSchema = {}
-  let reference: unknown = undefined
-  let prefixItems: unknown = undefined
-  let items: unknown = undefined
+  rejectKeywordCollisions(source, DRAFT_07_TARGET_COLLISIONS, "Draft-07", "Draft 2020-12");
+  const out: JsonSchema = {};
+  let reference: unknown = undefined;
+  let prefixItems: unknown = undefined;
+  let items: unknown = undefined;
 
   for (const key of Object.keys(source)) {
-    const value = source[key]
-    if (convertSubschemaKeyword(out, key, value, context, JSON_SCHEMA_SINGLE_KEYWORDS)) continue
+    const value = source[key];
+    if (convertSubschemaKeyword(out, key, value, context, JSON_SCHEMA_SINGLE_KEYWORDS)) continue;
     switch (key) {
       case "$ref":
-        reference = value
-        break
+        reference = value;
+        break;
       case "$schema":
-        convertMetaSchemaKeyword(out, value, context, META_SCHEMA_URI_DRAFT_07, "Draft-07")
-        break
+        convertMetaSchemaKeyword(out, value, context, META_SCHEMA_URI_DRAFT_07, "Draft-07");
+        break;
       case "$id":
       case "$anchor":
-        break
+        break;
       case "$defs":
-        InternalRecord.assignProperty(out, "definitions", context.schemaMap(value, key, "definitions"))
-        break
+        InternalRecord.assignProperty(
+          out,
+          "definitions",
+          context.schemaMap(value, key, "definitions"),
+        );
+        break;
       case "prefixItems":
-        prefixItems = value
-        break
+        prefixItems = value;
+        break;
       case "items":
-        items = value
-        break
+        items = value;
+        break;
       case "dependentRequired":
       case "dependentSchemas":
       case "minContains":
       case "maxContains":
-        break
+        break;
       case "$dynamicRef":
       case "$dynamicAnchor":
       case "$vocabulary":
       case "unevaluatedProperties":
       case "unevaluatedItems":
-        unsupported(key, "Draft-07", "the target dialect has no equivalent")
+        unsupported(key, "Draft-07", "the target dialect has no equivalent");
       case "required":
-        if (Array.isArray(value) && value.length === 0) break
-        InternalRecord.assignProperty(out, key, value)
-        break
+        if (Array.isArray(value) && value.length === 0) break;
+        InternalRecord.assignProperty(out, key, value);
+        break;
       default:
-        InternalRecord.assignProperty(out, key, value)
+        InternalRecord.assignProperty(out, key, value);
     }
   }
 
-  convertTuple(out, prefixItems, items, context)
+  convertTuple(out, prefixItems, items, context);
 
   if (Object.hasOwn(source, "contains")) {
-    const minContains = source.minContains
-    const maxContains = source.maxContains
+    const minContains = source.minContains;
+    const maxContains = source.maxContains;
     if ((minContains !== undefined && minContains !== 1) || maxContains !== undefined) {
-      unsupported("minContains/maxContains", "Draft-07", "contains cardinality cannot be represented")
+      unsupported(
+        "minContains/maxContains",
+        "Draft-07",
+        "contains cardinality cannot be represented",
+      );
     }
-    if (Object.hasOwn(source, "minContains")) InternalRecord.assignProperty(out, "minContains", minContains)
+    if (Object.hasOwn(source, "minContains"))
+      InternalRecord.assignProperty(out, "minContains", minContains);
   } else {
-    if (Object.hasOwn(source, "minContains")) InternalRecord.assignProperty(out, "minContains", source.minContains)
-    if (Object.hasOwn(source, "maxContains")) InternalRecord.assignProperty(out, "maxContains", source.maxContains)
+    if (Object.hasOwn(source, "minContains"))
+      InternalRecord.assignProperty(out, "minContains", source.minContains);
+    if (Object.hasOwn(source, "maxContains"))
+      InternalRecord.assignProperty(out, "maxContains", source.maxContains);
   }
 
-  convertDependencies(source, out, context, "draft-07")
-  convertLegacyId(source, out, "$id", "Draft-07")
+  convertDependencies(source, out, context, "draft-07");
+  convertLegacyId(source, out, "$id", "Draft-07");
 
-  convertReference(out, reference, context)
+  convertReference(out, reference, context);
 
-  return out
+  return out;
 }
 
-function convertTuple(out: JsonSchema, prefixItems: unknown, items: unknown, context: Context): void {
+function convertTuple(
+  out: JsonSchema,
+  prefixItems: unknown,
+  items: unknown,
+  context: Context,
+): void {
   if (prefixItems === undefined) {
-    if (items !== undefined) InternalRecord.assignProperty(out, "items", context.schema(items, "items"))
-    return
+    if (items !== undefined)
+      InternalRecord.assignProperty(out, "items", context.schema(items, "items"));
+    return;
   }
-  InternalRecord.assignProperty(out, "items", context.schemaArray(prefixItems, "prefixItems", "items"))
+  InternalRecord.assignProperty(
+    out,
+    "items",
+    context.schemaArray(prefixItems, "prefixItems", "items"),
+  );
   if (items !== undefined) {
-    InternalRecord.assignProperty(out, "additionalItems", context.schema(items, "items", "additionalItems"))
+    InternalRecord.assignProperty(
+      out,
+      "additionalItems",
+      context.schema(items, "items", "additionalItems"),
+    );
   }
 }
 
 function convertReference(out: JsonSchema, reference: unknown, context: Context): void {
-  if (reference === undefined) return
+  if (reference === undefined) return;
   if (typeof reference === "string" && Object.keys(out).length > 0) {
-    const referenceSchema: JsonSchema = {}
-    context.reference(referenceSchema, reference)
-    appendAllOf(out, referenceSchema)
+    const referenceSchema: JsonSchema = {};
+    context.reference(referenceSchema, reference);
+    appendAllOf(out, referenceSchema);
   } else {
-    context.reference(out, reference)
+    context.reference(out, reference);
   }
 }
 
@@ -1269,53 +1353,63 @@ function convertDependencies(
   source: JsonSchema,
   out: JsonSchema,
   context: Context,
-  targetDialect: "draft-04" | "draft-07"
+  targetDialect: "draft-04" | "draft-07",
 ): void {
-  const dependentRequired = Predicate.isObject(source.dependentRequired) ? source.dependentRequired : undefined
-  const dependentSchemas = Predicate.isObject(source.dependentSchemas) ? source.dependentSchemas : undefined
-  if (dependentRequired === undefined && dependentSchemas === undefined) return
+  const dependentRequired = Predicate.isObject(source.dependentRequired)
+    ? source.dependentRequired
+    : undefined;
+  const dependentSchemas = Predicate.isObject(source.dependentSchemas)
+    ? source.dependentSchemas
+    : undefined;
+  if (dependentRequired === undefined && dependentSchemas === undefined) return;
 
-  const dependencies: JsonSchema = {}
+  const dependencies: JsonSchema = {};
   const keys = new Set([
     ...Object.keys(dependentRequired ?? {}),
-    ...Object.keys(dependentSchemas ?? {})
-  ])
+    ...Object.keys(dependentSchemas ?? {}),
+  ]);
   for (const key of keys) {
-    const required = dependentRequired?.[key]
-    const dependency = dependentSchemas?.[key]
-    const omitRequired = targetDialect === "draft-04" && Array.isArray(required) && required.length === 0
+    const required = dependentRequired?.[key];
+    const dependency = dependentSchemas?.[key];
+    const omitRequired =
+      targetDialect === "draft-04" && Array.isArray(required) && required.length === 0;
     if (dependency === undefined) {
-      if (!omitRequired) InternalRecord.assignProperty(dependencies, key, required)
+      if (!omitRequired) InternalRecord.assignProperty(dependencies, key, required);
     } else if (required === undefined || omitRequired) {
       InternalRecord.assignProperty(
         dependencies,
         key,
-        context.schemaAt(dependency, ["dependentSchemas", key], ["dependencies", key])
-      )
+        context.schemaAt(dependency, ["dependentSchemas", key], ["dependencies", key]),
+      );
     } else {
       InternalRecord.assignProperty(dependencies, key, {
         allOf: [
-          context.schemaAt(dependency, ["dependentSchemas", key], ["dependencies", key, "allOf", "0"]),
-          { required }
-        ]
-      })
+          context.schemaAt(
+            dependency,
+            ["dependentSchemas", key],
+            ["dependencies", key, "allOf", "0"],
+          ),
+          { required },
+        ],
+      });
     }
   }
-  if (Object.keys(dependencies).length > 0) InternalRecord.assignProperty(out, "dependencies", dependencies)
+  if (Object.keys(dependencies).length > 0)
+    InternalRecord.assignProperty(out, "dependencies", dependencies);
 }
 
 function convertOpenApi30(root: JsonSchema): JsonSchema {
   return convertSchema(root, (source, context) => {
-    const out: JsonSchema = {}
+    const out: JsonSchema = {};
 
     if (typeof source.$ref === "string") {
-      context.reference(out, rewriteOpenApiComponentsReference(source.$ref))
-      return out
+      context.reference(out, rewriteOpenApiComponentsReference(source.$ref));
+      return out;
     }
-    rejectKeywordCollisions(source, OPEN_API_30_TO_2020_COLLISIONS, "Draft 2020-12", "OpenAPI 3.0")
+    rejectKeywordCollisions(source, OPEN_API_30_TO_2020_COLLISIONS, "Draft 2020-12", "OpenAPI 3.0");
 
     for (const key of Object.keys(source)) {
-      const value = source[key]
+      const value = source[key];
       if (
         convertSubschemaKeyword(
           out,
@@ -1323,91 +1417,96 @@ function convertOpenApi30(root: JsonSchema): JsonSchema {
           value,
           context,
           OPEN_API_30_SCHEMA_SINGLE_KEYWORDS,
-          OPEN_API_30_SCHEMA_MAP_KEYWORDS
+          OPEN_API_30_SCHEMA_MAP_KEYWORDS,
         )
       ) {
-        continue
+        continue;
       }
       switch (key) {
         case "example":
-          InternalRecord.assignProperty(out, "examples", [value])
-          break
+          InternalRecord.assignProperty(out, "examples", [value]);
+          break;
         case "nullable":
         case "exclusiveMinimum":
         case "exclusiveMaximum":
-          break
+          break;
         default:
-          InternalRecord.assignProperty(out, key, value)
+          InternalRecord.assignProperty(out, key, value);
       }
     }
 
-    convertOpenApiExclusiveBound(source, out, "minimum")
-    convertOpenApiExclusiveBound(source, out, "maximum")
+    convertOpenApiExclusiveBound(source, out, "minimum");
+    convertOpenApiExclusiveBound(source, out, "maximum");
 
     if (source.nullable === true && typeof source.type === "string") {
-      InternalRecord.assignProperty(out, "type", [source.type, "null"])
+      InternalRecord.assignProperty(out, "type", [source.type, "null"]);
     }
 
-    return out
-  })
+    return out;
+  });
 }
 
 function convertOpenApiExclusiveBound(
   source: JsonSchema,
   out: JsonSchema,
-  boundKey: "minimum" | "maximum"
+  boundKey: "minimum" | "maximum",
 ): void {
-  const exclusiveKey = boundKey === "minimum" ? "exclusiveMinimum" : "exclusiveMaximum"
-  const exclusive = source[exclusiveKey]
+  const exclusiveKey = boundKey === "minimum" ? "exclusiveMinimum" : "exclusiveMaximum";
+  const exclusive = source[exclusiveKey];
   if (typeof exclusive !== "boolean") {
-    if (exclusive !== undefined) InternalRecord.assignProperty(out, exclusiveKey, exclusive)
-    return
+    if (exclusive !== undefined) InternalRecord.assignProperty(out, exclusiveKey, exclusive);
+    return;
   }
   if (exclusive && typeof source[boundKey] === "number") {
-    InternalRecord.assignProperty(out, exclusiveKey, source[boundKey])
-    delete out[boundKey]
+    InternalRecord.assignProperty(out, exclusiveKey, source[boundKey]);
+    delete out[boundKey];
   }
 }
 
-const DRAFT_04_TARGET_COLLISIONS = ["additionalItems", "definitions", "dependencies", "id"]
+const DRAFT_04_TARGET_COLLISIONS = ["additionalItems", "definitions", "dependencies", "id"];
 
 function draft04Adapter(source: JsonSchema, context: Context): JsonSchema {
-  rejectKeywordCollisions(source, DRAFT_04_TARGET_COLLISIONS, "Draft-04", "Draft 2020-12")
-  const out: JsonSchema = {}
-  let reference: unknown = undefined
-  let prefixItems: unknown = undefined
-  let items: unknown = undefined
-  let constSchema: JsonSchema | undefined
+  rejectKeywordCollisions(source, DRAFT_04_TARGET_COLLISIONS, "Draft-04", "Draft 2020-12");
+  const out: JsonSchema = {};
+  let reference: unknown = undefined;
+  let prefixItems: unknown = undefined;
+  let items: unknown = undefined;
+  let constSchema: JsonSchema | undefined;
 
   for (const key of Object.keys(source)) {
-    const value = source[key]
-    if (convertSubschemaKeyword(out, key, value, context, DRAFT_04_SCHEMA_SINGLE_KEYWORDS)) continue
+    const value = source[key];
+    if (convertSubschemaKeyword(out, key, value, context, DRAFT_04_SCHEMA_SINGLE_KEYWORDS))
+      continue;
     switch (key) {
       case "$ref":
-        reference = value
-        break
+        reference = value;
+        break;
       case "$schema":
-        convertMetaSchemaKeyword(out, value, context, META_SCHEMA_URI_DRAFT_04, "Draft-04")
-        break
+        convertMetaSchemaKeyword(out, value, context, META_SCHEMA_URI_DRAFT_04, "Draft-04");
+        break;
       case "$id":
       case "$anchor":
-        break
+        break;
       case "$defs":
-        InternalRecord.assignProperty(out, "definitions", context.schemaMap(value, key, "definitions"))
-        break
+        InternalRecord.assignProperty(
+          out,
+          "definitions",
+          context.schemaMap(value, key, "definitions"),
+        );
+        break;
       case "prefixItems":
-        prefixItems = value
-        break
+        prefixItems = value;
+        break;
       case "items":
-        items = value
-        break
+        items = value;
+        break;
       case "$dynamicRef":
       case "$dynamicAnchor":
       case "$vocabulary":
       case "unevaluatedProperties":
       case "unevaluatedItems":
       case "propertyNames":
-        unsupported(key, "Draft-04", "the target dialect has no equivalent")
+        unsupported(key, "Draft-04", "the target dialect has no equivalent");
       case "dependentRequired":
       case "dependentSchemas":
       case "contains":
@@ -1420,60 +1519,60 @@ function draft04Adapter(source: JsonSchema, context: Context): JsonSchema {
       case "maximum":
       case "exclusiveMinimum":
       case "exclusiveMaximum":
-        break
+        break;
       case "const":
-        constSchema = { enum: [value] }
-        break
+        constSchema = { enum: [value] };
+        break;
       case "required":
-        if (Array.isArray(value) && value.length === 0) break
-        InternalRecord.assignProperty(out, key, value)
-        break
+        if (Array.isArray(value) && value.length === 0) break;
+        InternalRecord.assignProperty(out, key, value);
+        break;
       default:
-        InternalRecord.assignProperty(out, key, value)
+        InternalRecord.assignProperty(out, key, value);
     }
   }
 
-  convertTuple(out, prefixItems, items, context)
+  convertTuple(out, prefixItems, items, context);
 
-  convertDraft04ExclusiveBound(source, out, "minimum")
-  convertDraft04ExclusiveBound(source, out, "maximum")
-  convertDependencies(source, out, context, "draft-04")
-  convertLegacyId(source, out, "id", "Draft-04")
-  convertDraft04Conditionals(source, out, context)
-  convertDraft04Contains(source, out, context)
+  convertDraft04ExclusiveBound(source, out, "minimum");
+  convertDraft04ExclusiveBound(source, out, "maximum");
+  convertDependencies(source, out, context, "draft-04");
+  convertLegacyId(source, out, "id", "Draft-04");
+  convertDraft04Conditionals(source, out, context);
+  convertDraft04Contains(source, out, context);
 
   if (constSchema !== undefined) {
     if (Object.hasOwn(source, "enum")) {
-      appendAllOf(out, constSchema)
+      appendAllOf(out, constSchema);
     } else {
-      InternalRecord.assignProperty(out, "enum", constSchema.enum)
+      InternalRecord.assignProperty(out, "enum", constSchema.enum);
     }
   }
 
-  convertReference(out, reference, context)
+  convertReference(out, reference, context);
 
-  return out
+  return out;
 }
 
 function convertDraft04Conditionals(source: JsonSchema, out: JsonSchema, context: Context): void {
-  const hasIf = Object.hasOwn(source, "if")
-  const hasThen = Object.hasOwn(source, "then")
-  const hasElse = Object.hasOwn(source, "else")
+  const hasIf = Object.hasOwn(source, "if");
+  const hasThen = Object.hasOwn(source, "then");
+  const hasElse = Object.hasOwn(source, "else");
   if (!hasIf || (!hasThen && !hasElse)) {
-    if (hasIf) InternalRecord.assignProperty(out, "if", context.schema(source.if, "if"))
-    if (hasThen) InternalRecord.assignProperty(out, "then", context.schema(source.then, "then"))
-    if (hasElse) InternalRecord.assignProperty(out, "else", context.schema(source.else, "else"))
-    return
+    if (hasIf) InternalRecord.assignProperty(out, "if", context.schema(source.if, "if"));
+    if (hasThen) InternalRecord.assignProperty(out, "then", context.schema(source.then, "then"));
+    if (hasElse) InternalRecord.assignProperty(out, "else", context.schema(source.else, "else"));
+    return;
   }
 
-  const index = Array.isArray(out.allOf) ? out.allOf.length : 0
-  const base = ["allOf", String(index), "anyOf"] as const
+  const index = Array.isArray(out.allOf) ? out.allOf.length : 0;
+  const base = ["allOf", String(index), "anyOf"] as const;
   const convertBranch = (key: "if" | "then" | "else", targetPath: Path): unknown =>
-    context.schemaAt(source[key], [key], [...base, ...targetPath])
-  let conditional: JsonSchema
+    context.schemaAt(source[key], [key], [...base, ...targetPath]);
+  let conditional: JsonSchema;
   if (hasThen && hasElse) {
     if (hasSchemaIdentifier(source.if)) {
-      unsupported("if", "Draft-04", "lowering both branches would duplicate a schema identifier")
+      unsupported("if", "Draft-04", "lowering both branches would duplicate a schema identifier");
     }
     // (if AND then) OR ((NOT if) AND else)
     conditional = {
@@ -1481,55 +1580,50 @@ function convertDraft04Conditionals(source: JsonSchema, out: JsonSchema, context
         {
           allOf: [
             convertBranch("if", ["0", "allOf", "0"]),
-            convertBranch("then", ["0", "allOf", "1"])
-          ]
+            convertBranch("then", ["0", "allOf", "1"]),
+          ],
         },
         {
           allOf: [
             { not: convertBranch("if", ["1", "allOf", "0", "not"]) },
-            convertBranch("else", ["1", "allOf", "1"])
-          ]
-        }
-      ]
-    }
+            convertBranch("else", ["1", "allOf", "1"]),
+          ],
+        },
+      ],
+    };
   } else if (hasThen) {
     // (NOT if) OR then
     conditional = {
-      anyOf: [
-        { not: convertBranch("if", ["0", "not"]) },
-        convertBranch("then", ["1"])
-      ]
-    }
+      anyOf: [{ not: convertBranch("if", ["0", "not"]) }, convertBranch("then", ["1"])],
+    };
   } else {
     // if OR else
     conditional = {
-      anyOf: [
-        convertBranch("if", ["0"]),
-        convertBranch("else", ["1"])
-      ]
-    }
+      anyOf: [convertBranch("if", ["0"]), convertBranch("else", ["1"])],
+    };
   }
-  appendAllOf(out, conditional)
+  appendAllOf(out, conditional);
 }
 
 function hasSchemaIdentifier(node: unknown): boolean {
-  if (!Predicate.isObject(node)) return false
-  if (Object.hasOwn(node, "$id") || Object.hasOwn(node, "$anchor")) return true
+  if (!Predicate.isObject(node)) return false;
+  if (Object.hasOwn(node, "$id") || Object.hasOwn(node, "$anchor")) return true;
   for (const key of Object.keys(node)) {
-    const value = node[key]
+    const value = node[key];
     switch (key) {
       case "$defs":
       case "properties":
       case "patternProperties":
       case "dependentSchemas":
-        if (Predicate.isObject(value) && Object.values(value).some(hasSchemaIdentifier)) return true
-        break
+        if (Predicate.isObject(value) && Object.values(value).some(hasSchemaIdentifier))
+          return true;
+        break;
       case "allOf":
       case "anyOf":
       case "oneOf":
       case "prefixItems":
-        if (Array.isArray(value) && value.some(hasSchemaIdentifier)) return true
-        break
+        if (Array.isArray(value) && value.some(hasSchemaIdentifier)) return true;
+        break;
       case "not":
       case "additionalProperties":
       case "propertyNames":
@@ -1541,87 +1635,94 @@ function hasSchemaIdentifier(node: unknown): boolean {
       case "then":
       case "else":
       case "contentSchema":
-        if (hasSchemaIdentifier(value)) return true
+        if (hasSchemaIdentifier(value)) return true;
     }
   }
-  return false
+  return false;
 }
 
 function convertDraft04Contains(source: JsonSchema, out: JsonSchema, context: Context): void {
   if (!Object.hasOwn(source, "contains")) {
-    if (Object.hasOwn(source, "minContains")) InternalRecord.assignProperty(out, "minContains", source.minContains)
-    if (Object.hasOwn(source, "maxContains")) InternalRecord.assignProperty(out, "maxContains", source.maxContains)
-    return
+    if (Object.hasOwn(source, "minContains"))
+      InternalRecord.assignProperty(out, "minContains", source.minContains);
+    if (Object.hasOwn(source, "maxContains"))
+      InternalRecord.assignProperty(out, "maxContains", source.maxContains);
+    return;
   }
 
-  const minContains = source.minContains
-  const maxContains = source.maxContains
+  const minContains = source.minContains;
+  const maxContains = source.maxContains;
   if ((minContains !== undefined && minContains !== 1) || maxContains !== undefined) {
-    unsupported("minContains/maxContains", "Draft-04", "contains cardinality cannot be represented")
+    unsupported(
+      "minContains/maxContains",
+      "Draft-04",
+      "contains cardinality cannot be represented",
+    );
   }
 
-  const index = Array.isArray(out.allOf) ? out.allOf.length : 0
+  const index = Array.isArray(out.allOf) ? out.allOf.length : 0;
   const contains = context.schemaAt(
     source.contains,
     ["contains"],
-    ["allOf", String(index), "anyOf", "1", "not", "items", "not"]
-  )
+    ["allOf", String(index), "anyOf", "1", "not", "items", "not"],
+  );
   appendAllOf(out, {
-    anyOf: [
-      { not: { type: "array" } },
-      { not: { items: { not: contains } } }
-    ]
-  })
+    anyOf: [{ not: { type: "array" } }, { not: { items: { not: contains } } }],
+  });
 }
 
 function appendAllOf(out: JsonSchema, schema: JsonSchema): void {
-  if (Array.isArray(out.allOf)) out.allOf.push(schema)
-  else InternalRecord.assignProperty(out, "allOf", [schema])
+  if (Array.isArray(out.allOf)) out.allOf.push(schema);
+  else InternalRecord.assignProperty(out, "allOf", [schema]);
 }
 
 function convertLegacyId(
   source: JsonSchema,
   out: JsonSchema,
   targetKey: "$id" | "id",
-  dialect: string
+  dialect: string,
 ): void {
-  const id = source.$id
-  const anchor = source.$anchor
+  const id = source.$id;
+  const anchor = source.$anchor;
   if (anchor === undefined) {
-    if (id !== undefined) InternalRecord.assignProperty(out, targetKey, id)
-    return
+    if (id !== undefined) InternalRecord.assignProperty(out, targetKey, id);
+    return;
   }
   if (typeof anchor !== "string" || !ANCHOR_REGEXP.test(anchor)) {
-    unsupported("$anchor", dialect, "the anchor is not valid")
+    unsupported("$anchor", dialect, "the anchor is not valid");
   }
   if (!LEGACY_ID_FRAGMENT_REGEXP.test(anchor)) {
-    unsupported("$anchor", dialect, "the anchor cannot be represented as a plain-name fragment identifier")
+    unsupported(
+      "$anchor",
+      dialect,
+      "the anchor cannot be represented as a plain-name fragment identifier",
+    );
   }
   if (id === undefined) {
-    InternalRecord.assignProperty(out, targetKey, `#${anchor}`)
+    InternalRecord.assignProperty(out, targetKey, `#${anchor}`);
   } else {
-    unsupported("$anchor", dialect, "it cannot be combined with the schema $id")
+    unsupported("$anchor", dialect, "it cannot be combined with the schema $id");
   }
 }
 
 function convertDraft04ExclusiveBound(
   source: JsonSchema,
   out: JsonSchema,
-  boundKey: "minimum" | "maximum"
+  boundKey: "minimum" | "maximum",
 ): void {
-  const exclusiveKey = boundKey === "minimum" ? "exclusiveMinimum" : "exclusiveMaximum"
-  const bound = source[boundKey]
-  const exclusive = source[exclusiveKey]
+  const exclusiveKey = boundKey === "minimum" ? "exclusiveMinimum" : "exclusiveMaximum";
+  const bound = source[boundKey];
+  const exclusive = source[exclusiveKey];
   if (typeof exclusive === "number") {
-    const isBoundStricter = typeof bound === "number" &&
-      (boundKey === "minimum" ? bound > exclusive : bound < exclusive)
+    const isBoundStricter =
+      typeof bound === "number" && (boundKey === "minimum" ? bound > exclusive : bound < exclusive);
     if (isBoundStricter) {
-      InternalRecord.assignProperty(out, boundKey, bound)
+      InternalRecord.assignProperty(out, boundKey, bound);
     } else {
-      InternalRecord.assignProperty(out, boundKey, exclusive)
-      InternalRecord.assignProperty(out, exclusiveKey, true)
+      InternalRecord.assignProperty(out, boundKey, exclusive);
+      InternalRecord.assignProperty(out, exclusiveKey, true);
     }
   } else if (bound !== undefined) {
-    InternalRecord.assignProperty(out, boundKey, bound)
+    InternalRecord.assignProperty(out, boundKey, bound);
   }
 }

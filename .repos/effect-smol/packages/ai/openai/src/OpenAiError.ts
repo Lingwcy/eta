@@ -17,16 +17,16 @@ export type OpenAiErrorMetadata = {
   /**
    * The OpenAI error code returned by the API.
    */
-  readonly errorCode: string | null
+  readonly errorCode: string | null;
   /**
    * The OpenAI error type returned by the API.
    */
-  readonly errorType: string | null
+  readonly errorType: string | null;
   /**
    * The unique request ID for debugging with OpenAI support.
    */
-  readonly requestId: string | null
-}
+  readonly requestId: string | null;
+};
 
 /**
  * OpenAI-specific rate limit metadata fields.
@@ -43,20 +43,20 @@ export type OpenAiRateLimitMetadata = OpenAiErrorMetadata & {
   /**
    * The rate limit type (e.g. "requests", "tokens").
    */
-  readonly limit: string | null
+  readonly limit: string | null;
   /**
    * Number of remaining requests in the current window.
    */
-  readonly remaining: number | null
+  readonly remaining: number | null;
   /**
    * Time until the request rate limit resets.
    */
-  readonly resetRequests: string | null
+  readonly resetRequests: string | null;
   /**
    * Time until the token rate limit resets.
    */
-  readonly resetTokens: string | null
-}
+  readonly resetTokens: string | null;
+};
 
 declare module "effect/unstable/ai/AiError" {
   /**
@@ -75,7 +75,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the rate limit response.
      */
-    readonly openai?: OpenAiRateLimitMetadata | null
+    readonly openai?: OpenAiRateLimitMetadata | null;
   }
 
   /**
@@ -93,7 +93,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the quota exhaustion response.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 
   /**
@@ -111,7 +111,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the authentication failure.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 
   /**
@@ -129,7 +129,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the content policy response.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 
   /**
@@ -147,7 +147,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the invalid request response.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 
   /**
@@ -165,7 +165,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the internal provider response.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 
   /**
@@ -183,7 +183,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the invalid output response.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 
   /**
@@ -201,7 +201,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the structured output failure.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 
   /**
@@ -219,7 +219,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the unsupported schema failure.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 
   /**
@@ -237,6 +237,6 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenAI-specific details for the unclassified provider failure.
      */
-    readonly openai?: OpenAiErrorMetadata | null
+    readonly openai?: OpenAiErrorMetadata | null;
   }
 }

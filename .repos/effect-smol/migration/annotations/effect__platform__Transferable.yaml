@@ -1,5 +1,5 @@
 "@effect/platform/Transferable#CollectorService":
-  replacement: "Transferable.Collector[\"Service\"]"
+  replacement: 'Transferable.Collector["Service"]'
   note: "The collector interface is now the service type of the Transferable.Collector Context.Service class."
 "@effect/platform/Transferable#schema":
   replacement: "Transferable.schema"

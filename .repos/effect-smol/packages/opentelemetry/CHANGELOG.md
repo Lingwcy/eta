@@ -35,7 +35,7 @@
 - [#7483](https://github.com/Effect-TS/effect/pull/7483) [`b945ded`](https://github.com/Effect-TS/effect/commit/b945ded23aa9a0ad88bb55aa4089680866dccf92) Thanks @tim-smart! - Align runtime type IDs with their module paths. Effect markers now omit legacy grouping prefixes and the `unstable` path segment, while OpenTelemetry spans use the `OtelTracer` module path. Custom implementations that copy these marker strings must adopt the corrected IDs.
 
 - [#7643](https://github.com/Effect-TS/effect/pull/7643) [`9956f0e`](https://github.com/Effect-TS/effect/commit/9956f0e6f47096a6e31305ec2c7320b8e1a140af) Thanks @tim-smart! - Reduce memory usage in Effect primitives and fibers.
-  
+
   Breaking: context-derived `Fiber` fields now live under `fiber.cache`. The
   `currentScheduler`, `currentSpan`, `currentLogLevel`, `currentStackFrame`, and
   `currentPreventYield` fields are now `scheduler`, `span`, `logLevel`,

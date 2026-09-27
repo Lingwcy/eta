@@ -1,11 +1,12 @@
-import { assert, describe, it } from "@effect/vitest"
-import { SystemError, type SystemErrorTag } from "effect/PlatformError"
-import { handleError } from "../../src/internal/error.ts"
+import { assert, describe, it } from "@effect/vitest";
+import { SystemError, type SystemErrorTag } from "effect/PlatformError";
+import { handleError } from "../../src/internal/error.ts";
 
-const withCode = (error: Error, code: string): Error & { readonly code: string } => Object.assign(error, { code })
+const withCode = (error: Error, code: string): Error & { readonly code: string } =>
+  Object.assign(error, { code });
 
 describe("handleError", () => {
-  const mapError = handleError("FileSystem", "test", "/tmp/test")
+  const mapError = handleError("FileSystem", "test", "/tmp/test");
   const cases: ReadonlyArray<readonly [error: Error, tag: SystemErrorTag]> = [
     [withCode(new Deno.errors.NotFound(), "ENOENT"), "NotFound"],
     [withCode(new Deno.errors.NotADirectory(), "ENOTDIR"), "BadResource"],
@@ -20,20 +21,20 @@ describe("handleError", () => {
     [new Deno.errors.UnexpectedEof(), "UnexpectedEof"],
     [new Deno.errors.WouldBlock(), "WouldBlock"],
     [new Deno.errors.WriteZero(), "WriteZero"],
-    [new Error("unrecognised"), "Unknown"]
-  ]
+    [new Error("unrecognised"), "Unknown"],
+  ];
 
   for (const [error, tag] of cases) {
     it(`maps ${error.name} to ${tag}`, () => {
-      const platformError = mapError(error)
-      const reason = platformError.reason
+      const platformError = mapError(error);
+      const reason = platformError.reason;
 
-      assert(reason instanceof SystemError)
-      assert.strictEqual(reason._tag, tag)
-      assert.strictEqual(reason.module, "FileSystem")
-      assert.strictEqual(reason.method, "test")
-      assert.strictEqual(reason.pathOrDescriptor, "/tmp/test")
-      assert.strictEqual(reason.cause, error)
-    })
+      assert(reason instanceof SystemError);
+      assert.strictEqual(reason._tag, tag);
+      assert.strictEqual(reason.module, "FileSystem");
+      assert.strictEqual(reason.method, "test");
+      assert.strictEqual(reason.pathOrDescriptor, "/tmp/test");
+      assert.strictEqual(reason.cause, error);
+    });
   }
-})
+});

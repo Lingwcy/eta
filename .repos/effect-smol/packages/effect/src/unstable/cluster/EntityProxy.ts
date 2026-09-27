@@ -9,25 +9,23 @@
  *
  * @since 4.0.0
  */
-import * as Schema from "../../Schema.ts"
-import * as HttpApiEndpoint from "../httpapi/HttpApiEndpoint.ts"
-import * as HttpApiGroup from "../httpapi/HttpApiGroup.ts"
-import * as Rpc from "../rpc/Rpc.ts"
-import * as RpcGroup from "../rpc/RpcGroup.ts"
-import { AlreadyProcessingMessage, EntityNotAssignedToRunner, MailboxFull, PersistenceError } from "./ClusterError.ts"
-import type * as Entity from "./Entity.ts"
-import type { EntityId } from "./EntityId.ts"
-
-const clientErrors = [
-  MailboxFull,
+import * as Schema from "../../Schema.ts";
+import * as HttpApiEndpoint from "../httpapi/HttpApiEndpoint.ts";
+import * as HttpApiGroup from "../httpapi/HttpApiGroup.ts";
+import * as Rpc from "../rpc/Rpc.ts";
+import * as RpcGroup from "../rpc/RpcGroup.ts";
+import {
   AlreadyProcessingMessage,
-  PersistenceError
-] as const
+  EntityNotAssignedToRunner,
+  MailboxFull,
+  PersistenceError,
+} from "./ClusterError.ts";
+import type * as Entity from "./Entity.ts";
+import type { EntityId } from "./EntityId.ts";
 
-const requestErrors = [
-  ...clientErrors,
-  EntityNotAssignedToRunner
-] as const
+const clientErrors = [MailboxFull, AlreadyProcessingMessage, PersistenceError] as const;
+
+const requestErrors = [...clientErrors, EntityNotAssignedToRunner] as const;
 
 /**
  * Derives an `RpcGroup` from an `Entity`.
@@ -62,35 +60,38 @@ const requestErrors = [
  * @since 4.0.0
  */
 export const toRpcGroup = <Type extends string, Rpcs extends Rpc.Any>(
-  entity: Entity.Entity<Type, Rpcs>
+  entity: Entity.Entity<Type, Rpcs>,
 ): RpcGroup.RpcGroup<ConvertRpcs<Rpcs, Type>> => {
-  const rpcs: Array<Rpc.Any> = []
+  const rpcs: Array<Rpc.Any> = [];
   for (const parentRpc_ of entity.protocol.requests.values()) {
-    const parentRpc = parentRpc_ as any as Rpc.AnyWithProps
+    const parentRpc = parentRpc_ as any as Rpc.AnyWithProps;
     const payloadSchema = Schema.Struct({
       entityId: Schema.String,
-      payload: parentRpc.payloadSchema
-    })
-    const oldMake = payloadSchema.make
+      payload: parentRpc.payloadSchema,
+    });
+    const oldMake = payloadSchema.make;
     payloadSchema.make = (input: any, options?: Schema.MakeOptions) => {
-      return oldMake({
-        entityId: input.entityId,
-        payload: parentRpc.payloadSchema.make(input.payload, options)
-      }, options)
-    }
+      return oldMake(
+        {
+          entityId: input.entityId,
+          payload: parentRpc.payloadSchema.make(input.payload, options),
+        },
+        options,
+      );
+    };
     const rpc = Rpc.make(`${entity.type}.${parentRpc._tag}`, {
       payload: payloadSchema,
       error: Schema.Union([parentRpc.errorSchema, ...requestErrors]),
-      success: parentRpc.successSchema
-    }).annotateMerge(parentRpc.annotations)
+      success: parentRpc.successSchema,
+    }).annotateMerge(parentRpc.annotations);
     const rpcDiscard = Rpc.make(`${entity.type}.${parentRpc._tag}Discard`, {
       payload: payloadSchema,
-      error: Schema.Union(clientErrors)
-    }).annotateMerge(parentRpc.annotations)
-    rpcs.push(rpc, rpcDiscard)
+      error: Schema.Union(clientErrors),
+    }).annotateMerge(parentRpc.annotations);
+    rpcs.push(rpc, rpcDiscard);
   }
-  return RpcGroup.make(...rpcs) as any as RpcGroup.RpcGroup<ConvertRpcs<Rpcs, Type>>
-}
+  return RpcGroup.make(...rpcs) as any as RpcGroup.RpcGroup<ConvertRpcs<Rpcs, Type>>;
+};
 
 /**
  * Type-level conversion used by `toRpcGroup`.
@@ -104,50 +105,54 @@ export const toRpcGroup = <Type extends string, Rpcs extends Rpc.Any>(
  * @category converting
  * @since 4.0.0
  */
-export type ConvertRpcs<Rpcs extends Rpc.Any, Prefix extends string> = Rpcs extends Rpc.Rpc<
-  infer _Tag,
-  infer _Payload,
-  infer _Success,
-  infer _Error,
-  infer _Middleware,
-  infer _Requires
-> ?
-    | Rpc.Rpc<
-      `${Prefix}.${_Tag}`,
-      Schema.Struct<{
-        entityId: typeof Schema.String
-        payload: _Payload
-      }>,
-      _Success,
-      Schema.Codec<
-        _Error["Type"] | MailboxFull | AlreadyProcessingMessage | PersistenceError | EntityNotAssignedToRunner,
-        | _Error["Encoded"]
-        | typeof MailboxFull["Encoded"]
-        | typeof AlreadyProcessingMessage["Encoded"]
-        | typeof PersistenceError["Encoded"]
-        | typeof EntityNotAssignedToRunner["Encoded"],
-        _Error["DecodingServices"],
-        _Error["EncodingServices"]
-      >
-    >
-    | Rpc.Rpc<
-      `${Prefix}.${_Tag}Discard`,
-      Schema.Struct<{
-        entityId: typeof Schema.String
-        payload: _Payload
-      }>,
-      typeof Schema.Void,
-      Schema.Union<[
-        typeof MailboxFull,
-        typeof AlreadyProcessingMessage,
-        typeof PersistenceError
-      ]>
-    >
-  : never
+export type ConvertRpcs<Rpcs extends Rpc.Any, Prefix extends string> =
+  Rpcs extends Rpc.Rpc<
+    infer _Tag,
+    infer _Payload,
+    infer _Success,
+    infer _Error,
+    infer _Middleware,
+    infer _Requires
+  >
+    ?
+        | Rpc.Rpc<
+            `${Prefix}.${_Tag}`,
+            Schema.Struct<{
+              entityId: typeof Schema.String;
+              payload: _Payload;
+            }>,
+            _Success,
+            Schema.Codec<
+              | _Error["Type"]
+              | MailboxFull
+              | AlreadyProcessingMessage
+              | PersistenceError
+              | EntityNotAssignedToRunner,
+              | _Error["Encoded"]
+              | (typeof MailboxFull)["Encoded"]
+              | (typeof AlreadyProcessingMessage)["Encoded"]
+              | (typeof PersistenceError)["Encoded"]
+              | (typeof EntityNotAssignedToRunner)["Encoded"],
+              _Error["DecodingServices"],
+              _Error["EncodingServices"]
+            >
+          >
+        | Rpc.Rpc<
+            `${Prefix}.${_Tag}Discard`,
+            Schema.Struct<{
+              entityId: typeof Schema.String;
+              payload: _Payload;
+            }>,
+            typeof Schema.Void,
+            Schema.Union<
+              [typeof MailboxFull, typeof AlreadyProcessingMessage, typeof PersistenceError]
+            >
+          >
+    : never;
 
 const entityIdPath = {
-  entityId: Schema.String
-}
+  entityId: Schema.String,
+};
 
 /**
  * Derives an `HttpApiGroup` from an `Entity`.
@@ -188,40 +193,48 @@ const entityIdPath = {
  * @category constructors
  * @since 4.0.0
  */
-export const toHttpApiGroup = <const Name extends string, Type extends string, Rpcs extends Rpc.Any>(
+export const toHttpApiGroup = <
+  const Name extends string,
+  Type extends string,
+  Rpcs extends Rpc.Any,
+>(
   name: Name,
-  entity: Entity.Entity<Type, Rpcs>
+  entity: Entity.Entity<Type, Rpcs>,
 ): HttpApiGroup.HttpApiGroup<Name, ConvertHttpApi<Rpcs>> => {
-  let group = HttpApiGroup.make(name)
+  let group = HttpApiGroup.make(name);
   for (const parentRpc_ of entity.protocol.requests.values()) {
-    const parentRpc = parentRpc_ as any as Rpc.AnyWithProps
-    const endpoint = HttpApiEndpoint.post(parentRpc._tag, `/${tagToPath(parentRpc._tag)}/:entityId`, {
-      params: entityIdPath,
-      payload: parentRpc.payloadSchema,
-      success: parentRpc.successSchema,
-      error: [parentRpc.errorSchema, ...requestErrors]
-    }).annotateMerge(parentRpc.annotations)
+    const parentRpc = parentRpc_ as any as Rpc.AnyWithProps;
+    const endpoint = HttpApiEndpoint.post(
+      parentRpc._tag,
+      `/${tagToPath(parentRpc._tag)}/:entityId`,
+      {
+        params: entityIdPath,
+        payload: parentRpc.payloadSchema,
+        success: parentRpc.successSchema,
+        error: [parentRpc.errorSchema, ...requestErrors],
+      },
+    ).annotateMerge(parentRpc.annotations);
     const endpointDiscard = HttpApiEndpoint.post(
       `${parentRpc._tag}Discard`,
       `/${tagToPath(parentRpc._tag)}/:entityId/discard`,
       {
         params: entityIdPath,
         payload: parentRpc.payloadSchema,
-        error: clientErrors
-      }
-    ).annotateMerge(parentRpc.annotations)
+        error: clientErrors,
+      },
+    ).annotateMerge(parentRpc.annotations);
 
-    group = group.add(endpoint).add(endpointDiscard) as any
+    group = group.add(endpoint).add(endpointDiscard) as any;
   }
-  return group as any as HttpApiGroup.HttpApiGroup<Name, ConvertHttpApi<Rpcs>>
-}
+  return group as any as HttpApiGroup.HttpApiGroup<Name, ConvertHttpApi<Rpcs>>;
+};
 
 // TODO: type level equivalent
 const tagToPath = (tag: string): string =>
   tag
     // .replace(/[^a-zA-Z0-9]+/g, "-") // Replace non-alphanumeric characters with hyphen
     // .replace(/([a-z])([A-Z])/g, "$1-$2") // Insert hyphen before uppercase letters
-    .toLowerCase()
+    .toLowerCase();
 
 /**
  * Type-level conversion used by `toHttpApiGroup`.
@@ -235,38 +248,40 @@ const tagToPath = (tag: string): string =>
  * @category converting
  * @since 4.0.0
  */
-export type ConvertHttpApi<Rpcs extends Rpc.Any> = Rpcs extends Rpc.Rpc<
-  infer _Tag,
-  infer _Payload,
-  infer _Success,
-  infer _Error,
-  infer _Middleware,
-  infer _Requires
-> ?
-    | HttpApiEndpoint.HttpApiEndpoint<
-      _Tag,
-      "POST",
-      `/${Lowercase<_Tag>}/:entityId`,
-      Schema.Struct<{ entityId: typeof EntityId }>,
-      never,
-      _Payload,
-      never,
-      _Success,
-      | _Error
-      | typeof MailboxFull
-      | typeof AlreadyProcessingMessage
-      | typeof PersistenceError
-      | typeof EntityNotAssignedToRunner
-    >
-    | HttpApiEndpoint.HttpApiEndpoint<
-      `${_Tag}Discard`,
-      "POST",
-      `/${Lowercase<_Tag>}/:entityId/discard`,
-      Schema.Struct<{ entityId: typeof EntityId }>,
-      never,
-      _Payload,
-      never,
-      Schema.Void,
-      typeof MailboxFull | typeof AlreadyProcessingMessage | typeof PersistenceError
-    >
-  : never
+export type ConvertHttpApi<Rpcs extends Rpc.Any> =
+  Rpcs extends Rpc.Rpc<
+    infer _Tag,
+    infer _Payload,
+    infer _Success,
+    infer _Error,
+    infer _Middleware,
+    infer _Requires
+  >
+    ?
+        | HttpApiEndpoint.HttpApiEndpoint<
+            _Tag,
+            "POST",
+            `/${Lowercase<_Tag>}/:entityId`,
+            Schema.Struct<{ entityId: typeof EntityId }>,
+            never,
+            _Payload,
+            never,
+            _Success,
+            | _Error
+            | typeof MailboxFull
+            | typeof AlreadyProcessingMessage
+            | typeof PersistenceError
+            | typeof EntityNotAssignedToRunner
+          >
+        | HttpApiEndpoint.HttpApiEndpoint<
+            `${_Tag}Discard`,
+            "POST",
+            `/${Lowercase<_Tag>}/:entityId/discard`,
+            Schema.Struct<{ entityId: typeof EntityId }>,
+            never,
+            _Payload,
+            never,
+            Schema.Void,
+            typeof MailboxFull | typeof AlreadyProcessingMessage | typeof PersistenceError
+          >
+    : never;

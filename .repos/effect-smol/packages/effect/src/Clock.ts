@@ -7,10 +7,10 @@
  *
  * @since 2.0.0
  */
-import type * as Context from "./Context.ts"
-import type * as Duration from "./Duration.ts"
-import type { Effect } from "./Effect.ts"
-import * as effect from "./internal/effect.ts"
+import type * as Context from "./Context.ts";
+import type * as Duration from "./Duration.ts";
+import type { Effect } from "./Effect.ts";
+import * as effect from "./internal/effect.ts";
 
 /**
  * Represents a time-based clock which provides functionality related to time
@@ -62,7 +62,7 @@ export interface Clock {
    * The value can move backward or forward when the system wall clock is
    * corrected, so it is not suitable for measuring elapsed time.
    */
-  currentTimeMillisUnsafe(): number
+  currentTimeMillisUnsafe(): number;
   /**
    * Returns the current Unix time in milliseconds.
    *
@@ -76,7 +76,7 @@ export interface Clock {
    * The value can move backward or forward when the system wall clock is
    * corrected, so it is not suitable for measuring elapsed time.
    */
-  readonly currentTimeMillis: Effect<number>
+  readonly currentTimeMillis: Effect<number>;
   /**
    * Returns the current Unix time in nanoseconds unsafely.
    *
@@ -90,7 +90,7 @@ export interface Clock {
    * The value can move backward or forward when the system wall clock is
    * corrected, so it is not suitable for measuring elapsed time.
    */
-  currentTimeNanosUnsafe(): bigint
+  currentTimeNanosUnsafe(): bigint;
   /**
    * Returns the current Unix time in nanoseconds.
    *
@@ -104,7 +104,7 @@ export interface Clock {
    * The value can move backward or forward when the system wall clock is
    * corrected, so it is not suitable for measuring elapsed time.
    */
-  readonly currentTimeNanos: Effect<bigint>
+  readonly currentTimeNanos: Effect<bigint>;
   /**
    * Returns the current monotonic time in nanoseconds unsafely.
    *
@@ -121,7 +121,7 @@ export interface Clock {
    *
    * @since 4.0.0
    */
-  monotonicTimeNanosUnsafe(): bigint
+  monotonicTimeNanosUnsafe(): bigint;
   /**
    * Returns the current monotonic time in nanoseconds.
    *
@@ -137,7 +137,7 @@ export interface Clock {
    *
    * @since 4.0.0
    */
-  readonly monotonicTimeNanos: Effect<bigint>
+  readonly monotonicTimeNanos: Effect<bigint>;
   /**
    * Asynchronously sleeps for the specified duration.
    *
@@ -145,7 +145,7 @@ export interface Clock {
    *
    * Use to delay an `Effect` workflow by a duration through this `Clock` service.
    */
-  sleep(duration: Duration.Duration): Effect<void>
+  sleep(duration: Duration.Duration): Effect<void>;
 }
 
 /**
@@ -186,7 +186,7 @@ export interface Clock {
  * @category services
  * @since 2.0.0
  */
-export const Clock: Context.Reference<Clock> = effect.ClockRef
+export const Clock: Context.Reference<Clock> = effect.ClockRef;
 
 /**
  * Accesses the current Clock service and uses it to run the provided function.
@@ -222,7 +222,8 @@ export const Clock: Context.Reference<Clock> = effect.ClockRef
  * @category accessors
  * @since 2.0.0
  */
-export const clockWith: <A, E, R>(f: (clock: Clock) => Effect<A, E, R>) => Effect<A, E, R> = effect.clockWith
+export const clockWith: <A, E, R>(f: (clock: Clock) => Effect<A, E, R>) => Effect<A, E, R> =
+  effect.clockWith;
 
 /**
  * Returns an Effect that succeeds with the current Unix time in milliseconds.
@@ -262,7 +263,7 @@ export const clockWith: <A, E, R>(f: (clock: Clock) => Effect<A, E, R>) => Effec
  * @category accessors
  * @since 2.0.0
  */
-export const currentTimeMillis: Effect<number> = effect.currentTimeMillis
+export const currentTimeMillis: Effect<number> = effect.currentTimeMillis;
 
 /**
  * Returns an Effect that succeeds with the current Unix time in nanoseconds.
@@ -302,7 +303,7 @@ export const currentTimeMillis: Effect<number> = effect.currentTimeMillis
  * @category accessors
  * @since 2.0.0
  */
-export const currentTimeNanos: Effect<bigint> = effect.currentTimeNanos
+export const currentTimeNanos: Effect<bigint> = effect.currentTimeNanos;
 
 /**
  * Returns an Effect that succeeds with the current monotonic time in
@@ -323,4 +324,4 @@ export const currentTimeNanos: Effect<bigint> = effect.currentTimeNanos
  * @category accessors
  * @since 4.0.0
  */
-export const monotonicTimeNanos: Effect<bigint> = effect.monotonicTimeNanos
+export const monotonicTimeNanos: Effect<bigint> = effect.monotonicTimeNanos;

@@ -1,5 +1,5 @@
-import { assert, describe, it } from "@effect/vitest"
-import * as Toml from "effect/unstable/encoding/Toml"
+import { assert, describe, it } from "@effect/vitest";
+import * as Toml from "effect/unstable/encoding/Toml";
 
 describe("Toml", () => {
   it("parses tables, dotted keys, arrays, and inline tables", () => {
@@ -19,11 +19,11 @@ credentials = { user = "root", roles = ["admin", "writer"] }
         database: {
           connection: { timeout: 30 },
           enabled: true,
-          credentials: { user: "root", roles: ["admin", "writer"] }
-        }
-      }
-    )
-  })
+          credentials: { user: "root", roles: ["admin", "writer"] },
+        },
+      },
+    );
+  });
 
   it("parses arrays of tables and date-time values", () => {
     assert.deepStrictEqual(
@@ -39,11 +39,11 @@ started = 2026-08-05
       {
         servers: [
           { name: "alpha", started: new Date("2026-08-05T01:02:03Z") },
-          { name: "beta", started: "2026-08-05" }
-        ]
-      }
-    )
-  })
+          { name: "beta", started: "2026-08-05" },
+        ],
+      },
+    );
+  });
 
   it("parses child tables under distinct array entries", () => {
     assert.deepStrictEqual(
@@ -54,9 +54,9 @@ started = 2026-08-05
 [[servers]]
 [servers.tls]
 `),
-      { servers: [{ tls: {} }, { tls: {} }] }
-    )
-  })
+      { servers: [{ tls: {} }, { tls: {} }] },
+    );
+  });
 
   it("parses multiline strings and numeric formats", () => {
     assert.deepStrictEqual(
@@ -72,13 +72,13 @@ local = 2026-08-05 01:02:03
         message: "hello world",
         hex: 0xdeadbeef,
         fraction: 1000.5,
-        local: "2026-08-05T01:02:03"
-      }
-    )
-  })
+        local: "2026-08-05T01:02:03",
+      },
+    );
+  });
 
   it("rejects duplicate keys", () => {
-    assert.throws(() => Toml.parse("key = 1\nkey = 2\n"))
-    assert.throws(() => Toml.parse("key = 1__000\n"))
-  })
-})
+    assert.throws(() => Toml.parse("key = 1\nkey = 2\n"));
+    assert.throws(() => Toml.parse("key = 1__000\n"));
+  });
+});

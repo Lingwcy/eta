@@ -7,18 +7,18 @@
  *
  * @since 4.0.0
  */
-import * as Context from "./Context.ts"
-import type * as Duration from "./Duration.ts"
-import * as Effect from "./Effect.ts"
-import { identity } from "./Function.ts"
-import { getStackTraceLimit, setStackTraceLimit } from "./internal/stackTraceLimit.ts"
-import * as Layer from "./Layer.ts"
-import * as RcRef from "./RcRef.ts"
-import type * as Schedule from "./Schedule.ts"
-import * as Scope from "./Scope.ts"
-import type { Mutable } from "./Types.ts"
+import * as Context from "./Context.ts";
+import type * as Duration from "./Duration.ts";
+import * as Effect from "./Effect.ts";
+import { identity } from "./Function.ts";
+import { getStackTraceLimit, setStackTraceLimit } from "./internal/stackTraceLimit.ts";
+import * as Layer from "./Layer.ts";
+import * as RcRef from "./RcRef.ts";
+import type * as Schedule from "./Schedule.ts";
+import * as Scope from "./Scope.ts";
+import type { Mutable } from "./Types.ts";
 
-const TypeId = "~effect/LayerRef"
+const TypeId = "~effect/LayerRef";
 
 /**
  * A refreshable reference to a single layer-built service context.
@@ -41,33 +41,33 @@ const TypeId = "~effect/LayerRef"
  * @since 4.0.0
  */
 export interface LayerRef<in out I, in out E = never> {
-  readonly [TypeId]: typeof TypeId
+  readonly [TypeId]: typeof TypeId;
 
   /**
    * The underlying reference-counted cache that stores the built context.
    */
-  readonly rcRef: RcRef.RcRef<Context.Context<I>, E>
+  readonly rcRef: RcRef.RcRef<Context.Context<I>, E>;
 
   /**
    * Layer that provides the currently cached context, acquiring it if needed.
    */
-  readonly get: Layer.Layer<I, E>
+  readonly get: Layer.Layer<I, E>;
 
   /**
    * Scoped effect that retrieves the currently cached context, acquiring it if needed.
    */
-  readonly contextEffect: Effect.Effect<Context.Context<I>, E, Scope.Scope>
+  readonly contextEffect: Effect.Effect<Context.Context<I>, E, Scope.Scope>;
 
   /**
    * Invalidates the cached context so the next use rebuilds the layer.
    */
-  readonly invalidate: Effect.Effect<void>
+  readonly invalidate: Effect.Effect<void>;
 
   /**
    * Invalidates the cached context so the next use rebuilds the layer, and
    * reacquires it.
    */
-  readonly refresh: Effect.Effect<void, E>
+  readonly refresh: Effect.Effect<void, E>;
 }
 
 /**
@@ -130,67 +130,71 @@ export interface LayerRef<in out I, in out E = never> {
  * @category constructors
  * @since 4.0.0
  */
-export const make = Effect.fnUntraced(
-  function*<I, E, R, X, const Preload extends boolean = never, SE = never, SR = never>(
-    layer: Layer.Layer<I, E, R>,
-    options?: {
-      /**
-       * Duration to keep the resource alive after it is no longer used.
-       */
-      readonly idleTimeToLive?: Duration.Input | undefined
-      /**
-       * Whether to acquire the resource during creation.
-       */
-      readonly preload?: Preload | undefined
-      /**
-       * Schedule used to invalidate the cached resource. When `preload` is
-       * `true`, each scheduled invalidation also reacquires the resource.
-       */
-      readonly invalidationSchedule?: Schedule.Schedule<X, unknown, SE, SR> | undefined
-    } | undefined
-  ): Effect.fn.Return<
-    LayerRef<I, E>,
-    [Preload] extends [true] ? E : never,
-    Scope.Scope | R | SR
-  > {
-    const context = yield* Effect.context<never>()
-    const memoMap = Layer.CurrentMemoMap.forkOrCreate(context)
+export const make = Effect.fnUntraced(function* <
+  I,
+  E,
+  R,
+  X,
+  const Preload extends boolean = never,
+  SE = never,
+  SR = never,
+>(
+  layer: Layer.Layer<I, E, R>,
+  options?:
+    | {
+        /**
+         * Duration to keep the resource alive after it is no longer used.
+         */
+        readonly idleTimeToLive?: Duration.Input | undefined;
+        /**
+         * Whether to acquire the resource during creation.
+         */
+        readonly preload?: Preload | undefined;
+        /**
+         * Schedule used to invalidate the cached resource. When `preload` is
+         * `true`, each scheduled invalidation also reacquires the resource.
+         */
+        readonly invalidationSchedule?: Schedule.Schedule<X, unknown, SE, SR> | undefined;
+      }
+    | undefined,
+): Effect.fn.Return<LayerRef<I, E>, [Preload] extends [true] ? E : never, Scope.Scope | R | SR> {
+  const context = yield* Effect.context<never>();
+  const memoMap = Layer.CurrentMemoMap.forkOrCreate(context);
 
-    const rcRef = yield* RcRef.make({
-      acquire: Effect.contextWith((_: Context.Context<Scope.Scope>) =>
-        Layer.buildWithMemoMap(layer, memoMap, Context.get(_, Scope.Scope))
-      ),
-      idleTimeToLive: options?.idleTimeToLive
-    })
+  const rcRef = yield* RcRef.make({
+    acquire: Effect.contextWith((_: Context.Context<Scope.Scope>) =>
+      Layer.buildWithMemoMap(layer, memoMap, Context.get(_, Scope.Scope)),
+    ),
+    idleTimeToLive: options?.idleTimeToLive,
+  });
 
-    const refresh = RcRef.invalidate(rcRef).pipe(
-      Effect.andThen(Effect.scoped(RcRef.get(rcRef))),
-      Effect.asVoid
-    )
+  const refresh = RcRef.invalidate(rcRef).pipe(
+    Effect.andThen(Effect.scoped(RcRef.get(rcRef))),
+    Effect.asVoid,
+  );
 
-    if (options?.preload) {
-      yield* refresh as Effect.Effect<void>
-    }
-
-    if (options?.invalidationSchedule) {
-      const onRefresh = options.preload ? refresh : RcRef.invalidate(rcRef)
-      yield* onRefresh.pipe(
-        Effect.ignoreCause,
-        Effect.schedule(options.invalidationSchedule),
-        Effect.forkScoped
-      )
-    }
-
-    return identity<LayerRef<I, any>>({
-      [TypeId]: TypeId,
-      rcRef,
-      get: Layer.effectContext(RcRef.get(rcRef)),
-      contextEffect: RcRef.get(rcRef),
-      invalidate: RcRef.invalidate(rcRef),
-      refresh
-    })
+  if (options?.preload) {
+    yield* refresh as Effect.Effect<void>;
   }
-)
+
+  if (options?.invalidationSchedule) {
+    const onRefresh = options.preload ? refresh : RcRef.invalidate(rcRef);
+    yield* onRefresh.pipe(
+      Effect.ignoreCause,
+      Effect.schedule(options.invalidationSchedule),
+      Effect.forkScoped,
+    );
+  }
+
+  return identity<LayerRef<I, any>>({
+    [TypeId]: TypeId,
+    rcRef,
+    get: Layer.effectContext(RcRef.get(rcRef)),
+    contextEffect: RcRef.get(rcRef),
+    invalidate: RcRef.invalidate(rcRef),
+    refresh,
+  });
+});
 
 /**
  * Service class shape produced by `LayerRef.Service`.
@@ -218,7 +222,7 @@ export interface TagClass<
   in out E,
   in out R,
   in out LE,
-  in out Deps extends Layer.Layer<any, any, any>
+  in out Deps extends Layer.Layer<any, any, any>,
 > extends Context.ServiceClass<Self, Id, LayerRef<I, E>> {
   /**
    * Default layer for the `LayerRef` service, with dependencies applied.
@@ -226,34 +230,34 @@ export interface TagClass<
   readonly layer: Layer.Layer<
     Self,
     (Deps extends Layer.Layer<infer _A, infer _E, infer _R> ? _E : never) | LE,
-    | Exclude<R, (Deps extends Layer.Layer<infer _A, infer _E, infer _R> ? _A : never)>
+    | Exclude<R, Deps extends Layer.Layer<infer _A, infer _E, infer _R> ? _A : never>
     | (Deps extends Layer.Layer<infer _A, infer _E, infer _R> ? _R : never)
-  >
+  >;
 
   /**
    * Default layer for the `LayerRef` service without provided dependencies.
    */
-  readonly layerNoDeps: Layer.Layer<Self, LE, R>
+  readonly layerNoDeps: Layer.Layer<Self, LE, R>;
 
   /**
    * Layer that provides the currently cached context, requiring this service.
    */
-  readonly get: Layer.Layer<I, E, Self>
+  readonly get: Layer.Layer<I, E, Self>;
 
   /**
    * Scoped effect that retrieves the currently cached context through this service.
    */
-  readonly contextEffect: Effect.Effect<Context.Context<I>, E, Scope.Scope | Self>
+  readonly contextEffect: Effect.Effect<Context.Context<I>, E, Scope.Scope | Self>;
 
   /**
    * Invalidates the cached context through this service.
    */
-  readonly invalidate: Effect.Effect<void, never, Self>
+  readonly invalidate: Effect.Effect<void, never, Self>;
 
   /**
    * Invalidates the cached context through this service, and reacquires it.
    */
-  readonly refresh: Effect.Effect<void, E, Self>
+  readonly refresh: Effect.Effect<void, E, Self>;
 }
 
 /**
@@ -304,80 +308,72 @@ export interface TagClass<
  * @category services
  * @since 4.0.0
  */
-export const Service = <Self>() =>
-<
-  const Id extends string,
-  I,
-  E,
-  R,
-  X,
-  const Deps extends ReadonlyArray<Layer.Layer<any, any, any>> = [],
-  const Preload extends boolean = never,
-  SE = never,
-  SR = never
->(
-  id: Id,
-  options: {
-    /**
-     * Layer used to build the cached context.
-     */
-    readonly layer: Layer.Layer<I, E, R>
-    /**
-     * Layers used to satisfy dependencies of the `LayerRef` service layer.
-     */
-    readonly dependencies?: Deps | undefined
-    /**
-     * Duration to keep the resource alive after it is no longer used.
-     */
-    readonly idleTimeToLive?: Duration.Input | undefined
-    /**
-     * Whether to acquire the resource during creation.
-     */
-    readonly preload?: Preload | undefined
-    /**
-     * Schedule used to invalidate the cached resource. When `preload` is
-     * `true`, each scheduled invalidation also reacquires the resource.
-     */
-    readonly invalidationSchedule?: Schedule.Schedule<X, unknown, SE, SR> | undefined
-  }
-): TagClass<
-  Self,
-  Id,
-  I,
-  E,
-  R | SR,
-  [Preload] extends [true] ? E : never,
-  Deps[number]
-> => {
-  const limit = getStackTraceLimit()
-  let creationError: Error | undefined
-  if (limit !== 0) {
-    setStackTraceLimit(2)
-    creationError = new globalThis.Error()
-    setStackTraceLimit(limit)
-  }
-
-  function TagClass() {}
-  const TagClass_ = TagClass as any as Mutable<TagClass<Self, Id, any, any, any, any, any>>
-  Object.setPrototypeOf(TagClass, Object.getPrototypeOf(Context.Service<Self, any>(id)))
-  TagClass.key = id
-  Object.defineProperty(TagClass, "stack", {
-    get() {
-      return creationError?.stack
+export const Service =
+  <Self>() =>
+  <
+    const Id extends string,
+    I,
+    E,
+    R,
+    X,
+    const Deps extends ReadonlyArray<Layer.Layer<any, any, any>> = [],
+    const Preload extends boolean = never,
+    SE = never,
+    SR = never,
+  >(
+    id: Id,
+    options: {
+      /**
+       * Layer used to build the cached context.
+       */
+      readonly layer: Layer.Layer<I, E, R>;
+      /**
+       * Layers used to satisfy dependencies of the `LayerRef` service layer.
+       */
+      readonly dependencies?: Deps | undefined;
+      /**
+       * Duration to keep the resource alive after it is no longer used.
+       */
+      readonly idleTimeToLive?: Duration.Input | undefined;
+      /**
+       * Whether to acquire the resource during creation.
+       */
+      readonly preload?: Preload | undefined;
+      /**
+       * Schedule used to invalidate the cached resource. When `preload` is
+       * `true`, each scheduled invalidation also reacquires the resource.
+       */
+      readonly invalidationSchedule?: Schedule.Schedule<X, unknown, SE, SR> | undefined;
+    },
+  ): TagClass<Self, Id, I, E, R | SR, [Preload] extends [true] ? E : never, Deps[number]> => {
+    const limit = getStackTraceLimit();
+    let creationError: Error | undefined;
+    if (limit !== 0) {
+      setStackTraceLimit(2);
+      creationError = new globalThis.Error();
+      setStackTraceLimit(limit);
     }
-  })
 
-  TagClass_.layerNoDeps = Layer.effect(TagClass_)(
-    make(options.layer, options)
-  )
-  TagClass_.layer = options.dependencies && options.dependencies.length > 0 ?
-    Layer.provide(TagClass_.layerNoDeps, options.dependencies as any) :
-    TagClass_.layerNoDeps
+    function TagClass() {}
+    const TagClass_ = TagClass as any as Mutable<TagClass<Self, Id, any, any, any, any, any>>;
+    Object.setPrototypeOf(TagClass, Object.getPrototypeOf(Context.Service<Self, any>(id)));
+    TagClass.key = id;
+    Object.defineProperty(TagClass, "stack", {
+      get() {
+        return creationError?.stack;
+      },
+    });
 
-  TagClass_.get = Layer.unwrap(TagClass_.useSync((ref) => ref.get))
-  TagClass_.contextEffect = TagClass_.use((ref) => ref.contextEffect)
-  TagClass_.invalidate = TagClass_.use((ref) => ref.invalidate)
-  TagClass_.refresh = TagClass_.use((ref) => ref.refresh)
+    TagClass_.layerNoDeps = Layer.effect(TagClass_)(make(options.layer, options));
+    TagClass_.layer =
+      options.dependencies && options.dependencies.length > 0
+        ? Layer.provide(TagClass_.layerNoDeps, options.dependencies as any)
+        : TagClass_.layerNoDeps;
 
-  return TagClass as any
-}
+    TagClass_.get = Layer.unwrap(TagClass_.useSync((ref) => ref.get));
+    TagClass_.contextEffect = TagClass_.use((ref) => ref.contextEffect);
+    TagClass_.invalidate = TagClass_.use((ref) => ref.invalidate);
+    TagClass_.refresh = TagClass_.use((ref) => ref.refresh);
+
+    return TagClass as any;
+  };

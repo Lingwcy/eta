@@ -1,41 +1,22 @@
 {
   "name": "@effect/platform-node",
-  "type": "module",
   "version": "4.0.0-rc.117",
-  "license": "MIT",
   "description": "Platform specific implementations for the Node.js runtime",
+  "keywords": [
+    "algebraic-data-types",
+    "functional-programming",
+    "node",
+    "typescript"
+  ],
   "homepage": "https://effect.website",
+  "bugs": {
+    "url": "https://github.com/Effect-TS/effect/issues"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/platform/node"
-  },
-  "bugs": {
-    "url": "https://github.com/Effect-TS/effect/issues"
-  },
-  "tags": [
-    "node",
-    "typescript",
-    "algebraic-data-types",
-    "functional-programming"
-  ],
-  "keywords": [
-    "node",
-    "typescript",
-    "algebraic-data-types",
-    "functional-programming"
-  ],
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "sideEffects": [],
-  "exports": {
-    "./package.json": "./package.json",
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./internal/*": null,
-    "./index": null,
-    "./*/index": null
   },
   "files": [
     "src/**/*.ts",
@@ -47,9 +28,17 @@
     "CLAUDE.md",
     "ai-docs/**/*"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts",
+    "./internal/*": null,
+    "./index": null,
+    "./*/index": null
+  },
   "publishConfig": {
-    "access": "public",
-    "provenance": true,
     "exports": {
       "./package.json": "./package.json",
       ".": "./dist/index.js",
@@ -57,7 +46,9 @@
       "./internal/*": null,
       "./index": null,
       "./*/index": null
-    }
+    },
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "codegen": "effect-utils codegen",
@@ -69,10 +60,6 @@
     "@effect/platform-node-shared": "workspace:^",
     "undici": "^8.10.2"
   },
-  "peerDependencies": {
-    "effect": "workspace:^",
-    "redis": ">=5.0.0 <7.0.0"
-  },
   "devDependencies": {
     "@testcontainers/mysql": "^12.1.0",
     "@testcontainers/postgresql": "^12.1.0",
@@ -80,5 +67,18 @@
     "@types/node": "^26.6.2",
     "effect": "workspace:^",
     "redis": "^6.2.1"
-  }
+  },
+  "peerDependencies": {
+    "effect": "workspace:^",
+    "redis": ">=5.0.0 <7.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "tags": [
+    "node",
+    "typescript",
+    "algebraic-data-types",
+    "functional-programming"
+  ]
 }

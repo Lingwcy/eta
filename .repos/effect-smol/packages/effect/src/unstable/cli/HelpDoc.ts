@@ -10,9 +10,9 @@
  * @since 4.0.0
  */
 
-import type { NonEmptyReadonlyArray } from "../../Array.ts"
-import type * as Context from "../../Context.ts"
-import type * as Option from "../../Option.ts"
+import type { NonEmptyReadonlyArray } from "../../Array.ts";
+import type * as Context from "../../Context.ts";
+import type * as Option from "../../Option.ts";
 
 /**
  * Structured representation of help documentation for a command.
@@ -66,43 +66,43 @@ export interface HelpDoc {
   /**
    * Brief description of what the command does
    */
-  readonly description: string
+  readonly description: string;
 
   /**
    * Usage syntax showing how to invoke the command
    * Example: "myapp deploy [flags]"
    */
-  readonly usage: string
+  readonly usage: string;
 
   /**
    * List of available flags/options for this command
    */
-  readonly flags: ReadonlyArray<FlagDoc>
+  readonly flags: ReadonlyArray<FlagDoc>;
 
   /**
    * Global flags available to all commands (e.g., --help, --version).
    */
-  readonly globalFlags?: ReadonlyArray<FlagDoc>
+  readonly globalFlags?: ReadonlyArray<FlagDoc>;
 
   /**
    * Custom command annotations.
    */
-  readonly annotations: Context.Context<never>
+  readonly annotations: Context.Context<never>;
 
   /**
    * List of positional arguments for this command
    */
-  readonly args?: ReadonlyArray<ArgDoc>
+  readonly args?: ReadonlyArray<ArgDoc>;
 
   /**
    * Optional list of subcommands if this is a parent command
    */
-  readonly subcommands?: ReadonlyArray<SubcommandGroupDoc>
+  readonly subcommands?: ReadonlyArray<SubcommandGroupDoc>;
 
   /**
    * Optional concrete usage examples for the command
    */
-  readonly examples?: ReadonlyArray<ExampleDoc>
+  readonly examples?: ReadonlyArray<ExampleDoc>;
 }
 
 /**
@@ -115,12 +115,12 @@ export interface ExampleDoc {
   /**
    * Command line invocation example
    */
-  readonly command: string
+  readonly command: string;
 
   /**
    * Optional explanation for the example
    */
-  readonly description?: string | undefined
+  readonly description?: string | undefined;
 }
 
 /**
@@ -158,27 +158,27 @@ export interface FlagDoc {
   /**
    * Primary name of the flag (e.g., "verbose")
    */
-  readonly name: string
+  readonly name: string;
 
   /**
    * Alternative names/aliases for the flag (e.g., ["-v"])
    */
-  readonly aliases: ReadonlyArray<string>
+  readonly aliases: ReadonlyArray<string>;
 
   /**
    * Type of the flag value (e.g., "string", "boolean", "integer")
    */
-  readonly type: string
+  readonly type: string;
 
   /**
    * Description of what the flag does
    */
-  readonly description: Option.Option<string>
+  readonly description: Option.Option<string>;
 
   /**
    * Whether this flag is required
    */
-  readonly required: boolean
+  readonly required: boolean;
 }
 
 /**
@@ -226,22 +226,22 @@ export interface SubcommandDoc {
   /**
    * Name of the subcommand
    */
-  readonly name: string
+  readonly name: string;
 
   /**
    * Optional short alias for invoking the subcommand.
    */
-  readonly alias: string | undefined
+  readonly alias: string | undefined;
 
   /**
    * Optional short description of what the subcommand does.
    */
-  readonly shortDescription: string | undefined
+  readonly shortDescription: string | undefined;
 
   /**
    * Brief description of what the subcommand does
    */
-  readonly description: string
+  readonly description: string;
 }
 
 /**
@@ -255,12 +255,12 @@ export interface SubcommandGroupDoc {
    * Group name used in help output.
    * Undefined means the default ungrouped section.
    */
-  readonly group: string | undefined
+  readonly group: string | undefined;
 
   /**
    * Subcommands in this group.
    */
-  readonly commands: NonEmptyReadonlyArray<SubcommandDoc>
+  readonly commands: NonEmptyReadonlyArray<SubcommandDoc>;
 }
 
 /**
@@ -307,25 +307,25 @@ export interface ArgDoc {
   /**
    * Name of the argument (e.g., "source", "destination")
    */
-  readonly name: string
+  readonly name: string;
 
   /**
    * Type of the argument value (e.g., "string", "file", "directory")
    */
-  readonly type: string
+  readonly type: string;
 
   /**
    * Description of what the argument is for
    */
-  readonly description: Option.Option<string>
+  readonly description: Option.Option<string>;
 
   /**
    * Whether this argument is required or optional
    */
-  readonly required: boolean
+  readonly required: boolean;
 
   /**
    * Whether this argument is variadic (accepts multiple values)
    */
-  readonly variadic: boolean
+  readonly variadic: boolean;
 }

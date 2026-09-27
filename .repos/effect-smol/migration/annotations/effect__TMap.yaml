@@ -1,6 +1,6 @@
 effect/TMap#TMap:
   replacement: "TxHashMap.TxHashMap"
-  note: "Rename the type and import from \"effect/TxHashMap\". V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Rename the type and import from "effect/TxHashMap". V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#TMap.Variance:
   replacement: "none"
   note: "TxHashMap exposes no public variance marker."
@@ -9,7 +9,7 @@ effect/TMap#TMapTypeId:
   note: "The type id is internal in v4; use the public runtime guard."
 effect/TMap#empty:
   replacement: "TxHashMap.empty"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#findAllSTM:
   replacement: "TxHashMap.entries + Effect traversal"
   note: "No effectful mapped-find helper remains; traverse the entry snapshot explicitly inside Effect.tx."
@@ -18,34 +18,34 @@ effect/TMap#findSTM:
   note: "No effectful mapped-find helper remains; traverse entries explicitly inside Effect.tx."
 effect/TMap#fromIterable:
   replacement: "TxHashMap.fromIterable"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#get:
   replacement: "TxHashMap.get"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#getOrElse:
   replacement: "Effect.map(TxHashMap.get(self, key), Option.getOrElse(fallback))"
   note: "Compose the retained optional get operation with Option.getOrElse."
 effect/TMap#has:
   replacement: "TxHashMap.has"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#isEmpty:
   replacement: "TxHashMap.isEmpty"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#keys:
   replacement: "TxHashMap.keys"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#make:
   replacement: "TxHashMap.make"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#reduce:
   replacement: "TxHashMap.reduce"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#reduceSTM:
   replacement: "TxHashMap.entries + Effect.reduce"
   note: "Snapshot entries and reduce them effectfully inside the surrounding Effect.tx transaction."
 effect/TMap#remove:
   replacement: "TxHashMap.remove"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#removeAll:
   replacement: "TxHashMap.removeMany"
   note: "The bulk removal operation was renamed."
@@ -54,7 +54,7 @@ effect/TMap#setIfAbsent:
   note: "No direct helper remains; check and conditionally set under one outer transaction."
 effect/TMap#size:
   replacement: "TxHashMap.size"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TMap#takeFirst:
   replacement: "none"
   note: "No atomic take-and-match helper exists in TxHashMap; implement explicit selection and removal inside Effect.tx."
@@ -96,4 +96,4 @@ effect/TMap#updateWith:
   note: "modifyAt is the closest atomic keyed update, but returns void; preserve any old return value explicitly if needed."
 effect/TMap#values:
   replacement: "TxHashMap.values"
-  note: "Import TxHashMap from \"effect/TxHashMap\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashMap from "effect/TxHashMap"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'

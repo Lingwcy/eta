@@ -15,12 +15,12 @@
  */
 
 export const bytes = (hex: string): Uint8Array => {
-  const result = new Uint8Array(hex.length / 2)
+  const result = new Uint8Array(hex.length / 2);
   for (let i = 0; i < result.length; i++) {
-    result[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+    result[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   }
-  return result
-}
+  return result;
+};
 
 export const frontend = {
   sslRequest: "0000000804d2162f",
@@ -38,8 +38,8 @@ export const frontend = {
   passwordMessage: "700000000b6d643561626300",
   saslInitialResponse: "7000000019534352414d2d5348412d32353600000000036e2c2c",
   saslInitialResponseEmpty: "7000000016534352414d2d5348412d32353600ffffffff",
-  saslResponse: "7000000007010203"
-} as const
+  saslResponse: "7000000007010203",
+} as const;
 
 export const backend = {
   authenticationOk: "520000000800000000",
@@ -53,7 +53,8 @@ export const backend = {
   parameterStatus: "5300000017696e5f686f745f7374616e646279006f666600",
   backendKeyData: "4b0000000c0000003f09e5e380",
   readyForQuery: "5a0000000549",
-  rowDescription: "540000002e00026100000000000000000000170004ffffffff0001620000000000000000000019ffffffffffff0001",
+  rowDescription:
+    "540000002e00026100000000000000000000170004ffffffff0001620000000000000000000019ffffffffffff0001",
   dataRowTwoColumns: "4400000013000200000004000000010000000178",
   dataRowWithNull: "44000000160002000000080000000000000007ffffffff",
   parameterDescription: "740000000a000100000014",
@@ -68,8 +69,9 @@ export const backend = {
     "4500000041534552524f5200564552524f5200433232303132004d6469766973696f6e206279207a65726f0046696e742e63004c3837300052696e74346469760000",
   noticeResponse:
     "4e0000007f534e4f5449434500564e4f5449434500433030303030004d7461626c6520226566666563745f6d697373696e675f7461626c652220646f6573206e6f742065786973742c20736b697070696e6700467461626c65636d64732e63004c31333236005244726f704572726f724d73674e6f6e4578697374656e740000",
-  notificationResponse: "41000000240000003f6566666563745f6368616e6e656c007061796c6f6164207465787400"
-} as const
+  notificationResponse:
+    "41000000240000003f6566666563745f6368616e6e656c007061796c6f6164207465787400",
+} as const;
 
 /**
  * One `DataRow` message per value, each the reply to `SELECT $1::<type>` with
@@ -114,8 +116,8 @@ export const rows = {
     "440000003200010000002800000001000000010000001700000003000000010000000400000001ffffffff00000004fffffffd",
   textArrayEmpty: "440000001600010000000c000000000000000000000019",
   timestamptzArray:
-    "440000003a0001000000300000000100000001000004a0000000030000000100000008fffca2fec4c82000ffffffff000000080002bcc0f6fdeb40"
-} as const
+    "440000003a0001000000300000000100000001000004a0000000030000000100000008fffca2fec4c82000ffffffff000000080002bcc0f6fdeb40",
+} as const;
 
 /**
  * A complete SCRAM-SHA-256 exchange with PostgreSQL 16, for user `effect`
@@ -126,16 +128,17 @@ export const scram = {
   password: "secret",
   clientNonce: "effectnonce0123456789",
   clientFirstMessage: "n,,n=,r=effectnonce0123456789",
-  serverFirstMessage: "r=effectnonce01234567894aD4OM+bZ8xeuWi0oC13aCWt,s=DBRmN4Xi9iMOo1tZfsi+Hg==,i=4096",
+  serverFirstMessage:
+    "r=effectnonce01234567894aD4OM+bZ8xeuWi0oC13aCWt,s=DBRmN4Xi9iMOo1tZfsi+Hg==,i=4096",
   clientFinalMessage:
     "c=biws,r=effectnonce01234567894aD4OM+bZ8xeuWi0oC13aCWt,p=MzbwxN5OtYdVrj5y4YLvTcjQEOgJaNmODnCVqny303A=",
-  serverFinalMessage: "v=4gAXrsX8nixHsTXaW0VrK1xLv1s1ZdORtNuznOyEZrI="
-} as const
+  serverFinalMessage: "v=4gAXrsX8nixHsTXaW0VrK1xLv1s1ZdORtNuznOyEZrI=",
+} as const;
 
 /** An `AuthenticationMD5Password` challenge and the reply the server accepted. */
 export const md5 = {
   user: "effect",
   password: "secret",
   salt: "70e7d45e",
-  expected: "md5dc8f3c0ed2dd6e3843d5b7623544d96b"
-} as const
+  expected: "md5dc8f3c0ed2dd6e3843d5b7623544d96b",
+} as const;

@@ -1,80 +1,80 @@
-import { assert, describe, it } from "@effect/vitest"
-import { Formatter, Schema, type SchemaAST, SchemaRepresentation } from "effect"
-import { throws } from "../../utils/assert.ts"
+import { assert, describe, it } from "@effect/vitest";
+import { Formatter, Schema, type SchemaAST, SchemaRepresentation } from "effect";
+import { throws } from "../../utils/assert.ts";
 
 function assertFilterReviver<T>(input: {
-  readonly schema: Schema.Codec<T>
-  readonly id: string
-  readonly payload: Schema.Json
-  readonly schemas?: ReadonlyArray<SchemaAST.AST>
-  readonly reviver: SchemaRepresentation.FilterReviver<any>
-  readonly dependencies?: ReadonlyArray<SchemaRepresentation.AnyReviver>
-  readonly valid: unknown
-  readonly invalid: unknown
-  readonly hasToJsonSchema?: boolean
+  readonly schema: Schema.Codec<T>;
+  readonly id: string;
+  readonly payload: Schema.Json;
+  readonly schemas?: ReadonlyArray<SchemaAST.AST>;
+  readonly reviver: SchemaRepresentation.FilterReviver<any>;
+  readonly dependencies?: ReadonlyArray<SchemaRepresentation.AnyReviver>;
+  readonly valid: unknown;
+  readonly invalid: unknown;
+  readonly hasToJsonSchema?: boolean;
 }): void {
-  const check = input.schema.ast.checks?.at(-1)
-  assert.isDefined(check)
-  assert.strictEqual(check._tag, "Filter")
-  if (check._tag !== "Filter") return
+  const check = input.schema.ast.checks?.at(-1);
+  assert.isDefined(check);
+  assert.strictEqual(check._tag, "Filter");
+  if (check._tag !== "Filter") return;
   assert.deepStrictEqual(check.annotations?.representation, {
     id: input.id,
     payload: input.payload,
-    ...(input.schemas === undefined ? undefined : { schemas: input.schemas })
-  })
+    ...(input.schemas === undefined ? undefined : { schemas: input.schemas }),
+  });
 
-  const document = SchemaRepresentation.toRepresentation(input.schema.ast)
-  const json = SchemaRepresentation.toJson(document)
+  const document = SchemaRepresentation.toRepresentation(input.schema.ast);
+  const json = SchemaRepresentation.toJson(document);
   const revived = SchemaRepresentation.fromRepresentation(SchemaRepresentation.fromJson(json), {
-    revivers: [input.reviver, ...(input.dependencies ?? [])]
-  }) as Schema.Codec<unknown>
+    revivers: [input.reviver, ...(input.dependencies ?? [])],
+  }) as Schema.Codec<unknown>;
 
-  assert.strictEqual(Schema.decodeUnknownResult(revived)(input.valid)._tag, "Success")
-  assert.strictEqual(Schema.decodeUnknownResult(revived)(input.invalid)._tag, "Failure")
+  assert.strictEqual(Schema.decodeUnknownResult(revived)(input.valid)._tag, "Success");
+  assert.strictEqual(Schema.decodeUnknownResult(revived)(input.invalid)._tag, "Failure");
   assert.deepStrictEqual(
     SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(revived.ast)),
-    json
-  )
-  const revivedCheck = revived.ast.checks?.at(-1)
-  assert.isDefined(revivedCheck)
-  assert.strictEqual(revivedCheck._tag, "Filter")
-  if (revivedCheck._tag !== "Filter") return
-  assert.strictEqual(revivedCheck.annotations?.representation?.id, input.id)
+    json,
+  );
+  const revivedCheck = revived.ast.checks?.at(-1);
+  assert.isDefined(revivedCheck);
+  assert.strictEqual(revivedCheck._tag, "Filter");
+  if (revivedCheck._tag !== "Filter") return;
+  assert.strictEqual(revivedCheck.annotations?.representation?.id, input.id);
   assert.strictEqual(
     typeof revivedCheck.annotations?.toJsonSchema,
-    input.hasToJsonSchema === false ? "undefined" : "function"
-  )
-  assert.strictEqual(typeof revivedCheck.annotations?.toCode, "function")
+    input.hasToJsonSchema === false ? "undefined" : "function",
+  );
+  assert.strictEqual(typeof revivedCheck.annotations?.toCode, "function");
 }
 
 function assertDeclarationReviver(input: {
-  readonly schema: Schema.Top
-  readonly id: string
-  readonly payload: Schema.Json
-  readonly reviver: SchemaRepresentation.DeclarationReviver<any>
-  readonly dependencies?: ReadonlyArray<SchemaRepresentation.AnyReviver>
+  readonly schema: Schema.Top;
+  readonly id: string;
+  readonly payload: Schema.Json;
+  readonly reviver: SchemaRepresentation.DeclarationReviver<any>;
+  readonly dependencies?: ReadonlyArray<SchemaRepresentation.AnyReviver>;
 }): void {
-  const representation = input.schema.ast.annotations?.representation
+  const representation = input.schema.ast.annotations?.representation;
   assert.deepStrictEqual(representation, {
     id: input.id,
-    payload: input.payload
-  })
+    payload: input.payload,
+  });
 
-  const document = SchemaRepresentation.toRepresentation(input.schema.ast)
-  const json = SchemaRepresentation.toJson(document)
+  const document = SchemaRepresentation.toRepresentation(input.schema.ast);
+  const json = SchemaRepresentation.toJson(document);
   const revived = SchemaRepresentation.fromRepresentation(SchemaRepresentation.fromJson(json), {
-    revivers: [input.reviver, ...(input.dependencies ?? [])]
-  })
+    revivers: [input.reviver, ...(input.dependencies ?? [])],
+  });
 
   assert.deepStrictEqual(
     SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(revived.ast)),
-    json
-  )
+    json,
+  );
   assert.strictEqual(
     (revived.ast.annotations?.representation as { readonly id?: string } | undefined)?.id,
-    input.id
-  )
-  assert.strictEqual(typeof revived.ast.annotations?.toCode, "function")
+    input.id,
+  );
+  assert.strictEqual(typeof revived.ast.annotations?.toCode, "function");
 }
 
 describe("SchemaRepresentation built-in string revivers", () => {
@@ -85,9 +85,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isStringFiniteReviver,
       valid: "1.5",
-      invalid: "Infinity"
-    })
-  })
+      invalid: "Infinity",
+    });
+  });
 
   it("revives isStringBigInt", () => {
     assertFilterReviver({
@@ -96,9 +96,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isStringBigIntReviver,
       valid: "-10",
-      invalid: "1.5"
-    })
-  })
+      invalid: "1.5",
+    });
+  });
 
   it("revives isStringSymbol", () => {
     assertFilterReviver({
@@ -107,9 +107,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isStringSymbolReviver,
       valid: "Symbol(shared)",
-      invalid: "shared"
-    })
-  })
+      invalid: "shared",
+    });
+  });
 
   it("revives isMinLength", () => {
     assertFilterReviver({
@@ -118,9 +118,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: { minLength: 1 },
       reviver: SchemaRepresentation.isMinLengthReviver,
       valid: "a",
-      invalid: ""
-    })
-  })
+      invalid: "",
+    });
+  });
 
   it("revives isMaxLength", () => {
     assertFilterReviver({
@@ -129,9 +129,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: { maxLength: 3 },
       reviver: SchemaRepresentation.isMaxLengthReviver,
       valid: "abc",
-      invalid: "abcd"
-    })
-  })
+      invalid: "abcd",
+    });
+  });
 
   it("revives isLengthBetween", () => {
     assertFilterReviver({
@@ -140,9 +140,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: { minimum: 1, maximum: 3 },
       reviver: SchemaRepresentation.isLengthBetweenReviver,
       valid: "ab",
-      invalid: ""
-    })
-  })
+      invalid: "",
+    });
+  });
 
   it("revives isPattern", () => {
     assertFilterReviver({
@@ -151,9 +151,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: { source: "^a+$", flags: "i" },
       reviver: SchemaRepresentation.isPatternReviver,
       valid: "AAA",
-      invalid: "bbb"
-    })
-  })
+      invalid: "bbb",
+    });
+  });
 
   it("revives isTrimmed", () => {
     assertFilterReviver({
@@ -162,9 +162,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isTrimmedReviver,
       valid: "text",
-      invalid: " text "
-    })
-  })
+      invalid: " text ",
+    });
+  });
 
   it("revives isUUID", () => {
     assertFilterReviver({
@@ -173,9 +173,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: { version: 4 },
       reviver: SchemaRepresentation.isUUIDReviver,
       valid: "123e4567-e89b-42d3-a456-426614174000",
-      invalid: "123e4567-e89b-12d3-a456-426614174000"
-    })
-  })
+      invalid: "123e4567-e89b-12d3-a456-426614174000",
+    });
+  });
 
   it("revives isGUID", () => {
     assertFilterReviver({
@@ -184,9 +184,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isGUIDReviver,
       valid: "123e4567-e89b-12d3-a456-426614174000",
-      invalid: "not-a-guid"
-    })
-  })
+      invalid: "not-a-guid",
+    });
+  });
 
   it("revives isULID", () => {
     assertFilterReviver({
@@ -195,9 +195,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isULIDReviver,
       valid: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-      invalid: "not-a-ulid"
-    })
-  })
+      invalid: "not-a-ulid",
+    });
+  });
 
   it("revives isBase64", () => {
     assertFilterReviver({
@@ -206,9 +206,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isBase64Reviver,
       valid: "YQ==",
-      invalid: "?"
-    })
-  })
+      invalid: "?",
+    });
+  });
 
   it("revives isBase64Url", () => {
     assertFilterReviver({
@@ -217,9 +217,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isBase64UrlReviver,
       valid: "YQ",
-      invalid: "?"
-    })
-  })
+      invalid: "?",
+    });
+  });
 
   it("revives isStartsWith", () => {
     assertFilterReviver({
@@ -228,9 +228,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: { startsWith: "pre" },
       reviver: SchemaRepresentation.isStartsWithReviver,
       valid: "prefix",
-      invalid: "suffix"
-    })
-  })
+      invalid: "suffix",
+    });
+  });
 
   it("revives isEndsWith", () => {
     assertFilterReviver({
@@ -239,9 +239,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: { endsWith: "end" },
       reviver: SchemaRepresentation.isEndsWithReviver,
       valid: "weekend",
-      invalid: "ending"
-    })
-  })
+      invalid: "ending",
+    });
+  });
 
   it("revives isIncludes", () => {
     assertFilterReviver({
@@ -250,9 +250,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: { includes: "mid" },
       reviver: SchemaRepresentation.isIncludesReviver,
       valid: "middle",
-      invalid: "outside"
-    })
-  })
+      invalid: "outside",
+    });
+  });
 
   it("revives isUppercased", () => {
     assertFilterReviver({
@@ -261,9 +261,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isUppercasedReviver,
       valid: "ABC1",
-      invalid: "Abc"
-    })
-  })
+      invalid: "Abc",
+    });
+  });
 
   it("revives isLowercased", () => {
     assertFilterReviver({
@@ -272,9 +272,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isLowercasedReviver,
       valid: "abc1",
-      invalid: "Abc"
-    })
-  })
+      invalid: "Abc",
+    });
+  });
 
   it("revives isCapitalized", () => {
     assertFilterReviver({
@@ -283,9 +283,9 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isCapitalizedReviver,
       valid: "Hello",
-      invalid: "hello"
-    })
-  })
+      invalid: "hello",
+    });
+  });
 
   it("revives isUncapitalized", () => {
     assertFilterReviver({
@@ -294,23 +294,20 @@ describe("SchemaRepresentation built-in string revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isUncapitalizedReviver,
       valid: "hello",
-      invalid: "Hello"
-    })
-  })
-})
+      invalid: "Hello",
+    });
+  });
+});
 
 function expectInvalidPayload(json: Schema.Json, reviver: SchemaRepresentation.AnyReviver): void {
-  const path = Formatter.formatPath([
-    "representation",
-    "checks",
-    0,
-    "representation",
-    "payload"
-  ])
+  const path = Formatter.formatPath(["representation", "checks", 0, "representation", "payload"]);
   throws(
-    () => SchemaRepresentation.fromRepresentation(SchemaRepresentation.fromJson(json), { revivers: [reviver] }),
-    `Invalid representation payload for ${reviver.id}\n  at ${path}`
-  )
+    () =>
+      SchemaRepresentation.fromRepresentation(SchemaRepresentation.fromJson(json), {
+        revivers: [reviver],
+      }),
+    `Invalid representation payload for ${reviver.id}\n  at ${path}`,
+  );
 }
 
 describe("SchemaRepresentation built-in number revivers", () => {
@@ -321,9 +318,9 @@ describe("SchemaRepresentation built-in number revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isFiniteReviver,
       valid: 1,
-      invalid: Number.POSITIVE_INFINITY
-    })
-  })
+      invalid: Number.POSITIVE_INFINITY,
+    });
+  });
 
   it("revives isInt", () => {
     assertFilterReviver({
@@ -332,9 +329,9 @@ describe("SchemaRepresentation built-in number revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isIntReviver,
       valid: 1,
-      invalid: 1.5
-    })
-  })
+      invalid: 1.5,
+    });
+  });
 
   it("revives isMultipleOf", () => {
     assertFilterReviver({
@@ -343,9 +340,9 @@ describe("SchemaRepresentation built-in number revivers", () => {
       payload: { divisor: 3 },
       reviver: SchemaRepresentation.isMultipleOfReviver,
       valid: 6,
-      invalid: 7
-    })
-  })
+      invalid: 7,
+    });
+  });
 
   it("revives isGreaterThan", () => {
     assertFilterReviver({
@@ -354,9 +351,9 @@ describe("SchemaRepresentation built-in number revivers", () => {
       payload: { exclusiveMinimum: 1 },
       reviver: SchemaRepresentation.isGreaterThanReviver,
       valid: 2,
-      invalid: 1
-    })
-  })
+      invalid: 1,
+    });
+  });
 
   it("revives isGreaterThanOrEqualTo", () => {
     assertFilterReviver({
@@ -365,9 +362,9 @@ describe("SchemaRepresentation built-in number revivers", () => {
       payload: { minimum: 1 },
       reviver: SchemaRepresentation.isGreaterThanOrEqualToReviver,
       valid: 1,
-      invalid: 0
-    })
-  })
+      invalid: 0,
+    });
+  });
 
   it("revives isLessThan", () => {
     assertFilterReviver({
@@ -376,9 +373,9 @@ describe("SchemaRepresentation built-in number revivers", () => {
       payload: { exclusiveMaximum: 2 },
       reviver: SchemaRepresentation.isLessThanReviver,
       valid: 1,
-      invalid: 2
-    })
-  })
+      invalid: 2,
+    });
+  });
 
   it("revives isLessThanOrEqualTo", () => {
     assertFilterReviver({
@@ -387,57 +384,57 @@ describe("SchemaRepresentation built-in number revivers", () => {
       payload: { maximum: 2 },
       reviver: SchemaRepresentation.isLessThanOrEqualToReviver,
       valid: 2,
-      invalid: 3
-    })
-  })
+      invalid: 3,
+    });
+  });
 
   it("revives isBetween", () => {
     assertFilterReviver({
       schema: Schema.Number.check(
-        Schema.isBetween({ minimum: 1, maximum: 3, exclusiveMinimum: true })
+        Schema.isBetween({ minimum: 1, maximum: 3, exclusiveMinimum: true }),
       ),
       id: "effect/schema/isBetween",
       payload: { minimum: 1, maximum: 3, exclusiveMinimum: true },
       reviver: SchemaRepresentation.isBetweenReviver,
       valid: 2,
-      invalid: 1
-    })
-  })
+      invalid: 1,
+    });
+  });
 
   it("normalizes isBetween flags", () => {
     const check = Schema.isBetween({
       minimum: 1,
       maximum: 3,
       exclusiveMinimum: false,
-      exclusiveMaximum: true
-    })
+      exclusiveMaximum: true,
+    });
 
     assert.deepStrictEqual(check.annotations?.representation, {
       id: "effect/schema/isBetween",
-      payload: { minimum: 1, maximum: 3, exclusiveMaximum: true }
-    })
-  })
+      payload: { minimum: 1, maximum: 3, exclusiveMaximum: true },
+    });
+  });
 
   it("rejects a non-numeric isMultipleOf payload", () => {
     const json = SchemaRepresentation.toJson(
-      SchemaRepresentation.toRepresentation(Schema.Number.check(Schema.isMultipleOf(2)).ast)
-    ) as any
-    json.representation.checks[0].representation.payload.divisor = "2"
+      SchemaRepresentation.toRepresentation(Schema.Number.check(Schema.isMultipleOf(2)).ast),
+    ) as any;
+    json.representation.checks[0].representation.payload.divisor = "2";
 
-    expectInvalidPayload(json, SchemaRepresentation.isMultipleOfReviver)
-  })
+    expectInvalidPayload(json, SchemaRepresentation.isMultipleOfReviver);
+  });
 
   it("rejects a non-canonical isBetween payload", () => {
     const json = SchemaRepresentation.toJson(
       SchemaRepresentation.toRepresentation(
-        Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 3 })).ast
-      )
-    ) as any
-    json.representation.checks[0].representation.payload.exclusiveMinimum = false
+        Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 3 })).ast,
+      ),
+    ) as any;
+    json.representation.checks[0].representation.payload.exclusiveMinimum = false;
 
-    expectInvalidPayload(json, SchemaRepresentation.isBetweenReviver)
-  })
-})
+    expectInvalidPayload(json, SchemaRepresentation.isBetweenReviver);
+  });
+});
 
 describe("SchemaRepresentation built-in BigInt revivers", () => {
   it("revives isGreaterThanBigInt", () => {
@@ -447,9 +444,9 @@ describe("SchemaRepresentation built-in BigInt revivers", () => {
       payload: { exclusiveMinimum: "10" },
       reviver: SchemaRepresentation.isGreaterThanBigIntReviver,
       valid: 11n,
-      invalid: 10n
-    })
-  })
+      invalid: 10n,
+    });
+  });
 
   it("revives isGreaterThanOrEqualToBigInt", () => {
     assertFilterReviver({
@@ -458,9 +455,9 @@ describe("SchemaRepresentation built-in BigInt revivers", () => {
       payload: { minimum: "10" },
       reviver: SchemaRepresentation.isGreaterThanOrEqualToBigIntReviver,
       valid: 10n,
-      invalid: 9n
-    })
-  })
+      invalid: 9n,
+    });
+  });
 
   it("revives isLessThanBigInt", () => {
     assertFilterReviver({
@@ -469,9 +466,9 @@ describe("SchemaRepresentation built-in BigInt revivers", () => {
       payload: { exclusiveMaximum: "10" },
       reviver: SchemaRepresentation.isLessThanBigIntReviver,
       valid: 9n,
-      invalid: 10n
-    })
-  })
+      invalid: 10n,
+    });
+  });
 
   it("revives isLessThanOrEqualToBigInt", () => {
     assertFilterReviver({
@@ -480,30 +477,30 @@ describe("SchemaRepresentation built-in BigInt revivers", () => {
       payload: { maximum: "10" },
       reviver: SchemaRepresentation.isLessThanOrEqualToBigIntReviver,
       valid: 10n,
-      invalid: 11n
-    })
-  })
+      invalid: 11n,
+    });
+  });
 
   it("revives isBetweenBigInt", () => {
     assertFilterReviver({
       schema: Schema.BigInt.check(
-        Schema.isBetweenBigInt({ minimum: -10n, maximum: 10n, exclusiveMaximum: true })
+        Schema.isBetweenBigInt({ minimum: -10n, maximum: 10n, exclusiveMaximum: true }),
       ),
       id: "effect/schema/isBetweenBigInt",
       payload: { minimum: "-10", maximum: "10", exclusiveMaximum: true },
       reviver: SchemaRepresentation.isBetweenBigIntReviver,
       valid: 0n,
-      invalid: 10n
-    })
-  })
+      invalid: 10n,
+    });
+  });
 
   it("persists large bounds as canonical decimal strings", () => {
-    const value = 900719925474099312345678901234567890n
+    const value = 900719925474099312345678901234567890n;
     assert.deepStrictEqual(Schema.isGreaterThanBigInt(value).annotations?.representation, {
       id: "effect/schema/isGreaterThanBigInt",
-      payload: { exclusiveMinimum: "900719925474099312345678901234567890" }
-    })
-  })
+      payload: { exclusiveMinimum: "900719925474099312345678901234567890" },
+    });
+  });
 
   it("normalizes isBetweenBigInt flags", () => {
     assert.deepStrictEqual(
@@ -511,21 +508,21 @@ describe("SchemaRepresentation built-in BigInt revivers", () => {
         minimum: -1n,
         maximum: 1n,
         exclusiveMinimum: false,
-        exclusiveMaximum: true
+        exclusiveMaximum: true,
       }).annotations?.representation,
       {
         id: "effect/schema/isBetweenBigInt",
-        payload: { minimum: "-1", maximum: "1", exclusiveMaximum: true }
-      }
-    )
-  })
-})
+        payload: { minimum: "-1", maximum: "1", exclusiveMaximum: true },
+      },
+    );
+  });
+});
 
 function date(millis: number): Date {
-  return new globalThis.Date(millis)
+  return new globalThis.Date(millis);
 }
 
-const epoch = "1970-01-01T00:00:00.000Z"
+const epoch = "1970-01-01T00:00:00.000Z";
 
 describe("SchemaRepresentation built-in Date revivers", () => {
   it("revives isGreaterThanDate", () => {
@@ -535,9 +532,9 @@ describe("SchemaRepresentation built-in Date revivers", () => {
       payload: { exclusiveMinimum: epoch },
       reviver: SchemaRepresentation.isGreaterThanDateReviver,
       valid: date(1),
-      invalid: date(0)
-    })
-  })
+      invalid: date(0),
+    });
+  });
 
   it("revives isGreaterThanOrEqualToDate", () => {
     assertFilterReviver({
@@ -546,9 +543,9 @@ describe("SchemaRepresentation built-in Date revivers", () => {
       payload: { minimum: epoch },
       reviver: SchemaRepresentation.isGreaterThanOrEqualToDateReviver,
       valid: date(0),
-      invalid: date(-1)
-    })
-  })
+      invalid: date(-1),
+    });
+  });
 
   it("revives isLessThanDate", () => {
     assertFilterReviver({
@@ -557,9 +554,9 @@ describe("SchemaRepresentation built-in Date revivers", () => {
       payload: { exclusiveMaximum: epoch },
       reviver: SchemaRepresentation.isLessThanDateReviver,
       valid: date(-1),
-      invalid: date(0)
-    })
-  })
+      invalid: date(0),
+    });
+  });
 
   it("revives isLessThanOrEqualToDate", () => {
     assertFilterReviver({
@@ -568,33 +565,33 @@ describe("SchemaRepresentation built-in Date revivers", () => {
       payload: { maximum: epoch },
       reviver: SchemaRepresentation.isLessThanOrEqualToDateReviver,
       valid: date(0),
-      invalid: date(1)
-    })
-  })
+      invalid: date(1),
+    });
+  });
 
   it("revives isBetweenDate", () => {
     assertFilterReviver({
       schema: Schema.Any.check(
-        Schema.isBetweenDate({ minimum: date(0), maximum: date(2), exclusiveMaximum: true })
+        Schema.isBetweenDate({ minimum: date(0), maximum: date(2), exclusiveMaximum: true }),
       ),
       id: "effect/schema/isBetweenDate",
       payload: {
         minimum: epoch,
         maximum: "1970-01-01T00:00:00.002Z",
-        exclusiveMaximum: true
+        exclusiveMaximum: true,
       },
       reviver: SchemaRepresentation.isBetweenDateReviver,
       valid: date(1),
-      invalid: date(2)
-    })
-  })
+      invalid: date(2),
+    });
+  });
 
   it("persists millisecond precision", () => {
     assert.deepStrictEqual(Schema.isGreaterThanDate(date(123)).annotations?.representation, {
       id: "effect/schema/isGreaterThanDate",
-      payload: { exclusiveMinimum: "1970-01-01T00:00:00.123Z" }
-    })
-  })
+      payload: { exclusiveMinimum: "1970-01-01T00:00:00.123Z" },
+    });
+  });
 
   it("normalizes isBetweenDate flags", () => {
     assert.deepStrictEqual(
@@ -602,19 +599,19 @@ describe("SchemaRepresentation built-in Date revivers", () => {
         minimum: date(-1),
         maximum: date(1),
         exclusiveMinimum: false,
-        exclusiveMaximum: true
+        exclusiveMaximum: true,
       }).annotations?.representation,
       {
         id: "effect/schema/isBetweenDate",
         payload: {
           minimum: "1969-12-31T23:59:59.999Z",
           maximum: "1970-01-01T00:00:00.001Z",
-          exclusiveMaximum: true
-        }
-      }
-    )
-  })
-})
+          exclusiveMaximum: true,
+        },
+      },
+    );
+  });
+});
 
 describe("SchemaRepresentation built-in collection revivers", () => {
   it("revives isMinSize", () => {
@@ -624,9 +621,9 @@ describe("SchemaRepresentation built-in collection revivers", () => {
       payload: { minSize: 2 },
       reviver: SchemaRepresentation.isMinSizeReviver,
       valid: new Set([1, 2]),
-      invalid: new Set([1])
-    })
-  })
+      invalid: new Set([1]),
+    });
+  });
 
   it("revives isMaxSize", () => {
     assertFilterReviver({
@@ -635,9 +632,9 @@ describe("SchemaRepresentation built-in collection revivers", () => {
       payload: { maxSize: 1 },
       reviver: SchemaRepresentation.isMaxSizeReviver,
       valid: new Set([1]),
-      invalid: new Set([1, 2])
-    })
-  })
+      invalid: new Set([1, 2]),
+    });
+  });
 
   it("revives isSizeBetween", () => {
     assertFilterReviver({
@@ -646,9 +643,9 @@ describe("SchemaRepresentation built-in collection revivers", () => {
       payload: { minimum: 1, maximum: 2 },
       reviver: SchemaRepresentation.isSizeBetweenReviver,
       valid: new Set([1]),
-      invalid: new Set()
-    })
-  })
+      invalid: new Set(),
+    });
+  });
 
   it("revives isUnique", () => {
     assertFilterReviver({
@@ -657,9 +654,9 @@ describe("SchemaRepresentation built-in collection revivers", () => {
       payload: null,
       reviver: SchemaRepresentation.isUniqueReviver,
       valid: [1, 2],
-      invalid: [1, 1]
-    })
-  })
+      invalid: [1, 1],
+    });
+  });
 
   it("revives isUniqueKey", () => {
     assertFilterReviver({
@@ -667,33 +664,39 @@ describe("SchemaRepresentation built-in collection revivers", () => {
       id: "effect/schema/isUniqueKey",
       payload: null,
       reviver: SchemaRepresentation.isUniqueKeyReviver,
-      valid: [["a", 1], ["b", 1]],
-      invalid: [["a", 1], ["a", 2]],
-      hasToJsonSchema: false
-    })
-  })
+      valid: [
+        ["a", 1],
+        ["b", 1],
+      ],
+      invalid: [
+        ["a", 1],
+        ["a", 2],
+      ],
+      hasToJsonSchema: false,
+    });
+  });
 
   it("normalizes isMinSize", () => {
     assert.deepStrictEqual(Schema.isMinSize(-1).annotations?.representation, {
       id: "effect/schema/isMinSize",
-      payload: { minSize: 0 }
-    })
-  })
+      payload: { minSize: 0 },
+    });
+  });
 
   it("normalizes isMaxSize", () => {
     assert.deepStrictEqual(Schema.isMaxSize(2.9).annotations?.representation, {
       id: "effect/schema/isMaxSize",
-      payload: { maxSize: 2 }
-    })
-  })
+      payload: { maxSize: 2 },
+    });
+  });
 
   it("normalizes isSizeBetween", () => {
     assert.deepStrictEqual(Schema.isSizeBetween(1.9, 3.7).annotations?.representation, {
       id: "effect/schema/isSizeBetween",
-      payload: { minimum: 1, maximum: 3 }
-    })
-  })
-})
+      payload: { minimum: 1, maximum: 3 },
+    });
+  });
+});
 
 describe("SchemaRepresentation built-in object revivers", () => {
   it("revives isMinProperties", () => {
@@ -703,9 +706,9 @@ describe("SchemaRepresentation built-in object revivers", () => {
       payload: { minProperties: 2 },
       reviver: SchemaRepresentation.isMinPropertiesReviver,
       valid: { a: 1, b: 2 },
-      invalid: { a: 1 }
-    })
-  })
+      invalid: { a: 1 },
+    });
+  });
 
   it("revives isMaxProperties", () => {
     assertFilterReviver({
@@ -714,9 +717,9 @@ describe("SchemaRepresentation built-in object revivers", () => {
       payload: { maxProperties: 1 },
       reviver: SchemaRepresentation.isMaxPropertiesReviver,
       valid: { a: 1 },
-      invalid: { a: 1, b: 2 }
-    })
-  })
+      invalid: { a: 1, b: 2 },
+    });
+  });
 
   it("revives isPropertiesLengthBetween", () => {
     assertFilterReviver({
@@ -725,12 +728,12 @@ describe("SchemaRepresentation built-in object revivers", () => {
       payload: { minimum: 1, maximum: 2 },
       reviver: SchemaRepresentation.isPropertiesLengthBetweenReviver,
       valid: { a: 1 },
-      invalid: {}
-    })
-  })
+      invalid: {},
+    });
+  });
 
   it("revives isPropertyNames", () => {
-    const names = Schema.String.check(Schema.isPattern(/^[A-Z]/))
+    const names = Schema.String.check(Schema.isPattern(/^[A-Z]/));
     assertFilterReviver({
       schema: Schema.Any.check(Schema.isPropertyNames(names)),
       id: "effect/schema/isPropertyNames",
@@ -739,42 +742,42 @@ describe("SchemaRepresentation built-in object revivers", () => {
       reviver: SchemaRepresentation.isPropertyNamesReviver,
       dependencies: [SchemaRepresentation.isPatternReviver],
       valid: { Alpha: 1 },
-      invalid: { alpha: 1 }
-    })
-  })
+      invalid: { alpha: 1 },
+    });
+  });
 
   it("persists the encoded key schema for isPropertyNames", () => {
-    const names = Schema.String.check(Schema.isPattern(/^[A-Z]/))
-    const check = Schema.isPropertyNames(names)
+    const names = Schema.String.check(Schema.isPattern(/^[A-Z]/));
+    const check = Schema.isPropertyNames(names);
 
     assert.deepStrictEqual(check.annotations?.representation, {
       id: "effect/schema/isPropertyNames",
       payload: null,
-      schemas: [names.ast]
-    })
-  })
+      schemas: [names.ast],
+    });
+  });
 
   it("normalizes isMinProperties", () => {
     assert.deepStrictEqual(Schema.isMinProperties(-1).annotations?.representation, {
       id: "effect/schema/isMinProperties",
-      payload: { minProperties: 0 }
-    })
-  })
+      payload: { minProperties: 0 },
+    });
+  });
 
   it("normalizes isMaxProperties", () => {
     assert.deepStrictEqual(Schema.isMaxProperties(2.9).annotations?.representation, {
       id: "effect/schema/isMaxProperties",
-      payload: { maxProperties: 2 }
-    })
-  })
+      payload: { maxProperties: 2 },
+    });
+  });
 
   it("normalizes isPropertiesLengthBetween", () => {
     assert.deepStrictEqual(Schema.isPropertiesLengthBetween(1.9, 3.7).annotations?.representation, {
       id: "effect/schema/isPropertiesLengthBetween",
-      payload: { minimum: 1, maximum: 3 }
-    })
-  })
-})
+      payload: { minimum: 1, maximum: 3 },
+    });
+  });
+});
 
 describe("SchemaRepresentation built-in declaration revivers", () => {
   it("revives Option", () => {
@@ -782,313 +785,320 @@ describe("SchemaRepresentation built-in declaration revivers", () => {
       schema: Schema.Option(Schema.String),
       id: "effect/schema/Option",
       payload: null,
-      reviver: SchemaRepresentation.OptionReviver
-    })
-  })
+      reviver: SchemaRepresentation.OptionReviver,
+    });
+  });
 
   it("revives Result", () => {
     assertDeclarationReviver({
       schema: Schema.Result(Schema.String, Schema.Number),
       id: "effect/schema/Result",
       payload: null,
-      reviver: SchemaRepresentation.ResultReviver
-    })
-  })
+      reviver: SchemaRepresentation.ResultReviver,
+    });
+  });
 
   it("revives Redacted", () => {
     assertDeclarationReviver({
       schema: Schema.Redacted(Schema.String),
       id: "effect/schema/Redacted",
       payload: null,
-      reviver: SchemaRepresentation.RedactedReviver
-    })
-  })
+      reviver: SchemaRepresentation.RedactedReviver,
+    });
+  });
 
   it("revives CauseReason", () => {
     assertDeclarationReviver({
       schema: Schema.CauseReason(Schema.String, Schema.Number),
       id: "effect/schema/CauseReason",
       payload: null,
-      reviver: SchemaRepresentation.CauseReasonReviver
-    })
-  })
+      reviver: SchemaRepresentation.CauseReasonReviver,
+    });
+  });
 
   it("revives Cause", () => {
     assertDeclarationReviver({
       schema: Schema.Cause(Schema.String, Schema.Number),
       id: "effect/schema/Cause",
       payload: null,
-      reviver: SchemaRepresentation.CauseReviver
-    })
-  })
+      reviver: SchemaRepresentation.CauseReviver,
+    });
+  });
 
   it("revives Error", () => {
     assertDeclarationReviver({
       schema: Schema.ErrorInstance(),
       id: "effect/schema/Error",
       payload: null,
-      reviver: SchemaRepresentation.ErrorInstanceReviver
-    })
-  })
+      reviver: SchemaRepresentation.ErrorInstanceReviver,
+    });
+  });
 
   it("revives Exit", () => {
     assertDeclarationReviver({
       schema: Schema.Exit(Schema.String, Schema.Number, Schema.Boolean),
       id: "effect/schema/Exit",
       payload: null,
-      reviver: SchemaRepresentation.ExitReviver
-    })
-  })
+      reviver: SchemaRepresentation.ExitReviver,
+    });
+  });
 
   it("revives ReadonlyMap", () => {
     assertDeclarationReviver({
       schema: Schema.ReadonlyMap(Schema.String, Schema.Number),
       id: "effect/schema/ReadonlyMap",
       payload: null,
-      reviver: SchemaRepresentation.ReadonlyMapReviver
-    })
-  })
+      reviver: SchemaRepresentation.ReadonlyMapReviver,
+    });
+  });
 
   it("revives HashMap", () => {
     assertDeclarationReviver({
       schema: Schema.HashMap(Schema.String, Schema.Number),
       id: "effect/schema/HashMap",
       payload: null,
-      reviver: SchemaRepresentation.HashMapReviver
-    })
-  })
+      reviver: SchemaRepresentation.HashMapReviver,
+    });
+  });
 
   it("revives Graph", () => {
     assertDeclarationReviver({
       schema: Schema.Graph("directed", Schema.String, Schema.Number),
       id: "effect/schema/Graph",
       payload: "directed",
-      reviver: SchemaRepresentation.GraphReviver
-    })
-  })
+      reviver: SchemaRepresentation.GraphReviver,
+    });
+  });
 
   it("revives ReadonlySet", () => {
     assertDeclarationReviver({
       schema: Schema.ReadonlySet(Schema.String),
       id: "effect/schema/ReadonlySet",
       payload: null,
-      reviver: SchemaRepresentation.ReadonlySetReviver
-    })
-  })
+      reviver: SchemaRepresentation.ReadonlySetReviver,
+    });
+  });
 
   it("revives HashSet", () => {
     assertDeclarationReviver({
       schema: Schema.HashSet(Schema.String),
       id: "effect/schema/HashSet",
       payload: null,
-      reviver: SchemaRepresentation.HashSetReviver
-    })
-  })
+      reviver: SchemaRepresentation.HashSetReviver,
+    });
+  });
 
   it("revives Chunk", () => {
     assertDeclarationReviver({
       schema: Schema.Chunk(Schema.String),
       id: "effect/schema/Chunk",
       payload: null,
-      reviver: SchemaRepresentation.ChunkReviver
-    })
-  })
+      reviver: SchemaRepresentation.ChunkReviver,
+    });
+  });
 
   it("revives RegExp", () => {
     assertDeclarationReviver({
       schema: Schema.RegExp,
       id: "effect/schema/RegExp",
       payload: null,
-      reviver: SchemaRepresentation.RegExpReviver
-    })
-  })
+      reviver: SchemaRepresentation.RegExpReviver,
+    });
+  });
 
   it("revives URL", () => {
     assertDeclarationReviver({
       schema: Schema.URL,
       id: "effect/schema/URL",
       payload: null,
-      reviver: SchemaRepresentation.URLReviver
-    })
-  })
+      reviver: SchemaRepresentation.URLReviver,
+    });
+  });
 
   it("revives Date", () => {
     assertDeclarationReviver({
       schema: Schema.Date,
       id: "effect/schema/Date",
       payload: null,
-      reviver: SchemaRepresentation.DateReviver
-    })
-  })
+      reviver: SchemaRepresentation.DateReviver,
+    });
+  });
 
   it("revives Duration", () => {
     assertDeclarationReviver({
       schema: Schema.Duration,
       id: "effect/schema/Duration",
       payload: null,
-      reviver: SchemaRepresentation.DurationReviver
-    })
-  })
+      reviver: SchemaRepresentation.DurationReviver,
+    });
+  });
 
   it("revives ByteSize", () => {
     assertDeclarationReviver({
       schema: Schema.ByteSize,
       id: "effect/schema/ByteSize",
       payload: null,
-      reviver: SchemaRepresentation.ByteSizeReviver
-    })
-  })
+      reviver: SchemaRepresentation.ByteSizeReviver,
+    });
+  });
 
   it("revives BigDecimal", () => {
     assertDeclarationReviver({
       schema: Schema.BigDecimal,
       id: "effect/schema/BigDecimal",
       payload: null,
-      reviver: SchemaRepresentation.BigDecimalReviver
-    })
-  })
+      reviver: SchemaRepresentation.BigDecimalReviver,
+    });
+  });
 
   it("revives File", () => {
     assertDeclarationReviver({
       schema: Schema.File,
       id: "effect/schema/File",
       payload: null,
-      reviver: SchemaRepresentation.FileReviver
-    })
-  })
+      reviver: SchemaRepresentation.FileReviver,
+    });
+  });
 
   it("revives FormData", () => {
     assertDeclarationReviver({
       schema: Schema.FormData,
       id: "effect/schema/FormData",
       payload: null,
-      reviver: SchemaRepresentation.FormDataReviver
-    })
-  })
+      reviver: SchemaRepresentation.FormDataReviver,
+    });
+  });
 
   it("revives URLSearchParams", () => {
     assertDeclarationReviver({
       schema: Schema.URLSearchParams,
       id: "effect/schema/URLSearchParams",
       payload: null,
-      reviver: SchemaRepresentation.URLSearchParamsReviver
-    })
-  })
+      reviver: SchemaRepresentation.URLSearchParamsReviver,
+    });
+  });
 
   it("revives Uint8Array", () => {
     assertDeclarationReviver({
       schema: Schema.Uint8Array,
       id: "effect/schema/Uint8Array",
       payload: null,
-      reviver: SchemaRepresentation.Uint8ArrayReviver
-    })
-  })
+      reviver: SchemaRepresentation.Uint8ArrayReviver,
+    });
+  });
 
   it("revives DateTimeUtc", () => {
     assertDeclarationReviver({
       schema: Schema.DateTimeUtc,
       id: "effect/schema/DateTimeUtc",
       payload: null,
-      reviver: SchemaRepresentation.DateTimeUtcReviver
-    })
-  })
+      reviver: SchemaRepresentation.DateTimeUtcReviver,
+    });
+  });
 
   it("revives TimeZoneOffset", () => {
     assertDeclarationReviver({
       schema: Schema.TimeZoneOffset,
       id: "effect/schema/TimeZoneOffset",
       payload: null,
-      reviver: SchemaRepresentation.TimeZoneOffsetReviver
-    })
-  })
+      reviver: SchemaRepresentation.TimeZoneOffsetReviver,
+    });
+  });
 
   it("revives TimeZoneNamed", () => {
     assertDeclarationReviver({
       schema: Schema.TimeZoneNamed,
       id: "effect/schema/TimeZoneNamed",
       payload: null,
-      reviver: SchemaRepresentation.TimeZoneNamedReviver
-    })
-  })
+      reviver: SchemaRepresentation.TimeZoneNamedReviver,
+    });
+  });
 
   it("revives TimeZone", () => {
     assertDeclarationReviver({
       schema: Schema.TimeZone,
       id: "effect/schema/TimeZone",
       payload: null,
-      reviver: SchemaRepresentation.TimeZoneReviver
-    })
-  })
+      reviver: SchemaRepresentation.TimeZoneReviver,
+    });
+  });
 
   it("revives DateTimeZoned", () => {
     assertDeclarationReviver({
       schema: Schema.DateTimeZoned,
       id: "effect/schema/DateTimeZoned",
       payload: null,
-      reviver: SchemaRepresentation.DateTimeZonedReviver
-    })
-  })
+      reviver: SchemaRepresentation.DateTimeZonedReviver,
+    });
+  });
 
   it("revives Json", () => {
     assertDeclarationReviver({
       schema: Schema.Json,
       id: "effect/schema/Json",
       payload: null,
-      reviver: SchemaRepresentation.JsonReviver
-    })
-  })
+      reviver: SchemaRepresentation.JsonReviver,
+    });
+  });
 
   it("revives MutableJson", () => {
     assertDeclarationReviver({
       schema: Schema.MutableJson,
       id: "effect/schema/MutableJson",
       payload: null,
-      reviver: SchemaRepresentation.MutableJsonReviver
-    })
-  })
+      reviver: SchemaRepresentation.MutableJsonReviver,
+    });
+  });
 
   it("persists Error includeStack", () => {
-    assert.deepStrictEqual(Schema.ErrorInstance({ includeStack: true }).ast.annotations?.representation, {
-      id: "effect/schema/Error",
-      payload: { includeStack: true }
-    })
-  })
+    assert.deepStrictEqual(
+      Schema.ErrorInstance({ includeStack: true }).ast.annotations?.representation,
+      {
+        id: "effect/schema/Error",
+        payload: { includeStack: true },
+      },
+    );
+  });
 
   it("persists Error excludeCause", () => {
-    assert.deepStrictEqual(Schema.ErrorInstance({ excludeCause: true }).ast.annotations?.representation, {
-      id: "effect/schema/Error",
-      payload: { excludeCause: true }
-    })
-  })
+    assert.deepStrictEqual(
+      Schema.ErrorInstance({ excludeCause: true }).ast.annotations?.representation,
+      {
+        id: "effect/schema/Error",
+        payload: { excludeCause: true },
+      },
+    );
+  });
 
   it("omits disabled Error options", () => {
     assert.deepStrictEqual(
-      Schema.ErrorInstance({ includeStack: false, excludeCause: false }).ast.annotations?.representation,
-      { id: "effect/schema/Error", payload: null }
-    )
-  })
+      Schema.ErrorInstance({ includeStack: false, excludeCause: false }).ast.annotations
+        ?.representation,
+      { id: "effect/schema/Error", payload: null },
+    );
+  });
 
   it("persists a Redacted label", () => {
     assert.deepStrictEqual(
       Schema.Redacted(Schema.String, { label: "password" }).ast.annotations?.representation,
-      { id: "effect/schema/Redacted", payload: { label: "password" } }
-    )
-  })
+      { id: "effect/schema/Redacted", payload: { label: "password" } },
+    );
+  });
 
   it("persists Redacted disallowJsonEncode", () => {
     assert.deepStrictEqual(
       Schema.Redacted(Schema.String, { disallowJsonEncode: true }).ast.annotations?.representation,
-      { id: "effect/schema/Redacted", payload: { disallowJsonEncode: true } }
-    )
-  })
+      { id: "effect/schema/Redacted", payload: { disallowJsonEncode: true } },
+    );
+  });
 
   it("omits disabled Redacted options", () => {
     assert.deepStrictEqual(
       Schema.Redacted(Schema.String, {
         label: undefined,
-        disallowJsonEncode: false
+        disallowJsonEncode: false,
       }).ast.annotations?.representation,
-      { id: "effect/schema/Redacted", payload: null }
-    )
-  })
-})
+      { id: "effect/schema/Redacted", payload: null },
+    );
+  });
+});

@@ -8,13 +8,13 @@
  *
  * @since 4.0.0
  */
-import * as Context from "../../Context.ts"
-import { dual } from "../../Function.ts"
-import { type Pipeable, pipeArguments } from "../../Pipeable.ts"
-import type { Redacted } from "../../Redacted.ts"
-import type { Covariant } from "../../Types.ts"
+import * as Context from "../../Context.ts";
+import { dual } from "../../Function.ts";
+import { type Pipeable, pipeArguments } from "../../Pipeable.ts";
+import type { Redacted } from "../../Redacted.ts";
+import type { Covariant } from "../../Types.ts";
 
-const TypeId = "~effect/httpapi/HttpApiSecurity"
+const TypeId = "~effect/httpapi/HttpApiSecurity";
 
 /**
  * Union of security schemes supported by the HTTP API OpenAPI model.
@@ -22,7 +22,7 @@ const TypeId = "~effect/httpapi/HttpApiSecurity"
  * @category models
  * @since 4.0.0
  */
-export type HttpApiSecurity = Http | ApiKey | Basic
+export type HttpApiSecurity = Http | ApiKey | Basic;
 
 /**
  * Helper types for HTTP API security schemes.
@@ -38,9 +38,9 @@ export declare namespace HttpApiSecurity {
    */
   export interface Proto<out A> extends Pipeable {
     readonly [TypeId]: {
-      readonly _A: Covariant<A>
-    }
-    readonly annotations: Context.Context<never>
+      readonly _A: Covariant<A>;
+    };
+    readonly annotations: Context.Context<never>;
   }
 
   /**
@@ -49,7 +49,7 @@ export declare namespace HttpApiSecurity {
    * @category models
    * @since 4.0.0
    */
-  export type Type<A extends HttpApiSecurity> = A extends Proto<infer Out> ? Out : never
+  export type Type<A extends HttpApiSecurity> = A extends Proto<infer Out> ? Out : never;
 }
 
 /**
@@ -59,10 +59,10 @@ export declare namespace HttpApiSecurity {
  * @since 4.0.0
  */
 export interface Http extends HttpApiSecurity.Proto<Redacted> {
-  readonly _tag: "Http"
-  readonly scheme: string
+  readonly _tag: "Http";
+  readonly scheme: string;
   /** @internal */
-  readonly schemeLength: number
+  readonly schemeLength: number;
 }
 
 /**
@@ -72,9 +72,9 @@ export interface Http extends HttpApiSecurity.Proto<Redacted> {
  * @since 4.0.0
  */
 export interface ApiKey extends HttpApiSecurity.Proto<Redacted> {
-  readonly _tag: "ApiKey"
-  readonly in: "header" | "query" | "cookie"
-  readonly key: string
+  readonly _tag: "ApiKey";
+  readonly in: "header" | "query" | "cookie";
+  readonly key: string;
 }
 
 /**
@@ -84,7 +84,7 @@ export interface ApiKey extends HttpApiSecurity.Proto<Redacted> {
  * @since 4.0.0
  */
 export interface Basic extends HttpApiSecurity.Proto<Credentials> {
-  readonly _tag: "Basic"
+  readonly _tag: "Basic";
 }
 
 /**
@@ -94,16 +94,16 @@ export interface Basic extends HttpApiSecurity.Proto<Credentials> {
  * @since 4.0.0
  */
 export interface Credentials {
-  readonly username: string
-  readonly password: Redacted
+  readonly username: string;
+  readonly password: Redacted;
 }
 
 const Proto = {
   [TypeId]: TypeId,
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+    return pipeArguments(this, arguments);
+  },
+};
 
 /**
  * Creates a Http token security scheme.
@@ -123,15 +123,13 @@ const Proto = {
  * @category constructors
  * @since 4.0.0
  */
-export const http = (options: {
-  readonly scheme: string
-}): Http =>
+export const http = (options: { readonly scheme: string }): Http =>
   Object.assign(Object.create(Proto), {
     _tag: "Http",
     scheme: options.scheme,
     schemeLength: options.scheme.length,
-    annotations: Context.empty()
-  })
+    annotations: Context.empty(),
+  });
 
 /**
  * Creates a Bearer token security scheme.
@@ -151,7 +149,7 @@ export const http = (options: {
  * @category constructors
  * @since 4.0.0
  */
-export const bearer: Http = http({ scheme: "Bearer" })
+export const bearer: Http = http({ scheme: "Bearer" });
 
 /**
  * Creates an API key security scheme.
@@ -175,15 +173,15 @@ export const bearer: Http = http({ scheme: "Bearer" })
  * @since 4.0.0
  */
 export const apiKey = (options: {
-  readonly key: string
-  readonly in?: "header" | "query" | "cookie" | undefined
+  readonly key: string;
+  readonly in?: "header" | "query" | "cookie" | undefined;
 }): ApiKey =>
   Object.assign(Object.create(Proto), {
     _tag: "ApiKey",
     key: options.key,
     in: options.in ?? "header",
-    annotations: Context.empty()
-  })
+    annotations: Context.empty(),
+  });
 
 /**
  * Creates an HTTP Basic authentication security scheme.
@@ -204,8 +202,8 @@ export const apiKey = (options: {
  */
 export const basic: Basic = Object.assign(Object.create(Proto), {
   _tag: "Basic",
-  annotations: Context.empty()
-})
+  annotations: Context.empty(),
+});
 
 /**
  * Merges OpenAPI annotations into a security scheme.
@@ -214,16 +212,14 @@ export const basic: Basic = Object.assign(Object.create(Proto), {
  * @since 4.0.0
  */
 export const annotateMerge: {
-  <I>(annotations: Context.Context<I>): <A extends HttpApiSecurity>(self: A) => A
-  <A extends HttpApiSecurity, I>(self: A, annotations: Context.Context<I>): A
-} = dual(
-  2,
-  <A extends HttpApiSecurity, I>(self: A, annotations: Context.Context<I>): A =>
-    Object.assign(Object.create(Proto), {
-      ...self,
-      annotations: Context.merge(self.annotations, annotations)
-    })
-)
+  <I>(annotations: Context.Context<I>): <A extends HttpApiSecurity>(self: A) => A;
+  <A extends HttpApiSecurity, I>(self: A, annotations: Context.Context<I>): A;
+} = dual(2, <A extends HttpApiSecurity, I>(self: A, annotations: Context.Context<I>): A =>
+  Object.assign(Object.create(Proto), {
+    ...self,
+    annotations: Context.merge(self.annotations, annotations),
+  }),
+);
 
 /**
  * Adds an OpenAPI annotation value to a security scheme.
@@ -232,13 +228,11 @@ export const annotateMerge: {
  * @since 4.0.0
  */
 export const annotate: {
-  <I, S>(service: Context.Key<I, S>, value: S): <A extends HttpApiSecurity>(self: A) => A
-  <A extends HttpApiSecurity, I, S>(self: A, service: Context.Key<I, S>, value: S): A
-} = dual(
-  3,
-  <A extends HttpApiSecurity, I, S>(self: A, service: Context.Key<I, S>, value: S): A =>
-    Object.assign(Object.create(Proto), {
-      ...self,
-      annotations: Context.add(self.annotations, service, value)
-    })
-)
+  <I, S>(service: Context.Key<I, S>, value: S): <A extends HttpApiSecurity>(self: A) => A;
+  <A extends HttpApiSecurity, I, S>(self: A, service: Context.Key<I, S>, value: S): A;
+} = dual(3, <A extends HttpApiSecurity, I, S>(self: A, service: Context.Key<I, S>, value: S): A =>
+  Object.assign(Object.create(Proto), {
+    ...self,
+    annotations: Context.add(self.annotations, service, value),
+  }),
+);

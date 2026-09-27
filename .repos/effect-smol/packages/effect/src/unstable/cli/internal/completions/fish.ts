@@ -6,16 +6,17 @@
  *
  * @internal
  */
-import type * as Completions from "../../Completions.ts"
+import type * as Completions from "../../Completions.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const escapeFishString = (s: string): string => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'")
+const escapeFishString = (s: string): string => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
 /** Escape choices for Fish's second expansion of `complete -a`. */
-const escapeFishChoice = (s: string): string => escapeFishString(s.replace(/[^A-Za-z0-9_.,/@%+-]/gu, "\\$&"))
+const escapeFishChoice = (s: string): string =>
+  escapeFishString(s.replace(/[^A-Za-z0-9_.,/@%+-]/gu, "\\$&"));
 
 /**
  * Build a Fish condition that checks the current subcommand context.
@@ -26,21 +27,23 @@ const escapeFishChoice = (s: string): string => escapeFishString(s.replace(/[^A-
  */
 const subcommandCondition = (
   parentPath: ReadonlyArray<string>,
-  childSubcommandNames: ReadonlyArray<string>
+  childSubcommandNames: ReadonlyArray<string>,
 ): string => {
   if (parentPath.length === 0) {
     if (childSubcommandNames.length > 0) {
-      return `__fish_use_subcommand`
+      return `__fish_use_subcommand`;
     }
-    return ``
+    return ``;
   }
-  const parentCondition = parentPath.map((parent) => `__fish_seen_subcommand_from ${parent}`).join("; and ")
+  const parentCondition = parentPath
+    .map((parent) => `__fish_seen_subcommand_from ${parent}`)
+    .join("; and ");
   if (childSubcommandNames.length > 0) {
     // Show only when the parent path is active but no child subcommand has been entered
-    return `${parentCondition}; and not __fish_seen_subcommand_from ${childSubcommandNames.join(" ")}`
+    return `${parentCondition}; and not __fish_seen_subcommand_from ${childSubcommandNames.join(" ")}`;
   }
-  return parentCondition
-}
+  return parentCondition;
+};
 
 /**
  * Build a __fish_contains_opt condition that checks whether any form of this
@@ -48,78 +51,78 @@ const subcommandCondition = (
  * quotes (the caller adds those).
  */
 const flagContainsOptCondition = (flag: Completions.FlagDescriptor): string => {
-  const optArgs: Array<string> = []
+  const optArgs: Array<string> = [];
   for (const alias of flag.aliases) {
     if (alias.length === 1) {
-      optArgs.push(`-s ${alias}`)
+      optArgs.push(`-s ${alias}`);
     }
   }
   // Long names (fish __fish_contains_opt uses bare words for long opts)
-  optArgs.push(flag.name)
+  optArgs.push(flag.name);
   for (const alias of flag.aliases) {
     if (alias.length > 1) {
-      optArgs.push(alias)
+      optArgs.push(alias);
     }
   }
   if (flag.type._tag === "Boolean") {
-    optArgs.push(`no-${flag.name}`)
+    optArgs.push(`no-${flag.name}`);
   }
-  return `not __fish_contains_opt ${optArgs.join(" ")}`
-}
+  return `not __fish_contains_opt ${optArgs.join(" ")}`;
+};
 
 /** Hide used value flags without suppressing their value completions. */
 const valueFlagDedupCondition = (flag: Completions.FlagDescriptor): string => {
-  const forms = [`--${flag.name}`]
+  const forms = [`--${flag.name}`];
   for (const alias of flag.aliases) {
-    forms.push(alias.length === 1 ? `-${alias}` : `--${alias}`)
+    forms.push(alias.length === 1 ? `-${alias}` : `--${alias}`);
   }
-  return `begin; ${flagContainsOptCondition(flag)}; or contains -- (commandline -poc)[-1] ${forms.join(" ")}; end`
-}
+  return `begin; ${flagContainsOptCondition(flag)}; or contains -- (commandline -poc)[-1] ${forms.join(" ")}; end`;
+};
 
 const flagCompletionArgs = (flag: Completions.FlagDescriptor): Array<string> => {
-  const args: Array<string> = [`-l ${flag.name}`]
+  const args: Array<string> = [`-l ${flag.name}`];
   for (const alias of flag.aliases) {
     if (alias.length === 1) {
-      args.push(`-s ${alias}`)
+      args.push(`-s ${alias}`);
     } else {
-      args.push(`-l ${alias}`)
+      args.push(`-l ${alias}`);
     }
   }
   if (flag.description) {
-    args.push(`-d '${escapeFishString(flag.description)}'`)
+    args.push(`-d '${escapeFishString(flag.description)}'`);
   }
-  const valueArgs = flagValueArgs(flag.type)
+  const valueArgs = flagValueArgs(flag.type);
   if (valueArgs) {
-    args.push(valueArgs)
+    args.push(valueArgs);
   }
-  return args
-}
+  return args;
+};
 
 const flagValueArgs = (type: Completions.FlagType): string | undefined => {
   switch (type._tag) {
     case "Boolean":
-      return undefined
+      return undefined;
     case "Choice":
-      return `-r -f -a '${type.values.map(escapeFishChoice).join(" ")}'`
+      return `-r -f -a '${type.values.map(escapeFishChoice).join(" ")}'`;
     case "Path":
-      if (type.pathType === "directory") return `-r -F`
-      return `-r -F`
+      if (type.pathType === "directory") return `-r -F`;
+      return `-r -F`;
     default:
       // -r: requires a value, -f: don't fall back to file completion
-      return `-r -f`
+      return `-r -f`;
   }
-}
+};
 
 const argValueArgs = (type: Completions.ArgumentType): string | undefined => {
   switch (type._tag) {
     case "Choice":
-      return `-r -f -a '${type.values.map(escapeFishChoice).join(" ")}'`
+      return `-r -f -a '${type.values.map(escapeFishChoice).join(" ")}'`;
     case "Path":
-      return `-r -F`
+      return `-r -F`;
     default:
-      return undefined
+      return undefined;
   }
-}
+};
 
 // ---------------------------------------------------------------------------
 // Generator
@@ -129,55 +132,55 @@ const generateCompletions = (
   executableName: string,
   descriptor: Completions.CommandDescriptor,
   parentPath: ReadonlyArray<string>,
-  lines: Array<string>
+  lines: Array<string>,
 ): void => {
-  const allSubNames = descriptor.subcommands.map((s) => s.name)
-  const condition = subcommandCondition(parentPath, allSubNames)
-  const conditionArg = condition ? `-n '${condition}'` : ``
+  const allSubNames = descriptor.subcommands.map((s) => s.name);
+  const condition = subcommandCondition(parentPath, allSubNames);
+  const conditionArg = condition ? `-n '${condition}'` : ``;
 
   // Suppress default file completion unless the command has path-type
   // positional arguments. Without this, fish falls back to listing files
   // even when only flags are valid.
-  const hasPathArgs = descriptor.arguments.some((a) => a.type._tag === "Path")
+  const hasPathArgs = descriptor.arguments.some((a) => a.type._tag === "Path");
   if (!hasPathArgs) {
-    const parts = [`complete -c ${executableName}`]
-    if (conditionArg) parts.push(conditionArg)
-    parts.push(`-f`)
-    lines.push(parts.join(" "))
+    const parts = [`complete -c ${executableName}`];
+    if (conditionArg) parts.push(conditionArg);
+    parts.push(`-f`);
+    lines.push(parts.join(" "));
   }
 
   // Subcommand completions
   for (const sub of descriptor.subcommands) {
-    const parts = [`complete -c ${executableName}`]
-    if (conditionArg) parts.push(conditionArg)
-    parts.push(`-f -a '${escapeFishString(sub.name)}'`)
+    const parts = [`complete -c ${executableName}`];
+    if (conditionArg) parts.push(conditionArg);
+    parts.push(`-f -a '${escapeFishString(sub.name)}'`);
     if (sub.description) {
-      parts.push(`-d '${escapeFishString(sub.description)}'`)
+      parts.push(`-d '${escapeFishString(sub.description)}'`);
     }
-    lines.push(parts.join(" "))
+    lines.push(parts.join(" "));
   }
 
   // Flag completions
   for (const flag of descriptor.flags) {
-    const isBoolean = flag.type._tag === "Boolean"
-    const dedup = isBoolean ? flagContainsOptCondition(flag) : valueFlagDedupCondition(flag)
-    const flagCondition = condition ? `${condition}; and ${dedup}` : dedup
-    const flagCondArg = flagCondition ? `-n '${flagCondition}'` : ``
+    const isBoolean = flag.type._tag === "Boolean";
+    const dedup = isBoolean ? flagContainsOptCondition(flag) : valueFlagDedupCondition(flag);
+    const flagCondition = condition ? `${condition}; and ${dedup}` : dedup;
+    const flagCondArg = flagCondition ? `-n '${flagCondition}'` : ``;
 
-    const parts = [`complete -c ${executableName}`]
-    if (flagCondArg) parts.push(flagCondArg)
-    parts.push(...flagCompletionArgs(flag))
-    lines.push(parts.join(" "))
+    const parts = [`complete -c ${executableName}`];
+    if (flagCondArg) parts.push(flagCondArg);
+    parts.push(...flagCompletionArgs(flag));
+    lines.push(parts.join(" "));
 
     // Boolean negation
     if (isBoolean) {
-      const negParts = [`complete -c ${executableName}`]
-      if (flagCondArg) negParts.push(flagCondArg)
-      negParts.push(`-l no-${flag.name}`)
+      const negParts = [`complete -c ${executableName}`];
+      if (flagCondArg) negParts.push(flagCondArg);
+      negParts.push(`-l no-${flag.name}`);
       if (flag.description) {
-        negParts.push(`-d '${escapeFishString(`Disable ${flag.name}`)}'`)
+        negParts.push(`-d '${escapeFishString(`Disable ${flag.name}`)}'`);
       }
-      lines.push(negParts.join(" "))
+      lines.push(negParts.join(" "));
     }
   }
 
@@ -187,73 +190,75 @@ const generateCompletions = (
   // when NOT already typing an option (avoids duplication with -l/-s above)
   // and hidden once a flag has been used (__fish_contains_opt).
   if (descriptor.flags.length > 0) {
-    const notDash = `not string match -q -- "-*" (commandline -ct)`
-    const bareBase = condition ? `${condition}; and ${notDash}` : notDash
+    const notDash = `not string match -q -- "-*" (commandline -ct)`;
+    const bareBase = condition ? `${condition}; and ${notDash}` : notDash;
 
     for (const flag of descriptor.flags) {
-      const bareCondition = `${bareBase}; and ${flagContainsOptCondition(flag)}`
-      const isBoolean = flag.type._tag === "Boolean"
+      const bareCondition = `${bareBase}; and ${flagContainsOptCondition(flag)}`;
+      const isBoolean = flag.type._tag === "Boolean";
 
-      const parts = [`complete -c ${executableName}`]
-      parts.push(`-n '${bareCondition}'`)
-      parts.push(`-f -a '--${flag.name}'`)
+      const parts = [`complete -c ${executableName}`];
+      parts.push(`-n '${bareCondition}'`);
+      parts.push(`-f -a '--${flag.name}'`);
       if (flag.description) {
-        parts.push(`-d '${escapeFishString(flag.description)}'`)
+        parts.push(`-d '${escapeFishString(flag.description)}'`);
       }
-      lines.push(parts.join(" "))
+      lines.push(parts.join(" "));
 
       if (isBoolean) {
-        const negParts = [`complete -c ${executableName}`]
-        negParts.push(`-n '${bareCondition}'`)
-        negParts.push(`-f -a '--no-${flag.name}'`)
+        const negParts = [`complete -c ${executableName}`];
+        negParts.push(`-n '${bareCondition}'`);
+        negParts.push(`-f -a '--no-${flag.name}'`);
         if (flag.description) {
-          negParts.push(`-d '${escapeFishString(`Disable ${flag.name}`)}'`)
+          negParts.push(`-d '${escapeFishString(`Disable ${flag.name}`)}'`);
         }
-        lines.push(negParts.join(" "))
+        lines.push(negParts.join(" "));
       }
     }
   }
 
   // Argument completions (type hints only)
   for (const arg of descriptor.arguments) {
-    const valueArg = argValueArgs(arg.type)
+    const valueArg = argValueArgs(arg.type);
     if (valueArg) {
-      const parts = [`complete -c ${executableName}`]
-      if (conditionArg) parts.push(conditionArg)
-      parts.push(valueArg)
+      const parts = [`complete -c ${executableName}`];
+      if (conditionArg) parts.push(conditionArg);
+      parts.push(valueArg);
       if (arg.description) {
-        parts.push(`-d '${escapeFishString(arg.description)}'`)
+        parts.push(`-d '${escapeFishString(arg.description)}'`);
       }
-      lines.push(parts.join(" "))
+      lines.push(parts.join(" "));
     }
   }
 
   // Recurse into subcommands
   for (const sub of descriptor.subcommands) {
-    generateCompletions(executableName, sub, [...parentPath, sub.name], lines)
+    generateCompletions(executableName, sub, [...parentPath, sub.name], lines);
   }
-}
+};
 
 /** @internal */
 export const generate = (
   executableName: string,
-  descriptor: Completions.CommandDescriptor
+  descriptor: Completions.CommandDescriptor,
 ): string => {
-  const lines: Array<string> = []
+  const lines: Array<string> = [];
 
-  lines.push(`###-begin-${executableName}-completions-###`)
-  lines.push(`#`)
-  lines.push(`# Static completion script for Fish`)
-  lines.push(`#`)
-  lines.push(`# Installation:`)
-  lines.push(`#   ${executableName} --completions fish > ~/.config/fish/completions/${executableName}.fish`)
-  lines.push(`#`)
-  lines.push(``)
+  lines.push(`###-begin-${executableName}-completions-###`);
+  lines.push(`#`);
+  lines.push(`# Static completion script for Fish`);
+  lines.push(`#`);
+  lines.push(`# Installation:`);
+  lines.push(
+    `#   ${executableName} --completions fish > ~/.config/fish/completions/${executableName}.fish`,
+  );
+  lines.push(`#`);
+  lines.push(``);
 
-  generateCompletions(executableName, descriptor, [], lines)
+  generateCompletions(executableName, descriptor, [], lines);
 
-  lines.push(``)
-  lines.push(`###-end-${executableName}-completions-###`)
+  lines.push(``);
+  lines.push(`###-end-${executableName}-completions-###`);
 
-  return lines.join("\n")
-}
+  return lines.join("\n");
+};

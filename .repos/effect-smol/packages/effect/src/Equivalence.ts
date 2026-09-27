@@ -9,9 +9,9 @@
  *
  * @since 2.0.0
  */
-import { dual } from "./Function.ts"
-import type { TypeLambda } from "./HKT.ts"
-import * as Reducer from "./Reducer.ts"
+import { dual } from "./Function.ts";
+import type { TypeLambda } from "./HKT.ts";
+import * as Reducer from "./Reducer.ts";
 
 /**
  * Represents an equivalence relation over type `A`.
@@ -57,7 +57,7 @@ import * as Reducer from "./Reducer.ts"
  * @category models
  * @since 2.0.0
  */
-export type Equivalence<in A> = (self: A, that: A) => boolean
+export type Equivalence<in A> = (self: A, that: A) => boolean;
 
 /**
  * Type lambda for `Equivalence`, used for higher-kinded type operations.
@@ -93,7 +93,7 @@ export type Equivalence<in A> = (self: A, that: A) => boolean
  * @since 2.0.0
  */
 export interface EquivalenceTypeLambda extends TypeLambda {
-  readonly type: Equivalence<this["Target"]>
+  readonly type: Equivalence<this["Target"]>;
 }
 
 /**
@@ -144,10 +144,12 @@ export interface EquivalenceTypeLambda extends TypeLambda {
  * @category constructors
  * @since 2.0.0
  */
-export const make = <A>(isEquivalent: (self: A, that: A) => boolean): Equivalence<A> => (self: A, that: A): boolean =>
-  self === that || isEquivalent(self, that)
+export const make =
+  <A>(isEquivalent: (self: A, that: A) => boolean): Equivalence<A> =>
+  (self: A, that: A): boolean =>
+    self === that || isEquivalent(self, that);
 
-const isStrictEquivalent = (x: unknown, y: unknown) => x === y
+const isStrictEquivalent = (x: unknown, y: unknown) => x === y;
 
 /**
  * Creates an equivalence relation that uses strict equality (`===`) to compare values.
@@ -196,7 +198,7 @@ const isStrictEquivalent = (x: unknown, y: unknown) => x === y
  * @category constructors
  * @since 4.0.0
  */
-export const strictEqual: <A>() => Equivalence<A> = () => isStrictEquivalent
+export const strictEqual: <A>() => Equivalence<A> = () => isStrictEquivalent;
 
 /**
  * Equivalence instance for strings using strict equality (`===`).
@@ -217,7 +219,7 @@ export const strictEqual: <A>() => Equivalence<A> = () => isStrictEquivalent
  * @category instances
  * @since 4.0.0
  */
-export const String: Equivalence<string> = isStrictEquivalent
+export const String: Equivalence<string> = isStrictEquivalent;
 
 /**
  * Equivalence instance for numbers.
@@ -239,9 +241,9 @@ export const String: Equivalence<string> = isStrictEquivalent
  * @category instances
  * @since 4.0.0
  */
-export const Number: Equivalence<number> = make((self, that) =>
-  globalThis.Number.isNaN(self) && globalThis.Number.isNaN(that)
-)
+export const Number: Equivalence<number> = make(
+  (self, that) => globalThis.Number.isNaN(self) && globalThis.Number.isNaN(that),
+);
 
 /**
  * Equivalence instance for booleans using strict equality (`===`).
@@ -262,7 +264,7 @@ export const Number: Equivalence<number> = make((self, that) =>
  * @category instances
  * @since 4.0.0
  */
-export const Boolean: Equivalence<boolean> = isStrictEquivalent
+export const Boolean: Equivalence<boolean> = isStrictEquivalent;
 
 /**
  * Equivalence instance for bigints using strict equality (`===`).
@@ -283,7 +285,7 @@ export const Boolean: Equivalence<boolean> = isStrictEquivalent
  * @category instances
  * @since 4.0.0
  */
-export const BigInt: Equivalence<bigint> = isStrictEquivalent
+export const BigInt: Equivalence<bigint> = isStrictEquivalent;
 
 /**
  * Combines two equivalence relations using logical AND.
@@ -335,9 +337,11 @@ export const BigInt: Equivalence<bigint> = isStrictEquivalent
  * @since 2.0.0
  */
 export const combine: {
-  <A>(that: Equivalence<A>): (self: Equivalence<A>) => Equivalence<A>
-  <A>(self: Equivalence<A>, that: Equivalence<A>): Equivalence<A>
-} = dual(2, <A>(self: Equivalence<A>, that: Equivalence<A>): Equivalence<A> => make((x, y) => self(x, y) && that(x, y)))
+  <A>(that: Equivalence<A>): (self: Equivalence<A>) => Equivalence<A>;
+  <A>(self: Equivalence<A>, that: Equivalence<A>): Equivalence<A>;
+} = dual(2, <A>(self: Equivalence<A>, that: Equivalence<A>): Equivalence<A> =>
+  make((x, y) => self(x, y) && that(x, y)),
+);
 
 /**
  * Combines multiple equivalence relations into a single equivalence using logical AND.
@@ -407,11 +411,11 @@ export const combineAll = <A>(collection: Iterable<Equivalence<A>>): Equivalence
   make((x, y) => {
     for (const equivalence of collection) {
       if (!equivalence(x, y)) {
-        return false
+        return false;
       }
     }
-    return true
-  })
+    return true;
+  });
 
 /**
  * Transforms an equivalence relation by mapping the input values before comparison.
@@ -474,12 +478,11 @@ export const combineAll = <A>(collection: Iterable<Equivalence<A>>): Equivalence
  * @since 2.0.0
  */
 export const mapInput: {
-  <B, A>(f: (b: B) => A): (self: Equivalence<A>) => Equivalence<B>
-  <A, B>(self: Equivalence<A>, f: (b: B) => A): Equivalence<B>
-} = dual(
-  2,
-  <A, B>(self: Equivalence<A>, f: (b: B) => A): Equivalence<B> => make((x, y) => self(f(x), f(y)))
-)
+  <B, A>(f: (b: B) => A): (self: Equivalence<A>) => Equivalence<B>;
+  <A, B>(self: Equivalence<A>, f: (b: B) => A): Equivalence<B>;
+} = dual(2, <A, B>(self: Equivalence<A>, f: (b: B) => A): Equivalence<B> =>
+  make((x, y) => self(f(x), f(y))),
+);
 
 /**
  * Creates an equivalence for tuples with heterogeneous element types.
@@ -539,19 +542,21 @@ export const mapInput: {
  * @since 4.0.0
  */
 export function Tuple<const Elements extends ReadonlyArray<Equivalence<any>>>(
-  elements: Elements
-): Equivalence<{ readonly [I in keyof Elements]: [Elements[I]] extends [Equivalence<infer A>] ? A : never }> {
+  elements: Elements,
+): Equivalence<{
+  readonly [I in keyof Elements]: [Elements[I]] extends [Equivalence<infer A>] ? A : never;
+}> {
   return make((self, that) => {
     if (self.length !== that.length) {
-      return false
+      return false;
     }
     for (let i = 0; i < self.length; i++) {
       if (!elements[i](self[i], that[i])) {
-        return false
+        return false;
       }
     }
-    return true
-  })
+    return true;
+  });
 }
 
 /**
@@ -559,14 +564,14 @@ export function Tuple<const Elements extends ReadonlyArray<Equivalence<any>>>(
  */
 function Array_<A>(item: Equivalence<A>): Equivalence<ReadonlyArray<A>> {
   return make((self, that) => {
-    if (self.length !== that.length) return false
+    if (self.length !== that.length) return false;
 
     for (let i = 0; i < self.length; i++) {
-      if (!item(self[i], that[i])) return false
+      if (!item(self[i], that[i])) return false;
     }
 
-    return true
-  })
+    return true;
+  });
 }
 export {
   /**
@@ -617,8 +622,8 @@ export {
    * @category combinators
    * @since 4.0.0
    */
-  Array_ as Array
-}
+  Array_ as Array,
+};
 
 /**
  * Creates an equivalence for objects by comparing their properties using provided equivalences.
@@ -689,15 +694,15 @@ export {
  * @since 4.0.0
  */
 export function Struct<R extends Record<string, Equivalence<any>>>(
-  fields: R
+  fields: R,
 ): Equivalence<{ readonly [K in keyof R]: [R[K]] extends [Equivalence<infer A>] ? A : never }> {
-  const keys: Array<any> = Reflect.ownKeys(fields)
+  const keys: Array<any> = Reflect.ownKeys(fields);
   return make((self, that) => {
     for (const key of keys) {
-      if (!fields[key](self[key], that[key])) return false
+      if (!fields[key](self[key], that[key])) return false;
     }
-    return true
-  })
+    return true;
+  });
 }
 
 /**
@@ -754,19 +759,19 @@ export function Struct<R extends Record<string, Equivalence<any>>>(
  */
 export function Record<A>(value: Equivalence<A>): Equivalence<Record<PropertyKey, A>> {
   return make((self, that) => {
-    const selfKeys = Reflect.ownKeys(self)
-    const thatKeys = Reflect.ownKeys(that)
+    const selfKeys = Reflect.ownKeys(self);
+    const thatKeys = Reflect.ownKeys(that);
 
-    if (selfKeys.length !== thatKeys.length) return false
+    if (selfKeys.length !== thatKeys.length) return false;
 
     for (const key of selfKeys) {
       if (!Object.hasOwn(that, key) || !value(self[key], that[key])) {
-        return false
+        return false;
       }
     }
 
-    return true
-  })
+    return true;
+  });
 }
 
 /**
@@ -807,11 +812,7 @@ export function Record<A>(value: Equivalence<A>): Equivalence<Record<PropertyKey
  * @since 4.0.0
  */
 export function makeReducer<A>() {
-  return Reducer.make<Equivalence<A>>(
-    combine,
-    () => true,
-    combineAll
-  )
+  return Reducer.make<Equivalence<A>>(combine, () => true, combineAll);
 }
 
 /**
@@ -862,7 +863,4 @@ export function makeReducer<A>() {
  * @category instances
  * @since 2.0.0
  */
-export const Date: Equivalence<Date> = mapInput(
-  Number,
-  (d: Date) => d.getTime()
-)
+export const Date: Equivalence<Date> = mapInput(Number, (d: Date) => d.getTime());

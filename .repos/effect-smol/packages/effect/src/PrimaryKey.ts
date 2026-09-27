@@ -7,7 +7,7 @@
  * @since 2.0.0
  */
 
-import { hasProperty } from "./Predicate.ts"
+import { hasProperty } from "./Predicate.ts";
 
 /**
  * Defines the unique identifier used to identify objects that implement the `PrimaryKey` interface.
@@ -24,7 +24,7 @@ import { hasProperty } from "./Predicate.ts"
  * @category symbols
  * @since 2.0.0
  */
-export const symbol = "~effect/PrimaryKey"
+export const symbol = "~effect/PrimaryKey";
 
 /**
  * An interface for objects that can provide a string-based primary key.
@@ -60,7 +60,7 @@ export const symbol = "~effect/PrimaryKey"
  * @since 2.0.0
  */
 export interface PrimaryKey {
-  [symbol](): string
+  [symbol](): string;
 }
 
 /**
@@ -84,7 +84,7 @@ export interface PrimaryKey {
  * @category guards
  * @since 4.0.0
  */
-export const isPrimaryKey = (u: unknown): u is PrimaryKey => hasProperty(u, symbol)
+export const isPrimaryKey = (u: unknown): u is PrimaryKey => hasProperty(u, symbol);
 
 /**
  * Extracts the string value from a `PrimaryKey`.
@@ -120,4 +120,4 @@ export const isPrimaryKey = (u: unknown): u is PrimaryKey => hasProperty(u, symb
  * @category getters
  * @since 2.0.0
  */
-export const value = (self: PrimaryKey): string => self[symbol]()
+export const value = (self: PrimaryKey): string => self[symbol]();

@@ -170,7 +170,7 @@ effect/Micro#filterOrFail:
 effect/Micro#filterOrFailCause:
   replacement: "Effect.filterOrElse"
   note: "No direct equivalent; use Effect.filterOrElse and fail with a cause in the fallback."
-  example: "Effect.filterOrElse(effect, predicate, { orElse: () => Effect.failCause(Cause.die(\"invalid\")) })"
+  example: 'Effect.filterOrElse(effect, predicate, { orElse: () => Effect.failCause(Cause.die("invalid")) })'
 effect/Micro#flatten:
   replacement: "Effect.flatten"
   note: "Micro was removed in v4; the rewritten Effect runtime is itself lightweight and replaces it. Same-name equivalent on effect/Effect."
@@ -268,7 +268,7 @@ effect/Micro#MicroCause.Proto:
   note: "Internal prototype type; the closest v4 equivalent is the ReasonProto interface in the Cause.Cause namespace. Rarely needed directly."
 effect/Micro#MicroCauseTypeId:
   replacement: "Cause.TypeId"
-  note: "Use Cause.TypeId from effect/Cause (value is \"~effect/Cause\")."
+  note: 'Use Cause.TypeId from effect/Cause (value is "~effect/Cause").'
 effect/Micro#MicroExit:
   replacement: "Exit.Exit"
   note: "MicroExit<A, E> becomes Exit.Exit<A, E> from effect/Exit. In v4 Exit is a subtype of Effect."
@@ -402,11 +402,11 @@ effect/Micro#scheduleUnion:
 effect/Micro#scheduleWithMaxDelay:
   replacement: "Schedule.modifyDelay"
   note: "No direct equivalent; clamp the delay with Schedule.modifyDelay."
-  example: "Schedule.modifyDelay(schedule, ({ delay }) => Duration.min(delay, \"10 seconds\"))"
+  example: 'Schedule.modifyDelay(schedule, ({ delay }) => Duration.min(delay, "10 seconds"))'
 effect/Micro#scheduleWithMaxElapsed:
   replacement: "Schedule.upTo"
   note: "Renamed: cap total elapsed time with Schedule.upTo({ duration })."
-  example: "Schedule.upTo(schedule, { duration: \"30 seconds\" })"
+  example: 'Schedule.upTo(schedule, { duration: "30 seconds" })'
 effect/Micro#scoped:
   replacement: "Effect.scoped"
   note: "Micro was removed in v4; the rewritten Effect runtime is itself lightweight and replaces it. Same-name equivalent on effect/Effect."
@@ -481,7 +481,7 @@ effect/Micro#whileLoop:
   note: "Micro was removed in v4; the rewritten Effect runtime is itself lightweight and replaces it. Same-name equivalent on effect/Effect."
 effect/Micro#withConcurrency:
   replacement: "none"
-  note: "Removed in v4 along with \"inherit\" concurrency; pass a { concurrency } option directly to each concurrent operation."
+  note: 'Removed in v4 along with "inherit" concurrency; pass a { concurrency } option directly to each concurrent operation.'
   example: "Effect.forEach(items, handle, { concurrency: 10 })"
 effect/Micro#withMicroFiber:
   replacement: "Effect.withFiber"

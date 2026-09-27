@@ -8,9 +8,9 @@
  *
  * @since 4.0.0
  */
-import type * as Context from "./Context.ts"
-import { pipeArguments } from "./Pipeable.ts"
-import { hasProperty } from "./Predicate.ts"
+import type * as Context from "./Context.ts";
+import { pipeArguments } from "./Pipeable.ts";
+import { hasProperty } from "./Predicate.ts";
 
 /**
  * Defines the symbol used to identify objects that implement the {@link Redactable}
@@ -48,7 +48,7 @@ import { hasProperty } from "./Predicate.ts"
  * @category symbols
  * @since 3.10.0
  */
-export const symbolRedactable: unique symbol = Symbol.for("~effect/Redactable")
+export const symbolRedactable: unique symbol = Symbol.for("~effect/Redactable");
 
 /**
  * Interface for objects that provide context-aware redacted representations.
@@ -86,7 +86,7 @@ export const symbolRedactable: unique symbol = Symbol.for("~effect/Redactable")
  * @since 3.10.0
  */
 export interface Redactable {
-  readonly [symbolRedactable]: (context: Context.Context<never>) => unknown
+  readonly [symbolRedactable]: (context: Context.Context<never>) => unknown;
 }
 
 /**
@@ -102,7 +102,7 @@ export interface Redactable {
  * @category guards
  * @since 3.10.0
  */
-export const isRedactable = (u: unknown): u is Redactable => hasProperty(u, symbolRedactable)
+export const isRedactable = (u: unknown): u is Redactable => hasProperty(u, symbolRedactable);
 
 /**
  * Returns a redacted value if it implements {@link Redactable}, otherwise returns it
@@ -129,8 +129,8 @@ export const isRedactable = (u: unknown): u is Redactable => hasProperty(u, symb
  * @since 3.10.0
  */
 export function redact(u: unknown): unknown {
-  if (isRedactable(u)) return getRedacted(u)
-  return u
+  if (isRedactable(u)) return getRedacted(u);
+  return u;
 }
 
 /**
@@ -157,19 +157,21 @@ export function redact(u: unknown): unknown {
  * @since 4.0.0
  */
 export function getRedacted(redactable: Redactable): unknown {
-  return redactable[symbolRedactable]((globalThis as any)[currentFiberTypeId]?.context ?? emptyContext)
+  return redactable[symbolRedactable](
+    (globalThis as any)[currentFiberTypeId]?.context ?? emptyContext,
+  );
 }
 
 /** @internal */
-export const currentFiberTypeId = "~effect/Fiber/currentFiber"
+export const currentFiberTypeId = "~effect/Fiber/currentFiber";
 
-const emptyMap = new Map()
+const emptyMap = new Map();
 const emptyContext: Context.Context<never> = {
   "~effect/Context": {} as any,
   base: emptyMap,
   depth: 0,
   mapUnsafe: emptyMap,
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-} as any
+    return pipeArguments(this, arguments);
+  },
+} as any;

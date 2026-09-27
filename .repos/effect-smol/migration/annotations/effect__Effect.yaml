@@ -9,13 +9,13 @@ effect/Effect#All:
   note: "Still exported in v4; update call sites for the revised signature, options, and channel inference."
 effect/Effect#All.ExtractMode:
   replacement: "Effect.All.Return"
-  note: "The `either` extraction helper was removed; use `mode: \"result\"` and the v4 return helper. Adapt arguments and imports to the v4 API."
+  note: 'The `either` extraction helper was removed; use `mode: "result"` and the v4 return helper. Adapt arguments and imports to the v4 API.'
 effect/Effect#allowInterrupt:
   replacement: "Effect.yieldNow"
   note: "Yield to the scheduler to create an interruptible checkpoint. Adapt arguments and imports to the v4 API."
 effect/Effect#allSuccesses:
   replacement: "Effect.all"
-  note: "Run with `{ mode: \"result\" }`, then retain `Result.Success` values. Adapt arguments and imports to the v4 API."
+  note: 'Run with `{ mode: "result" }`, then retain `Result.Success` values. Adapt arguments and imports to the v4 API.'
 effect/Effect#allWith:
   replacement: "Effect.all"
   note: "Wrap `Effect.all(values, options)` in a lambda when a data-last combinator is needed. Adapt arguments and imports to the v4 API."
@@ -343,7 +343,7 @@ effect/Effect#orElseFail:
   note: "Replace every typed error with the lazily produced failure value. Adapt arguments and imports to the v4 API."
 effect/Effect#parallelErrors:
   replacement: "Effect.all"
-  note: "Use `{ mode: \"result\", concurrency: \"unbounded\" }` and collect failures explicitly. Adapt arguments and imports to the v4 API."
+  note: 'Use `{ mode: "result", concurrency: "unbounded" }` and collect failures explicitly. Adapt arguments and imports to the v4 API.'
 effect/Effect#parallelFinalizers:
   replacement: "none"
   note: "Parallel finalizer strategy mutation was removed; fork independent cleanup explicitly when ordering is irrelevant. No direct public replacement exists in v4; rewrite the call site around the stated v4 primitive."
@@ -565,7 +565,7 @@ effect/Effect#validateFirst:
   note: "Map inputs to validation effects and select the first success; handle accumulated diagnostics explicitly if required. Adapt arguments and imports to the v4 API."
 effect/Effect#validateWith:
   replacement: "Effect.zipWith"
-  note: "Zip and combine the Effects; use `mode: \"result\"` when both failures must be retained. Adapt arguments and imports to the v4 API."
+  note: 'Zip and combine the Effects; use `mode: "result"` when both failures must be retained. Adapt arguments and imports to the v4 API.'
 effect/Effect#whenEffect:
   replacement: "Effect.when"
   note: "The v4 `when` combinator accepts an effectful boolean condition directly. Adapt arguments and imports to the v4 API."

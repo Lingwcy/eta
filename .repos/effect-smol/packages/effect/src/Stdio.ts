@@ -11,12 +11,12 @@
  *
  * @since 4.0.0
  */
-import * as Context from "./Context.ts"
-import * as Effect from "./Effect.ts"
-import * as Layer from "./Layer.ts"
-import type { PlatformError } from "./PlatformError.ts"
-import * as Sink from "./Sink.ts"
-import * as Stream from "./Stream.ts"
+import * as Context from "./Context.ts";
+import * as Effect from "./Effect.ts";
+import * as Layer from "./Layer.ts";
+import type { PlatformError } from "./PlatformError.ts";
+import * as Sink from "./Sink.ts";
+import * as Stream from "./Stream.ts";
 
 /**
  * String literal type used as the unique brand for the `Stdio` service.
@@ -28,7 +28,7 @@ import * as Stream from "./Stream.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/Stdio"
+export type TypeId = "~effect/Stdio";
 
 /**
  * Runtime identifier stored on `Stdio` service implementations.
@@ -41,7 +41,7 @@ export type TypeId = "~effect/Stdio"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~effect/Stdio"
+export const TypeId: TypeId = "~effect/Stdio";
 
 /**
  * Defines the service interface for process standard I/O.
@@ -61,27 +61,27 @@ export const TypeId: TypeId = "~effect/Stdio"
  * @since 4.0.0
  */
 export interface Stdio {
-  readonly [TypeId]: TypeId
-  readonly args: Effect.Effect<ReadonlyArray<string>>
+  readonly [TypeId]: TypeId;
+  readonly args: Effect.Effect<ReadonlyArray<string>>;
   /**
    * Whether standard input is attached to a terminal.
    *
    * @since 4.0.0
    */
-  readonly stdinIsTerminal: Effect.Effect<boolean>
+  readonly stdinIsTerminal: Effect.Effect<boolean>;
   /**
    * Whether standard output is attached to a terminal.
    *
    * @since 4.0.0
    */
-  readonly stdoutIsTerminal: Effect.Effect<boolean>
+  readonly stdoutIsTerminal: Effect.Effect<boolean>;
   stdout(options?: {
-    readonly endOnDone?: boolean | undefined
-  }): Sink.Sink<void, string | Uint8Array, never, PlatformError>
+    readonly endOnDone?: boolean | undefined;
+  }): Sink.Sink<void, string | Uint8Array, never, PlatformError>;
   stderr(options?: {
-    readonly endOnDone?: boolean | undefined
-  }): Sink.Sink<void, string | Uint8Array, never, PlatformError>
-  readonly stdin: Stream.Stream<Uint8Array, PlatformError>
+    readonly endOnDone?: boolean | undefined;
+  }): Sink.Sink<void, string | Uint8Array, never, PlatformError>;
+  readonly stdin: Stream.Stream<Uint8Array, PlatformError>;
 }
 /**
  * Service tag for process standard I/O.
@@ -97,7 +97,7 @@ export interface Stdio {
  * @category services
  * @since 4.0.0
  */
-export const Stdio: Context.Service<Stdio, Stdio> = Context.Service<Stdio>(TypeId)
+export const Stdio: Context.Service<Stdio, Stdio> = Context.Service<Stdio>(TypeId);
 
 /**
  * Creates a `Stdio` service implementation from the provided fields and
@@ -120,15 +120,14 @@ export const Stdio: Context.Service<Stdio, Stdio> = Context.Service<Stdio>(TypeI
  * @since 4.0.0
  */
 export const make = (
-  options:
-    & Omit<Stdio, TypeId | "stdinIsTerminal" | "stdoutIsTerminal">
-    & Partial<Pick<Stdio, "stdinIsTerminal" | "stdoutIsTerminal">>
+  options: Omit<Stdio, TypeId | "stdinIsTerminal" | "stdoutIsTerminal"> &
+    Partial<Pick<Stdio, "stdinIsTerminal" | "stdoutIsTerminal">>,
 ): Stdio => ({
   [TypeId]: TypeId,
   stdinIsTerminal: Effect.succeed(false),
   stdoutIsTerminal: Effect.succeed(false),
-  ...options
-})
+  ...options,
+});
 
 /**
  * Creates a test layer for `Stdio`.
@@ -157,6 +156,6 @@ export const layerTest = (impl: Partial<Stdio>): Layer.Layer<Stdio> =>
       stdout: () => Sink.drain,
       stderr: () => Sink.drain,
       stdin: Stream.empty,
-      ...impl
-    })
-  )
+      ...impl,
+    }),
+  );

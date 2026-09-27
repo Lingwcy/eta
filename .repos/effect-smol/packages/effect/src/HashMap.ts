@@ -10,15 +10,15 @@
  * @since 2.0.0
  */
 
-import type { Equal } from "./Equal.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import * as internal from "./internal/hashMap.ts"
-import type { Option } from "./Option.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import type { Result } from "./Result.ts"
-import type { NoInfer } from "./Types.ts"
+import type { Equal } from "./Equal.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import * as internal from "./internal/hashMap.ts";
+import type { Option } from "./Option.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import type { Result } from "./Result.ts";
+import type { NoInfer } from "./Types.ts";
 
-const TypeId = internal.HashMapTypeId
+const TypeId = internal.HashMapTypeId;
 
 /**
  * A HashMap is an immutable key-value data structure that provides efficient lookup,
@@ -47,8 +47,9 @@ const TypeId = internal.HashMapTypeId
  * @category models
  * @since 2.0.0
  */
-export interface HashMap<out Key, out Value> extends Iterable<[Key, Value]>, Equal, Pipeable, Inspectable {
-  readonly [TypeId]: typeof TypeId
+export interface HashMap<out Key, out Value>
+  extends Iterable<[Key, Value]>, Equal, Pipeable, Inspectable {
+  readonly [TypeId]: typeof TypeId;
 }
 
 /**
@@ -111,7 +112,7 @@ export declare namespace HashMap {
    * @category models
    * @since 2.0.0
    */
-  export type UpdateFn<V> = (option: Option<V>) => Option<V>
+  export type UpdateFn<V> = (option: Option<V>) => Option<V>;
 
   /**
    * This type-level utility extracts the key type `K` from a `HashMap<K, V>` type.
@@ -138,7 +139,9 @@ export declare namespace HashMap {
    * @category utility types
    * @since 2.0.0
    */
-  export type Key<T extends HashMap<any, any>> = [T] extends [HashMap<infer _K, infer _V>] ? _K : never
+  export type Key<T extends HashMap<any, any>> = [T] extends [HashMap<infer _K, infer _V>]
+    ? _K
+    : never;
 
   /**
    * This type-level utility extracts the value type `V` from a `HashMap<K, V>` type.
@@ -170,7 +173,9 @@ export declare namespace HashMap {
    * @category utility types
    * @since 2.0.0
    */
-  export type Value<T extends HashMap<any, any>> = [T] extends [HashMap<infer _K, infer _V>] ? _V : never
+  export type Value<T extends HashMap<any, any>> = [T] extends [HashMap<infer _K, infer _V>]
+    ? _V
+    : never;
 
   /**
    * This type-level utility extracts the entry type `[K, V]` from a `HashMap<K, V>` type.
@@ -202,7 +207,7 @@ export declare namespace HashMap {
    * @category utility types
    * @since 3.9.0
    */
-  export type Entry<T extends HashMap<any, any>> = [Key<T>, Value<T>]
+  export type Entry<T extends HashMap<any, any>> = [Key<T>, Value<T>];
 }
 
 /**
@@ -225,9 +230,9 @@ export declare namespace HashMap {
  * @since 2.0.0
  */
 export const isHashMap: {
-  <K, V>(u: Iterable<readonly [K, V]>): u is HashMap<K, V>
-  (u: unknown): u is HashMap<unknown, unknown>
-} = internal.isHashMap
+  <K, V>(u: Iterable<readonly [K, V]>): u is HashMap<K, V>;
+  (u: unknown): u is HashMap<unknown, unknown>;
+} = internal.isHashMap;
 
 /**
  * Creates a new empty `HashMap`.
@@ -243,7 +248,7 @@ export const isHashMap: {
  * @category constructors
  * @since 2.0.0
  */
-export const empty: <K = never, V = never>() => HashMap<K, V> = internal.empty
+export const empty: <K = never, V = never>() => HashMap<K, V> = internal.empty;
 
 /**
  * Constructs a new `HashMap` from an array of key/value pairs.
@@ -264,7 +269,7 @@ export const make: <Entries extends ReadonlyArray<readonly [any, any]>>(
 ) => HashMap<
   Entries[number] extends readonly [infer K, any] ? K : never,
   Entries[number] extends readonly [any, infer V] ? V : never
-> = internal.make
+> = internal.make;
 
 /**
  * Creates a new `HashMap` from an iterable collection of key/value pairs.
@@ -281,7 +286,8 @@ export const make: <Entries extends ReadonlyArray<readonly [any, any]>>(
  * @category constructors
  * @since 2.0.0
  */
-export const fromIterable: <K, V>(entries: Iterable<readonly [K, V]>) => HashMap<K, V> = internal.fromIterable
+export const fromIterable: <K, V>(entries: Iterable<readonly [K, V]>) => HashMap<K, V> =
+  internal.fromIterable;
 
 /**
  * Checks whether the `HashMap` contains no entries.
@@ -301,7 +307,7 @@ export const fromIterable: <K, V>(entries: Iterable<readonly [K, V]>) => HashMap
  * @category predicates
  * @since 2.0.0
  */
-export const isEmpty: <K, V>(self: HashMap<K, V>) => boolean = internal.isEmpty
+export const isEmpty: <K, V>(self: HashMap<K, V>) => boolean = internal.isEmpty;
 
 /**
  * Looks up the value for the specified key in the `HashMap` safely using the
@@ -325,9 +331,9 @@ export const isEmpty: <K, V>(self: HashMap<K, V>) => boolean = internal.isEmpty
  * @since 2.0.0
  */
 export const get: {
-  <K1 extends K, K>(key: K1): <V>(self: HashMap<K, V>) => Option<V>
-  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1): Option<V>
-} = internal.get
+  <K1 extends K, K>(key: K1): <V>(self: HashMap<K, V>) => Option<V>;
+  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1): Option<V>;
+} = internal.get;
 
 /**
  * Looks up the value for the specified key in the `HashMap` safely using a custom hash.
@@ -358,9 +364,9 @@ export const get: {
  * @since 2.0.0
  */
 export const getHash: {
-  <K1 extends K, K>(key: K1, hash: number): <V>(self: HashMap<K, V>) => Option<V>
-  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1, hash: number): Option<V>
-} = internal.getHash
+  <K1 extends K, K>(key: K1, hash: number): <V>(self: HashMap<K, V>) => Option<V>;
+  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1, hash: number): Option<V>;
+} = internal.getHash;
 
 /**
  * Looks up the value for the specified key in the `HashMap` unsafely using the
@@ -401,9 +407,9 @@ export const getHash: {
  * @since 4.0.0
  */
 export const getUnsafe: {
-  <K1 extends K, K>(key: K1): <V>(self: HashMap<K, V>) => V
-  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1): V
-} = internal.getUnsafe
+  <K1 extends K, K>(key: K1): <V>(self: HashMap<K, V>) => V;
+  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1): V;
+} = internal.getUnsafe;
 
 /**
  * Checks whether the specified key has an entry in the `HashMap`.
@@ -426,9 +432,9 @@ export const getUnsafe: {
  * @since 2.0.0
  */
 export const has: {
-  <K1 extends K, K>(key: K1): <K, V>(self: HashMap<K, V>) => boolean
-  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1): boolean
-} = internal.has
+  <K1 extends K, K>(key: K1): <K, V>(self: HashMap<K, V>) => boolean;
+  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1): boolean;
+} = internal.has;
 
 /**
  * Checks whether the specified key has an entry in the `HashMap` using a custom
@@ -461,9 +467,9 @@ export const has: {
  * @since 2.0.0
  */
 export const hasHash: {
-  <K1 extends K, K>(key: K1, hash: number): <V>(self: HashMap<K, V>) => boolean
-  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1, hash: number): boolean
-} = internal.hasHash
+  <K1 extends K, K>(key: K1, hash: number): <V>(self: HashMap<K, V>) => boolean;
+  <K1 extends K, K, V>(self: HashMap<K, V>, key: K1, hash: number): boolean;
+} = internal.hasHash;
 
 /**
  * Checks whether an element matching the given predicate exists in the given `HashMap`.
@@ -482,9 +488,11 @@ export const hasHash: {
  * @since 3.16.0
  */
 export const hasBy: {
-  <K, V>(predicate: (value: NoInfer<V>, key: NoInfer<K>) => boolean): (self: HashMap<K, V>) => boolean
-  <K, V>(self: HashMap<K, V>, predicate: (value: NoInfer<V>, key: NoInfer<K>) => boolean): boolean
-} = internal.hasBy
+  <K, V>(
+    predicate: (value: NoInfer<V>, key: NoInfer<K>) => boolean,
+  ): (self: HashMap<K, V>) => boolean;
+  <K, V>(self: HashMap<K, V>, predicate: (value: NoInfer<V>, key: NoInfer<K>) => boolean): boolean;
+} = internal.hasBy;
 
 /**
  * Sets the specified key to the specified value using the internal hashing
@@ -506,9 +514,9 @@ export const hasBy: {
  * @since 2.0.0
  */
 export const set: {
-  <K, V>(key: K, value: V): (self: HashMap<K, V>) => HashMap<K, V>
-  <K, V>(self: HashMap<K, V>, key: K, value: V): HashMap<K, V>
-} = internal.set
+  <K, V>(key: K, value: V): (self: HashMap<K, V>) => HashMap<K, V>;
+  <K, V>(self: HashMap<K, V>, key: K, value: V): HashMap<K, V>;
+} = internal.set;
 
 /**
  * Returns an `IterableIterator` of the keys within the `HashMap`.
@@ -525,7 +533,7 @@ export const set: {
  * @category getters
  * @since 2.0.0
  */
-export const keys: <K, V>(self: HashMap<K, V>) => IterableIterator<K> = internal.keys
+export const keys: <K, V>(self: HashMap<K, V>) => IterableIterator<K> = internal.keys;
 
 /**
  * Returns an `IterableIterator` of the values within the `HashMap`.
@@ -542,7 +550,7 @@ export const keys: <K, V>(self: HashMap<K, V>) => IterableIterator<K> = internal
  * @category getters
  * @since 2.0.0
  */
-export const values: <K, V>(self: HashMap<K, V>) => IterableIterator<V> = internal.values
+export const values: <K, V>(self: HashMap<K, V>) => IterableIterator<V> = internal.values;
 
 /**
  * Returns an `Array` of the values within the `HashMap`.
@@ -572,7 +580,7 @@ export const values: <K, V>(self: HashMap<K, V>) => IterableIterator<V> = intern
  * @category getters
  * @since 3.13.0
  */
-export const toValues = <K, V>(self: HashMap<K, V>): Array<V> => Array.from(values(self))
+export const toValues = <K, V>(self: HashMap<K, V>): Array<V> => Array.from(values(self));
 
 /**
  * Returns an `IterableIterator` of the entries within the `HashMap`.
@@ -603,7 +611,7 @@ export const toValues = <K, V>(self: HashMap<K, V>): Array<V> => Array.from(valu
  * @category getters
  * @since 2.0.0
  */
-export const entries: <K, V>(self: HashMap<K, V>) => IterableIterator<[K, V]> = internal.entries
+export const entries: <K, V>(self: HashMap<K, V>) => IterableIterator<[K, V]> = internal.entries;
 
 /**
  * Returns an `Array<[K, V]>` of the entries within the `HashMap`.
@@ -636,7 +644,7 @@ export const entries: <K, V>(self: HashMap<K, V>) => IterableIterator<[K, V]> = 
  * @category getters
  * @since 2.0.0
  */
-export const toEntries = <K, V>(self: HashMap<K, V>): Array<[K, V]> => Array.from(entries(self))
+export const toEntries = <K, V>(self: HashMap<K, V>): Array<[K, V]> => Array.from(entries(self));
 
 /**
  * Returns the number of entries within the `HashMap`.
@@ -656,7 +664,7 @@ export const toEntries = <K, V>(self: HashMap<K, V>): Array<[K, V]> => Array.fro
  * @category getters
  * @since 2.0.0
  */
-export const size: <K, V>(self: HashMap<K, V>) => number = internal.size
+export const size: <K, V>(self: HashMap<K, V>) => number = internal.size;
 
 /**
  * Creates a transient mutable `HashMap` for efficient batched updates.
@@ -688,7 +696,7 @@ export const size: <K, V>(self: HashMap<K, V>) => number = internal.size
  * @category mutations
  * @since 2.0.0
  */
-export const beginMutation: <K, V>(self: HashMap<K, V>) => HashMap<K, V> = internal.beginMutation
+export const beginMutation: <K, V>(self: HashMap<K, V>) => HashMap<K, V> = internal.beginMutation;
 
 /**
  * Marks the `HashMap` as immutable, completing the mutation cycle.
@@ -716,7 +724,7 @@ export const beginMutation: <K, V>(self: HashMap<K, V>) => HashMap<K, V> = inter
  * @category mutations
  * @since 2.0.0
  */
-export const endMutation: <K, V>(self: HashMap<K, V>) => HashMap<K, V> = internal.endMutation
+export const endMutation: <K, V>(self: HashMap<K, V>) => HashMap<K, V> = internal.endMutation;
 
 /**
  * Runs a batch of updates against a transient mutable copy of the `HashMap`
@@ -744,9 +752,9 @@ export const endMutation: <K, V>(self: HashMap<K, V>) => HashMap<K, V> = interna
  * @since 2.0.0
  */
 export const mutate: {
-  <K, V>(f: (self: HashMap<K, V>) => void): (self: HashMap<K, V>) => HashMap<K, V>
-  <K, V>(self: HashMap<K, V>, f: (self: HashMap<K, V>) => void): HashMap<K, V>
-} = internal.mutate
+  <K, V>(f: (self: HashMap<K, V>) => void): (self: HashMap<K, V>) => HashMap<K, V>;
+  <K, V>(self: HashMap<K, V>, f: (self: HashMap<K, V>) => void): HashMap<K, V>;
+} = internal.mutate;
 
 /**
  * Sets or removes the specified key using an update function.
@@ -776,9 +784,9 @@ export const mutate: {
  * @since 2.0.0
  */
 export const modifyAt: {
-  <K, V>(key: K, f: HashMap.UpdateFn<V>): (self: HashMap<K, V>) => HashMap<K, V>
-  <K, V>(self: HashMap<K, V>, key: K, f: HashMap.UpdateFn<V>): HashMap<K, V>
-} = internal.modifyAt
+  <K, V>(key: K, f: HashMap.UpdateFn<V>): (self: HashMap<K, V>) => HashMap<K, V>;
+  <K, V>(self: HashMap<K, V>, key: K, f: HashMap.UpdateFn<V>): HashMap<K, V>;
+} = internal.modifyAt;
 
 /**
  * Sets or removes the specified key using a precomputed hash and an update
@@ -831,9 +839,9 @@ export const modifyAt: {
  * @since 2.0.0
  */
 export const modifyHash: {
-  <K, V>(key: K, hash: number, f: HashMap.UpdateFn<V>): (self: HashMap<K, V>) => HashMap<K, V>
-  <K, V>(self: HashMap<K, V>, key: K, hash: number, f: HashMap.UpdateFn<V>): HashMap<K, V>
-} = internal.modifyHash
+  <K, V>(key: K, hash: number, f: HashMap.UpdateFn<V>): (self: HashMap<K, V>) => HashMap<K, V>;
+  <K, V>(self: HashMap<K, V>, key: K, hash: number, f: HashMap.UpdateFn<V>): HashMap<K, V>;
+} = internal.modifyHash;
 
 /**
  * Updates the value of the specified key within the `HashMap` if it exists.
@@ -854,9 +862,9 @@ export const modifyHash: {
  * @since 2.0.0
  */
 export const modify: {
-  <K, V>(key: K, f: (v: V) => V): (self: HashMap<K, V>) => HashMap<K, V>
-  <K, V>(self: HashMap<K, V>, key: K, f: (v: V) => V): HashMap<K, V>
-} = internal.modify
+  <K, V>(key: K, f: (v: V) => V): (self: HashMap<K, V>) => HashMap<K, V>;
+  <K, V>(self: HashMap<K, V>, key: K, f: (v: V) => V): HashMap<K, V>;
+} = internal.modify;
 
 /**
  * Combines two `HashMap`s into one.
@@ -883,9 +891,9 @@ export const modify: {
  * @since 2.0.0
  */
 export const union: {
-  <K1, V1>(that: HashMap<K1, V1>): <K0, V0>(self: HashMap<K0, V0>) => HashMap<K1 | K0, V1 | V0>
-  <K0, V0, K1, V1>(self: HashMap<K0, V0>, that: HashMap<K1, V1>): HashMap<K0 | K1, V0 | V1>
-} = internal.union
+  <K1, V1>(that: HashMap<K1, V1>): <K0, V0>(self: HashMap<K0, V0>) => HashMap<K1 | K0, V1 | V0>;
+  <K0, V0, K1, V1>(self: HashMap<K0, V0>, that: HashMap<K1, V1>): HashMap<K0 | K1, V0 | V1>;
+} = internal.union;
 
 /**
  * Removes the entry for the specified key in the `HashMap` using the internal
@@ -906,9 +914,9 @@ export const union: {
  * @since 2.0.0
  */
 export const remove: {
-  <K>(key: K): <V>(self: HashMap<K, V>) => HashMap<K, V>
-  <K, V>(self: HashMap<K, V>, key: K): HashMap<K, V>
-} = internal.remove
+  <K>(key: K): <V>(self: HashMap<K, V>) => HashMap<K, V>;
+  <K, V>(self: HashMap<K, V>, key: K): HashMap<K, V>;
+} = internal.remove;
 
 /**
  * Removes all entries in the `HashMap` which have the specified keys.
@@ -928,9 +936,9 @@ export const remove: {
  * @since 2.0.0
  */
 export const removeMany: {
-  <K>(keys: Iterable<K>): <V>(self: HashMap<K, V>) => HashMap<K, V>
-  <K, V>(self: HashMap<K, V>, keys: Iterable<K>): HashMap<K, V>
-} = internal.removeMany
+  <K>(keys: Iterable<K>): <V>(self: HashMap<K, V>) => HashMap<K, V>;
+  <K, V>(self: HashMap<K, V>, keys: Iterable<K>): HashMap<K, V>;
+} = internal.removeMany;
 
 /**
  * Sets multiple key-value pairs in the `HashMap`.
@@ -952,9 +960,9 @@ export const removeMany: {
  * @since 4.0.0
  */
 export const setMany: {
-  <K, V>(entries: Iterable<readonly [K, V]>): (self: HashMap<K, V>) => HashMap<K, V>
-  <K, V>(self: HashMap<K, V>, entries: Iterable<readonly [K, V]>): HashMap<K, V>
-} = internal.setMany
+  <K, V>(entries: Iterable<readonly [K, V]>): (self: HashMap<K, V>) => HashMap<K, V>;
+  <K, V>(self: HashMap<K, V>, entries: Iterable<readonly [K, V]>): HashMap<K, V>;
+} = internal.setMany;
 
 /**
  * Maps over the entries of the `HashMap` using the specified function.
@@ -975,9 +983,9 @@ export const setMany: {
  * @since 2.0.0
  */
 export const map: {
-  <A, V, K>(f: (value: V, key: K) => A): (self: HashMap<K, V>) => HashMap<K, A>
-  <K, V, A>(self: HashMap<K, V>, f: (value: V, key: K) => A): HashMap<K, A>
-} = internal.map
+  <A, V, K>(f: (value: V, key: K) => A): (self: HashMap<K, V>) => HashMap<K, A>;
+  <K, V, A>(self: HashMap<K, V>, f: (value: V, key: K) => A): HashMap<K, A>;
+} = internal.map;
 
 /**
  * Maps each entry to a `HashMap` and flattens the results.
@@ -1005,9 +1013,9 @@ export const map: {
  * @since 2.0.0
  */
 export const flatMap: {
-  <A, K, B>(f: (value: A, key: K) => HashMap<K, B>): (self: HashMap<K, A>) => HashMap<K, B>
-  <K, A, B>(self: HashMap<K, A>, f: (value: A, key: K) => HashMap<K, B>): HashMap<K, B>
-} = internal.flatMap
+  <A, K, B>(f: (value: A, key: K) => HashMap<K, B>): (self: HashMap<K, A>) => HashMap<K, B>;
+  <K, A, B>(self: HashMap<K, A>, f: (value: A, key: K) => HashMap<K, B>): HashMap<K, B>;
+} = internal.flatMap;
 
 /**
  * Applies the specified function to the entries of the `HashMap`.
@@ -1031,9 +1039,9 @@ export const flatMap: {
  * @since 2.0.0
  */
 export const forEach: {
-  <V, K>(f: (value: V, key: K) => void): (self: HashMap<K, V>) => void
-  <V, K>(self: HashMap<K, V>, f: (value: V, key: K) => void): void
-} = internal.forEach
+  <V, K>(f: (value: V, key: K) => void): (self: HashMap<K, V>) => void;
+  <V, K>(self: HashMap<K, V>, f: (value: V, key: K) => void): void;
+} = internal.forEach;
 
 /**
  * Reduces the specified state over the entries of the `HashMap`.
@@ -1051,9 +1059,9 @@ export const forEach: {
  * @since 2.0.0
  */
 export const reduce: {
-  <Z, V, K>(zero: Z, f: (accumulator: Z, value: V, key: K) => Z): (self: HashMap<K, V>) => Z
-  <K, V, Z>(self: HashMap<K, V>, zero: Z, f: (accumulator: Z, value: V, key: K) => Z): Z
-} = internal.reduce
+  <Z, V, K>(zero: Z, f: (accumulator: Z, value: V, key: K) => Z): (self: HashMap<K, V>) => Z;
+  <K, V, Z>(self: HashMap<K, V>, zero: Z, f: (accumulator: Z, value: V, key: K) => Z): Z;
+} = internal.reduce;
 
 /**
  * Filters entries out of a `HashMap` using the specified predicate.
@@ -1073,9 +1081,9 @@ export const reduce: {
  * @since 2.0.0
  */
 export const filter: {
-  <K, A>(f: (a: NoInfer<A>, k: K) => boolean): (self: HashMap<K, A>) => HashMap<K, A>
-  <K, A>(self: HashMap<K, A>, f: (a: A, k: K) => boolean): HashMap<K, A>
-} = internal.filter
+  <K, A>(f: (a: NoInfer<A>, k: K) => boolean): (self: HashMap<K, A>) => HashMap<K, A>;
+  <K, A>(self: HashMap<K, A>, f: (a: A, k: K) => boolean): HashMap<K, A>;
+} = internal.filter;
 
 /**
  * Filters out `None` values from a `HashMap` of `Options`s.
@@ -1099,7 +1107,7 @@ export const filter: {
  * @category filtering
  * @since 2.0.0
  */
-export const compact: <K, A>(self: HashMap<K, Option<A>>) => HashMap<K, A> = internal.compact
+export const compact: <K, A>(self: HashMap<K, Option<A>>) => HashMap<K, A> = internal.compact;
 
 /**
  * Maps over the entries of the `HashMap` using the specified filter and keeps
@@ -1124,9 +1132,9 @@ export const compact: <K, A>(self: HashMap<K, Option<A>>) => HashMap<K, A> = int
  * @since 2.0.0
  */
 export const filterMap: {
-  <A, K, B, X>(f: (input: A, key: K) => Result<B, X>): (self: HashMap<K, A>) => HashMap<K, B>
-  <K, A, B, X>(self: HashMap<K, A>, f: (input: A, key: K) => Result<B, X>): HashMap<K, B>
-} = internal.filterMap
+  <A, K, B, X>(f: (input: A, key: K) => Result<B, X>): (self: HashMap<K, A>) => HashMap<K, B>;
+  <K, A, B, X>(self: HashMap<K, A>, f: (input: A, key: K) => Result<B, X>): HashMap<K, B>;
+} = internal.filterMap;
 
 /**
  * Returns the first element that satisfies the specified
@@ -1145,9 +1153,9 @@ export const filterMap: {
  * @since 2.0.0
  */
 export const findFirst: {
-  <K, A>(predicate: (a: NoInfer<A>, k: K) => boolean): (self: HashMap<K, A>) => Option<[K, A]>
-  <K, A>(self: HashMap<K, A>, predicate: (a: A, k: K) => boolean): Option<[K, A]>
-} = internal.findFirst
+  <K, A>(predicate: (a: NoInfer<A>, k: K) => boolean): (self: HashMap<K, A>) => Option<[K, A]>;
+  <K, A>(self: HashMap<K, A>, predicate: (a: A, k: K) => boolean): Option<[K, A]>;
+} = internal.findFirst;
 
 /**
  * Checks whether any entry in a hashmap meets a specific condition.
@@ -1167,9 +1175,9 @@ export const findFirst: {
  * @since 3.13.0
  */
 export const some: {
-  <K, A>(predicate: (a: NoInfer<A>, k: K) => boolean): (self: HashMap<K, A>) => boolean
-  <K, A>(self: HashMap<K, A>, predicate: (a: A, k: K) => boolean): boolean
-} = internal.some
+  <K, A>(predicate: (a: NoInfer<A>, k: K) => boolean): (self: HashMap<K, A>) => boolean;
+  <K, A>(self: HashMap<K, A>, predicate: (a: A, k: K) => boolean): boolean;
+} = internal.some;
 
 /**
  * Checks whether all entries in a hashmap meets a specific condition.
@@ -1189,6 +1197,6 @@ export const some: {
  * @since 3.14.0
  */
 export const every: {
-  <K, A>(predicate: (a: NoInfer<A>, k: K) => boolean): (self: HashMap<K, A>) => boolean
-  <K, A>(self: HashMap<K, A>, predicate: (a: A, k: K) => boolean): boolean
-} = internal.every
+  <K, A>(predicate: (a: NoInfer<A>, k: K) => boolean): (self: HashMap<K, A>) => boolean;
+  <K, A>(self: HashMap<K, A>, predicate: (a: A, k: K) => boolean): boolean;
+} = internal.every;

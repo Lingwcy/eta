@@ -12,20 +12,20 @@
  * @since 4.0.0
  */
 
-import * as BigDecimal from "./BigDecimal.ts"
-import * as ByteSize from "./ByteSize.ts"
-import * as DateTime from "./DateTime.ts"
-import * as Duration from "./Duration.ts"
-import * as Effect from "./Effect.ts"
-import { format, formatDate, formatJson } from "./Formatter.ts"
-import { dual } from "./Function.ts"
-import * as Option from "./Option.ts"
-import * as Pipeable from "./Pipeable.ts"
-import * as Predicate from "./Predicate.ts"
-import type { ErrorOptions, Json } from "./Schema.ts"
-import type * as SchemaAST from "./SchemaAST.ts"
-import * as SchemaGetter from "./SchemaGetter.ts"
-import * as SchemaIssue from "./SchemaIssue.ts"
+import * as BigDecimal from "./BigDecimal.ts";
+import * as ByteSize from "./ByteSize.ts";
+import * as DateTime from "./DateTime.ts";
+import * as Duration from "./Duration.ts";
+import * as Effect from "./Effect.ts";
+import { format, formatDate, formatJson } from "./Formatter.ts";
+import { dual } from "./Function.ts";
+import * as Option from "./Option.ts";
+import * as Pipeable from "./Pipeable.ts";
+import * as Predicate from "./Predicate.ts";
+import type { ErrorOptions, Json } from "./Schema.ts";
+import type * as SchemaAST from "./SchemaAST.ts";
+import * as SchemaGetter from "./SchemaGetter.ts";
+import * as SchemaIssue from "./SchemaIssue.ts";
 
 /**
  * Middleware that wraps the entire parsing `Effect` pipeline for both
@@ -73,16 +73,16 @@ import * as SchemaIssue from "./SchemaIssue.ts"
  * @since 4.0.0
  */
 export interface Middleware<in out T, in out E, RDE, RDT, RET, REE> extends Pipeable.Pipeable {
-  readonly _tag: "Middleware"
+  readonly _tag: "Middleware";
   readonly decode: (
     effect: Effect.Effect<Option.Option<E>, SchemaIssue.Issue, RDE>,
-    options: SchemaAST.ParseOptions
-  ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RDT>
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RDT>;
   readonly encode: (
     effect: Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RET>,
-    options: SchemaAST.ParseOptions
-  ) => Effect.Effect<Option.Option<E>, SchemaIssue.Issue, REE>
-  flip(): Middleware<E, T, RET, REE, RDE, RDT>
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<Option.Option<E>, SchemaIssue.Issue, REE>;
+  flip(): Middleware<E, T, RET, REE, RDE, RDT>;
 }
 
 /**
@@ -91,46 +91,48 @@ export interface Middleware<in out T, in out E, RDE, RDT, RET, REE> extends Pipe
  * @category constructors
  * @since 4.0.0
  */
-export const Middleware: new<T, E, RDE, RDT, RET, REE>(
+export const Middleware: new <T, E, RDE, RDT, RET, REE>(
   decode: (
     effect: Effect.Effect<Option.Option<E>, SchemaIssue.Issue, RDE>,
-    options: SchemaAST.ParseOptions
+    options: SchemaAST.ParseOptions,
   ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RDT>,
   encode: (
     effect: Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RET>,
-    options: SchemaAST.ParseOptions
-  ) => Effect.Effect<Option.Option<E>, SchemaIssue.Issue, REE>
-) => Middleware<T, E, RDE, RDT, RET, REE> = class<in out T, in out E, RDE, RDT, RET, REE> extends Pipeable.Class {
-  readonly _tag = "Middleware"
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<Option.Option<E>, SchemaIssue.Issue, REE>,
+) => Middleware<T, E, RDE, RDT, RET, REE> = class<in out T, in out E, RDE, RDT, RET, REE>
+  extends Pipeable.Class
+{
+  readonly _tag = "Middleware";
   readonly decode: (
     effect: Effect.Effect<Option.Option<E>, SchemaIssue.Issue, RDE>,
-    options: SchemaAST.ParseOptions
-  ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RDT>
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RDT>;
   readonly encode: (
     effect: Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RET>,
-    options: SchemaAST.ParseOptions
-  ) => Effect.Effect<Option.Option<E>, SchemaIssue.Issue, REE>
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<Option.Option<E>, SchemaIssue.Issue, REE>;
 
   constructor(
     decode: (
       effect: Effect.Effect<Option.Option<E>, SchemaIssue.Issue, RDE>,
-      options: SchemaAST.ParseOptions
+      options: SchemaAST.ParseOptions,
     ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RDT>,
     encode: (
       effect: Effect.Effect<Option.Option<T>, SchemaIssue.Issue, RET>,
-      options: SchemaAST.ParseOptions
-    ) => Effect.Effect<Option.Option<E>, SchemaIssue.Issue, REE>
+      options: SchemaAST.ParseOptions,
+    ) => Effect.Effect<Option.Option<E>, SchemaIssue.Issue, REE>,
   ) {
-    super()
-    this.decode = decode
-    this.encode = encode
+    super();
+    this.decode = decode;
+    this.encode = encode;
   }
   flip(): Middleware<E, T, RET, REE, RDE, RDT> {
-    return new Middleware(this.encode, this.decode)
+    return new Middleware(this.encode, this.decode);
   }
-}
+};
 
-const TypeId = "~effect/SchemaTransformation/Transformation"
+const TypeId = "~effect/SchemaTransformation/Transformation";
 
 /**
  * Represents a bidirectional transformation between a decoded type `T` and an encoded
@@ -175,12 +177,13 @@ const TypeId = "~effect/SchemaTransformation/Transformation"
  * @category models
  * @since 4.0.0
  */
-export interface Transformation<in out T, in out E, RD = never, RE = never> extends Pipeable.Pipeable {
-  readonly [TypeId]: typeof TypeId
-  readonly _tag: "Transformation"
-  readonly decode: SchemaGetter.Getter<T, E, RD>
-  readonly encode: SchemaGetter.Getter<E, T, RE>
-  flip(): Transformation<E, T, RE, RD>
+export interface Transformation<in out T, in out E, RD = never, RE = never>
+  extends Pipeable.Pipeable {
+  readonly [TypeId]: typeof TypeId;
+  readonly _tag: "Transformation";
+  readonly decode: SchemaGetter.Getter<T, E, RD>;
+  readonly encode: SchemaGetter.Getter<E, T, RE>;
+  flip(): Transformation<E, T, RE, RD>;
 }
 
 /**
@@ -189,27 +192,26 @@ export interface Transformation<in out T, in out E, RD = never, RE = never> exte
  * @category constructors
  * @since 4.0.0
  */
-export const Transformation: new<T, E, RD = never, RE = never>(
+export const Transformation: new <T, E, RD = never, RE = never>(
   decode: SchemaGetter.Getter<T, E, RD>,
-  encode: SchemaGetter.Getter<E, T, RE>
-) => Transformation<T, E, RD, RE> = class<in out T, in out E, RD = never, RE = never> extends Pipeable.Class {
-  readonly [TypeId] = TypeId
-  readonly _tag = "Transformation"
-  readonly decode: SchemaGetter.Getter<T, E, RD>
-  readonly encode: SchemaGetter.Getter<E, T, RE>
+  encode: SchemaGetter.Getter<E, T, RE>,
+) => Transformation<T, E, RD, RE> = class<in out T, in out E, RD = never, RE = never>
+  extends Pipeable.Class
+{
+  readonly [TypeId] = TypeId;
+  readonly _tag = "Transformation";
+  readonly decode: SchemaGetter.Getter<T, E, RD>;
+  readonly encode: SchemaGetter.Getter<E, T, RE>;
 
-  constructor(
-    decode: SchemaGetter.Getter<T, E, RD>,
-    encode: SchemaGetter.Getter<E, T, RE>
-  ) {
-    super()
-    this.decode = decode
-    this.encode = encode
+  constructor(decode: SchemaGetter.Getter<T, E, RD>, encode: SchemaGetter.Getter<E, T, RE>) {
+    super();
+    this.decode = decode;
+    this.encode = encode;
   }
   flip(): Transformation<E, T, RE, RD> {
-    return new Transformation(this.encode, this.decode)
+    return new Transformation(this.encode, this.decode);
   }
-}
+};
 
 /**
  * Composes two schema transformations into a single bidirectional conversion.
@@ -244,20 +246,23 @@ export const Transformation: new<T, E, RD = never, RE = never>(
  */
 export const composeTransformation: {
   <T, T2, RD2, RE2>(
-    other: Transformation<T2, T, RD2, RE2>
-  ): <E, RD, RE>(self: Transformation<T, E, RD, RE>) => Transformation<T2, E, RD | RD2, RE | RE2>
+    other: Transformation<T2, T, RD2, RE2>,
+  ): <E, RD, RE>(self: Transformation<T, E, RD, RE>) => Transformation<T2, E, RD | RD2, RE | RE2>;
   <T, E, RD, RE, T2, RD2, RE2>(
     self: Transformation<T, E, RD, RE>,
-    other: Transformation<T2, T, RD2, RE2>
-  ): Transformation<T2, E, RD | RD2, RE | RE2>
-} = dual(2, <T, E, RD, RE, T2, RD2, RE2>(
-  self: Transformation<T, E, RD, RE>,
-  other: Transformation<T2, T, RD2, RE2>
-): Transformation<T2, E, RD | RD2, RE | RE2> =>
-  new Transformation(
-    SchemaGetter.compose(self.decode, other.decode),
-    SchemaGetter.compose(other.encode, self.encode)
-  ))
+    other: Transformation<T2, T, RD2, RE2>,
+  ): Transformation<T2, E, RD | RD2, RE | RE2>;
+} = dual(
+  2,
+  <T, E, RD, RE, T2, RD2, RE2>(
+    self: Transformation<T, E, RD, RE>,
+    other: Transformation<T2, T, RD2, RE2>,
+  ): Transformation<T2, E, RD | RD2, RE | RE2> =>
+    new Transformation(
+      SchemaGetter.compose(self.decode, other.decode),
+      SchemaGetter.compose(other.encode, self.encode),
+    ),
+);
 
 /**
  * Returns `true` if `u` is a `Transformation` instance.
@@ -288,7 +293,7 @@ export const composeTransformation: {
  * @since 4.0.0
  */
 export function isTransformation(u: unknown): u is Transformation<any, any, unknown, unknown> {
-  return Predicate.hasProperty(u, TypeId) && u[TypeId] === TypeId
+  return Predicate.hasProperty(u, TypeId) && u[TypeId] === TypeId;
 }
 
 /**
@@ -325,14 +330,14 @@ export function isTransformation(u: unknown): u is Transformation<any, any, unkn
  * @since 3.10.0
  */
 export const makeTransformation = <T, E, RD = never, RE = never>(options: {
-  readonly decode: SchemaGetter.Getter<T, E, RD>
-  readonly encode: SchemaGetter.Getter<E, T, RE>
+  readonly decode: SchemaGetter.Getter<T, E, RD>;
+  readonly encode: SchemaGetter.Getter<E, T, RE>;
 }): Transformation<T, E, RD, RE> => {
   if (isTransformation(options)) {
-    return options as any
+    return options as any;
   }
-  return new Transformation(options.decode, options.encode)
-}
+  return new Transformation(options.decode, options.encode);
+};
 
 /**
  * Creates a `Transformation` from effectful decode and encode functions.
@@ -378,13 +383,19 @@ export const makeTransformation = <T, E, RD = never, RE = never>(options: {
  * @since 3.10.0
  */
 export function transformEffect<T, E, RD = never, RE = never>(options: {
-  readonly decode: (e: E, options: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, RD>
-  readonly encode: (t: T, options: SchemaAST.ParseOptions) => Effect.Effect<E, SchemaIssue.Issue, RE>
+  readonly decode: (
+    e: E,
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<T, SchemaIssue.Issue, RD>;
+  readonly encode: (
+    t: T,
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<E, SchemaIssue.Issue, RE>;
 }): Transformation<T, E, RD, RE> {
   return new Transformation(
     SchemaGetter.transformEffect(options.decode),
-    SchemaGetter.transformEffect(options.encode)
-  )
+    SchemaGetter.transformEffect(options.encode),
+  );
 }
 
 /**
@@ -427,13 +438,13 @@ export function transformEffect<T, E, RD = never, RE = never>(options: {
  * @since 3.10.0
  */
 export function transform<T, E>(options: {
-  readonly decode: (input: E) => T
-  readonly encode: (input: T) => E
+  readonly decode: (input: E) => T;
+  readonly encode: (input: T) => E;
 }): Transformation<T, E> {
   return new Transformation(
     SchemaGetter.transform(options.decode),
-    SchemaGetter.transform(options.encode)
-  )
+    SchemaGetter.transform(options.encode),
+  );
 }
 
 /**
@@ -480,13 +491,13 @@ export function transform<T, E>(options: {
  * @since 4.0.0
  */
 export function transformOptional<T, E>(options: {
-  readonly decode: (input: Option.Option<E>) => Option.Option<T>
-  readonly encode: (input: Option.Option<T>) => Option.Option<E>
+  readonly decode: (input: Option.Option<E>) => Option.Option<T>;
+  readonly encode: (input: Option.Option<T>) => Option.Option<E>;
 }): Transformation<T, E> {
   return new Transformation(
     SchemaGetter.transformOptional(options.decode),
-    SchemaGetter.transformOptional(options.encode)
-  )
+    SchemaGetter.transformOptional(options.encode),
+  );
 }
 
 /**
@@ -523,10 +534,7 @@ export function transformOptional<T, E>(options: {
  * @since 4.0.0
  */
 export function trim(): Transformation<string, string> {
-  return new Transformation(
-    SchemaGetter.trim(),
-    SchemaGetter.passthrough()
-  )
+  return new Transformation(SchemaGetter.trim(), SchemaGetter.passthrough());
 }
 
 /**
@@ -562,10 +570,7 @@ export function trim(): Transformation<string, string> {
  * @since 4.0.0
  */
 export function snakeToCamel(): Transformation<string, string> {
-  return new Transformation(
-    SchemaGetter.snakeToCamel(),
-    SchemaGetter.camelToSnake()
-  )
+  return new Transformation(SchemaGetter.snakeToCamel(), SchemaGetter.camelToSnake());
 }
 
 /**
@@ -600,10 +605,7 @@ export function snakeToCamel(): Transformation<string, string> {
  * @since 4.0.0
  */
 export function toLowerCase(): Transformation<string, string> {
-  return new Transformation(
-    SchemaGetter.toLowerCase(),
-    SchemaGetter.passthrough()
-  )
+  return new Transformation(SchemaGetter.toLowerCase(), SchemaGetter.passthrough());
 }
 
 /**
@@ -638,10 +640,7 @@ export function toLowerCase(): Transformation<string, string> {
  * @since 4.0.0
  */
 export function toUpperCase(): Transformation<string, string> {
-  return new Transformation(
-    SchemaGetter.toUpperCase(),
-    SchemaGetter.passthrough()
-  )
+  return new Transformation(SchemaGetter.toUpperCase(), SchemaGetter.passthrough());
 }
 
 /**
@@ -676,10 +675,7 @@ export function toUpperCase(): Transformation<string, string> {
  * @since 4.0.0
  */
 export function capitalize(): Transformation<string, string> {
-  return new Transformation(
-    SchemaGetter.capitalize(),
-    SchemaGetter.passthrough()
-  )
+  return new Transformation(SchemaGetter.capitalize(), SchemaGetter.passthrough());
 }
 
 /**
@@ -714,10 +710,7 @@ export function capitalize(): Transformation<string, string> {
  * @since 4.0.0
  */
 export function uncapitalize(): Transformation<string, string> {
-  return new Transformation(
-    SchemaGetter.uncapitalize(),
-    SchemaGetter.passthrough()
-  )
+  return new Transformation(SchemaGetter.uncapitalize(), SchemaGetter.passthrough());
 }
 
 /**
@@ -757,19 +750,19 @@ export function uncapitalize(): Transformation<string, string> {
  * @since 4.0.0
  */
 export function splitKeyValue(options?: {
-  readonly separator?: string | undefined
-  readonly keyValueSeparator?: string | undefined
+  readonly separator?: string | undefined;
+  readonly keyValueSeparator?: string | undefined;
 }): Transformation<Record<string, string>, string> {
   return new Transformation(
     SchemaGetter.splitKeyValue(options),
-    SchemaGetter.joinKeyValue(options)
-  )
+    SchemaGetter.joinKeyValue(options),
+  );
 }
 
 const passthrough_ = new Transformation(
   SchemaGetter.passthrough<any>(),
-  SchemaGetter.passthrough<any>()
-)
+  SchemaGetter.passthrough<any>(),
+);
 
 /**
  * Transforms values by returning the input unchanged in both
@@ -805,10 +798,10 @@ const passthrough_ = new Transformation(
  * @category constructors
  * @since 4.0.0
  */
-export function passthrough<T, E>(options: { readonly strict: false }): Transformation<T, E>
-export function passthrough<T>(): Transformation<T, T>
+export function passthrough<T, E>(options: { readonly strict: false }): Transformation<T, E>;
+export function passthrough<T>(): Transformation<T, T>;
 export function passthrough<T>(): Transformation<T, T> {
-  return passthrough_
+  return passthrough_;
 }
 
 /**
@@ -840,9 +833,9 @@ export function passthrough<T>(): Transformation<T, T> {
  * @category constructors
  * @since 4.0.0
  */
-export function passthroughSupertype<T extends E, E>(): Transformation<T, E>
+export function passthroughSupertype<T extends E, E>(): Transformation<T, E>;
 export function passthroughSupertype<T>(): Transformation<T, T> {
-  return passthrough_
+  return passthrough_;
 }
 
 /**
@@ -874,9 +867,9 @@ export function passthroughSupertype<T>(): Transformation<T, T> {
  * @category constructors
  * @since 4.0.0
  */
-export function passthroughSubtype<T, E extends T>(): Transformation<T, E>
+export function passthroughSubtype<T, E extends T>(): Transformation<T, E>;
 export function passthroughSubtype<T>(): Transformation<T, T> {
-  return passthrough_
+  return passthrough_;
 }
 
 /**
@@ -912,10 +905,7 @@ export function passthroughSubtype<T>(): Transformation<T, T> {
  * @category converting
  * @since 4.0.0
  */
-export const numberFromString = new Transformation(
-  SchemaGetter.Number(),
-  SchemaGetter.String()
-)
+export const numberFromString = new Transformation(SchemaGetter.Number(), SchemaGetter.String());
 
 /**
  * Decodes a `string` into a `bigint` and encodes a `bigint` back to a
@@ -949,10 +939,7 @@ export const numberFromString = new Transformation(
  * @category converting
  * @since 4.0.0
  */
-export const bigintFromString = new Transformation(
-  SchemaGetter.BigInt(),
-  SchemaGetter.String()
-)
+export const bigintFromString = new Transformation(SchemaGetter.BigInt(), SchemaGetter.String());
 
 /**
  * Decodes a `string` into a `Date` and encodes a `Date` back to a `string`.
@@ -987,8 +974,8 @@ export const bigintFromString = new Transformation(
  */
 export const dateFromString: Transformation<globalThis.Date, string> = new Transformation(
   SchemaGetter.Date(),
-  SchemaGetter.transform(formatDate)
-)
+  SchemaGetter.transform(formatDate),
+);
 
 /**
  * Decodes epoch milliseconds into a `Date` and encodes a `Date` back to epoch
@@ -1028,8 +1015,8 @@ export const dateFromString: Transformation<globalThis.Date, string> = new Trans
  */
 export const dateFromMillis: Transformation<globalThis.Date, number> = new Transformation(
   SchemaGetter.Date(),
-  SchemaGetter.transform((date) => date.getTime())
-)
+  SchemaGetter.transform((date) => date.getTime()),
+);
 
 /**
  * Decodes a `string` into a `Duration` and encodes a `Duration` back to a
@@ -1072,16 +1059,12 @@ export const durationFromString: Transformation<Duration.Duration, string> = tra
     Option.match(Duration.fromInput(s as Duration.Input), {
       onNone: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid Duration string" },
-            s,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid Duration string" }, s, options),
         ),
-      onSome: Effect.succeed
+      onSome: Effect.succeed,
     }),
-  encode: (duration) => Effect.succeed(String(duration))
-})
+  encode: (duration) => Effect.succeed(String(duration)),
+});
 
 /**
  * Decodes a `bigint` (nanoseconds) into a `Duration` and encodes a
@@ -1123,12 +1106,12 @@ export const durationFromNanos: Transformation<Duration.Duration, bigint> = tran
           new SchemaIssue.InvalidValue(
             { expected: "a Duration representable as a bigint" },
             a,
-            options
-          )
+            options,
+          ),
         ),
-      onSome: (nanos) => Effect.succeed(nanos)
-    })
-})
+      onSome: (nanos) => Effect.succeed(nanos),
+    }),
+});
 
 /**
  * Decodes a `number` of milliseconds into a `Duration` and encodes a `Duration`
@@ -1162,8 +1145,8 @@ export const durationFromNanos: Transformation<Duration.Duration, bigint> = tran
  */
 export const durationFromMillis: Transformation<Duration.Duration, number> = transform({
   decode: (i) => Duration.millis(i),
-  encode: (a) => Duration.toMillis(a)
-})
+  encode: (a) => Duration.toMillis(a),
+});
 
 /**
  * Decodes a string into a `ByteSize` and encodes it as an exact string.
@@ -1176,16 +1159,12 @@ export const byteSizeFromString: Transformation<ByteSize.ByteSize, string> = tra
     Option.match(ByteSize.fromString(input), {
       onNone: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid ByteSize string" },
-            input,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid ByteSize string" }, input, options),
         ),
-      onSome: Effect.succeed
+      onSome: Effect.succeed,
     }),
-  encode: (byteSize) => Effect.succeed(`${byteSize} ${byteSize === BigInt(1) ? "byte" : "bytes"}`)
-})
+  encode: (byteSize) => Effect.succeed(`${byteSize} ${byteSize === BigInt(1) ? "byte" : "bytes"}`),
+});
 
 /**
  * Decodes a non-negative bigint byte count into a `ByteSize`.
@@ -1201,13 +1180,13 @@ export const byteSizeFromBigInt: Transformation<ByteSize.ByteSize, bigint> = tra
           new SchemaIssue.InvalidValue(
             { expected: "a non-negative bigint byte count" },
             input,
-            options
-          )
+            options,
+          ),
         ),
-      onSome: Effect.succeed
+      onSome: Effect.succeed,
     }),
-  encode: (byteSize) => Effect.succeed(ByteSize.toBigInt(byteSize))
-})
+  encode: (byteSize) => Effect.succeed(ByteSize.toBigInt(byteSize)),
+});
 
 /**
  * Decodes a non-negative safe-integer byte count into a `ByteSize`.
@@ -1223,10 +1202,10 @@ export const byteSizeFromNumber: Transformation<ByteSize.ByteSize, number> = tra
           new SchemaIssue.InvalidValue(
             { expected: "a non-negative safe-integer byte count" },
             input,
-            options
-          )
+            options,
+          ),
         ),
-      onSome: Effect.succeed
+      onSome: Effect.succeed,
     }),
   encode: (byteSize, options) =>
     Option.match(ByteSize.toNumber(byteSize), {
@@ -1235,92 +1214,93 @@ export const byteSizeFromNumber: Transformation<ByteSize.ByteSize, number> = tra
           new SchemaIssue.InvalidValue(
             { expected: "a ByteSize representable as a safe integer" },
             byteSize,
-            options
-          )
+            options,
+          ),
         ),
-      onSome: Effect.succeed
-    })
-})
+      onSome: Effect.succeed,
+    }),
+});
 
 type JsonError = {
-  message: string
-  name?: string
-  stack?: string
-  cause?: Json
-}
+  message: string;
+  name?: string;
+  stack?: string;
+  cause?: Json;
+};
 
 const isJsonError = (input: unknown): input is JsonError =>
-  Predicate.isObject(input) && typeof input["message"] === "string"
+  Predicate.isObject(input) && typeof input["message"] === "string";
 
 const decodeJsonError = (input: JsonError): Error => {
-  const hasCause = Object.hasOwn(input, "cause")
+  const hasCause = Object.hasOwn(input, "cause");
   const err = hasCause
     ? new Error(input.message, { cause: decodeDefect(input.cause as Json) })
-    : new Error(input.message)
-  if (typeof input.name === "string" && input.name !== "Error") err.name = input.name
-  if (typeof input.stack === "string") err.stack = input.stack
-  return err
-}
+    : new Error(input.message);
+  if (typeof input.name === "string" && input.name !== "Error") err.name = input.name;
+  if (typeof input.stack === "string") err.stack = input.stack;
+  return err;
+};
 
 const encodeUnknownAsJson = (input: unknown): Json => {
   try {
-    const json = formatJson(input)
-    return json === undefined ? format(input) : JSON.parse(json)
+    const json = formatJson(input);
+    return json === undefined ? format(input) : JSON.parse(json);
   } catch {
-    return format(input)
+    return format(input);
   }
-}
+};
 
 const encodeJsonError = (
   input: Error,
   options: ErrorOptions | undefined,
-  encodeDefect: (input: unknown) => Json
+  encodeDefect: (input: unknown) => Json,
 ): JsonError => {
   const encoded: JsonError = {
     name: input.name,
-    message: typeof input.message === "string" ? input.message : ""
-  }
+    message: typeof input.message === "string" ? input.message : "",
+  };
   if (options?.includeStack && typeof input.stack === "string") {
-    encoded.stack = input.stack
+    encoded.stack = input.stack;
   }
   if (!options?.excludeCause && input.cause !== undefined) {
-    encoded.cause = encodeDefect(input.cause)
+    encoded.cause = encodeDefect(input.cause);
   }
-  return encoded
-}
+  return encoded;
+};
 
-const makeEncodeDefect = (options?: ErrorOptions): (input: unknown) => Json => {
-  const seen = new WeakSet<object>()
+const makeEncodeDefect = (options?: ErrorOptions): ((input: unknown) => Json) => {
+  const seen = new WeakSet<object>();
   const encode = (input: unknown): Json => {
     if (Predicate.isError(input)) {
       if (seen.has(input)) {
-        return "[Circular]"
+        return "[Circular]";
       }
-      seen.add(input)
-      const encoded = encodeJsonError(input, options, encode)
-      seen.delete(input)
-      return encoded
+      seen.add(input);
+      const encoded = encodeJsonError(input, options, encode);
+      seen.delete(input);
+      return encoded;
     }
-    return encodeUnknownAsJson(input)
-  }
-  return encode
-}
+    return encodeUnknownAsJson(input);
+  };
+  return encode;
+};
 
-const decodeDefect = (input: Json): unknown => isJsonError(input) ? decodeJsonError(input) : input
+const decodeDefect = (input: Json): unknown =>
+  isJsonError(input) ? decodeJsonError(input) : input;
 
 /** @internal */
 export const errorFromJsonError = (options?: ErrorOptions): Transformation<Error, JsonError> =>
   transform({
     decode: decodeJsonError,
-    encode: (input) => makeEncodeDefect(options)(input) as JsonError
-  })
+    encode: (input) => makeEncodeDefect(options)(input) as JsonError,
+  });
 
 /** @internal */
 export const defectFromJson = (options?: ErrorOptions) =>
   transform({
     decode: decodeDefect,
-    encode: makeEncodeDefect(options)
-  })
+    encode: makeEncodeDefect(options),
+  });
 
 /**
  * Decodes `T | null` into `Option<T>` and encodes `Option<T>` back to
@@ -1359,8 +1339,8 @@ export const defectFromJson = (options?: ErrorOptions) =>
 export function optionFromNullOr<T>(): Transformation<Option.Option<T>, T | null> {
   return transform({
     decode: Option.fromNullOr,
-    encode: Option.getOrNull
-  })
+    encode: Option.getOrNull,
+  });
 }
 
 /**
@@ -1401,8 +1381,8 @@ export function optionFromNullOr<T>(): Transformation<Option.Option<T>, T | null
 export function optionFromUndefinedOr<T>(): Transformation<Option.Option<T>, T | undefined> {
   return transform({
     decode: Option.fromUndefinedOr,
-    encode: Option.getOrUndefined
-  })
+    encode: Option.getOrUndefined,
+  });
 }
 
 /**
@@ -1442,15 +1422,13 @@ export function optionFromUndefinedOr<T>(): Transformation<Option.Option<T>, T |
  * @category transforming
  * @since 4.0.0
  */
-export function optionFromNullishOr<T>(
-  options?: {
-    onNoneEncoding: null | undefined
-  }
-): Transformation<Option.Option<T>, T | null | undefined> {
+export function optionFromNullishOr<T>(options?: {
+  onNoneEncoding: null | undefined;
+}): Transformation<Option.Option<T>, T | null | undefined> {
   return transform({
     decode: Option.fromNullishOr,
-    encode: options?.onNoneEncoding === null ? Option.getOrNull : Option.getOrUndefined
-  })
+    encode: options?.onNoneEncoding === null ? Option.getOrNull : Option.getOrUndefined,
+  });
 }
 
 /**
@@ -1495,8 +1473,8 @@ export function optionFromNullishOr<T>(
 export function optionFromOptionalKey<T>(): Transformation<Option.Option<T>, T> {
   return transformOptional({
     decode: Option.some,
-    encode: Option.flatten
-  })
+    encode: Option.flatten,
+  });
 }
 
 /**
@@ -1541,8 +1519,8 @@ export function optionFromOptionalKey<T>(): Transformation<Option.Option<T>, T> 
 export function optionFromOptional<T>(): Transformation<Option.Option<T>, T | undefined> {
   return transformOptional<Option.Option<T>, T | undefined>({
     decode: (ot) => ot.pipe(Option.filter(Predicate.isNotUndefined), Option.some),
-    encode: Option.flatten
-  })
+    encode: Option.flatten,
+  });
 }
 
 /**
@@ -1580,15 +1558,9 @@ export const urlFromString: Transformation<URL, string> = transformEffect<URL, s
   decode: (s, options) =>
     URL.canParse(s)
       ? Effect.succeed(new URL(s))
-      : Effect.fail(
-        new SchemaIssue.InvalidValue(
-          { expected: "a valid URL string" },
-          s,
-          options
-        )
-      ),
-  encode: (url) => Effect.succeed(url.href)
-})
+      : Effect.fail(new SchemaIssue.InvalidValue({ expected: "a valid URL string" }, s, options)),
+  encode: (url) => Effect.succeed(url.href),
+});
 
 /**
  * Decodes a `string` into a `BigDecimal` and encodes a `BigDecimal` back to
@@ -1613,19 +1585,15 @@ export const bigDecimalFromString: Transformation<BigDecimal.BigDecimal, string>
   string
 >({
   decode: (s, options) => {
-    const result = BigDecimal.fromString(s)
+    const result = BigDecimal.fromString(s);
     return Option.isNone(result)
       ? Effect.fail(
-        new SchemaIssue.InvalidValue(
-          { expected: "a valid BigDecimal string" },
-          s,
-          options
+          new SchemaIssue.InvalidValue({ expected: "a valid BigDecimal string" }, s, options),
         )
-      )
-      : Effect.succeed(result.value)
+      : Effect.succeed(result.value);
   },
-  encode: (bd) => Effect.succeed(BigDecimal.format(bd))
-})
+  encode: (bd) => Effect.succeed(BigDecimal.format(bd)),
+});
 
 /**
  * Decodes a Base64-encoded `string` into a `Uint8Array` and encodes a
@@ -1658,10 +1626,10 @@ export const bigDecimalFromString: Transformation<BigDecimal.BigDecimal, string>
  * @category encoding
  * @since 4.0.0
  */
-export const uint8ArrayFromBase64String: Transformation<Uint8Array<ArrayBufferLike>, string> = new Transformation(
-  SchemaGetter.decodeBase64(),
-  SchemaGetter.encodeBase64()
-)
+export const uint8ArrayFromBase64String: Transformation<
+  Uint8Array<ArrayBufferLike>,
+  string
+> = new Transformation(SchemaGetter.decodeBase64(), SchemaGetter.encodeBase64());
 
 /**
  * Decodes a Base64-encoded `string` into a UTF-8 `string` and encodes a
@@ -1696,8 +1664,8 @@ export const uint8ArrayFromBase64String: Transformation<Uint8Array<ArrayBufferLi
  */
 export const stringFromBase64String: Transformation<string, string> = new Transformation(
   SchemaGetter.decodeBase64String(),
-  SchemaGetter.encodeBase64()
-)
+  SchemaGetter.encodeBase64(),
+);
 
 /**
  * Decodes a base64 (URL) encoded `string` into a UTF-8 `string` and encodes it back.
@@ -1731,8 +1699,8 @@ export const stringFromBase64String: Transformation<string, string> = new Transf
  */
 export const stringFromBase64UrlString: Transformation<string, string> = new Transformation(
   SchemaGetter.decodeBase64UrlString(),
-  SchemaGetter.encodeBase64Url()
-)
+  SchemaGetter.encodeBase64Url(),
+);
 
 /**
  * Decodes a hex encoded `string` into a UTF-8 `string` and encodes it back.
@@ -1766,8 +1734,8 @@ export const stringFromBase64UrlString: Transformation<string, string> = new Tra
  */
 export const stringFromHexString: Transformation<string, string> = new Transformation(
   SchemaGetter.decodeHexString(),
-  SchemaGetter.encodeHex()
-)
+  SchemaGetter.encodeHex(),
+);
 
 /**
  * Decodes a URI component encoded string into a UTF-8 string and encodes a
@@ -1803,8 +1771,8 @@ export const stringFromHexString: Transformation<string, string> = new Transform
  */
 export const stringFromUriComponent: Transformation<string, string> = new Transformation(
   SchemaGetter.decodeUriComponent(),
-  SchemaGetter.encodeUriComponent()
-)
+  SchemaGetter.encodeUriComponent(),
+);
 
 /**
  * Decodes a JSON string with `JSON.parse` and encodes a value with
@@ -1841,14 +1809,14 @@ export const stringFromUriComponent: Transformation<string, string> = new Transf
  * @since 4.0.0
  */
 export function fromJsonString(options?: {
-  readonly reviver?: Parameters<typeof JSON.parse>[1] | undefined
-  readonly replacer?: SchemaGetter.JsonReplacer | undefined
-  readonly space?: Parameters<typeof JSON.stringify>[2] | undefined
+  readonly reviver?: Parameters<typeof JSON.parse>[1] | undefined;
+  readonly replacer?: SchemaGetter.JsonReplacer | undefined;
+  readonly space?: Parameters<typeof JSON.stringify>[2] | undefined;
 }): Transformation<unknown, string> {
   return new Transformation(
     SchemaGetter.parseJson(options ?? {}),
-    SchemaGetter.stringifyJson(options)
-  )
+    SchemaGetter.stringifyJson(options),
+  );
 }
 
 /**
@@ -1887,8 +1855,8 @@ export function fromJsonString(options?: {
  */
 export const fromFormData = new Transformation<unknown, FormData>(
   SchemaGetter.decodeFormData(),
-  SchemaGetter.encodeFormData()
-)
+  SchemaGetter.encodeFormData(),
+);
 
 /**
  * Decodes `URLSearchParams` into a nested record using bracket-path keys and
@@ -1924,8 +1892,8 @@ export const fromFormData = new Transformation<unknown, FormData>(
  */
 export const fromURLSearchParams = new Transformation<unknown, URLSearchParams>(
   SchemaGetter.decodeURLSearchParams(),
-  SchemaGetter.encodeURLSearchParams()
-)
+  SchemaGetter.encodeURLSearchParams(),
+);
 
 /**
  * Decodes a numeric time-zone offset in milliseconds into a
@@ -1952,8 +1920,8 @@ export const timeZoneOffsetFromNumber: Transformation<DateTime.TimeZone.Offset, 
   number
 >({
   decode: (n) => DateTime.zoneMakeOffset(n),
-  encode: (tz) => tz.offset
-})
+  encode: (tz) => tz.offset,
+});
 
 /**
  * Decodes an IANA time-zone identifier string into a
@@ -1974,25 +1942,19 @@ export const timeZoneOffsetFromNumber: Transformation<DateTime.TimeZone.Offset, 
  * @category transforming
  * @since 4.0.0
  */
-export const timeZoneNamedFromString: Transformation<DateTime.TimeZone.Named, string> = transformEffect<
-  DateTime.TimeZone.Named,
-  string
->({
-  decode: (s, options) => {
-    return Option.match(DateTime.zoneMakeNamed(s), {
-      onNone: () =>
-        Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid IANA time zone" },
-            s,
-            options
-          )
-        ),
-      onSome: Effect.succeed
-    })
-  },
-  encode: (tz) => Effect.succeed(tz.id)
-})
+export const timeZoneNamedFromString: Transformation<DateTime.TimeZone.Named, string> =
+  transformEffect<DateTime.TimeZone.Named, string>({
+    decode: (s, options) => {
+      return Option.match(DateTime.zoneMakeNamed(s), {
+        onNone: () =>
+          Effect.fail(
+            new SchemaIssue.InvalidValue({ expected: "a valid IANA time zone" }, s, options),
+          ),
+        onSome: Effect.succeed,
+      });
+    },
+    encode: (tz) => Effect.succeed(tz.id),
+  });
 
 /**
  * Decodes a string into a `DateTime.TimeZone` and encodes a time zone back to
@@ -2022,18 +1984,12 @@ export const timeZoneFromString: Transformation<DateTime.TimeZone, string> = tra
   decode: (s, options) => {
     return Option.match(DateTime.zoneFromString(s), {
       onNone: () =>
-        Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid time zone" },
-            s,
-            options
-          )
-        ),
-      onSome: Effect.succeed
-    })
+        Effect.fail(new SchemaIssue.InvalidValue({ expected: "a valid time zone" }, s, options)),
+      onSome: Effect.succeed,
+    });
   },
-  encode: (tz) => Effect.succeed(DateTime.zoneToString(tz))
-})
+  encode: (tz) => Effect.succeed(DateTime.zoneToString(tz)),
+});
 
 /**
  * Decodes a date-time string into a `DateTime.Utc` and encodes it back to an ISO
@@ -2064,17 +2020,13 @@ export const dateTimeUtcFromString: Transformation<DateTime.Utc, string> = trans
     return Option.match(DateTime.make(s), {
       onNone: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid UTC DateTime string" },
-            s,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid UTC DateTime string" }, s, options),
         ),
-      onSome: (result) => Effect.succeed(DateTime.toUtc(result))
-    })
+      onSome: (result) => Effect.succeed(DateTime.toUtc(result)),
+    });
   },
-  encode: (utc) => Effect.succeed(DateTime.formatIso(utc))
-})
+  encode: (utc) => Effect.succeed(DateTime.formatIso(utc)),
+});
 
 /**
  * Decodes a zoned date-time string into a `DateTime.Zoned` and encodes it back
@@ -2104,14 +2056,10 @@ export const dateTimeZonedFromString: Transformation<DateTime.Zoned, string> = t
     return Option.match(DateTime.makeZonedFromString(s), {
       onNone: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid Zoned DateTime string" },
-            s,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid Zoned DateTime string" }, s, options),
         ),
-      onSome: Effect.succeed
-    })
+      onSome: Effect.succeed,
+    });
   },
-  encode: (zoned) => Effect.succeed(DateTime.formatIsoZoned(zoned))
-})
+  encode: (zoned) => Effect.succeed(DateTime.formatIsoZoned(zoned)),
+});

@@ -9,7 +9,7 @@
 - [#8327](https://github.com/Effect-TS/effect/pull/8327) [`201b5ab`](https://github.com/Effect-TS/effect/commit/201b5ab5c4b4570fff18aa0833b2e3c6a87c02c7) Thanks @tim-smart! - Namespace prepared statement names per connection to avoid collisions when backend sessions are shared.
 
 - [#8308](https://github.com/Effect-TS/effect/pull/8308) [`106af64`](https://github.com/Effect-TS/effect/commit/106af64cf7117dfad53d3b11b61bb3d17d63bfca) Thanks @tristanz! - Release savepoints after nested transactions succeed or successfully roll back in PostgreSQL, PGlite, MySQL, libSQL, and the Node, Bun, React Native, and WASM SQLite clients. This frees PostgreSQL transaction locks before the outer transaction completes.
-  
+
   Custom SQL clients can opt in through the new `releaseSavepoint` option. Clients that omit it are unchanged.
 
 - [#8330](https://github.com/Effect-TS/effect/pull/8330) [`27de875`](https://github.com/Effect-TS/effect/commit/27de8756121c0278ee92d409d1fdcec5693ca0a0) Thanks @tim-smart! - Retire pooled PostgreSQL sessions with an unconfirmed `CancelRequest`, preventing a delayed cancel from reaching a later checkout. This includes interrupts sent while idle. The current checkout and unpooled sessions remain exposed to their own late cancel.
@@ -21,7 +21,7 @@
 ### Patch Changes
 
 - [#8215](https://github.com/Effect-TS/effect/pull/8215) [`9367dcb`](https://github.com/Effect-TS/effect/commit/9367dcbeda92c6473e9f2d90377663152b285d08) Thanks @hsyntax! - Preserve the original `SqlError` when a PostgreSQL LISTEN connection fails after registration, allowing `Stream.retry` to acquire a new listener. Intentional scope closure still interrupts consumers.
-  
+
   Notification queues returned by `PgClient.listen` and `PgConnection.listen` now carry `SqlError`. Update explicit queue and stream type annotations to include this error.
 
 - [#8200](https://github.com/Effect-TS/effect/pull/8200) [`8feeb3c`](https://github.com/Effect-TS/effect/commit/8feeb3c4cdbd0f2e57fa25bb0d6fe3b9509117db) Thanks @tim-smart! - Support `sslmode=prefer` and `sslmode=allow` by trying TLS first, then plaintext if the server declines `SSLRequest`. Unlike libpq, `allow` also tries TLS first. Explicit `ssl` overrides and certificate verification are unchanged. TLS handshake and certificate failures remain fatal. Cancellation never downgrades a TLS session to plaintext.
@@ -31,19 +31,19 @@
 - [#8224](https://github.com/Effect-TS/effect/pull/8224) [`205066a`](https://github.com/Effect-TS/effect/commit/205066a76f6b131cf5889bb655e755b4bbcdd8c4) Thanks @alvarosevilla95! - Support infallible Effect password providers with no service requirements, refreshed per PostgreSQL connection and schema dump.
 
 - [#8241](https://github.com/Effect-TS/effect/pull/8241) [`8ef3fcb`](https://github.com/Effect-TS/effect/commit/8ef3fcbbe7cd75f63114ba19755fad620a1b3c17) Thanks @tim-smart! - Decode `timestamp` and `timestamptz` values, including array elements, as `Date` instead of epoch milliseconds. Their encoders, including `PgTypes.timestamp` and `PgTypes.timestamptz`, accept either form. Precision remains milliseconds.
-  
+
   ### Breaking changes
-  
   - Numeric readers must call `date.getTime()` or restore numeric codecs with `PgTypes.register` or a client `Registry` passed as `types`.
   - `infinity`, `-infinity` and values outside the JavaScript `Date` range decode to an invalid `Date`. Numeric `±Infinity` still encodes PostgreSQL's sentinels; encoding an invalid `Date` fails with `PgTypes.CodecError`.
-  
+
   Date parameters bind as `timestamptz`. Inserting one into a `timestamp` column applies the session `TimeZone`. Use UTC or `PgTypes.timestamp(value)` to preserve its UTC fields. `timestamptz` round trips preserve the instant regardless of session timezone.
 
 - [#8240](https://github.com/Effect-TS/effect/pull/8240) [`fd910d1`](https://github.com/Effect-TS/effect/commit/fd910d1cc6f817ceb677c688d964f4173b3aa0e3) Thanks @tim-smart! - Decode unregistered OIDs as UTF-8 text so scalar enums return string labels.
-  
+
   Other binary user-defined types, including enum arrays, may produce garbled text or fail UTF-8 decoding. Decode failures close the connection, failing its pending queries and discarding transactions and `LISTEN` subscriptions; the pool replaces it.
-  
+
   Register scalar codecs with `PgTypes.register`. For arrays, use `PgTypes.makeRegistry().register(elementOid, codec, { arrayOid })` and pass the registry as the client's `types` option.
+
 - Updated dependencies [[`c19c63f`](https://github.com/Effect-TS/effect/commit/c19c63fb710422aaf00b8d923188aa2e52a6776f), [`8cb0a4f`](https://github.com/Effect-TS/effect/commit/8cb0a4f28fba991e15659d08ecc09da28cf742d2), [`8f420bb`](https://github.com/Effect-TS/effect/commit/8f420bb3dc3c9be8c4a48d57dccee201dcb0260d), [`1393080`](https://github.com/Effect-TS/effect/commit/1393080f1cc8f47d459119fcb759e2cc00fd7356), [`ccae354`](https://github.com/Effect-TS/effect/commit/ccae35423188f58d7c3dec5db3e36ed4bf42bcdf), [`553c403`](https://github.com/Effect-TS/effect/commit/553c403f1d9199df738f73446dacd090da2e698b), [`45b5103`](https://github.com/Effect-TS/effect/commit/45b510352d42ac55718f9f5f43573975b323143f), [`77a5612`](https://github.com/Effect-TS/effect/commit/77a56120354d1d3f7341b117266f211143a3734a), [`1076170`](https://github.com/Effect-TS/effect/commit/10761707b5cae0a66ef605abd1737ae59a18f5ac), [`f110af1`](https://github.com/Effect-TS/effect/commit/f110af1ac5a54a7d62c2b96e35d4521a09f3fa06), [`0045152`](https://github.com/Effect-TS/effect/commit/0045152cdf796f20be5e690c69c40da611f813b8), [`51d4a2f`](https://github.com/Effect-TS/effect/commit/51d4a2f08a5c7691dc876415bc9fc0ecf467e153), [`4d4c4e8`](https://github.com/Effect-TS/effect/commit/4d4c4e8a4436d49997a5a7234860ede651467537), [`ccfe152`](https://github.com/Effect-TS/effect/commit/ccfe152d11bed497f2d26aba8ef1a3613d0d6746), [`d30a0c8`](https://github.com/Effect-TS/effect/commit/d30a0c880f8ffe06d7f0695c17f35910f1fcfbc9), [`84fe64a`](https://github.com/Effect-TS/effect/commit/84fe64a5fbfdecd23b66c207d0daa848d59dd825), [`49e4b37`](https://github.com/Effect-TS/effect/commit/49e4b37b831a573567e0b67d3ec4593403dc2e72), [`49e4b37`](https://github.com/Effect-TS/effect/commit/49e4b37b831a573567e0b67d3ec4593403dc2e72), [`a2c4154`](https://github.com/Effect-TS/effect/commit/a2c4154cf8bcbe455bd43bf7f3f12d9cbf38247c), [`23a58c0`](https://github.com/Effect-TS/effect/commit/23a58c020b25dde573ce523c2d157032676de0a3), [`feef90c`](https://github.com/Effect-TS/effect/commit/feef90ccbd86e5ab49b7e3cc3845591e23bdcb1b), [`755e863`](https://github.com/Effect-TS/effect/commit/755e863a793e5621183e7992cb3f85d29030ad7b), [`49e4b37`](https://github.com/Effect-TS/effect/commit/49e4b37b831a573567e0b67d3ec4593403dc2e72), [`9ad9891`](https://github.com/Effect-TS/effect/commit/9ad9891e24058065bcd445772e005f8ce4b3e42f), [`0beded0`](https://github.com/Effect-TS/effect/commit/0beded04f5cffe8dd263f989c38a609e27f27fa5), [`2940742`](https://github.com/Effect-TS/effect/commit/2940742c3f8529bc3b024b379904fbefd40ece55), [`63c1566`](https://github.com/Effect-TS/effect/commit/63c15662f90ae970969de29761207c99ecdbf66b)]:
   - effect@4.0.0-rc.116
 
@@ -67,18 +67,17 @@
 ### Patch Changes
 
 - [#7426](https://github.com/Effect-TS/effect/pull/7426) [`534b8b9`](https://github.com/Effect-TS/effect/commit/534b8b9dba195ec38a4795fe564d5e0876cb6468) Thanks @tim-smart! - Replace `@effect/sql-pg`'s `pg` runtime with a native PostgreSQL client. `PgConnection` and `PgPool` now handle connection setup, binary queries, prepared statements, pipelining, streaming, notifications, cancellation, and custom codecs. `PgConnection.listen` and `PgClient.listen` return scoped notification dequeues after PostgreSQL confirms the subscription. `PgClient` uses the native stack, and the legacy `fromPool`, `fromClient`, and `makeWith` constructors are removed.
-  
+
   ### Breaking changes
-  
   - `fromPool`, `fromClient`, and `makeWith` are removed. Use `make` for a pool or `makeClient` for one connection.
   - `PgClient.listen` returns a scoped `Effect<Dequeue<string>, SqlError, Scope>` instead of a `Stream`. Acquisition completes after PostgreSQL confirms `LISTEN`, so notifications sent after it returns cannot be missed.
   - `PgClientConfig.types` now accepts a `PgTypes.Registry` instead of `pg.CustomTypesConfig`. Plain object parameters are no longer inferred as JSON; wrap them with `sql.json`.
   - Query strings must contain one statement. PostgreSQL's extended protocol rejects multi-statement strings.
   - Results use the native binary codecs. In particular, `int8` decodes to `bigint`, `date` to a string, timestamps to Unix epoch milliseconds, and `bytea` or unknown OIDs to `Uint8Array`. `executeRaw` returns the native `PgConnection.Result` shape rather than `pg.Result`.
   - Named prepared statements are enabled by default. Set `prepare: false` when using a pooler that cannot preserve prepared statements between queries. `Statement.unprepared` and `Statement.valuesUnprepared` use unnamed extended queries without adding entries to the prepared-statement cache.
-  
+
   Inferred parameters stay permissive: strings bind untyped so the backend derives the type from the statement, and safe integers beyond the `int4` range bind as `int8`.
-  
+
   Add `Pool.reserve` for exclusive access to a concurrent pool item, and fix waiter wakeups and capacity replacement after invalidation.
 
 - [#7509](https://github.com/Effect-TS/effect/pull/7509) [`c405edc`](https://github.com/Effect-TS/effect/commit/c405edc991566c38168dd0ca5087f66b8d0085d3) Thanks @tim-smart! - Set the default `multiplexConcurrency` to 32 when PostgreSQL connection multiplexing is enabled. Set a lower value explicitly to limit how many statements share each connection.
@@ -89,9 +88,9 @@
 - [#7502](https://github.com/Effect-TS/effect/pull/7502) [`e203638`](https://github.com/Effect-TS/effect/commit/e203638f6e594ff738c6cdb5a5ac8e57ae3be1d2) Thanks @tim-smart! - Add a `maxMessageSize` connection option so PostgreSQL clients can receive backend messages larger than the 16 MiB default.
 
 - [#7524](https://github.com/Effect-TS/effect/pull/7524) [`0a08ae0`](https://github.com/Effect-TS/effect/commit/0a08ae0626f8124779ec2e32ae2088d28db157c6) Thanks @fubhy! - Add `NetAddress` under `effect/unstable/net` for MAC, IP, internet socket, and Unix socket addresses, with checked parsing, schemas, equality, canonical string serialization, and URL formatting. Companion modules `IpInterface` and `IpNetwork` represent IP interfaces and CIDR networks.
-  
+
   HTTP and socket servers now expose `NetAddress.SocketAddress`. Replace TCP `hostname` access with `NetAddress.formatIp(address.address)` and use `UnixPathAddress.path` for Unix sockets. URL helpers bracket IPv6 addresses and reject scoped IPv6. Bun and Deno HTTP server layers can now fail with `ServeError` when listener address conversion fails.
-  
+
   PostgreSQL `inet` values now use `IpInterface`; `cidr` values use `IpNetwork` and reject addresses with host bits set.
 
 - [#7734](https://github.com/Effect-TS/effect/pull/7734) [`fe3830a`](https://github.com/Effect-TS/effect/commit/fe3830add4734f942d495499ef22fb21a00d4cd0) Thanks @kitlangton! - Honor explicit `ssl` options when PostgreSQL URLs use `sslmode=prefer` or `sslmode=allow`.
@@ -105,10 +104,11 @@
 ### Patch Changes
 
 - [#7391](https://github.com/Effect-TS/effect/pull/7391) [`1144032`](https://github.com/Effect-TS/effect/commit/1144032cedda7b5eacc1ebf980d06957c7a59ddf) Thanks @tim-smart! - Add low-level PostgreSQL protocol, binary type, and authentication codecs to `@effect/sql-pg`.
-  
+
   `PgProtocol` encodes protocol 3.0 messages and incrementally parses backend frames. Its stateful parser throws terminal errors. `PgTypes` handles binary scalar and one-dimensional array OIDs; its public codecs return typed `Result` failures, while parser field readers use an internal throwing fast path. `PgAuth` implements MD5 and SCRAM-SHA-256 with typed `Result` failures.
-  
+
   Encoded frames and decoded byte fields are stable views over internal buffers. Copy data that must outlive its message. `PgClient` remains unchanged and still uses `pg` at runtime.
+
 - Updated dependencies [[`20cb4f2`](https://github.com/Effect-TS/effect/commit/20cb4f260e45d37fa417c292c57be015314efe16), [`44675cb`](https://github.com/Effect-TS/effect/commit/44675cbce3dabfb85c68a3703b5de525768336fb), [`b6bf5e1`](https://github.com/Effect-TS/effect/commit/b6bf5e14492643076454131148f97cde24ad5306), [`0b9f780`](https://github.com/Effect-TS/effect/commit/0b9f780ff28b71042241791a9e8bcb5b631be2bd), [`150e92c`](https://github.com/Effect-TS/effect/commit/150e92c4169c245e701da02575eef0b69c3ecd64), [`6740db2`](https://github.com/Effect-TS/effect/commit/6740db247ed20cb85da43c9f48ade8fecfd8c1ae), [`d57bba1`](https://github.com/Effect-TS/effect/commit/d57bba1486fa60971b6e0bf7459a329cfd5acdc4), [`be75d5e`](https://github.com/Effect-TS/effect/commit/be75d5ea6e516c25e3affec25806d31c2b203bc4), [`be75d5e`](https://github.com/Effect-TS/effect/commit/be75d5ea6e516c25e3affec25806d31c2b203bc4), [`be75d5e`](https://github.com/Effect-TS/effect/commit/be75d5ea6e516c25e3affec25806d31c2b203bc4), [`02a5146`](https://github.com/Effect-TS/effect/commit/02a5146d6933c7f6052553550bce5658225e4100), [`15272a6`](https://github.com/Effect-TS/effect/commit/15272a66adf02501e7747761e2a3c41bff67bb46), [`436f10d`](https://github.com/Effect-TS/effect/commit/436f10d1efccec308426532ff3f88df9a96434f3), [`058fb15`](https://github.com/Effect-TS/effect/commit/058fb15647fa01ad771277bd368783fcf5f262e8), [`4d89bb8`](https://github.com/Effect-TS/effect/commit/4d89bb8ffb4cf567a1d11072246b6161ce638712), [`480fb15`](https://github.com/Effect-TS/effect/commit/480fb156590785cf98f67bdec4fc282a608e2d87), [`f77ec19`](https://github.com/Effect-TS/effect/commit/f77ec19cff1cbbeeae928e3bd0ece00a7d22bab8), [`925b82a`](https://github.com/Effect-TS/effect/commit/925b82a81f59a4d459b488621030f24ba99d6a27), [`7455246`](https://github.com/Effect-TS/effect/commit/7455246f352385f5cbbdd8299555265ee289490e), [`118124d`](https://github.com/Effect-TS/effect/commit/118124d913d0a02ac5c1f7799a39bd90031769d9), [`a5f78d3`](https://github.com/Effect-TS/effect/commit/a5f78d3fcbaa792d49e80d103ab438e0b50812fd), [`0dd7825`](https://github.com/Effect-TS/effect/commit/0dd7825e4da4d3a00fa9bd410a1d55f3d4874d07), [`b722eca`](https://github.com/Effect-TS/effect/commit/b722eca6d283a88970ad0efba0b4e921915eca78), [`811d579`](https://github.com/Effect-TS/effect/commit/811d579c432856a9e3fc05b517fd8e924cbf991a), [`043b587`](https://github.com/Effect-TS/effect/commit/043b587e6e93f6624bf974bcd7ed976eaa17f0e1), [`8583727`](https://github.com/Effect-TS/effect/commit/85837274fa929a921985464585513a68c261e365), [`d9d2cfc`](https://github.com/Effect-TS/effect/commit/d9d2cfcb732754001b7323cf8afaccc48539bb74), [`5c4b7a0`](https://github.com/Effect-TS/effect/commit/5c4b7a0b17931cd1538c6595a54b21ffe9c1e906)]:
   - effect@4.0.0-rc.112
 

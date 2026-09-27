@@ -3,10 +3,10 @@ effect/Sink#Sink:
   note: "Interface kept as Sink<A, In, L, E, R> with the same type parameters; the internal representation changed from a Channel wrapper to a `transform: (upstream: Pull<NonEmptyReadonlyArray<In>>, scope) => Effect<End<A, L>>` function, and completion is the tuple `Sink.End<A, L> = readonly [value, leftover?]`."
 effect/Sink#Sink.Variance:
   replacement: "Sink.Variance"
-  note: "Still exists as the namespace interface Sink.Variance<A, In, L, E, R> (with Sink.VarianceStruct); the variance key is now the internal string \"~effect/Sink\" instead of the SinkTypeId symbol."
+  note: 'Still exists as the namespace interface Sink.Variance<A, In, L, E, R> (with Sink.VarianceStruct); the variance key is now the internal string "~effect/Sink" instead of the SinkTypeId symbol.'
 effect/Sink#SinkTypeId:
   replacement: "none"
-  note: "The type id is the unexported internal string \"~effect/Sink\" (no unique symbol, no export); use the new guard Sink.isSink(u) instead of checking the symbol."
+  note: 'The type id is the unexported internal string "~effect/Sink" (no unique symbol, no export); use the new guard Sink.isSink(u) instead of checking the symbol.'
 effect/Sink#SinkUnify:
   replacement: "SinkUnify"
   note: "Kept with the same name and shape (extends Effect.EffectUnify, preserves all five Sink type parameters)."
@@ -165,7 +165,7 @@ effect/Sink#mapInputChunksEffect:
   note: "Renamed; f maps NonEmptyReadonlyArray<In0> => Effect<NonEmptyReadonlyArray<In>> (must stay non-empty) instead of Chunk => Effect<Chunk>."
 effect/Sink#mkString:
   replacement: "Sink.reduceArray"
-  note: "Removed as a built-in; equivalent one-liner: Sink.reduceArray(() => \"\", (s, arr) => s + arr.join(\"\"))."
+  note: 'Removed as a built-in; equivalent one-liner: Sink.reduceArray(() => "", (s, arr) => s + arr.join("")).'
 effect/Sink#race:
   replacement: "none"
   note: "Sink racing (race/raceBoth/raceWith) was removed from v4; broadcast the stream (Stream.broadcast) into two consumers and race the resulting run effects with Effect.race, or write a custom Channel."

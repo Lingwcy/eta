@@ -7,9 +7,9 @@
  *
  * @since 4.0.0
  */
-import * as Schema from "effect/Schema"
-import * as Tool from "effect/unstable/ai/Tool"
-import * as Generated from "./Generated.ts"
+import * as Schema from "effect/Schema";
+import * as Tool from "effect/unstable/ai/Tool";
+import * as Generated from "./Generated.ts";
 
 /**
  * Union of all OpenAI provider-defined tools.
@@ -26,7 +26,7 @@ export type OpenAiTool =
   | ReturnType<typeof LocalShell>
   | ReturnType<typeof Mcp>
   | ReturnType<typeof WebSearch>
-  | ReturnType<typeof WebSearchPreview>
+  | ReturnType<typeof WebSearchPreview>;
 
 /**
  * Defines the OpenAI Apply Patch tool that allows the model to apply diffs by creating,
@@ -49,13 +49,13 @@ export const ApplyPatch = Tool.providerDefined({
   requiresHandler: true,
   parameters: Schema.Struct({
     call_id: Generated.ApplyPatchToolCall.fields.call_id,
-    operation: Generated.ApplyPatchToolCall.fields.operation
+    operation: Generated.ApplyPatchToolCall.fields.operation,
   }),
   success: Schema.Struct({
     status: Generated.ApplyPatchToolCallOutput.fields.status,
-    output: Generated.ApplyPatchToolCallOutput.fields.output
-  })
-})
+    output: Generated.ApplyPatchToolCallOutput.fields.output,
+  }),
+});
 
 /**
  * Defines the OpenAI Code Interpreter tool that allows the model to execute Python code in
@@ -80,23 +80,25 @@ export const CodeInterpreter = Tool.providerDefined({
   customName: "OpenAiCodeInterpreter",
   providerName: "code_interpreter",
   args: Schema.Struct({
-    container: Generated.CodeInterpreterTool.fields.container
+    container: Generated.CodeInterpreterTool.fields.container,
   }),
   parameters: Schema.Struct({
     code: Generated.CodeInterpreterToolCall.fields.code,
-    container_id: Generated.CodeInterpreterToolCall.fields.container_id
+    container_id: Generated.CodeInterpreterToolCall.fields.container_id,
   }),
   success: Schema.Struct({
     status: Schema.Literal("completed"),
-    outputs: Generated.CodeInterpreterToolCall.fields.outputs
+    outputs: Generated.CodeInterpreterToolCall.fields.outputs,
   }),
   failure: Schema.Struct({
     status: Schema.Literals(
-      Generated.CodeInterpreterToolCall.fields.status.literals.filter((status) => status !== "completed")
+      Generated.CodeInterpreterToolCall.fields.status.literals.filter(
+        (status) => status !== "completed",
+      ),
     ),
-    outputs: Generated.CodeInterpreterToolCall.fields.outputs
-  })
-})
+    outputs: Generated.CodeInterpreterToolCall.fields.outputs,
+  }),
+});
 
 /**
  * Defines the OpenAI File Search tool that enables the model to search through uploaded
@@ -126,21 +128,23 @@ export const FileSearch = Tool.providerDefined({
     filters: Generated.FileSearchTool.fields.filters,
     max_num_results: Generated.FileSearchTool.fields.max_num_results,
     ranking_options: Generated.FileSearchTool.fields.ranking_options,
-    vector_store_ids: Generated.FileSearchTool.fields.vector_store_ids
+    vector_store_ids: Generated.FileSearchTool.fields.vector_store_ids,
   }),
   success: Schema.Struct({
     status: Schema.Literal("completed"),
     queries: Generated.FileSearchToolCall.fields.queries,
-    results: Generated.FileSearchToolCall.fields.results.schema
+    results: Generated.FileSearchToolCall.fields.results.schema,
   }),
   failure: Schema.Struct({
     status: Schema.Literals(
-      Generated.FileSearchToolCall.fields.status.literals.filter((status) => status !== "completed")
+      Generated.FileSearchToolCall.fields.status.literals.filter(
+        (status) => status !== "completed",
+      ),
     ),
     queries: Generated.FileSearchToolCall.fields.queries,
-    results: Generated.FileSearchToolCall.fields.results.schema
-  })
-})
+    results: Generated.FileSearchToolCall.fields.results.schema,
+  }),
+});
 
 /**
  * Defines the OpenAI Image Generation tool that enables the model to generate images using
@@ -177,18 +181,18 @@ export const ImageGeneration = Tool.providerDefined({
     output_format: Generated.ImageGenTool.fields.output_format,
     partial_images: Generated.ImageGenTool.fields.partial_images,
     quality: Generated.ImageGenTool.fields.quality,
-    size: Generated.ImageGenTool.fields.size
+    size: Generated.ImageGenTool.fields.size,
   }),
   success: Schema.Struct({
-    result: Generated.ImageGenToolCall.fields.result
+    result: Generated.ImageGenToolCall.fields.result,
   }),
   failure: Schema.Struct({
     status: Schema.Literals(
-      Generated.ImageGenToolCall.fields.status.literals.filter((status) => status !== "completed")
+      Generated.ImageGenToolCall.fields.status.literals.filter((status) => status !== "completed"),
     ),
-    result: Generated.ImageGenToolCall.fields.result
-  })
-})
+    result: Generated.ImageGenToolCall.fields.result,
+  }),
+});
 
 /**
  * Defines the OpenAI Local Shell tool that enables the model to run a command with a local
@@ -215,20 +219,20 @@ export const LocalShell = Tool.providerDefined({
   providerName: "local_shell",
   requiresHandler: true,
   parameters: Schema.Struct({
-    action: Generated.LocalShellToolCall.fields.action
+    action: Generated.LocalShellToolCall.fields.action,
   }),
   success: Schema.Struct({
-    output: Generated.LocalShellToolCallOutput.fields.output
-  })
-})
+    output: Generated.LocalShellToolCallOutput.fields.output,
+  }),
+});
 
 const McpResultFields = {
   type: Generated.MCPToolCall.fields.type,
   name: Generated.MCPToolCall.fields.name,
   arguments: Generated.MCPToolCall.fields.arguments,
   output: Generated.MCPToolCall.fields.output,
-  server_label: Generated.MCPToolCall.fields.server_label
-}
+  server_label: Generated.MCPToolCall.fields.server_label,
+};
 
 /**
  * Defines the OpenAI MCP tool that gives the model access to additional tools via remote
@@ -265,15 +269,15 @@ export const Mcp = Tool.providerDefined({
     require_approval: Generated.MCPTool.fields.require_approval,
     server_description: Generated.MCPTool.fields.server_description,
     server_label: Generated.MCPTool.fields.server_label,
-    server_url: Generated.MCPTool.fields.server_url
+    server_url: Generated.MCPTool.fields.server_url,
   }),
   parameters: Schema.Unknown,
   success: Schema.Struct(McpResultFields),
   failure: Schema.Struct({
     ...McpResultFields,
-    error: Schema.String
-  })
-})
+    error: Schema.String,
+  }),
+});
 
 /**
  * Defines the OpenAI shell tool for model-requested command execution.
@@ -298,22 +302,24 @@ export const Shell = Tool.providerDefined({
   providerName: "shell",
   requiresHandler: true,
   parameters: Schema.Struct({
-    action: Generated.FunctionShellCall.fields.action
+    action: Generated.FunctionShellCall.fields.action,
   }),
   success: Schema.Struct({
-    output: Generated.FunctionShellCallOutput.fields.output
-  })
-})
+    output: Generated.FunctionShellCallOutput.fields.output,
+  }),
+});
 
 const WebSearchSuccess = Schema.Struct({
   action: Generated.WebSearchToolCall.fields.action,
-  status: Schema.Literal("completed")
-})
+  status: Schema.Literal("completed"),
+});
 
 const WebSearchFailure = Schema.Struct({
   action: Generated.WebSearchToolCall.fields.action,
-  status: Schema.Literals(Generated.WebSearchToolCall.fields.status.literals.filter((status) => status !== "completed"))
-})
+  status: Schema.Literals(
+    Generated.WebSearchToolCall.fields.status.literals.filter((status) => status !== "completed"),
+  ),
+});
 
 /**
  * Defines the OpenAI Web Search tool that enables the model to search the web for
@@ -343,14 +349,14 @@ export const WebSearch = Tool.providerDefined({
   args: Schema.Struct({
     filters: Generated.WebSearchTool.fields.filters,
     user_location: Generated.WebSearchTool.fields.user_location,
-    search_context_size: Generated.WebSearchTool.fields.search_context_size
+    search_context_size: Generated.WebSearchTool.fields.search_context_size,
   }),
   parameters: Schema.Struct({
-    action: Generated.WebSearchToolCall.fields.action
+    action: Generated.WebSearchToolCall.fields.action,
   }),
   success: WebSearchSuccess,
-  failure: WebSearchFailure
-})
+  failure: WebSearchFailure,
+});
 
 /**
  * Defines the OpenAI preview Web Search tool for model responses.
@@ -378,8 +384,8 @@ export const WebSearchPreview = Tool.providerDefined({
   providerName: "web_search_preview",
   args: Schema.Struct({
     user_location: Generated.WebSearchPreviewTool.fields.user_location,
-    search_context_size: Generated.WebSearchPreviewTool.fields.search_context_size
+    search_context_size: Generated.WebSearchPreviewTool.fields.search_context_size,
   }),
   success: WebSearchSuccess,
-  failure: WebSearchFailure
-})
+  failure: WebSearchFailure,
+});

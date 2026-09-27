@@ -1,8 +1,8 @@
-import { Schema } from "effect"
-import { Model } from "effect/unstable/schema"
+import { Schema } from "effect";
+import { Model } from "effect/unstable/schema";
 
-export const UserId = Schema.String.pipe(Schema.brand("UserId"))
-export type UserId = typeof UserId.Type
+export const UserId = Schema.String.pipe(Schema.brand("UserId"));
+export type UserId = typeof UserId.Type;
 
 // `Model.Class` derives variants for the database (`User`, `User.insert`,
 // `User.update`) and the JSON API (`User.json`, `User.jsonCreate`,
@@ -17,5 +17,5 @@ export class User extends Model.Class<User>("User")({
   // Timestamps are managed by the model: set on insert, refreshed on update,
   // and also excluded from the JSON create / update variants.
   createdAt: Model.DateTimeInsert,
-  updatedAt: Model.DateTimeUpdate
+  updatedAt: Model.DateTimeUpdate,
 }) {}

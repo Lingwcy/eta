@@ -12,20 +12,20 @@
  *
  * @since 4.0.0
  */
-import * as Config from "effect/Config"
-import * as Context from "effect/Context"
-import * as Duration from "effect/Duration"
-import * as Effect from "effect/Effect"
-import { identity } from "effect/Function"
-import * as Layer from "effect/Layer"
-import * as Pool from "effect/Pool"
-import * as Rec from "effect/Record"
-import * as Redacted from "effect/Redacted"
-import * as Scope from "effect/Scope"
-import * as Stream from "effect/Stream"
-import * as Reactivity from "effect/unstable/reactivity/Reactivity"
-import * as Client from "effect/unstable/sql/SqlClient"
-import type { Connection } from "effect/unstable/sql/SqlConnection"
+import * as Config from "effect/Config";
+import * as Context from "effect/Context";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import { identity } from "effect/Function";
+import * as Layer from "effect/Layer";
+import * as Pool from "effect/Pool";
+import * as Rec from "effect/Record";
+import * as Redacted from "effect/Redacted";
+import * as Scope from "effect/Scope";
+import * as Stream from "effect/Stream";
+import * as Reactivity from "effect/unstable/reactivity/Reactivity";
+import * as Client from "effect/unstable/sql/SqlClient";
+import type { Connection } from "effect/unstable/sql/SqlConnection";
 import {
   AuthenticationError,
   AuthorizationError,
@@ -37,110 +37,117 @@ import {
   SqlError,
   SqlSyntaxError,
   UniqueViolation,
-  UnknownError
-} from "effect/unstable/sql/SqlError"
-import * as Statement from "effect/unstable/sql/Statement"
-import { Buffer } from "node:buffer"
-import * as Tedious from "tedious"
-import type { ConnectionOptions } from "tedious/lib/connection.ts"
-import type { DataType } from "tedious/lib/data-type.ts"
-import type { ParameterOptions } from "tedious/lib/request.ts"
-import type { Parameter } from "./Parameter.ts"
-import type * as Procedure from "./Procedure.ts"
+  UnknownError,
+} from "effect/unstable/sql/SqlError";
+import * as Statement from "effect/unstable/sql/Statement";
+import { Buffer } from "node:buffer";
+import * as Tedious from "tedious";
+import type { ConnectionOptions } from "tedious/lib/connection.ts";
+import type { DataType } from "tedious/lib/data-type.ts";
+import type { ParameterOptions } from "tedious/lib/request.ts";
+import type { Parameter } from "./Parameter.ts";
+import type * as Procedure from "./Procedure.ts";
 
-const ATTR_DB_SYSTEM_NAME = "db.system.name"
-const ATTR_DB_NAMESPACE = "db.namespace"
-const ATTR_SERVER_ADDRESS = "server.address"
-const ATTR_SERVER_PORT = "server.port"
+const ATTR_DB_SYSTEM_NAME = "db.system.name";
+const ATTR_DB_NAMESPACE = "db.namespace";
+const ATTR_SERVER_ADDRESS = "server.address";
+const ATTR_SERVER_PORT = "server.port";
 
 const mssqlNumberFromCause = (cause: unknown): number | undefined => {
   if (typeof cause !== "object" || cause === null || !("number" in cause)) {
-    return undefined
+    return undefined;
   }
-  const number = cause.number
-  return typeof number === "number" ? number : undefined
-}
+  const number = cause.number;
+  return typeof number === "number" ? number : undefined;
+};
 
-const mssqlConnectionErrorCodes = new Set([233, 10054])
-const mssqlAuthenticationErrorCodes = new Set([4060, 18452, 18456])
-const mssqlAuthorizationErrorCodes = new Set([229, 230, 262, 297, 300])
-const mssqlSyntaxErrorCodes = new Set([102, 207, 208, 2714])
-const mssqlConstraintErrorCodes = new Set([515, 547])
+const mssqlConnectionErrorCodes = new Set([233, 10054]);
+const mssqlAuthenticationErrorCodes = new Set([4060, 18452, 18456]);
+const mssqlAuthorizationErrorCodes = new Set([229, 230, 262, 297, 300]);
+const mssqlSyntaxErrorCodes = new Set([102, 207, 208, 2714]);
+const mssqlConstraintErrorCodes = new Set([515, 547]);
 
-const UNKNOWN_CONSTRAINT = "unknown"
+const UNKNOWN_CONSTRAINT = "unknown";
 
 const normalizeConstraintIdentifier = (identifier: unknown): string => {
   if (typeof identifier !== "string") {
-    return UNKNOWN_CONSTRAINT
+    return UNKNOWN_CONSTRAINT;
   }
-  const trimmed = identifier.trim()
-  return trimmed.length === 0 ? UNKNOWN_CONSTRAINT : trimmed
-}
+  const trimmed = identifier.trim();
+  return trimmed.length === 0 ? UNKNOWN_CONSTRAINT : trimmed;
+};
 
 const mssqlCauseProperty = (cause: unknown, property: "constraint" | "message"): unknown => {
   if (typeof cause !== "object" || cause === null || !(property in cause)) {
-    return undefined
+    return undefined;
   }
-  return (cause as Record<string, unknown>)[property]
-}
+  return (cause as Record<string, unknown>)[property];
+};
 
-const mssqlUniqueViolationConstraintFromMessage = (number: 2601 | 2627, message: unknown): string => {
+const mssqlUniqueViolationConstraintFromMessage = (
+  number: 2601 | 2627,
+  message: unknown,
+): string => {
   if (typeof message !== "string") {
-    return UNKNOWN_CONSTRAINT
+    return UNKNOWN_CONSTRAINT;
   }
-  const match = number === 2627 ?
-    /\bconstraint\s+'([^']*)'/i.exec(message) :
-    /\bunique index\s+'([^']*)'/i.exec(message)
-  return match === null ? UNKNOWN_CONSTRAINT : normalizeConstraintIdentifier(match[1])
-}
+  const match =
+    number === 2627
+      ? /\bconstraint\s+'([^']*)'/i.exec(message)
+      : /\bunique index\s+'([^']*)'/i.exec(message);
+  return match === null ? UNKNOWN_CONSTRAINT : normalizeConstraintIdentifier(match[1]);
+};
 
 const mssqlUniqueViolationConstraintFromCause = (number: 2601 | 2627, cause: unknown): string => {
-  const constraint = normalizeConstraintIdentifier(mssqlCauseProperty(cause, "constraint"))
+  const constraint = normalizeConstraintIdentifier(mssqlCauseProperty(cause, "constraint"));
   if (constraint !== UNKNOWN_CONSTRAINT) {
-    return constraint
+    return constraint;
   }
-  return mssqlUniqueViolationConstraintFromMessage(number, mssqlCauseProperty(cause, "message"))
-}
+  return mssqlUniqueViolationConstraintFromMessage(number, mssqlCauseProperty(cause, "message"));
+};
 
 const classifyError = (
   cause: unknown,
   message: string,
   operation: string,
-  fallback: "connection" | "unknown" = "unknown"
+  fallback: "connection" | "unknown" = "unknown",
 ) => {
-  const props = { cause, message, operation }
-  const number = mssqlNumberFromCause(cause)
+  const props = { cause, message, operation };
+  const number = mssqlNumberFromCause(cause);
   if (number !== undefined) {
     if (mssqlConnectionErrorCodes.has(number)) {
-      return new ConnectionError(props)
+      return new ConnectionError(props);
     }
     if (mssqlAuthenticationErrorCodes.has(number)) {
-      return new AuthenticationError(props)
+      return new AuthenticationError(props);
     }
     if (mssqlAuthorizationErrorCodes.has(number)) {
-      return new AuthorizationError(props)
+      return new AuthorizationError(props);
     }
     if (mssqlSyntaxErrorCodes.has(number)) {
-      return new SqlSyntaxError(props)
+      return new SqlSyntaxError(props);
     }
     if (number === 2601 || number === 2627) {
-      return new UniqueViolation({ ...props, constraint: mssqlUniqueViolationConstraintFromCause(number, cause) })
+      return new UniqueViolation({
+        ...props,
+        constraint: mssqlUniqueViolationConstraintFromCause(number, cause),
+      });
     }
     if (mssqlConstraintErrorCodes.has(number)) {
-      return new ConstraintError(props)
+      return new ConstraintError(props);
     }
     if (number === 1205) {
-      return new DeadlockError(props)
+      return new DeadlockError(props);
     }
     if (number === 3960) {
-      return new SerializationError(props)
+      return new SerializationError(props);
     }
     if (number === 1222) {
-      return new LockTimeoutError(props)
+      return new LockTimeoutError(props);
     }
   }
-  return fallback === "connection" ? new ConnectionError(props) : new UnknownError(props)
-}
+  return fallback === "connection" ? new ConnectionError(props) : new UnknownError(props);
+};
 
 /**
  * Runtime type identifier used to mark `MssqlClient` values.
@@ -148,7 +155,7 @@ const classifyError = (
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: unique symbol = Symbol.for("@effect/sql-mssql/MssqlClient")
+export const TypeId: unique symbol = Symbol.for("@effect/sql-mssql/MssqlClient");
 
 /**
  * Type-level identifier used to mark `MssqlClient` values.
@@ -156,7 +163,7 @@ export const TypeId: unique symbol = Symbol.for("@effect/sql-mssql/MssqlClient")
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = typeof TypeId
+export type TypeId = typeof TypeId;
 
 /**
  * Microsoft SQL Server client service, extending `SqlClient` with typed parameter fragments and stored procedure calls.
@@ -165,23 +172,23 @@ export type TypeId = typeof TypeId
  * @since 4.0.0
  */
 export interface MssqlClient extends Client.SqlClient {
-  readonly [TypeId]: TypeId
+  readonly [TypeId]: TypeId;
 
-  readonly config: MssqlClientConfig
+  readonly config: MssqlClientConfig;
 
   readonly param: (
     type: DataType,
     value: unknown,
-    options?: ParameterOptions
-  ) => Statement.Fragment
+    options?: ParameterOptions,
+  ) => Statement.Fragment;
 
   readonly call: <
     I extends Record<string, Parameter<any>>,
     O extends Record<string, Parameter<any>>,
-    A extends object
+    A extends object,
   >(
-    procedure: Procedure.ProcedureWithValues<I, O, A>
-  ) => Effect.Effect<Procedure.Procedure.Result<O, A>, SqlError>
+    procedure: Procedure.ProcedureWithValues<I, O, A>,
+  ) => Effect.Effect<Procedure.Procedure.Result<O, A>, SqlError>;
 }
 
 /**
@@ -195,7 +202,7 @@ export interface MssqlClient extends Client.SqlClient {
  * @category services
  * @since 4.0.0
  */
-export const MssqlClient = Context.Service<MssqlClient>("@effect/sql-mssql/MssqlClient")
+export const MssqlClient = Context.Service<MssqlClient>("@effect/sql-mssql/MssqlClient");
 
 /**
  * Configuration for a Microsoft SQL Server client, including connection, authentication, pool, parameter type, span attribute, and query/result name transform options.
@@ -204,58 +211,60 @@ export const MssqlClient = Context.Service<MssqlClient>("@effect/sql-mssql/Mssql
  * @since 4.0.0
  */
 export interface MssqlClientConfig {
-  readonly domain?: string | undefined
-  readonly server: string
-  readonly instanceName?: string | undefined
+  readonly domain?: string | undefined;
+  readonly server: string;
+  readonly instanceName?: string | undefined;
   /**
    * Whether to encrypt traffic between the client and server. Defaults to `true`. Setting this to `false` disables transport encryption and transmits credentials in cleartext.
    */
-  readonly encrypt?: boolean | undefined
+  readonly encrypt?: boolean | undefined;
   /**
    * Whether to trust the server certificate without validating it. Defaults to `false`. Setting this to `true` disables TLS certificate validation.
    */
-  readonly trustServer?: boolean | undefined
-  readonly port?: number | undefined
-  readonly authType?: string | undefined
-  readonly database?: string | undefined
-  readonly username?: string | undefined
-  readonly password?: Redacted.Redacted | undefined
-  readonly connectTimeout?: Duration.Input | undefined
-  readonly cancelTimeout?: Duration.Input | undefined
-  readonly connectionRetryInterval?: Duration.Input | undefined
-  readonly multiSubnetFailover?: boolean | undefined
-  readonly maxRetriesOnTransientErrors?: number | undefined
+  readonly trustServer?: boolean | undefined;
+  readonly port?: number | undefined;
+  readonly authType?: string | undefined;
+  readonly database?: string | undefined;
+  readonly username?: string | undefined;
+  readonly password?: Redacted.Redacted | undefined;
+  readonly connectTimeout?: Duration.Input | undefined;
+  readonly cancelTimeout?: Duration.Input | undefined;
+  readonly connectionRetryInterval?: Duration.Input | undefined;
+  readonly multiSubnetFailover?: boolean | undefined;
+  readonly maxRetriesOnTransientErrors?: number | undefined;
 
-  readonly minConnections?: number | undefined
-  readonly maxConnections?: number | undefined
-  readonly connectionTTL?: Duration.Input | undefined
+  readonly minConnections?: number | undefined;
+  readonly maxConnections?: number | undefined;
+  readonly connectionTTL?: Duration.Input | undefined;
 
-  readonly parameterTypes?: Record<Statement.PrimitiveKind, DataType> | undefined
+  readonly parameterTypes?: Record<Statement.PrimitiveKind, DataType> | undefined;
 
-  readonly spanAttributes?: Record<string, unknown> | undefined
+  readonly spanAttributes?: Record<string, unknown> | undefined;
 
-  readonly transformResultNames?: ((str: string) => string) | undefined
-  readonly transformQueryNames?: ((str: string) => string) | undefined
+  readonly transformResultNames?: ((str: string) => string) | undefined;
+  readonly transformQueryNames?: ((str: string) => string) | undefined;
 }
 
 interface MssqlConnection extends Connection {
   readonly call: (
     procedure: Procedure.ProcedureWithValues<any, any, any>,
-    transformRows: ((rows: ReadonlyArray<any>) => ReadonlyArray<any>) | undefined
-  ) => Effect.Effect<any, SqlError>
+    transformRows: ((rows: ReadonlyArray<any>) => ReadonlyArray<any>) | undefined,
+  ) => Effect.Effect<any, SqlError>;
 
-  readonly begin: Effect.Effect<void, SqlError>
-  readonly commit: Effect.Effect<void, SqlError>
-  readonly savepoint: (name: string) => Effect.Effect<void, SqlError>
-  readonly rollback: (name?: string) => Effect.Effect<void, SqlError>
+  readonly begin: Effect.Effect<void, SqlError>;
+  readonly commit: Effect.Effect<void, SqlError>;
+  readonly savepoint: (name: string) => Effect.Effect<void, SqlError>;
+  readonly rollback: (name?: string) => Effect.Effect<void, SqlError>;
 }
 
-const TransactionConnection = Client.TransactionConnection as unknown as (clientId: number) => Context.Service<
+const TransactionConnection = Client.TransactionConnection as unknown as (
+  clientId: number,
+) => Context.Service<
   readonly [conn: MssqlConnection, counter: number],
   readonly [conn: MssqlConnection, counter: number]
->
+>;
 
-let clientIdCounter = 0
+let clientIdCounter = 0;
 
 /**
  * Creates a scoped Microsoft SQL Server client backed by a connection pool, with transaction and stored procedure support. Streaming queries are not implemented.
@@ -264,29 +273,27 @@ let clientIdCounter = 0
  * @since 4.0.0
  */
 export const make = (
-  options: MssqlClientConfig
+  options: MssqlClientConfig,
 ): Effect.Effect<MssqlClient, SqlError, Scope.Scope | Reactivity.Reactivity> =>
-  Effect.gen(function*() {
-    const parameterTypes = options.parameterTypes ?? defaultParameterTypes
-    const compiler = makeCompiler(options.transformQueryNames)
+  Effect.gen(function* () {
+    const parameterTypes = options.parameterTypes ?? defaultParameterTypes;
+    const compiler = makeCompiler(options.transformQueryNames);
 
-    const transformRows = options.transformResultNames ?
-      Statement.defaultTransforms(
-        options.transformResultNames
-      ).array :
-      undefined
+    const transformRows = options.transformResultNames
+      ? Statement.defaultTransforms(options.transformResultNames).array
+      : undefined;
     const spanAttributes: ReadonlyArray<[string, unknown]> = [
       ...(options.spanAttributes ? Object.entries(options.spanAttributes) : []),
       [ATTR_DB_SYSTEM_NAME, "microsoft.sql_server"],
       [ATTR_DB_NAMESPACE, options.database ?? "master"],
       [ATTR_SERVER_ADDRESS, options.server],
-      [ATTR_SERVER_PORT, options.port ?? 1433]
-    ]
+      [ATTR_SERVER_PORT, options.port ?? 1433],
+    ];
 
     // oxlint-disable-next-line prefer-const
-    let pool: Pool.Pool<MssqlConnection, SqlError>
+    let pool: Pool.Pool<MssqlConnection, SqlError>;
 
-    const makeConnection = Effect.gen(function*() {
+    const makeConnection = Effect.gen(function* () {
       const conn = new Tedious.Connection({
         options: {
           port: options.port,
@@ -306,7 +313,7 @@ export const make = (
           connectionRetryInterval: options.connectionRetryInterval
             ? Duration.toMillis(Duration.fromInputUnsafe(options.connectionRetryInterval))
             : undefined,
-          maxRetriesOnTransientErrors: options.maxRetriesOnTransientErrors
+          maxRetriesOnTransientErrors: options.maxRetriesOnTransientErrors,
         } as ConnectionOptions,
         server: options.server,
         authentication: {
@@ -314,142 +321,143 @@ export const make = (
           options: {
             domain: options.domain,
             userName: options.username,
-            password: options.password
-              ? Redacted.value(options.password)
-              : undefined
-          }
-        }
-      })
+            password: options.password ? Redacted.value(options.password) : undefined,
+          },
+        },
+      });
 
-      yield* Effect.addFinalizer(() => Effect.sync(() => conn.close()))
+      yield* Effect.addFinalizer(() => Effect.sync(() => conn.close()));
 
       yield* Effect.callback<void, SqlError>((resume) => {
         conn.connect((cause) => {
           if (cause) {
             resume(
-              Effect.fail(new SqlError({ reason: classifyError(cause, "Failed to connect", "connect", "connection") }))
-            )
+              Effect.fail(
+                new SqlError({
+                  reason: classifyError(cause, "Failed to connect", "connect", "connection"),
+                }),
+              ),
+            );
           } else {
-            resume(Effect.void)
+            resume(Effect.void);
           }
-        })
-      })
+        });
+      });
 
-      const run = (
-        sql: string,
-        values?: ReadonlyArray<any>,
-        rowsAsArray = false
-      ) =>
+      const run = (sql: string, values?: ReadonlyArray<any>, rowsAsArray = false) =>
         Effect.callback<any, SqlError>((resume) => {
           const req = new Tedious.Request(sql, (cause, _rowCount, result) => {
             if (cause) {
               resume(
-                Effect.fail(new SqlError({ reason: classifyError(cause, "Failed to execute statement", "execute") }))
-              )
-              return
+                Effect.fail(
+                  new SqlError({
+                    reason: classifyError(cause, "Failed to execute statement", "execute"),
+                  }),
+                ),
+              );
+              return;
             }
 
             if (rowsAsArray) {
-              result = result.map((row: any) => row.map((_: any) => _.value))
+              result = result.map((row: any) => row.map((_: any) => _.value));
             } else {
-              result = rowsToObjects(result)
+              result = rowsToObjects(result);
             }
 
-            resume(Effect.succeed(result))
-          })
+            resume(Effect.succeed(result));
+          });
 
           if (values) {
             for (let i = 0, len = values.length; i < len; i++) {
-              const value = values[i]
-              const name = numberToParamName(i)
+              const value = values[i];
+              const name = numberToParamName(i);
 
               if (isMssqlParam(value)) {
-                req.addParameter(name, value.paramA, value.paramB, value.paramC)
+                req.addParameter(name, value.paramA, value.paramB, value.paramC);
               } else {
-                const kind = Statement.primitiveKind(value)
-                const type = parameterTypes[kind]
-                req.addParameter(name, type, value)
+                const kind = Statement.primitiveKind(value);
+                const type = parameterTypes[kind];
+                req.addParameter(name, type, value);
               }
             }
           }
 
-          conn.cancel()
-          conn.execSql(req)
-          return Effect.sync(() => conn.cancel())
-        })
+          conn.cancel();
+          conn.execSql(req);
+          return Effect.sync(() => conn.cancel());
+        });
 
       const runProcedure = (
         procedure: Procedure.ProcedureWithValues<any, any, any>,
-        transformRows: ((rows: ReadonlyArray<any>) => ReadonlyArray<any>) | undefined
+        transformRows: ((rows: ReadonlyArray<any>) => ReadonlyArray<any>) | undefined,
       ) =>
         Effect.callback<any, SqlError>((resume) => {
-          const result: Record<string, any> = {}
+          const result: Record<string, any> = {};
 
-          const req = new Tedious.Request(
-            escape(procedure.name),
-            (cause, _, rows) => {
-              if (cause) {
-                resume(
-                  Effect.fail(new SqlError({ reason: classifyError(cause, "Failed to execute statement", "execute") }))
-                )
-              } else {
-                rows = rowsToObjects(rows)
-                if (transformRows) {
-                  rows = transformRows(rows) as any
-                }
-                resume(
-                  Effect.succeed({
-                    output: result,
-                    rows
-                  })
-                )
+          const req = new Tedious.Request(escape(procedure.name), (cause, _, rows) => {
+            if (cause) {
+              resume(
+                Effect.fail(
+                  new SqlError({
+                    reason: classifyError(cause, "Failed to execute statement", "execute"),
+                  }),
+                ),
+              );
+            } else {
+              rows = rowsToObjects(rows);
+              if (transformRows) {
+                rows = transformRows(rows) as any;
               }
+              resume(
+                Effect.succeed({
+                  output: result,
+                  rows,
+                }),
+              );
             }
-          )
+          });
 
           for (const name in procedure.params) {
-            const param = procedure.params[name]
-            const value = procedure.values[name]
-            req.addParameter(name, param.type, value, param.options)
+            const param = procedure.params[name];
+            const value = procedure.values[name];
+            req.addParameter(name, param.type, value, param.options);
           }
 
           for (const name in procedure.outputParams) {
-            const param = procedure.outputParams[name]
-            req.addOutputParameter(name, param.type, undefined, param.options)
+            const param = procedure.outputParams[name];
+            req.addOutputParameter(name, param.type, undefined, param.options);
           }
 
           req.on("returnValue", (name, value) => {
-            Rec.assignProperty(result, name, value)
-          })
+            Rec.assignProperty(result, name, value);
+          });
 
-          conn.cancel()
-          conn.callProcedure(req)
-          return Effect.sync(() => conn.cancel())
-        })
+          conn.cancel();
+          conn.callProcedure(req);
+          return Effect.sync(() => conn.cancel());
+        });
 
       const connection = identity<MssqlConnection>({
         execute(sql, params, transformRows) {
-          return transformRows
-            ? Effect.map(run(sql, params), transformRows)
-            : run(sql, params)
+          return transformRows ? Effect.map(run(sql, params), transformRows) : run(sql, params);
         },
         executeRaw(sql, params) {
-          return run(sql, params)
+          return run(sql, params);
         },
         executeValues(sql, params) {
-          return run(sql, params, true)
+          return run(sql, params, true);
         },
         executeValuesUnprepared(sql, params) {
-          return run(sql, params, true)
+          return run(sql, params, true);
         },
         executeUnprepared(sql, params, transformRows) {
-          return this.execute(sql, params, transformRows)
+          return this.execute(sql, params, transformRows);
         },
         executeStream() {
-          return Stream.die("executeStream not implemented")
+          return Stream.die("executeStream not implemented");
         },
         call(procedure, transformRows) {
-          return runProcedure(procedure, transformRows)
+          return runProcedure(procedure, transformRows);
         },
         begin: Effect.callback<void, SqlError>((resume) => {
           conn.beginTransaction((cause) => {
@@ -457,14 +465,14 @@ export const make = (
               resume(
                 Effect.fail(
                   new SqlError({
-                    reason: classifyError(cause, "Failed to begin transaction", "beginTransaction")
-                  })
-                )
-              )
+                    reason: classifyError(cause, "Failed to begin transaction", "beginTransaction"),
+                  }),
+                ),
+              );
             } else {
-              resume(Effect.void)
+              resume(Effect.void);
             }
-          })
+          });
         }),
         commit: Effect.callback<void, SqlError>((resume) => {
           conn.commitTransaction((cause) => {
@@ -472,14 +480,18 @@ export const make = (
               resume(
                 Effect.fail(
                   new SqlError({
-                    reason: classifyError(cause, "Failed to commit transaction", "commitTransaction")
-                  })
-                )
-              )
+                    reason: classifyError(
+                      cause,
+                      "Failed to commit transaction",
+                      "commitTransaction",
+                    ),
+                  }),
+                ),
+              );
             } else {
-              resume(Effect.void)
+              resume(Effect.void);
             }
-          })
+          });
         }),
         savepoint: (name: string) =>
           Effect.callback<void, SqlError>((resume) => {
@@ -487,13 +499,15 @@ export const make = (
               if (cause) {
                 resume(
                   Effect.fail(
-                    new SqlError({ reason: classifyError(cause, "Failed to create savepoint", "createSavepoint") })
-                  )
-                )
+                    new SqlError({
+                      reason: classifyError(cause, "Failed to create savepoint", "createSavepoint"),
+                    }),
+                  ),
+                );
               } else {
-                resume(Effect.void)
+                resume(Effect.void);
               }
-            }, name)
+            }, name);
           }),
         rollback: (name?: string) =>
           Effect.callback<void, SqlError>((resume) => {
@@ -502,40 +516,47 @@ export const make = (
                 resume(
                   Effect.fail(
                     new SqlError({
-                      reason: classifyError(cause, "Failed to rollback transaction", "rollbackTransaction")
-                    })
-                  )
-                )
+                      reason: classifyError(
+                        cause,
+                        "Failed to rollback transaction",
+                        "rollbackTransaction",
+                      ),
+                    }),
+                  ),
+                );
               } else {
-                resume(Effect.void)
+                resume(Effect.void);
               }
-            }, name)
-          })
-      })
+            }, name);
+          }),
+      });
 
       yield* Effect.callback<never, unknown>((resume) => {
-        conn.on("error", (_) => resume(Effect.fail(_)))
+        conn.on("error", (_) => resume(Effect.fail(_)));
       }).pipe(
         Effect.catch(() => Pool.invalidate(pool, connection)),
         Effect.interruptible,
-        Effect.forkScoped
-      )
+        Effect.forkScoped,
+      );
 
-      return connection
-    })
+      return connection;
+    });
 
     pool = yield* Pool.makeWithTTL({
       acquire: makeConnection,
       min: options.minConnections ?? 1,
       max: options.maxConnections ?? 10,
       timeToLive: options.connectionTTL ?? Duration.minutes(45),
-      timeToLiveStrategy: "creation"
-    })
+      timeToLiveStrategy: "creation",
+    });
 
     yield* Pool.get(pool).pipe(
       Effect.tap((connection) => connection.executeUnprepared("SELECT 1", [], undefined)),
-      Effect.mapError((cause) =>
-        new SqlError({ reason: classifyError(cause, "MssqlClient: Failed to connect", "connect", "connection") })
+      Effect.mapError(
+        (cause) =>
+          new SqlError({
+            reason: classifyError(cause, "MssqlClient: Failed to connect", "connect", "connection"),
+          }),
       ),
       Effect.scoped,
       Effect.timeoutOrElse({
@@ -546,77 +567,78 @@ export const make = (
               reason: new ConnectionError({
                 message: "MssqlClient: Connection timeout",
                 cause: new Error("connection timeout"),
-                operation: "connect"
-              })
-            })
-          )
-      })
-    )
+                operation: "connect",
+              }),
+            }),
+          ),
+      }),
+    );
 
-    const transactionService = TransactionConnection(clientIdCounter++)
+    const transactionService = TransactionConnection(clientIdCounter++);
 
     const withTransaction = Client.makeWithTransaction({
       transactionService,
       spanAttributes,
-      acquireConnection: Effect.gen(function*() {
-        const scope = Scope.makeUnsafe()
-        const conn = yield* Scope.provide(Pool.get(pool), scope)
-        return [scope, conn] as const
+      acquireConnection: Effect.gen(function* () {
+        const scope = Scope.makeUnsafe();
+        const conn = yield* Scope.provide(Pool.get(pool), scope);
+        return [scope, conn] as const;
       }),
       begin: (conn) => conn.begin,
       savepoint: (conn, id) => conn.savepoint(`effect_sql_${id}`),
       commit: (conn) => conn.commit,
       rollback: (conn) => conn.rollback(),
-      rollbackSavepoint: (conn, id) => conn.rollback(`effect_sql_${id}`)
-    })
+      rollbackSavepoint: (conn, id) => conn.rollback(`effect_sql_${id}`),
+    });
 
-    return identity<MssqlClient>(Object.assign(
-      yield* Client.make({
-        acquirer: Pool.get(pool),
-        compiler,
-        transactionService: transactionService as any,
-        spanAttributes,
-        transformRows
-      }),
-      {
-        [TypeId]: TypeId as TypeId,
-        config: options,
-        withTransaction,
-        param: (
-          type: DataType,
-          value: unknown,
-          options: ParameterOptions = {}
-        ) => Statement.fragment([mssqlParam(type, value, options)]),
-        call: <
-          I extends Record<string, Parameter<any>>,
-          O extends Record<string, Parameter<any>>,
-          A
-        >(
-          procedure: Procedure.ProcedureWithValues<I, O, A>
-        ) => Effect.scoped(Effect.flatMap(Pool.get(pool), (_) => _.call(procedure, transformRows))),
-        withoutTransforms() {
-          const statement = Statement.make(Pool.get(pool), compiler.withoutTransform, spanAttributes, undefined)
-          const client = Object.assign(
-            statement,
-            this,
-            statement,
-            {
+    return identity<MssqlClient>(
+      Object.assign(
+        yield* Client.make({
+          acquirer: Pool.get(pool),
+          compiler,
+          transactionService: transactionService as any,
+          spanAttributes,
+          transformRows,
+        }),
+        {
+          [TypeId]: TypeId as TypeId,
+          config: options,
+          withTransaction,
+          param: (type: DataType, value: unknown, options: ParameterOptions = {}) =>
+            Statement.fragment([mssqlParam(type, value, options)]),
+          call: <
+            I extends Record<string, Parameter<any>>,
+            O extends Record<string, Parameter<any>>,
+            A,
+          >(
+            procedure: Procedure.ProcedureWithValues<I, O, A>,
+          ) =>
+            Effect.scoped(Effect.flatMap(Pool.get(pool), (_) => _.call(procedure, transformRows))),
+          withoutTransforms() {
+            const statement = Statement.make(
+              Pool.get(pool),
+              compiler.withoutTransform,
+              spanAttributes,
+              undefined,
+            );
+            const client = Object.assign(statement, this, statement, {
               call: <
                 I extends Record<string, Parameter<any>>,
                 O extends Record<string, Parameter<any>>,
-                A
+                A,
               >(
-                procedure: Procedure.ProcedureWithValues<I, O, A>
-              ) => Effect.scoped(Effect.flatMap(Pool.get(pool), (_) => _.call(procedure, undefined)))
-            }
-          )
-          ;(client as any).safe = client
-          ;(client as any).withoutTransforms = () => client
-          return client
-        }
-      }
-    ))
-  })
+                procedure: Procedure.ProcedureWithValues<I, O, A>,
+              ) =>
+                Effect.scoped(Effect.flatMap(Pool.get(pool), (_) => _.call(procedure, undefined))),
+            });
+            (client as any).safe = client;
+            (client as any).withoutTransforms = () => client;
+            return client;
+          },
+        },
+      ),
+    );
+  });
 
 /**
  * Creates a layer from a `Config`-wrapped SQL Server client configuration, providing both `MssqlClient` and `SqlClient`.
@@ -625,20 +647,18 @@ export const make = (
  * @since 4.0.0
  */
 export const layerConfig: (
-  config: Config.Wrap<MssqlClientConfig>
+  config: Config.Wrap<MssqlClientConfig>,
 ) => Layer.Layer<Client.SqlClient | MssqlClient, Config.ConfigError | SqlError> = (
-  config: Config.Wrap<MssqlClientConfig>
+  config: Config.Wrap<MssqlClientConfig>,
 ): Layer.Layer<Client.SqlClient | MssqlClient, Config.ConfigError | SqlError> =>
   Layer.effectContext(
     Config.unwrap(config).pipe(
       Effect.flatMap(make),
       Effect.map((client) =>
-        Context.make(MssqlClient, client).pipe(
-          Context.add(Client.SqlClient, client)
-        )
-      )
-    )
-  ).pipe(Layer.provide(Reactivity.layer))
+        Context.make(MssqlClient, client).pipe(Context.add(Client.SqlClient, client)),
+      ),
+    ),
+  ).pipe(Layer.provide(Reactivity.layer));
 
 /**
  * Creates a layer from a concrete SQL Server client configuration, providing both `MssqlClient` and `SqlClient`.
@@ -647,14 +667,13 @@ export const layerConfig: (
  * @since 4.0.0
  */
 export const layer = (
-  config: MssqlClientConfig
+  config: MssqlClientConfig,
 ): Layer.Layer<Client.SqlClient | MssqlClient, never | SqlError> =>
   Layer.effectContext(
     Effect.map(make(config), (client) =>
-      Context.make(MssqlClient, client).pipe(
-        Context.add(Client.SqlClient, client)
-      ))
-  ).pipe(Layer.provide(Reactivity.layer))
+      Context.make(MssqlClient, client).pipe(Context.add(Client.SqlClient, client)),
+    ),
+  ).pipe(Layer.provide(Reactivity.layer));
 
 /**
  * Creates the SQL Server statement compiler, using `@1`-style placeholders, bracket-escaped identifiers, and SQL Server `OUTPUT INSERTED` returning clauses.
@@ -666,58 +685,64 @@ export const makeCompiler = (transform?: (_: string) => string) =>
   Statement.makeCompiler<MssqlCustom>({
     dialect: "mssql",
     placeholder(_) {
-      return `@${numberToParamName(_ - 1)}`
+      return `@${numberToParamName(_ - 1)}`;
     },
-    onIdentifier: transform ?
-      function(value, withoutTransform) {
-        return withoutTransform ? escape(value) : escape(transform(value))
-      } :
-      escape,
+    onIdentifier: transform
+      ? function (value, withoutTransform) {
+          return withoutTransform ? escape(value) : escape(transform(value));
+        }
+      : escape,
     onRecordUpdate(placeholders, valueAlias, valueColumns, values, returning) {
-      const returningSql = returning ? returning[0] === "*" ? "OUTPUT INSERTED.* " : `OUTPUT ${returning[0]} ` : ""
+      const returningSql = returning
+        ? returning[0] === "*"
+          ? "OUTPUT INSERTED.* "
+          : `OUTPUT ${returning[0]} `
+        : "";
       return [
         `${returningSql}FROM (values ${placeholders}) AS ${valueAlias}${valueColumns}`,
-        returning ?
-          returning[1].concat(values.flat()) :
-          values.flat()
-      ]
+        returning ? returning[1].concat(values.flat()) : values.flat(),
+      ];
     },
     onCustom(type, placeholder) {
       switch (type.kind) {
         case "MssqlParam": {
-          return [placeholder(undefined), [type] as any]
+          return [placeholder(undefined), [type] as any];
         }
       }
     },
     onInsert(columns, placeholders, values, returning) {
-      const returningSql = returning ? returning[0] === "*" ? " OUTPUT INSERTED.*" : ` OUTPUT ${returning[0]}` : ""
+      const returningSql = returning
+        ? returning[0] === "*"
+          ? " OUTPUT INSERTED.*"
+          : ` OUTPUT ${returning[0]}`
+        : "";
       return [
         `(${columns.join(",")})${returningSql} VALUES ${placeholders}`,
-        returning ?
-          returning[1].concat(values.flat()) :
-          values.flat()
-      ]
-    }
-  })
+        returning ? returning[1].concat(values.flat()) : values.flat(),
+      ];
+    },
+  });
 
 // compiler helpers
 
-const escape = (str: string) => "[" + str.replace(/\]/g, "]]").replace(/\./g, "].[") + "]"
+const escape = (str: string) => "[" + str.replace(/\]/g, "]]").replace(/\./g, "].[") + "]";
 
 function numberToParamName(n: number) {
-  return `${Math.ceil(n + 1)}`
+  return `${Math.ceil(n + 1)}`;
 }
 
 const byteArrayParameterType: DataType = {
   ...Tedious.TYPES.VarBinary,
   validate(value, collation, options) {
     return Tedious.TYPES.VarBinary.validate(
-      Buffer.isBuffer(value) ? value : Buffer.from(value.buffer, value.byteOffset, value.byteLength),
+      Buffer.isBuffer(value)
+        ? value
+        : Buffer.from(value.buffer, value.byteOffset, value.byteLength),
       collation,
-      options
-    )
-  }
-}
+      options,
+    );
+  },
+};
 
 /**
  * Default mapping from Effect SQL primitive value kinds to Tedious SQL Server parameter data types.
@@ -733,37 +758,30 @@ export const defaultParameterTypes: Record<Statement.PrimitiveKind, DataType> = 
   Date: Tedious.TYPES.DateTime,
   Uint8Array: byteArrayParameterType,
   Int8Array: byteArrayParameterType,
-  null: Tedious.TYPES.Bit
-}
+  null: Tedious.TYPES.Bit,
+};
 
 // custom types
 
-type MssqlCustom = MssqlParam
+type MssqlCustom = MssqlParam;
 
-interface MssqlParam extends
-  Statement.Custom<
-    "MssqlParam",
-    DataType,
-    unknown,
-    ParameterOptions
-  >
-{}
+interface MssqlParam extends Statement.Custom<"MssqlParam", DataType, unknown, ParameterOptions> {}
 
-const mssqlParam = Statement.custom<MssqlParam>("MssqlParam")
-const isMssqlParam = Statement.isCustom<MssqlParam>("MssqlParam")
+const mssqlParam = Statement.custom<MssqlParam>("MssqlParam");
+const isMssqlParam = Statement.isCustom<MssqlParam>("MssqlParam");
 
 function rowsToObjects(rows: ReadonlyArray<any>) {
-  const newRows = new Array(rows.length)
+  const newRows = new Array(rows.length);
 
   for (let i = 0, len = rows.length; i < len; i++) {
-    const row = rows[i]
-    const newRow: any = {}
+    const row = rows[i];
+    const newRow: any = {};
     for (let j = 0, columnLen = row.length; j < columnLen; j++) {
-      const column = row[j]
-      Rec.assignProperty(newRow, column.metadata.colName, column.value)
+      const column = row[j];
+      Rec.assignProperty(newRow, column.metadata.colName, column.value);
     }
-    newRows[i] = newRow
+    newRows[i] = newRow;
   }
 
-  return newRows
+  return newRows;
 }

@@ -10,7 +10,7 @@
  *
  * @since 2.0.0
  */
-import * as predicate from "./Predicate.ts"
+import * as predicate from "./Predicate.ts";
 
 /**
  * Exposes the JavaScript regular expression constructor from `globalThis`.
@@ -34,7 +34,7 @@ import * as predicate from "./Predicate.ts"
  * @category constructors
  * @since 4.0.0
  */
-export const RegExp = globalThis.RegExp
+export const RegExp = globalThis.RegExp;
 
 /**
  * Checks whether a value is a `RegExp`.
@@ -55,7 +55,7 @@ export const RegExp = globalThis.RegExp
  * @category guards
  * @since 3.9.0
  */
-export const isRegExp: (input: unknown) => input is RegExp = predicate.isRegExp
+export const isRegExp: (input: unknown) => input is RegExp = predicate.isRegExp;
 
 /**
  * Escapes special characters in a regular expression pattern.
@@ -75,4 +75,4 @@ export const isRegExp: (input: unknown) => input is RegExp = predicate.isRegExp
  * @category transforming
  * @since 2.0.0
  */
-export const escape = (string: string): string => string.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&")
+export const escape = (string: string): string => string.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&");

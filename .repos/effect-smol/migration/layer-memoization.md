@@ -13,32 +13,29 @@ deduplicated across `Effect.provide` calls.
 ## Example
 
 ```ts
-import { Console, Context, Effect, Layer } from "effect"
+import { Console, Context, Effect, Layer } from "effect";
 
-const MyService = Context.Service<{ readonly value: string }>("MyService")
+const MyService = Context.Service<{ readonly value: string }>("MyService");
 
 const MyServiceLayer = Layer.effect(
   MyService,
-  Effect.gen(function*() {
-    yield* Console.log("Building MyService")
-    return { value: "hello" }
-  })
-)
+  Effect.gen(function* () {
+    yield* Console.log("Building MyService");
+    return { value: "hello" };
+  }),
+);
 
-const program = Effect.gen(function*() {
-  const a = yield* MyService
-  return a.value
-})
+const program = Effect.gen(function* () {
+  const a = yield* MyService;
+  return a.value;
+});
 
 // Same layer provided twice in separate provide calls
-const main = program.pipe(
-  Effect.provide(MyServiceLayer),
-  Effect.provide(MyServiceLayer)
-)
+const main = program.pipe(Effect.provide(MyServiceLayer), Effect.provide(MyServiceLayer));
 
 // Effect v3: "Building MyService" is logged TWICE
 // Effect v4: "Building MyService" is logged ONCE
-Effect.runPromise(main)
+Effect.runPromise(main);
 ```
 
 ## Prefer Layer Composition Over Multipl Provides
@@ -49,7 +46,7 @@ dependency graph explicit and lets you see the full structure in one place:
 
 ```ts
 // Preferred — provide once
-const main = program.pipe(Effect.provide(MyServiceLayer))
+const main = program.pipe(Effect.provide(MyServiceLayer));
 ```
 
 The auto-memoization feature is a safety net to avoid the footguns associated
@@ -68,12 +65,12 @@ Wraps a layer so it always builds with a fresh memo map, bypassing the shared
 cache. This existed in v3 as well.
 
 ```ts
-import { Effect, Layer } from "effect"
+import { Effect, Layer } from "effect";
 
 const main = program.pipe(
   Effect.provide(MyServiceLayer),
-  Effect.provide(Layer.fresh(MyServiceLayer))
-)
+  Effect.provide(Layer.fresh(MyServiceLayer)),
+);
 // "Building MyService" is logged TWICE — fresh bypasses the shared cache
 ```
 
@@ -84,12 +81,12 @@ fiber's shared one. The layer and all its sublayers are built from scratch and
 are not shared with other `provide` calls.
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
 const main = program.pipe(
   Effect.provide(MyServiceLayer),
-  Effect.provide(MyServiceLayer, { local: true })
-)
+  Effect.provide(MyServiceLayer, { local: true }),
+);
 // "Building MyService" is logged TWICE — local creates its own memo map
 ```
 

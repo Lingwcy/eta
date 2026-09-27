@@ -6,14 +6,14 @@
  *
  * @since 4.0.0
  */
-import * as Equal from "../../Equal.ts"
-import * as Hash from "../../Hash.ts"
-import * as Schema from "../../Schema.ts"
-import { EntityId } from "./EntityId.ts"
-import { EntityType } from "./EntityType.ts"
-import { ShardId } from "./ShardId.ts"
+import * as Equal from "../../Equal.ts";
+import * as Hash from "../../Hash.ts";
+import * as Schema from "../../Schema.ts";
+import { EntityId } from "./EntityId.ts";
+import { EntityType } from "./EntityType.ts";
+import { ShardId } from "./ShardId.ts";
 
-const TypeId = "~effect/cluster/EntityAddress"
+const TypeId = "~effect/cluster/EntityAddress";
 
 /**
  * Represents the unique address of an entity within the cluster.
@@ -24,14 +24,14 @@ const TypeId = "~effect/cluster/EntityAddress"
 export class EntityAddress extends Schema.Class<EntityAddress>(TypeId)({
   shardId: ShardId,
   entityType: EntityType,
-  entityId: EntityId
+  entityId: EntityId,
 }) {
   /**
    * Marks this value as a cluster entity address for runtime guards.
    *
    * @since 4.0.0
    */
-  readonly [TypeId] = TypeId
+  readonly [TypeId] = TypeId;
 
   /**
    * Formats the entity type, entity id, and shard id as a readable address.
@@ -39,7 +39,7 @@ export class EntityAddress extends Schema.Class<EntityAddress>(TypeId)({
    * @since 4.0.0
    */
   override toString() {
-    return `EntityAddress(${this.entityType.toString()}, ${this.entityId.toString()}, ${this.shardId.toString()})`
+    return `EntityAddress(${this.entityType.toString()}, ${this.entityId.toString()}, ${this.shardId.toString()})`;
   }
 
   /**
@@ -48,8 +48,11 @@ export class EntityAddress extends Schema.Class<EntityAddress>(TypeId)({
    * @since 4.0.0
    */
   [Equal.symbol](that: EntityAddress): boolean {
-    return this.entityType === that.entityType && this.entityId === that.entityId &&
+    return (
+      this.entityType === that.entityType &&
+      this.entityId === that.entityId &&
       Equal.equals(this.shardId, that.shardId)
+    );
   }
 
   /**
@@ -58,7 +61,7 @@ export class EntityAddress extends Schema.Class<EntityAddress>(TypeId)({
    * @since 4.0.0
    */
   [Hash.symbol]() {
-    return Hash.string(`${this.entityType}:${this.entityId}:${this.shardId.toString()}`)
+    return Hash.string(`${this.entityType}:${this.entityId}:${this.shardId.toString()}`);
   }
 }
 /**
@@ -87,7 +90,7 @@ export class EntityAddress extends Schema.Class<EntityAddress>(TypeId)({
  * @since 4.0.0
  */
 export const make = (options: {
-  readonly shardId: ShardId
-  readonly entityType: EntityType
-  readonly entityId: EntityId
-}): EntityAddress => new EntityAddress(options, { disableChecks: true })
+  readonly shardId: ShardId;
+  readonly entityType: EntityType;
+  readonly entityId: EntityId;
+}): EntityAddress => new EntityAddress(options, { disableChecks: true });

@@ -3,8 +3,8 @@
  *
  * @since 4.0.0
  */
-import * as Schema from "effect/Schema"
-import * as Generated from "./Generated.ts"
+import * as Schema from "effect/Schema";
+import * as Generated from "./Generated.ts";
 
 /**
  * A choice question with descriptions keyed by choice label.
@@ -15,8 +15,8 @@ import * as Generated from "./Generated.ts"
 export const ChoiceQuestion = Schema.Struct({
   type: Schema.Literal("choice"),
   instructions: Schema.String,
-  criteria: Schema.Record(Schema.String, Schema.String)
-})
+  criteria: Schema.Record(Schema.String, Schema.String),
+});
 
 /**
  * A score question with ordered criteria.
@@ -27,8 +27,8 @@ export const ChoiceQuestion = Schema.Struct({
 export const ScoreQuestion = Schema.Struct({
   type: Schema.Literal("score"),
   instructions: Schema.String,
-  criteria: Schema.Array(Schema.String)
-})
+  criteria: Schema.Array(Schema.String),
+});
 
 /**
  * A probability question with optional true and false descriptions.
@@ -39,8 +39,8 @@ export const ScoreQuestion = Schema.Struct({
 export const NoulQuestion = Schema.Struct({
   type: Schema.Literal("noul"),
   instructions: Schema.String,
-  criteria: Schema.optional(Schema.Struct({ true: Schema.String, false: Schema.String }))
-})
+  criteria: Schema.optional(Schema.Struct({ true: Schema.String, false: Schema.String })),
+});
 
 /**
  * A choice, ordered score, or probability question.
@@ -48,11 +48,7 @@ export const NoulQuestion = Schema.Struct({
  * @category schemas
  * @since 4.0.0
  */
-export const DecisionsQuestion = Schema.Union([
-  ChoiceQuestion,
-  ScoreQuestion,
-  NoulQuestion
-])
+export const DecisionsQuestion = Schema.Union([ChoiceQuestion, ScoreQuestion, NoulQuestion]);
 
 /**
  * A provider answer with optional probabilities and confidence.
@@ -65,17 +61,17 @@ export const Answer = Schema.Union([
     type: Schema.Literal("choice"),
     choice: Schema.String,
     confidence: Schema.optional(Schema.Finite),
-    probabilities: Schema.optional(Schema.Record(Schema.String, Schema.Finite))
+    probabilities: Schema.optional(Schema.Record(Schema.String, Schema.Finite)),
   }),
   Schema.Struct({
     type: Schema.Literal("score"),
     score: Schema.Finite,
     confidence: Schema.optional(Schema.Finite),
     probabilities: Schema.optional(Schema.Record(Schema.String, Schema.Finite)),
-    legend: Schema.optional(Schema.Record(Schema.String, Schema.String))
+    legend: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   }),
-  Schema.Struct({ type: Schema.Literal("noul"), noul: Schema.Finite })
-])
+  Schema.Struct({ type: Schema.Literal("noul"), noul: Schema.Finite }),
+]);
 
 /**
  * Request body for the alpha Decisions endpoint.
@@ -90,8 +86,8 @@ export const DecisionsRequest = Schema.Struct({
   provider: Schema.optional(Generated.ProviderPreferences),
   session_id: Schema.optional(Schema.String),
   user: Schema.optional(Schema.String),
-  trace: Schema.optional(Schema.Record(Schema.String, Schema.Unknown))
-})
+  trace: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+});
 
 /**
  * Response body for the alpha Decisions endpoint.
@@ -105,8 +101,8 @@ export const DecisionsResponse = Schema.Struct({
   usage: Schema.Struct({
     input_tokens: Schema.Int,
     output_tokens: Schema.Int,
-    cost: Schema.optional(Schema.Finite)
+    cost: Schema.optional(Schema.Finite),
   }),
   id: Schema.optional(Schema.String),
-  provider: Schema.optional(Schema.String)
-})
+  provider: Schema.optional(Schema.String),
+});

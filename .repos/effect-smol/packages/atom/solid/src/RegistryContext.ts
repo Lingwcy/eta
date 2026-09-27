@@ -6,10 +6,10 @@
  *
  * @since 4.0.0
  */
-import type * as Atom from "effect/unstable/reactivity/Atom"
-import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry"
-import type { JSX } from "solid-js"
-import { createComponent, createContext, onCleanup } from "solid-js"
+import type * as Atom from "effect/unstable/reactivity/Atom";
+import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import type { JSX } from "solid-js";
+import { createComponent, createContext, onCleanup } from "solid-js";
 
 /**
  * Provides a Solid context that carries the `AtomRegistry` used by atom hooks in the
@@ -29,7 +29,7 @@ import { createComponent, createContext, onCleanup } from "solid-js"
  * @category context
  * @since 4.0.0
  */
-export const RegistryContext = createContext<AtomRegistry.AtomRegistry>(AtomRegistry.make())
+export const RegistryContext = createContext<AtomRegistry.AtomRegistry>(AtomRegistry.make());
 
 /**
  * Creates an `AtomRegistry` for a Solid subtree, optionally seeding initial atom
@@ -58,23 +58,23 @@ export const RegistryContext = createContext<AtomRegistry.AtomRegistry>(AtomRegi
  * @since 4.0.0
  */
 export const RegistryProvider = (options: {
-  readonly children?: JSX.Element | undefined
-  readonly initialValues?: Iterable<readonly [Atom.Atom<any>, any]> | undefined
-  readonly scheduleTask?: ((f: () => void) => () => void) | undefined
-  readonly timeoutResolution?: number | undefined
-  readonly defaultIdleTTL?: number | undefined
+  readonly children?: JSX.Element | undefined;
+  readonly initialValues?: Iterable<readonly [Atom.Atom<any>, any]> | undefined;
+  readonly scheduleTask?: ((f: () => void) => () => void) | undefined;
+  readonly timeoutResolution?: number | undefined;
+  readonly defaultIdleTTL?: number | undefined;
 }) => {
   const registry = AtomRegistry.make({
     scheduleTask: options.scheduleTask,
     initialValues: options.initialValues,
     timeoutResolution: options.timeoutResolution,
-    defaultIdleTTL: options.defaultIdleTTL
-  })
-  onCleanup(() => registry.dispose())
+    defaultIdleTTL: options.defaultIdleTTL,
+  });
+  onCleanup(() => registry.dispose());
   return createComponent(RegistryContext.Provider, {
     value: registry,
     get children() {
-      return options.children
-    }
-  })
-}
+      return options.children;
+    },
+  });
+};

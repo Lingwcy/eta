@@ -9,18 +9,18 @@
  *
  * @since 4.0.0
  */
-import type * as ByteSize from "../../ByteSize.ts"
-import * as Context from "../../Context.ts"
-import * as Effect from "../../Effect.ts"
-import type * as Inspectable from "../../Inspectable.ts"
-import type * as Option from "../../Option.ts"
-import { hasProperty } from "../../Predicate.ts"
-import { redact } from "../../Redactable.ts"
-import * as Schema from "../../Schema.ts"
-import type { ParseOptions } from "../../SchemaAST.ts"
-import type * as Stream from "../../Stream.ts"
-import type * as Headers from "./Headers.ts"
-import type * as UrlParams from "./UrlParams.ts"
+import type * as ByteSize from "../../ByteSize.ts";
+import * as Context from "../../Context.ts";
+import * as Effect from "../../Effect.ts";
+import type * as Inspectable from "../../Inspectable.ts";
+import type * as Option from "../../Option.ts";
+import { hasProperty } from "../../Predicate.ts";
+import { redact } from "../../Redactable.ts";
+import * as Schema from "../../Schema.ts";
+import type { ParseOptions } from "../../SchemaAST.ts";
+import type * as Stream from "../../Stream.ts";
+import type * as Headers from "./Headers.ts";
+import type * as UrlParams from "./UrlParams.ts";
 
 /**
  * Type identifier for `HttpIncomingMessage` values.
@@ -28,7 +28,7 @@ import type * as UrlParams from "./UrlParams.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId = "~effect/http/HttpIncomingMessage"
+export const TypeId = "~effect/http/HttpIncomingMessage";
 
 /**
  * Returns `true` when a value is an `HttpIncomingMessage`.
@@ -36,7 +36,8 @@ export const TypeId = "~effect/http/HttpIncomingMessage"
  * @category guards
  * @since 4.0.0
  */
-export const isHttpIncomingMessage = (u: unknown): u is HttpIncomingMessage => hasProperty(u, TypeId)
+export const isHttpIncomingMessage = (u: unknown): u is HttpIncomingMessage =>
+  hasProperty(u, TypeId);
 
 /**
  * Options for parsing an incoming HTTP message body as JSON.
@@ -45,7 +46,7 @@ export const isHttpIncomingMessage = (u: unknown): u is HttpIncomingMessage => h
  * @since 4.0.0
  */
 export interface JsonOptions {
-  readonly reviver?: Parameters<typeof JSON.parse>[1] | undefined
+  readonly reviver?: Parameters<typeof JSON.parse>[1] | undefined;
 }
 
 /**
@@ -55,14 +56,14 @@ export interface JsonOptions {
  * @since 4.0.0
  */
 export interface HttpIncomingMessage<E = unknown> extends Inspectable.Inspectable {
-  readonly [TypeId]: typeof TypeId
-  readonly headers: Headers.Headers
-  readonly remoteAddress: Option.Option<string>
-  readonly json: Effect.Effect<Schema.Json, E>
-  readonly text: Effect.Effect<string, E>
-  readonly urlParamsBody: Effect.Effect<UrlParams.UrlParams, E>
-  readonly arrayBuffer: Effect.Effect<ArrayBuffer, E>
-  readonly stream: Stream.Stream<Uint8Array, E>
+  readonly [TypeId]: typeof TypeId;
+  readonly headers: Headers.Headers;
+  readonly remoteAddress: Option.Option<string>;
+  readonly json: Effect.Effect<Schema.Json, E>;
+  readonly text: Effect.Effect<string, E>;
+  readonly urlParamsBody: Effect.Effect<UrlParams.UrlParams, E>;
+  readonly arrayBuffer: Effect.Effect<ArrayBuffer, E>;
+  readonly stream: Stream.Stream<Uint8Array, E>;
 }
 
 /**
@@ -73,20 +74,24 @@ export interface HttpIncomingMessage<E = unknown> extends Inspectable.Inspectabl
  */
 export const schemaBodyJson = <S extends Schema.Constraint>(
   schema: S,
-  options?: (ParseOptions & JsonOptions) | undefined
+  options?: (ParseOptions & JsonOptions) | undefined,
 ) => {
-  const decode = Schema.decodeEffect(Schema.toCodecJson(schema))
-  const decodeJson = options?.reviver === undefined
-    ? undefined
-    : Schema.decodeEffect(Schema.fromJsonString(Schema.toCodecJson(schema), options))
+  const decode = Schema.decodeEffect(Schema.toCodecJson(schema));
+  const decodeJson =
+    options?.reviver === undefined
+      ? undefined
+      : Schema.decodeEffect(Schema.fromJsonString(Schema.toCodecJson(schema), options));
   return <E>(
-    self: HttpIncomingMessage<E>
+    self: HttpIncomingMessage<E>,
   ): Effect.Effect<S["Type"], E | Schema.SchemaError, S["DecodingServices"]> =>
     decodeJson === undefined
       ? Effect.flatMap(self.json, (u) => decode(u, options))
       : Effect.flatMap(self.text, (body) =>
-        body === "" ? Effect.flatMap(self.json, (u) => decode(u, options)) : decodeJson(body, options))
-}
+          body === ""
+            ? Effect.flatMap(self.json, (u) => decode(u, options))
+            : decodeJson(body, options),
+        );
+};
 
 /**
  * Creates a decoder that reads an incoming message's URL-encoded body parameters and decodes them with the supplied schema.
@@ -97,18 +102,15 @@ export const schemaBodyJson = <S extends Schema.Constraint>(
 export const schemaBodyUrlParams = <
   A,
   I extends Readonly<Record<string, string | ReadonlyArray<string> | undefined>>,
-  RD
+  RD,
 >(
   schema: Schema.ConstraintCodec<A, I, RD, unknown>,
-  options?: ParseOptions | undefined
+  options?: ParseOptions | undefined,
 ) => {
-  const decode = Schema.RecordFromUrlParams.pipe(
-    Schema.decodeTo(schema),
-    Schema.decodeEffect
-  )
+  const decode = Schema.RecordFromUrlParams.pipe(Schema.decodeTo(schema), Schema.decodeEffect);
   return <E>(self: HttpIncomingMessage<E>): Effect.Effect<A, E | Schema.SchemaError, RD> =>
-    Effect.flatMap(self.urlParamsBody, (u) => decode(u, options))
-}
+    Effect.flatMap(self.urlParamsBody, (u) => decode(u, options));
+};
 
 /**
  * Creates a decoder that validates and decodes an incoming message's headers with the supplied schema.
@@ -118,11 +120,12 @@ export const schemaBodyUrlParams = <
  */
 export const schemaHeaders = <A, I extends Readonly<Record<string, string | undefined>>, RD>(
   schema: Schema.ConstraintCodec<A, I, RD, unknown>,
-  options?: ParseOptions | undefined
+  options?: ParseOptions | undefined,
 ) => {
-  const decode = Schema.decodeUnknownEffect(schema)
-  return <E>(self: HttpIncomingMessage<E>): Effect.Effect<A, Schema.SchemaError, RD> => decode(self.headers, options)
-}
+  const decode = Schema.decodeUnknownEffect(schema);
+  return <E>(self: HttpIncomingMessage<E>): Effect.Effect<A, Schema.SchemaError, RD> =>
+    decode(self.headers, options);
+};
 
 /**
  * Context reference for the optional maximum size allowed when reading an incoming message body.
@@ -132,8 +135,8 @@ export const schemaHeaders = <A, I extends Readonly<Record<string, string | unde
  */
 export const MaxBodySize = Context.Reference<ByteSize.ByteSize | undefined>(
   "effect/http/HttpIncomingMessage/MaxBodySize",
-  { defaultValue: () => undefined }
-)
+  { defaultValue: () => undefined },
+);
 
 /**
  * Builds an inspectable object for an incoming message, redacting headers and including a synchronously readable JSON or text body when available.
@@ -142,18 +145,18 @@ export const MaxBodySize = Context.Reference<ByteSize.ByteSize | undefined>(
  * @since 4.0.0
  */
 export const inspect = <E>(self: HttpIncomingMessage<E>, that: object): object => {
-  const contentType = self.headers["content-type"] ?? ""
-  let body: unknown
+  const contentType = self.headers["content-type"] ?? "";
+  let body: unknown;
   if (contentType.includes("application/json")) {
     try {
-      body = Effect.runSync(self.json)
+      body = Effect.runSync(self.json);
       // oxlint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (_) {
       //
     }
   } else if (contentType.includes("text/") || contentType.includes("urlencoded")) {
     try {
-      body = Effect.runSync(self.text)
+      body = Effect.runSync(self.text);
       // oxlint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (_) {
       //
@@ -162,10 +165,10 @@ export const inspect = <E>(self: HttpIncomingMessage<E>, that: object): object =
   const obj: any = {
     ...that,
     headers: redact(self.headers),
-    remoteAddress: self.remoteAddress
-  }
+    remoteAddress: self.remoteAddress,
+  };
   if (body !== undefined) {
-    obj.body = body
+    obj.body = body;
   }
-  return obj
-}
+  return obj;
+};

@@ -8,55 +8,54 @@
  *
  * @since 4.0.0
  */
-import { Clock } from "../../Clock.ts"
-import * as Context from "../../Context.ts"
-import * as Duration from "../../Duration.ts"
-import * as Effect from "../../Effect.ts"
-import * as Fiber from "../../Fiber.ts"
-import * as FiberSet from "../../FiberSet.ts"
-import { identity } from "../../Function.ts"
-import * as Layer from "../../Layer.ts"
-import * as Num from "../../Number.ts"
-import * as Option from "../../Option.ts"
-import * as Schedule from "../../Schedule.ts"
-import * as Scope from "../../Scope.ts"
-import * as Headers from "../../unstable/http/Headers.ts"
-import * as HttpClient from "../../unstable/http/HttpClient.ts"
-import * as HttpClientError from "../../unstable/http/HttpClientError.ts"
-import * as HttpClientRequest from "../../unstable/http/HttpClientRequest.ts"
-import type { HttpBody } from "../http/HttpBody.ts"
+import { Clock } from "../../Clock.ts";
+import * as Context from "../../Context.ts";
+import * as Duration from "../../Duration.ts";
+import * as Effect from "../../Effect.ts";
+import * as Fiber from "../../Fiber.ts";
+import * as FiberSet from "../../FiberSet.ts";
+import { identity } from "../../Function.ts";
+import * as Layer from "../../Layer.ts";
+import * as Num from "../../Number.ts";
+import * as Option from "../../Option.ts";
+import * as Schedule from "../../Schedule.ts";
+import * as Scope from "../../Scope.ts";
+import * as Headers from "../../unstable/http/Headers.ts";
+import * as HttpClient from "../../unstable/http/HttpClient.ts";
+import * as HttpClientError from "../../unstable/http/HttpClientError.ts";
+import * as HttpClientRequest from "../../unstable/http/HttpClientRequest.ts";
+import type { HttpBody } from "../http/HttpBody.ts";
 
 const retryAfterDelay = (value: string | undefined): Effect.Effect<Duration.Duration> => {
-  const seconds = Option.fromUndefinedOr(value).pipe(Option.flatMap(Num.parse))
+  const seconds = Option.fromUndefinedOr(value).pipe(Option.flatMap(Num.parse));
   if (Option.isSome(seconds)) {
-    return Effect.succeed(Duration.seconds(seconds.value))
+    return Effect.succeed(Duration.seconds(seconds.value));
   }
   if (value === undefined) {
-    return Effect.succeed(Duration.seconds(5))
+    return Effect.succeed(Duration.seconds(5));
   }
-  const timestamp = Date.parse(value)
+  const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) {
-    return Effect.succeed(Duration.seconds(5))
+    return Effect.succeed(Duration.seconds(5));
   }
-  return Effect.map(
-    Clock,
-    (clock) => Duration.millis(Math.max(timestamp - clock.currentTimeMillisUnsafe(), 1))
-  )
-}
+  return Effect.map(Clock, (clock) =>
+    Duration.millis(Math.max(timestamp - clock.currentTimeMillisUnsafe(), 1)),
+  );
+};
 
 const policy = Schedule.forever.pipe(
   Schedule.passthrough,
   Schedule.addDelay(({ output: error }) => {
     if (
-      HttpClientError.isHttpClientError(error)
-      && error.reason._tag === "StatusCodeError"
-      && error.reason.response.status === 429
+      HttpClientError.isHttpClientError(error) &&
+      error.reason._tag === "StatusCodeError" &&
+      error.reason.response.status === 429
     ) {
-      return retryAfterDelay(error.reason.response.headers["retry-after"])
+      return retryAfterDelay(error.reason.response.headers["retry-after"]);
     }
-    return Effect.succeed(Duration.seconds(1))
-  })
-)
+    return Effect.succeed(Duration.seconds(1));
+  }),
+);
 
 /**
  * Registry of exporter flush operations, used to manually drain buffered
@@ -73,35 +72,36 @@ const policy = Schedule.forever.pipe(
  * @category services
  * @since 4.0.0
  */
-export class Flusher extends Context.Service<Flusher, {
-  /**
-   * Drains all registered exporters concurrently and cannot fail.
-   *
-   * **Details**
-   *
-   * There is no built-in timeout; use `Effect.timeoutOption` to bound the
-   * operation. Exporters in their 60-second `disabledUntil` window are skipped.
-   *
-   * **Example** (Flushing exporters)
-   *
-   * ```ts import.meta.vitest
-   * import { Effect } from "effect"
-   * import { OtlpExporter } from "effect/unstable/observability"
-   *
-   * const program = Effect.gen(function*() {
-   *   const flusher = yield* OtlpExporter.Flusher
-   *   yield* flusher.flush
-   *   return "flushed"
-   * }).pipe(Effect.provide(OtlpExporter.layerFlusher))
-   *
-   * await Effect.runPromise(program) // => "flushed"
-   * ```
-   */
-  readonly flush: Effect.Effect<void>
-  readonly register: (run: Effect.Effect<void>) => Effect.Effect<void, never, Scope.Scope>
-}>()(
-  "effect/observability/OtlpExporter/Flusher"
-) {}
+export class Flusher extends Context.Service<
+  Flusher,
+  {
+    /**
+     * Drains all registered exporters concurrently and cannot fail.
+     *
+     * **Details**
+     *
+     * There is no built-in timeout; use `Effect.timeoutOption` to bound the
+     * operation. Exporters in their 60-second `disabledUntil` window are skipped.
+     *
+     * **Example** (Flushing exporters)
+     *
+     * ```ts import.meta.vitest
+     * import { Effect } from "effect"
+     * import { OtlpExporter } from "effect/unstable/observability"
+     *
+     * const program = Effect.gen(function*() {
+     *   const flusher = yield* OtlpExporter.Flusher
+     *   yield* flusher.flush
+     *   return "flushed"
+     * }).pipe(Effect.provide(OtlpExporter.layerFlusher))
+     *
+     * await Effect.runPromise(program) // => "flushed"
+     * ```
+     */
+    readonly flush: Effect.Effect<void>;
+    readonly register: (run: Effect.Effect<void>) => Effect.Effect<void, never, Scope.Scope>;
+  }
+>()("effect/observability/OtlpExporter/Flusher") {}
 
 /**
  * Provides a `Flusher` backed by a fresh registry.
@@ -125,27 +125,27 @@ export class Flusher extends Context.Service<Flusher, {
  * @since 4.0.0
  */
 export const layerFlusher: Layer.Layer<Flusher> = Layer.sync(Flusher, () => {
-  const registry = new Set<Effect.Effect<void>>()
+  const registry = new Set<Effect.Effect<void>>();
   return {
     flush: Effect.suspend(() => {
       if (registry.size === 0) {
-        return Effect.void
+        return Effect.void;
       }
       return Effect.forEach(registry, identity, {
         concurrency: "unbounded",
-        discard: true
-      })
+        discard: true,
+      });
     }),
     register: (run) =>
       Effect.flatMap(Scope.Scope, (scope) => {
-        registry.add(run)
+        registry.add(run);
         return Scope.addFinalizer(
           scope,
-          Effect.sync(() => registry.delete(run))
-        )
-      })
-  }
-})
+          Effect.sync(() => registry.delete(run)),
+        );
+      }),
+  };
+});
 
 /**
  * Creates a scoped OTLP batch exporter.
@@ -160,107 +160,103 @@ export const layerFlusher: Layer.Layer<Flusher> = Layer.sync(Flusher, () => {
  * @category constructors
  * @since 4.0.0
  */
-export const make: (
-  options: {
-    readonly url: string
-    readonly headers: Headers.Input | undefined
-    readonly label: string
-    readonly exportInterval: Duration.Input
-    readonly maxBatchSize: number | "disabled"
-    readonly exportEmpty?: boolean | undefined
-    readonly body: (data: Array<any>) => readonly [body: HttpBody, onSuccess: Effect.Effect<void>]
-    readonly shutdownTimeout: Duration.Input
-  }
-) => Effect.Effect<
+export const make: (options: {
+  readonly url: string;
+  readonly headers: Headers.Input | undefined;
+  readonly label: string;
+  readonly exportInterval: Duration.Input;
+  readonly maxBatchSize: number | "disabled";
+  readonly exportEmpty?: boolean | undefined;
+  readonly body: (data: Array<any>) => readonly [body: HttpBody, onSuccess: Effect.Effect<void>];
+  readonly shutdownTimeout: Duration.Input;
+}) => Effect.Effect<
   { readonly push: (data: unknown) => void },
   never,
   Flusher | HttpClient.HttpClient | Scope.Scope
-> = Effect.fnUntraced(function*(options) {
-  const services = yield* Effect.context<Scope.Scope | HttpClient.HttpClient>()
-  const clock = Context.get(services, Clock)
-  const scope = Context.get(services, Scope.Scope)
-  const exportInterval = Duration.max(Duration.fromInputUnsafe(options.exportInterval), Duration.zero)
-  let disabledUntil: number | undefined = undefined
+> = Effect.fnUntraced(function* (options) {
+  const services = yield* Effect.context<Scope.Scope | HttpClient.HttpClient>();
+  const clock = Context.get(services, Clock);
+  const scope = Context.get(services, Scope.Scope);
+  const exportInterval = Duration.max(
+    Duration.fromInputUnsafe(options.exportInterval),
+    Duration.zero,
+  );
+  let disabledUntil: number | undefined = undefined;
 
   const client = HttpClient.filterStatusOk(Context.get(services, HttpClient.HttpClient)).pipe(
     HttpClient.transformResponse(Effect.provideService(HttpClient.TracerPropagationEnabled, false)),
-    HttpClient.retryTransient({ schedule: policy, times: 3 })
-  )
+    HttpClient.retryTransient({ schedule: policy, times: 3 }),
+  );
 
   let headers = Headers.fromRecordUnsafe({
-    "user-agent": `effect-opentelemetry-${options.label}/0.0.0`
-  })
+    "user-agent": `effect-opentelemetry-${options.label}/0.0.0`,
+  });
   if (options.headers) {
-    headers = Headers.merge(Headers.fromInput(options.headers), headers)
+    headers = Headers.merge(Headers.fromInput(options.headers), headers);
   }
 
-  const request = HttpClientRequest.post(options.url, { headers })
-  let buffer: Array<any> = []
+  const request = HttpClientRequest.post(options.url, { headers });
+  let buffer: Array<any> = [];
   const runExport = Effect.suspend(() => {
     if (disabledUntil !== undefined && clock.currentTimeMillisUnsafe() < disabledUntil) {
-      return Effect.void
+      return Effect.void;
     } else if (disabledUntil !== undefined) {
-      disabledUntil = undefined
+      disabledUntil = undefined;
     }
-    if (buffer.length === 0 && (options.maxBatchSize !== "disabled" || options.exportEmpty !== true)) {
-      return Effect.void
+    if (
+      buffer.length === 0 &&
+      (options.maxBatchSize !== "disabled" || options.exportEmpty !== true)
+    ) {
+      return Effect.void;
     }
-    const items = buffer
-    buffer = []
-    const [body, onSuccess] = options.body(items)
-    return client.execute(
-      HttpClientRequest.setBody(request, body)
-    ).pipe(
-      Effect.andThen(onSuccess),
-      Effect.asVoid,
-      Effect.withTracerEnabled(false)
-    )
+    const items = buffer;
+    buffer = [];
+    const [body, onSuccess] = options.body(items);
+    return client
+      .execute(HttpClientRequest.setBody(request, body))
+      .pipe(Effect.andThen(onSuccess), Effect.asVoid, Effect.withTracerEnabled(false));
   }).pipe(
     Effect.catchCause((cause) => {
-      if (disabledUntil !== undefined) return Effect.void
-      disabledUntil = clock.currentTimeMillisUnsafe() + 60_000
-      buffer = []
-      return Effect.logDebug("Disabling exporter for 60 seconds", cause)
+      if (disabledUntil !== undefined) return Effect.void;
+      disabledUntil = clock.currentTimeMillisUnsafe() + 60_000;
+      buffer = [];
+      return Effect.logDebug("Disabling exporter for 60 seconds", cause);
     }),
     Effect.annotateLogs({
       package: "@effect/opentelemetry",
-      module: options.label
-    })
-  )
+      module: options.label,
+    }),
+  );
 
-  const exportFibers = yield* FiberSet.make<void, never>()
-  const runExportFork = yield* FiberSet.runtime(exportFibers)<never>()
+  const exportFibers = yield* FiberSet.make<void, never>();
+  const runExportFork = yield* FiberSet.runtime(exportFibers)<never>();
 
-  const flusher = yield* Flusher
-  yield* flusher.register(runExport)
+  const flusher = yield* Flusher;
+  yield* flusher.register(runExport);
 
   yield* Scope.addFinalizer(
     scope,
     Effect.suspend(() => {
-      if (disabledUntil !== undefined) return Effect.void
-      runExportFork(runExport)
-      return FiberSet.awaitEmpty(exportFibers)
-    }).pipe(
-      Effect.ignore,
-      Effect.interruptible,
-      Effect.timeoutOption(options.shutdownTimeout)
-    )
-  )
+      if (disabledUntil !== undefined) return Effect.void;
+      runExportFork(runExport);
+      return FiberSet.awaitEmpty(exportFibers);
+    }).pipe(Effect.ignore, Effect.interruptible, Effect.timeoutOption(options.shutdownTimeout)),
+  );
 
   yield* Effect.sleep(exportInterval).pipe(
     Effect.andThen(FiberSet.run(exportFibers, runExport)),
     Effect.flatMap(Fiber.await),
     Effect.forever,
-    Effect.forkIn(scope)
-  )
+    Effect.forkIn(scope),
+  );
 
   return {
     push(data) {
-      if (disabledUntil !== undefined) return
-      buffer.push(data)
+      if (disabledUntil !== undefined) return;
+      buffer.push(data);
       if (options.maxBatchSize !== "disabled" && buffer.length >= options.maxBatchSize) {
-        runExportFork(runExport)
+        runExportFork(runExport);
       }
-    }
-  }
-})
+    },
+  };
+});

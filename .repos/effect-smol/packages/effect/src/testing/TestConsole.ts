@@ -9,10 +9,10 @@
  *
  * @since 4.0.0
  */
-import * as Array from "../Array.ts"
-import * as Console from "../Console.ts"
-import * as Effect from "../Effect.ts"
-import * as Layer from "../Layer.ts"
+import * as Array from "../Array.ts";
+import * as Console from "../Console.ts";
+import * as Effect from "../Effect.ts";
+import * as Layer from "../Layer.ts";
 
 /**
  * A `TestConsole` provides a testable implementation of the Console interface.
@@ -66,7 +66,7 @@ export interface TestConsole extends Console.Console {
    * Use to inspect captured `Console.log` calls through a `TestConsole`
    * instance.
    */
-  readonly logLines: Effect.Effect<ReadonlyArray<unknown>>
+  readonly logLines: Effect.Effect<ReadonlyArray<unknown>>;
   /**
    * Returns an array of all items that have been logged by the program using
    * `Console.error` thus far.
@@ -76,7 +76,7 @@ export interface TestConsole extends Console.Console {
    * Use to inspect captured `Console.error` calls through a `TestConsole`
    * instance.
    */
-  readonly errorLines: Effect.Effect<ReadonlyArray<unknown>>
+  readonly errorLines: Effect.Effect<ReadonlyArray<unknown>>;
 }
 
 /**
@@ -110,7 +110,7 @@ export declare namespace TestConsole {
    * @category models
    * @since 4.0.0
    */
-  export type Method = keyof Console.Console
+  export type Method = keyof Console.Console;
 
   /**
    * Represents a single console method invocation captured by the TestConsole.
@@ -137,8 +137,8 @@ export declare namespace TestConsole {
    * @since 4.0.0
    */
   export interface Entry {
-    readonly method: Method
-    readonly parameters: ReadonlyArray<unknown>
+    readonly method: Method;
+    readonly parameters: ReadonlyArray<unknown>;
   }
 }
 
@@ -176,20 +176,22 @@ export declare namespace TestConsole {
  * @category constructors
  * @since 4.0.0
  */
-export const make = Effect.gen(function*() {
-  const entries: Array<TestConsole.Entry> = []
+export const make = Effect.gen(function* () {
+  const entries: Array<TestConsole.Entry> = [];
 
   function createEntryUnsafe(method: TestConsole.Method) {
     return (...parameters: ReadonlyArray<any>): void => {
-      entries.push({ method, parameters })
-    }
+      entries.push({ method, parameters });
+    };
   }
 
-  const logLines = Effect.sync(() => Array.flatMap(entries, (entry) => entry.method === "log" ? entry.parameters : []))
+  const logLines = Effect.sync(() =>
+    Array.flatMap(entries, (entry) => (entry.method === "log" ? entry.parameters : [])),
+  );
 
   const errorLines = Effect.sync(() =>
-    Array.flatMap(entries, (entry) => entry.method === "error" ? entry.parameters : [])
-  )
+    Array.flatMap(entries, (entry) => (entry.method === "error" ? entry.parameters : [])),
+  );
 
   return {
     assert: createEntryUnsafe("assert"),
@@ -212,9 +214,9 @@ export const make = Effect.gen(function*() {
     trace: createEntryUnsafe("trace"),
     warn: createEntryUnsafe("warn"),
     logLines,
-    errorLines
-  } as TestConsole
-})
+    errorLines,
+  } as TestConsole;
+});
 
 /**
  * Retrieves the `TestConsole` service for this test and uses it to run the
@@ -253,8 +255,9 @@ export const make = Effect.gen(function*() {
  * @category testing
  * @since 4.0.0
  */
-export const testConsoleWith = <A, E, R>(f: (console: TestConsole) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
-  Console.consoleWith((console) => f(console as TestConsole))
+export const testConsoleWith = <A, E, R>(
+  f: (console: TestConsole) => Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, R> => Console.consoleWith((console) => f(console as TestConsole));
 
 /**
  * Creates a `Layer` which constructs a `TestConsole`.
@@ -291,7 +294,7 @@ export const testConsoleWith = <A, E, R>(f: (console: TestConsole) => Effect.Eff
  * @category layers
  * @since 4.0.0
  */
-export const layer: Layer.Layer<TestConsole> = Layer.effect(Console.Console)(make) as any
+export const layer: Layer.Layer<TestConsole> = Layer.effect(Console.Console)(make) as any;
 
 /**
  * Returns an array of all items that have been logged by the program using
@@ -328,8 +331,8 @@ export const layer: Layer.Layer<TestConsole> = Layer.effect(Console.Console)(mak
  * @since 4.0.0
  */
 export const logLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = testConsoleWith(
-  (console) => console.logLines
-)
+  (console) => console.logLines,
+);
 
 /**
  * Returns an array of all items that have been logged by the program using
@@ -366,5 +369,5 @@ export const logLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = tes
  * @since 4.0.0
  */
 export const errorLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = testConsoleWith(
-  (console) => console.errorLines
-)
+  (console) => console.errorLines,
+);

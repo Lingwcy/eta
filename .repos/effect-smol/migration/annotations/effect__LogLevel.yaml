@@ -1,32 +1,32 @@
 effect/LogLevel#All:
-  replacement: "\"All\""
+  replacement: '"All"'
   note: "V4 levels are string literals rather than branded objects; use the literal as both value and singleton type."
 effect/LogLevel#Debug:
-  replacement: "\"Debug\""
+  replacement: '"Debug"'
   note: "V4 levels are string literals rather than branded objects; use the literal as both value and singleton type."
 effect/LogLevel#Error:
-  replacement: "\"Error\""
+  replacement: '"Error"'
   note: "V4 levels are string literals rather than branded objects; use the literal as both value and singleton type."
 effect/LogLevel#Fatal:
-  replacement: "\"Fatal\""
+  replacement: '"Fatal"'
   note: "V4 levels are string literals rather than branded objects; use the literal as both value and singleton type."
 effect/LogLevel#Info:
-  replacement: "\"Info\""
+  replacement: '"Info"'
   note: "V4 levels are string literals rather than branded objects; use the literal as both value and singleton type."
 effect/LogLevel#None:
-  replacement: "\"None\""
+  replacement: '"None"'
   note: "V4 levels are string literals rather than branded objects; use the literal as both value and singleton type."
 effect/LogLevel#Trace:
-  replacement: "\"Trace\""
+  replacement: '"Trace"'
   note: "V4 levels are string literals rather than branded objects; use the literal as both value and singleton type."
 effect/LogLevel#Warning:
-  replacement: "\"Warn\""
+  replacement: '"Warn"'
   note: "V4 renamed both the value and singleton type from Warning to the string literal Warn."
 effect/LogLevel#allLevels:
   replacement: "LogLevel.values"
   note: "Use the ordered v4 array of all levels, including All and None."
 effect/LogLevel#fromLiteral:
-  replacement: "literal === \"Warning\" ? \"Warn\" : literal"
+  replacement: 'literal === "Warning" ? "Warn" : literal'
   note: "No constructor is needed because v4 levels are strings. Normalize the renamed Warning literal to Warn; all other v3 literals pass through."
 effect/LogLevel#greaterThan:
   replacement: "LogLevel.isGreaterThan"

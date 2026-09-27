@@ -9,11 +9,11 @@
  *
  * @since 4.0.0
  */
-import { type Pipeable, pipeArguments } from "../../Pipeable.ts"
-import * as Predicate from "../../Predicate.ts"
-import * as Record from "../../Record.ts"
-import type * as Schema from "../../Schema.ts"
-import * as Event from "./Event.ts"
+import { type Pipeable, pipeArguments } from "../../Pipeable.ts";
+import * as Predicate from "../../Predicate.ts";
+import * as Record from "../../Record.ts";
+import type * as Schema from "../../Schema.ts";
+import * as Event from "./Event.ts";
 
 /**
  * Unique type identifier used to mark event log event groups.
@@ -21,7 +21,7 @@ import * as Event from "./Event.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/eventlog/EventGroup"
+export type TypeId = "~effect/eventlog/EventGroup";
 
 /**
  * Runtime type identifier used to mark event log event groups.
@@ -29,7 +29,7 @@ export type TypeId = "~effect/eventlog/EventGroup"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~effect/eventlog/EventGroup"
+export const TypeId: TypeId = "~effect/eventlog/EventGroup";
 
 /**
  * Returns `true` when a value is an event log event group.
@@ -37,7 +37,7 @@ export const TypeId: TypeId = "~effect/eventlog/EventGroup"
  * @category guards
  * @since 4.0.0
  */
-export const isEventGroup = (u: unknown): u is Any => Predicate.hasProperty(u, TypeId)
+export const isEventGroup = (u: unknown): u is Any => Predicate.hasProperty(u, TypeId);
 
 /**
  * Typed collection of event definitions that represents a portion of an event log
@@ -51,11 +51,9 @@ export const isEventGroup = (u: unknown): u is Any => Predicate.hasProperty(u, T
  * @category models
  * @since 4.0.0
  */
-export interface EventGroup<
-  out Events extends Event.Any = Event.Any
-> extends Pipeable {
-  readonly [TypeId]: TypeId
-  readonly events: Record.ReadonlyRecord<string, Events>
+export interface EventGroup<out Events extends Event.Any = Event.Any> extends Pipeable {
+  readonly [TypeId]: TypeId;
+  readonly events: Record.ReadonlyRecord<string, Events>;
 
   /**
    * Add an `Event` to the `EventGroup`.
@@ -64,19 +62,19 @@ export interface EventGroup<
     Tag extends string,
     Payload extends Schema.Top = typeof Schema.Void,
     Success extends Schema.Top = typeof Schema.Void,
-    Error extends Schema.Top = typeof Schema.Never
+    Error extends Schema.Top = typeof Schema.Never,
   >(options: {
-    readonly tag: Tag
-    readonly primaryKey: (payload: Schema.Schema.Type<Payload>) => string
-    readonly payload?: Payload
-    readonly success?: Success
-    readonly error?: Error
-  }): EventGroup<Events | Event.Event<Tag, Payload, Success, Error>>
+    readonly tag: Tag;
+    readonly primaryKey: (payload: Schema.Schema.Type<Payload>) => string;
+    readonly payload?: Payload;
+    readonly success?: Success;
+    readonly error?: Error;
+  }): EventGroup<Events | Event.Event<Tag, Payload, Success, Error>>;
 
   /**
    * Add an error schema to all the events in the `EventGroup`.
    */
-  addError<Error extends Schema.Top>(error: Error): EventGroup<Event.AddError<Events, Error>>
+  addError<Error extends Schema.Top>(error: Error): EventGroup<Event.AddError<Events, Error>>;
 }
 
 /**
@@ -86,7 +84,7 @@ export interface EventGroup<
  * @since 4.0.0
  */
 export interface Any {
-  readonly [TypeId]: TypeId
+  readonly [TypeId]: TypeId;
 }
 
 /**
@@ -95,7 +93,7 @@ export interface Any {
  * @category models
  * @since 4.0.0
  */
-export type AnyWithProps = EventGroup<Event.Any>
+export type AnyWithProps = EventGroup<Event.Any>;
 
 /**
  * Derives the handler service markers required for all events in an event group.
@@ -103,8 +101,7 @@ export type AnyWithProps = EventGroup<Event.Any>
  * @category utility types
  * @since 4.0.0
  */
-export type ToService<A> = A extends EventGroup<infer _Events> ? Event.ToService<_Events>
-  : never
+export type ToService<A> = A extends EventGroup<infer _Events> ? Event.ToService<_Events> : never;
 
 /**
  * Extracts the union of event definitions contained in an event group.
@@ -112,8 +109,7 @@ export type ToService<A> = A extends EventGroup<infer _Events> ? Event.ToService
  * @category utility types
  * @since 4.0.0
  */
-export type Events<Group> = Group extends EventGroup<infer _Events> ? _Events
-  : never
+export type Events<Group> = Group extends EventGroup<infer _Events> ? _Events : never;
 
 /**
  * Client-side schema services required by all events in an event group.
@@ -121,7 +117,7 @@ export type Events<Group> = Group extends EventGroup<infer _Events> ? _Events
  * @category utility types
  * @since 4.0.0
  */
-export type ServicesClient<Group> = Event.ServicesClient<Events<Group>>
+export type ServicesClient<Group> = Event.ServicesClient<Events<Group>>;
 
 /**
  * Server-side schema services required by all events in an event group.
@@ -129,14 +125,12 @@ export type ServicesClient<Group> = Event.ServicesClient<Events<Group>>
  * @category utility types
  * @since 4.0.0
  */
-export type ServicesServer<Group> = Event.ServicesServer<Events<Group>>
+export type ServicesServer<Group> = Event.ServicesServer<Events<Group>>;
 
-const makeProto = <
-  Events extends Event.Any
->(options: {
-  readonly events: Record.ReadonlyRecord<string, Events>
+const makeProto = <Events extends Event.Any>(options: {
+  readonly events: Record.ReadonlyRecord<string, Events>;
 }): EventGroup<Events> => {
-  const EventGroupClass = (_: never) => {}
+  const EventGroupClass = (_: never) => {};
   const group = Object.assign(EventGroupClass, {
     [TypeId]: TypeId,
     events: options.events,
@@ -144,40 +138,40 @@ const makeProto = <
       Tag extends string,
       Payload extends Schema.Top = typeof Schema.Void,
       Success extends Schema.Top = typeof Schema.Void,
-      Error extends Schema.Top = typeof Schema.Never
+      Error extends Schema.Top = typeof Schema.Never,
     >(
       this: EventGroup<Events>,
       addOptions: {
-        readonly tag: Tag
-        readonly primaryKey: (payload: Schema.Schema.Type<Payload>) => string
-        readonly payload?: Payload
-        readonly success?: Success
-        readonly error?: Error
-      }
+        readonly tag: Tag;
+        readonly primaryKey: (payload: Schema.Schema.Type<Payload>) => string;
+        readonly payload?: Payload;
+        readonly success?: Success;
+        readonly error?: Error;
+      },
     ): EventGroup<Events | Event.Event<Tag, Payload, Success, Error>> {
       return makeProto({
         events: {
           ...this.events,
-          [addOptions.tag]: Event.make(addOptions)
-        }
-      })
+          [addOptions.tag]: Event.make(addOptions),
+        },
+      });
     },
     addError<Error extends Schema.Top>(
       this: EventGroup<Events>,
-      error: Error
+      error: Error,
     ): EventGroup<Event.AddError<Events, Error>> {
       const events = Record.map<string, Events, Event.AddError<Events, Error>>(
         this.events,
-        (event) => Event.addError(event, error)
-      )
-      return makeProto({ events })
+        (event) => Event.addError(event, error),
+      );
+      return makeProto({ events });
     },
     pipe() {
-      return pipeArguments(this, arguments)
-    }
-  })
-  return group
-}
+      return pipeArguments(this, arguments);
+    },
+  });
+  return group;
+};
 
 /**
  * Creates an empty event group used as the starting point for defining a group.
@@ -190,4 +184,4 @@ const makeProto = <
  * @category constructors
  * @since 4.0.0
  */
-export const empty: EventGroup<never> = makeProto({ events: Record.empty() })
+export const empty: EventGroup<never> = makeProto({ events: Record.empty() });

@@ -1,5 +1,5 @@
-import { Schema, SchemaRepresentation } from "effect"
-import { describe, expect, it } from "tstyche"
+import { Schema, SchemaRepresentation } from "effect";
+import { describe, expect, it } from "tstyche";
 
 describe("Schema built-in revivers", () => {
   it("composes every built-in reviver without casts", () => {
@@ -80,19 +80,19 @@ describe("Schema built-in revivers", () => {
       SchemaRepresentation.isLessThanOrEqualToBigIntReviver,
       SchemaRepresentation.isBetweenBigIntReviver,
       SchemaRepresentation.JsonReviver,
-      SchemaRepresentation.MutableJsonReviver
-    ]
+      SchemaRepresentation.MutableJsonReviver,
+    ];
 
-    expect(revivers).type.toBe<ReadonlyArray<SchemaRepresentation.AnyReviver>>()
-  })
+    expect(revivers).type.toBe<ReadonlyArray<SchemaRepresentation.AnyReviver>>();
+  });
 
   it("restricts isUniqueKey to arrays of key-value tuples", () => {
-    const check = Schema.isUniqueKey<string, number>()
+    const check = Schema.isUniqueKey<string, number>();
 
-    Schema.Array(Schema.Tuple([Schema.String, Schema.Number])).check(check)
+    Schema.Array(Schema.Tuple([Schema.String, Schema.Number])).check(check);
     Schema.Array(Schema.String).check(
       // @ts-expect-error Argument of type
-      check
-    )
-  })
-})
+      check,
+    );
+  });
+});

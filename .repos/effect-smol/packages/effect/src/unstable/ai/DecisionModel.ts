@@ -7,12 +7,12 @@
  *
  * @since 4.0.0
  */
-import * as Context from "../../Context.ts"
-import * as Effect from "../../Effect.ts"
-import * as Predicate from "../../Predicate.ts"
-import * as Schema from "../../Schema.ts"
-import * as AiError from "./AiError.ts"
-import type * as Decision from "./Decision.ts"
+import * as Context from "../../Context.ts";
+import * as Effect from "../../Effect.ts";
+import * as Predicate from "../../Predicate.ts";
+import * as Schema from "../../Schema.ts";
+import * as AiError from "./AiError.ts";
+import type * as Decision from "./Decision.ts";
 
 /**
  * Service key for answering decisions about an input.
@@ -24,8 +24,8 @@ import type * as Decision from "./Decision.ts"
  * @since 4.0.0
  */
 export const DecisionModel: Context.Service<DecisionModel, DecisionModel> = Context.Service(
-  "effect/unstable/ai/DecisionModel"
-)
+  "effect/unstable/ai/DecisionModel",
+);
 
 /**
  * Brand type for `DecisionModel`.
@@ -33,7 +33,7 @@ export const DecisionModel: Context.Service<DecisionModel, DecisionModel> = Cont
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/ai/DecisionModel"
+export type TypeId = "~effect/ai/DecisionModel";
 
 /**
  * Brand for `DecisionModel` implementations.
@@ -41,7 +41,7 @@ export type TypeId = "~effect/ai/DecisionModel"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~effect/ai/DecisionModel"
+export const TypeId: TypeId = "~effect/ai/DecisionModel";
 
 /**
  * Provider-reported token usage. Unreported counts are `undefined`.
@@ -50,10 +50,10 @@ export const TypeId: TypeId = "~effect/ai/DecisionModel"
  * @since 4.0.0
  */
 export class DecisionUsage extends Schema.Class<DecisionUsage>(
-  "effect/ai/DecisionModel/DecisionUsage"
+  "effect/ai/DecisionModel/DecisionUsage",
 )({
   inputTokens: Schema.optional(Schema.Finite),
-  outputTokens: Schema.optional(Schema.Finite)
+  outputTokens: Schema.optional(Schema.Finite),
 }) {}
 
 /**
@@ -63,7 +63,7 @@ export class DecisionUsage extends Schema.Class<DecisionUsage>(
  * @since 4.0.0
  */
 export interface DecideOptions<Input extends Schema.Constraint> {
-  readonly input: Input["Type"]
+  readonly input: Input["Type"];
 }
 
 /**
@@ -75,8 +75,8 @@ export interface DecideOptions<Input extends Schema.Constraint> {
  * @since 4.0.0
  */
 export interface DecideResponse<Decisions extends Record<string, Decision.Any>> {
-  readonly answers: Decision.Answers<Decisions>
-  readonly usage: DecisionUsage
+  readonly answers: Decision.Answers<Decisions>;
+  readonly usage: DecisionUsage;
 }
 
 /**
@@ -88,8 +88,8 @@ export interface DecideResponse<Decisions extends Record<string, Decision.Any>> 
  * @since 4.0.0
  */
 export interface ProviderOptions {
-  readonly state: Schema.Json
-  readonly decisions: Record<string, Decision.Any>
+  readonly state: Schema.Json;
+  readonly decisions: Record<string, Decision.Any>;
 }
 
 /**
@@ -99,10 +99,10 @@ export interface ProviderOptions {
  * @since 4.0.0
  */
 export interface ProviderClassifyAnswer {
-  readonly _tag: "Classify"
-  readonly label: string
-  readonly probabilities: Readonly<Record<string, number>>
-  readonly confidence?: number | undefined
+  readonly _tag: "Classify";
+  readonly label: string;
+  readonly probabilities: Readonly<Record<string, number>>;
+  readonly confidence?: number | undefined;
 }
 
 /**
@@ -114,10 +114,10 @@ export interface ProviderClassifyAnswer {
  * @since 4.0.0
  */
 export interface ProviderRateAnswer {
-  readonly _tag: "Rate"
-  readonly rating: number
-  readonly probabilities: Readonly<Record<string, number>>
-  readonly confidence?: number | undefined
+  readonly _tag: "Rate";
+  readonly rating: number;
+  readonly probabilities: Readonly<Record<string, number>>;
+  readonly confidence?: number | undefined;
 }
 
 /**
@@ -127,8 +127,8 @@ export interface ProviderRateAnswer {
  * @since 4.0.0
  */
 export interface ProviderProbabilityAnswer {
-  readonly _tag: "Probability"
-  readonly probability: number
+  readonly _tag: "Probability";
+  readonly probability: number;
 }
 
 /**
@@ -137,7 +137,10 @@ export interface ProviderProbabilityAnswer {
  * @category models
  * @since 4.0.0
  */
-export type ProviderAnswer = ProviderClassifyAnswer | ProviderRateAnswer | ProviderProbabilityAnswer
+export type ProviderAnswer =
+  | ProviderClassifyAnswer
+  | ProviderRateAnswer
+  | ProviderProbabilityAnswer;
 
 /**
  * Provider response for a decision request.
@@ -148,11 +151,11 @@ export type ProviderAnswer = ProviderClassifyAnswer | ProviderRateAnswer | Provi
  * @since 4.0.0
  */
 export interface ProviderResponse {
-  readonly answers: Readonly<Record<string, ProviderAnswer>>
+  readonly answers: Readonly<Record<string, ProviderAnswer>>;
   readonly usage: {
-    readonly inputTokens: number | undefined
-    readonly outputTokens: number | undefined
-  }
+    readonly inputTokens: number | undefined;
+    readonly outputTokens: number | undefined;
+  };
 }
 
 /**
@@ -162,134 +165,160 @@ export interface ProviderResponse {
  * @since 4.0.0
  */
 export interface DecisionModel {
-  readonly [TypeId]: TypeId
-  readonly decide: <Input extends Schema.Constraint, Decisions extends Record<string, Decision.Any>>(
+  readonly [TypeId]: TypeId;
+  readonly decide: <
+    Input extends Schema.Constraint,
+    Decisions extends Record<string, Decision.Any>,
+  >(
     definition: Decision.Definition<Input, Decisions>,
-    options: DecideOptions<Input>
-  ) => Effect.Effect<DecideResponse<Decisions>, AiError.AiError, Input["EncodingServices"]>
+    options: DecideOptions<Input>,
+  ) => Effect.Effect<DecideResponse<Decisions>, AiError.AiError, Input["EncodingServices"]>;
 }
 
 const invalidOutput = (description: string): AiError.AiError =>
   AiError.make({
     module: "DecisionModel",
     method: "decide",
-    reason: new AiError.InvalidOutputError({ description })
-  })
+    reason: new AiError.InvalidOutputError({ description }),
+  });
 
-const isFiniteNumber = (value: unknown): value is number => Predicate.isNumber(value) && Number.isFinite(value)
+const isFiniteNumber = (value: unknown): value is number =>
+  Predicate.isNumber(value) && Number.isFinite(value);
 
-const isUnitInterval = (value: unknown): value is number => isFiniteNumber(value) && value >= 0 && value <= 1
+const isUnitInterval = (value: unknown): value is number =>
+  isFiniteNumber(value) && value >= 0 && value <= 1;
 
 const validateDistribution = (
   key: string,
   labels: ReadonlyArray<string>,
-  answer: Record<string, unknown>
+  answer: Record<string, unknown>,
 ): Record<string, number> | AiError.AiError => {
-  const raw = answer.probabilities
+  const raw = answer.probabilities;
   if (!Predicate.isObject(raw)) {
-    return invalidOutput(`Provider returned no probabilities for decision "${key}"`)
+    return invalidOutput(`Provider returned no probabilities for decision "${key}"`);
   }
-  const probabilities: Record<string, number> = Object.create(null)
-  let total = 0
+  const probabilities: Record<string, number> = Object.create(null);
+  let total = 0;
   for (const label of labels) {
-    const value = raw[label]
+    const value = raw[label];
     if (!isUnitInterval(value)) {
-      return invalidOutput(`Provider returned no probability for label "${label}" of decision "${key}"`)
+      return invalidOutput(
+        `Provider returned no probability for label "${label}" of decision "${key}"`,
+      );
     }
-    probabilities[label] = value
-    total += value
+    probabilities[label] = value;
+    total += value;
   }
   if (Math.abs(total - 1) > 1e-6) {
-    return invalidOutput(`Provider returned probabilities that do not sum to 1 for decision "${key}"`)
+    return invalidOutput(
+      `Provider returned probabilities that do not sum to 1 for decision "${key}"`,
+    );
   }
-  return probabilities
-}
+  return probabilities;
+};
 
 const validateConfidence = (
   key: string,
-  answer: Record<string, unknown>
+  answer: Record<string, unknown>,
 ): number | undefined | AiError.AiError => {
   if (answer.confidence === undefined) {
-    return undefined
+    return undefined;
   }
   return isUnitInterval(answer.confidence)
     ? answer.confidence
-    : invalidOutput(`Provider returned confidence outside [0, 1] for decision "${key}"`)
-}
+    : invalidOutput(`Provider returned confidence outside [0, 1] for decision "${key}"`);
+};
 
 const validateAnswer = (
   key: string,
   decision: Decision.Any,
-  answer: unknown
+  answer: unknown,
 ): Decision.Answer<Decision.Any> | AiError.AiError => {
   if (!Predicate.isObject(answer)) {
-    return invalidOutput(`Provider returned no answer for decision "${key}"`)
+    return invalidOutput(`Provider returned no answer for decision "${key}"`);
   }
   if (answer._tag !== decision._tag) {
     return invalidOutput(
-      `Provider returned a "${String(answer._tag)}" answer for decision "${key}", expected "${decision._tag}"`
-    )
+      `Provider returned a "${String(answer._tag)}" answer for decision "${key}", expected "${decision._tag}"`,
+    );
   }
   switch (decision._tag) {
     case "Classify": {
-      const labels = Object.keys(decision.criteria)
+      const labels = Object.keys(decision.criteria);
       if (!Predicate.isString(answer.label) || !labels.includes(answer.label)) {
-        return invalidOutput(`Provider returned an unknown label for decision "${key}"`)
+        return invalidOutput(`Provider returned an unknown label for decision "${key}"`);
       }
-      const confidence = validateConfidence(key, answer)
+      const confidence = validateConfidence(key, answer);
       if (AiError.isAiError(confidence)) {
-        return confidence
+        return confidence;
       }
-      const probabilities = validateDistribution(key, labels, answer)
+      const probabilities = validateDistribution(key, labels, answer);
       if (AiError.isAiError(probabilities)) {
-        return probabilities
+        return probabilities;
       }
-      return { label: answer.label, probabilities, ...(confidence === undefined ? undefined : { confidence }) }
+      return {
+        label: answer.label,
+        probabilities,
+        ...(confidence === undefined ? undefined : { confidence }),
+      };
     }
     case "Rate": {
-      const levels = decision.criteria
-      if (!isFiniteNumber(answer.rating) || answer.rating < 0 || answer.rating > levels.length - 1) {
-        return invalidOutput(`Provider returned a rating outside [0, ${levels.length - 1}] for decision "${key}"`)
+      const levels = decision.criteria;
+      if (
+        !isFiniteNumber(answer.rating) ||
+        answer.rating < 0 ||
+        answer.rating > levels.length - 1
+      ) {
+        return invalidOutput(
+          `Provider returned a rating outside [0, ${levels.length - 1}] for decision "${key}"`,
+        );
       }
-      const confidence = validateConfidence(key, answer)
+      const confidence = validateConfidence(key, answer);
       if (AiError.isAiError(confidence)) {
-        return confidence
+        return confidence;
       }
-      const probabilities = validateDistribution(key, levels, answer)
+      const probabilities = validateDistribution(key, levels, answer);
       if (AiError.isAiError(probabilities)) {
-        return probabilities
+        return probabilities;
       }
-      let label = levels[0]
+      let label = levels[0];
       for (let i = 1; i < levels.length; i++) {
         if (probabilities[levels[i]] > probabilities[label]) {
-          label = levels[i]
+          label = levels[i];
         }
       }
-      return { rating: answer.rating, label, probabilities, ...(confidence === undefined ? undefined : { confidence }) }
+      return {
+        rating: answer.rating,
+        label,
+        probabilities,
+        ...(confidence === undefined ? undefined : { confidence }),
+      };
     }
     case "Probability": {
       if (!isUnitInterval(answer.probability)) {
-        return invalidOutput(`Provider returned a probability outside [0, 1] for decision "${key}"`)
+        return invalidOutput(
+          `Provider returned a probability outside [0, 1] for decision "${key}"`,
+        );
       }
-      return { probability: answer.probability }
+      return { probability: answer.probability };
     }
   }
-}
+};
 
 const validateAnswers = <Decisions extends Record<string, Decision.Any>>(
   decisions: Decisions,
-  answers: Readonly<Record<string, ProviderAnswer>>
+  answers: Readonly<Record<string, ProviderAnswer>>,
 ): Effect.Effect<Decision.Answers<Decisions>, AiError.AiError> => {
-  const validated: Record<string, Decision.Answer<Decision.Any>> = Object.create(null)
+  const validated: Record<string, Decision.Answer<Decision.Any>> = Object.create(null);
   for (const key of Object.keys(decisions)) {
-    const answer = validateAnswer(key, decisions[key], answers[key])
+    const answer = validateAnswer(key, decisions[key], answers[key]);
     if (AiError.isAiError(answer)) {
-      return Effect.fail(answer)
+      return Effect.fail(answer);
     }
-    validated[key] = answer
+    validated[key] = answer;
   }
-  return Effect.succeed(validated as Decision.Answers<Decisions>)
-}
+  return Effect.succeed(validated as Decision.Answers<Decisions>);
+};
 
 /**
  * Creates a `DecisionModel` that encodes inputs as JSON and validates provider answers.
@@ -306,22 +335,22 @@ const validateAnswers = <Decisions extends Record<string, Decision.Any>>(
  * @since 4.0.0
  */
 export const make = (params: {
-  readonly decide: (options: ProviderOptions) => Effect.Effect<ProviderResponse, AiError.AiError>
+  readonly decide: (options: ProviderOptions) => Effect.Effect<ProviderResponse, AiError.AiError>;
 }): Effect.Effect<DecisionModel> =>
   Effect.sync(() =>
     DecisionModel.of({
       [TypeId]: TypeId,
       decide: <Input extends Schema.Constraint, Decisions extends Record<string, Decision.Any>>(
         definition: Decision.Definition<Input, Decisions>,
-        options: DecideOptions<Input>
+        options: DecideOptions<Input>,
       ): Effect.Effect<DecideResponse<Decisions>, AiError.AiError, Input["EncodingServices"]> =>
         Schema.encodeEffect(Schema.toCodecJson(definition.input))(options.input).pipe(
           Effect.mapError((error) =>
             AiError.make({
               module: "DecisionModel",
               method: "decide",
-              reason: new AiError.InvalidUserInputError({ description: error.message })
-            })
+              reason: new AiError.InvalidUserInputError({ description: error.message }),
+            }),
           ),
           Effect.flatMap((state) => params.decide({ state, decisions: definition.decisions })),
           Effect.flatMap((response) =>
@@ -331,15 +360,15 @@ export const make = (params: {
                 answers,
                 usage: new DecisionUsage({
                   inputTokens: response.usage.inputTokens,
-                  outputTokens: response.usage.outputTokens
-                })
-              })
-            )
+                  outputTokens: response.usage.outputTokens,
+                }),
+              }),
+            ),
           ),
-          (effect) => Effect.withSpan(effect, "DecisionModel.decide", { captureStackTrace: false })
-        )
-    })
-  )
+          (effect) => Effect.withSpan(effect, "DecisionModel.decide", { captureStackTrace: false }),
+        ),
+    }),
+  );
 
 /**
  * Answers a decision definition using the current `DecisionModel` service.
@@ -377,8 +406,14 @@ export const make = (params: {
  * @category decisions
  * @since 4.0.0
  */
-export const decide = <Input extends Schema.Constraint, Decisions extends Record<string, Decision.Any>>(
+export const decide = <
+  Input extends Schema.Constraint,
+  Decisions extends Record<string, Decision.Any>,
+>(
   definition: Decision.Definition<Input, Decisions>,
-  options: DecideOptions<Input>
-): Effect.Effect<DecideResponse<Decisions>, AiError.AiError, DecisionModel | Input["EncodingServices"]> =>
-  DecisionModel.use((model) => model.decide(definition, options))
+  options: DecideOptions<Input>,
+): Effect.Effect<
+  DecideResponse<Decisions>,
+  AiError.AiError,
+  DecisionModel | Input["EncodingServices"]
+> => DecisionModel.use((model) => model.decide(definition, options));

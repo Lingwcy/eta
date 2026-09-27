@@ -3,14 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "homepage": "https://effect.website",
+  "bin": {
+    "effect-api-diff": "./src/bin.ts"
+  },
   "type": "module",
   "exports": {
     ".": "./src/Cli.ts",
     "./*": "./src/*.ts",
     "./bin": null
-  },
-  "bin": {
-    "effect-api-diff": "./src/bin.ts"
   },
   "scripts": {
     "check": "tsc -b tsconfig.json"

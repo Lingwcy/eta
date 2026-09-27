@@ -1,29 +1,16 @@
 {
   "name": "@effect/docgen",
   "version": "4.0.0-rc.117",
-  "type": "module",
-  "license": "MIT",
   "description": "An opinionated documentation generator for Effect projects",
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "homepage": "https://effect.website",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/tools/docgen"
   },
-  "sideEffects": [],
   "bin": {
     "docgen": "./src/bin.ts"
-  },
-  "exports": {
-    "./package.json": "./package.json",
-    "./schema.json": "./schema.json",
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./index": null,
-    "./bin": null
   },
   "files": [
     "src/**/*.ts",
@@ -36,9 +23,17 @@
     "CLAUDE.md",
     "ai-docs/**/*"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    "./schema.json": "./schema.json",
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts",
+    "./index": null,
+    "./bin": null
+  },
   "publishConfig": {
-    "access": "public",
-    "provenance": true,
     "bin": {
       "docgen": "./dist/bin.js"
     },
@@ -49,7 +44,9 @@
       "./*": "./dist/*.js",
       "./index": null,
       "./bin": null
-    }
+    },
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "tsc -b tsconfig.json && pnpm babel",
@@ -68,10 +65,6 @@
     "ts-morph": "^28.0.0",
     "tsconfck": "^3.1.6"
   },
-  "peerDependencies": {
-    "tsx": ">=4.19.3 <5.0.0",
-    "typescript": ">=5.8.2 <7.0.0"
-  },
   "devDependencies": {
     "@effect/vitest": "workspace:^",
     "@types/babel__code-frame": "^7.27.0",
@@ -80,5 +73,12 @@
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1"
+  },
+  "peerDependencies": {
+    "tsx": ">=4.19.3 <5.0.0",
+    "typescript": ">=5.8.2 <7.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -8,14 +8,14 @@
  *
  * @since 4.0.0
  */
-import * as Context from "../../Context.ts"
-import * as Effect from "../../Effect.ts"
-import type * as Layer from "../../Layer.ts"
-import * as Stream from "../../Stream.ts"
-import * as Headers from "./Headers.ts"
-import * as HttpClient from "./HttpClient.ts"
-import * as HttpClientError from "./HttpClientError.ts"
-import * as HttpClientResponse from "./HttpClientResponse.ts"
+import * as Context from "../../Context.ts";
+import * as Effect from "../../Effect.ts";
+import type * as Layer from "../../Layer.ts";
+import * as Stream from "../../Stream.ts";
+import * as Headers from "./Headers.ts";
+import * as HttpClient from "./HttpClient.ts";
+import * as HttpClientError from "./HttpClientError.ts";
+import * as HttpClientResponse from "./HttpClientResponse.ts";
 
 /**
  * Context reference for the `fetch` implementation used by the fetch-based HTTP client.
@@ -27,9 +27,12 @@ import * as HttpClientResponse from "./HttpClientResponse.ts"
  * @category services
  * @since 4.0.0
  */
-export const Fetch = Context.Reference<typeof globalThis.fetch>("effect/http/FetchHttpClient/Fetch", {
-  defaultValue: () => globalThis.fetch
-})
+export const Fetch = Context.Reference<typeof globalThis.fetch>(
+  "effect/http/FetchHttpClient/Fetch",
+  {
+    defaultValue: () => globalThis.fetch,
+  },
+);
 
 /**
  * Service that contains default fetch options for the fetch-based HTTP client.
@@ -47,17 +50,17 @@ export const Fetch = Context.Reference<typeof globalThis.fetch>("effect/http/Fet
  * @since 4.0.0
  */
 export class RequestInit extends Context.Service<RequestInit, globalThis.RequestInit>()(
-  "effect/http/FetchHttpClient/RequestInit"
+  "effect/http/FetchHttpClient/RequestInit",
 ) {}
 
 const fetch: HttpClient.HttpClient = HttpClient.make((request, url, signal, fiber) => {
-  const fetch = fiber.getRef(Fetch)
-  const options: globalThis.RequestInit = Context.getOrUndefined(fiber.context, RequestInit) ?? {}
+  const fetch = fiber.getRef(Fetch);
+  const options: globalThis.RequestInit = Context.getOrUndefined(fiber.context, RequestInit) ?? {};
   let headers = options.headers
     ? Headers.merge(Headers.fromInput(options.headers as Headers.Input), request.headers)
-    : request.headers
+    : request.headers;
   if (headers["content-length"]) {
-    headers = Headers.remove(headers, "content-length")
+    headers = Headers.remove(headers, "content-length");
   }
   const send = (body: BodyInit | undefined) =>
     Effect.map(
@@ -68,30 +71,33 @@ const fetch: HttpClient.HttpClient = HttpClient.make((request, url, signal, fibe
             method: request.method,
             headers,
             body,
-            duplex: typeof ReadableStream !== "undefined" && body instanceof ReadableStream ? "half" : undefined,
-            signal
+            duplex:
+              typeof ReadableStream !== "undefined" && body instanceof ReadableStream
+                ? "half"
+                : undefined,
+            signal,
           } as any),
         catch: (cause) =>
           new HttpClientError.HttpClientError({
             reason: new HttpClientError.TransportError({
               request,
-              cause
-            })
-          })
+              cause,
+            }),
+          }),
       }),
-      (response) => HttpClientResponse.fromWeb(request, response)
-    )
+      (response) => HttpClientResponse.fromWeb(request, response),
+    );
   switch (request.body._tag) {
     case "Raw":
     case "Uint8Array":
-      return send(request.body.body as any)
+      return send(request.body.body as any);
     case "FormData":
-      return send(request.body.formData)
+      return send(request.body.formData);
     case "Stream":
-      return Effect.flatMap(Stream.toReadableStreamEffect(request.body.stream), send)
+      return Effect.flatMap(Stream.toReadableStreamEffect(request.body.stream), send);
   }
-  return send(undefined)
-})
+  return send(undefined);
+});
 
 /**
  * Layer that provides an `HttpClient` implementation backed by the configured
@@ -122,4 +128,6 @@ const fetch: HttpClient.HttpClient = HttpClient.make((request, url, signal, fibe
  * @category layers
  * @since 4.0.0
  */
-export const layer: Layer.Layer<HttpClient.HttpClient> = HttpClient.layerMergedContext(Effect.succeed(fetch))
+export const layer: Layer.Layer<HttpClient.HttpClient> = HttpClient.layerMergedContext(
+  Effect.succeed(fetch),
+);

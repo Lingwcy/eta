@@ -12,11 +12,11 @@ without it for schema types that define a specialized construct signature.
 **Example**
 
 ```ts
-import { Schema } from "effect"
+import { Schema } from "effect";
 
 class MyString extends Schema.String {
-  static readonly decodeUnknownSync = Schema.decodeUnknownSync(this)
+  static readonly decodeUnknownSync = Schema.decodeUnknownSync(this);
 }
 
-MyString.decodeUnknownSync("a") // "a"
+MyString.decodeUnknownSync("a"); // "a"
 ```

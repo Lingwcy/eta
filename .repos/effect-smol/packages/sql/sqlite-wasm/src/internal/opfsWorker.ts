@@ -4,4 +4,4 @@ export type OpfsWorkerMessage =
   | ["import", id: number, data: Uint8Array]
   | ["export", id: number]
   | ["update_hook"]
-  | ["close"]
+  | ["close"];

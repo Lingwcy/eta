@@ -9,11 +9,11 @@
  *
  * @since 4.0.0
  */
-import * as Cause from "effect/Cause"
-import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
-import { constVoid, dual } from "effect/Function"
-import type * as Fiber from "./Fiber.ts"
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import { constVoid, dual } from "effect/Function";
+import type * as Fiber from "./Fiber.ts";
 
 /**
  * Represents a teardown function that handles program completion and determines the exit code.
@@ -58,7 +58,7 @@ import type * as Fiber from "./Fiber.ts"
  * @since 4.0.0
  */
 export interface Teardown {
-  <E, A>(exit: Exit.Exit<E, A>, onExit: (code: number) => void): void
+  <E, A>(exit: Exit.Exit<E, A>, onExit: (code: number) => void): void;
 }
 
 /**
@@ -107,12 +107,12 @@ export interface Teardown {
  */
 export const defaultTeardown: Teardown = <E, A>(
   exit: Exit.Exit<E, A>,
-  onExit: (code: number) => void
+  onExit: (code: number) => void,
 ) => {
-  if (Exit.isSuccess(exit)) return onExit(0)
-  if (Cause.hasInterruptsOnly(exit.cause)) return onExit(130)
-  return onExit(getErrorExitCode(Cause.squash(exit.cause)))
-}
+  if (Exit.isSuccess(exit)) return onExit(0);
+  if (Cause.hasInterruptsOnly(exit.cause)) return onExit(130);
+  return onExit(getErrorExitCode(Cause.squash(exit.cause)));
+};
 
 /**
  * Creates a platform-specific main program runner that handles Effect execution lifecycle.
@@ -179,54 +179,54 @@ export const defaultTeardown: Teardown = <E, A>(
  * @since 4.0.0
  */
 export const makeRunMain = (
-  f: <E, A>(
-    options: {
-      readonly fiber: Fiber.Fiber<A, E>
-      readonly teardown: Teardown
-    }
-  ) => void
+  f: <E, A>(options: { readonly fiber: Fiber.Fiber<A, E>; readonly teardown: Teardown }) => void,
 ): {
-  (
-    options?: {
-      readonly disableErrorReporting?: boolean | undefined
-      readonly teardown?: Teardown | undefined
-    }
-  ): <E, A>(effect: Effect.Effect<A, E>) => void
+  (options?: {
+    readonly disableErrorReporting?: boolean | undefined;
+    readonly teardown?: Teardown | undefined;
+  }): <E, A>(effect: Effect.Effect<A, E>) => void;
   <E, A>(
     effect: Effect.Effect<A, E>,
     options?: {
-      readonly disableErrorReporting?: boolean | undefined
-      readonly teardown?: Teardown | undefined
-    }
-  ): void
+      readonly disableErrorReporting?: boolean | undefined;
+      readonly teardown?: Teardown | undefined;
+    },
+  ): void;
 } =>
-  dual((args) => Effect.isEffect(args[0]), (effect: Effect.Effect<any, any>, options?: {
-    readonly disableErrorReporting?: boolean | undefined
-    readonly teardown?: Teardown | undefined
-  }) => {
-    const fiber = options?.disableErrorReporting === true
-      ? Effect.runFork(effect)
-      : Effect.runFork(
-        Effect.tapCause(effect, (cause) => {
-          if (Cause.hasInterruptsOnly(cause)) return Effect.void
-          const isReported = getErrorReported(Cause.squash(cause))
-          return isReported ? Effect.logError(cause) : Effect.void
-        })
-      )
-    try {
-      const keepAlive = globalThis.setInterval(constVoid, 2_147_483_647)
-      fiber.addObserver(() => {
-        clearInterval(keepAlive)
-      })
-    } catch {}
-    const teardown = options?.teardown ?? defaultTeardown
-    return f({ fiber, teardown })
-  })
+  dual(
+    (args) => Effect.isEffect(args[0]),
+    (
+      effect: Effect.Effect<any, any>,
+      options?: {
+        readonly disableErrorReporting?: boolean | undefined;
+        readonly teardown?: Teardown | undefined;
+      },
+    ) => {
+      const fiber =
+        options?.disableErrorReporting === true
+          ? Effect.runFork(effect)
+          : Effect.runFork(
+              Effect.tapCause(effect, (cause) => {
+                if (Cause.hasInterruptsOnly(cause)) return Effect.void;
+                const isReported = getErrorReported(Cause.squash(cause));
+                return isReported ? Effect.logError(cause) : Effect.void;
+              }),
+            );
+      try {
+        const keepAlive = globalThis.setInterval(constVoid, 2_147_483_647);
+        fiber.addObserver(() => {
+          clearInterval(keepAlive);
+        });
+      } catch {}
+      const teardown = options?.teardown ?? defaultTeardown;
+      return f({ fiber, teardown });
+    },
+  );
 
 declare global {
   interface Error {
-    readonly [errorExitCode]?: number
-    readonly [errorReported]?: boolean
+    readonly [errorExitCode]?: number;
+    readonly [errorReported]?: boolean;
   }
 }
 
@@ -241,7 +241,7 @@ declare global {
  * @category symbols
  * @since 4.0.0
  */
-export type errorExitCode = "~effect/Runtime/errorExitCode"
+export type errorExitCode = "~effect/Runtime/errorExitCode";
 
 /**
  * Allows associating an exit code with an error for determining the process
@@ -282,7 +282,7 @@ export type errorExitCode = "~effect/Runtime/errorExitCode"
  * @category symbols
  * @since 4.0.0
  */
-export const errorExitCode: errorExitCode = "~effect/Runtime/errorExitCode"
+export const errorExitCode: errorExitCode = "~effect/Runtime/errorExitCode";
 
 /**
  * Reads the runtime exit-code marker from an unknown error value.
@@ -310,13 +310,13 @@ export const errorExitCode: errorExitCode = "~effect/Runtime/errorExitCode"
  */
 export const getErrorExitCode = (u: unknown): number => {
   if (typeof u === "object" && u !== null && errorExitCode in u) {
-    const code = u[errorExitCode]
+    const code = u[errorExitCode];
     if (typeof code === "number") {
-      return code
+      return code;
     }
   }
-  return 1
-}
+  return 1;
+};
 
 /**
  * Type-level key for the `Runtime.errorReported` marker.
@@ -329,7 +329,7 @@ export const getErrorExitCode = (u: unknown): number => {
  * @category symbols
  * @since 4.0.0
  */
-export type errorReported = "~effect/Runtime/errorReported"
+export type errorReported = "~effect/Runtime/errorReported";
 
 /**
  * Defines the runtime marker that controls default `runMain` error logging for an error.
@@ -371,7 +371,7 @@ export type errorReported = "~effect/Runtime/errorReported"
  * @category symbols
  * @since 4.0.0
  */
-export const errorReported: errorReported = "~effect/Runtime/errorReported"
+export const errorReported: errorReported = "~effect/Runtime/errorReported";
 
 /**
  * Reads the runtime error-reporting marker from an unknown error value.
@@ -398,10 +398,10 @@ export const errorReported: errorReported = "~effect/Runtime/errorReported"
  */
 export const getErrorReported = (u: unknown): boolean => {
   if (typeof u === "object" && u !== null && errorReported in u) {
-    const isReported = u[errorReported]
+    const isReported = u[errorReported];
     if (typeof isReported === "boolean") {
-      return isReported
+      return isReported;
     }
   }
-  return true
-}
+  return true;
+};

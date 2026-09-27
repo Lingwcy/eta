@@ -11,11 +11,11 @@
  *
  * @since 4.0.0
  */
-import type * as Effect from "../../Effect.ts"
-import * as CompilerRegistry from "../../internal/schema/compilerRegistry.ts"
-import * as InternalParser from "../../internal/schema/parser.ts"
-import type * as SchemaAST from "../../SchemaAST.ts"
-import type * as SchemaIssue from "../../SchemaIssue.ts"
+import type * as Effect from "../../Effect.ts";
+import * as CompilerRegistry from "../../internal/schema/compilerRegistry.ts";
+import * as InternalParser from "../../internal/schema/parser.ts";
+import type * as SchemaAST from "../../SchemaAST.ts";
+import type * as SchemaIssue from "../../SchemaIssue.ts";
 
 /**
  * The result returned by {@link Decode} or {@link Make} when the fast path fails.
@@ -23,7 +23,7 @@ import type * as SchemaIssue from "../../SchemaIssue.ts"
  * @category symbols
  * @since 4.0.0
  */
-export const invalid = CompilerRegistry.invalid
+export const invalid = CompilerRegistry.invalid;
 
 /**
  * The sentinel distinguishing an absent input from a present `undefined`.
@@ -34,7 +34,7 @@ export const invalid = CompilerRegistry.invalid
  * @category symbols
  * @since 4.0.0
  */
-export const missing = InternalParser.missing
+export const missing = InternalParser.missing;
 
 /**
  * A compiled boolean validator.
@@ -52,7 +52,7 @@ export const missing = InternalParser.missing
  * @since 4.0.0
  */
 export interface Is {
-  (input: unknown, options: SchemaAST.ParseOptions): boolean
+  (input: unknown, options: SchemaAST.ParseOptions): boolean;
 }
 
 /**
@@ -79,7 +79,7 @@ export interface Is {
  * @since 4.0.0
  */
 export interface Decode {
-  (input: unknown, options: SchemaAST.ParseOptions): unknown | typeof invalid
+  (input: unknown, options: SchemaAST.ParseOptions): unknown | typeof invalid;
 }
 
 /**
@@ -102,7 +102,7 @@ export interface Decode {
  * @since 4.0.0
  */
 export interface Make {
-  (input: unknown, options: SchemaAST.ParseOptions): unknown | typeof invalid
+  (input: unknown, options: SchemaAST.ParseOptions): unknown | typeof invalid;
 }
 
 /**
@@ -120,7 +120,7 @@ export interface Make {
  * @since 4.0.0
  */
 export interface DecodeEffect {
-  (input: unknown, options: SchemaAST.ParseOptions): Effect.Effect<unknown, SchemaIssue.Issue, any>
+  (input: unknown, options: SchemaAST.ParseOptions): Effect.Effect<unknown, SchemaIssue.Issue, any>;
 }
 
 /**
@@ -130,7 +130,7 @@ export interface DecodeEffect {
  * @since 4.0.0
  */
 export interface MakeEffect {
-  (input: unknown, options: SchemaAST.ParseOptions): Effect.Effect<unknown, SchemaIssue.Issue, any>
+  (input: unknown, options: SchemaAST.ParseOptions): Effect.Effect<unknown, SchemaIssue.Issue, any>;
 }
 
 /**
@@ -167,10 +167,10 @@ export interface MakeEffect {
  * @since 4.0.0
  */
 export interface CompiledDecoder {
-  readonly is?: Is | undefined
-  readonly decode?: Decode | undefined
-  readonly make?: Make | undefined
-  readonly decodeEffect: DecodeEffect
+  readonly is?: Is | undefined;
+  readonly decode?: Decode | undefined;
+  readonly make?: Make | undefined;
+  readonly decodeEffect: DecodeEffect;
   /**
    * Constructs this node without replay, including Class construction and child
    * defaults. Omit it to use the lazy interpreted constructor. This operation
@@ -178,7 +178,7 @@ export interface CompiledDecoder {
    * Propagate `missing` as a success when no value is produced; the parent handles
    * optional omission or missing-key issues. A present `undefined` is not `missing`.
    */
-  readonly makeEffect?: MakeEffect | undefined
+  readonly makeEffect?: MakeEffect | undefined;
 }
 
 /**
@@ -204,5 +204,5 @@ export interface CompiledDecoder {
  * @since 4.0.0
  */
 export const set = (ast: SchemaAST.AST, decoder: CompiledDecoder): void => {
-  CompilerRegistry.set(ast, decoder)
-}
+  CompilerRegistry.set(ast, decoder);
+};

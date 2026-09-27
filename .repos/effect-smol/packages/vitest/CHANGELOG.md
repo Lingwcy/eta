@@ -44,7 +44,7 @@
   Struct, Record, JSON-object, and record-shaped `Arbitrary.all` outputs periodically use a null prototype as an edge
   case, preserving that prototype throughout shrinking and replay without perturbing structural PRNG choices. The change
   adds 0.01–0.03 KB gzip to representative Arbitrary fixtures and leaves production-only bundle sentinels unchanged.
-  
+
   Add `Arbitrary.map`, `Arbitrary.flatMap`, `Arbitrary.filter`, `Arbitrary.filterMap`, and `Arbitrary.all` for composing
   derived Arbitraries without exposing a second catalog of primitive constructors. Filtering remains bounded and
   promotes valid shrink descendants through rejected nodes. `maxShrinks` bounds every inspected shrink candidate,
@@ -53,7 +53,7 @@
   checkpoints, and one shared residual recursion budget. `all` combines tuples, iterables, and records with a shared
   budget, randomized internal generation order, stable output shape, and independent member shrinking. Arbitrary values
   implement `Pipeable` for composition with data-last combinators.
-  
+
   Add the experimental Schema `arbitraryConstraint` and `toCodecArbitrary` annotations and their
   `Schema.Annotations.ToArbitrary` types. Declarations can provide a Schema Link optimized for generation, while filters
   can contribute native semantic constraints. The callback receives decoded type parameters and normalized constraints.
@@ -61,12 +61,12 @@
   ReadonlyMap, and ReadonlySet. Effect-specific HashMap, HashSet, Chunk, Graph, BigDecimal, and date-time declarations keep
   local generation Links, while declarations with productive canonical codecs require no arbitrary-specific annotation.
   `Schema.isUniqueKey` provides key-based Map uniqueness for explicit array representations.
-  
+
   The same ownership policy applies to formatter and equivalence derivation: implementations for common declarations
   live in their compiler, while domain-specific and dynamically constructed declarations retain local annotations.
   Declarations whose intrinsic `Equal` implementation already matches their Schema equivalence need no annotation or
   compiler special case. This keeps unused common callbacks out of production Schema bundles.
-  
+
   Against the previous layout, `schema-toArbitrary` decreases from 36.68 KB to 33.24 KB gzip and
   `arbitrary-combinators` decreases from 37.16 KB to 33.70 KB. `schema-toFormatter` increases from 18.92 KB to 19.49 KB
   and `schema-toEquivalence` increases from 19.05 KB to 19.39 KB because callers that explicitly derive these capabilities
@@ -77,39 +77,39 @@
   declarations increases from 18.34 KB to 23.01 KB.
   The complete 31-scenario native Arbitrary comparison reports no statistically classified runtime regression; the five
   moved BigDecimal and date-time scenarios remain within measurement noise.
-  
+
   Add `SchemaGetter.forbiddenEncoding`, a reusable getter for the encode side of decode-only Schema transformations.
-  
+
   Remove the fast-check bridge from the `effect` package, including `Schema.toArbitrary` and
   `effect/testing/FastCheck`. Replace the legacy `Schema.Annotations.ToArbitrary` callback contract with the native
   Schema-first types. The `effect` package no longer depends on fast-check.
-  
+
   Migrate `TestSchema.Asserts.verifyLosslessTransformation` and `TestSchema.Asserts.arbitrary().verifyGeneration` to the
   native runner. Both methods now accept native check options directly, bound unsuccessful generation, and include the
   shrunk input and replay token in property failures.
-  
+
   Use the Arbitrary runner for all `@effect/vitest` property tests. Property inputs may combine Schemas and Arbitraries,
   and are composed directly with `Arbitrary.all`; check options are available through `arbitrary`. Raw fast-check
   arbitraries and the `fastCheck` options object are no longer supported. As with the previous fast-check adapter, thrown
   exceptions, defects, and typed failures from a property are shrinkable falsifications; Effect interruption remains an
   interruption.
-  
+
   Optimize constructive regular-expression generation by caching feasible lengths on the compiled pattern, computing
   sequence-suffix feasibility once, and precomputing character-class metadata. Seeded generation, shrinking, and replay
   remain unchanged.
-  
+
   Optimize `BigDecimal.Order` and `BigDecimal.Equivalence` with a shared hybrid comparator. Ordinary scale differences
   use cached, bounded coefficient alignment, while large differences are compared without materializing their decimal
   zeroes. `BigDecimal.make` now rejects scales that are not safe integers.
-  
+
   Before its removal, the materialized fast-check bridge fixture
   `schema-toArbitrary-materialized-fast-check.ts` measured 79.00 KB minified and gzipped.
-  
+
   Representative runtime measurements against corresponding hand-written fast-check 4.9.0 arbitraries are shown below.
   Values are median latency on Node 24.12.0 and Apple M3; lower is better. Both implementations validate the
   same output domains, although their generation distributions are not identical. Native speedup is fast-check latency
   divided by Native latency, so higher is better.
-  
+
   | Scenario                            | fast-check |  Native | Native speedup |
   | ----------------------------------- | ---------: | ------: | -------------: |
   | 32 recursive samples                |     150 µs |  103 µs |          1.45x |
@@ -142,24 +142,23 @@
   | `TestSchema`, 100 generations       |    44.5 µs | 35.9 µs |          1.24x |
   | First failure plus one shrink       |    8.77 µs | 1.30 µs |          6.75x |
   | Replay recorded failure             |    6.35 µs | 1.19 µs |          5.36x |
-  
+
   Cold recursive derivation is not included because the native fixture constructs and compiles a Schema, while the
   fast-check fixture constructs a hand-written arbitrary; it is not a like-for-like warm-generator comparison.
-  
+
   Add a guide for the native module and a migration guide from the fast-check bridge published in `effect@4.0.0-rc.109`.
 
 - [#8154](https://github.com/Effect-TS/effect/pull/8154) [`3993340`](https://github.com/Effect-TS/effect/commit/399334052dcb627798a644a7f3737aa5a04d1bda) Thanks @tim-smart! - Await asynchronous test and layer finalizers after an Effect test times out before starting the next test.
 
 - [#8104](https://github.com/Effect-TS/effect/pull/8104) [`e9915d5`](https://github.com/Effect-TS/effect/commit/e9915d5d7a13c2abab99eea4603bfb945d6090b7) Thanks @tim-smart! - Require Vitest `>=5.0.0 <6.0.0` and Node.js `^22.12.0 || ^24.0.0 || >=26.0.0`.
-  
+
   ### Breaking changes
-  
   - Replace `.sequential` and `{ sequential: true }` with `{ concurrent: false }`.
   - Use `bench` from the test context and await `bench(name, fn).run()`. The top-level benchmark API is removed.
   - Use `Assertion<void, T>` or `Assertion<Promise<void>, T>`. Define custom matchers through `vitest.Matchers`, not `@vitest/expect`.
   - Import reporter types from `vitest/node` and environment/snapshot APIs from `vitest/runtime`. Set `outputFile` when consuming JSON reports.
   - Await asynchronous assertions. Mock history now clears before each test.
-  
+
   See the [Vitest migration guide](https://vitest.dev/guide/migration/) for removed types and other upstream changes.
 
 - [#8104](https://github.com/Effect-TS/effect/pull/8104) [`e9915d5`](https://github.com/Effect-TS/effect/commit/e9915d5d7a13c2abab99eea4603bfb945d6090b7) Thanks @tim-smart! - Add a `concurrent` option to named `layer` and `it.layer` suites. Omitted options and anonymous layers preserve inherited concurrency.

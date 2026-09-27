@@ -25,7 +25,7 @@ by generating temporary `tsconfig` files under `tmp/typeperf`.
 Fixtures must use realistic package imports:
 
 ```ts
-import { Schema } from "effect"
+import { Schema } from "effect";
 ```
 
 Do not import source files directly, for example do not use
@@ -36,9 +36,9 @@ Every fixture in a suite should repeat the suite warmup expression from
 `baseline.ts`. For the current Schema suite, that means:
 
 ```ts
-import { Schema } from "effect"
+import { Schema } from "effect";
 
-Schema.String
+Schema.String;
 ```
 
 ## Commands
@@ -104,19 +104,19 @@ Example:
 
 ```ts
 // Measures the marginal type-level cost of Schema.Struct when all fields are optional keys.
-import { Schema } from "effect"
+import { Schema } from "effect";
 
-Schema.String
+Schema.String;
 
 const schema = Schema.Struct({
   id: Schema.optionalKey(Schema.String),
-  count: Schema.optionalKey(Schema.NumberFromString)
-})
+  count: Schema.optionalKey(Schema.NumberFromString),
+});
 
-export type Type = typeof schema.Type
-export type Encoded = typeof schema.Encoded
-export type Iso = typeof schema.Iso
-export type MakeIn = typeof schema["~type.make.in"]
+export type Type = typeof schema.Type;
+export type Encoded = typeof schema.Encoded;
+export type Iso = typeof schema.Iso;
+export type MakeIn = (typeof schema)["~type.make.in"];
 ```
 
 Then register it:

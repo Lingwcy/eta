@@ -7,17 +7,17 @@
  *
  * @since 4.0.0
  */
-import * as Arr from "../../Array.ts"
-import * as Channel from "../../Channel.ts"
-import * as ChannelSchema from "../../ChannelSchema.ts"
-import * as Data from "../../Data.ts"
-import * as Effect from "../../Effect.ts"
-import { dual, identity } from "../../Function.ts"
-import type * as Schema from "../../Schema.ts"
+import * as Arr from "../../Array.ts";
+import * as Channel from "../../Channel.ts";
+import * as ChannelSchema from "../../ChannelSchema.ts";
+import * as Data from "../../Data.ts";
+import * as Effect from "../../Effect.ts";
+import { dual, identity } from "../../Function.ts";
+import type * as Schema from "../../Schema.ts";
 
-const NdjsonErrorTypeId = "~effect/encoding/Ndjson/NdjsonError"
+const NdjsonErrorTypeId = "~effect/encoding/Ndjson/NdjsonError";
 
-const encoder = new TextEncoder()
+const encoder = new TextEncoder();
 
 /**
  * Error raised when NDJSON encoding or decoding fails.
@@ -31,15 +31,15 @@ const encoder = new TextEncoder()
  * @since 4.0.0
  */
 export class NdjsonError extends Data.TaggedError("NdjsonError")<{
-  readonly kind: "Pack" | "Unpack"
-  readonly cause: unknown
+  readonly kind: "Pack" | "Unpack";
+  readonly cause: unknown;
 }> {
   /**
    * Marks this value as an NDJSON encoding or decoding error for runtime guards.
    *
    * @since 4.0.0
    */
-  readonly [NdjsonErrorTypeId] = NdjsonErrorTypeId
+  readonly [NdjsonErrorTypeId] = NdjsonErrorTypeId;
 
   /**
    * Uses the failed NDJSON operation as the public message.
@@ -47,7 +47,7 @@ export class NdjsonError extends Data.TaggedError("NdjsonError")<{
    * @since 4.0.0
    */
   override get message() {
-    return this.kind
+    return this.kind;
   }
 }
 
@@ -71,22 +71,28 @@ export const encodeString = <IE = never, Done = unknown>(): Channel.Channel<
   Done
 > =>
   Channel.fromTransform((upstream, _scope) =>
-    Effect.succeed(Effect.flatMap(upstream, (input) => {
-      try {
-        return Effect.succeed(Arr.of(
-          input.map((item) => {
-            const output = JSON.stringify(item)
-            if (output === undefined) {
-              throw new TypeError("Value cannot be represented as JSON")
-            }
-            return output
-          }).join("\n") + "\n"
-        ))
-      } catch (cause) {
-        return Effect.fail(new NdjsonError({ kind: "Pack", cause }))
-      }
-    }))
-  )
+    Effect.succeed(
+      Effect.flatMap(upstream, (input) => {
+        try {
+          return Effect.succeed(
+            Arr.of(
+              input
+                .map((item) => {
+                  const output = JSON.stringify(item);
+                  if (output === undefined) {
+                    throw new TypeError("Value cannot be represented as JSON");
+                  }
+                  return output;
+                })
+                .join("\n") + "\n",
+            ),
+          );
+        } catch (cause) {
+          return Effect.fail(new NdjsonError({ kind: "Pack", cause }));
+        }
+      }),
+    ),
+  );
 
 /**
  * Creates a channel that encodes chunks of values as UTF-8 NDJSON bytes.
@@ -101,7 +107,11 @@ export const encode = <IE = never, Done = unknown>(): Channel.Channel<
   Arr.NonEmptyReadonlyArray<unknown>,
   IE,
   Done
-> => Channel.map(encodeString(), Arr.map((_) => encoder.encode(_)))
+> =>
+  Channel.map(
+    encodeString(),
+    Arr.map((_) => encoder.encode(_)),
+  );
 
 /**
  * Creates an NDJSON byte encoder channel for values of a schema.
@@ -114,18 +124,18 @@ export const encode = <IE = never, Done = unknown>(): Channel.Channel<
  * @category constructors
  * @since 4.0.0
  */
-export const encodeSchema = <S extends Schema.Constraint>(
-  schema: S
-) =>
-<IE = never, Done = unknown>(): Channel.Channel<
-  Arr.NonEmptyReadonlyArray<Uint8Array>,
-  NdjsonError | Schema.SchemaError | IE,
-  Done,
-  Arr.NonEmptyReadonlyArray<S["Type"]>,
-  IE,
-  Done,
-  S["EncodingServices"]
-> => Channel.pipeTo(ChannelSchema.encode(schema)(), encode())
+export const encodeSchema =
+  <S extends Schema.Constraint>(schema: S) =>
+  <IE = never, Done = unknown>(): Channel.Channel<
+    Arr.NonEmptyReadonlyArray<Uint8Array>,
+    NdjsonError | Schema.SchemaError | IE,
+    Done,
+    Arr.NonEmptyReadonlyArray<S["Type"]>,
+    IE,
+    Done,
+    S["EncodingServices"]
+  > =>
+    Channel.pipeTo(ChannelSchema.encode(schema)(), encode());
 
 /**
  * Creates an NDJSON string encoder channel for values of a schema.
@@ -138,18 +148,18 @@ export const encodeSchema = <S extends Schema.Constraint>(
  * @category constructors
  * @since 4.0.0
  */
-export const encodeSchemaString = <S extends Schema.Constraint>(
-  schema: S
-) =>
-<IE = never, Done = unknown>(): Channel.Channel<
-  Arr.NonEmptyReadonlyArray<string>,
-  NdjsonError | Schema.SchemaError | IE,
-  Done,
-  Arr.NonEmptyReadonlyArray<S["Type"]>,
-  IE,
-  Done,
-  S["EncodingServices"]
-> => Channel.pipeTo(ChannelSchema.encode(schema)(), encodeString())
+export const encodeSchemaString =
+  <S extends Schema.Constraint>(schema: S) =>
+  <IE = never, Done = unknown>(): Channel.Channel<
+    Arr.NonEmptyReadonlyArray<string>,
+    NdjsonError | Schema.SchemaError | IE,
+    Done,
+    Arr.NonEmptyReadonlyArray<S["Type"]>,
+    IE,
+    Done,
+    S["EncodingServices"]
+  > =>
+    Channel.pipeTo(ChannelSchema.encode(schema)(), encodeString());
 
 /**
  * Creates a channel that parses NDJSON string chunks into values.
@@ -172,7 +182,7 @@ export const encodeSchemaString = <S extends Schema.Constraint>(
  * @since 4.0.0
  */
 export const decodeString = <IE = never, Done = unknown>(options?: {
-  readonly ignoreEmptyLines?: boolean | undefined
+  readonly ignoreEmptyLines?: boolean | undefined;
 }): Channel.Channel<
   Arr.NonEmptyReadonlyArray<unknown>,
   IE | NdjsonError,
@@ -182,18 +192,16 @@ export const decodeString = <IE = never, Done = unknown>(options?: {
   Done
 > => {
   const lines = Channel.splitLines<IE, Done>().pipe(
-    options?.ignoreEmptyLines === true ?
-      Channel.filterArray((line) => line.length > 0) :
-      identity
-  )
+    options?.ignoreEmptyLines === true ? Channel.filterArray((line) => line.length > 0) : identity,
+  );
   return Channel.mapEffect(lines, (chunk) => {
     try {
-      return Effect.succeed(Arr.map(chunk, (line) => JSON.parse(line)))
+      return Effect.succeed(Arr.map(chunk, (line) => JSON.parse(line)));
     } catch (cause) {
-      return Effect.fail(new NdjsonError({ kind: "Unpack", cause }))
+      return Effect.fail(new NdjsonError({ kind: "Unpack", cause }));
     }
-  })
-}
+  });
+};
 
 /**
  * Creates a channel that decodes UTF-8 byte chunks and parses them as NDJSON.
@@ -207,7 +215,7 @@ export const decodeString = <IE = never, Done = unknown>(options?: {
  * @since 4.0.0
  */
 export const decode = <IE = never, Done = unknown>(options?: {
-  readonly ignoreEmptyLines?: boolean | undefined
+  readonly ignoreEmptyLines?: boolean | undefined;
 }): Channel.Channel<
   Arr.NonEmptyReadonlyArray<unknown>,
   IE | NdjsonError,
@@ -216,8 +224,8 @@ export const decode = <IE = never, Done = unknown>(options?: {
   IE,
   Done
 > => {
-  return Channel.pipeTo(Channel.decodeText(), decodeString(options))
-}
+  return Channel.pipeTo(Channel.decodeText(), decodeString(options));
+};
 
 /**
  * Creates an NDJSON byte decoder channel for values of a schema.
@@ -230,20 +238,20 @@ export const decode = <IE = never, Done = unknown>(options?: {
  * @category constructors
  * @since 4.0.0
  */
-export const decodeSchema = <S extends Schema.Constraint>(
-  schema: S
-) =>
-<IE = never, Done = unknown>(options?: {
-  readonly ignoreEmptyLines?: boolean | undefined
-}): Channel.Channel<
-  Arr.NonEmptyReadonlyArray<S["Type"]>,
-  Schema.SchemaError | NdjsonError | IE,
-  Done,
-  Arr.NonEmptyReadonlyArray<Uint8Array>,
-  IE,
-  Done,
-  S["DecodingServices"]
-> => Channel.pipeTo(decode(options), ChannelSchema.decodeUnknown(schema)())
+export const decodeSchema =
+  <S extends Schema.Constraint>(schema: S) =>
+  <IE = never, Done = unknown>(options?: {
+    readonly ignoreEmptyLines?: boolean | undefined;
+  }): Channel.Channel<
+    Arr.NonEmptyReadonlyArray<S["Type"]>,
+    Schema.SchemaError | NdjsonError | IE,
+    Done,
+    Arr.NonEmptyReadonlyArray<Uint8Array>,
+    IE,
+    Done,
+    S["DecodingServices"]
+  > =>
+    Channel.pipeTo(decode(options), ChannelSchema.decodeUnknown(schema)());
 
 /**
  * Creates an NDJSON string decoder channel for values of a schema.
@@ -256,20 +264,20 @@ export const decodeSchema = <S extends Schema.Constraint>(
  * @category constructors
  * @since 4.0.0
  */
-export const decodeSchemaString = <S extends Schema.Constraint>(
-  schema: S
-) =>
-<IE = never, Done = unknown>(options?: {
-  readonly ignoreEmptyLines?: boolean | undefined
-}): Channel.Channel<
-  Arr.NonEmptyReadonlyArray<S["Type"]>,
-  Schema.SchemaError | NdjsonError | IE,
-  Done,
-  Arr.NonEmptyReadonlyArray<string>,
-  IE,
-  Done,
-  S["DecodingServices"]
-> => Channel.pipeTo(decodeString(options), ChannelSchema.decodeUnknown(schema)())
+export const decodeSchemaString =
+  <S extends Schema.Constraint>(schema: S) =>
+  <IE = never, Done = unknown>(options?: {
+    readonly ignoreEmptyLines?: boolean | undefined;
+  }): Channel.Channel<
+    Arr.NonEmptyReadonlyArray<S["Type"]>,
+    Schema.SchemaError | NdjsonError | IE,
+    Done,
+    Arr.NonEmptyReadonlyArray<string>,
+    IE,
+    Done,
+    S["DecodingServices"]
+  > =>
+    Channel.pipeTo(decodeString(options), ChannelSchema.decodeUnknown(schema)());
 
 /**
  * Wraps a bidirectional byte channel with NDJSON encoding and decoding.
@@ -284,7 +292,7 @@ export const decodeSchemaString = <S extends Schema.Constraint>(
  */
 export const duplex: {
   (options?: {
-    readonly ignoreEmptyLines?: boolean | undefined
+    readonly ignoreEmptyLines?: boolean | undefined;
   }): <R, IE, OE, OutDone, InDone>(
     self: Channel.Channel<
       Arr.NonEmptyReadonlyArray<Uint8Array>,
@@ -294,7 +302,7 @@ export const duplex: {
       IE | NdjsonError,
       InDone,
       R
-    >
+    >,
   ) => Channel.Channel<
     Arr.NonEmptyReadonlyArray<unknown>,
     NdjsonError | OE,
@@ -303,7 +311,7 @@ export const duplex: {
     IE,
     InDone,
     R
-  >
+  >;
   <R, IE, OE, OutDone, InDone>(
     self: Channel.Channel<
       Arr.NonEmptyReadonlyArray<Uint8Array>,
@@ -315,8 +323,8 @@ export const duplex: {
       R
     >,
     options?: {
-      readonly ignoreEmptyLines?: boolean | undefined
-    }
+      readonly ignoreEmptyLines?: boolean | undefined;
+    },
   ): Channel.Channel<
     Arr.NonEmptyReadonlyArray<unknown>,
     NdjsonError | OE,
@@ -325,33 +333,32 @@ export const duplex: {
     IE,
     InDone,
     R
-  >
-} = dual((args) => Channel.isChannel(args[0]), <R, IE, OE, OutDone, InDone>(
-  self: Channel.Channel<
-    Arr.NonEmptyReadonlyArray<Uint8Array>,
-    OE,
+  >;
+} = dual(
+  (args) => Channel.isChannel(args[0]),
+  <R, IE, OE, OutDone, InDone>(
+    self: Channel.Channel<
+      Arr.NonEmptyReadonlyArray<Uint8Array>,
+      OE,
+      OutDone,
+      Arr.NonEmptyReadonlyArray<Uint8Array>,
+      IE | NdjsonError,
+      InDone,
+      R
+    >,
+    options?: {
+      readonly ignoreEmptyLines?: boolean | undefined;
+    },
+  ): Channel.Channel<
+    Arr.NonEmptyReadonlyArray<unknown>,
+    NdjsonError | OE,
     OutDone,
-    Arr.NonEmptyReadonlyArray<Uint8Array>,
-    IE | NdjsonError,
+    Arr.NonEmptyReadonlyArray<unknown>,
+    IE,
     InDone,
     R
-  >,
-  options?: {
-    readonly ignoreEmptyLines?: boolean | undefined
-  }
-): Channel.Channel<
-  Arr.NonEmptyReadonlyArray<unknown>,
-  NdjsonError | OE,
-  OutDone,
-  Arr.NonEmptyReadonlyArray<unknown>,
-  IE,
-  InDone,
-  R
-> =>
-  Channel.pipeTo(
-    Channel.pipeTo(encode(), self),
-    decode(options)
-  ))
+  > => Channel.pipeTo(Channel.pipeTo(encode(), self), decode(options)),
+);
 
 /**
  * Wraps a bidirectional string channel with NDJSON encoding and decoding.
@@ -366,7 +373,7 @@ export const duplex: {
  */
 export const duplexString: {
   (options?: {
-    readonly ignoreEmptyLines?: boolean | undefined
+    readonly ignoreEmptyLines?: boolean | undefined;
   }): <R, IE, OE, OutDone, InDone>(
     self: Channel.Channel<
       Arr.NonEmptyReadonlyArray<string>,
@@ -376,7 +383,7 @@ export const duplexString: {
       IE | NdjsonError,
       InDone,
       R
-    >
+    >,
   ) => Channel.Channel<
     Arr.NonEmptyReadonlyArray<unknown>,
     NdjsonError | OE,
@@ -385,7 +392,7 @@ export const duplexString: {
     IE,
     InDone,
     R
-  >
+  >;
   <R, IE, OE, OutDone, InDone>(
     self: Channel.Channel<
       Arr.NonEmptyReadonlyArray<string>,
@@ -397,8 +404,8 @@ export const duplexString: {
       R
     >,
     options?: {
-      readonly ignoreEmptyLines?: boolean | undefined
-    }
+      readonly ignoreEmptyLines?: boolean | undefined;
+    },
   ): Channel.Channel<
     Arr.NonEmptyReadonlyArray<unknown>,
     NdjsonError | OE,
@@ -407,33 +414,32 @@ export const duplexString: {
     IE,
     InDone,
     R
-  >
-} = dual((args) => Channel.isChannel(args[0]), <R, IE, OE, OutDone, InDone>(
-  self: Channel.Channel<
-    Arr.NonEmptyReadonlyArray<string>,
-    OE,
+  >;
+} = dual(
+  (args) => Channel.isChannel(args[0]),
+  <R, IE, OE, OutDone, InDone>(
+    self: Channel.Channel<
+      Arr.NonEmptyReadonlyArray<string>,
+      OE,
+      OutDone,
+      Arr.NonEmptyReadonlyArray<string>,
+      IE | NdjsonError,
+      InDone,
+      R
+    >,
+    options?: {
+      readonly ignoreEmptyLines?: boolean | undefined;
+    },
+  ): Channel.Channel<
+    Arr.NonEmptyReadonlyArray<unknown>,
+    NdjsonError | OE,
     OutDone,
-    Arr.NonEmptyReadonlyArray<string>,
-    IE | NdjsonError,
+    Arr.NonEmptyReadonlyArray<unknown>,
+    IE,
     InDone,
     R
-  >,
-  options?: {
-    readonly ignoreEmptyLines?: boolean | undefined
-  }
-): Channel.Channel<
-  Arr.NonEmptyReadonlyArray<unknown>,
-  NdjsonError | OE,
-  OutDone,
-  Arr.NonEmptyReadonlyArray<unknown>,
-  IE,
-  InDone,
-  R
-> =>
-  Channel.pipeTo(
-    Channel.pipeTo(encodeString(), self),
-    decodeString(options)
-  ))
+  > => Channel.pipeTo(Channel.pipeTo(encodeString(), self), decodeString(options)),
+);
 
 /**
  * Wraps a bidirectional byte channel with schema-aware NDJSON encoding and
@@ -448,13 +454,11 @@ export const duplexString: {
  * @since 4.0.0
  */
 export const duplexSchema: {
-  <In extends Schema.Constraint, Out extends Schema.Constraint>(
-    options: {
-      readonly inputSchema: In
-      readonly outputSchema: Out
-      readonly ignoreEmptyLines?: boolean | undefined
-    }
-  ): <OutErr, OutDone, InErr, InDone, R>(
+  <In extends Schema.Constraint, Out extends Schema.Constraint>(options: {
+    readonly inputSchema: In;
+    readonly outputSchema: Out;
+    readonly ignoreEmptyLines?: boolean | undefined;
+  }): <OutErr, OutDone, InErr, InDone, R>(
     self: Channel.Channel<
       Arr.NonEmptyReadonlyArray<Uint8Array>,
       OutErr,
@@ -463,7 +467,7 @@ export const duplexSchema: {
       NdjsonError | Schema.SchemaError | InErr,
       InDone,
       R
-    >
+    >,
   ) => Channel.Channel<
     Arr.NonEmptyReadonlyArray<Out["Type"]>,
     NdjsonError | Schema.SchemaError | OutErr,
@@ -472,7 +476,7 @@ export const duplexSchema: {
     InErr,
     InDone,
     R | In["EncodingServices"] | Out["DecodingServices"]
-  >
+  >;
   <Out extends Schema.Constraint, In extends Schema.Constraint, OutErr, OutDone, InErr, InDone, R>(
     self: Channel.Channel<
       Arr.NonEmptyReadonlyArray<Uint8Array>,
@@ -484,10 +488,10 @@ export const duplexSchema: {
       R
     >,
     options: {
-      readonly inputSchema: In
-      readonly outputSchema: Out
-      readonly ignoreEmptyLines?: boolean | undefined
-    }
+      readonly inputSchema: In;
+      readonly outputSchema: Out;
+      readonly ignoreEmptyLines?: boolean | undefined;
+    },
   ): Channel.Channel<
     Arr.NonEmptyReadonlyArray<Out["Type"]>,
     NdjsonError | Schema.SchemaError | OutErr,
@@ -496,31 +500,34 @@ export const duplexSchema: {
     InErr,
     InDone,
     R | In["EncodingServices"] | Out["DecodingServices"]
-  >
-} = dual(2, <Out extends Schema.Constraint, In extends Schema.Constraint, OutErr, OutDone, InErr, InDone, R>(
-  self: Channel.Channel<
-    Arr.NonEmptyReadonlyArray<Uint8Array>,
-    OutErr,
+  >;
+} = dual(
+  2,
+  <Out extends Schema.Constraint, In extends Schema.Constraint, OutErr, OutDone, InErr, InDone, R>(
+    self: Channel.Channel<
+      Arr.NonEmptyReadonlyArray<Uint8Array>,
+      OutErr,
+      OutDone,
+      Arr.NonEmptyReadonlyArray<Uint8Array>,
+      NdjsonError | Schema.SchemaError | InErr,
+      InDone,
+      R
+    >,
+    options: {
+      readonly inputSchema: In;
+      readonly outputSchema: Out;
+      readonly ignoreEmptyLines?: boolean | undefined;
+    },
+  ): Channel.Channel<
+    Arr.NonEmptyReadonlyArray<Out["Type"]>,
+    NdjsonError | Schema.SchemaError | OutErr,
     OutDone,
-    Arr.NonEmptyReadonlyArray<Uint8Array>,
-    NdjsonError | Schema.SchemaError | InErr,
+    Arr.NonEmptyReadonlyArray<In["Type"]>,
+    InErr,
     InDone,
-    R
-  >,
-  options: {
-    readonly inputSchema: In
-    readonly outputSchema: Out
-    readonly ignoreEmptyLines?: boolean | undefined
-  }
-): Channel.Channel<
-  Arr.NonEmptyReadonlyArray<Out["Type"]>,
-  NdjsonError | Schema.SchemaError | OutErr,
-  OutDone,
-  Arr.NonEmptyReadonlyArray<In["Type"]>,
-  InErr,
-  InDone,
-  R | In["EncodingServices"] | Out["DecodingServices"]
-> => ChannelSchema.duplexUnknown(duplex(self, options), options))
+    R | In["EncodingServices"] | Out["DecodingServices"]
+  > => ChannelSchema.duplexUnknown(duplex(self, options), options),
+);
 
 /**
  * Wraps a bidirectional string channel with schema-aware NDJSON encoding and
@@ -535,13 +542,11 @@ export const duplexSchema: {
  * @since 4.0.0
  */
 export const duplexSchemaString: {
-  <In extends Schema.Constraint, Out extends Schema.Constraint>(
-    options: {
-      readonly inputSchema: In
-      readonly outputSchema: Out
-      readonly ignoreEmptyLines?: boolean | undefined
-    }
-  ): <OutErr, OutDone, InErr, InDone, R>(
+  <In extends Schema.Constraint, Out extends Schema.Constraint>(options: {
+    readonly inputSchema: In;
+    readonly outputSchema: Out;
+    readonly ignoreEmptyLines?: boolean | undefined;
+  }): <OutErr, OutDone, InErr, InDone, R>(
     self: Channel.Channel<
       Arr.NonEmptyReadonlyArray<string>,
       OutErr,
@@ -550,7 +555,7 @@ export const duplexSchemaString: {
       NdjsonError | Schema.SchemaError | InErr,
       InDone,
       R
-    >
+    >,
   ) => Channel.Channel<
     Arr.NonEmptyReadonlyArray<Out["Type"]>,
     NdjsonError | Schema.SchemaError | OutErr,
@@ -559,7 +564,7 @@ export const duplexSchemaString: {
     InErr,
     InDone,
     R | In["EncodingServices"] | Out["DecodingServices"]
-  >
+  >;
   <Out extends Schema.Constraint, In extends Schema.Constraint, OutErr, OutDone, InErr, InDone, R>(
     self: Channel.Channel<
       Arr.NonEmptyReadonlyArray<string>,
@@ -571,10 +576,10 @@ export const duplexSchemaString: {
       R
     >,
     options: {
-      readonly inputSchema: In
-      readonly outputSchema: Out
-      readonly ignoreEmptyLines?: boolean | undefined
-    }
+      readonly inputSchema: In;
+      readonly outputSchema: Out;
+      readonly ignoreEmptyLines?: boolean | undefined;
+    },
   ): Channel.Channel<
     Arr.NonEmptyReadonlyArray<Out["Type"]>,
     NdjsonError | Schema.SchemaError | OutErr,
@@ -583,28 +588,31 @@ export const duplexSchemaString: {
     InErr,
     InDone,
     R | In["EncodingServices"] | Out["DecodingServices"]
-  >
-} = dual(2, <Out extends Schema.Constraint, In extends Schema.Constraint, OutErr, OutDone, InErr, InDone, R>(
-  self: Channel.Channel<
-    Arr.NonEmptyReadonlyArray<string>,
-    OutErr,
+  >;
+} = dual(
+  2,
+  <Out extends Schema.Constraint, In extends Schema.Constraint, OutErr, OutDone, InErr, InDone, R>(
+    self: Channel.Channel<
+      Arr.NonEmptyReadonlyArray<string>,
+      OutErr,
+      OutDone,
+      Arr.NonEmptyReadonlyArray<string>,
+      NdjsonError | Schema.SchemaError | InErr,
+      InDone,
+      R
+    >,
+    options: {
+      readonly inputSchema: In;
+      readonly outputSchema: Out;
+      readonly ignoreEmptyLines?: boolean | undefined;
+    },
+  ): Channel.Channel<
+    Arr.NonEmptyReadonlyArray<Out["Type"]>,
+    NdjsonError | Schema.SchemaError | OutErr,
     OutDone,
-    Arr.NonEmptyReadonlyArray<string>,
-    NdjsonError | Schema.SchemaError | InErr,
+    Arr.NonEmptyReadonlyArray<In["Type"]>,
+    InErr,
     InDone,
-    R
-  >,
-  options: {
-    readonly inputSchema: In
-    readonly outputSchema: Out
-    readonly ignoreEmptyLines?: boolean | undefined
-  }
-): Channel.Channel<
-  Arr.NonEmptyReadonlyArray<Out["Type"]>,
-  NdjsonError | Schema.SchemaError | OutErr,
-  OutDone,
-  Arr.NonEmptyReadonlyArray<In["Type"]>,
-  InErr,
-  InDone,
-  R | In["EncodingServices"] | Out["DecodingServices"]
-> => ChannelSchema.duplexUnknown(duplexString(self, options), options))
+    R | In["EncodingServices"] | Out["DecodingServices"]
+  > => ChannelSchema.duplexUnknown(duplexString(self, options), options),
+);

@@ -7,9 +7,9 @@
 /**
  * @since 4.0.0
  */
-export * as Socket from "./Socket.ts"
+export * as Socket from "./Socket.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SocketServer from "./SocketServer.ts"
+export * as SocketServer from "./SocketServer.ts";

@@ -15,16 +15,16 @@ It exposes notifications through a queue and keeps the subscription active for
 the surrounding scope:
 
 ```ts
-import { PgliteClient } from "@effect/sql-pglite"
-import { Effect, Queue } from "effect"
+import { PgliteClient } from "@effect/sql-pglite";
+import { Effect, Queue } from "effect";
 
-const program = Effect.gen(function*() {
-  const sql = yield* PgliteClient.PgliteClient
-  const notifications = yield* sql.listen("events")
+const program = Effect.gen(function* () {
+  const sql = yield* PgliteClient.PgliteClient;
+  const notifications = yield* sql.listen("events");
 
-  yield* sql.notify("events", "ready")
-  return yield* Queue.take(notifications)
-})
+  yield* sql.notify("events", "ready");
+  return yield* Queue.take(notifications);
+});
 ```
 
 ## Documentation

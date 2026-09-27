@@ -5,13 +5,13 @@ Tstyche's checked `@ts-expect-error` message:
 
 ```ts
 it("simplifies the displayed type", () => {
-  const value = null as unknown as PublicType
+  const value = null as unknown as PublicType;
 
   // @ts-expect-error Type '{ readonly value: string; }'
-  const displayed: never = value
+  const displayed: never = value;
 
-  void displayed
-})
+  void displayed;
+});
 ```
 
 Keep the expected substring as small as possible while distinguishing the

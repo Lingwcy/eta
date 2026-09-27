@@ -23,13 +23,13 @@ module is promoted.
 Consider the rule “adding zero does not change an integer.” With `@effect/vitest`, we can write it directly:
 
 ```ts
-import { it } from "@effect/vitest"
-import { Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { it } from "@effect/vitest";
+import { Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const integer = Arbitrary.schema(Schema.Int)
+const integer = Arbitrary.schema(Schema.Int);
 
-it.prop("adding zero is identity", [integer], ([value]) => value + 0 === value)
+it.prop("adding zero is identity", [integer], ([value]) => value + 0 === value);
 ```
 
 `Arbitrary.schema` turns a Schema into a generator for the values represented by that Schema. `it.prop` tries the rule
@@ -42,8 +42,8 @@ Effect keeps the allowed inputs visible. Even a one-argument property receives i
 it.prop(
   "addition is commutative",
   { left: integer, right: integer },
-  ({ left, right }) => left + right === right + left
-)
+  ({ left, right }) => left + right === right + left,
+);
 ```
 
 That explicitness becomes useful as a test grows. Input names remain visible, and each input may come from either a
@@ -58,14 +58,12 @@ For example, JavaScript cannot represent integers of every size exactly. If we w
 without overflow or loss of precision, we should restrict the inputs accordingly:
 
 ```ts
-import { Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const SmallInt = Schema.Int.check(
-  Schema.isBetween({ minimum: -100, maximum: 100 })
-)
+const SmallInt = Schema.Int.check(Schema.isBetween({ minimum: -100, maximum: 100 }));
 
-const smallInt = Arbitrary.schema(SmallInt)
+const smallInt = Arbitrary.schema(SmallInt);
 ```
 
 For common checks, such as numeric bounds and collection lengths, Effect generates matching values directly instead of
@@ -80,17 +78,17 @@ Sampling is useful while choosing your inputs. It is not a test by itself; it si
 values have the shape and size you expected.
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
 const examples = await Effect.runPromise(
   Arbitrary.sampleEffect(smallInt, {
     count: 10,
     size: 5,
-    seed: "small-integers"
-  })
-)
+    seed: "small-integers",
+  }),
+);
 
-console.log(examples)
+console.log(examples);
 ```
 
 The same generator, seed, size, and Effect version produce the same sequence. A fixed seed is therefore useful in
@@ -114,24 +112,23 @@ Use:
 - `filterMap` to transform a value when the transformation may reject it.
 
 ```ts
-import { Result, Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Result, Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const integers = Arbitrary.schema(Schema.Int)
+const integers = Arbitrary.schema(Schema.Int);
 
 const integerOrZero = Arbitrary.schema(Schema.Boolean).pipe(
-  Arbitrary.flatMap((useFallback) => useFallback ? Arbitrary.Constant(0) : integers)
-)
+  Arbitrary.flatMap((useFallback) => (useFallback ? Arbitrary.Constant(0) : integers)),
+);
 
 const nonNegativeLabels = integers.pipe(
   Arbitrary.filter((value) => value >= 0),
-  Arbitrary.map((value) => `integer:${value}`)
-)
+  Arbitrary.map((value) => `integer:${value}`),
+);
 
-const positiveLabels = Arbitrary.filterMap(
-  integers,
-  (value) => value > 0 ? Result.succeed(`positive:${value}`) : Result.fail(value)
-)
+const positiveLabels = Arbitrary.filterMap(integers, (value) =>
+  value > 0 ? Result.succeed(`positive:${value}`) : Result.fail(value),
+);
 ```
 
 These operations also apply while Effect simplifies a failing value. A value rejected by `filter` or `filterMap` is not
@@ -145,15 +142,12 @@ Use `all` to generate independent Arbitraries together. It accepts tuples, other
 their shape:
 
 ```ts
-const point = Arbitrary.all([
-  Arbitrary.schema(Schema.Number),
-  Arbitrary.schema(Schema.Number)
-])
+const point = Arbitrary.all([Arbitrary.schema(Schema.Number), Arbitrary.schema(Schema.Number)]);
 
 const person = Arbitrary.all({
   name: Arbitrary.schema(Schema.String),
-  age: Arbitrary.schema(Schema.Int)
-})
+  age: Arbitrary.schema(Schema.Int),
+});
 ```
 
 Effect may generate the members in a different internal order, but the returned tuple positions and record keys always
@@ -165,8 +159,8 @@ methods such as `hasOwnProperty` always exist. Prefer `Object.hasOwn(value, key)
 Use `array` for variable-length collections of an existing Arbitrary:
 
 ```ts
-const command = integers.pipe(Arbitrary.map((value) => ({ _tag: "Add" as const, value })))
-const commands = Arbitrary.array(command, { maxLength: 50 })
+const command = integers.pipe(Arbitrary.map((value) => ({ _tag: "Add" as const, value })));
+const commands = Arbitrary.array(command, { maxLength: 50 });
 ```
 
 `minLength` defaults to zero. Generation grows with `size`, honors explicit minima even at size zero, and respects
@@ -182,23 +176,19 @@ Use `flatMap` when one generated value decides what can be generated next. Creat
 callback when you can, because creating a Schema inside the callback repeats that work each time it runs:
 
 ```ts
-import { Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const Length = Arbitrary.schema(
-  Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 4 }))
-)
+const Length = Arbitrary.schema(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 4 })));
 
 const StringsByLength = globalThis.Array.from({ length: 4 }, (_, index) => {
-  const length = index + 1
+  const length = index + 1;
   return Arbitrary.schema(
-    Schema.String.check(Schema.isMinLength(length), Schema.isMaxLength(length))
-  )
-})
+    Schema.String.check(Schema.isMinLength(length), Schema.isMaxLength(length)),
+  );
+});
 
-const SizedString = Length.pipe(
-  Arbitrary.flatMap((length) => StringsByLength[length - 1])
-)
+const SizedString = Length.pipe(Arbitrary.flatMap((length) => StringsByLength[length - 1]));
 ```
 
 After a failure, Effect first tries simpler values from the first generator and rebuilds the dependent value. It then
@@ -220,46 +210,44 @@ Keep a general property over all command types, then add a focused property whos
 important transition:
 
 ```ts
-import { Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const Key = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 20 }))
+const Key = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 20 }));
 
 const Insert = Schema.Struct({
   _tag: Schema.Literal("Insert"),
-  value: Key
-})
+  value: Key,
+});
 
 const Remove = Schema.Struct({
   _tag: Schema.Literal("Remove"),
-  value: Key
-})
+  value: Key,
+});
 
 const Contains = Schema.Struct({
   _tag: Schema.Literal("Contains"),
-  value: Key
-})
+  value: Key,
+});
 
-const Command = Schema.Union([Insert, Remove, Contains])
+const Command = Schema.Union([Insert, Remove, Contains]);
 
-const arbitraryHistory = Arbitrary.schema(
-  Schema.Array(Command).check(Schema.isMaxLength(50))
-)
+const arbitraryHistory = Arbitrary.schema(Schema.Array(Command).check(Schema.isMaxLength(50)));
 
 const RemoveExistingScenario = Schema.Struct({
   before: Schema.Array(Command).check(Schema.isMaxLength(20)),
   key: Key,
-  after: Schema.Array(Command).check(Schema.isMaxLength(20))
-})
+  after: Schema.Array(Command).check(Schema.isMaxLength(20)),
+});
 
 const historyContainingRemoveExisting = Arbitrary.schema(RemoveExistingScenario).pipe(
   Arbitrary.map(({ before, key, after }) => [
     ...before,
     { _tag: "Insert" as const, value: key },
     { _tag: "Remove" as const, value: key },
-    ...after
-  ])
-)
+    ...after,
+  ]),
+);
 ```
 
 Use `arbitraryHistory` to explore interactions that were not anticipated. Use `historyContainingRemoveExisting` in a
@@ -284,31 +272,35 @@ the result instead of immediately failing a Vitest test. It accepts a function t
 `Effect`, and it simplifies the first failing input:
 
 ```ts
-import { Effect, Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Effect, Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const values = Arbitrary.schema(Schema.Array(Schema.Int))
+const values = Arbitrary.schema(Schema.Array(Schema.Int));
 
 const program = Arbitrary.checkEffect(
   values,
-  (input) => input.slice().reverse().reverse().every((value, index) => value === input[index]),
-  { runs: 100, seed: "reverse" }
-)
+  (input) =>
+    input
+      .slice()
+      .reverse()
+      .reverse()
+      .every((value, index) => value === input[index]),
+  { runs: 100, seed: "reverse" },
+);
 
-await Effect.runPromise(program)
+await Effect.runPromise(program);
 // { _tag: "Passed", runs: 100, discards: 0 }
 ```
 
 A property may also return an `Effect`, so it can use Effect services or fail through the Effect error channel:
 
 ```ts
-import { Effect, Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Effect, Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const program = Arbitrary.checkEffect(
-  Arbitrary.schema(Schema.String),
-  (value) => Effect.succeed(value.length >= 0)
-)
+const program = Arbitrary.checkEffect(Arbitrary.schema(Schema.String), (value) =>
+  Effect.succeed(value.length >= 0),
+);
 ```
 
 A failed check is returned as a value. Read its `_tag` to see what happened:
@@ -343,25 +335,21 @@ rule is often called a **law**.
 ### Changing Order or Grouping (Commutativity and Associativity)
 
 ```ts
-import { it } from "@effect/vitest"
-import { Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { it } from "@effect/vitest";
+import { Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
 const smallInt = Arbitrary.schema(
-  Schema.Int.check(Schema.isBetween({ minimum: -100, maximum: 100 }))
-)
+  Schema.Int.check(Schema.isBetween({ minimum: -100, maximum: 100 })),
+);
 
-it.prop(
-  "addition is commutative",
-  { a: smallInt, b: smallInt },
-  ({ a, b }) => a + b === b + a
-)
+it.prop("addition is commutative", { a: smallInt, b: smallInt }, ({ a, b }) => a + b === b + a);
 
 it.prop(
   "addition is associative",
   { a: smallInt, b: smallInt, c: smallInt },
-  ({ a, b, c }) => (a + b) + c === a + (b + c)
-)
+  ({ a, b, c }) => a + b + c === a + (b + c),
+);
 ```
 
 The bounds are part of the meaning of these tests. They keep the generated values inside the region where JavaScript
@@ -372,13 +360,13 @@ integer arithmetic behaves like the algebra we intend to test.
 Normalization is commonly idempotent: once a value is normalized, applying the operation again should do nothing.
 
 ```ts
-const clampNonNegative = (value: number): number => Math.max(0, value)
+const clampNonNegative = (value: number): number => Math.max(0, value);
 
 it.prop(
   "clamping is idempotent",
   [smallInt],
-  ([value]) => clampNonNegative(clampNonNegative(value)) === clampNonNegative(value)
-)
+  ([value]) => clampNonNegative(clampNonNegative(value)) === clampNonNegative(value),
+);
 ```
 
 ### Applying an Operation Twice Returns the Original (Involution)
@@ -386,11 +374,7 @@ it.prop(
 An involution returns to the original value when applied twice. Negation is the smallest example:
 
 ```ts
-it.prop(
-  "negation is an involution",
-  [smallInt],
-  ([value]) => -(-value) === value
-)
+it.prop("negation is an involution", [smallInt], ([value]) => -(-value) === value);
 ```
 
 ### Comparing Two Implementations
@@ -398,27 +382,27 @@ it.prop(
 When replacing or optimizing an implementation, compare the two functions over the same generated inputs:
 
 ```ts
-const doubleByAddition = (value: number): number => value + value
-const doubleByMultiplication = (value: number): number => value * 2
+const doubleByAddition = (value: number): number => value + value;
+const doubleByMultiplication = (value: number): number => value * 2;
 
 it.prop(
   "the two double implementations agree",
   [smallInt],
-  ([value]) => doubleByAddition(value) === doubleByMultiplication(value)
-)
+  ([value]) => doubleByAddition(value) === doubleByMultiplication(value),
+);
 ```
 
 ### Operations That Undo Each Other
 
 ```ts
-const increment = (value: number): number => value + 1
-const decrement = (value: number): number => value - 1
+const increment = (value: number): number => value + 1;
+const decrement = (value: number): number => value - 1;
 
 it.prop(
   "increment and decrement are inverses",
   [smallInt],
-  ([value]) => decrement(increment(value)) === value
-)
+  ([value]) => decrement(increment(value)) === value,
+);
 ```
 
 The `Arbitrary` module does not provide a separate helper for each kind of law. These comparisons are short to write
@@ -438,20 +422,22 @@ can generate non-zero integers directly:
 ```ts
 const NonZeroSmallInt = Schema.Union([
   Schema.Int.check(Schema.isBetween({ minimum: -100, maximum: -1 })),
-  Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))
-])
+  Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 })),
+]);
 
-const nonZeroSmallInt = Arbitrary.schema(NonZeroSmallInt)
+const nonZeroSmallInt = Arbitrary.schema(NonZeroSmallInt);
 
-it.prop("a non-zero integer divided by itself is one", [nonZeroSmallInt], ([value]) => value / value === 1)
+it.prop(
+  "a non-zero integer divided by itself is one",
+  [nonZeroSmallInt],
+  ([value]) => value / value === 1,
+);
 ```
 
 Use `Arbitrary.filter` when Schema cannot express the condition:
 
 ```ts
-const odd = smallInt.pipe(
-  Arbitrary.filter((value) => value % 2 !== 0)
-)
+const odd = smallInt.pipe(Arbitrary.filter((value) => value % 2 !== 0));
 ```
 
 Rejected generated values count against `maxDiscards`. If very few values pass the filter, the check may return
@@ -478,62 +464,57 @@ Consider an immutable first-in-first-out queue represented by a front array and 
 and update operations below are correct, but `front` deliberately reads the last front element instead of the first:
 
 ```ts
-import { assert, describe, it } from "@effect/vitest"
-import { Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { assert, describe, it } from "@effect/vitest";
+import { Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
 interface Queue {
-  readonly front: ReadonlyArray<number>
-  readonly rear: ReadonlyArray<number>
+  readonly front: ReadonlyArray<number>;
+  readonly rear: ReadonlyArray<number>;
 }
 
 const balance = (front: ReadonlyArray<number>, rear: ReadonlyArray<number>): Queue =>
-  front.length === 0 ? { front: [...rear].reverse(), rear: [] } : { front, rear }
+  front.length === 0 ? { front: [...rear].reverse(), rear: [] } : { front, rear };
 
-const empty = (): Queue => balance([], [])
-const isEmpty = (queue: Queue): boolean => queue.front.length === 0
+const empty = (): Queue => balance([], []);
+const isEmpty = (queue: Queue): boolean => queue.front.length === 0;
 
-const enqueue = (value: number, queue: Queue): Queue => balance(queue.front, [value, ...queue.rear])
+const enqueue = (value: number, queue: Queue): Queue =>
+  balance(queue.front, [value, ...queue.rear]);
 
-const dequeue = (queue: Queue): Queue => balance(queue.front.slice(1), queue.rear)
+const dequeue = (queue: Queue): Queue => balance(queue.front.slice(1), queue.rear);
 
 // Deliberately wrong: a FIFO queue should return queue.front[0].
-const front = (queue: Queue): number => queue.front[queue.front.length - 1]!
+const front = (queue: Queue): number => queue.front[queue.front.length - 1]!;
 
 const toArray = (queue: Queue): ReadonlyArray<number> => [
   ...queue.front,
-  ...[...queue.rear].reverse()
-]
+  ...[...queue.rear].reverse(),
+];
 
 const equals = (left: Queue, right: Queue): boolean => {
-  const a = toArray(left)
-  const b = toArray(right)
-  return a.length === b.length && a.every((value, index) => value === b[index])
-}
+  const a = toArray(left);
+  const b = toArray(right);
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+};
 
-const Item = Schema.Int.check(
-  Schema.isBetween({ minimum: -100, maximum: 100 })
-)
-const Items = Schema.Array(Item).check(Schema.isMaxLength(8))
-const NonEmptyItems = Items.check(Schema.isMinLength(1))
+const Item = Schema.Int.check(Schema.isBetween({ minimum: -100, maximum: 100 }));
+const Items = Schema.Array(Item).check(Schema.isMaxLength(8));
+const NonEmptyItems = Items.check(Schema.isMinLength(1));
 
-const item = Arbitrary.schema(Item)
-const items = Arbitrary.schema(Items)
-const nonEmptyItems = Arbitrary.schema(NonEmptyItems)
+const item = Arbitrary.schema(Item);
+const items = Arbitrary.schema(Items);
+const nonEmptyItems = Arbitrary.schema(NonEmptyItems);
 
 const queue = Arbitrary.all({
   front: items,
-  rear: items
-}).pipe(
-  Arbitrary.map(({ front, rear }) => balance(front, rear))
-)
+  rear: items,
+}).pipe(Arbitrary.map(({ front, rear }) => balance(front, rear)));
 
 const nonEmptyQueue = Arbitrary.all({
   front: nonEmptyItems,
-  rear: items
-}).pipe(
-  Arbitrary.map(({ front, rear }) => balance(front, rear))
-)
+  rear: items,
+}).pipe(Arbitrary.map(({ front, rear }) => balance(front, rear)));
 ```
 
 The queue is intended to satisfy these equations:
@@ -549,30 +530,20 @@ All six pass, even with the broken `front` operation:
 
 ```ts
 describe("queue laws", () => {
-  it("Q1", () => assert.isTrue(isEmpty(empty())))
+  it("Q1", () => assert.isTrue(isEmpty(empty())));
 
-  it.prop("Q2", [item, queue], ([x, q]) => !isEmpty(enqueue(x, q)))
+  it.prop("Q2", [item, queue], ([x, q]) => !isEmpty(enqueue(x, q)));
 
-  it.prop("Q3", [item], ([x]) => front(enqueue(x, empty())) === x)
+  it.prop("Q3", [item], ([x]) => front(enqueue(x, empty())) === x);
 
-  it.prop(
-    "Q4",
-    [item, nonEmptyQueue],
-    ([x, q]) => front(enqueue(x, q)) === front(q)
-  )
+  it.prop("Q4", [item, nonEmptyQueue], ([x, q]) => front(enqueue(x, q)) === front(q));
 
-  it.prop(
-    "Q5",
-    [item],
-    ([x]) => equals(dequeue(enqueue(x, empty())), empty())
-  )
+  it.prop("Q5", [item], ([x]) => equals(dequeue(enqueue(x, empty())), empty()));
 
-  it.prop(
-    "Q6",
-    [item, nonEmptyQueue],
-    ([x, q]) => equals(dequeue(enqueue(x, q)), enqueue(x, dequeue(q)))
-  )
-})
+  it.prop("Q6", [item, nonEmptyQueue], ([x, q]) =>
+    equals(dequeue(enqueue(x, q)), enqueue(x, dequeue(q))),
+  );
+});
 ```
 
 The equations compare queues through `equals`, which checks their logical sequence. But replacing a queue with an equal
@@ -585,9 +556,9 @@ it.prop(
   "front agrees after the Q6 rewrite",
   [item, nonEmptyQueue],
   ([x, q]) => {
-    const left = dequeue(enqueue(x, q))
-    const right = enqueue(x, dequeue(q))
-    return front(left) === front(right)
+    const left = dequeue(enqueue(x, q));
+    const right = enqueue(x, dequeue(q));
+    return front(left) === front(right);
   },
   {
     // This flag belongs only in the tutorial while `front` is intentionally broken.
@@ -595,10 +566,10 @@ it.prop(
     arbitrary: {
       runs: 1_000,
       size: 10,
-      seed: "front-after-rewrite"
-    }
-  }
-)
+      seed: "front-after-rewrite",
+    },
+  },
+);
 ```
 
 This property fails and simplifies to a small queue. The first six laws say that two queue expressions are equal. The
@@ -618,54 +589,52 @@ The following property checks Effect's immutable `HashSet` against JavaScript's 
 sets directly, it generates command sequences and runs the same history against both implementations.
 
 ```ts
-import { it } from "@effect/vitest"
-import { HashSet, Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { it } from "@effect/vitest";
+import { HashSet, Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const Key = Schema.Int.check(
-  Schema.isBetween({ minimum: 0, maximum: 20 })
-)
+const Key = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 20 }));
 
 const Command = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal("Insert"), value: Key }),
   Schema.Struct({ _tag: Schema.Literal("Remove"), value: Key }),
-  Schema.Struct({ _tag: Schema.Literal("Contains"), value: Key })
-])
+  Schema.Struct({ _tag: Schema.Literal("Contains"), value: Key }),
+]);
 
-const commands = Arbitrary.schema(
-  Schema.Array(Command).check(Schema.isMaxLength(50))
-)
+const commands = Arbitrary.schema(Schema.Array(Command).check(Schema.isMaxLength(50)));
 
 it.prop("HashSet agrees with the Set model", [commands], ([input]) => {
-  const model = new Set<number>()
-  let actual = HashSet.empty<number>()
-  const modelTrace: Array<boolean> = []
-  const actualTrace: Array<boolean> = []
+  const model = new Set<number>();
+  let actual = HashSet.empty<number>();
+  const modelTrace: Array<boolean> = [];
+  const actualTrace: Array<boolean> = [];
 
   for (const command of input) {
     switch (command._tag) {
       case "Insert":
-        model.add(command.value)
-        actual = HashSet.add(actual, command.value)
-        break
+        model.add(command.value);
+        actual = HashSet.add(actual, command.value);
+        break;
 
       case "Remove":
-        model.delete(command.value)
-        actual = HashSet.remove(actual, command.value)
-        break
+        model.delete(command.value);
+        actual = HashSet.remove(actual, command.value);
+        break;
 
       case "Contains":
-        modelTrace.push(model.has(command.value))
-        actualTrace.push(HashSet.has(actual, command.value))
-        break
+        modelTrace.push(model.has(command.value));
+        actualTrace.push(HashSet.has(actual, command.value));
+        break;
     }
   }
 
-  return modelTrace.length === actualTrace.length &&
+  return (
+    modelTrace.length === actualTrace.length &&
     modelTrace.every((value, index) => value === actualTrace[index]) &&
     model.size === HashSet.size(actual) &&
     [...model].every((value) => HashSet.has(actual, value))
-})
+  );
+});
 ```
 
 The property compares two things:
@@ -683,27 +652,25 @@ token records enough information to generate the same initial input and repeat t
 reported counterexample:
 
 ```ts
-import { Effect, Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Effect, Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const arbitrary = Arbitrary.schema(Schema.Int)
+const arbitrary = Arbitrary.schema(Schema.Int);
 
-const program = Effect.gen(function*() {
+const program = Effect.gen(function* () {
   const first = yield* Arbitrary.checkEffect(arbitrary, (value) => value < 10, {
-    seed: "integer-bound"
-  })
+    seed: "integer-bound",
+  });
 
   if (first._tag === "Falsified") {
-    const replayed = yield* Arbitrary.checkEffect(
-      arbitrary,
-      (value) => value < 10,
-      { replay: first.replay }
-    )
-    return replayed
+    const replayed = yield* Arbitrary.checkEffect(arbitrary, (value) => value < 10, {
+      replay: first.replay,
+    });
+    return replayed;
   }
 
-  return first
-})
+  return first;
+});
 ```
 
 Store the token in logs or failure output when you want to reproduce a failure locally. Because this module is
@@ -793,53 +760,53 @@ For example, an addition expression can be replaced directly by either side. The
 meaning from the object shape:
 
 ```ts
-import { Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
 interface Literal {
-  readonly _tag: "Literal"
-  readonly value: number
+  readonly _tag: "Literal";
+  readonly value: number;
 }
 
 interface Add {
-  readonly _tag: "Add"
-  readonly left: Expression
-  readonly right: Expression
+  readonly _tag: "Add";
+  readonly left: Expression;
+  readonly right: Expression;
 }
 
-type Expression = Literal | Add
+type Expression = Literal | Add;
 
 const Expression: Schema.Codec<Expression> = Schema.suspend(() =>
   Schema.Union([
     Schema.Struct({
       _tag: Schema.Literal("Literal"),
-      value: Schema.Int
+      value: Schema.Int,
     }),
     Schema.Struct({
       _tag: Schema.Literal("Add"),
       left: Expression,
-      right: Expression
-    })
-  ])
-)
+      right: Expression,
+    }),
+  ]),
+);
 
 const shrinkExpression = (expression: Expression): ReadonlyArray<Expression> => {
   switch (expression._tag) {
     case "Literal":
-      return expression.value === 0 ? [] : [{ _tag: "Literal", value: 0 }]
+      return expression.value === 0 ? [] : [{ _tag: "Literal", value: 0 }];
     case "Add":
       return [
         expression.left,
         expression.right,
         ...shrinkExpression(expression.left).map((left) => ({ ...expression, left })),
-        ...shrinkExpression(expression.right).map((right) => ({ ...expression, right }))
-      ]
+        ...shrinkExpression(expression.right).map((right) => ({ ...expression, right })),
+      ];
   }
-}
+};
 
 const expressions = Arbitrary.schema(Expression, {
-  shrink: shrinkExpression
-})
+  shrink: shrinkExpression,
+});
 ```
 
 Initial values still come from `Expression`. After a property fails, `shrinkExpression` tells Effect which simpler
@@ -864,20 +831,20 @@ Use `shrink` only for application-specific shortcuts that those approaches canno
 Recursive Schemas are supported as long as there is a way for generation to stop:
 
 ```ts
-import { Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
 interface Node {
-  readonly value: string
-  readonly children: ReadonlyArray<Node>
+  readonly value: string;
+  readonly children: ReadonlyArray<Node>;
 }
 
 const Node: Schema.Codec<Node> = Schema.Struct({
   value: Schema.String,
-  children: Schema.Array(Schema.suspend(() => Node)).check(Schema.isMaxLength(3))
-})
+  children: Schema.Array(Schema.suspend(() => Node)).check(Schema.isMaxLength(3)),
+});
 
-const nodes = Arbitrary.schema(Node)
+const nodes = Arbitrary.schema(Node);
 ```
 
 Here, an empty `children` array stops the recursion. Effect limits recursion across the whole generated value so that
@@ -906,12 +873,12 @@ hidden. Generation stops with an error instead of trying `toCodec`.
 easy to generate, and the transformation converts them into the declared type:
 
 ```ts
-import { Schema, SchemaTransformation } from "effect"
+import { Schema, SchemaTransformation } from "effect";
 
 class UserId {
-  readonly value: number
+  readonly value: number;
   constructor(value: number) {
-    this.value = value
+    this.value = value;
   }
 }
 
@@ -921,10 +888,10 @@ const UserIdSchema = Schema.instanceOf(UserId, {
       Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 1_000_000 })),
       SchemaTransformation.transform({
         decode: (value) => new UserId(value),
-        encode: (id) => id.value
-      })
-    )
-})
+        encode: (id) => id.value,
+      }),
+    ),
+});
 ```
 
 Effect checks converted values against the original declaration. The conversion may reject some values; those values
@@ -946,29 +913,26 @@ works needs no Arbitrary-specific annotation.
 `@effect/vitest` accepts arrays or records containing Schemas, Arbitraries, or both:
 
 ```ts
-import { assert, it } from "@effect/vitest"
-import { Effect, Schema } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
+import { assert, it } from "@effect/vitest";
+import { Effect, Schema } from "effect";
+import { Arbitrary } from "effect/unstable/arbitrary";
 
-const Name = Arbitrary.schema(Schema.Literals(["Ada", "Grace"]))
+const Name = Arbitrary.schema(Schema.Literals(["Ada", "Grace"]));
 
-it.prop(
-  "integer addition is commutative",
-  [Schema.Int, Schema.Int],
-  ([a, b]) => a + b === b + a,
-  { arbitrary: { runs: 200, seed: "addition" } }
-)
+it.prop("integer addition is commutative", [Schema.Int, Schema.Int], ([a, b]) => a + b === b + a, {
+  arbitrary: { runs: 200, seed: "addition" },
+});
 
 it.effect.prop(
   "generated values can be checked in an Effect",
   { name: Name, value: Schema.Int },
   ({ name, value }) =>
     Effect.sync(() => {
-      assert.include(["Ada", "Grace"], name)
-      assert.isTrue(Number.isInteger(value))
+      assert.include(["Ada", "Grace"], name);
+      assert.isTrue(Number.isInteger(value));
     }),
-  { arbitrary: { runs: 50 } }
-)
+  { arbitrary: { runs: 50 } },
+);
 ```
 
 Generators from other property-testing libraries are not supported. Use Effect Arbitraries when an input needs more

@@ -9,9 +9,9 @@
  *
  * @since 2.0.0
  */
-import { dual } from "./Function.ts"
-import type { TypeLambda } from "./HKT.ts"
-import type { TupleOf, TupleOfAtLeast } from "./Types.ts"
+import { dual } from "./Function.ts";
+import type { TypeLambda } from "./HKT.ts";
+import type { TupleOf, TupleOfAtLeast } from "./Types.ts";
 
 /**
  * A function that decides whether a value of type `A` satisfies a condition.
@@ -44,7 +44,7 @@ import type { TupleOf, TupleOfAtLeast } from "./Types.ts"
  * @since 2.0.0
  */
 export interface Predicate<in A> {
-  (a: A): boolean
+  (a: A): boolean;
 }
 
 /**
@@ -77,7 +77,7 @@ export interface Predicate<in A> {
  * @since 2.0.0
  */
 export interface PredicateTypeLambda extends TypeLambda {
-  readonly type: Predicate<this["Target"]>
+  readonly type: Predicate<this["Target"]>;
 }
 
 /**
@@ -114,7 +114,7 @@ export interface PredicateTypeLambda extends TypeLambda {
  * @since 2.0.0
  */
 export interface Refinement<in A, out B extends A> {
-  (a: A): a is B
+  (a: A): a is B;
 }
 
 /**
@@ -175,7 +175,7 @@ export declare namespace Predicate {
    * @category utility types
    * @since 3.6.0
    */
-  export type In<T extends Any> = [T] extends [Predicate<infer _A>] ? _A : never
+  export type In<T extends Any> = [T] extends [Predicate<infer _A>] ? _A : never;
 
   /**
    * A utility type representing any predicate type.
@@ -203,7 +203,7 @@ export declare namespace Predicate {
    * @category utility types
    * @since 3.6.0
    */
-  export type Any = Predicate<any>
+  export type Any = Predicate<any>;
 }
 
 /**
@@ -265,7 +265,7 @@ export declare namespace Refinement {
    * @since 3.6.0
    */
 
-  export type In<T extends Any> = [T] extends [Refinement<infer _A, infer _>] ? _A : never
+  export type In<T extends Any> = [T] extends [Refinement<infer _A, infer _>] ? _A : never;
 
   /**
    * Extracts the output type `B` from a `Refinement<A, B>`.
@@ -294,7 +294,7 @@ export declare namespace Refinement {
    * @category utility types
    * @since 3.6.0
    */
-  export type Out<T extends Any> = [T] extends [Refinement<infer _, infer _B>] ? _B : never
+  export type Out<T extends Any> = [T] extends [Refinement<infer _, infer _B>] ? _B : never;
 
   /**
    * A utility type representing any refinement type.
@@ -323,7 +323,7 @@ export declare namespace Refinement {
    * @category utility types
    * @since 3.6.0
    */
-  export type Any = Refinement<any, any>
+  export type Any = Refinement<any, any>;
 }
 
 /**
@@ -358,9 +358,14 @@ export declare namespace Refinement {
  * @since 2.0.0
  */
 export const mapInput: {
-  <B, A>(f: (b: B) => A): (self: Predicate<A>) => Predicate<B>
-  <A, B>(self: Predicate<A>, f: (b: B) => A): Predicate<B>
-} = dual(2, <A, B>(self: Predicate<A>, f: (b: B) => A): Predicate<B> => (b) => self(f(b)))
+  <B, A>(f: (b: B) => A): (self: Predicate<A>) => Predicate<B>;
+  <A, B>(self: Predicate<A>, f: (b: B) => A): Predicate<B>;
+} = dual(
+  2,
+  <A, B>(self: Predicate<A>, f: (b: B) => A): Predicate<B> =>
+    (b) =>
+      self(f(b)),
+);
 
 /**
  * Checks whether a readonly array has exactly `n` elements.
@@ -391,9 +396,12 @@ export const mapInput: {
  * @since 3.3.0
  */
 export const isTupleOf: {
-  <N extends number>(n: N): <T>(self: ReadonlyArray<T>) => self is TupleOf<N, T>
-  <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOf<N, T>
-} = dual(2, <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOf<N, T> => self.length === n)
+  <N extends number>(n: N): <T>(self: ReadonlyArray<T>) => self is TupleOf<N, T>;
+  <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOf<N, T>;
+} = dual(
+  2,
+  <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOf<N, T> => self.length === n,
+);
 
 /**
  * Checks whether a readonly array has at least `n` elements.
@@ -424,9 +432,13 @@ export const isTupleOf: {
  * @since 3.3.0
  */
 export const isTupleOfAtLeast: {
-  <N extends number>(n: N): <T>(self: ReadonlyArray<T>) => self is TupleOfAtLeast<N, T>
-  <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOfAtLeast<N, T>
-} = dual(2, <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOfAtLeast<N, T> => self.length >= n)
+  <N extends number>(n: N): <T>(self: ReadonlyArray<T>) => self is TupleOfAtLeast<N, T>;
+  <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOfAtLeast<N, T>;
+} = dual(
+  2,
+  <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOfAtLeast<N, T> =>
+    self.length >= n,
+);
 
 /**
  * Checks whether a value is truthy.
@@ -456,7 +468,7 @@ export const isTupleOfAtLeast: {
  * @since 2.0.0
  */
 export function isTruthy(input: unknown): boolean {
-  return !!input
+  return !!input;
 }
 
 /**
@@ -488,7 +500,7 @@ export function isTruthy(input: unknown): boolean {
  * @since 2.0.0
  */
 export function isSet(input: unknown): input is Set<unknown> {
-  return input instanceof Set
+  return input instanceof Set;
 }
 
 /**
@@ -520,7 +532,7 @@ export function isSet(input: unknown): input is Set<unknown> {
  * @since 2.0.0
  */
 export function isMap(input: unknown): input is Map<unknown, unknown> {
-  return input instanceof Map
+  return input instanceof Map;
 }
 
 /**
@@ -554,7 +566,7 @@ export function isMap(input: unknown): input is Map<unknown, unknown> {
  * @since 2.0.0
  */
 export function isString(input: unknown): input is string {
-  return typeof input === "string"
+  return typeof input === "string";
 }
 
 /**
@@ -587,7 +599,7 @@ export function isString(input: unknown): input is string {
  * @since 2.0.0
  */
 export function isNumber(input: unknown): input is number {
-  return typeof input === "number"
+  return typeof input === "number";
 }
 
 /**
@@ -620,7 +632,7 @@ export function isNumber(input: unknown): input is number {
  * @since 2.0.0
  */
 export function isBoolean(input: unknown): input is boolean {
-  return typeof input === "boolean"
+  return typeof input === "boolean";
 }
 
 /**
@@ -652,7 +664,7 @@ export function isBoolean(input: unknown): input is boolean {
  * @since 2.0.0
  */
 export function isBigInt(input: unknown): input is bigint {
-  return typeof input === "bigint"
+  return typeof input === "bigint";
 }
 
 /**
@@ -684,7 +696,7 @@ export function isBigInt(input: unknown): input is bigint {
  * @since 2.0.0
  */
 export function isSymbol(input: unknown): input is symbol {
-  return typeof input === "symbol"
+  return typeof input === "symbol";
 }
 
 /**
@@ -719,7 +731,7 @@ export function isSymbol(input: unknown): input is symbol {
  * @since 4.0.0
  */
 export function isPropertyKey(u: unknown): u is PropertyKey {
-  return isString(u) || isNumber(u) || isSymbol(u)
+  return isString(u) || isNumber(u) || isSymbol(u);
 }
 
 /**
@@ -751,7 +763,7 @@ export function isPropertyKey(u: unknown): u is PropertyKey {
  * @since 2.0.0
  */
 export function isFunction(input: unknown): input is Function {
-  return typeof input === "function"
+  return typeof input === "function";
 }
 
 /**
@@ -782,7 +794,7 @@ export function isFunction(input: unknown): input is Function {
  * @since 2.0.0
  */
 export function isUndefined(input: unknown): input is undefined {
-  return input === undefined
+  return input === undefined;
 }
 
 /**
@@ -812,7 +824,7 @@ export function isUndefined(input: unknown): input is undefined {
  * @since 2.0.0
  */
 export function isNotUndefined<A>(input: A): input is Exclude<A, undefined> {
-  return input !== undefined
+  return input !== undefined;
 }
 
 /**
@@ -842,7 +854,7 @@ export function isNotUndefined<A>(input: A): input is Exclude<A, undefined> {
  * @since 2.0.0
  */
 export function isNull(input: unknown): input is null {
-  return input === null
+  return input === null;
 }
 
 /**
@@ -872,7 +884,7 @@ export function isNull(input: unknown): input is null {
  * @since 2.0.0
  */
 export function isNotNull<A>(input: A): input is Exclude<A, null> {
-  return input !== null
+  return input !== null;
 }
 
 /**
@@ -902,7 +914,7 @@ export function isNotNull<A>(input: A): input is Exclude<A, null> {
  * @since 4.0.0
  */
 export function isNullish<A>(input: A): input is A & (null | undefined) {
-  return input === null || input === undefined
+  return input === null || input === undefined;
 }
 
 /**
@@ -933,7 +945,7 @@ export function isNullish<A>(input: A): input is A & (null | undefined) {
  * @since 4.0.0
  */
 export function isNotNullish<A>(input: A): input is NonNullable<A> {
-  return input != null
+  return input != null;
 }
 
 /**
@@ -956,7 +968,7 @@ export function isNotNullish<A>(input: A): input is NonNullable<A> {
  * @since 2.0.0
  */
 export function isNever(_: unknown): _ is never {
-  return false
+  return false;
 }
 
 /**
@@ -979,7 +991,7 @@ export function isNever(_: unknown): _ is never {
  * @since 2.0.0
  */
 export function isUnknown(_: unknown): _ is unknown {
-  return true
+  return true;
 }
 
 /**
@@ -1007,8 +1019,10 @@ export function isUnknown(_: unknown): _ is unknown {
  * @category guards
  * @since 4.0.0
  */
-export function isObjectOrArray(input: unknown): input is { [x: PropertyKey]: unknown } | Array<unknown> {
-  return typeof input === "object" && input !== null
+export function isObjectOrArray(
+  input: unknown,
+): input is { [x: PropertyKey]: unknown } | Array<unknown> {
+  return typeof input === "object" && input !== null;
 }
 
 /**
@@ -1040,7 +1054,7 @@ export function isObjectOrArray(input: unknown): input is { [x: PropertyKey]: un
  * @since 2.0.0
  */
 export function isObject(input: unknown): input is { [x: PropertyKey]: unknown } {
-  return typeof input === "object" && input !== null && !Array.isArray(input)
+  return typeof input === "object" && input !== null && !Array.isArray(input);
 }
 
 /**
@@ -1073,7 +1087,7 @@ export function isObject(input: unknown): input is { [x: PropertyKey]: unknown }
  * @since 4.0.0
  */
 export function isReadonlyObject(input: unknown): input is { readonly [x: PropertyKey]: unknown } {
-  return isObject(input)
+  return isObject(input);
 }
 
 /**
@@ -1103,7 +1117,7 @@ export function isReadonlyObject(input: unknown): input is { readonly [x: Proper
  * @since 4.0.0
  */
 export function isObjectKeyword(input: unknown): input is object {
-  return (typeof input === "object" && input !== null) || isFunction(input)
+  return (typeof input === "object" && input !== null) || isFunction(input);
 }
 
 /**
@@ -1138,13 +1152,13 @@ export function isObjectKeyword(input: unknown): input is object {
  * @since 2.0.0
  */
 export const hasProperty: {
-  <P extends PropertyKey>(property: P): (self: unknown) => self is { [K in P]: unknown }
-  <P extends PropertyKey>(self: unknown, property: P): self is { [K in P]: unknown }
+  <P extends PropertyKey>(property: P): (self: unknown) => self is { [K in P]: unknown };
+  <P extends PropertyKey>(self: unknown, property: P): self is { [K in P]: unknown };
 } = dual(
   2,
   <P extends PropertyKey>(self: unknown, property: P): self is { [K in P]: unknown } =>
-    isObjectKeyword(self) && (property in self)
-)
+    isObjectKeyword(self) && property in self,
+);
 
 /**
  * Checks whether a value has a `_tag` property equal to the given tag.
@@ -1173,12 +1187,13 @@ export const hasProperty: {
  * @since 2.0.0
  */
 export const isTagged: {
-  <K extends string>(tag: K): (self: unknown) => self is { _tag: K }
-  <K extends string>(self: unknown, tag: K): self is { _tag: K }
+  <K extends string>(tag: K): (self: unknown) => self is { _tag: K };
+  <K extends string>(self: unknown, tag: K): self is { _tag: K };
 } = dual(
   2,
-  <K extends string>(self: unknown, tag: K): self is { _tag: K } => hasProperty(self, "_tag") && self["_tag"] === tag
-)
+  <K extends string>(self: unknown, tag: K): self is { _tag: K } =>
+    hasProperty(self, "_tag") && self["_tag"] === tag,
+);
 
 /**
  * Checks whether a value is an `Error`.
@@ -1206,7 +1221,7 @@ export const isTagged: {
  * @since 2.0.0
  */
 export function isError(input: unknown): input is Error {
-  return input instanceof Error
+  return input instanceof Error;
 }
 
 /**
@@ -1236,7 +1251,7 @@ export function isError(input: unknown): input is Error {
  * @since 2.0.0
  */
 export function isUint8Array(input: unknown): input is Uint8Array {
-  return input instanceof Uint8Array
+  return input instanceof Uint8Array;
 }
 
 /**
@@ -1265,7 +1280,7 @@ export function isUint8Array(input: unknown): input is Uint8Array {
  * @since 2.0.0
  */
 export function isDate(input: unknown): input is Date {
-  return input instanceof Date
+  return input instanceof Date;
 }
 
 /**
@@ -1295,7 +1310,7 @@ export function isDate(input: unknown): input is Date {
  * @since 2.0.0
  */
 export function isIterable(input: unknown): input is Iterable<unknown> {
-  return hasProperty(input, Symbol.iterator) || isString(input)
+  return hasProperty(input, Symbol.iterator) || isString(input);
 }
 
 /**
@@ -1324,7 +1339,12 @@ export function isIterable(input: unknown): input is Iterable<unknown> {
  * @since 2.0.0
  */
 export function isPromise(input: unknown): input is Promise<unknown> {
-  return hasProperty(input, "then") && "catch" in input && isFunction(input.then) && isFunction(input.catch)
+  return (
+    hasProperty(input, "then") &&
+    "catch" in input &&
+    isFunction(input.then) &&
+    isFunction(input.catch)
+  );
 }
 
 /**
@@ -1354,7 +1374,7 @@ export function isPromise(input: unknown): input is Promise<unknown> {
  * @since 2.0.0
  */
 export function isPromiseLike(input: unknown): input is PromiseLike<unknown> {
-  return hasProperty(input, "then") && isFunction(input.then)
+  return hasProperty(input, "then") && isFunction(input.then);
 }
 
 /**
@@ -1383,7 +1403,7 @@ export function isPromiseLike(input: unknown): input is PromiseLike<unknown> {
  * @since 3.9.0
  */
 export function isRegExp(input: unknown): input is RegExp {
-  return input instanceof RegExp
+  return input instanceof RegExp;
 }
 
 /**
@@ -1418,15 +1438,16 @@ export function isRegExp(input: unknown): input is RegExp {
  * @since 2.0.0
  */
 export const compose: {
-  <A, B extends A, C extends B>(bc: Refinement<B, C>): (ab: Refinement<A, B>) => Refinement<A, C>
-  <A, B extends A>(bc: Predicate<NoInfer<B>>): (ab: Refinement<A, B>) => Refinement<A, B>
-  <A, B extends A, C extends B>(ab: Refinement<A, B>, bc: Refinement<B, C>): Refinement<A, C>
-  <A, B extends A>(ab: Refinement<A, B>, bc: Predicate<NoInfer<B>>): Refinement<A, B>
+  <A, B extends A, C extends B>(bc: Refinement<B, C>): (ab: Refinement<A, B>) => Refinement<A, C>;
+  <A, B extends A>(bc: Predicate<NoInfer<B>>): (ab: Refinement<A, B>) => Refinement<A, B>;
+  <A, B extends A, C extends B>(ab: Refinement<A, B>, bc: Refinement<B, C>): Refinement<A, C>;
+  <A, B extends A>(ab: Refinement<A, B>, bc: Predicate<NoInfer<B>>): Refinement<A, B>;
 } = dual(
   2,
-  <A, B extends A, C extends B>(ab: Refinement<A, B>, bc: Refinement<B, C>): Refinement<A, C> => (a): a is C =>
-    ab(a) && bc(a)
-)
+  <A, B extends A, C extends B>(ab: Refinement<A, B>, bc: Refinement<B, C>): Refinement<A, C> =>
+    (a): a is C =>
+      ab(a) && bc(a),
+);
 
 /**
  * Creates a predicate for tuples by applying predicates to each element.
@@ -1457,21 +1478,29 @@ export const compose: {
  * @since 4.0.0
  */
 export function Tuple<const T extends ReadonlyArray<Predicate.Any>>(
-  elements: T
-): [Extract<T[number], Refinement.Any>] extends [never] ? Predicate<{ readonly [I in keyof T]: Predicate.In<T[I]> }>
+  elements: T,
+): [Extract<T[number], Refinement.Any>] extends [never]
+  ? Predicate<{ readonly [I in keyof T]: Predicate.In<T[I]> }>
   : Refinement<
-    { readonly [I in keyof T]: T[I] extends Refinement.Any ? Refinement.In<T[I]> : Predicate.In<T[I]> },
-    { readonly [I in keyof T]: T[I] extends Refinement.Any ? Refinement.Out<T[I]> : Predicate.In<T[I]> }
-  >
-{
+      {
+        readonly [I in keyof T]: T[I] extends Refinement.Any
+          ? Refinement.In<T[I]>
+          : Predicate.In<T[I]>;
+      },
+      {
+        readonly [I in keyof T]: T[I] extends Refinement.Any
+          ? Refinement.Out<T[I]>
+          : Predicate.In<T[I]>;
+      }
+    > {
   return ((as: Array<unknown>) => {
     for (let i = 0; i < elements.length; i++) {
       if (elements[i](as[i]) === false) {
-        return false
+        return false;
       }
     }
-    return true
-  }) as any
+    return true;
+  }) as any;
 }
 
 /**
@@ -1506,22 +1535,30 @@ export function Tuple<const T extends ReadonlyArray<Predicate.Any>>(
  * @since 4.0.0
  */
 export function Struct<R extends Record<string, Predicate.Any>>(
-  fields: R
-): [Extract<R[keyof R], Refinement.Any>] extends [never] ? Predicate<{ readonly [K in keyof R]: Predicate.In<R[K]> }> :
-  Refinement<
-    { readonly [K in keyof R]: R[K] extends Refinement.Any ? Refinement.In<R[K]> : Predicate.In<R[K]> },
-    { readonly [K in keyof R]: R[K] extends Refinement.Any ? Refinement.Out<R[K]> : Predicate.In<R[K]> }
-  >
-{
-  const keys = Object.keys(fields)
+  fields: R,
+): [Extract<R[keyof R], Refinement.Any>] extends [never]
+  ? Predicate<{ readonly [K in keyof R]: Predicate.In<R[K]> }>
+  : Refinement<
+      {
+        readonly [K in keyof R]: R[K] extends Refinement.Any
+          ? Refinement.In<R[K]>
+          : Predicate.In<R[K]>;
+      },
+      {
+        readonly [K in keyof R]: R[K] extends Refinement.Any
+          ? Refinement.Out<R[K]>
+          : Predicate.In<R[K]>;
+      }
+    > {
+  const keys = Object.keys(fields);
   return ((a: Record<string, unknown>) => {
     for (const key of keys) {
       if (!fields[key](a[key] as never)) {
-        return false
+        return false;
       }
     }
-    return true
-  }) as any
+    return true;
+  }) as any;
 }
 
 /**
@@ -1552,7 +1589,7 @@ export function Struct<R extends Record<string, Predicate.Any>>(
  * @since 2.0.0
  */
 export function not<A>(self: Predicate<A>): Predicate<A> {
-  return (a) => !self(a)
+  return (a) => !self(a);
 }
 
 /**
@@ -1584,11 +1621,21 @@ export function not<A>(self: Predicate<A>): Predicate<A> {
  * @since 2.0.0
  */
 export const or: {
-  <A, C extends A>(that: Refinement<A, C>): <B extends A>(self: Refinement<A, B>) => Refinement<A, B | C>
-  <A, B extends A, C extends A>(self: Refinement<A, B>, that: Refinement<A, C>): Refinement<A, B | C>
-  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>
-} = dual(2, <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> => (a) => self(a) || that(a))
+  <A, C extends A>(
+    that: Refinement<A, C>,
+  ): <B extends A>(self: Refinement<A, B>) => Refinement<A, B | C>;
+  <A, B extends A, C extends A>(
+    self: Refinement<A, B>,
+    that: Refinement<A, C>,
+  ): Refinement<A, B | C>;
+  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>;
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>;
+} = dual(
+  2,
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> =>
+    (a) =>
+      self(a) || that(a),
+);
 
 /**
  * Creates a predicate that returns `true` only if both predicates are `true`.
@@ -1630,11 +1677,21 @@ export const or: {
  * @since 2.0.0
  */
 export const and: {
-  <A, C extends A>(that: Refinement<A, C>): <B extends A>(self: Refinement<A, B>) => Refinement<A, B & C>
-  <A, B extends A, C extends A>(self: Refinement<A, B>, that: Refinement<A, C>): Refinement<A, B & C>
-  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>
-} = dual(2, <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> => (a) => self(a) && that(a))
+  <A, C extends A>(
+    that: Refinement<A, C>,
+  ): <B extends A>(self: Refinement<A, B>) => Refinement<A, B & C>;
+  <A, B extends A, C extends A>(
+    self: Refinement<A, B>,
+    that: Refinement<A, C>,
+  ): Refinement<A, B & C>;
+  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>;
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>;
+} = dual(
+  2,
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> =>
+    (a) =>
+      self(a) && that(a),
+);
 
 /**
  * Creates a predicate that returns `true` if exactly one predicate is `true`.
@@ -1665,9 +1722,14 @@ export const and: {
  * @since 2.0.0
  */
 export const xor: {
-  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>
-} = dual(2, <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> => (a) => self(a) !== that(a))
+  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>;
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>;
+} = dual(
+  2,
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> =>
+    (a) =>
+      self(a) !== that(a),
+);
 
 /**
  * Creates a predicate that returns `true` when both predicates agree.
@@ -1696,9 +1758,14 @@ export const xor: {
  * @since 2.0.0
  */
 export const eqv: {
-  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>
-} = dual(2, <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> => (a) => self(a) === that(a))
+  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>;
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>;
+} = dual(
+  2,
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> =>
+    (a) =>
+      self(a) === that(a),
+);
 
 /**
  * Creates a predicate representing logical implication: if `antecedent`, then `consequent`.
@@ -1731,12 +1798,14 @@ export const eqv: {
  * @since 2.0.0
  */
 export const implies: {
-  <A>(consequent: Predicate<A>): (antecedent: Predicate<A>) => Predicate<A>
-  <A>(antecedent: Predicate<A>, consequent: Predicate<A>): Predicate<A>
+  <A>(consequent: Predicate<A>): (antecedent: Predicate<A>) => Predicate<A>;
+  <A>(antecedent: Predicate<A>, consequent: Predicate<A>): Predicate<A>;
 } = dual(
   2,
-  <A>(antecedent: Predicate<A>, consequent: Predicate<A>): Predicate<A> => (a) => antecedent(a) ? consequent(a) : true
-)
+  <A>(antecedent: Predicate<A>, consequent: Predicate<A>): Predicate<A> =>
+    (a) =>
+      antecedent(a) ? consequent(a) : true,
+);
 
 /**
  * Creates a predicate that returns `true` when neither predicate is `true`.
@@ -1765,12 +1834,14 @@ export const implies: {
  * @since 2.0.0
  */
 export const nor: {
-  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>
+  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>;
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>;
 } = dual(
   2,
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> => (a) => !(self(a) || that(a))
-)
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> =>
+    (a) =>
+      !(self(a) || that(a)),
+);
 
 /**
  * Creates a predicate that returns `true` unless both predicates are `true`.
@@ -1799,12 +1870,14 @@ export const nor: {
  * @since 2.0.0
  */
 export const nand: {
-  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>
+  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>;
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>;
 } = dual(
   2,
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> => (a) => !(self(a) && that(a))
-)
+  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> =>
+    (a) =>
+      !(self(a) && that(a)),
+);
 
 /**
  * Creates a predicate that returns `true` if all predicates in the collection return `true`.
@@ -1837,11 +1910,11 @@ export function every<A>(collection: Iterable<Predicate<A>>): Predicate<A> {
   return (a) => {
     for (const p of collection) {
       if (!p(a)) {
-        return false
+        return false;
       }
     }
-    return true
-  }
+    return true;
+  };
 }
 
 /**
@@ -1875,9 +1948,9 @@ export function some<A>(collection: Iterable<Predicate<A>>): Predicate<A> {
   return (a) => {
     for (const p of collection) {
       if (p(a)) {
-        return true
+        return true;
       }
     }
-    return false
-  }
+    return false;
+  };
 }

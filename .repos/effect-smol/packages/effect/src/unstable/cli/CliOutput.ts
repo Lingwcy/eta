@@ -10,11 +10,11 @@
  * @since 4.0.0
  */
 
-import * as Context from "../../Context.ts"
-import * as Layer from "../../Layer.ts"
-import * as Option from "../../Option.ts"
-import type * as CliError from "./CliError.ts"
-import type { HelpDoc } from "./HelpDoc.ts"
+import * as Context from "../../Context.ts";
+import * as Layer from "../../Layer.ts";
+import * as Option from "../../Option.ts";
+import type * as CliError from "./CliError.ts";
+import type { HelpDoc } from "./HelpDoc.ts";
 
 /**
  * Defines the service interface for formatting CLI output including help, errors, and version info.
@@ -90,7 +90,7 @@ export interface Formatter {
    *
    * @since 4.0.0
    */
-  readonly formatHelpDoc: (doc: HelpDoc) => string
+  readonly formatHelpDoc: (doc: HelpDoc) => string;
 
   /**
    * Formats a CLI error for display. Default implementation mirrors the error message.
@@ -113,7 +113,7 @@ export interface Formatter {
    *
    * @since 4.0.0
    */
-  readonly formatCliError: (error: CliError.CliError) => string
+  readonly formatCliError: (error: CliError.CliError) => string;
 
   /**
    * Formats an error section with proper styling and color reset.
@@ -142,7 +142,7 @@ export interface Formatter {
    *
    * @since 4.0.0
    */
-  readonly formatError: (error: CliError.CliError) => string
+  readonly formatError: (error: CliError.CliError) => string;
 
   /**
    * Formats version output for display.
@@ -167,7 +167,7 @@ export interface Formatter {
    *
    * @since 4.0.0
    */
-  readonly formatVersion: (name: string, version: string) => string
+  readonly formatVersion: (name: string, version: string) => string;
 
   /**
    * Formats multiple CLI errors for display, grouping by error type.
@@ -194,7 +194,7 @@ export interface Formatter {
    *
    * @since 4.0.0
    */
-  readonly formatErrors: (errors: ReadonlyArray<CliError.CliError>) => string
+  readonly formatErrors: (errors: ReadonlyArray<CliError.CliError>) => string;
 }
 
 /**
@@ -224,10 +224,9 @@ export interface Formatter {
  * @category services
  * @since 4.0.0
  */
-export const Formatter: Context.Reference<Formatter> = Context.Reference(
-  "effect/cli/CliOutput",
-  { defaultValue: () => defaultFormatter() }
-)
+export const Formatter: Context.Reference<Formatter> = Context.Reference("effect/cli/CliOutput", {
+  defaultValue: () => defaultFormatter(),
+});
 
 /**
  * Creates a Layer that provides a custom Formatter implementation.
@@ -256,12 +255,15 @@ export const Formatter: Context.Reference<Formatter> = Context.Reference(
  * @category layers
  * @since 4.0.0
  */
-export const layer = (formatter: Formatter): Layer.Layer<never> => Layer.succeed(Formatter)(formatter)
+export const layer = (formatter: Formatter): Layer.Layer<never> =>
+  Layer.succeed(Formatter)(formatter);
 
 const escapeControlCharacters = (text: string): string =>
   // oxlint-disable-next-line no-control-regex
-  text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, (character) =>
-    `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`)
+  text.replace(
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
+    (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`,
+  );
 
 /**
  * Creates a default formatter with configurable options.
@@ -296,79 +298,80 @@ const escapeControlCharacters = (text: string): string =>
  * @since 4.0.0
  */
 export const defaultFormatter = (options?: { colors?: boolean }): Formatter => {
-  const globalProcess = (globalThis as any).process
-  const hasProcess = typeof globalProcess === "object" && globalProcess !== null
+  const globalProcess = (globalThis as any).process;
+  const hasProcess = typeof globalProcess === "object" && globalProcess !== null;
 
-  const useColor = options?.colors !== undefined
-    ? options.colors
-    // Auto-detect based on environment
-    : (hasProcess &&
-      typeof globalProcess.stdout === "object" &&
-      globalProcess.stdout !== null &&
-      globalProcess.stdout.isTTY === true &&
-      !globalProcess.env?.NO_COLOR)
+  const useColor =
+    options?.colors !== undefined
+      ? options.colors
+      : // Auto-detect based on environment
+        hasProcess &&
+        typeof globalProcess.stdout === "object" &&
+        globalProcess.stdout !== null &&
+        globalProcess.stdout.isTTY === true &&
+        !globalProcess.env?.NO_COLOR;
 
   // Color palette using ANSI escape codes
   const colors = useColor
     ? {
-      bold: (text: string): string => `\x1b[1m${text}\x1b[0m`,
-      dim: (text: string): string => `\x1b[2m${text}\x1b[0m`,
-      cyan: (text: string): string => `\x1b[36m${text}\x1b[0m`,
-      green: (text: string): string => `\x1b[32m${text}\x1b[0m`,
-      blue: (text: string): string => `\x1b[34m${text}\x1b[0m`,
-      yellow: (text: string): string => `\x1b[33m${text}\x1b[0m`,
-      magenta: (text: string): string => `\x1b[35m${text}\x1b[0m`
-    }
+        bold: (text: string): string => `\x1b[1m${text}\x1b[0m`,
+        dim: (text: string): string => `\x1b[2m${text}\x1b[0m`,
+        cyan: (text: string): string => `\x1b[36m${text}\x1b[0m`,
+        green: (text: string): string => `\x1b[32m${text}\x1b[0m`,
+        blue: (text: string): string => `\x1b[34m${text}\x1b[0m`,
+        yellow: (text: string): string => `\x1b[33m${text}\x1b[0m`,
+        magenta: (text: string): string => `\x1b[35m${text}\x1b[0m`,
+      }
     : {
-      bold: (text: string): string => text,
-      dim: (text: string): string => text,
-      cyan: (text: string): string => text,
-      green: (text: string): string => text,
-      blue: (text: string): string => text,
-      yellow: (text: string): string => text,
-      magenta: (text: string): string => text
-    }
+        bold: (text: string): string => text,
+        dim: (text: string): string => text,
+        cyan: (text: string): string => text,
+        green: (text: string): string => text,
+        blue: (text: string): string => text,
+        yellow: (text: string): string => text,
+        magenta: (text: string): string => text,
+      };
 
-  const reset = useColor ? "\x1b[0m" : ""
-  const red = useColor ? "\x1b[31m" : ""
-  const bold = useColor ? "\x1b[1m" : ""
+  const reset = useColor ? "\x1b[0m" : "";
+  const red = useColor ? "\x1b[31m" : "";
+  const bold = useColor ? "\x1b[1m" : "";
 
   return {
     formatHelpDoc: (doc: HelpDoc): string => formatHelpDocImpl(doc, colors),
     formatCliError: (error): string => escapeControlCharacters(error.message),
     formatError: (error): string => {
-      return `\n${bold}${red}ERROR${reset}\n  ${escapeControlCharacters(error.message)}${reset}`
+      return `\n${bold}${red}ERROR${reset}\n  ${escapeControlCharacters(error.message)}${reset}`;
     },
     formatErrors: (errors): string => {
-      if (errors.length === 0) return ""
+      if (errors.length === 0) return "";
       if (errors.length === 1) {
-        return `\n${bold}${red}ERROR${reset}\n  ${escapeControlCharacters(errors[0].message)}${reset}`
+        return `\n${bold}${red}ERROR${reset}\n  ${escapeControlCharacters(errors[0].message)}${reset}`;
       }
 
       // Group errors by _tag
-      const grouped = new Map<string, Array<CliError.CliError>>()
+      const grouped = new Map<string, Array<CliError.CliError>>();
       for (const error of errors) {
-        const tag = (error as any)._tag ?? "Error"
-        const group = grouped.get(tag) ?? []
-        group.push(error)
-        grouped.set(tag, group)
+        const tag = (error as any)._tag ?? "Error";
+        const group = grouped.get(tag) ?? [];
+        group.push(error);
+        grouped.set(tag, group);
       }
 
-      const sections: Array<string> = []
-      sections.push(`\n${bold}${red}ERRORS${reset}`)
+      const sections: Array<string> = [];
+      sections.push(`\n${bold}${red}ERRORS${reset}`);
 
       for (const [, group] of grouped) {
         for (const error of group) {
-          sections.push(`  ${escapeControlCharacters(error.message)}${reset}`)
+          sections.push(`  ${escapeControlCharacters(error.message)}${reset}`);
         }
       }
 
-      return sections.join("\n")
+      return sections.join("\n");
     },
     formatVersion: (name: string, version: string): string =>
-      `${colors.bold(name)} ${colors.dim("v")}${colors.bold(version)}`
-  }
-}
+      `${colors.bold(name)} ${colors.dim("v")}${colors.bold(version)}`,
+  };
+};
 
 /**
  * Strips ANSI escape codes from a string to calculate visual width.
@@ -376,22 +379,23 @@ export const defaultFormatter = (options?: { colors?: boolean }): Formatter => {
  */
 const stripAnsi = (text: string): string => {
   // oxlint-disable-next-line no-control-regex
-  return text.replace(/\u001B\[[0-9;]*m/g, "")
-}
+  return text.replace(/\u001B\[[0-9;]*m/g, "");
+};
 
 /**
  * Gets the terminal display width of a string (excluding ANSI codes).
  * @internal
  */
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
-const zeroWidthCodePoints = /[\p{Mark}\p{Control}\p{Default_Ignorable_Code_Point}]/gu
-const emojiPresentation = /\p{Emoji_Presentation}/u
+const zeroWidthCodePoints = /[\p{Mark}\p{Control}\p{Default_Ignorable_Code_Point}]/gu;
+const emojiPresentation = /\p{Emoji_Presentation}/u;
 
 const isFullWidthCodePoint = (codePoint: number): boolean => {
-  if (codePoint < 0x1100) return false
+  if (codePoint < 0x1100) return false;
 
-  return codePoint <= 0x115f ||
+  return (
+    codePoint <= 0x115f ||
     codePoint === 0x2329 ||
     codePoint === 0x232a ||
     (codePoint >= 0x2e80 && codePoint <= 0x303e) ||
@@ -405,40 +409,41 @@ const isFullWidthCodePoint = (codePoint: number): boolean => {
     (codePoint >= 0x1b000 && codePoint <= 0x1b2ff) ||
     (codePoint >= 0x1f200 && codePoint <= 0x1f251) ||
     (codePoint >= 0x20000 && codePoint <= 0x3fffd)
-}
+  );
+};
 
 const graphemeWidth = (grapheme: string): number => {
-  const visible = grapheme.replace(zeroWidthCodePoints, "")
-  if (visible.length === 0) return 0
-  if (emojiPresentation.test(grapheme) || grapheme.includes("\uFE0F")) return 2
-  return isFullWidthCodePoint(visible.codePointAt(0)!) ? 2 : 1
-}
+  const visible = grapheme.replace(zeroWidthCodePoints, "");
+  if (visible.length === 0) return 0;
+  if (emojiPresentation.test(grapheme) || grapheme.includes("\uFE0F")) return 2;
+  return isFullWidthCodePoint(visible.codePointAt(0)!) ? 2 : 1;
+};
 
 const visualLength = (text: string): number => {
-  let length = 0
+  let length = 0;
   for (const { segment } of graphemeSegmenter.segment(stripAnsi(text))) {
-    length += graphemeWidth(segment)
+    length += graphemeWidth(segment);
   }
-  return length
-}
+  return length;
+};
 
 /**
  * Helper function to pad strings to a specified width.
  * @internal
  */
 const pad = (s: string, width: number) => {
-  const actualLength = visualLength(s)
-  const padding = Math.max(0, width - actualLength)
-  return s + " ".repeat(padding)
-}
+  const actualLength = visualLength(s);
+  const padding = Math.max(0, width - actualLength);
+  return s + " ".repeat(padding);
+};
 
 /**
  * Interface for table rows with left and right columns.
  * @internal
  */
 interface Row {
-  left: string
-  right: string
+  left: string;
+  right: string;
 }
 
 /**
@@ -446,25 +451,28 @@ interface Row {
  * @internal
  */
 const renderTable = (rows: ReadonlyArray<Row>, widthCap?: number) => {
-  const maxColumn = Math.max(...rows.map((r) => visualLength(r.left))) + 4
-  const col = widthCap === undefined ? maxColumn : Math.min(maxColumn, widthCap)
-  return rows.map(({ left, right }) => `  ${pad(left, Math.max(col, visualLength(left) + 1))}${right}`).join("\n")
-}
+  const maxColumn = Math.max(...rows.map((r) => visualLength(r.left))) + 4;
+  const col = widthCap === undefined ? maxColumn : Math.min(maxColumn, widthCap);
+  return rows
+    .map(({ left, right }) => `  ${pad(left, Math.max(col, visualLength(left) + 1))}${right}`)
+    .join("\n");
+};
 
-const formatSubcommandName = (name: string, alias: string | undefined): string => alias ? `${name}, ${alias}` : name
+const formatSubcommandName = (name: string, alias: string | undefined): string =>
+  alias ? `${name}, ${alias}` : name;
 
 /**
  * Color functions interface for help formatting.
  * @internal
  */
 interface ColorFunctions {
-  readonly bold: (text: string) => string
-  readonly dim: (text: string) => string
-  readonly cyan: (text: string) => string
-  readonly green: (text: string) => string
-  readonly blue: (text: string) => string
-  readonly yellow: (text: string) => string
-  readonly magenta: (text: string) => string
+  readonly bold: (text: string) => string;
+  readonly dim: (text: string) => string;
+  readonly cyan: (text: string) => string;
+  readonly green: (text: string) => string;
+  readonly blue: (text: string) => string;
+  readonly yellow: (text: string) => string;
+  readonly magenta: (text: string) => string;
 }
 
 /**
@@ -472,159 +480,163 @@ interface ColorFunctions {
  * @internal
  */
 const formatHelpDocImpl = (doc: HelpDoc, colors: ColorFunctions): string => {
-  const sections: Array<string> = []
+  const sections: Array<string> = [];
 
   // Description section
   if (doc.description) {
-    sections.push(colors.bold("DESCRIPTION"))
-    sections.push(`  ${doc.description}`)
-    sections.push("")
+    sections.push(colors.bold("DESCRIPTION"));
+    sections.push(`  ${doc.description}`);
+    sections.push("");
   }
 
   // Usage section
-  sections.push(colors.bold("USAGE"))
-  sections.push(`  ${colors.cyan(doc.usage)}`)
-  sections.push("")
+  sections.push(colors.bold("USAGE"));
+  sections.push(`  ${colors.cyan(doc.usage)}`);
+  sections.push("");
 
   // Arguments section
   if (doc.args && doc.args.length > 0) {
-    sections.push(colors.bold("ARGUMENTS"))
+    sections.push(colors.bold("ARGUMENTS"));
 
     const argRows: Array<Row> = doc.args.map((arg) => {
-      let name = arg.name
+      let name = arg.name;
       if (arg.variadic) {
-        name += "..."
+        name += "...";
       }
 
-      const coloredName = colors.green(name)
-      const coloredType = colors.dim(arg.type)
-      const nameType = `${coloredName} ${coloredType}`
+      const coloredName = colors.green(name);
+      const coloredType = colors.dim(arg.type);
+      const nameType = `${coloredName} ${coloredType}`;
 
-      const optionalSuffix = arg.required ? "" : colors.dim(" (optional)")
-      const description = Option.getOrElse(arg.description, () => "") + optionalSuffix
+      const optionalSuffix = arg.required ? "" : colors.dim(" (optional)");
+      const description = Option.getOrElse(arg.description, () => "") + optionalSuffix;
 
       return {
         left: nameType,
-        right: description
-      }
-    })
+        right: description,
+      };
+    });
 
-    sections.push(renderTable(argRows, 25))
-    sections.push("")
+    sections.push(renderTable(argRows, 25));
+    sections.push("");
   }
 
   // Flags section
   if (doc.flags.length > 0) {
-    sections.push(colors.bold("FLAGS"))
+    sections.push(colors.bold("FLAGS"));
 
     const flagRows: Array<Row> = doc.flags.map((flag) => {
-      const names: Array<string> = []
+      const names: Array<string> = [];
 
       // Add main name with -- prefix first
-      names.push(colors.green(`--${flag.name}`))
+      names.push(colors.green(`--${flag.name}`));
 
       // Add aliases after (like -f) to match expected ordering
       for (const alias of flag.aliases) {
-        names.push(colors.green(alias))
+        names.push(colors.green(alias));
       }
 
-      const namesPart = names.join(", ")
-      const typePart = flag.type !== "boolean" ? ` ${colors.dim(flag.type)}` : ""
+      const namesPart = names.join(", ");
+      const typePart = flag.type !== "boolean" ? ` ${colors.dim(flag.type)}` : "";
 
       return {
         left: namesPart + typePart,
-        right: Option.getOrElse(flag.description, () => "")
-      }
-    })
+        right: Option.getOrElse(flag.description, () => ""),
+      };
+    });
 
-    sections.push(renderTable(flagRows))
-    sections.push("")
+    sections.push(renderTable(flagRows));
+    sections.push("");
   }
 
   // Global Flags section
   if (doc.globalFlags && doc.globalFlags.length > 0) {
-    sections.push(colors.bold("GLOBAL FLAGS"))
+    sections.push(colors.bold("GLOBAL FLAGS"));
 
     const globalFlagRows: Array<Row> = doc.globalFlags.map((flag) => {
-      const names: Array<string> = []
+      const names: Array<string> = [];
 
       // Add main name with -- prefix first
-      names.push(colors.green(`--${flag.name}`))
+      names.push(colors.green(`--${flag.name}`));
 
       // Add aliases after (like -f) to match expected ordering
       for (const alias of flag.aliases) {
-        names.push(colors.green(alias))
+        names.push(colors.green(alias));
       }
 
-      const namesPart = names.join(", ")
-      const typePart = flag.type !== "boolean" ? ` ${colors.dim(flag.type)}` : ""
+      const namesPart = names.join(", ");
+      const typePart = flag.type !== "boolean" ? ` ${colors.dim(flag.type)}` : "";
 
       return {
         left: namesPart + typePart,
-        right: Option.getOrElse(flag.description, () => "")
-      }
-    })
+        right: Option.getOrElse(flag.description, () => ""),
+      };
+    });
 
-    sections.push(renderTable(globalFlagRows))
-    sections.push("")
+    sections.push(renderTable(globalFlagRows));
+    sections.push("");
   }
 
   // Subcommands section
   if (doc.subcommands && doc.subcommands.length > 0) {
-    const ungrouped = doc.subcommands.find((group) => group.group === undefined)
+    const ungrouped = doc.subcommands.find((group) => group.group === undefined);
 
     if (ungrouped) {
-      sections.push(colors.bold("SUBCOMMANDS"))
-      sections.push(renderTable(
-        ungrouped.commands.map((sub) => ({
-          left: colors.cyan(formatSubcommandName(sub.name, sub.alias)),
-          right: sub.shortDescription ?? sub.description
-        })),
-        20
-      ))
+      sections.push(colors.bold("SUBCOMMANDS"));
+      sections.push(
+        renderTable(
+          ungrouped.commands.map((sub) => ({
+            left: colors.cyan(formatSubcommandName(sub.name, sub.alias)),
+            right: sub.shortDescription ?? sub.description,
+          })),
+          20,
+        ),
+      );
       if (doc.subcommands.length > 1) {
-        sections.push("")
+        sections.push("");
       }
     }
 
     for (const group of doc.subcommands) {
-      if (group.group === undefined) continue
-      sections.push(colors.bold(`${group.group}:`))
-      sections.push(renderTable(
-        group.commands.map((sub) => ({
-          left: colors.cyan(formatSubcommandName(sub.name, sub.alias)),
-          right: sub.shortDescription ?? sub.description
-        })),
-        20
-      ))
-      sections.push("")
+      if (group.group === undefined) continue;
+      sections.push(colors.bold(`${group.group}:`));
+      sections.push(
+        renderTable(
+          group.commands.map((sub) => ({
+            left: colors.cyan(formatSubcommandName(sub.name, sub.alias)),
+            right: sub.shortDescription ?? sub.description,
+          })),
+          20,
+        ),
+      );
+      sections.push("");
     }
   }
 
   // Examples section
   if (doc.examples && doc.examples.length > 0) {
-    sections.push(colors.bold("EXAMPLES"))
+    sections.push(colors.bold("EXAMPLES"));
 
-    let first = true
-    let previousHadDescription = false
+    let first = true;
+    let previousHadDescription = false;
     for (const example of doc.examples) {
       if (example.description) {
-        if (!first) sections.push("")
-        sections.push(`  ${colors.dim(`# ${example.description}`)}`)
+        if (!first) sections.push("");
+        sections.push(`  ${colors.dim(`# ${example.description}`)}`);
       } else if (previousHadDescription) {
-        sections.push("")
+        sections.push("");
       }
-      sections.push(`  ${colors.cyan(example.command)}`)
-      first = false
-      previousHadDescription = !!example.description
+      sections.push(`  ${colors.cyan(example.command)}`);
+      first = false;
+      previousHadDescription = !!example.description;
     }
-    sections.push("")
+    sections.push("");
   }
 
   // Remove trailing empty line if present
   if (sections[sections.length - 1] === "") {
-    sections.pop()
+    sections.pop();
   }
 
-  return sections.join("\n")
-}
+  return sections.join("\n");
+};

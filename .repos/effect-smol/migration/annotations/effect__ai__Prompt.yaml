@@ -51,7 +51,7 @@
   note: "Moved to effect/unstable/ai/Prompt with the same encoded text payload; update the module import."
 "@effect/ai/Prompt#toolCallPart":
   replacement: "Prompt.toolCallPart"
-  note: "Moved to effect/unstable/ai/Prompt and remains the typed convenience constructor over makePart(\"tool-call\", params)."
+  note: 'Moved to effect/unstable/ai/Prompt and remains the typed convenience constructor over makePart("tool-call", params).'
 "@effect/ai/Prompt#ToolCallPart":
   replacement: "Prompt.ToolCallPart"
   note: "Moved to effect/unstable/ai/Prompt with the same tool-call model and schema; update the module import."

@@ -23,7 +23,7 @@
   replacement: "Generated.BetaMessageDeltaEvent"
   note: "The client-local stream schema moved to the regenerated v4 Anthropic schema surface; re-check its Type/Encoded shape."
 "@effect/ai-anthropic/AnthropicClient#MessageDeltaUsage":
-  replacement: "typeof Generated.BetaMessageDeltaEvent.Type[\"usage\"]"
+  replacement: 'typeof Generated.BetaMessageDeltaEvent.Type["usage"]'
   note: "The standalone usage schema was inlined into the regenerated v4 message-delta event."
 "@effect/ai-anthropic/AnthropicClient#MessageStartEvent":
   replacement: "Generated.BetaMessageStartEvent"

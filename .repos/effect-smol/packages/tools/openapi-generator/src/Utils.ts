@@ -8,8 +8,8 @@
  *
  * @since 4.0.0
  */
-import * as String from "effect/String"
-import * as UndefinedOr from "effect/UndefinedOr"
+import * as String from "effect/String";
+import * as UndefinedOr from "effect/UndefinedOr";
 
 /**
  * Converts an OpenAPI name into the generator's camel-case form.
@@ -23,27 +23,24 @@ import * as UndefinedOr from "effect/UndefinedOr"
  * @since 4.0.0
  */
 export const camelize = (self: string): string => {
-  let str = ""
-  let hadSymbol = false
+  let str = "";
+  let hadSymbol = false;
   for (let i = 0; i < self.length; i++) {
-    const charCode = self.charCodeAt(i)
-    if (
-      (charCode >= 65 && charCode <= 90) ||
-      (charCode >= 97 && charCode <= 122)
-    ) {
-      str += hadSymbol ? self[i].toUpperCase() : self[i]
-      hadSymbol = false
+    const charCode = self.charCodeAt(i);
+    if ((charCode >= 65 && charCode <= 90) || (charCode >= 97 && charCode <= 122)) {
+      str += hadSymbol ? self[i].toUpperCase() : self[i];
+      hadSymbol = false;
     } else if (charCode >= 48 && charCode <= 57) {
       if (str.length > 0) {
-        str += self[i]
-        hadSymbol = true
+        str += self[i];
+        hadSymbol = true;
       }
     } else if (str.length > 0) {
-      hadSymbol = true
+      hadSymbol = true;
     }
   }
-  return str
-}
+  return str;
+};
 
 /**
  * Converts an OpenAPI operation id into the exported operation identifier used
@@ -52,7 +49,7 @@ export const camelize = (self: string): string => {
  * @category converting
  * @since 4.0.0
  */
-export const identifier = (operationId: string) => String.capitalize(camelize(operationId))
+export const identifier = (operationId: string) => String.capitalize(camelize(operationId));
 
 /**
  * Extracts a trimmed, non-empty string from an unknown value.
@@ -67,12 +64,12 @@ export const identifier = (operationId: string) => String.capitalize(camelize(op
  */
 export const nonEmptyString = (a: unknown): string | undefined => {
   if (typeof a === "string") {
-    const trimmed = String.trim(a)
+    const trimmed = String.trim(a);
     if (String.isNonEmpty(trimmed)) {
-      return trimmed
+      return trimmed;
     }
   }
-}
+};
 
 /**
  * Renders an optional description as a JSDoc block for generated TypeScript.
@@ -90,8 +87,8 @@ export const toComment = UndefinedOr.match({
   onDefined: (description: string) =>
     `/**
 * ${description.replace(/\*\//g, " * /").split("\n").join("\n* ")}
-*/\n`
-})
+*/\n`,
+});
 
 /**
  * Appends every element from `source` into `destination` in order.
@@ -106,6 +103,6 @@ export const toComment = UndefinedOr.match({
  */
 export const spreadElementsInto = <A>(source: Array<A>, destination: Array<A>): void => {
   for (let i = 0; i < source.length; i++) {
-    destination.push(source[i])
+    destination.push(source[i]);
   }
-}
+};

@@ -9,12 +9,12 @@
  *
  * @since 4.0.0
  */
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import { systemError } from "effect/PlatformError"
-import * as Stdio from "effect/Stdio"
-import { fromWritable } from "./NodeSink.ts"
-import { fromReadable } from "./NodeStream.ts"
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import { systemError } from "effect/PlatformError";
+import * as Stdio from "effect/Stdio";
+import { fromWritable } from "./NodeSink.ts";
+import { fromReadable } from "./NodeStream.ts";
 
 /**
  * Provides `Stdio` from `process.argv`, `process.stdin`, `process.stdout`,
@@ -38,9 +38,9 @@ export const layer: Layer.Layer<Stdio.Stdio> = Layer.succeed(
             module: "Stdio",
             method: "stdout",
             _tag: "Unknown",
-            cause
+            cause,
           }),
-        endOnDone: options?.endOnDone ?? false
+        endOnDone: options?.endOnDone ?? false,
       }),
     stderr: (options) =>
       fromWritable({
@@ -50,9 +50,9 @@ export const layer: Layer.Layer<Stdio.Stdio> = Layer.succeed(
             module: "Stdio",
             method: "stderr",
             _tag: "Unknown",
-            cause
+            cause,
           }),
-        endOnDone: options?.endOnDone ?? false
+        endOnDone: options?.endOnDone ?? false,
       }),
     stdin: fromReadable({
       evaluate: () => process.stdin,
@@ -61,9 +61,9 @@ export const layer: Layer.Layer<Stdio.Stdio> = Layer.succeed(
           module: "Stdio",
           method: "stdin",
           _tag: "Unknown",
-          cause
+          cause,
         }),
-      closeOnDone: false
-    })
-  })
-)
+      closeOnDone: false,
+    }),
+  }),
+);

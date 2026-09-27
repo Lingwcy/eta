@@ -10,10 +10,10 @@
  *
  * @since 2.0.0
  */
-import { dual } from "./Function.ts"
-import type { TypeLambda } from "./HKT.ts"
-import type { Ordering } from "./Ordering.ts"
-import * as Reducer from "./Reducer.ts"
+import { dual } from "./Function.ts";
+import type { TypeLambda } from "./HKT.ts";
+import type { Ordering } from "./Ordering.ts";
+import * as Reducer from "./Reducer.ts";
 
 /**
  * Represents a total ordering for values of type `A`.
@@ -51,7 +51,7 @@ import * as Reducer from "./Reducer.ts"
  * @since 2.0.0
  */
 export interface Order<in A> {
-  (self: A, that: A): Ordering
+  (self: A, that: A): Ordering;
 }
 
 /**
@@ -70,7 +70,7 @@ export interface Order<in A> {
  * @since 2.0.0
  */
 export interface OrderTypeLambda extends TypeLambda {
-  readonly type: Order<this["Target"]>
+  readonly type: Order<this["Target"]>;
 }
 
 /**
@@ -108,10 +108,8 @@ export interface OrderTypeLambda extends TypeLambda {
  * @category constructors
  * @since 2.0.0
  */
-export function make<A>(
-  compare: (self: A, that: A) => -1 | 0 | 1
-): Order<A> {
-  return (self, that) => self === that ? 0 : compare(self, that)
+export function make<A>(compare: (self: A, that: A) => -1 | 0 | 1): Order<A> {
+  return (self, that) => (self === that ? 0 : compare(self, that));
 }
 
 /**
@@ -141,7 +139,7 @@ export function make<A>(
  * @category instances
  * @since 4.0.0
  */
-export const String: Order<string> = make((self, that) => self < that ? -1 : 1)
+export const String: Order<string> = make((self, that) => (self < that ? -1 : 1));
 
 /**
  * Order instance for numbers that compares them numerically.
@@ -175,11 +173,11 @@ export const String: Order<string> = make((self, that) => self < that ? -1 : 1)
  * @since 4.0.0
  */
 export const Number: Order<number> = make((self, that) => {
-  if (globalThis.Number.isNaN(self) && globalThis.Number.isNaN(that)) return 0
-  if (globalThis.Number.isNaN(self)) return -1 // NaN < any number
-  if (globalThis.Number.isNaN(that)) return 1 // any number > NaN
-  return self < that ? -1 : 1
-})
+  if (globalThis.Number.isNaN(self) && globalThis.Number.isNaN(that)) return 0;
+  if (globalThis.Number.isNaN(self)) return -1; // NaN < any number
+  if (globalThis.Number.isNaN(that)) return 1; // any number > NaN
+  return self < that ? -1 : 1;
+});
 
 /**
  * Order instance for booleans where `false` is considered less than `true`.
@@ -206,7 +204,7 @@ export const Number: Order<number> = make((self, that) => {
  * @category instances
  * @since 4.0.0
  */
-export const Boolean: Order<boolean> = make((self, that) => self < that ? -1 : 1)
+export const Boolean: Order<boolean> = make((self, that) => (self < that ? -1 : 1));
 
 /**
  * Order instance for bigints that compares them numerically.
@@ -235,7 +233,7 @@ export const Boolean: Order<boolean> = make((self, that) => self < that ? -1 : 1
  * @category instances
  * @since 4.0.0
  */
-export const BigInt: Order<bigint> = make((self, that) => self < that ? -1 : 1)
+export const BigInt: Order<bigint> = make((self, that) => (self < that ? -1 : 1));
 
 /**
  * Creates a new `Order` that reverses the comparison order of the input `Order`.
@@ -267,7 +265,7 @@ export const BigInt: Order<bigint> = make((self, that) => self < that ? -1 : 1)
  * @since 4.0.0
  */
 export function flip<A>(O: Order<A>): Order<A> {
-  return make((self, that) => O(that, self))
+  return make((self, that) => O(that, self));
 }
 
 /**
@@ -313,16 +311,17 @@ export function flip<A>(O: Order<A>): Order<A> {
  * @since 2.0.0
  */
 export const combine: {
-  <A>(that: Order<A>): (self: Order<A>) => Order<A>
-  <A>(self: Order<A>, that: Order<A>): Order<A>
+  <A>(that: Order<A>): (self: Order<A>) => Order<A>;
+  <A>(self: Order<A>, that: Order<A>): Order<A>;
 } = dual(2, <A>(self: Order<A>, that: Order<A>): Order<A> =>
   make((a1, a2) => {
-    const out = self(a1, a2)
+    const out = self(a1, a2);
     if (out !== 0) {
-      return out
+      return out;
     }
-    return that(a1, a2)
-  }))
+    return that(a1, a2);
+  }),
+);
 
 /**
  * Creates an `Order` that considers all values as equal.
@@ -353,7 +352,7 @@ export const combine: {
  * @since 4.0.0
  */
 export function alwaysEqual<A>(): Order<A> {
-  return make(() => 0)
+  return make(() => 0);
 }
 
 /**
@@ -398,17 +397,17 @@ export function alwaysEqual<A>(): Order<A> {
  * @since 2.0.0
  */
 export function combineAll<A>(collection: Iterable<Order<A>>): Order<A> {
-  const orders = Array.from(collection)
+  const orders = Array.from(collection);
   return make((a1, a2) => {
-    let out: Ordering = 0
+    let out: Ordering = 0;
     for (const O of orders) {
-      out = O(a1, a2)
+      out = O(a1, a2);
       if (out !== 0) {
-        return out
+        return out;
       }
     }
-    return out
-  })
+    return out;
+  });
 }
 
 /**
@@ -444,12 +443,11 @@ export function combineAll<A>(collection: Iterable<Order<A>>): Order<A> {
  * @since 2.0.0
  */
 export const mapInput: {
-  <B, A>(f: (b: B) => A): (self: Order<A>) => Order<B>
-  <A, B>(self: Order<A>, f: (b: B) => A): Order<B>
-} = dual(
-  2,
-  <A, B>(self: Order<A>, f: (b: B) => A): Order<B> => make((b1, b2) => self(f(b1), f(b2)))
-)
+  <B, A>(f: (b: B) => A): (self: Order<A>) => Order<B>;
+  <A, B>(self: Order<A>, f: (b: B) => A): Order<B>;
+} = dual(2, <A, B>(self: Order<A>, f: (b: B) => A): Order<B> =>
+  make((b1, b2) => self(f(b1), f(b2))),
+);
 
 /**
  * Order instance for `Date` objects that compares them chronologically by their timestamp.
@@ -481,7 +479,7 @@ export const mapInput: {
  * @category instances
  * @since 2.0.0
  */
-export const Date: Order<Date> = mapInput(Number, (date) => date.getTime())
+export const Date: Order<Date> = mapInput(Number, (date) => date.getTime());
 
 /**
  * Creates an `Order` for a tuple type based on orders for each element.
@@ -513,18 +511,18 @@ export const Date: Order<Date> = mapInput(Number, (date) => date.getTime())
  * @since 4.0.0
  */
 export function Tuple<const Elements extends ReadonlyArray<Order<any>>>(
-  elements: Elements
+  elements: Elements,
 ): Order<{ readonly [I in keyof Elements]: [Elements[I]] extends [Order<infer A>] ? A : never }> {
   return make((self, that) => {
-    const len = elements.length
+    const len = elements.length;
     for (let i = 0; i < len; i++) {
-      const o = elements[i](self[i], that[i])
+      const o = elements[i](self[i], that[i]);
       if (o !== 0) {
-        return o
+        return o;
       }
     }
-    return 0
-  })
+    return 0;
+  });
 }
 
 /**
@@ -532,17 +530,17 @@ export function Tuple<const Elements extends ReadonlyArray<Order<any>>>(
  */
 function Array_<A>(O: Order<A>): Order<ReadonlyArray<A>> {
   return make((self, that) => {
-    const aLen = self.length
-    const bLen = that.length
-    const len = Math.min(aLen, bLen)
+    const aLen = self.length;
+    const bLen = that.length;
+    const len = Math.min(aLen, bLen);
     for (let i = 0; i < len; i++) {
-      const o = O(self[i], that[i])
+      const o = O(self[i], that[i]);
       if (o !== 0) {
-        return o
+        return o;
       }
     }
-    return Number(aLen, bLen)
-  })
+    return Number(aLen, bLen);
+  });
 }
 
 export {
@@ -577,8 +575,8 @@ export {
    * @category combinators
    * @since 4.0.0
    */
-  Array_ as Array
-}
+  Array_ as Array,
+};
 
 /**
  * Creates an `Order` for structs by applying the given `Order`s to each property in sequence.
@@ -618,18 +616,18 @@ export {
  * @since 4.0.0
  */
 export function Struct<const R extends { readonly [x: string]: Order<any> }>(
-  fields: R
+  fields: R,
 ): Order<{ [K in keyof R]: [R[K]] extends [Order<infer A>] ? A : never }> {
-  const keys = Object.keys(fields)
+  const keys = Object.keys(fields);
   return make((self, that) => {
     for (const key of keys) {
-      const o = fields[key](self[key], that[key])
+      const o = fields[key](self[key], that[key]);
       if (o !== 0) {
-        return o
+        return o;
       }
     }
-    return 0
-  })
+    return 0;
+  });
 }
 
 /**
@@ -661,10 +659,12 @@ export function Struct<const R extends { readonly [x: string]: Order<any> }>(
  * @category predicates
  * @since 4.0.0
  */
-export const isLessThan = <A>(O: Order<A>): {
-  (that: A): (self: A) => boolean
-  (self: A, that: A): boolean
-} => dual(2, (self: A, that: A) => O(self, that) === -1)
+export const isLessThan = <A>(
+  O: Order<A>,
+): {
+  (that: A): (self: A) => boolean;
+  (self: A, that: A): boolean;
+} => dual(2, (self: A, that: A) => O(self, that) === -1);
 
 /**
  * Checks whether one value is strictly greater than another according to the given order.
@@ -695,10 +695,12 @@ export const isLessThan = <A>(O: Order<A>): {
  * @category predicates
  * @since 4.0.0
  */
-export const isGreaterThan = <A>(O: Order<A>): {
-  (that: A): (self: A) => boolean
-  (self: A, that: A): boolean
-} => dual(2, (self: A, that: A) => O(self, that) === 1)
+export const isGreaterThan = <A>(
+  O: Order<A>,
+): {
+  (that: A): (self: A) => boolean;
+  (self: A, that: A): boolean;
+} => dual(2, (self: A, that: A) => O(self, that) === 1);
 
 /**
  * Checks whether one value is less than or equal to another according to the given order.
@@ -729,10 +731,12 @@ export const isGreaterThan = <A>(O: Order<A>): {
  * @category predicates
  * @since 4.0.0
  */
-export const isLessThanOrEqualTo = <A>(O: Order<A>): {
-  (that: A): (self: A) => boolean
-  (self: A, that: A): boolean
-} => dual(2, (self: A, that: A) => O(self, that) !== 1)
+export const isLessThanOrEqualTo = <A>(
+  O: Order<A>,
+): {
+  (that: A): (self: A) => boolean;
+  (self: A, that: A): boolean;
+} => dual(2, (self: A, that: A) => O(self, that) !== 1);
 
 /**
  * Checks whether one value is greater than or equal to another according to the given order.
@@ -764,10 +768,12 @@ export const isLessThanOrEqualTo = <A>(O: Order<A>): {
  * @category predicates
  * @since 4.0.0
  */
-export const isGreaterThanOrEqualTo = <A>(O: Order<A>): {
-  (that: A): (self: A) => boolean
-  (self: A, that: A): boolean
-} => dual(2, (self: A, that: A) => O(self, that) !== -1)
+export const isGreaterThanOrEqualTo = <A>(
+  O: Order<A>,
+): {
+  (that: A): (self: A) => boolean;
+  (self: A, that: A): boolean;
+} => dual(2, (self: A, that: A) => O(self, that) !== -1);
 
 /**
  * Returns the minimum of two values according to the given order. If they are equal, returns the first argument.
@@ -799,10 +805,12 @@ export const isGreaterThanOrEqualTo = <A>(O: Order<A>): {
  * @category comparisons
  * @since 2.0.0
  */
-export const min = <A>(O: Order<A>): {
-  (that: A): (self: A) => A
-  (self: A, that: A): A
-} => dual(2, (self: A, that: A) => self === that || O(self, that) < 1 ? self : that)
+export const min = <A>(
+  O: Order<A>,
+): {
+  (that: A): (self: A) => A;
+  (self: A, that: A): A;
+} => dual(2, (self: A, that: A) => (self === that || O(self, that) < 1 ? self : that));
 
 /**
  * Returns the maximum of two values according to the given order. If they are equal, returns the first argument.
@@ -834,10 +842,12 @@ export const min = <A>(O: Order<A>): {
  * @category comparisons
  * @since 2.0.0
  */
-export const max = <A>(O: Order<A>): {
-  (that: A): (self: A) => A
-  (self: A, that: A): A
-} => dual(2, (self: A, that: A) => self === that || O(self, that) > -1 ? self : that)
+export const max = <A>(
+  O: Order<A>,
+): {
+  (that: A): (self: A) => A;
+  (self: A, that: A): A;
+} => dual(2, (self: A, that: A) => (self === that || O(self, that) > -1 ? self : that));
 
 /**
  * Restricts a value between a minimum and a maximum according to the given order.
@@ -872,23 +882,28 @@ export const max = <A>(O: Order<A>): {
  * @category comparisons
  * @since 2.0.0
  */
-export const clamp = <A>(O: Order<A>): {
-  (options: {
-    minimum: A
-    maximum: A
-  }): (self: A) => A
-  (self: A, options: {
-    minimum: A
-    maximum: A
-  }): A
+export const clamp = <A>(
+  O: Order<A>,
+): {
+  (options: { minimum: A; maximum: A }): (self: A) => A;
+  (
+    self: A,
+    options: {
+      minimum: A;
+      maximum: A;
+    },
+  ): A;
 } =>
   dual(
     2,
-    (self: A, options: {
-      minimum: A
-      maximum: A
-    }): A => min(O)(options.maximum, max(O)(options.minimum, self))
-  )
+    (
+      self: A,
+      options: {
+        minimum: A;
+        maximum: A;
+      },
+    ): A => min(O)(options.maximum, max(O)(options.minimum, self)),
+  );
 
 /**
  * Checks whether a value is between a minimum and a maximum (inclusive) according to the given order.
@@ -925,23 +940,28 @@ export const clamp = <A>(O: Order<A>): {
  * @category predicates
  * @since 4.0.0
  */
-export const isBetween = <A>(O: Order<A>): {
-  (options: {
-    minimum: A
-    maximum: A
-  }): (self: A) => boolean
-  (self: A, options: {
-    minimum: A
-    maximum: A
-  }): boolean
+export const isBetween = <A>(
+  O: Order<A>,
+): {
+  (options: { minimum: A; maximum: A }): (self: A) => boolean;
+  (
+    self: A,
+    options: {
+      minimum: A;
+      maximum: A;
+    },
+  ): boolean;
 } =>
   dual(
     2,
-    (self: A, options: {
-      minimum: A
-      maximum: A
-    }): boolean => !isLessThan(O)(self, options.minimum) && !isGreaterThan(O)(self, options.maximum)
-  )
+    (
+      self: A,
+      options: {
+        minimum: A;
+        maximum: A;
+      },
+    ): boolean => !isLessThan(O)(self, options.minimum) && !isGreaterThan(O)(self, options.maximum),
+  );
 
 /**
  * Creates a `Reducer` for combining `Order` instances, useful for aggregating orders in collections.
@@ -976,9 +996,5 @@ export const isBetween = <A>(O: Order<A>): {
  * @since 4.0.0
  */
 export function makeReducer<A>() {
-  return Reducer.make<Order<A>>(
-    combine,
-    () => 0,
-    combineAll
-  )
+  return Reducer.make<Order<A>>(combine, () => 0, combineAll);
 }

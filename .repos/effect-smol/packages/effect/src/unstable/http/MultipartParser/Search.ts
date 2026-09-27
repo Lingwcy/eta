@@ -3,7 +3,7 @@
  *
  * @since 4.0.0
  */
-import * as internal from "./internal/search.ts"
+import * as internal from "./internal/search.ts";
 
 /**
  * Creates an incremental byte search for a string boundary.
@@ -13,5 +13,5 @@ import * as internal from "./internal/search.ts"
  */
 export const make: (
   needle: string,
-  callback: (index: number, chunk: Uint8Array) => void
-) => { readonly write: (chunk: Uint8Array) => void; readonly end: () => void } = internal.make
+  callback: (index: number, chunk: Uint8Array) => void,
+) => { readonly write: (chunk: Uint8Array) => void; readonly end: () => void } = internal.make;

@@ -3,9 +3,9 @@
  *
  * @since 4.0.0
  */
-import * as Data from "effect/Data"
-import type * as Path from "effect/Path"
-import * as Schema from "effect/Schema"
+import * as Data from "effect/Data";
+import type * as Path from "effect/Path";
+import * as Schema from "effect/Schema";
 
 /**
  * A text replacement to apply to generated code.
@@ -15,7 +15,7 @@ import * as Schema from "effect/Schema"
  */
 export class Replacement extends Schema.Class<Replacement>("Replacement")({
   from: Schema.String,
-  to: Schema.String
+  to: Schema.String,
 }) {}
 
 /**
@@ -26,8 +26,8 @@ export class Replacement extends Schema.Class<Replacement>("Replacement")({
  */
 export const SpecSourceConfig = Schema.Struct({
   type: Schema.Literal("stainless-stats"),
-  statsUrl: Schema.String
-})
+  statsUrl: Schema.String,
+});
 
 /**
  * Configuration for AI provider code generation.
@@ -59,7 +59,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
   patches: Schema.optional(Schema.Array(Schema.String)),
   replacements: Schema.optional(Schema.Array(Replacement)),
   excludeAnnotations: Schema.optional(Schema.Array(Schema.String)),
-  disableAdditionalProperties: Schema.optional(Schema.Boolean)
+  disableAdditionalProperties: Schema.optional(Schema.Boolean),
 }) {
   /**
    * Get the client name, defaulting to "Client" if not specified.
@@ -67,7 +67,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
    * @since 4.0.0
    */
   get clientName(): string {
-    return this.name ?? "Client"
+    return this.name ?? "Client";
   }
 
   /**
@@ -76,7 +76,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
    * @since 4.0.0
    */
   get isTypeOnly(): boolean {
-    return this.typeOnly ?? false
+    return this.typeOnly ?? false;
   }
 
   /**
@@ -85,7 +85,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
    * @since 4.0.0
    */
   get patchList(): ReadonlyArray<string> {
-    return this.patches ?? []
+    return this.patches ?? [];
   }
 
   /**
@@ -94,7 +94,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
    * @since 4.0.0
    */
   get replacementList(): ReadonlyArray<Replacement> {
-    return this.replacements ?? []
+    return this.replacements ?? [];
   }
 
   /**
@@ -103,7 +103,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
    * @since 4.0.0
    */
   get headerContent(): string | undefined {
-    return this.header
+    return this.header;
   }
 
   /**
@@ -112,7 +112,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
    * @since 4.0.0
    */
   get excludeAnnotationsList(): ReadonlyArray<string> | undefined {
-    return this.excludeAnnotations
+    return this.excludeAnnotations;
   }
 
   /**
@@ -121,7 +121,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
    * @since 4.0.0
    */
   get shouldDisableAdditionalProperties(): boolean {
-    return this.disableAdditionalProperties ?? false
+    return this.disableAdditionalProperties ?? false;
   }
 }
 
@@ -131,7 +131,7 @@ export class CodegenConfig extends Schema.Class<CodegenConfig>("CodegenConfig")(
  * @category models
  * @since 4.0.0
  */
-export type SpecSource = SpecSource.Url | SpecSource.File | SpecSource.StainlessStats
+export type SpecSource = SpecSource.Url | SpecSource.File | SpecSource.StainlessStats;
 
 /**
  * Namespace containing the supported OpenAPI specification source variants.
@@ -146,8 +146,8 @@ export declare namespace SpecSource {
    * @since 4.0.0
    */
   export interface Url {
-    readonly _tag: "Url"
-    readonly url: string
+    readonly _tag: "Url";
+    readonly url: string;
   }
 
   /**
@@ -157,8 +157,8 @@ export declare namespace SpecSource {
    * @since 4.0.0
    */
   export interface File {
-    readonly _tag: "File"
-    readonly path: string
+    readonly _tag: "File";
+    readonly path: string;
   }
 
   /**
@@ -168,8 +168,8 @@ export declare namespace SpecSource {
    * @since 4.0.0
    */
   export interface StainlessStats {
-    readonly _tag: "StainlessStats"
-    readonly statsUrl: string
+    readonly _tag: "StainlessStats";
+    readonly statsUrl: string;
   }
 }
 
@@ -224,9 +224,9 @@ export const SpecSource = {
    */
   fromString: (spec: string, packagePath: string, pathService: Path.Path): SpecSource => {
     if (spec.startsWith("http://") || spec.startsWith("https://")) {
-      return SpecSource.Url(spec)
+      return SpecSource.Url(spec);
     }
-    return SpecSource.File(pathService.join(packagePath, spec))
+    return SpecSource.File(pathService.join(packagePath, spec));
   },
 
   /**
@@ -237,17 +237,17 @@ export const SpecSource = {
   fromConfig: (
     spec: string | { readonly type: string; readonly statsUrl?: string },
     packagePath: string,
-    pathService: Path.Path
+    pathService: Path.Path,
   ): SpecSource => {
     if (typeof spec === "string") {
-      return SpecSource.fromString(spec, packagePath, pathService)
+      return SpecSource.fromString(spec, packagePath, pathService);
     }
     if (spec.type === "stainless-stats" && spec.statsUrl) {
-      return SpecSource.StainlessStats(spec.statsUrl)
+      return SpecSource.StainlessStats(spec.statsUrl);
     }
-    throw new Error(`Unknown spec type: ${spec.type}`)
-  }
-}
+    throw new Error(`Unknown spec type: ${spec.type}`);
+  },
+};
 
 /**
  * Error when parsing a codegen configuration file fails.
@@ -270,8 +270,8 @@ export const SpecSource = {
  * @since 4.0.0
  */
 export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
-  readonly path: string
-  readonly cause: unknown
+  readonly path: string;
+  readonly cause: unknown;
 }> {}
 
 /**
@@ -295,6 +295,6 @@ export class ConfigParseError extends Data.TaggedError("ConfigParseError")<{
  * @since 4.0.0
  */
 export class ConfigNotFoundError extends Data.TaggedError("ConfigNotFoundError")<{
-  readonly provider: string
-  readonly expectedPath: string
+  readonly provider: string;
+  readonly expectedPath: string;
 }> {}

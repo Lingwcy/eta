@@ -6,9 +6,9 @@
  *
  * @since 4.0.0
  */
-import * as Bash from "./internal/completions/bash.ts"
-import * as Fish from "./internal/completions/fish.ts"
-import * as Zsh from "./internal/completions/zsh.ts"
+import * as Bash from "./internal/completions/bash.ts";
+import * as Fish from "./internal/completions/fish.ts";
+import * as Zsh from "./internal/completions/zsh.ts";
 
 /**
  * Shell type used to generate completion scripts.
@@ -16,7 +16,7 @@ import * as Zsh from "./internal/completions/zsh.ts"
  * @category models
  * @since 4.0.0
  */
-export type Shell = "bash" | "zsh" | "fish"
+export type Shell = "bash" | "zsh" | "fish";
 
 /**
  * Describes a command for completion script generation.
@@ -25,11 +25,11 @@ export type Shell = "bash" | "zsh" | "fish"
  * @since 4.0.0
  */
 export interface CommandDescriptor {
-  readonly name: string
-  readonly description: string | undefined
-  readonly flags: ReadonlyArray<FlagDescriptor>
-  readonly arguments: ReadonlyArray<ArgumentDescriptor>
-  readonly subcommands: ReadonlyArray<CommandDescriptor>
+  readonly name: string;
+  readonly description: string | undefined;
+  readonly flags: ReadonlyArray<FlagDescriptor>;
+  readonly arguments: ReadonlyArray<ArgumentDescriptor>;
+  readonly subcommands: ReadonlyArray<CommandDescriptor>;
 }
 
 /**
@@ -39,10 +39,10 @@ export interface CommandDescriptor {
  * @since 4.0.0
  */
 export interface FlagDescriptor {
-  readonly name: string
-  readonly aliases: ReadonlyArray<string>
-  readonly description: string | undefined
-  readonly type: FlagType
+  readonly name: string;
+  readonly aliases: ReadonlyArray<string>;
+  readonly description: string | undefined;
+  readonly type: FlagType;
 }
 
 /**
@@ -58,7 +58,7 @@ export type FlagType =
   | { readonly _tag: "Finite" }
   | { readonly _tag: "Date" }
   | { readonly _tag: "Choice"; readonly values: ReadonlyArray<string> }
-  | { readonly _tag: "Path"; readonly pathType: "file" | "directory" | "either" }
+  | { readonly _tag: "Path"; readonly pathType: "file" | "directory" | "either" };
 
 /**
  * Describes a positional argument for completions.
@@ -67,11 +67,11 @@ export type FlagType =
  * @since 4.0.0
  */
 export interface ArgumentDescriptor {
-  readonly name: string
-  readonly description: string | undefined
-  readonly required: boolean
-  readonly variadic: boolean
-  readonly type: ArgumentType
+  readonly name: string;
+  readonly description: string | undefined;
+  readonly required: boolean;
+  readonly variadic: boolean;
+  readonly type: ArgumentType;
 }
 
 /**
@@ -86,7 +86,7 @@ export type ArgumentType =
   | { readonly _tag: "Finite" }
   | { readonly _tag: "Date" }
   | { readonly _tag: "Choice"; readonly values: ReadonlyArray<string> }
-  | { readonly _tag: "Path"; readonly pathType: "file" | "directory" | "either" }
+  | { readonly _tag: "Path"; readonly pathType: "file" | "directory" | "either" };
 
 /**
  * Generates a shell completion script for a command descriptor.
@@ -110,14 +110,14 @@ export type ArgumentType =
 export const generate = (
   executableName: string,
   shell: Shell,
-  descriptor: CommandDescriptor
+  descriptor: CommandDescriptor,
 ): string => {
   switch (shell) {
     case "bash":
-      return Bash.generate(executableName, descriptor)
+      return Bash.generate(executableName, descriptor);
     case "zsh":
-      return Zsh.generate(executableName, descriptor)
+      return Zsh.generate(executableName, descriptor);
     case "fish":
-      return Fish.generate(executableName, descriptor)
+      return Fish.generate(executableName, descriptor);
   }
-}
+};

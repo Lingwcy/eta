@@ -3,10 +3,10 @@
  *
  * @since 4.0.0
  */
-import * as Context from "effect/Context"
-import * as Effect from "effect/Effect"
-import { dual } from "effect/Function"
-import type { HttpClient } from "effect/unstable/http/HttpClient"
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import { dual } from "effect/Function";
+import type { HttpClient } from "effect/unstable/http/HttpClient";
 
 /**
  * Scoped configuration read when executing TypeSafe requests.
@@ -16,19 +16,16 @@ import type { HttpClient } from "effect/unstable/http/HttpClient"
  * @category services
  * @since 4.0.0
  */
-export class TypeSafeConfig extends Context.Service<
-  TypeSafeConfig,
-  TypeSafeConfig.Service
->()("@effect/ai-typesafe/TypeSafeConfig") {
+export class TypeSafeConfig extends Context.Service<TypeSafeConfig, TypeSafeConfig.Service>()(
+  "@effect/ai-typesafe/TypeSafeConfig",
+) {
   /**
    * Reads the current configuration, if present.
    *
    * @since 4.0.0
    */
-  static readonly getOrUndefined: Effect.Effect<typeof TypeSafeConfig.Service | undefined> = Effect.map(
-    Effect.context<never>(),
-    Context.getOrUndefined(TypeSafeConfig)
-  )
+  static readonly getOrUndefined: Effect.Effect<typeof TypeSafeConfig.Service | undefined> =
+    Effect.map(Effect.context<never>(), Context.getOrUndefined(TypeSafeConfig));
 }
 
 /**
@@ -44,7 +41,7 @@ export declare namespace TypeSafeConfig {
    * @since 4.0.0
    */
   export interface Service {
-    readonly transformClient?: ((client: HttpClient) => HttpClient) | undefined
+    readonly transformClient?: ((client: HttpClient) => HttpClient) | undefined;
   }
 }
 
@@ -56,13 +53,17 @@ export declare namespace TypeSafeConfig {
  * @since 4.0.0
  */
 export const withClientTransform: {
-  (transform: (client: HttpClient) => HttpClient): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
-  <A, E, R>(self: Effect.Effect<A, E, R>, transform: (client: HttpClient) => HttpClient): Effect.Effect<A, E, R>
-} = dual(2, <A, E, R>(
-  self: Effect.Effect<A, E, R>,
-  transformClient: (client: HttpClient) => HttpClient
-) =>
-  Effect.flatMap(
-    TypeSafeConfig.getOrUndefined,
-    (config) => Effect.provideService(self, TypeSafeConfig, { ...config, transformClient })
-  ))
+  (
+    transform: (client: HttpClient) => HttpClient,
+  ): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
+  <A, E, R>(
+    self: Effect.Effect<A, E, R>,
+    transform: (client: HttpClient) => HttpClient,
+  ): Effect.Effect<A, E, R>;
+} = dual(
+  2,
+  <A, E, R>(self: Effect.Effect<A, E, R>, transformClient: (client: HttpClient) => HttpClient) =>
+    Effect.flatMap(TypeSafeConfig.getOrUndefined, (config) =>
+      Effect.provideService(self, TypeSafeConfig, { ...config, transformClient }),
+    ),
+);

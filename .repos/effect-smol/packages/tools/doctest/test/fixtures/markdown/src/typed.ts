@@ -1,4 +1,4 @@
-throw new Error("The source module must not execute")
+throw new Error("The source module must not execute");
 
 /**
  * ```ts import.meta.vitest name=typed-jsdoc

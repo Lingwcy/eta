@@ -9,9 +9,9 @@
  *
  * @since 4.0.0
  */
-import * as Data from "./Data.ts"
+import * as Data from "./Data.ts";
 
-const TypeId = "~effect/PlatformError"
+const TypeId = "~effect/PlatformError";
 
 /**
  * Error data for an invalid argument passed to a platform API.
@@ -34,10 +34,10 @@ const TypeId = "~effect/PlatformError"
  * @since 4.0.0
  */
 export class BadArgument extends Data.TaggedError("BadArgument")<{
-  module: string
-  method: string
-  description?: string | undefined
-  cause?: unknown
+  module: string;
+  method: string;
+  description?: string | undefined;
+  cause?: unknown;
 }> {
   /**
    * Formats the module, method, and optional description that rejected the argument.
@@ -49,7 +49,7 @@ export class BadArgument extends Data.TaggedError("BadArgument")<{
    * @since 4.0.0
    */
   override get message(): string {
-    return `${this.module}.${this.method}${this.description ? `: ${this.description}` : ""}`
+    return `${this.module}.${this.method}${this.description ? `: ${this.description}` : ""}`;
   }
 }
 
@@ -83,7 +83,7 @@ export type SystemErrorTag =
   | "UnexpectedEof"
   | "Unknown"
   | "WouldBlock"
-  | "WriteZero"
+  | "WriteZero";
 
 /**
  * Error data for a platform or system operation failure.
@@ -107,13 +107,13 @@ export type SystemErrorTag =
  * @since 4.0.0
  */
 export class SystemError extends Data.Error<{
-  _tag: SystemErrorTag
-  module: string
-  method: string
-  description?: string | undefined
-  syscall?: string | undefined
-  pathOrDescriptor?: string | number | undefined
-  cause?: unknown
+  _tag: SystemErrorTag;
+  module: string;
+  method: string;
+  description?: string | undefined;
+  syscall?: string | undefined;
+  pathOrDescriptor?: string | number | undefined;
+  cause?: unknown;
 }> {
   /**
    * Formats the normalized system error tag with operation and path details.
@@ -127,7 +127,7 @@ export class SystemError extends Data.Error<{
   override get message(): string {
     return `${this._tag}: ${this.module}.${this.method}${
       this.pathOrDescriptor !== undefined ? ` (${this.pathOrDescriptor})` : ""
-    }${this.description ? `: ${this.description}` : ""}`
+    }${this.description ? `: ${this.description}` : ""}`;
   }
 }
 
@@ -155,13 +155,13 @@ export class SystemError extends Data.Error<{
  * @since 4.0.0
  */
 export class PlatformError extends Data.TaggedError("PlatformError")<{
-  reason: BadArgument | SystemError
+  reason: BadArgument | SystemError;
 }> {
   constructor(reason: BadArgument | SystemError) {
     if ("cause" in reason) {
-      super({ reason, cause: reason.cause } as any)
+      super({ reason, cause: reason.cause } as any);
     } else {
-      super({ reason })
+      super({ reason });
     }
   }
 
@@ -174,10 +174,10 @@ export class PlatformError extends Data.TaggedError("PlatformError")<{
    *
    * @since 4.0.0
    */
-  readonly [TypeId]: typeof TypeId = TypeId
+  readonly [TypeId]: typeof TypeId = TypeId;
 
   override get message(): string {
-    return this.reason.message
+    return this.reason.message;
   }
 }
 
@@ -193,14 +193,14 @@ export class PlatformError extends Data.TaggedError("PlatformError")<{
  * @since 4.0.0
  */
 export const systemError = (options: {
-  readonly _tag: SystemErrorTag
-  readonly module: string
-  readonly method: string
-  readonly description?: string | undefined
-  readonly syscall?: string | undefined
-  readonly pathOrDescriptor?: string | number | undefined
-  readonly cause?: unknown
-}): PlatformError => new PlatformError(new SystemError(options))
+  readonly _tag: SystemErrorTag;
+  readonly module: string;
+  readonly method: string;
+  readonly description?: string | undefined;
+  readonly syscall?: string | undefined;
+  readonly pathOrDescriptor?: string | number | undefined;
+  readonly cause?: unknown;
+}): PlatformError => new PlatformError(new SystemError(options));
 
 /**
  * Creates a `PlatformError` whose reason is a `BadArgument`.
@@ -214,8 +214,8 @@ export const systemError = (options: {
  * @since 4.0.0
  */
 export const badArgument = (options: {
-  readonly module: string
-  readonly method: string
-  readonly description?: string | undefined
-  readonly cause?: unknown
-}): PlatformError => new PlatformError(new BadArgument(options))
+  readonly module: string;
+  readonly method: string;
+  readonly description?: string | undefined;
+  readonly cause?: unknown;
+}): PlatformError => new PlatformError(new BadArgument(options));

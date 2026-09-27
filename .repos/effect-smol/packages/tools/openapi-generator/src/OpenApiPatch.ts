@@ -10,14 +10,14 @@
  * @since 4.0.0
  */
 
-import * as Effect from "effect/Effect"
-import * as FileSystem from "effect/FileSystem"
-import { constFalse, constUndefined } from "effect/Function"
-import * as JsonPatch from "effect/JsonPatch"
-import * as Path from "effect/Path"
-import * as Predicate from "effect/Predicate"
-import * as Schema from "effect/Schema"
-import * as Yaml from "effect/unstable/encoding/Yaml"
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import { constFalse, constUndefined } from "effect/Function";
+import * as JsonPatch from "effect/JsonPatch";
+import * as Path from "effect/Path";
+import * as Predicate from "effect/Predicate";
+import * as Schema from "effect/Schema";
+import * as Yaml from "effect/unstable/encoding/Yaml";
 
 // =============================================================================
 // Error Types
@@ -52,10 +52,10 @@ import * as Yaml from "effect/unstable/encoding/Yaml"
 export class JsonPatchParseError extends Schema.Error<JsonPatchParseError>("JsonPatchParseError")({
   _tag: Schema.tag("JsonPatchParseError"),
   source: Schema.String,
-  reason: Schema.String
+  reason: Schema.String,
 }) {
   override get message() {
-    return `Failed to parse patch from ${this.source}: ${this.reason}`
+    return `Failed to parse patch from ${this.source}: ${this.reason}`;
   }
 }
 
@@ -86,13 +86,15 @@ export class JsonPatchParseError extends Schema.Error<JsonPatchParseError>("Json
  * @category errors
  * @since 4.0.0
  */
-export class JsonPatchValidationError extends Schema.Error<JsonPatchValidationError>("JsonPatchValidationError")({
+export class JsonPatchValidationError extends Schema.Error<JsonPatchValidationError>(
+  "JsonPatchValidationError",
+)({
   _tag: Schema.tag("JsonPatchValidationError"),
   source: Schema.String,
-  reason: Schema.String
+  reason: Schema.String,
 }) {
   override get message() {
-    return `Invalid JSON Patch from ${this.source}: ${this.reason}`
+    return `Invalid JSON Patch from ${this.source}: ${this.reason}`;
   }
 }
 
@@ -125,17 +127,21 @@ export class JsonPatchValidationError extends Schema.Error<JsonPatchValidationEr
  * @category errors
  * @since 4.0.0
  */
-export class JsonPatchApplicationError extends Schema.Error<JsonPatchApplicationError>("JsonPatchApplicationError")({
+export class JsonPatchApplicationError extends Schema.Error<JsonPatchApplicationError>(
+  "JsonPatchApplicationError",
+)({
   _tag: Schema.tag("JsonPatchApplicationError"),
   source: Schema.String,
   operationIndex: Schema.Natural,
   operation: Schema.String,
   path: Schema.String,
-  reason: Schema.String
+  reason: Schema.String,
 }) {
   override get message() {
-    return `Failed to apply patch from ${this.source}: operation ${this.operationIndex} ` +
+    return (
+      `Failed to apply patch from ${this.source}: operation ${this.operationIndex} ` +
       `(${this.operation} at ${this.path}): ${this.reason}`
+    );
   }
 }
 
@@ -177,18 +183,23 @@ export class JsonPatchApplicationError extends Schema.Error<JsonPatchApplication
  * @category errors
  * @since 4.0.0
  */
-export class JsonPatchAggregateError extends Schema.Error<JsonPatchAggregateError>("JsonPatchAggregateError")({
+export class JsonPatchAggregateError extends Schema.Error<JsonPatchAggregateError>(
+  "JsonPatchAggregateError",
+)({
   _tag: Schema.tag("JsonPatchAggregateError"),
-  errors: Schema.Array(Schema.Unknown)
+  errors: Schema.Array(Schema.Unknown),
 }) {
   override get message() {
-    const errors = this.errors as ReadonlyArray<JsonPatchApplicationError>
-    const count = errors.length
-    const plural = count === 1 ? "operation" : "operations"
+    const errors = this.errors as ReadonlyArray<JsonPatchApplicationError>;
+    const count = errors.length;
+    const plural = count === 1 ? "operation" : "operations";
     const details = errors
-      .map((e, i) => `  ${i + 1}. [${e.source}] op ${e.operationIndex} (${e.operation} at ${e.path}): ${e.reason}`)
-      .join("\n")
-    return `${count} patch ${plural} failed:\n${details}`
+      .map(
+        (e, i) =>
+          `  ${i + 1}. [${e.source}] op ${e.operationIndex} (${e.operation} at ${e.path}): ${e.reason}`,
+      )
+      .join("\n");
+    return `${count} patch ${plural} failed:\n${details}`;
   }
 }
 
@@ -202,17 +213,13 @@ export class JsonPatchAggregateError extends Schema.Error<JsonPatchAggregateErro
  * @category schemas
  * @since 4.0.0
  */
-export const JsonPatchAdd: Schema.Codec<
-  Extract<
-    JsonPatch.JsonPatchOperation,
-    { op: "add" }
-  >
-> = Schema.Struct({
-  op: Schema.Literal("add"),
-  path: Schema.String,
-  value: Schema.Json,
-  description: Schema.optionalKey(Schema.String)
-})
+export const JsonPatchAdd: Schema.Codec<Extract<JsonPatch.JsonPatchOperation, { op: "add" }>> =
+  Schema.Struct({
+    op: Schema.Literal("add"),
+    path: Schema.String,
+    value: Schema.Json,
+    description: Schema.optionalKey(Schema.String),
+  });
 
 /**
  * Schema for a JSON Patch "remove" operation.
@@ -221,15 +228,12 @@ export const JsonPatchAdd: Schema.Codec<
  * @since 4.0.0
  */
 export const JsonPatchRemove: Schema.Codec<
-  Extract<
-    JsonPatch.JsonPatchOperation,
-    { op: "remove" }
-  >
+  Extract<JsonPatch.JsonPatchOperation, { op: "remove" }>
 > = Schema.Struct({
   op: Schema.Literal("remove"),
   path: Schema.String,
-  description: Schema.optionalKey(Schema.String)
-})
+  description: Schema.optionalKey(Schema.String),
+});
 
 /**
  * Schema for a JSON Patch "replace" operation.
@@ -238,16 +242,13 @@ export const JsonPatchRemove: Schema.Codec<
  * @since 4.0.0
  */
 export const JsonPatchReplace: Schema.Codec<
-  Extract<
-    JsonPatch.JsonPatchOperation,
-    { op: "replace" }
-  >
+  Extract<JsonPatch.JsonPatchOperation, { op: "replace" }>
 > = Schema.Struct({
   op: Schema.Literal("replace"),
   path: Schema.String,
   value: Schema.Json,
-  description: Schema.optionalKey(Schema.String)
-})
+  description: Schema.optionalKey(Schema.String),
+});
 
 /**
  * Schema for a single JSON Patch operation.
@@ -263,8 +264,8 @@ export const JsonPatchReplace: Schema.Codec<
 export const JsonPatchOperation: Schema.Codec<JsonPatch.JsonPatchOperation> = Schema.Union([
   JsonPatchAdd,
   JsonPatchRemove,
-  JsonPatchReplace
-])
+  JsonPatchReplace,
+]);
 
 /**
  * Schema for a JSON Patch document (array of operations).
@@ -293,7 +294,7 @@ export const JsonPatchOperation: Schema.Codec<JsonPatch.JsonPatchOperation> = Sc
  * @category schemas
  * @since 4.0.0
  */
-export const JsonPatchDocument = Schema.Array(JsonPatchOperation)
+export const JsonPatchDocument = Schema.Array(JsonPatchOperation);
 
 /**
  * Type for a JSON Patch document.
@@ -301,13 +302,13 @@ export const JsonPatchDocument = Schema.Array(JsonPatchOperation)
  * @category models
  * @since 4.0.0
  */
-export type JsonPatchDocument = typeof JsonPatchDocument.Type
+export type JsonPatchDocument = typeof JsonPatchDocument.Type;
 
 // =============================================================================
 // Parsing Functions
 // =============================================================================
 
-const decodeJsonPatchDocument = Schema.decodeUnknownEffect(JsonPatchDocument)
+const decodeJsonPatchDocument = Schema.decodeUnknownEffect(JsonPatchDocument);
 
 /**
  * Check if a string looks like it could be a file path.
@@ -315,109 +316,119 @@ const decodeJsonPatchDocument = Schema.decodeUnknownEffect(JsonPatchDocument)
  * Heuristic: contains path separators or ends with a known extension.
  */
 const looksLikeFilePath = (input: string): boolean => {
-  const trimmed = input.trim()
-  if (trimmed.startsWith("[")) return false
-  if (trimmed.includes("/") || trimmed.includes("\\")) return true
-  if (/\.(json|yaml|yml)$/i.test(trimmed)) return true
-  return false
-}
+  const trimmed = input.trim();
+  if (trimmed.startsWith("[")) return false;
+  if (trimmed.includes("/") || trimmed.includes("\\")) return true;
+  if (/\.(json|yaml|yml)$/i.test(trimmed)) return true;
+  return false;
+};
 
 /**
  * Determine file format from extension.
  */
-const getFileFormat = Effect.fn(function*(filePath: string) {
-  const path = yield* Path.Path
-  const { ext } = path.parse(filePath)
-  if (ext === ".json") return "json"
-  if (ext === ".yaml" || ext === ".yml") return "yaml"
-  return undefined
-})
+const getFileFormat = Effect.fn(function* (filePath: string) {
+  const path = yield* Path.Path;
+  const { ext } = path.parse(filePath);
+  if (ext === ".json") return "json";
+  if (ext === ".yaml" || ext === ".yml") return "yaml";
+  return undefined;
+});
 
 /**
  * Check if a file path exists and is a file.
  */
-const checkFileExists = Effect.fn("checkFileExists")(function*(filePath: string) {
-  const fs = yield* FileSystem.FileSystem
-  const path = yield* Path.Path
-  const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath)
-  const exists = yield* Effect.orElseSucceed(fs.exists(absolutePath), constFalse)
-  if (!exists) return false
-  const stat = yield* Effect.orElseSucceed(fs.stat(absolutePath), constUndefined)
-  return Predicate.isNotUndefined(stat) && stat.type === "File"
-})
+const checkFileExists = Effect.fn("checkFileExists")(function* (filePath: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath);
+  const exists = yield* Effect.orElseSucceed(fs.exists(absolutePath), constFalse);
+  if (!exists) return false;
+  const stat = yield* Effect.orElseSucceed(fs.stat(absolutePath), constUndefined);
+  return Predicate.isNotUndefined(stat) && stat.type === "File";
+});
 
 /**
  * Parse content as JSON.
  */
-const parseJsonContent = Effect.fnUntraced(function*(content: string, source: string) {
+const parseJsonContent = Effect.fnUntraced(function* (content: string, source: string) {
   return yield* Effect.try({
     try: () => JSON.parse(content) as unknown,
     catch: (error) =>
       new JsonPatchParseError({
         source,
-        reason: error instanceof Error ? error.message : String(error)
-      })
-  })
-})
+        reason: error instanceof Error ? error.message : String(error),
+      }),
+  });
+});
 
 /**
  * Parse content as YAML.
  */
-const parseYamlContent = Effect.fnUntraced(function*(content: string, source: string) {
+const parseYamlContent = Effect.fnUntraced(function* (content: string, source: string) {
   return yield* Effect.try({
     try: () => Yaml.parse(content) as unknown,
     catch: (error) =>
       new JsonPatchParseError({
         source,
-        reason: error instanceof Error ? error.message : String(error)
-      })
-  })
-})
+        reason: error instanceof Error ? error.message : String(error),
+      }),
+  });
+});
 
 /**
  * Read and parse a patch file.
  */
-const parsePatchFile = Effect.fn("parsePatchFile")(function*(filePath: string) {
-  const fs = yield* FileSystem.FileSystem
-  const path = yield* Path.Path
-  const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath)
+const parsePatchFile = Effect.fn("parsePatchFile")(function* (filePath: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath);
 
-  const fileFormat = yield* getFileFormat(filePath)
+  const fileFormat = yield* getFileFormat(filePath);
   if (Predicate.isUndefined(fileFormat)) {
     return yield* new JsonPatchParseError({
       source: filePath,
-      reason: `Unsupported file format. Expected .json, .yaml, or .yml`
-    })
+      reason: `Unsupported file format. Expected .json, .yaml, or .yml`,
+    });
   }
 
-  const content = yield* Effect.mapError(fs.readFileString(absolutePath), (error) =>
-    new JsonPatchParseError({
-      source: filePath,
-      reason: `Failed to read file: ${error.message}`
-    }))
+  const content = yield* Effect.mapError(
+    fs.readFileString(absolutePath),
+    (error) =>
+      new JsonPatchParseError({
+        source: filePath,
+        reason: `Failed to read file: ${error.message}`,
+      }),
+  );
 
-  const parsed = fileFormat === "json"
-    ? yield* parseJsonContent(content, filePath)
-    : yield* parseYamlContent(content, filePath)
+  const parsed =
+    fileFormat === "json"
+      ? yield* parseJsonContent(content, filePath)
+      : yield* parseYamlContent(content, filePath);
 
-  return yield* Effect.mapError(decodeJsonPatchDocument(parsed), (error) =>
-    new JsonPatchValidationError({
-      source: filePath,
-      reason: error.message
-    }))
-})
+  return yield* Effect.mapError(
+    decodeJsonPatchDocument(parsed),
+    (error) =>
+      new JsonPatchValidationError({
+        source: filePath,
+        reason: error.message,
+      }),
+  );
+});
 
 /**
  * Parse inline JSON string as a patch document.
  */
-const parseInlinePatch = Effect.fn("parseInlinePatch")(function*(input: string) {
-  const parsed = yield* parseJsonContent(input, "inline")
-  return yield* Effect.mapError(decodeJsonPatchDocument(parsed), (error) =>
-    new JsonPatchValidationError({
-      source: "inline",
-      reason: error.message
-    }))
-})
+const parseInlinePatch = Effect.fn("parseInlinePatch")(function* (input: string) {
+  const parsed = yield* parseJsonContent(input, "inline");
+  return yield* Effect.mapError(
+    decodeJsonPatchDocument(parsed),
+    (error) =>
+      new JsonPatchValidationError({
+        source: "inline",
+        reason: error.message,
+      }),
+  );
+});
 
 /**
  * Parse a JSON Patch from either a file path or inline JSON string.
@@ -450,15 +461,15 @@ const parseInlinePatch = Effect.fn("parseInlinePatch")(function*(input: string) 
  * @category parsing
  * @since 4.0.0
  */
-export const parsePatchInput = Effect.fn("parsePatchInput")(function*(input: string) {
+export const parsePatchInput = Effect.fn("parsePatchInput")(function* (input: string) {
   if (looksLikeFilePath(input)) {
-    const exists = yield* checkFileExists(input)
+    const exists = yield* checkFileExists(input);
     if (exists) {
-      return yield* parsePatchFile(input)
+      return yield* parsePatchFile(input);
     }
   }
-  return yield* parseInlinePatch(input)
-})
+  return yield* parseInlinePatch(input);
+});
 
 // =============================================================================
 // Application Functions
@@ -498,37 +509,39 @@ export const parsePatchInput = Effect.fn("parsePatchInput")(function*(input: str
  * @category transforming
  * @since 4.0.0
  */
-export const applyPatches = Effect.fn("applyPatches")(function*(
+export const applyPatches = Effect.fn("applyPatches")(function* (
   patches: ReadonlyArray<{ readonly source: string; readonly patch: JsonPatchDocument }>,
-  document: Schema.Json
+  document: Schema.Json,
 ) {
-  let result: Schema.Json = document
-  const errors: Array<JsonPatchApplicationError> = []
+  let result: Schema.Json = document;
+  const errors: Array<JsonPatchApplicationError> = [];
 
   for (const { source, patch } of patches) {
     for (let i = 0; i < patch.length; i++) {
-      const op = patch[i]
-      yield* Effect.ignore(Effect.try({
-        try: () => {
-          result = JsonPatch.apply([op], result)
-        },
-        catch: (error) =>
-          errors.push(
-            new JsonPatchApplicationError({
-              source,
-              operationIndex: i,
-              operation: op.op,
-              path: op.path,
-              reason: error instanceof Error ? error.message : String(error)
-            })
-          )
-      }))
+      const op = patch[i];
+      yield* Effect.ignore(
+        Effect.try({
+          try: () => {
+            result = JsonPatch.apply([op], result);
+          },
+          catch: (error) =>
+            errors.push(
+              new JsonPatchApplicationError({
+                source,
+                operationIndex: i,
+                operation: op.op,
+                path: op.path,
+                reason: error instanceof Error ? error.message : String(error),
+              }),
+            ),
+        }),
+      );
     }
   }
 
   if (errors.length > 0) {
-    return yield* new JsonPatchAggregateError({ errors })
+    return yield* new JsonPatchAggregateError({ errors });
   }
 
-  return result
-})
+  return result;
+});

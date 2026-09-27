@@ -9,7 +9,7 @@
  *
  * @since 4.0.0
  */
-import type * as Order from "./Order.ts"
+import type * as Order from "./Order.ts";
 
 /**
  * Represents a strategy for combining two values of the same type `A`. A
@@ -46,7 +46,7 @@ export interface Combiner<A> {
    *
    * Use to merge two values according to this combining strategy.
    */
-  readonly combine: (self: A, that: A) => A
+  readonly combine: (self: A, that: A) => A;
 }
 
 /**
@@ -77,7 +77,7 @@ export interface Combiner<A> {
  * @since 4.0.0
  */
 export function make<A>(combine: (self: A, that: A) => A): Combiner<A> {
-  return { combine }
+  return { combine };
 }
 
 /**
@@ -108,7 +108,7 @@ export function make<A>(combine: (self: A, that: A) => A): Combiner<A> {
  * @since 4.0.0
  */
 export function flip<A>(combiner: Combiner<A>): Combiner<A> {
-  return make((self, that) => combiner.combine(that, self))
+  return make((self, that) => combiner.combine(that, self));
 }
 
 /**
@@ -141,7 +141,7 @@ export function flip<A>(combiner: Combiner<A>): Combiner<A> {
  * @since 4.0.0
  */
 export function min<A>(order: Order.Order<A>): Combiner<A> {
-  return make((self, that) => order(self, that) === -1 ? self : that)
+  return make((self, that) => (order(self, that) === -1 ? self : that));
 }
 
 /**
@@ -174,7 +174,7 @@ export function min<A>(order: Order.Order<A>): Combiner<A> {
  * @since 4.0.0
  */
 export function max<A>(order: Order.Order<A>): Combiner<A> {
-  return make((self, that) => order(self, that) === 1 ? self : that)
+  return make((self, that) => (order(self, that) === 1 ? self : that));
 }
 
 /**
@@ -203,7 +203,7 @@ export function max<A>(order: Order.Order<A>): Combiner<A> {
  * @since 4.0.0
  */
 export function first<A>(): Combiner<A> {
-  return make((self, _) => self)
+  return make((self, _) => self);
 }
 
 /**
@@ -232,7 +232,7 @@ export function first<A>(): Combiner<A> {
  * @since 4.0.0
  */
 export function last<A>(): Combiner<A> {
-  return make((_, that) => that)
+  return make((_, that) => that);
 }
 
 /**
@@ -264,7 +264,7 @@ export function last<A>(): Combiner<A> {
  * @since 4.0.0
  */
 export function constant<A>(a: A): Combiner<A> {
-  return make(() => a)
+  return make(() => a);
 }
 
 /**
@@ -299,5 +299,5 @@ export function constant<A>(a: A): Combiner<A> {
  */
 export function intercalate<A>(middle: A) {
   return (combiner: Combiner<A>): Combiner<A> =>
-    make((self, that) => combiner.combine(self, combiner.combine(middle, that)))
+    make((self, that) => combiner.combine(self, combiner.combine(middle, that)));
 }

@@ -1,36 +1,21 @@
 {
   "name": "@effect/ai-typesafe",
   "version": "4.0.0-rc.117",
-  "type": "module",
-  "license": "MIT",
   "description": "A TypeSafe DecisionModel provider for Effect",
+  "keywords": [
+    "ai",
+    "typesafe",
+    "typescript"
+  ],
   "homepage": "https://effect.website",
+  "bugs": {
+    "url": "https://github.com/Effect-TS/effect/issues"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/ai/typesafe"
-  },
-  "bugs": {
-    "url": "https://github.com/Effect-TS/effect/issues"
-  },
-  "tags": [
-    "typescript",
-    "ai",
-    "typesafe"
-  ],
-  "keywords": [
-    "typescript",
-    "ai",
-    "typesafe"
-  ],
-  "sideEffects": [],
-  "exports": {
-    "./package.json": "./package.json",
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./internal/*": null,
-    "./index": null,
-    "./*/index": null
   },
   "files": [
     "src/**/*.ts",
@@ -42,9 +27,17 @@
     "CLAUDE.md",
     "ai-docs/**/*"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts",
+    "./internal/*": null,
+    "./index": null,
+    "./*/index": null
+  },
   "publishConfig": {
-    "access": "public",
-    "provenance": true,
     "exports": {
       "./package.json": "./package.json",
       ".": "./dist/index.js",
@@ -52,7 +45,9 @@
       "./internal/*": null,
       "./index": null,
       "./*/index": null
-    }
+    },
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "codegen": "effect-utils codegen",
@@ -65,5 +60,10 @@
   },
   "peerDependencies": {
     "effect": "workspace:^"
-  }
+  },
+  "tags": [
+    "typescript",
+    "ai",
+    "typesafe"
+  ]
 }

@@ -1,15 +1,13 @@
-import * as os from "node:os"
-import * as path from "node:path"
-import { defineConfig, mergeConfig, type ViteUserConfig } from "vitest/config"
+import * as os from "node:os";
+import * as path from "node:path";
+import { defineConfig, mergeConfig, type ViteUserConfig } from "vite-plus";
 
-const isDeno = process.versions.deno !== undefined
-const isBun = process.versions.bun !== undefined
-const isNode = typeof process !== "undefined" &&
-  process.release.name === "node" &&
-  !isDeno &&
-  !isBun
-const integrationTestsEnabled = process.env.EFFECT_INTEGRATION_TESTS === "1"
-const clusterTestsEnabled = process.env.EFFECT_CLUSTER_TESTS === "1"
+const isDeno = process.versions.deno !== undefined;
+const isBun = process.versions.bun !== undefined;
+const isNode =
+  typeof process !== "undefined" && process.release.name === "node" && !isDeno && !isBun;
+const integrationTestsEnabled = process.env.EFFECT_INTEGRATION_TESTS === "1";
+const clusterTestsEnabled = process.env.EFFECT_CLUSTER_TESTS === "1";
 
 const project = (
   name: string,
@@ -17,26 +15,29 @@ const project = (
   include: boolean = true,
   config: ViteUserConfig = {},
   projectExclude?: ReadonlyArray<string>,
-  projectInclude?: ReadonlyArray<string>
+  projectInclude?: ReadonlyArray<string>,
 ) => {
   if (!include) {
-    return []
+    return [];
   }
 
-  const cfg = mergeConfig({
-    root: directory,
-    test: { name }
-  }, config)
+  const cfg = mergeConfig(
+    {
+      root: directory,
+      test: { name },
+    },
+    config,
+  );
 
-  const merged = mergeConfig(shared, cfg)
+  const merged = mergeConfig(shared, cfg);
   if (projectExclude !== undefined) {
-    merged.test!.exclude = [...projectExclude]
+    merged.test!.exclude = [...projectExclude];
   }
   if (projectInclude !== undefined) {
-    merged.test!.include = [...projectInclude]
+    merged.test!.include = [...projectInclude];
   }
-  return [merged]
-}
+  return [merged];
+};
 
 export const exclude = [
   "**/.*/**",
@@ -51,37 +52,37 @@ export const exclude = [
   ...(!integrationTestsEnabled ? ["**/*.integration.test.{ts,tsx}"] : []),
   "**/*.d.ts",
   "**/*.config.*",
-  "**/vitest.*"
-]
+  "**/vitest.*",
+];
 
 const shared: ViteUserConfig = {
   optimizeDeps: {
-    exclude: ["bun:sqlite"]
+    exclude: ["bun:sqlite"],
   },
   server: {
     watch: {
-      ignored: exclude
-    }
+      ignored: exclude,
+    },
   },
   resolve: {
-    tsconfigPaths: true
+    tsconfigPaths: true,
   },
   test: {
     exclude,
     passWithNoTests: true,
     setupFiles: [path.join(import.meta.dirname, "vitest.setup.ts")],
     sequence: {
-      concurrent: true
+      concurrent: true,
     },
     include: ["test/**/*.test.{ts,tsx}"],
     coverage: {
       provider: "v8",
       reporter: ["html"],
       reportsDirectory: "coverage",
-      exclude
-    }
-  }
-}
+      exclude,
+    },
+  },
+};
 
 export default defineConfig({
   test: {
@@ -94,17 +95,17 @@ export default defineConfig({
         {},
         isBun
           ? [
-            ...exclude,
-            // These tests assert Node-specific Web API or stack trace behavior.
-            "test/reactivity/Atom.test.ts",
-            "test/schema/Schema.test.ts",
-            "test/schema/SchemaGetter.test.ts",
-            "test/schema/toCodec.test.ts",
-            "test/schema/toDifferJsonPatch.test.ts",
-            "test/unstable/http/HttpEffect.test.ts",
-            "test/unstable/http/HttpServerRequest.test.ts"
-          ]
-          : undefined
+              ...exclude,
+              // These tests assert Node-specific Web API or stack trace behavior.
+              "test/reactivity/Atom.test.ts",
+              "test/schema/Schema.test.ts",
+              "test/schema/SchemaGetter.test.ts",
+              "test/schema/toCodec.test.ts",
+              "test/schema/toDifferJsonPatch.test.ts",
+              "test/unstable/http/HttpEffect.test.ts",
+              "test/unstable/http/HttpServerRequest.test.ts",
+            ]
+          : undefined,
       ),
       ...project("@effect/ai-anthropic", "packages/ai/anthropic"),
       ...project("@effect/ai-openai", "packages/ai/openai"),
@@ -114,22 +115,22 @@ export default defineConfig({
       ...project("@effect/atom-react", "packages/atom/react", true, {
         test: {
           environment: "jsdom",
-          setupFiles: [path.join(import.meta.dirname, "packages/atom/react/vitest.setup.ts")]
-        }
+          setupFiles: [path.join(import.meta.dirname, "packages/atom/react/vitest.setup.ts")],
+        },
       }),
       ...project("@effect/atom-solid", "packages/atom/solid", true, {
         resolve: {
-          conditions: ["browser"]
+          conditions: ["browser"],
         },
         test: {
           environment: "jsdom",
-          setupFiles: [path.join(import.meta.dirname, "packages/atom/solid/vitest.setup.ts")]
-        }
+          setupFiles: [path.join(import.meta.dirname, "packages/atom/solid/vitest.setup.ts")],
+        },
       }),
       ...project("@effect/atom-vue", "packages/atom/vue", true, {
         test: {
-          environment: "happy-dom"
-        }
+          environment: "happy-dom",
+        },
       }),
       ...project("@effect/opentelemetry", "packages/opentelemetry"),
       ...project("@effect/platform-browser", "packages/platform/browser", true, {
@@ -139,11 +140,11 @@ export default defineConfig({
           execArgv: isBun
             ? []
             : [
-              "--localstorage-file",
-              path.resolve(os.tmpdir(), `vitest-${process.pid}.localstorage`)
-            ],
-          setupFiles: [path.join(import.meta.dirname, "packages/platform/browser/vitest.setup.ts")]
-        }
+                "--localstorage-file",
+                path.resolve(os.tmpdir(), `vitest-${process.pid}.localstorage`),
+              ],
+          setupFiles: [path.join(import.meta.dirname, "packages/platform/browser/vitest.setup.ts")],
+        },
       }),
       ...project("@effect/platform-bun", "packages/platform/bun", isBun),
       ...project("@effect/platform-deno", "packages/platform/deno", isDeno),
@@ -155,20 +156,21 @@ export default defineConfig({
         {
           test: {
             globalSetup: [
-              path.join(import.meta.dirname, "packages/platform/node/test/cluster-integration/globalSetup.ts")
+              path.join(
+                import.meta.dirname,
+                "packages/platform/node/test/cluster-integration/globalSetup.ts",
+              ),
             ],
             include: ["test/cluster-integration/**/*.test.ts"],
             retry: 0,
             sequence: {
-              concurrent: false
+              concurrent: false,
             },
-            testTimeout: 60_000
-          }
+            testTimeout: 60_000,
+          },
         },
         exclude.filter((path) => path !== "**/test/cluster-integration/**"),
-        [
-          "test/cluster-integration/**/*.test.ts"
-        ]
+        ["test/cluster-integration/**/*.test.ts"],
       ),
       ...project("@effect/platform-node-shared", "packages/platform/node-shared", isNode),
       ...project("@effect/vitest", "packages/vitest"),
@@ -184,14 +186,14 @@ export default defineConfig({
         true,
         integrationTestsEnabled
           ? {
-            test: {
-              fileParallelism: false,
-              sequence: {
-                groupOrder: 1
-              }
+              test: {
+                fileParallelism: false,
+                sequence: {
+                  groupOrder: 1,
+                },
+              },
             }
-          }
-          : {}
+          : {},
       ),
       ...project("@effect/sql-pg", "packages/sql/pg"),
       ...project("@effect/sql-pglite", "packages/sql/pglite"),
@@ -202,7 +204,7 @@ export default defineConfig({
         true,
         {},
         // Miniflare needs Node/Bun; keep the in-process client tests on Deno.
-        isDeno ? [...exclude, "test/Miniflare.test.ts"] : undefined
+        isDeno ? [...exclude, "test/Miniflare.test.ts"] : undefined,
       ),
       ...project("@effect/sql-sqlite-node", "packages/sql/sqlite-node", isNode),
       ...project("@effect/sql-sqlite-react-native", "packages/sql/sqlite-react-native"),
@@ -215,7 +217,7 @@ export default defineConfig({
       ...project("@effect/jsdocs", "packages/tools/jsdocs"),
       ...project("@effect/openapi-generator", "packages/tools/openapi-generator"),
       ...project("@effect/utils", "packages/tools/utils", isNode),
-      ...project("@effect/oxc", "packages/tools/oxc")
-    ]
-  }
-})
+      ...project("@effect/oxc", "packages/tools/oxc"),
+    ],
+  },
+});

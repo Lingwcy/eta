@@ -7,7 +7,7 @@
  *
  * @since 4.0.0
  */
-import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest"
+import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 
 /**
  * Returns the underlying `Bun.BunRequest` from an Effect `HttpServerRequest`.
@@ -15,5 +15,6 @@ import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest"
  * @category accessors
  * @since 4.0.0
  */
-export const toBunServerRequest = <T extends string = string>(self: HttpServerRequest): Bun.BunRequest<T> =>
-  (self as any).source
+export const toBunServerRequest = <T extends string = string>(
+  self: HttpServerRequest,
+): Bun.BunRequest<T> => (self as any).source;

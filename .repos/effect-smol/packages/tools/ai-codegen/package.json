@@ -1,25 +1,17 @@
 {
   "name": "@effect/ai-codegen",
   "version": "0.0.0",
-  "type": "module",
   "private": true,
-  "license": "MIT",
   "description": "Code generation framework for the Effect AI providers",
   "homepage": "https://effect.website",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/tools/ai-codegen"
   },
-  "sideEffects": [],
   "bin": {
     "effect-ai-codegen": "./src/bin.ts"
-  },
-  "exports": {
-    "./package.json": "./package.json",
-    "./*": "./src/*.ts",
-    "./bin": null,
-    "./main": null
   },
   "files": [
     "src/**/*.ts",
@@ -28,8 +20,15 @@
     "dist/**/*.d.ts",
     "dist/**/*.d.ts.map"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    "./*": "./src/*.ts",
+    "./bin": null,
+    "./main": null
+  },
   "publishConfig": {
-    "provenance": true,
     "bin": {
       "effect-ai-codegen": "./dist/bin.js"
     },
@@ -38,7 +37,8 @@
       "./*": "./dist/*.js",
       "./bin": null,
       "./main": null
-    }
+    },
+    "provenance": true
   },
   "scripts": {
     "build": "tsc -b tsconfig.json && pnpm babel",

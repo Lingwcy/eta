@@ -9,18 +9,18 @@
  *
  * @since 3.16.0
  */
-import type { NonEmptyReadonlyArray } from "./Array.ts"
-import type * as Cause from "./Cause.ts"
-import * as Context from "./Context.ts"
-import type * as Duration from "./Duration.ts"
-import type * as Effect from "./Effect.ts"
-import { constant } from "./Function.ts"
-import * as effect from "./internal/effect.ts"
-import * as Layer from "./Layer.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { pipeArguments } from "./Pipeable.ts"
-import * as Predicate from "./Predicate.ts"
-import type * as Schedule from "./Schedule.ts"
+import type { NonEmptyReadonlyArray } from "./Array.ts";
+import type * as Cause from "./Cause.ts";
+import * as Context from "./Context.ts";
+import type * as Duration from "./Duration.ts";
+import type * as Effect from "./Effect.ts";
+import { constant } from "./Function.ts";
+import * as effect from "./internal/effect.ts";
+import * as Layer from "./Layer.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { pipeArguments } from "./Pipeable.ts";
+import * as Predicate from "./Predicate.ts";
+import type * as Schedule from "./Schedule.ts";
 
 /**
  * String literal type used as the runtime type identifier for `ExecutionPlan`
@@ -29,7 +29,7 @@ import type * as Schedule from "./Schedule.ts"
  * @category type IDs
  * @since 3.16.0
  */
-export type TypeId = "~effect/ExecutionPlan"
+export type TypeId = "~effect/ExecutionPlan";
 
 /**
  * Runtime type identifier attached to `ExecutionPlan` values and used by
@@ -38,7 +38,7 @@ export type TypeId = "~effect/ExecutionPlan"
  * @category type IDs
  * @since 3.16.0
  */
-export const TypeId: TypeId = "~effect/ExecutionPlan"
+export const TypeId: TypeId = "~effect/ExecutionPlan";
 
 /**
  * Returns `true` if a value is an `ExecutionPlan` by checking for the
@@ -61,7 +61,8 @@ export const TypeId: TypeId = "~effect/ExecutionPlan"
  * @category guards
  * @since 3.16.0
  */
-export const isExecutionPlan = (u: unknown): u is ExecutionPlan<any> => Predicate.hasProperty(u, TypeId)
+export const isExecutionPlan = (u: unknown): u is ExecutionPlan<any> =>
+  Predicate.hasProperty(u, TypeId);
 
 /**
  * A `ExecutionPlan` can be used with `Effect.withExecutionPlan` or `Stream.withExecutionPlan`, allowing you to provide different resources for each step of execution until the effect succeeds or the plan is exhausted.
@@ -89,37 +90,39 @@ export const isExecutionPlan = (u: unknown): u is ExecutionPlan<any> => Predicat
  */
 export interface ExecutionPlan<
   Config extends {
-    provides: any
-    input: any
-    error: any
-    requirements: any
-  }
+    provides: any;
+    input: any;
+    error: any;
+    requirements: any;
+  },
 > extends Pipeable {
-  readonly [TypeId]: TypeId
+  readonly [TypeId]: TypeId;
   readonly steps: NonEmptyReadonlyArray<{
     readonly provide:
       | Context.Context<Config["provides"]>
-      | Layer.Layer<Config["provides"], Config["error"], Config["requirements"]>
-    readonly attempts?: number | undefined
+      | Layer.Layer<Config["provides"], Config["error"], Config["requirements"]>;
+    readonly attempts?: number | undefined;
     readonly while?:
-      | ((input: Config["input"]) => Effect.Effect<boolean, Config["error"], Config["requirements"]>)
-      | undefined
-    readonly schedule?: Schedule.Schedule<any, Config["input"], Config["requirements"]> | undefined
-  }>
+      | ((
+          input: Config["input"],
+        ) => Effect.Effect<boolean, Config["error"], Config["requirements"]>)
+      | undefined;
+    readonly schedule?: Schedule.Schedule<any, Config["input"], Config["requirements"]> | undefined;
+  }>;
 
   /**
    * Returns an equivalent `ExecutionPlan` with the requirements satisfied, using the current context.
    */
   readonly captureRequirements: Effect.Effect<
     ExecutionPlan<{
-      provides: Config["provides"]
-      input: Config["input"]
-      error: Config["error"]
-      requirements: never
+      provides: Config["provides"];
+      input: Config["input"];
+      error: Config["error"];
+      requirements: never;
     }>,
     never,
     Config["requirements"]
-  >
+  >;
 }
 
 /**
@@ -136,11 +139,11 @@ export interface ExecutionPlan<
  * @since 4.0.0
  */
 export type ConfigBase = {
-  provides: any
-  input: any
-  error: any
-  requirements: any
-}
+  provides: any;
+  input: any;
+  error: any;
+  requirements: any;
+};
 
 /**
  * Create an `ExecutionPlan`, which can be used with `Effect.withExecutionPlan` or `Stream.withExecutionPlan`, allowing you to provide different resources for each step of execution until the effect succeeds or the plan is exhausted.
@@ -169,34 +172,49 @@ export type ConfigBase = {
 export const make = <const Steps extends NonEmptyReadonlyArray<make.Step>>(
   ...steps: Steps & { [K in keyof Steps]: make.Step }
 ): ExecutionPlan<{
-  provides: make.StepProvides<Steps>
-  input: make.StepInput<Steps>
+  provides: make.StepProvides<Steps>;
+  input: make.StepInput<Steps>;
   error:
-    | (Steps[number]["provide"] extends Context.Context<infer _P> | Layer.Layer<infer _P, infer E, infer _R> ? E
-      : never)
-    | (Steps[number]["while"] extends (input: infer _I) => Effect.Effect<infer _A, infer _E, infer _R> ? _E : never)
+    | (Steps[number]["provide"] extends
+        | Context.Context<infer _P>
+        | Layer.Layer<infer _P, infer E, infer _R>
+        ? E
+        : never)
+    | (Steps[number]["while"] extends (
+        input: infer _I,
+      ) => Effect.Effect<infer _A, infer _E, infer _R>
+        ? _E
+        : never);
   requirements:
     | (Steps[number]["provide"] extends Layer.Layer<infer _A, infer _E, infer R> ? R : never)
-    | (Steps[number]["while"] extends (input: infer _I) => Effect.Effect<infer _A, infer _E, infer R> ? R : never)
-    | (Steps[number]["schedule"] extends Schedule.Schedule<infer _O, infer _I, infer R> ? R : never)
+    | (Steps[number]["while"] extends (
+        input: infer _I,
+      ) => Effect.Effect<infer _A, infer _E, infer R>
+        ? R
+        : never)
+    | (Steps[number]["schedule"] extends Schedule.Schedule<infer _O, infer _I, infer R>
+        ? R
+        : never);
 }> =>
-  makeProto(steps.map((options, i) => {
-    if (options.attempts !== undefined && options.attempts < 1) {
-      throw new Error(`ExecutionPlan.make: step[${i}].attempts must be greater than 0`)
-    }
-    return {
-      schedule: options.schedule,
-      attempts: options.attempts,
-      while: options.while
-        ? (input: any) =>
-          effect.suspend(() => {
-            const result = options.while!(input)
-            return typeof result === "boolean" ? effect.succeed(result) : result
-          })
-        : undefined,
-      provide: options.provide
-    }
-  }) as any)
+  makeProto(
+    steps.map((options, i) => {
+      if (options.attempts !== undefined && options.attempts < 1) {
+        throw new Error(`ExecutionPlan.make: step[${i}].attempts must be greater than 0`);
+      }
+      return {
+        schedule: options.schedule,
+        attempts: options.attempts,
+        while: options.while
+          ? (input: any) =>
+              effect.suspend(() => {
+                const result = options.while!(input);
+                return typeof result === "boolean" ? effect.succeed(result) : result;
+              })
+          : undefined,
+        provide: options.provide,
+      };
+    }) as any,
+  );
 
 /**
  * Namespace containing type helpers used by `ExecutionPlan.make`.
@@ -217,11 +235,11 @@ export declare namespace make {
    * @since 3.16.0
    */
   export type Step = {
-    readonly provide: Context.Context<any> | Context.Context<never> | Layer.Any
-    readonly attempts?: number | undefined
-    readonly while?: ((input: any) => boolean | Effect.Effect<boolean, any, any>) | undefined
-    readonly schedule?: Schedule.Schedule<any, any, any> | undefined
-  }
+    readonly provide: Context.Context<any> | Context.Context<never> | Layer.Any;
+    readonly attempts?: number | undefined;
+    readonly while?: ((input: any) => boolean | Effect.Effect<boolean, any, any>) | undefined;
+    readonly schedule?: Schedule.Schedule<any, any, any> | undefined;
+  };
 
   /**
    * Computes the intersection of services provided by a list of execution-plan
@@ -230,16 +248,20 @@ export declare namespace make {
    * @category utility types
    * @since 3.16.1
    */
-  export type StepProvides<Steps extends ReadonlyArray<any>, Out = unknown> = Steps extends
-    readonly [infer Step, ...infer Rest] ? StepProvides<
-      Rest,
-      & Out
-      & (
-        (Step extends { readonly provide: Context.Context<infer P> | Layer.Layer<infer P, infer _E, infer _R> } ? P
-          : unknown)
-      )
-    > :
-    Out
+  export type StepProvides<
+    Steps extends ReadonlyArray<any>,
+    Out = unknown,
+  > = Steps extends readonly [infer Step, ...infer Rest]
+    ? StepProvides<
+        Rest,
+        Out &
+          (Step extends {
+            readonly provide: Context.Context<infer P> | Layer.Layer<infer P, infer _E, infer _R>;
+          }
+            ? P
+            : unknown)
+      >
+    : Out;
 
   /**
    * Computes the intersection of services provided by a list of execution plans.
@@ -247,10 +269,12 @@ export declare namespace make {
    * @category utility types
    * @since 3.16.1
    */
-  export type PlanProvides<Plans extends ReadonlyArray<any>, Out = unknown> = Plans extends
-    readonly [infer Plan, ...infer Rest] ?
-    PlanProvides<Rest, Out & (Plan extends ExecutionPlan<infer T> ? T["provides"] : unknown)> :
-    Out
+  export type PlanProvides<
+    Plans extends ReadonlyArray<any>,
+    Out = unknown,
+  > = Plans extends readonly [infer Plan, ...infer Rest]
+    ? PlanProvides<Rest, Out & (Plan extends ExecutionPlan<infer T> ? T["provides"] : unknown)>
+    : Out;
 
   /**
    * Computes the input type consumed by the `while` predicates and schedules in
@@ -259,16 +283,19 @@ export declare namespace make {
    * @category utility types
    * @since 3.16.0
    */
-  export type StepInput<Steps extends ReadonlyArray<any>, Out = unknown> = Steps extends
-    readonly [infer Step, ...infer Rest] ? StepInput<
-      Rest,
-      & Out
-      & (
-        & (Step extends { readonly while: (input: infer I) => infer _ } ? I : unknown)
-        & (Step extends { readonly schedule: Schedule.Schedule<infer _O, infer I, infer _R> } ? I : unknown)
-      )
-    > :
-    Out
+  export type StepInput<Steps extends ReadonlyArray<any>, Out = unknown> = Steps extends readonly [
+    infer Step,
+    ...infer Rest,
+  ]
+    ? StepInput<
+        Rest,
+        Out &
+          ((Step extends { readonly while: (input: infer I) => infer _ } ? I : unknown) &
+            (Step extends { readonly schedule: Schedule.Schedule<infer _O, infer I, infer _R> }
+              ? I
+              : unknown))
+      >
+    : Out;
 
   /**
    * Computes the combined input type consumed by a list of execution plans.
@@ -276,45 +303,51 @@ export declare namespace make {
    * @category utility types
    * @since 3.16.0
    */
-  export type PlanInput<Plans extends ReadonlyArray<any>, Out = unknown> = Plans extends
-    readonly [infer Plan, ...infer Rest] ?
-    PlanInput<Rest, Out & (Plan extends ExecutionPlan<infer T> ? T["input"] : unknown)> :
-    Out
+  export type PlanInput<Plans extends ReadonlyArray<any>, Out = unknown> = Plans extends readonly [
+    infer Plan,
+    ...infer Rest,
+  ]
+    ? PlanInput<Rest, Out & (Plan extends ExecutionPlan<infer T> ? T["input"] : unknown)>
+    : Out;
 }
 
 const Proto: Omit<ExecutionPlan<any>, "steps"> = {
   [TypeId]: TypeId,
   get captureRequirements() {
-    const self = this as any as ExecutionPlan<any>
+    const self = this as any as ExecutionPlan<any>;
     return effect.contextWith((context: Context.Context<any>) =>
-      effect.succeed(makeProto(self.steps.map((step) => ({
-        ...step,
-        while: step.while
-          ? (input: any) => effect.provideContext(step.while!(input), context)
-          : undefined,
-        provide: Layer.isLayer(step.provide)
-          ? Layer.provide(step.provide, Layer.succeedContext(context))
-          : step.provide
-      })) as any))
-    )
+      effect.succeed(
+        makeProto(
+          self.steps.map((step) => ({
+            ...step,
+            while: step.while
+              ? (input: any) => effect.provideContext(step.while!(input), context)
+              : undefined,
+            provide: Layer.isLayer(step.provide)
+              ? Layer.provide(step.provide, Layer.succeedContext(context))
+              : step.provide,
+          })) as any,
+        ),
+      ),
+    );
   },
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+    return pipeArguments(this, arguments);
+  },
+};
 
 const makeProto = <Provides, In, PlanE, PlanR>(
   steps: ExecutionPlan<{
-    provides: Provides
-    input: In
-    error: PlanE
-    requirements: PlanR
-  }>["steps"]
+    provides: Provides;
+    input: In;
+    error: PlanE;
+    requirements: PlanR;
+  }>["steps"],
 ) => {
-  const self = Object.create(Proto)
-  self.steps = steps
-  return self
-}
+  const self = Object.create(Proto);
+  self.steps = steps;
+  return self;
+};
 
 /**
  * Combines multiple execution plans by concatenating their steps in order.
@@ -337,11 +370,11 @@ const makeProto = <Provides, In, PlanE, PlanR>(
 export const merge = <const Plans extends NonEmptyReadonlyArray<ExecutionPlan<any>>>(
   ...plans: Plans
 ): ExecutionPlan<{
-  provides: make.PlanProvides<Plans>
-  input: make.PlanInput<Plans>
-  error: Plans[number] extends ExecutionPlan<infer T> ? T["error"] : never
-  requirements: Plans[number] extends ExecutionPlan<infer T> ? T["requirements"] : never
-}> => makeProto(plans.flatMap((plan) => plan.steps) as any)
+  provides: make.PlanProvides<Plans>;
+  input: make.PlanInput<Plans>;
+  error: Plans[number] extends ExecutionPlan<infer T> ? T["error"] : never;
+  requirements: Plans[number] extends ExecutionPlan<infer T> ? T["requirements"] : never;
+}> => makeProto(plans.flatMap((plan) => plan.steps) as any);
 
 /**
  * Metadata describing the currently running execution-plan attempt.
@@ -355,8 +388,8 @@ export const merge = <const Plans extends NonEmptyReadonlyArray<ExecutionPlan<an
  * @since 4.0.0
  */
 export interface Metadata {
-  readonly attempt: number
-  readonly stepIndex: number
+  readonly attempt: number;
+  readonly stepIndex: number;
 }
 
 /**
@@ -374,9 +407,9 @@ export interface Metadata {
 export const CurrentMetadata = Context.Reference<Metadata>("effect/ExecutionPlan/CurrentMetadata", {
   defaultValue: constant({
     attempt: 0,
-    stepIndex: 0
-  })
-})
+    stepIndex: 0,
+  }),
+});
 
 /**
  * Lifecycle event emitted before an execution-plan attempt runs.
@@ -392,10 +425,10 @@ export const CurrentMetadata = Context.Reference<Metadata>("effect/ExecutionPlan
  * @since 4.0.0
  */
 export interface AttemptStart {
-  readonly _tag: "AttemptStart"
-  readonly attempt: number
-  readonly stepAttempt: number
-  readonly stepIndex: number
+  readonly _tag: "AttemptStart";
+  readonly attempt: number;
+  readonly stepAttempt: number;
+  readonly stepIndex: number;
 }
 
 /**
@@ -410,11 +443,11 @@ export interface AttemptStart {
  * @since 4.0.0
  */
 export interface AttemptSuccess {
-  readonly _tag: "AttemptSuccess"
-  readonly attempt: number
-  readonly stepAttempt: number
-  readonly stepIndex: number
-  readonly duration: Duration.Duration
+  readonly _tag: "AttemptSuccess";
+  readonly attempt: number;
+  readonly stepAttempt: number;
+  readonly stepIndex: number;
+  readonly duration: Duration.Duration;
 }
 
 /**
@@ -431,12 +464,12 @@ export interface AttemptSuccess {
  * @since 4.0.0
  */
 export interface AttemptFailure<E> {
-  readonly _tag: "AttemptFailure"
-  readonly attempt: number
-  readonly stepAttempt: number
-  readonly stepIndex: number
-  readonly duration: Duration.Duration
-  readonly cause: Cause.Cause<E>
+  readonly _tag: "AttemptFailure";
+  readonly attempt: number;
+  readonly stepAttempt: number;
+  readonly stepIndex: number;
+  readonly duration: Duration.Duration;
+  readonly cause: Cause.Cause<E>;
 }
 
 /**
@@ -451,4 +484,4 @@ export interface AttemptFailure<E> {
  * @category models
  * @since 4.0.0
  */
-export type Event<E> = AttemptStart | AttemptSuccess | AttemptFailure<E>
+export type Event<E> = AttemptStart | AttemptSuccess | AttemptFailure<E>;

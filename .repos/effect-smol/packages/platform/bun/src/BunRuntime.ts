@@ -7,9 +7,9 @@
  *
  * @since 4.0.0
  */
-import * as NodeRuntime from "@effect/platform-node-shared/NodeRuntime"
-import type { Effect } from "effect/Effect"
-import type { Teardown } from "effect/Runtime"
+import * as NodeRuntime from "@effect/platform-node-shared/NodeRuntime";
+import type { Effect } from "effect/Effect";
+import type { Teardown } from "effect/Runtime";
 
 /**
  * Helps you run a main effect with built-in error handling, logging, and signal management.
@@ -36,17 +36,15 @@ import type { Teardown } from "effect/Runtime"
  * @since 4.0.0
  */
 export const runMain: {
-  (
-    options?: {
-      readonly disableErrorReporting?: boolean | undefined
-      readonly teardown?: Teardown | undefined
-    }
-  ): <E, A>(effect: Effect<A, E>) => void
+  (options?: {
+    readonly disableErrorReporting?: boolean | undefined;
+    readonly teardown?: Teardown | undefined;
+  }): <E, A>(effect: Effect<A, E>) => void;
   <E, A>(
     effect: Effect<A, E>,
     options?: {
-      readonly disableErrorReporting?: boolean | undefined
-      readonly teardown?: Teardown | undefined
-    }
-  ): void
-} = NodeRuntime.runMain
+      readonly disableErrorReporting?: boolean | undefined;
+      readonly teardown?: Teardown | undefined;
+    },
+  ): void;
+} = NodeRuntime.runMain;

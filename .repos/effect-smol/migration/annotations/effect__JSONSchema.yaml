@@ -60,7 +60,7 @@
   replacement: "JsonSchema.JsonSchema"
   note: "Individual draft-07 node interfaces were consolidated into JsonSchema.JsonSchema."
 "effect/JSONSchema#JsonSchema7Root":
-  replacement: "JsonSchema.Document<\"draft-07\">"
+  replacement: 'JsonSchema.Document<"draft-07">'
   note: "Use a typed JSON Schema document for a draft-07 root and definitions."
 "effect/JSONSchema#JsonSchemaAnnotations":
   replacement: "Schema.Annotations.Documentation"

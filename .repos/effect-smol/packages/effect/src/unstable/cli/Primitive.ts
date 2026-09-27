@@ -10,22 +10,22 @@
  *
  * @since 4.0.0
  */
-import * as Effect from "../../Effect.ts"
-import * as FileSystem from "../../FileSystem.ts"
-import { format } from "../../Formatter.ts"
-import { identity } from "../../Function.ts"
-import * as Path_ from "../../Path.ts"
-import * as Redacted_ from "../../Redacted.ts"
-import * as Schema from "../../Schema.ts"
-import type { Formatter } from "../../SchemaIssue.ts"
-import type * as Struct from "../../Struct.ts"
-import type { Covariant } from "../../Types.ts"
-import * as Ini from "../encoding/Ini.ts"
-import * as Toml from "../encoding/Toml.ts"
-import * as Yaml from "../encoding/Yaml.ts"
-import type { Environment } from "./Command.ts"
+import * as Effect from "../../Effect.ts";
+import * as FileSystem from "../../FileSystem.ts";
+import { format } from "../../Formatter.ts";
+import { identity } from "../../Function.ts";
+import * as Path_ from "../../Path.ts";
+import * as Redacted_ from "../../Redacted.ts";
+import * as Schema from "../../Schema.ts";
+import type { Formatter } from "../../SchemaIssue.ts";
+import type * as Struct from "../../Struct.ts";
+import type { Covariant } from "../../Types.ts";
+import * as Ini from "../encoding/Ini.ts";
+import * as Toml from "../encoding/Toml.ts";
+import * as Yaml from "../encoding/Yaml.ts";
+import type { Environment } from "./Command.ts";
 
-const TypeId = "~effect/cli/Primitive"
+const TypeId = "~effect/cli/Primitive";
 
 /**
  * Represents a primitive type that can parse string input into a typed value.
@@ -68,8 +68,8 @@ const TypeId = "~effect/cli/Primitive"
  * @since 4.0.0
  */
 export interface Primitive<out A> extends Primitive.Variance<A> {
-  readonly _tag: string
-  readonly parse: (value: string) => Effect.Effect<A, string, Environment>
+  readonly _tag: string;
+  readonly parse: (value: string) => Effect.Effect<A, string, Environment>;
 }
 
 /**
@@ -86,43 +86,43 @@ export declare namespace Primitive {
    */
   export interface Variance<out A> {
     readonly [TypeId]: {
-      readonly _A: Covariant<A>
-    }
+      readonly _A: Covariant<A>;
+    };
   }
 }
 
 const Proto = {
   [TypeId]: {
-    _A: identity
-  }
-}
+    _A: identity,
+  },
+};
 
 /** @internal */
-export const isTrueLiteral = Schema.is(Schema.TrueLiterals)
+export const isTrueLiteral = Schema.is(Schema.TrueLiterals);
 
 /** @internal */
-export const isFalseLiteral = Schema.is(Schema.FalseLiterals)
+export const isFalseLiteral = Schema.is(Schema.FalseLiterals);
 
 /** @internal */
-export const isBoolean = (p: Primitive<unknown>): p is Primitive<boolean> => p._tag === "Boolean"
+export const isBoolean = (p: Primitive<unknown>): p is Primitive<boolean> => p._tag === "Boolean";
 
 const makePrimitive = <A>(
   tag: string,
-  parse: (value: string) => Effect.Effect<A, string, Environment>
+  parse: (value: string) => Effect.Effect<A, string, Environment>,
 ): Primitive<A> =>
   Object.assign(Object.create(Proto), {
     _tag: tag,
-    parse
-  })
+    parse,
+  });
 
 const makeSchemaPrimitive = <T>(
   tag: string,
-  schema: Schema.ConstraintDecoder<T, Environment>
+  schema: Schema.ConstraintDecoder<T, Environment>,
 ): Primitive<T> => {
-  const toCodecStringTree = Schema.toCodecStringTree(schema)
-  const decode = Schema.decodeUnknownEffect(toCodecStringTree)
-  return makePrimitive(tag, (value) => Effect.mapError(decode(value), (error) => error.message))
-}
+  const toCodecStringTree = Schema.toCodecStringTree(schema);
+  const decode = Schema.decodeUnknownEffect(toCodecStringTree);
+  return makePrimitive(tag, (value) => Effect.mapError(decode(value), (error) => error.message));
+};
 
 /**
  * Creates a primitive that parses boolean values from string input.
@@ -170,10 +170,7 @@ const makeSchemaPrimitive = <T>(
  * @category constructors
  * @since 4.0.0
  */
-export const Boolean: Primitive<boolean> = makeSchemaPrimitive(
-  "Boolean",
-  Schema.BooleanLiterals
-)
+export const Boolean: Primitive<boolean> = makeSchemaPrimitive("Boolean", Schema.BooleanLiterals);
 
 /**
  * Creates a primitive that parses finite numbers from string input.
@@ -214,10 +211,7 @@ export const Boolean: Primitive<boolean> = makeSchemaPrimitive(
  * @category constructors
  * @since 4.0.0
  */
-export const Finite: Primitive<number> = makeSchemaPrimitive(
-  "Finite",
-  Schema.Finite
-)
+export const Finite: Primitive<number> = makeSchemaPrimitive("Finite", Schema.Finite);
 
 /**
  * Creates a primitive that parses integer numbers from string input.
@@ -258,10 +252,7 @@ export const Finite: Primitive<number> = makeSchemaPrimitive(
  * @category constructors
  * @since 4.0.0
  */
-export const Int: Primitive<number> = makeSchemaPrimitive(
-  "Int",
-  Schema.Int
-)
+export const Int: Primitive<number> = makeSchemaPrimitive("Int", Schema.Int);
 
 /**
  * Creates a primitive that parses Date objects from string input.
@@ -301,10 +292,7 @@ export const Int: Primitive<number> = makeSchemaPrimitive(
  * @category constructors
  * @since 4.0.0
  */
-export const Date: Primitive<globalThis.Date> = makeSchemaPrimitive(
-  "Date",
-  Schema.Date
-)
+export const Date: Primitive<globalThis.Date> = makeSchemaPrimitive("Date", Schema.Date);
 
 /**
  * Creates a primitive that accepts any string value without validation.
@@ -345,7 +333,7 @@ export const Date: Primitive<globalThis.Date> = makeSchemaPrimitive(
  * @category constructors
  * @since 4.0.0
  */
-export const String: Primitive<string> = makePrimitive("String", (value) => Effect.succeed(value))
+export const String: Primitive<string> = makePrimitive("String", (value) => Effect.succeed(value));
 
 /**
  * Creates a primitive that accepts only specific choice values mapped to custom types.
@@ -394,19 +382,17 @@ export const String: Primitive<string> = makePrimitive("String", (value) => Effe
  * @category constructors
  * @since 4.0.0
  */
-export const Choice = <A>(
-  choices: ReadonlyArray<readonly [string, A]>
-): Primitive<A> => {
-  const choiceMap = new Map(choices)
-  const validChoices = choices.map(([key]) => format(key)).join(" | ")
+export const Choice = <A>(choices: ReadonlyArray<readonly [string, A]>): Primitive<A> => {
+  const choiceMap = new Map(choices);
+  const validChoices = choices.map(([key]) => format(key)).join(" | ");
   const primitive = makePrimitive("Choice", (value) => {
     if (choiceMap.has(value)) {
-      return Effect.succeed(choiceMap.get(value)!)
+      return Effect.succeed(choiceMap.get(value)!);
     }
-    return Effect.fail(validChoices)
-  })
-  return Object.assign(primitive, { choiceKeys: choices.map(([key]) => key) })
-}
+    return Effect.fail(validChoices);
+  });
+  return Object.assign(primitive, { choiceKeys: choices.map(([key]) => key) });
+};
 
 /**
  * Specifies the type of path validation to perform.
@@ -431,7 +417,7 @@ export const Choice = <A>(
  * @category models
  * @since 4.0.0
  */
-export type PathType = "file" | "directory" | "either"
+export type PathType = "file" | "directory" | "either";
 
 /**
  * Creates a primitive that validates and resolves file system paths.
@@ -475,50 +461,47 @@ export type PathType = "file" | "directory" | "either"
  * @category constructors
  * @since 4.0.0
  */
-export const Path = (
-  pathType: PathType,
-  mustExist?: boolean
-): Primitive<string> => {
+export const Path = (pathType: PathType, mustExist?: boolean): Primitive<string> => {
   const primitive = makePrimitive(
     "Path",
-    Effect.fnUntraced(function*(value) {
-      const fs = yield* FileSystem.FileSystem
-      const path = yield* Path_.Path
+    Effect.fnUntraced(function* (value) {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path_.Path;
 
       // Resolve the path to absolute
-      const absolutePath = path.isAbsolute(value) ? value : path.resolve(value)
+      const absolutePath = path.isAbsolute(value) ? value : path.resolve(value);
 
       // Check if path exists
       const exists = yield* Effect.mapError(
         fs.exists(absolutePath),
-        (error) => `Failed to check path existence: ${error.message}`
-      )
+        (error) => `Failed to check path existence: ${error.message}`,
+      );
 
       // Validate existence requirements
       if (mustExist === true && !exists) {
-        return yield* Effect.fail(`Path does not exist: ${absolutePath}`)
+        return yield* Effect.fail(`Path does not exist: ${absolutePath}`);
       }
 
       // Validate path type if it exists
       if (exists && pathType !== "either") {
         const stat = yield* Effect.mapError(
           fs.stat(absolutePath),
-          (error) => `Failed to stat path: ${error.message}`
-        )
+          (error) => `Failed to stat path: ${error.message}`,
+        );
 
         if (pathType === "file" && stat.type !== "File") {
-          return yield* Effect.fail(`Path is not a file: ${absolutePath}`)
+          return yield* Effect.fail(`Path is not a file: ${absolutePath}`);
         }
         if (pathType === "directory" && stat.type !== "Directory") {
-          return yield* Effect.fail(`Path is not a directory: ${absolutePath}`)
+          return yield* Effect.fail(`Path is not a directory: ${absolutePath}`);
         }
       }
 
-      return absolutePath
-    })
-  )
-  return Object.assign(primitive, { pathType })
-}
+      return absolutePath;
+    }),
+  );
+  return Object.assign(primitive, { pathType });
+};
 
 /**
  * Creates a primitive that wraps string input in `Redacted`.
@@ -563,10 +546,9 @@ export const Path = (
  * @category constructors
  * @since 4.0.0
  */
-export const Redacted: Primitive<Redacted_.Redacted<string>> = makePrimitive(
-  "Redacted",
-  (value) => Effect.succeed(Redacted_.make(value))
-)
+export const Redacted: Primitive<Redacted_.Redacted<string>> = makePrimitive("Redacted", (value) =>
+  Effect.succeed(Redacted_.make(value)),
+);
 
 /**
  * Creates a primitive that reads and returns the contents of a file as a string.
@@ -612,44 +594,42 @@ export const Redacted: Primitive<Redacted_.Redacted<string>> = makePrimitive(
  */
 export const FileText: Primitive<string> = makePrimitive(
   "FileText",
-  Effect.fnUntraced(function*(filePath) {
-    const fs = yield* FileSystem.FileSystem
-    const path = yield* Path_.Path
+  Effect.fnUntraced(function* (filePath) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path_.Path;
 
     // Resolve to absolute path
-    const absolutePath = path.isAbsolute(filePath)
-      ? filePath
-      : path.resolve(filePath)
+    const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath);
 
     // Check if file exists
     const exists = yield* Effect.mapError(
       fs.exists(absolutePath),
-      (error) => `Failed to check file existence: ${error.message}`
-    )
+      (error) => `Failed to check file existence: ${error.message}`,
+    );
 
     if (!exists) {
-      return yield* Effect.fail(`File does not exist: ${absolutePath}`)
+      return yield* Effect.fail(`File does not exist: ${absolutePath}`);
     }
 
     // Check if it's actually a file
     const stat = yield* Effect.mapError(
       fs.stat(absolutePath),
-      (error) => `Failed to stat file: ${error.message}`
-    )
+      (error) => `Failed to stat file: ${error.message}`,
+    );
 
     if (stat.type !== "File") {
-      return yield* Effect.fail(`Path is not a file: ${absolutePath}`)
+      return yield* Effect.fail(`Path is not a file: ${absolutePath}`);
     }
 
     // Read file content
     const content = yield* Effect.mapError(
       fs.readFileString(absolutePath),
-      (error) => `Failed to read file: ${error.message}`
-    )
+      (error) => `Failed to read file: ${error.message}`,
+    );
 
-    return content
-  })
-)
+    return content;
+  }),
+);
 
 /**
  * Represents options which can be provided to methods that deal with parsing
@@ -659,16 +639,16 @@ export const FileText: Primitive<string> = makePrimitive(
  * @since 4.0.0
  */
 export type FileParseOptions = {
-  readonly format?: "ini" | "json" | "toml" | "yaml"
-}
+  readonly format?: "ini" | "json" | "toml" | "yaml";
+};
 
 const fileParsers: Record<string, (content: string) => unknown> = {
   ini: (content: string) => Ini.parse(content),
   json: (content: string) => JSON.parse(content),
   toml: (content: string) => Toml.parse(content),
   yml: (content: string) => Yaml.parse(content),
-  yaml: (content: string) => Yaml.parse(content)
-}
+  yaml: (content: string) => Yaml.parse(content),
+};
 
 /**
  * Creates a primitive that reads a file and parses its content as structured
@@ -723,20 +703,20 @@ const fileParsers: Record<string, (content: string) => unknown> = {
 export const FileParse = (options?: FileParseOptions): Primitive<unknown> => {
   return makePrimitive(
     "FileParse",
-    Effect.fnUntraced(function*(filePath) {
-      const fileFormat = options?.format ?? filePath.split(".").pop() as string
-      const parser = fileParsers[fileFormat]
+    Effect.fnUntraced(function* (filePath) {
+      const fileFormat = options?.format ?? (filePath.split(".").pop() as string);
+      const parser = fileParsers[fileFormat];
       if (parser === undefined) {
-        return yield* Effect.fail(`Unsupported file format: ${fileFormat}`)
+        return yield* Effect.fail(`Unsupported file format: ${fileFormat}`);
       }
-      const content = yield* FileText.parse(filePath)
+      const content = yield* FileText.parse(filePath);
       return yield* Effect.try({
         try: () => parser(content),
-        catch: (error) => `Failed to parse '.${fileFormat}' file content: ${error}`
-      })
-    })
-  )
-}
+        catch: (error) => `Failed to parse '.${fileFormat}' file content: ${error}`,
+      });
+    }),
+  );
+};
 
 /**
  * Represents options which can be provided to methods that deal with parsing
@@ -747,9 +727,9 @@ export const FileParse = (options?: FileParseOptions): Primitive<unknown> => {
  */
 export type FileSchemaOptions = Struct.Simplify<
   FileParseOptions & {
-    readonly errorFormatter?: Formatter<string> | undefined
+    readonly errorFormatter?: Formatter<string> | undefined;
   }
->
+>;
 
 /**
  * Reads and parses file content using the specified schema.
@@ -802,20 +782,20 @@ export type FileSchemaOptions = Struct.Simplify<
  */
 export const FileSchema = <A>(
   schema: Schema.ConstraintDecoder<A, Environment>,
-  options?: FileSchemaOptions | undefined
+  options?: FileSchemaOptions | undefined,
 ): Primitive<A> => {
-  const decode = Schema.decodeUnknownEffect(schema)
+  const decode = Schema.decodeUnknownEffect(schema);
   return makePrimitive(
     "FileSchema",
-    Effect.fnUntraced(function*(filePath) {
-      const content = yield* FileParse(options).parse(filePath)
+    Effect.fnUntraced(function* (filePath) {
+      const content = yield* FileParse(options).parse(filePath);
       return yield* Effect.mapError(
         decode(content),
-        (error) => options?.errorFormatter?.(error.issue) ?? error.toString()
-      )
-    })
-  )
-}
+        (error) => options?.errorFormatter?.(error.issue) ?? error.toString(),
+      );
+    }),
+  );
+};
 
 /**
  * Parses a single `key=value` pair into a record object.
@@ -863,23 +843,23 @@ export const FileSchema = <A>(
  */
 export const KeyValuePair: Primitive<Record<string, string>> = makePrimitive(
   "KeyValuePair",
-  Effect.fnUntraced(function*(value) {
-    const separator = value.indexOf("=")
+  Effect.fnUntraced(function* (value) {
+    const separator = value.indexOf("=");
     if (separator === -1) {
       return yield* Effect.fail(
-        `Invalid key=value format. Expected format: key=value, got: ${value}`
-      )
+        `Invalid key=value format. Expected format: key=value, got: ${value}`,
+      );
     }
-    const key = value.slice(0, separator)
-    const val = value.slice(separator + 1)
+    const key = value.slice(0, separator);
+    const val = value.slice(separator + 1);
     if (!key || !val) {
       return yield* Effect.fail(
-        `Invalid key=value format. Both key and value must be non-empty. Got: ${value}`
-      )
+        `Invalid key=value format. Both key and value must be non-empty. Got: ${value}`,
+      );
     }
-    return { [key]: val }
-  })
-)
+    return { [key]: val };
+  }),
+);
 
 /**
  * A primitive that always fails to parse.
@@ -918,7 +898,9 @@ export const KeyValuePair: Primitive<Record<string, string>> = makePrimitive(
  * @category constructors
  * @since 4.0.0
  */
-export const Never: Primitive<never> = makePrimitive("Never", () => Effect.fail("This option does not accept values"))
+export const Never: Primitive<never> = makePrimitive("Never", () =>
+  Effect.fail("This option does not accept values"),
+);
 
 /**
  * Gets a human-readable type name for a primitive.
@@ -952,40 +934,40 @@ export const Never: Primitive<never> = makePrimitive("Never", () => Effect.fail(
 export const getTypeName = <A>(primitive: Primitive<A>): string => {
   switch (primitive._tag) {
     case "Boolean":
-      return "boolean"
+      return "boolean";
     case "String":
-      return "string"
+      return "string";
     case "Int":
-      return "integer"
+      return "integer";
     case "Finite":
-      return "number"
+      return "number";
     case "Date":
-      return "date"
+      return "date";
     case "Path":
-      return "path"
+      return "path";
     case "Choice":
-      return "choice"
+      return "choice";
     case "Redacted":
-      return "string"
+      return "string";
     case "FileText":
-      return "file"
+      return "file";
     case "FileParse":
-      return "file"
+      return "file";
     case "FileSchema":
-      return "file"
+      return "file";
     case "KeyValuePair":
-      return "key=value"
+      return "key=value";
     case "Never":
-      return "none"
+      return "none";
     default:
-      return "value"
+      return "value";
   }
-}
+};
 
 /** @internal */
 export const getChoiceKeys = (primitive: Primitive<unknown>): ReadonlyArray<string> | undefined =>
-  primitive._tag === "Choice" ? (primitive as any).choiceKeys : undefined
+  primitive._tag === "Choice" ? (primitive as any).choiceKeys : undefined;
 
 /** @internal */
 export const getPathType = (primitive: Primitive<unknown>): PathType | undefined =>
-  primitive._tag === "Path" ? (primitive as any).pathType : undefined
+  primitive._tag === "Path" ? (primitive as any).pathType : undefined;

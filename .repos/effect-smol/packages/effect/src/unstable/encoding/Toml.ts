@@ -31,385 +31,386 @@
  * SOFTWARE.
  */
 
-type Table = Record<string, unknown>
+type Table = Record<string, unknown>;
 
-const hasOwn = Object.prototype.hasOwnProperty
-const makeTable = (): Table => Object.create(null)
+const hasOwn = Object.prototype.hasOwnProperty;
+const makeTable = (): Table => Object.create(null);
 const isTable = (value: unknown): value is Table =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date)
+  typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
 
 class TomlParser {
-  readonly root = makeTable()
-  private readonly input: string
-  private current = this.root
-  private index = 0
-  private line = 1
-  private column = 1
-  private readonly explicitTables = new Set<Table>()
+  readonly root = makeTable();
+  private readonly input: string;
+  private current = this.root;
+  private index = 0;
+  private line = 1;
+  private column = 1;
+  private readonly explicitTables = new Set<Table>();
 
   constructor(input: string) {
-    this.input = input
+    this.input = input;
   }
 
   parse(): Table {
     while (true) {
-      this.skipDocumentWhitespace()
+      this.skipDocumentWhitespace();
       if (this.done) {
-        return this.root
+        return this.root;
       }
       if (this.peek() === "[") {
-        this.parseHeader()
+        this.parseHeader();
       } else {
-        const keys = this.parseKeyPath("=")
-        this.skipInlineWhitespace()
-        this.expect("=")
-        this.skipInlineWhitespace()
-        this.assign(this.current, keys, this.parseValue())
-        this.finishStatement()
+        const keys = this.parseKeyPath("=");
+        this.skipInlineWhitespace();
+        this.expect("=");
+        this.skipInlineWhitespace();
+        this.assign(this.current, keys, this.parseValue());
+        this.finishStatement();
       }
     }
   }
 
   private parseHeader(): void {
-    this.expect("[")
-    const array = this.peek() === "["
+    this.expect("[");
+    const array = this.peek() === "[";
     if (array) {
-      this.advance()
+      this.advance();
     }
-    this.skipInlineWhitespace()
-    const path = this.parseKeyPath("]")
-    this.skipInlineWhitespace()
-    this.expect("]")
+    this.skipInlineWhitespace();
+    const path = this.parseKeyPath("]");
+    this.skipInlineWhitespace();
+    this.expect("]");
     if (array) {
-      this.expect("]")
+      this.expect("]");
     }
-    this.finishStatement()
+    this.finishStatement();
 
-    const table = this.resolveTable(path, array)
+    const table = this.resolveTable(path, array);
     if (!array && this.explicitTables.has(table)) {
-      this.fail(`Cannot redefine table '${path.join(".")}'`)
+      this.fail(`Cannot redefine table '${path.join(".")}'`);
     }
     if (!array) {
-      this.explicitTables.add(table)
+      this.explicitTables.add(table);
     }
-    this.current = table
+    this.current = table;
   }
 
   private resolveTable(path: ReadonlyArray<string>, array: boolean): Table {
-    let table = this.root
+    let table = this.root;
     for (let index = 0; index < path.length; index++) {
-      const key = path[index]
-      const last = index === path.length - 1
-      let value = table[key]
+      const key = path[index];
+      const last = index === path.length - 1;
+      let value = table[key];
 
       if (last && array) {
         if (value === undefined) {
-          value = []
-          table[key] = value
+          value = [];
+          table[key] = value;
         }
         if (!Array.isArray(value)) {
-          this.fail(`Cannot redefine existing key '${path.slice(0, index + 1).join(".")}'`)
+          this.fail(`Cannot redefine existing key '${path.slice(0, index + 1).join(".")}'`);
         }
-        const next = makeTable()
-        value.push(next)
-        return next
+        const next = makeTable();
+        value.push(next);
+        return next;
       }
 
       if (value === undefined) {
-        value = makeTable()
-        table[key] = value
+        value = makeTable();
+        table[key] = value;
       }
       if (Array.isArray(value)) {
-        value = value[value.length - 1]
+        value = value[value.length - 1];
       }
       if (!isTable(value)) {
-        this.fail(`Cannot redefine existing key '${path.slice(0, index + 1).join(".")}'`)
+        this.fail(`Cannot redefine existing key '${path.slice(0, index + 1).join(".")}'`);
       }
-      table = value
+      table = value;
     }
-    return table
+    return table;
   }
 
   private assign(target: Table, keys: ReadonlyArray<string>, value: unknown): void {
-    let table = target
+    let table = target;
     for (let index = 0; index < keys.length - 1; index++) {
-      const key = keys[index]
-      const existing = table[key]
+      const key = keys[index];
+      const existing = table[key];
       if (existing === undefined) {
-        const child = makeTable()
-        table[key] = child
-        table = child
+        const child = makeTable();
+        table[key] = child;
+        table = child;
       } else if (isTable(existing)) {
-        table = existing
+        table = existing;
       } else {
-        this.fail(`Cannot redefine existing key '${keys.slice(0, index + 1).join(".")}'`)
+        this.fail(`Cannot redefine existing key '${keys.slice(0, index + 1).join(".")}'`);
       }
     }
-    const key = keys[keys.length - 1]
+    const key = keys[keys.length - 1];
     if (hasOwn.call(table, key)) {
-      this.fail(`Cannot redefine existing key '${keys.join(".")}'`)
+      this.fail(`Cannot redefine existing key '${keys.join(".")}'`);
     }
-    table[key] = value
+    table[key] = value;
   }
 
   private parseKeyPath(stop: "=" | "]"): Array<string> {
-    const keys: Array<string> = []
+    const keys: Array<string> = [];
     while (true) {
-      this.skipInlineWhitespace()
-      const character = this.peek()
-      let key: string
-      if (character === "\"") {
-        key = this.parseBasicString(false)
+      this.skipInlineWhitespace();
+      const character = this.peek();
+      let key: string;
+      if (character === '"') {
+        key = this.parseBasicString(false);
       } else if (character === "'") {
-        key = this.parseLiteralString(false)
+        key = this.parseLiteralString(false);
       } else {
-        const start = this.index
+        const start = this.index;
         while (/[A-Za-z0-9_-]/.test(this.peek())) {
-          this.advance()
+          this.advance();
         }
-        key = this.input.slice(start, this.index)
+        key = this.input.slice(start, this.index);
       }
       if (key.length === 0) {
-        this.fail("Expected a key")
+        this.fail("Expected a key");
       }
-      keys.push(key)
-      this.skipInlineWhitespace()
+      keys.push(key);
+      this.skipInlineWhitespace();
       if (this.peek() === ".") {
-        this.advance()
-        continue
+        this.advance();
+        continue;
       }
       if (this.peek() !== stop) {
-        this.fail(`Expected '${stop}'`)
+        this.fail(`Expected '${stop}'`);
       }
-      return keys
+      return keys;
     }
   }
 
   private parseValue(): unknown {
-    const character = this.peek()
-    if (character === "\"") {
-      return this.parseBasicString(this.input.startsWith("\"\"\"", this.index))
+    const character = this.peek();
+    if (character === '"') {
+      return this.parseBasicString(this.input.startsWith('"""', this.index));
     }
     if (character === "'") {
-      return this.parseLiteralString(this.input.startsWith("'''", this.index))
+      return this.parseLiteralString(this.input.startsWith("'''", this.index));
     }
     if (character === "[") {
-      return this.parseArray()
+      return this.parseArray();
     }
     if (character === "{") {
-      return this.parseInlineTable()
+      return this.parseInlineTable();
     }
 
-    const spaceSeparatedDateTime = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})?)/
-      .exec(this.input.slice(this.index))
+    const spaceSeparatedDateTime =
+      /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})?)/.exec(
+        this.input.slice(this.index),
+      );
     if (spaceSeparatedDateTime !== null) {
-      this.advance(spaceSeparatedDateTime[0].length)
-      return this.parseDate(`${spaceSeparatedDateTime[1]}T${spaceSeparatedDateTime[2]}`)!
+      this.advance(spaceSeparatedDateTime[0].length);
+      return this.parseDate(`${spaceSeparatedDateTime[1]}T${spaceSeparatedDateTime[2]}`)!;
     }
 
-    const start = this.index
+    const start = this.index;
     while (!this.done && !/[\s,#\]}]/.test(this.peek())) {
-      this.advance()
+      this.advance();
     }
-    const token = this.input.slice(start, this.index)
-    if (token === "true") return true
-    if (token === "false") return false
-    if (token.length === 0) this.fail("Expected a value")
+    const token = this.input.slice(start, this.index);
+    if (token === "true") return true;
+    if (token === "false") return false;
+    if (token.length === 0) this.fail("Expected a value");
 
-    const date = this.parseDate(token)
+    const date = this.parseDate(token);
     if (date !== undefined) {
-      return date
+      return date;
     }
 
-    const number = this.parseNumber(token)
+    const number = this.parseNumber(token);
     if (number !== undefined) {
-      return number
+      return number;
     }
-    this.fail(`Invalid value '${token}'`)
+    this.fail(`Invalid value '${token}'`);
   }
 
   private parseDate(token: string): Date | string | undefined {
-    const date = "\\d{4}-\\d{2}-\\d{2}"
-    const time = "\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?"
+    const date = "\\d{4}-\\d{2}-\\d{2}";
+    const time = "\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?";
     if (new RegExp(`^${date}[Tt]${time}(?:[Zz]|[+-]\\d{2}:\\d{2})$`).test(token)) {
-      const value = new Date(token.replace("t", "T").replace("z", "Z"))
+      const value = new Date(token.replace("t", "T").replace("z", "Z"));
       if (Number.isNaN(value.getTime())) {
-        this.fail(`Invalid date-time '${token}'`)
+        this.fail(`Invalid date-time '${token}'`);
       }
-      return value
+      return value;
     }
     if (
       new RegExp(`^${date}[Tt]${time}$`).test(token) ||
       new RegExp(`^${date}$`).test(token) ||
       new RegExp(`^${time}$`).test(token)
     ) {
-      return token.replace("t", "T")
+      return token.replace("t", "T");
     }
-    return undefined
+    return undefined;
   }
 
   private parseNumber(token: string): number | undefined {
-    const normalized = token.replace(/_/g, "")
+    const normalized = token.replace(/_/g, "");
     if (/^[+-]?(?:inf|nan)$/.test(token)) {
-      if (normalized.endsWith("nan")) return Number.NaN
-      return normalized[0] === "-" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY
+      if (normalized.endsWith("nan")) return Number.NaN;
+      return normalized[0] === "-" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
     }
     if (/^0x[0-9A-Fa-f](?:_?[0-9A-Fa-f])*$/.test(token)) {
-      return Number.parseInt(normalized.slice(2), 16)
+      return Number.parseInt(normalized.slice(2), 16);
     }
     if (/^0o[0-7](?:_?[0-7])*$/.test(token)) {
-      return Number.parseInt(normalized.slice(2), 8)
+      return Number.parseInt(normalized.slice(2), 8);
     }
     if (/^0b[01](?:_?[01])*$/.test(token)) {
-      return Number.parseInt(normalized.slice(2), 2)
+      return Number.parseInt(normalized.slice(2), 2);
     }
     if (/^[+-]?(?:0|[1-9](?:_?\d)*)$/.test(token)) {
-      return Number(normalized)
+      return Number(normalized);
     }
     if (
-      /^[+-]?(?:(?:0|[1-9](?:_?\d)*)\.\d(?:_?\d)*(?:[eE][+-]?\d(?:_?\d)*)?|(?:0|[1-9](?:_?\d)*)[eE][+-]?\d(?:_?\d)*)$/
-        .test(
-          token
-        )
+      /^[+-]?(?:(?:0|[1-9](?:_?\d)*)\.\d(?:_?\d)*(?:[eE][+-]?\d(?:_?\d)*)?|(?:0|[1-9](?:_?\d)*)[eE][+-]?\d(?:_?\d)*)$/.test(
+        token,
+      )
     ) {
-      return Number(normalized)
+      return Number(normalized);
     }
-    return undefined
+    return undefined;
   }
 
   private parseBasicString(multiline: boolean): string {
-    this.expect("\"")
+    this.expect('"');
     if (multiline) {
-      this.expect("\"")
-      this.expect("\"")
-      if (this.peek() === "\n") this.advance()
+      this.expect('"');
+      this.expect('"');
+      if (this.peek() === "\n") this.advance();
     }
-    let output = ""
+    let output = "";
     while (!this.done) {
-      if (multiline && this.input.startsWith("\"\"\"", this.index)) {
-        this.advance(3)
-        return output
+      if (multiline && this.input.startsWith('"""', this.index)) {
+        this.advance(3);
+        return output;
       }
-      const character = this.peek()
-      if (!multiline && character === "\"") {
-        this.advance()
-        return output
+      const character = this.peek();
+      if (!multiline && character === '"') {
+        this.advance();
+        return output;
       }
       if (!multiline && (character === "\n" || character === "\r")) {
-        this.fail("Basic strings cannot contain newlines")
+        this.fail("Basic strings cannot contain newlines");
       }
       if (character !== "\\") {
-        output += character
-        this.advance()
-        continue
+        output += character;
+        this.advance();
+        continue;
       }
 
-      this.advance()
+      this.advance();
       if (multiline && /[ \t\r\n]/.test(this.peek())) {
-        while (/[ \t]/.test(this.peek())) this.advance()
+        while (/[ \t]/.test(this.peek())) this.advance();
         if (this.peek() !== "\n" && this.peek() !== "\r") {
-          this.fail("Invalid multiline string continuation")
+          this.fail("Invalid multiline string continuation");
         }
-        while (/[ \t\r\n]/.test(this.peek())) this.advance()
-        continue
+        while (/[ \t\r\n]/.test(this.peek())) this.advance();
+        continue;
       }
-      const escape = this.peek()
-      this.advance()
+      const escape = this.peek();
+      this.advance();
       const escapes: Record<string, string> = {
         b: "\b",
         t: "\t",
         n: "\n",
         f: "\f",
         r: "\r",
-        "\"": "\"",
-        "\\": "\\"
-      }
+        '"': '"',
+        "\\": "\\",
+      };
       if (hasOwn.call(escapes, escape)) {
-        output += escapes[escape]
+        output += escapes[escape];
       } else if (escape === "u" || escape === "U") {
-        const length = escape === "u" ? 4 : 8
-        const hex = this.input.slice(this.index, this.index + length)
+        const length = escape === "u" ? 4 : 8;
+        const hex = this.input.slice(this.index, this.index + length);
         if (!new RegExp(`^[0-9A-Fa-f]{${length}}$`).test(hex)) {
-          this.fail("Invalid unicode escape")
+          this.fail("Invalid unicode escape");
         }
-        output += String.fromCodePoint(Number.parseInt(hex, 16))
-        this.advance(length)
+        output += String.fromCodePoint(Number.parseInt(hex, 16));
+        this.advance(length);
       } else {
-        this.fail(`Invalid escape '\\${escape}'`)
+        this.fail(`Invalid escape '\\${escape}'`);
       }
     }
-    this.fail("Unterminated basic string")
+    this.fail("Unterminated basic string");
   }
 
   private parseLiteralString(multiline: boolean): string {
-    this.expect("'")
+    this.expect("'");
     if (multiline) {
-      this.expect("'")
-      this.expect("'")
-      if (this.peek() === "\n") this.advance()
+      this.expect("'");
+      this.expect("'");
+      if (this.peek() === "\n") this.advance();
     }
-    const start = this.index
+    const start = this.index;
     while (!this.done) {
       if (multiline && this.input.startsWith("'''", this.index)) {
-        const output = this.input.slice(start, this.index)
-        this.advance(3)
-        return output
+        const output = this.input.slice(start, this.index);
+        this.advance(3);
+        return output;
       }
       if (!multiline && this.peek() === "'") {
-        const output = this.input.slice(start, this.index)
-        this.advance()
-        return output
+        const output = this.input.slice(start, this.index);
+        this.advance();
+        return output;
       }
       if (!multiline && (this.peek() === "\n" || this.peek() === "\r")) {
-        this.fail("Literal strings cannot contain newlines")
+        this.fail("Literal strings cannot contain newlines");
       }
-      this.advance()
+      this.advance();
     }
-    this.fail("Unterminated literal string")
+    this.fail("Unterminated literal string");
   }
 
   private parseArray(): Array<unknown> {
-    this.expect("[")
-    const output: Array<unknown> = []
+    this.expect("[");
+    const output: Array<unknown> = [];
     while (true) {
-      this.skipArrayWhitespace()
+      this.skipArrayWhitespace();
       if (this.peek() === "]") {
-        this.advance()
-        return output
+        this.advance();
+        return output;
       }
-      output.push(this.parseValue())
-      this.skipArrayWhitespace()
+      output.push(this.parseValue());
+      this.skipArrayWhitespace();
       if (this.peek() === "]") {
-        this.advance()
-        return output
+        this.advance();
+        return output;
       }
-      this.expect(",")
+      this.expect(",");
     }
   }
 
   private parseInlineTable(): Table {
-    this.expect("{")
-    const output = makeTable()
-    this.skipInlineWhitespace()
+    this.expect("{");
+    const output = makeTable();
+    this.skipInlineWhitespace();
     if (this.peek() === "}") {
-      this.advance()
-      return output
+      this.advance();
+      return output;
     }
     while (true) {
-      const keys = this.parseKeyPath("=")
-      this.skipInlineWhitespace()
-      this.expect("=")
-      this.skipInlineWhitespace()
-      this.assign(output, keys, this.parseValue())
-      this.skipInlineWhitespace()
+      const keys = this.parseKeyPath("=");
+      this.skipInlineWhitespace();
+      this.expect("=");
+      this.skipInlineWhitespace();
+      this.assign(output, keys, this.parseValue());
+      this.skipInlineWhitespace();
       if (this.peek() === "}") {
-        this.advance()
-        return output
+        this.advance();
+        return output;
       }
-      this.expect(",")
-      this.skipInlineWhitespace()
+      this.expect(",");
+      this.skipInlineWhitespace();
       if (this.peek() === "}") {
-        this.fail("Inline tables cannot end with a trailing comma")
+        this.fail("Inline tables cannot end with a trailing comma");
       }
     }
   }
@@ -417,78 +418,78 @@ class TomlParser {
   private skipDocumentWhitespace(): void {
     while (!this.done) {
       if (/[ \t\r\n]/.test(this.peek())) {
-        this.advance()
+        this.advance();
       } else if (this.peek() === "#") {
-        this.skipComment()
+        this.skipComment();
       } else {
-        return
+        return;
       }
     }
   }
 
   private skipInlineWhitespace(): void {
     while (this.peek() === " " || this.peek() === "\t") {
-      this.advance()
+      this.advance();
     }
   }
 
   private skipArrayWhitespace(): void {
     while (!this.done) {
       if (/[ \t\r\n]/.test(this.peek())) {
-        this.advance()
+        this.advance();
       } else if (this.peek() === "#") {
-        this.skipComment()
+        this.skipComment();
       } else {
-        return
+        return;
       }
     }
   }
 
   private finishStatement(): void {
-    this.skipInlineWhitespace()
+    this.skipInlineWhitespace();
     if (this.peek() === "#") {
-      this.skipComment()
+      this.skipComment();
     }
     if (!this.done && this.peek() !== "\n" && this.peek() !== "\r") {
-      this.fail("Expected the end of the line")
+      this.fail("Expected the end of the line");
     }
   }
 
   private skipComment(): void {
     while (!this.done && this.peek() !== "\n") {
-      this.advance()
+      this.advance();
     }
   }
 
   private expect(character: string): void {
     if (this.peek() !== character) {
-      this.fail(`Expected '${character}'`)
+      this.fail(`Expected '${character}'`);
     }
-    this.advance()
+    this.advance();
   }
 
   private advance(count = 1): void {
     for (let offset = 0; offset < count; offset++) {
       if (this.input[this.index] === "\n") {
-        this.line++
-        this.column = 1
+        this.line++;
+        this.column = 1;
       } else {
-        this.column++
+        this.column++;
       }
-      this.index++
+      this.index++;
     }
   }
 
   private peek(): string {
-    return this.input[this.index] ?? ""
+    return this.input[this.index] ?? "";
   }
 
   private get done(): boolean {
-    return this.index >= this.input.length
+    return this.index >= this.input.length;
   }
 
   private fail(message: string): never {
-    throw new SyntaxError(`${message} at line ${this.line}, column ${this.column}`)
+    throw new SyntaxError(`${message} at line ${this.line}, column ${this.column}`);
   }
 }
 
@@ -503,4 +504,5 @@ class TomlParser {
  * @category decoding
  * @since 4.0.0
  */
-export const parse = (input: string): Record<string, unknown> => new TomlParser(input.replace(/^\uFEFF/, "")).parse()
+export const parse = (input: string): Record<string, unknown> =>
+  new TomlParser(input.replace(/^\uFEFF/, "")).parse();

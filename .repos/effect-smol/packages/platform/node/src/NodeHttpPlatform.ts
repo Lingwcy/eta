@@ -8,69 +8,72 @@
  *
  * @since 4.0.0
  */
-import * as NodeHttpCompression from "@effect/platform-node-shared/NodeHttpCompression"
-import * as Effect from "effect/Effect"
-import { pipe } from "effect/Function"
-import * as Layer from "effect/Layer"
-import * as Option from "effect/Option"
-import * as EtagImpl from "effect/unstable/http/Etag"
-import * as Headers from "effect/unstable/http/Headers"
-import * as HttpBody from "effect/unstable/http/HttpBody"
-import * as Platform from "effect/unstable/http/HttpPlatform"
-import * as ServerResponse from "effect/unstable/http/HttpServerResponse"
-import * as Mime from "effect/unstable/http/Mime"
-import * as Fs from "node:fs"
-import { Readable } from "node:stream"
-import * as NodeFileSystem from "./NodeFileSystem.ts"
-import * as NodeStream from "./NodeStream.ts"
+import * as NodeHttpCompression from "@effect/platform-node-shared/NodeHttpCompression";
+import * as Effect from "effect/Effect";
+import { pipe } from "effect/Function";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as EtagImpl from "effect/unstable/http/Etag";
+import * as Headers from "effect/unstable/http/Headers";
+import * as HttpBody from "effect/unstable/http/HttpBody";
+import * as Platform from "effect/unstable/http/HttpPlatform";
+import * as ServerResponse from "effect/unstable/http/HttpServerResponse";
+import * as Mime from "effect/unstable/http/Mime";
+import * as Fs from "node:fs";
+import { Readable } from "node:stream";
+import * as NodeFileSystem from "./NodeFileSystem.ts";
+import * as NodeStream from "./NodeStream.ts";
 
 // replaces the response body while keeping every other field, dropping the
 // now-stale Content-Length header
 const compressedBody = (
   response: ServerResponse.HttpServerResponse,
-  body: HttpBody.HttpBody
+  body: HttpBody.HttpBody,
 ): ServerResponse.HttpServerResponse =>
-  ServerResponse.removeHeader(ServerResponse.setBody(response, body), "content-length")
+  ServerResponse.removeHeader(ServerResponse.setBody(response, body), "content-length");
 
 const compression = NodeHttpCompression.make({
   algorithms: NodeHttpCompression.algorithms,
   compressResponse(response, algorithm, options) {
-    const body = response.body
+    const body = response.body;
     switch (body._tag) {
       case "Stream": {
-        return Effect.succeed(compressedBody(
-          response,
-          HttpBody.stream(
-            NodeStream.pipeThroughDuplex(body.stream, {
-              evaluate: () => NodeHttpCompression.compressTransform(algorithm, options)
-            }),
-            response.headers["content-type"] ?? body.contentType
-          )
-        ))
+        return Effect.succeed(
+          compressedBody(
+            response,
+            HttpBody.stream(
+              NodeStream.pipeThroughDuplex(body.stream, {
+                evaluate: () => NodeHttpCompression.compressTransform(algorithm, options),
+              }),
+              response.headers["content-type"] ?? body.contentType,
+            ),
+          ),
+        );
       }
       case "Raw": {
-        const readable = body.body instanceof Readable
-          ? body.body
-          : Readable.fromWeb(new Response(body.body as BodyInit).body as any)
-        const transform = NodeHttpCompression.compressTransform(algorithm, options)
-        readable.on("error", (cause) => transform.destroy(cause))
-        transform.on("error", (cause) => readable.destroy(cause))
-        transform.on("close", () => readable.destroy())
+        const readable =
+          body.body instanceof Readable
+            ? body.body
+            : Readable.fromWeb(new Response(body.body as BodyInit).body as any);
+        const transform = NodeHttpCompression.compressTransform(algorithm, options);
+        readable.on("error", (cause) => transform.destroy(cause));
+        transform.on("error", (cause) => readable.destroy(cause));
+        transform.on("close", () => readable.destroy());
         return Effect.succeed(
           compressedBody(
             response,
             HttpBody.raw(readable.pipe(transform), {
-              contentType: response.headers["content-type"] ?? body.contentType
-            })
-          )
-        )
+              contentType: response.headers["content-type"] ?? body.contentType,
+            }),
+          ),
+        );
       }
       default: {
-        return Effect.succeed(response)
+        return Effect.succeed(response);
       }
     }
-  }
-})
+  },
+});
 
 /**
  * Creates the Node `HttpPlatform`, serving file responses from Node readable
@@ -83,37 +86,40 @@ export const make = Platform.make({
   platform: "node",
   compression,
   fileResponse(path, status, statusText, headers, start, end, contentLength) {
-    const stream = contentLength === BigInt(0)
-      ? Readable.from([])
-      : Fs.createReadStream(path, { start, end: end === undefined ? undefined : end - 1 })
+    const stream =
+      contentLength === BigInt(0)
+        ? Readable.from([])
+        : Fs.createReadStream(path, { start, end: end === undefined ? undefined : end - 1 });
     return ServerResponse.raw(stream, {
       headers: {
         ...headers,
-        "content-type": headers["content-type"] ??
+        "content-type":
+          headers["content-type"] ??
           Option.getOrElse(Mime.getType(path), () => "application/octet-stream"),
-        "content-length": contentLength.toString()
+        "content-length": contentLength.toString(),
       },
       status,
-      statusText
-    })
+      statusText,
+    });
   },
   fileWebResponse(file, status, statusText, headers, _options) {
     return ServerResponse.raw(Readable.fromWeb(file.stream() as any), {
       headers: Headers.merge(
         headers,
         Headers.fromRecordUnsafe({
-          "content-type": headers["content-type"] ??
+          "content-type":
+            headers["content-type"] ??
             (file.type === ""
               ? Option.getOrElse(Mime.getType(file.name), () => "application/octet-stream")
               : file.type),
-          "content-length": file.size.toString()
-        })
+          "content-length": file.size.toString(),
+        }),
       ),
       status,
-      statusText
-    })
-  }
-})
+      statusText,
+    });
+  },
+});
 
 /**
  * Provides the Node `HttpPlatform` together with the filesystem and ETag
@@ -125,5 +131,5 @@ export const make = Platform.make({
 export const layer: Layer.Layer<Platform.HttpPlatform> = pipe(
   Layer.effect(Platform.HttpPlatform)(make),
   Layer.provide(NodeFileSystem.layer),
-  Layer.provide(EtagImpl.layer)
-)
+  Layer.provide(EtagImpl.layer),
+);

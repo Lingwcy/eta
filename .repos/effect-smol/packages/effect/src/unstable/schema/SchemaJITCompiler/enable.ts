@@ -6,7 +6,7 @@
  *
  * @since 4.0.0
  */
-import { install } from "../../../internal/schema/compilerRegistry.ts"
-import { compiler } from "../SchemaJITCompiler.ts"
+import { install } from "../../../internal/schema/compilerRegistry.ts";
+import { compiler } from "../SchemaJITCompiler.ts";
 
-install(compiler)
+install(compiler);

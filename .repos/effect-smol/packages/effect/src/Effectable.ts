@@ -6,9 +6,9 @@
  *
  * @since 4.0.0
  */
-import type * as Effect from "./Effect.ts"
-import type * as Fiber from "./Fiber.ts"
-import { evaluate, makePrimitiveProto } from "./internal/core.ts"
+import type * as Effect from "./Effect.ts";
+import type * as Fiber from "./Fiber.ts";
+import { evaluate, makePrimitiveProto } from "./internal/core.ts";
 
 /**
  * Create a low-level `Effect` prototype.
@@ -30,29 +30,29 @@ import { evaluate, makePrimitiveProto } from "./internal/core.ts"
  * @since 4.0.0
  */
 export const Prototype = <A extends Effect.Effect<any, any, any>>(options: {
-  readonly label: string
+  readonly label: string;
   readonly evaluate: (
     this: A,
-    fiber: Fiber.Fiber<any, any>
-  ) => Effect.Effect<Effect.Success<A>, Effect.Error<A>, Effect.Services<A>>
+    fiber: Fiber.Fiber<any, any>,
+  ) => Effect.Effect<Effect.Success<A>, Effect.Error<A>, Effect.Services<A>>;
 }): Effect.Effect<Effect.Success<A>, Effect.Error<A>, Effect.Services<A>> =>
   makePrimitiveProto({
     op: options.label,
-    [evaluate]: options.evaluate
-  }) as any
+    [evaluate]: options.evaluate,
+  }) as any;
 
 const proto = Prototype<Class<any, any, any>>({
   label: "Effectable",
   evaluate(_) {
-    return this.asEffect()
-  }
-})
+    return this.asEffect();
+  },
+});
 
-const Base: new<A, E, R>() => Effect.Effect<A, E, R> = (() => {
-  const Base = function() {}
-  Base.prototype = proto
-  return Base as any
-})()
+const Base: new <A, E, R>() => Effect.Effect<A, E, R> = (() => {
+  const Base = function () {};
+  Base.prototype = proto;
+  return Base as any;
+})();
 
 /**
  * Provides an abstract class that can be extended to create an `Effect`.
@@ -68,18 +68,19 @@ const Base: new<A, E, R>() => Effect.Effect<A, E, R> = (() => {
  * @since 2.0.0
  */
 export abstract class Class<A, E = never, R = never> extends Base<A, E, R> {
-  abstract asEffect(): Effect.Effect<A, E, R>
+  abstract asEffect(): Effect.Effect<A, E, R>;
 }
 
 type AsEffectReturn<Self> = Self extends {
-  asEffect(): infer A extends Effect.Effect<any, any, any>
-} ? A
-  : never
+  asEffect(): infer A extends Effect.Effect<any, any, any>;
+}
+  ? A
+  : never;
 
 declare abstract class MixinBase extends Class<any, any, any> {
-  constructor(...args: ReadonlyArray<any>)
-  override readonly [Effect.TypeId]: AsEffectReturn<this>[Effect.TypeId]
-  override [Symbol.iterator](): Effect.EffectIterator<AsEffectReturn<this>>
+  constructor(...args: ReadonlyArray<any>);
+  override readonly [Effect.TypeId]: AsEffectReturn<this>[Effect.TypeId];
+  override [Symbol.iterator](): Effect.EffectIterator<AsEffectReturn<this>>;
 }
 
 /**
@@ -126,12 +127,12 @@ declare abstract class MixinBase extends Class<any, any, any> {
  * @category constructors
  * @since 4.0.0
  */
-export const Mixin = <TBase extends abstract new(...args: ReadonlyArray<any>) => object>(
-  klass: TBase
+export const Mixin = <TBase extends abstract new (...args: ReadonlyArray<any>) => object>(
+  klass: TBase,
 ): TBase & typeof MixinBase => {
   abstract class Mixed extends klass {
-    abstract asEffect(): Effect.Effect<any, any, any>
+    abstract asEffect(): Effect.Effect<any, any, any>;
   }
-  Object.defineProperties(Mixed.prototype, Object.getOwnPropertyDescriptors(proto))
-  return Mixed as TBase & typeof MixinBase
-}
+  Object.defineProperties(Mixed.prototype, Object.getOwnPropertyDescriptors(proto));
+  return Mixed as TBase & typeof MixinBase;
+};

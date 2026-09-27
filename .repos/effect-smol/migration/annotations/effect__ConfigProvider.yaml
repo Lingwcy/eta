@@ -41,10 +41,10 @@
   replacement: "ConfigProvider.fromUnknown"
   note: "Expand the map's delimited keys into a nested object first; v4 removed fromMap and its pathDelim/seqDelim options."
 "effect/ConfigProvider#kebabCase":
-  replacement: "ConfigProvider.mapInput((path) => path.map((part) => typeof part === \"string\" ? String.kebabCase(part) : part))"
+  replacement: 'ConfigProvider.mapInput((path) => path.map((part) => typeof part === "string" ? String.kebabCase(part) : part))'
   note: "Named recasing helpers were removed except constantCase; transform string path segments explicitly."
 "effect/ConfigProvider#lowerCase":
-  replacement: "ConfigProvider.mapInput((path) => path.map((part) => typeof part === \"string\" ? part.toLowerCase() : part))"
+  replacement: 'ConfigProvider.mapInput((path) => path.map((part) => typeof part === "string" ? part.toLowerCase() : part))'
   note: "Transform string path segments explicitly with mapInput."
 "effect/ConfigProvider#make":
   replacement: "ConfigProvider.make"
@@ -56,13 +56,13 @@
   replacement: "ConfigProvider.mapInput"
   note: "Renamed and generalized: the callback receives and returns the complete Path, including numeric array indexes."
 "effect/ConfigProvider#snakeCase":
-  replacement: "ConfigProvider.mapInput((path) => path.map((part) => typeof part === \"string\" ? String.snakeCase(part) : part))"
+  replacement: 'ConfigProvider.mapInput((path) => path.map((part) => typeof part === "string" ? String.snakeCase(part) : part))'
   note: "Named recasing helpers were removed except constantCase; transform string path segments explicitly."
 "effect/ConfigProvider#unnested":
   replacement: "ConfigProvider.mapInput((path) => path[0] === name ? path.slice(1) : path)"
   note: "The named helper was removed; strip the matching leading segment explicitly. Add custom handling if the v3 mismatch error was significant."
 "effect/ConfigProvider#upperCase":
-  replacement: "ConfigProvider.mapInput((path) => path.map((part) => typeof part === \"string\" ? part.toUpperCase() : part))"
+  replacement: 'ConfigProvider.mapInput((path) => path.map((part) => typeof part === "string" ? part.toUpperCase() : part))'
   note: "Transform string path segments explicitly with mapInput."
 "effect/ConfigProvider#within":
   replacement: "ConfigProvider.orElse + ConfigProvider.mapInput"

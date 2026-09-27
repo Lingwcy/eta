@@ -7,9 +7,9 @@
 /**
  * @since 4.0.0
  */
-export * as ClickhouseClient from "./ClickhouseClient.ts"
+export * as ClickhouseClient from "./ClickhouseClient.ts";
 
 /**
  * @since 4.0.0
  */
-export * as ClickhouseMigrator from "./ClickhouseMigrator.ts"
+export * as ClickhouseMigrator from "./ClickhouseMigrator.ts";

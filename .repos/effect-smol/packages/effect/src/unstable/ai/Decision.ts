@@ -7,7 +7,7 @@
  *
  * @since 4.0.0
  */
-import type * as Schema from "../../Schema.ts"
+import type * as Schema from "../../Schema.ts";
 
 /**
  * Brand type for decision definitions.
@@ -15,7 +15,7 @@ import type * as Schema from "../../Schema.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/ai/Decision"
+export type TypeId = "~effect/ai/Decision";
 
 /**
  * Brand for decision definitions.
@@ -23,7 +23,7 @@ export type TypeId = "~effect/ai/Decision"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~effect/ai/Decision"
+export const TypeId: TypeId = "~effect/ai/Decision";
 
 /**
  * Decision that assigns the input one label out of a set of criteria.
@@ -36,9 +36,9 @@ export const TypeId: TypeId = "~effect/ai/Decision"
  * @since 4.0.0
  */
 export interface Classify<Label extends string> {
-  readonly _tag: "Classify"
-  readonly instructions: string
-  readonly criteria: { readonly [L in Label]: string }
+  readonly _tag: "Classify";
+  readonly instructions: string;
+  readonly criteria: { readonly [L in Label]: string };
 }
 
 /**
@@ -52,9 +52,9 @@ export interface Classify<Label extends string> {
  * @since 4.0.0
  */
 export interface Rate<Level extends string> {
-  readonly _tag: "Rate"
-  readonly instructions: string
-  readonly criteria: ReadonlyArray<Level>
+  readonly _tag: "Rate";
+  readonly instructions: string;
+  readonly criteria: ReadonlyArray<Level>;
 }
 
 /**
@@ -69,12 +69,14 @@ export interface Rate<Level extends string> {
  * @since 4.0.0
  */
 export interface Probability {
-  readonly _tag: "Probability"
-  readonly instructions: string
-  readonly criteria?: {
-    readonly false: string
-    readonly true: string
-  } | undefined
+  readonly _tag: "Probability";
+  readonly instructions: string;
+  readonly criteria?:
+    | {
+        readonly false: string;
+        readonly true: string;
+      }
+    | undefined;
 }
 
 /**
@@ -83,7 +85,7 @@ export interface Probability {
  * @category models
  * @since 4.0.0
  */
-export type Any = Classify<string> | Rate<string> | Probability
+export type Any = Classify<string> | Rate<string> | Probability;
 
 /**
  * Answer to a {@link Classify} decision.
@@ -94,9 +96,9 @@ export type Any = Classify<string> | Rate<string> | Probability
  * @since 4.0.0
  */
 export interface ClassifyAnswer<Label extends string> {
-  readonly label: Label
-  readonly probabilities: { readonly [L in Label]: number }
-  readonly confidence?: number | undefined
+  readonly label: Label;
+  readonly probabilities: { readonly [L in Label]: number };
+  readonly confidence?: number | undefined;
 }
 
 /**
@@ -110,10 +112,10 @@ export interface ClassifyAnswer<Label extends string> {
  * @since 4.0.0
  */
 export interface RateAnswer<Level extends string> {
-  readonly rating: number
-  readonly label: Level
-  readonly probabilities: { readonly [L in Level]: number }
-  readonly confidence?: number | undefined
+  readonly rating: number;
+  readonly label: Level;
+  readonly probabilities: { readonly [L in Level]: number };
+  readonly confidence?: number | undefined;
 }
 
 /**
@@ -123,7 +125,7 @@ export interface RateAnswer<Level extends string> {
  * @since 4.0.0
  */
 export interface ProbabilityAnswer {
-  readonly probability: number
+  readonly probability: number;
 }
 
 /**
@@ -132,10 +134,14 @@ export interface ProbabilityAnswer {
  * @category utility types
  * @since 4.0.0
  */
-export type Answer<D extends Any> = D extends Classify<infer Label> ? ClassifyAnswer<Label>
-  : D extends Rate<infer Level> ? RateAnswer<Level>
-  : D extends Probability ? ProbabilityAnswer
-  : never
+export type Answer<D extends Any> =
+  D extends Classify<infer Label>
+    ? ClassifyAnswer<Label>
+    : D extends Rate<infer Level>
+      ? RateAnswer<Level>
+      : D extends Probability
+        ? ProbabilityAnswer
+        : never;
 
 /**
  * Answers keyed by decision name.
@@ -144,8 +150,8 @@ export type Answer<D extends Any> = D extends Classify<infer Label> ? ClassifyAn
  * @since 4.0.0
  */
 export type Answers<Decisions extends Record<string, Any>> = {
-  readonly [K in keyof Decisions]: Answer<Decisions[K]>
-}
+  readonly [K in keyof Decisions]: Answer<Decisions[K]>;
+};
 
 /**
  * Input schema and named decisions that run together in one provider call.
@@ -155,10 +161,13 @@ export type Answers<Decisions extends Record<string, Any>> = {
  * @category models
  * @since 4.0.0
  */
-export interface Definition<Input extends Schema.Constraint, Decisions extends Record<string, Any>> {
-  readonly [TypeId]: TypeId
-  readonly input: Input
-  readonly decisions: Decisions
+export interface Definition<
+  Input extends Schema.Constraint,
+  Decisions extends Record<string, Any>,
+> {
+  readonly [TypeId]: TypeId;
+  readonly input: Input;
+  readonly decisions: Decisions;
 }
 
 /**
@@ -187,18 +196,18 @@ export interface Definition<Input extends Schema.Constraint, Decisions extends R
  * @since 4.0.0
  */
 export const classify = <Label extends string>(options: {
-  readonly instructions: string
-  readonly criteria: { readonly [L in Label]: string }
+  readonly instructions: string;
+  readonly criteria: { readonly [L in Label]: string };
 }): Classify<Label> => {
   if (Object.keys(options.criteria).length < 2) {
-    throw new Error("Decision.classify: criteria must contain at least two labels")
+    throw new Error("Decision.classify: criteria must contain at least two labels");
   }
   return {
     _tag: "Classify",
     instructions: options.instructions,
-    criteria: options.criteria
-  }
-}
+    criteria: options.criteria,
+  };
+};
 
 /**
  * Creates a rating decision from an ordered list of criteria.
@@ -221,21 +230,21 @@ export const classify = <Label extends string>(options: {
  * @since 4.0.0
  */
 export const rate = <const Level extends string>(options: {
-  readonly instructions: string
-  readonly criteria: ReadonlyArray<Level>
+  readonly instructions: string;
+  readonly criteria: ReadonlyArray<Level>;
 }): Rate<Level> => {
   if (options.criteria.length < 2) {
-    throw new Error("Decision.rate: criteria must contain at least two levels")
+    throw new Error("Decision.rate: criteria must contain at least two levels");
   }
   if (new Set(options.criteria).size !== options.criteria.length) {
-    throw new Error("Decision.rate: criteria must contain distinct levels")
+    throw new Error("Decision.rate: criteria must contain distinct levels");
   }
   return {
     _tag: "Rate",
     instructions: options.instructions,
-    criteria: options.criteria
-  }
-}
+    criteria: options.criteria,
+  };
+};
 
 /**
  * Creates a probability decision from instructions and optional outcome descriptions.
@@ -271,16 +280,18 @@ export const rate = <const Level extends string>(options: {
  * @since 4.0.0
  */
 export const probability = (options: {
-  readonly instructions: string
-  readonly criteria?: {
-    readonly false: string
-    readonly true: string
-  } | undefined
+  readonly instructions: string;
+  readonly criteria?:
+    | {
+        readonly false: string;
+        readonly true: string;
+      }
+    | undefined;
 }): Probability => ({
   _tag: "Probability",
   instructions: options.instructions,
-  criteria: options.criteria
-})
+  criteria: options.criteria,
+});
 
 /**
  * Creates a decision definition from an input schema and named decisions.
@@ -319,16 +330,19 @@ export const probability = (options: {
  * @category constructors
  * @since 4.0.0
  */
-export const make = <Input extends Schema.Constraint, Decisions extends Record<string, Any>>(options: {
-  readonly input: Input
-  readonly decisions: Decisions
+export const make = <
+  Input extends Schema.Constraint,
+  Decisions extends Record<string, Any>,
+>(options: {
+  readonly input: Input;
+  readonly decisions: Decisions;
 }): Definition<Input, Decisions> => {
   if (Object.keys(options.decisions).length === 0) {
-    throw new Error("Decision.make: decisions must not be empty")
+    throw new Error("Decision.make: decisions must not be empty");
   }
   return {
     [TypeId]: TypeId,
     input: options.input,
-    decisions: options.decisions
-  }
-}
+    decisions: options.decisions,
+  };
+};

@@ -3,17 +3,17 @@
  *
  * @since 4.0.0
  */
-import * as Cause from "../../Cause.ts"
-import type * as Effect from "../../Effect.ts"
-import type * as Filter from "../../Filter.ts"
-import * as Formatter from "../../Formatter.ts"
-import { dual } from "../../Function.ts"
-import type * as Model from "../../internal/arbitrary/model.ts"
-import * as Internal from "../../internal/arbitrary/runner.ts"
-import type { Pipeable } from "../../Pipeable.ts"
-import { hasProperty, type Predicate, type Refinement } from "../../Predicate.ts"
-import type * as Schema_ from "../../Schema.ts"
-import type * as Types from "../../Types.ts"
+import * as Cause from "../../Cause.ts";
+import type * as Effect from "../../Effect.ts";
+import type * as Filter from "../../Filter.ts";
+import * as Formatter from "../../Formatter.ts";
+import { dual } from "../../Function.ts";
+import type * as Model from "../../internal/arbitrary/model.ts";
+import * as Internal from "../../internal/arbitrary/runner.ts";
+import type { Pipeable } from "../../Pipeable.ts";
+import { hasProperty, type Predicate, type Refinement } from "../../Predicate.ts";
+import type * as Schema_ from "../../Schema.ts";
+import type * as Types from "../../Types.ts";
 
 /**
  * Runtime type identifier for `Arbitrary` values.
@@ -21,7 +21,7 @@ import type * as Types from "../../Types.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = Internal.TypeId
+export const TypeId: TypeId = Internal.TypeId;
 
 /**
  * Type of the runtime identifier for `Arbitrary` values.
@@ -29,7 +29,7 @@ export const TypeId: TypeId = Internal.TypeId
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/arbitrary/Arbitrary"
+export type TypeId = "~effect/arbitrary/Arbitrary";
 
 /**
  * Represents a pure description of values that can be generated and shrunk.
@@ -47,10 +47,10 @@ export type TypeId = "~effect/arbitrary/Arbitrary"
  * @since 4.0.0
  */
 export interface Arbitrary<out A> extends Pipeable {
-  readonly [TypeId]: TypeId
-  readonly "~A": Types.Covariant<A>
+  readonly [TypeId]: TypeId;
+  readonly "~A": Types.Covariant<A>;
   /** @internal */
-  readonly gen: Model.Generator<A>
+  readonly gen: Model.Generator<A>;
 }
 
 /**
@@ -65,7 +65,7 @@ export interface Arbitrary<out A> extends Pipeable {
  * @since 4.0.0
  */
 export interface SchemaOptions<A> {
-  readonly shrink?: ((value: A) => ReadonlyArray<A>) | undefined
+  readonly shrink?: ((value: A) => ReadonlyArray<A>) | undefined;
 }
 
 /**
@@ -80,8 +80,8 @@ export interface SchemaOptions<A> {
  * @since 4.0.0
  */
 export interface ArrayOptions {
-  readonly minLength?: number | undefined
-  readonly maxLength?: number | undefined
+  readonly minLength?: number | undefined;
+  readonly maxLength?: number | undefined;
 }
 
 /**
@@ -94,7 +94,7 @@ export interface ArrayOptions {
  * @category guards
  * @since 4.0.0
  */
-export const isArbitrary = (u: unknown): u is Arbitrary<unknown> => hasProperty(u, TypeId)
+export const isArbitrary = (u: unknown): u is Arbitrary<unknown> => hasProperty(u, TypeId);
 
 /**
  * Configures direct sampling from an `Arbitrary`.
@@ -109,10 +109,10 @@ export const isArbitrary = (u: unknown): u is Arbitrary<unknown> => hasProperty(
  * @since 4.0.0
  */
 export interface SampleOptions {
-  readonly count?: number | undefined
-  readonly size?: number | undefined
-  readonly maxDiscards?: number | undefined
-  readonly seed?: string | number | undefined
+  readonly count?: number | undefined;
+  readonly size?: number | undefined;
+  readonly maxDiscards?: number | undefined;
+  readonly seed?: string | number | undefined;
 }
 
 /**
@@ -127,10 +127,10 @@ export interface SampleOptions {
  * @since 4.0.0
  */
 export interface SampleError {
-  readonly _tag: "SampleError"
-  readonly generated: number
-  readonly discards: number
-  readonly seed: string | number
+  readonly _tag: "SampleError";
+  readonly generated: number;
+  readonly discards: number;
+  readonly seed: string | number;
 }
 
 /**
@@ -153,7 +153,7 @@ export interface SampleError {
  * @category models
  * @since 4.0.0
  */
-export type Replay = string
+export type Replay = string;
 
 /**
  * Configures property checking, shrinking, and replay.
@@ -180,12 +180,12 @@ export type Replay = string
  * @since 4.0.0
  */
 export interface CheckOptions {
-  readonly runs?: number | undefined
-  readonly size?: number | undefined
-  readonly maxDiscards?: number | undefined
-  readonly maxShrinks?: number | undefined
-  readonly seed?: string | number | undefined
-  readonly replay?: Replay | undefined
+  readonly runs?: number | undefined;
+  readonly size?: number | undefined;
+  readonly maxDiscards?: number | undefined;
+  readonly maxShrinks?: number | undefined;
+  readonly seed?: string | number | undefined;
+  readonly replay?: Replay | undefined;
 }
 
 /**
@@ -195,7 +195,7 @@ export interface CheckOptions {
  * @since 4.0.0
  */
 export interface ReturnedFalse {
-  readonly _tag: "ReturnedFalse"
+  readonly _tag: "ReturnedFalse";
 }
 
 /**
@@ -205,8 +205,8 @@ export interface ReturnedFalse {
  * @since 4.0.0
  */
 export interface PropertyError<out E> {
-  readonly _tag: "PropertyError"
-  readonly error: E
+  readonly _tag: "PropertyError";
+  readonly error: E;
 }
 
 /**
@@ -215,7 +215,7 @@ export interface PropertyError<out E> {
  * @category models
  * @since 4.0.0
  */
-export type PropertyFailure<E> = ReturnedFalse | PropertyError<E>
+export type PropertyFailure<E> = ReturnedFalse | PropertyError<E>;
 
 /**
  * Reports that every requested property run passed.
@@ -224,9 +224,9 @@ export type PropertyFailure<E> = ReturnedFalse | PropertyError<E>
  * @since 4.0.0
  */
 export interface Passed {
-  readonly _tag: "Passed"
-  readonly runs: number
-  readonly discards: number
+  readonly _tag: "Passed";
+  readonly runs: number;
+  readonly discards: number;
 }
 
 /**
@@ -244,14 +244,14 @@ export interface Passed {
  * @since 4.0.0
  */
 export interface Falsified<out A, out E> {
-  readonly _tag: "Falsified"
-  readonly initialInput: A
-  readonly shrunkInput: A
-  readonly failure: PropertyFailure<E>
-  readonly runs: number
-  readonly discards: number
-  readonly shrinks: number
-  readonly replay: Replay
+  readonly _tag: "Falsified";
+  readonly initialInput: A;
+  readonly shrunkInput: A;
+  readonly failure: PropertyFailure<E>;
+  readonly runs: number;
+  readonly discards: number;
+  readonly shrinks: number;
+  readonly replay: Replay;
 }
 
 /**
@@ -266,10 +266,10 @@ export interface Falsified<out A, out E> {
  * @since 4.0.0
  */
 export interface Exhausted {
-  readonly _tag: "Exhausted"
-  readonly runs: number
-  readonly discards: number
-  readonly seed: string | number
+  readonly _tag: "Exhausted";
+  readonly runs: number;
+  readonly discards: number;
+  readonly seed: string | number;
 }
 
 /**
@@ -285,8 +285,8 @@ export interface Exhausted {
  * @since 4.0.0
  */
 export interface ReplayMismatch {
-  readonly _tag: "ReplayMismatch"
-  readonly reason: "AttemptDiscarded" | "PropertyPassed" | "ShrinkPathUnavailable" | "ShrinkPassed"
+  readonly _tag: "ReplayMismatch";
+  readonly reason: "AttemptDiscarded" | "PropertyPassed" | "ShrinkPathUnavailable" | "ShrinkPassed";
 }
 
 /**
@@ -299,7 +299,7 @@ export interface ReplayMismatch {
  * @category models
  * @since 4.0.0
  */
-export type CheckResult<A, E> = Passed | Falsified<A, E> | Exhausted | ReplayMismatch
+export type CheckResult<A, E> = Passed | Falsified<A, E> | Exhausted | ReplayMismatch;
 
 /**
  * Formats an unsuccessful property-check result as a diagnostic message, returning `undefined` for a passed result.
@@ -314,25 +314,29 @@ export type CheckResult<A, E> = Passed | Falsified<A, E> | Exhausted | ReplayMis
 export function formatCheckFailure<A, E>(result: CheckResult<A, E>): string | undefined {
   switch (result._tag) {
     case "Passed":
-      return undefined
+      return undefined;
     case "Falsified":
-      return `Property falsified after ${result.runs} run(s) and ${result.shrinks} shrink(s)\n` +
+      return (
+        `Property falsified after ${result.runs} run(s) and ${result.shrinks} shrink(s)\n` +
         `Shrunk input: ${Formatter.format(result.shrunkInput, { space: 2 })}\n` +
         `${
           result.failure._tag === "ReturnedFalse"
             ? "Failure: returned false"
             : `Failure: ${
-              Cause.isCause(result.failure.error)
-                ? Cause.pretty(result.failure.error)
-                : Formatter.format(result.failure.error, { space: 2 })
-            }`
+                Cause.isCause(result.failure.error)
+                  ? Cause.pretty(result.failure.error)
+                  : Formatter.format(result.failure.error, { space: 2 })
+              }`
         }\n` +
         `Replay: ${result.replay}`
+      );
     case "Exhausted":
-      return `Property exhausted after ${result.runs} run(s) and ${result.discards} discard(s)\n` +
+      return (
+        `Property exhausted after ${result.runs} run(s) and ${result.discards} discard(s)\n` +
         `Seed: ${Formatter.format(result.seed, { space: 2 })}`
+      );
     case "ReplayMismatch":
-      return `Property replay failed: ${result.reason}`
+      return `Property replay failed: ${result.reason}`;
   }
 }
 
@@ -361,9 +365,9 @@ export function formatCheckFailure<A, E>(result: CheckResult<A, E>): string | un
  */
 export function schema<S extends Schema_.Constraint>(
   schema: S,
-  options?: SchemaOptions<S["Type"]>
+  options?: SchemaOptions<S["Type"]>,
 ): Arbitrary<S["Type"]> {
-  return Internal.schema(schema, options)
+  return Internal.schema(schema, options);
 }
 
 /**
@@ -382,7 +386,7 @@ export function schema<S extends Schema_.Constraint>(
  * @since 4.0.0
  */
 export function Constant<const A>(value: A): Arbitrary<A> {
-  return Internal.constant(value)
+  return Internal.constant(value);
 }
 
 /**
@@ -432,7 +436,8 @@ export function Constant<const A>(value: A): Arbitrary<A> {
  * @category constructors
  * @since 4.0.0
  */
-export const array: <A>(item: Arbitrary<A>, options?: ArrayOptions) => Arbitrary<Array<A>> = Internal.array
+export const array: <A>(item: Arbitrary<A>, options?: ArrayOptions) => Arbitrary<Array<A>> =
+  Internal.array;
 
 /**
  * Transforms every generated value and its shrink candidates.
@@ -446,9 +451,9 @@ export const array: <A>(item: Arbitrary<A>, options?: ArrayOptions) => Arbitrary
  * @since 4.0.0
  */
 export const map: {
-  <A, B>(f: (value: A) => B): (self: Arbitrary<A>) => Arbitrary<B>
-  <A, B>(self: Arbitrary<A>, f: (value: A) => B): Arbitrary<B>
-} = dual(2, <A, B>(self: Arbitrary<A>, f: (value: A) => B): Arbitrary<B> => Internal.map(self, f))
+  <A, B>(f: (value: A) => B): (self: Arbitrary<A>) => Arbitrary<B>;
+  <A, B>(self: Arbitrary<A>, f: (value: A) => B): Arbitrary<B>;
+} = dual(2, <A, B>(self: Arbitrary<A>, f: (value: A) => B): Arbitrary<B> => Internal.map(self, f));
 
 /**
  * Keeps generated values and shrink candidates that satisfy a predicate or refinement.
@@ -467,11 +472,13 @@ export const map: {
  * @since 4.0.0
  */
 export const filter: {
-  <A, B extends A>(refinement: Refinement<A, B>): (self: Arbitrary<A>) => Arbitrary<B>
-  <A>(predicate: Predicate<A>): <B extends A>(self: Arbitrary<B>) => Arbitrary<B>
-  <A, B extends A>(self: Arbitrary<A>, refinement: Refinement<A, B>): Arbitrary<B>
-  <A>(self: Arbitrary<A>, predicate: Predicate<A>): Arbitrary<A>
-} = dual(2, <A>(self: Arbitrary<A>, predicate: Predicate<A>): Arbitrary<A> => Internal.filter(self, predicate))
+  <A, B extends A>(refinement: Refinement<A, B>): (self: Arbitrary<A>) => Arbitrary<B>;
+  <A>(predicate: Predicate<A>): <B extends A>(self: Arbitrary<B>) => Arbitrary<B>;
+  <A, B extends A>(self: Arbitrary<A>, refinement: Refinement<A, B>): Arbitrary<B>;
+  <A>(self: Arbitrary<A>, predicate: Predicate<A>): Arbitrary<A>;
+} = dual(2, <A>(self: Arbitrary<A>, predicate: Predicate<A>): Arbitrary<A> =>
+  Internal.filter(self, predicate),
+);
 
 /**
  * Transforms accepted generated values and discards rejected values.
@@ -491,12 +498,11 @@ export const filter: {
  * @since 4.0.0
  */
 export const filterMap: {
-  <A, B, X>(f: Filter.Filter<A, B, X>): (self: Arbitrary<A>) => Arbitrary<B>
-  <A, B, X>(self: Arbitrary<A>, f: Filter.Filter<A, B, X>): Arbitrary<B>
-} = dual(
-  2,
-  <A, B, X>(self: Arbitrary<A>, f: Filter.Filter<A, B, X>): Arbitrary<B> => Internal.filterMap(self, f)
-)
+  <A, B, X>(f: Filter.Filter<A, B, X>): (self: Arbitrary<A>) => Arbitrary<B>;
+  <A, B, X>(self: Arbitrary<A>, f: Filter.Filter<A, B, X>): Arbitrary<B>;
+} = dual(2, <A, B, X>(self: Arbitrary<A>, f: Filter.Filter<A, B, X>): Arbitrary<B> =>
+  Internal.filterMap(self, f),
+);
 
 /**
  * Sequentially selects an `Arbitrary` from a generated value.
@@ -522,9 +528,11 @@ export const filterMap: {
  * @since 4.0.0
  */
 export const flatMap: {
-  <A, B>(f: (value: A) => Arbitrary<B>): (self: Arbitrary<A>) => Arbitrary<B>
-  <A, B>(self: Arbitrary<A>, f: (value: A) => Arbitrary<B>): Arbitrary<B>
-} = dual(2, <A, B>(self: Arbitrary<A>, f: (value: A) => Arbitrary<B>): Arbitrary<B> => Internal.flatMap(self, f))
+  <A, B>(f: (value: A) => Arbitrary<B>): (self: Arbitrary<A>) => Arbitrary<B>;
+  <A, B>(self: Arbitrary<A>, f: (value: A) => Arbitrary<B>): Arbitrary<B>;
+} = dual(2, <A, B>(self: Arbitrary<A>, f: (value: A) => Arbitrary<B>): Arbitrary<B> =>
+  Internal.flatMap(self, f),
+);
 
 /**
  * Combines Arbitraries into one `Arbitrary` whose generated value mirrors the input shape.
@@ -549,18 +557,21 @@ export const flatMap: {
  * @since 4.0.0
  */
 export function all<const Input extends Iterable<Arbitrary<any>> | Record<string, Arbitrary<any>>>(
-  input: Input
+  input: Input,
 ): Arbitrary<
-  [Input] extends [ReadonlyArray<Arbitrary<any>>] ? {
-      -readonly [K in keyof Input]: [Input[K]] extends [Arbitrary<infer A>] ? A : never
-    }
-    : [Input] extends [Iterable<Arbitrary<infer A>>] ? Array<A>
-    : [Input] extends [Record<string, Arbitrary<any>>] ? {
-        -readonly [K in keyof Input]: [Input[K]] extends [Arbitrary<infer A>] ? A : never
+  [Input] extends [ReadonlyArray<Arbitrary<any>>]
+    ? {
+        -readonly [K in keyof Input]: [Input[K]] extends [Arbitrary<infer A>] ? A : never;
       }
-    : never
+    : [Input] extends [Iterable<Arbitrary<infer A>>]
+      ? Array<A>
+      : [Input] extends [Record<string, Arbitrary<any>>]
+        ? {
+            -readonly [K in keyof Input]: [Input[K]] extends [Arbitrary<infer A>] ? A : never;
+          }
+        : never
 > {
-  return Internal.all(input)
+  return Internal.all(input);
 }
 
 /**
@@ -575,9 +586,9 @@ export function all<const Input extends Iterable<Arbitrary<any>> | Record<string
  */
 export function sampleEffect<A>(
   self: Arbitrary<A>,
-  options?: SampleOptions
+  options?: SampleOptions,
 ): Effect.Effect<ReadonlyArray<A>, SampleError> {
-  return Internal.sampleEffect(self, options)
+  return Internal.sampleEffect(self, options);
 }
 
 /**
@@ -609,7 +620,7 @@ export function sampleEffect<A>(
 export function checkEffect<A, E = never, R = never>(
   self: Arbitrary<A>,
   property: (value: A) => boolean | Effect.Effect<boolean, E, R>,
-  options?: CheckOptions
+  options?: CheckOptions,
 ): Effect.Effect<CheckResult<A, E>, never, R> {
-  return Internal.checkEffect(self, property, options)
+  return Internal.checkEffect(self, property, options);
 }

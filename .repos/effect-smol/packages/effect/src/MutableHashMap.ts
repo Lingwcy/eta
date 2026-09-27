@@ -9,18 +9,18 @@
  *
  * @since 2.0.0
  */
-import type { NonEmptyArray } from "./Array.ts"
-import * as Equal from "./Equal.ts"
-import { format } from "./Formatter.ts"
-import { dual } from "./Function.ts"
-import * as Hash from "./Hash.ts"
-import { type Inspectable, NodeInspectSymbol, toJson } from "./Inspectable.ts"
-import * as Option from "./Option.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { pipeArguments } from "./Pipeable.ts"
-import { hasProperty } from "./Predicate.ts"
+import type { NonEmptyArray } from "./Array.ts";
+import * as Equal from "./Equal.ts";
+import { format } from "./Formatter.ts";
+import { dual } from "./Function.ts";
+import * as Hash from "./Hash.ts";
+import { type Inspectable, NodeInspectSymbol, toJson } from "./Inspectable.ts";
+import * as Option from "./Option.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { pipeArguments } from "./Pipeable.ts";
+import { hasProperty } from "./Predicate.ts";
 
-const TypeId = "~effect/MutableHashMap"
+const TypeId = "~effect/MutableHashMap";
 
 /**
  * A mutable hash map that stores key-value pairs and supports both referential
@@ -61,9 +61,9 @@ const TypeId = "~effect/MutableHashMap"
  * @since 2.0.0
  */
 export interface MutableHashMap<out K, out V> extends Iterable<[K, V]>, Pipeable, Inspectable {
-  readonly [TypeId]: typeof TypeId
-  readonly backing: Map<K, V>
-  readonly buckets: Map<number, NonEmptyArray<K>>
+  readonly [TypeId]: typeof TypeId;
+  readonly backing: Map<K, V>;
+  readonly buckets: Map<number, NonEmptyArray<K>>;
 }
 
 /**
@@ -86,29 +86,33 @@ export interface MutableHashMap<out K, out V> extends Iterable<[K, V]>, Pipeable
  * @category guards
  * @since 4.0.0
  */
-export const isMutableHashMap = <K, V>(value: unknown): value is MutableHashMap<K, V> => hasProperty(value, TypeId)
+export const isMutableHashMap = <K, V>(value: unknown): value is MutableHashMap<K, V> =>
+  hasProperty(value, TypeId);
 
-const MutableHashMapProto: Omit<MutableHashMap<unknown, unknown>, "backing" | "buckets" | "bucketsSize"> = {
+const MutableHashMapProto: Omit<
+  MutableHashMap<unknown, unknown>,
+  "backing" | "buckets" | "bucketsSize"
+> = {
   [TypeId]: TypeId,
   [Symbol.iterator](this: MutableHashMap<unknown, unknown>): Iterator<[unknown, unknown]> {
-    return this.backing[Symbol.iterator]()
+    return this.backing[Symbol.iterator]();
   },
   toString() {
-    return `MutableHashMap(${format(Array.from(this))})`
+    return `MutableHashMap(${format(Array.from(this))})`;
   },
   toJSON() {
     return {
       _id: "MutableHashMap",
-      values: toJson(Array.from(this))
-    }
+      values: toJson(Array.from(this)),
+    };
   },
   [NodeInspectSymbol]() {
-    return this.toJSON()
+    return this.toJSON();
   },
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+    return pipeArguments(this, arguments);
+  },
+};
 
 /**
  * Creates an empty MutableHashMap.
@@ -142,11 +146,11 @@ const MutableHashMapProto: Omit<MutableHashMap<unknown, unknown>, "backing" | "b
  * @since 2.0.0
  */
 export const empty = <K, V>(): MutableHashMap<K, V> => {
-  const self = Object.create(MutableHashMapProto)
-  self.backing = new Map()
-  self.buckets = new Map()
-  return self
-}
+  const self = Object.create(MutableHashMapProto);
+  self.backing = new Map();
+  self.buckets = new Map();
+  return self;
+};
 
 /**
  * Creates a MutableHashMap from a variable number of key-value pairs.
@@ -181,7 +185,7 @@ export const make: <Entries extends Array<readonly [any, any]>>(
 ) => MutableHashMap<
   Entries[number] extends readonly [infer K, any] ? K : never,
   Entries[number] extends readonly [any, infer V] ? V : never
-> = (...entries) => fromIterable(entries)
+> = (...entries) => fromIterable(entries);
 
 /**
  * Creates a MutableHashMap from an iterable collection of key-value pairs.
@@ -218,12 +222,12 @@ export const make: <Entries extends Array<readonly [any, any]>>(
  * @since 2.0.0
  */
 export const fromIterable = <K, V>(entries: Iterable<readonly [K, V]>): MutableHashMap<K, V> => {
-  const self = empty<K, V>()
+  const self = empty<K, V>();
   for (const [key, value] of entries) {
-    set(self, key, value)
+    set(self, key, value);
   }
-  return self
-}
+  return self;
+};
 
 /**
  * Looks up a key in the `MutableHashMap` safely.
@@ -258,31 +262,31 @@ export const fromIterable = <K, V>(entries: Iterable<readonly [K, V]>): MutableH
  * @since 2.0.0
  */
 export const get: {
-  <K>(key: K): <V>(self: MutableHashMap<K, V>) => Option.Option<V>
-  <K, V>(self: MutableHashMap<K, V>, key: K): Option.Option<V>
+  <K>(key: K): <V>(self: MutableHashMap<K, V>) => Option.Option<V>;
+  <K, V>(self: MutableHashMap<K, V>, key: K): Option.Option<V>;
 } = dual<
   <K>(key: K) => <V>(self: MutableHashMap<K, V>) => Option.Option<V>,
   <K, V>(self: MutableHashMap<K, V>, key: K) => Option.Option<V>
 >(2, <K, V>(self: MutableHashMap<K, V>, key: K): Option.Option<V> => {
   if (self.backing.has(key)) {
-    return Option.some(self.backing.get(key)!)
+    return Option.some(self.backing.get(key)!);
   } else if (isSimpleKey(key)) {
-    return Option.none()
+    return Option.none();
   }
-  const refKey = referentialKeysCache.get(self)
+  const refKey = referentialKeysCache.get(self);
   if (refKey !== undefined) {
-    return self.backing.has(refKey) ? Option.some(self.backing.get(refKey)!) : Option.none()
+    return self.backing.has(refKey) ? Option.some(self.backing.get(refKey)!) : Option.none();
   }
-  const hash = Hash.hash(key)
-  const bucket = self.buckets.get(hash)
+  const hash = Hash.hash(key);
+  const bucket = self.buckets.get(hash);
   if (bucket === undefined) {
-    return Option.none()
+    return Option.none();
   }
-  return getFromBucket(self, bucket, key)
-})
+  return getFromBucket(self, bucket, key);
+});
 
-const referentialKeysCache = new WeakMap<any, any>()
-const isSimpleKey = (u: unknown): boolean => typeof u !== "object" && typeof u !== "function"
+const referentialKeysCache = new WeakMap<any, any>();
+const isSimpleKey = (u: unknown): boolean => typeof u !== "object" && typeof u !== "function";
 
 /**
  * Returns an iterable over the keys in the `MutableHashMap`.
@@ -311,7 +315,7 @@ const isSimpleKey = (u: unknown): boolean => typeof u !== "object" && typeof u !
  * @category getters
  * @since 3.8.0
  */
-export const keys = <K, V>(self: MutableHashMap<K, V>): Iterable<K> => self.backing.keys()
+export const keys = <K, V>(self: MutableHashMap<K, V>): Iterable<K> => self.backing.keys();
 
 /**
  * Returns an iterable over the values in the `MutableHashMap`.
@@ -345,22 +349,22 @@ export const keys = <K, V>(self: MutableHashMap<K, V>): Iterable<K> => self.back
  * @category getters
  * @since 3.8.0
  */
-export const values = <K, V>(self: MutableHashMap<K, V>): Iterable<V> => self.backing.values()
+export const values = <K, V>(self: MutableHashMap<K, V>): Iterable<V> => self.backing.values();
 
 const getFromBucket = <K, V>(
   self: MutableHashMap<K, V>,
   bucket: NonEmptyArray<K>,
-  key: K
+  key: K,
 ): Option.Option<V> => {
   for (let i = 0, len = bucket.length; i < len; i++) {
     if (Equal.equals(key, bucket[i])) {
-      const refKey = bucket[i]
-      referentialKeysCache.set(key, refKey)
-      return Option.some(self.backing.get(refKey)!)
+      const refKey = bucket[i];
+      referentialKeysCache.set(key, refKey);
+      return Option.some(self.backing.get(refKey)!);
     }
   }
-  return Option.none()
-}
+  return Option.none();
+};
 
 /**
  * Checks whether the MutableHashMap contains the specified key.
@@ -390,12 +394,12 @@ const getFromBucket = <K, V>(
  * @since 2.0.0
  */
 export const has: {
-  <K>(key: K): <V>(self: MutableHashMap<K, V>) => boolean
-  <K, V>(self: MutableHashMap<K, V>, key: K): boolean
+  <K>(key: K): <V>(self: MutableHashMap<K, V>) => boolean;
+  <K, V>(self: MutableHashMap<K, V>, key: K): boolean;
 } = dual<
   <K>(key: K) => <V>(self: MutableHashMap<K, V>) => boolean,
   <K, V>(self: MutableHashMap<K, V>, key: K) => boolean
->(2, (self, key) => Option.isSome(get(self, key)))
+>(2, (self, key) => Option.isSome(get(self, key)));
 
 /**
  * Sets a key-value pair in the MutableHashMap, mutating the map in place.
@@ -437,50 +441,47 @@ export const has: {
  * @since 2.0.0
  */
 export const set: {
-  <K, V>(key: K, value: V): (self: MutableHashMap<K, V>) => MutableHashMap<K, V>
-  <K, V>(self: MutableHashMap<K, V>, key: K, value: V): MutableHashMap<K, V>
+  <K, V>(key: K, value: V): (self: MutableHashMap<K, V>) => MutableHashMap<K, V>;
+  <K, V>(self: MutableHashMap<K, V>, key: K, value: V): MutableHashMap<K, V>;
 } = dual<
   <K, V>(key: K, value: V) => (self: MutableHashMap<K, V>) => MutableHashMap<K, V>,
   <K, V>(self: MutableHashMap<K, V>, key: K, value: V) => MutableHashMap<K, V>
 >(3, <K, V>(self: MutableHashMap<K, V>, key: K, value: V) => {
   if (self.backing.has(key) || isSimpleKey(key)) {
-    self.backing.set(key, value)
-    return self
+    self.backing.set(key, value);
+    return self;
   }
-  let refKey = referentialKeysCache.get(self)
+  let refKey = referentialKeysCache.get(self);
   if (refKey !== undefined && self.backing.has(refKey)) {
-    self.backing.set(refKey, value)
-    return self
+    self.backing.set(refKey, value);
+    return self;
   }
 
-  const hash = Hash.hash(key)
-  const bucket = self.buckets.get(hash)
+  const hash = Hash.hash(key);
+  const bucket = self.buckets.get(hash);
   if (bucket === undefined) {
-    self.buckets.set(hash, [key])
-    self.backing.set(key, value)
-    return self
+    self.buckets.set(hash, [key]);
+    self.backing.set(key, value);
+    return self;
   }
 
-  refKey = getRefKey(bucket, key)
+  refKey = getRefKey(bucket, key);
   if (refKey === undefined) {
-    bucket.push(key)
-    refKey = key
+    bucket.push(key);
+    refKey = key;
   }
-  self.backing.set(refKey, value)
-  return self
-})
+  self.backing.set(refKey, value);
+  return self;
+});
 
-const getRefKey = <K>(
-  bucket: NonEmptyArray<K>,
-  key: K
-) => {
+const getRefKey = <K>(bucket: NonEmptyArray<K>, key: K) => {
   for (let i = 0, len = bucket.length; i < len; i++) {
     if (Equal.equals(key, bucket[i])) {
-      referentialKeysCache.set(key, bucket[i])
-      return bucket[i]
+      referentialKeysCache.set(key, bucket[i]);
+      return bucket[i];
     }
   }
-}
+};
 
 /**
  * Updates the value of the specified key within the MutableHashMap if it exists.
@@ -522,38 +523,38 @@ const getRefKey = <K>(
  * @since 2.0.0
  */
 export const modify: {
-  <K, V>(key: K, f: (v: V) => V): (self: MutableHashMap<K, V>) => MutableHashMap<K, V>
-  <K, V>(self: MutableHashMap<K, V>, key: K, f: (v: V) => V): MutableHashMap<K, V>
+  <K, V>(key: K, f: (v: V) => V): (self: MutableHashMap<K, V>) => MutableHashMap<K, V>;
+  <K, V>(self: MutableHashMap<K, V>, key: K, f: (v: V) => V): MutableHashMap<K, V>;
 } = dual<
   <K, V>(key: K, f: (v: V) => V) => (self: MutableHashMap<K, V>) => MutableHashMap<K, V>,
   <K, V>(self: MutableHashMap<K, V>, key: K, f: (v: V) => V) => MutableHashMap<K, V>
 >(3, <K, V>(self: MutableHashMap<K, V>, key: K, f: (v: V) => V) => {
-  const hasKey = self.backing.has(key)
+  const hasKey = self.backing.has(key);
   if (hasKey || isSimpleKey(key)) {
     if (hasKey) {
-      self.backing.set(key, f(self.backing.get(key)!))
+      self.backing.set(key, f(self.backing.get(key)!));
     }
-    return self
+    return self;
   }
-  let refKey = referentialKeysCache.get(self)
+  let refKey = referentialKeysCache.get(self);
   if (refKey !== undefined && self.backing.has(refKey)) {
-    self.backing.set(refKey, f(self.backing.get(refKey)!))
-    return self
+    self.backing.set(refKey, f(self.backing.get(refKey)!));
+    return self;
   }
 
-  const hash = Hash.hash(key)
-  const bucket = self.buckets.get(hash)
+  const hash = Hash.hash(key);
+  const bucket = self.buckets.get(hash);
   if (bucket === undefined) {
-    return self
+    return self;
   }
 
-  refKey = getRefKey(bucket, key)
+  refKey = getRefKey(bucket, key);
   if (refKey === undefined) {
-    return self
+    return self;
   }
-  self.backing.set(refKey, f(self.backing.get(refKey)!))
-  return self
-})
+  self.backing.set(refKey, f(self.backing.get(refKey)!));
+  return self;
+});
 
 /**
  * Updates or removes the specified key using a function from the current
@@ -608,30 +609,37 @@ export const modify: {
  * @since 2.0.0
  */
 export const modifyAt: {
-  <K, V>(key: K, f: (value: Option.Option<V>) => Option.Option<V>): (self: MutableHashMap<K, V>) => MutableHashMap<K, V>
-  <K, V>(self: MutableHashMap<K, V>, key: K, f: (value: Option.Option<V>) => Option.Option<V>): MutableHashMap<K, V>
+  <K, V>(
+    key: K,
+    f: (value: Option.Option<V>) => Option.Option<V>,
+  ): (self: MutableHashMap<K, V>) => MutableHashMap<K, V>;
+  <K, V>(
+    self: MutableHashMap<K, V>,
+    key: K,
+    f: (value: Option.Option<V>) => Option.Option<V>,
+  ): MutableHashMap<K, V>;
 } = dual<
   <K, V>(
     key: K,
-    f: (value: Option.Option<V>) => Option.Option<V>
+    f: (value: Option.Option<V>) => Option.Option<V>,
   ) => (self: MutableHashMap<K, V>) => MutableHashMap<K, V>,
   <K, V>(
     self: MutableHashMap<K, V>,
     key: K,
-    f: (value: Option.Option<V>) => Option.Option<V>
+    f: (value: Option.Option<V>) => Option.Option<V>,
   ) => MutableHashMap<K, V>
 >(3, (self, key, f) => {
-  const current = get(self, key)
-  const result = f(current)
+  const current = get(self, key);
+  const result = f(current);
   if (Option.isNone(result)) {
     if (Option.isSome(current)) {
-      remove(self, key)
+      remove(self, key);
     }
-    return self
+    return self;
   }
-  set(self, key, result.value)
-  return self
-})
+  set(self, key, result.value);
+  return self;
+});
 
 /**
  * Removes the specified key from the MutableHashMap, mutating the map in place.
@@ -675,36 +683,36 @@ export const modifyAt: {
  * @since 2.0.0
  */
 export const remove: {
-  <K>(key: K): <V>(self: MutableHashMap<K, V>) => MutableHashMap<K, V>
-  <K, V>(self: MutableHashMap<K, V>, key: K): MutableHashMap<K, V>
+  <K>(key: K): <V>(self: MutableHashMap<K, V>) => MutableHashMap<K, V>;
+  <K, V>(self: MutableHashMap<K, V>, key: K): MutableHashMap<K, V>;
 } = dual<
   <K>(key: K) => <V>(self: MutableHashMap<K, V>) => MutableHashMap<K, V>,
   <K, V>(self: MutableHashMap<K, V>, key: K) => MutableHashMap<K, V>
 >(2, <K, V>(self: MutableHashMap<K, V>, key_: K) => {
   if (isSimpleKey(key_)) {
-    self.backing.delete(key_)
-    return self
+    self.backing.delete(key_);
+    return self;
   }
 
-  const key = referentialKeysCache.get(self) ?? key_
-  const hash = Hash.hash(key)
-  const bucket = self.buckets.get(hash)
+  const key = referentialKeysCache.get(self) ?? key_;
+  const hash = Hash.hash(key);
+  const bucket = self.buckets.get(hash);
   if (bucket === undefined) {
-    return self
+    return self;
   }
   for (let i = 0, len = bucket.length; i < len; i++) {
-    const bkey = bucket[i]
+    const bkey = bucket[i];
     if (bkey === key || Equal.equals(key, bkey)) {
-      self.backing.delete(bkey)
-      bucket.splice(i, 1)
-      break
+      self.backing.delete(bkey);
+      bucket.splice(i, 1);
+      break;
     }
   }
   if (bucket.length === 0) {
-    self.buckets.delete(hash)
+    self.buckets.delete(hash);
   }
-  return self
-})
+  return self;
+});
 
 /**
  * Removes all key-value pairs from the MutableHashMap, mutating the map in place.
@@ -745,10 +753,10 @@ export const remove: {
  * @since 2.0.0
  */
 export const clear = <K, V>(self: MutableHashMap<K, V>) => {
-  self.backing.clear()
-  self.buckets.clear()
-  return self
-}
+  self.backing.clear();
+  self.buckets.clear();
+  return self;
+};
 
 /**
  * Returns the number of key-value pairs in the MutableHashMap.
@@ -781,7 +789,7 @@ export const clear = <K, V>(self: MutableHashMap<K, V>) => {
  * @category getters
  * @since 2.0.0
  */
-export const size = <K, V>(self: MutableHashMap<K, V>): number => self.backing.size
+export const size = <K, V>(self: MutableHashMap<K, V>): number => self.backing.size;
 
 /**
  * Returns `true` when the `MutableHashMap` contains no key-value pairs.
@@ -795,7 +803,7 @@ export const size = <K, V>(self: MutableHashMap<K, V>): number => self.backing.s
  * @category predicates
  * @since 2.0.0
  */
-export const isEmpty = <K, V>(self: MutableHashMap<K, V>): boolean => self.backing.size === 0
+export const isEmpty = <K, V>(self: MutableHashMap<K, V>): boolean => self.backing.size === 0;
 
 /**
  * Runs a callback for each key-value pair in the `MutableHashMap`.
@@ -817,8 +825,8 @@ export const isEmpty = <K, V>(self: MutableHashMap<K, V>): boolean => self.backi
  * @since 2.0.0
  */
 export const forEach: {
-  <K, V>(f: (value: V, key: K) => void): (self: MutableHashMap<K, V>) => void
-  <K, V>(self: MutableHashMap<K, V>, f: (value: V, key: K) => void): void
+  <K, V>(f: (value: V, key: K) => void): (self: MutableHashMap<K, V>) => void;
+  <K, V>(self: MutableHashMap<K, V>, f: (value: V, key: K) => void): void;
 } = dual(2, <K, V>(self: MutableHashMap<K, V>, f: (value: V, key: K) => void) => {
-  self.backing.forEach(f)
-})
+  self.backing.forEach(f);
+});

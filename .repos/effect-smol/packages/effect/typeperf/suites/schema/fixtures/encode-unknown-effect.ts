@@ -1,8 +1,8 @@
 // Measures the marginal type-level cost of Schema.encodeUnknownEffect.
-import { Schema } from "effect"
+import { Schema } from "effect";
 
-Schema.String
+Schema.String;
 
-const encode = Schema.encodeUnknownEffect(Schema.NumberFromString)
+const encode = Schema.encodeUnknownEffect(Schema.NumberFromString);
 
-export type Encode = typeof encode
+export type Encode = typeof encode;

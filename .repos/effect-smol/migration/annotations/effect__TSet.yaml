@@ -1,6 +1,6 @@
 effect/TSet#TSet:
   replacement: "TxHashSet.TxHashSet"
-  note: "Rename the type and import from \"effect/TxHashSet\". V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Rename the type and import from "effect/TxHashSet". V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSet#TSet.Variance:
   replacement: "none"
   note: "TxHashSet exposes no public variance marker."
@@ -12,25 +12,25 @@ effect/TSet#difference:
   note: "The name remains, but v4 returns a new set instead of mutating self."
 effect/TSet#empty:
   replacement: "TxHashSet.empty"
-  note: "Import TxHashSet from \"effect/TxHashSet\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashSet from "effect/TxHashSet"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSet#fromIterable:
   replacement: "TxHashSet.fromIterable"
-  note: "Import TxHashSet from \"effect/TxHashSet\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashSet from "effect/TxHashSet"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSet#has:
   replacement: "TxHashSet.has"
-  note: "Import TxHashSet from \"effect/TxHashSet\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashSet from "effect/TxHashSet"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSet#intersection:
   replacement: "TxHashSet.intersection"
   note: "The name remains, but v4 returns a new set instead of mutating self."
 effect/TSet#isEmpty:
   replacement: "TxHashSet.isEmpty"
-  note: "Import TxHashSet from \"effect/TxHashSet\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashSet from "effect/TxHashSet"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSet#make:
   replacement: "TxHashSet.make"
-  note: "Import TxHashSet from \"effect/TxHashSet\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashSet from "effect/TxHashSet"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSet#reduce:
   replacement: "TxHashSet.reduce"
-  note: "Import TxHashSet from \"effect/TxHashSet\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashSet from "effect/TxHashSet"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSet#reduceSTM:
   replacement: "TxHashSet.toHashSet + Effect.reduce"
   note: "Snapshot the set and reduce effectfully inside the surrounding Effect.tx transaction."
@@ -42,7 +42,7 @@ effect/TSet#removeAll:
   note: "No bulk removal helper remains; remove each value inside one outer Effect.tx transaction."
 effect/TSet#size:
   replacement: "TxHashSet.size"
-  note: "Import TxHashSet from \"effect/TxHashSet\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxHashSet from "effect/TxHashSet"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSet#takeFirst:
   replacement: "none"
   note: "No atomic take-and-match helper exists in TxHashSet; select and remove explicitly inside Effect.tx."

@@ -71,8 +71,8 @@ const codeByLiteral = {
   InsufficientStorage: 507,
   LoopDetected: 508,
   NotExtended: 510,
-  NetworkAuthenticationRequired: 511
-} as const
+  NetworkAuthenticationRequired: 511,
+} as const;
 
 /**
  * Union of literal names for the known HTTP status codes.
@@ -80,7 +80,7 @@ const codeByLiteral = {
  * @category models
  * @since 4.0.0
  */
-export type Literal = keyof typeof codeByLiteral
+export type Literal = keyof typeof codeByLiteral;
 
 /**
  * Returns the numeric HTTP status code for a literal name.
@@ -97,4 +97,5 @@ export type Literal = keyof typeof codeByLiteral
  * @category constructors
  * @since 4.0.0
  */
-export const fromLiteral = <L extends Literal>(literal: L): (typeof codeByLiteral)[L] => codeByLiteral[literal]
+export const fromLiteral = <L extends Literal>(literal: L): (typeof codeByLiteral)[L] =>
+  codeByLiteral[literal];

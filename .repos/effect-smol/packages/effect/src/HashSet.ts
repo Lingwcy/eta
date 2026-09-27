@@ -10,15 +10,15 @@
  * @since 2.0.0
  */
 
-import type { Equal } from "./Equal.ts"
-import * as Dual from "./Function.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import * as internal from "./internal/hashSet.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import type { Predicate, Refinement } from "./Predicate.ts"
-import type { NoInfer } from "./Types.ts"
+import type { Equal } from "./Equal.ts";
+import * as Dual from "./Function.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import * as internal from "./internal/hashSet.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import type { Predicate, Refinement } from "./Predicate.ts";
+import type { NoInfer } from "./Types.ts";
 
-const TypeId = internal.HashSetTypeId
+const TypeId = internal.HashSetTypeId;
 
 /**
  * A HashSet is an immutable set data structure that provides efficient storage
@@ -49,7 +49,7 @@ const TypeId = internal.HashSetTypeId
  * @since 2.0.0
  */
 export interface HashSet<out Value> extends Iterable<Value>, Equal, Pipeable, Inspectable {
-  readonly [TypeId]: typeof TypeId
+  readonly [TypeId]: typeof TypeId;
 }
 
 /**
@@ -101,7 +101,7 @@ export declare namespace HashSet {
    * @category utility types
    * @since 4.0.0
    */
-  export type Value<T> = T extends HashSet<infer V> ? V : never
+  export type Value<T> = T extends HashSet<infer V> ? V : never;
 }
 
 /**
@@ -125,7 +125,7 @@ export declare namespace HashSet {
  * @category constructors
  * @since 2.0.0
  */
-export const empty: <V = never>() => HashSet<V> = internal.empty
+export const empty: <V = never>() => HashSet<V> = internal.empty;
 
 /**
  * Creates a HashSet from a variable number of values.
@@ -147,7 +147,7 @@ export const empty: <V = never>() => HashSet<V> = internal.empty
  */
 export const make: <Values extends ReadonlyArray<any>>(
   ...values: Values
-) => HashSet<Values[number]> = internal.make
+) => HashSet<Values[number]> = internal.make;
 
 /**
  * Creates a HashSet from an iterable collection of values.
@@ -167,7 +167,7 @@ export const make: <Values extends ReadonlyArray<any>>(
  * @category constructors
  * @since 2.0.0
  */
-export const fromIterable: <V>(values: Iterable<V>) => HashSet<V> = internal.fromIterable
+export const fromIterable: <V>(values: Iterable<V>) => HashSet<V> = internal.fromIterable;
 
 /**
  * Checks whether a value is a HashSet.
@@ -189,9 +189,9 @@ export const fromIterable: <V>(values: Iterable<V>) => HashSet<V> = internal.fro
  * @since 2.0.0
  */
 export const isHashSet: {
-  <V>(u: Iterable<V>): u is HashSet<V>
-  (u: unknown): u is HashSet<unknown>
-} = internal.isHashSet
+  <V>(u: Iterable<V>): u is HashSet<V>;
+  (u: unknown): u is HashSet<unknown>;
+} = internal.isHashSet;
 
 /**
  * Adds a value to the HashSet, returning a new HashSet.
@@ -216,12 +216,12 @@ export const isHashSet: {
  * @since 2.0.0
  */
 export const add: {
-  <V>(value: V): (self: HashSet<V>) => HashSet<V>
-  <V>(self: HashSet<V>, value: V): HashSet<V>
+  <V>(value: V): (self: HashSet<V>) => HashSet<V>;
+  <V>(self: HashSet<V>, value: V): HashSet<V>;
 } = Dual.dual<
   <V>(value: V) => (self: HashSet<V>) => HashSet<V>,
   <V>(self: HashSet<V>, value: V) => HashSet<V>
->(2, internal.add)
+>(2, internal.add);
 
 /**
  * Checks whether the HashSet contains the specified value.
@@ -258,12 +258,12 @@ export const add: {
  * @since 2.0.0
  */
 export const has: {
-  <V>(value: V): (self: HashSet<V>) => boolean
-  <V>(self: HashSet<V>, value: V): boolean
+  <V>(value: V): (self: HashSet<V>) => boolean;
+  <V>(self: HashSet<V>, value: V): boolean;
 } = Dual.dual<
   <V>(value: V) => (self: HashSet<V>) => boolean,
   <V>(self: HashSet<V>, value: V) => boolean
->(2, internal.has)
+>(2, internal.has);
 
 /**
  * Removes a value from the HashSet, returning a new HashSet.
@@ -288,12 +288,12 @@ export const has: {
  * @since 2.0.0
  */
 export const remove: {
-  <V>(value: V): (self: HashSet<V>) => HashSet<V>
-  <V>(self: HashSet<V>, value: V): HashSet<V>
+  <V>(value: V): (self: HashSet<V>) => HashSet<V>;
+  <V>(self: HashSet<V>, value: V): HashSet<V>;
 } = Dual.dual<
   <V>(value: V) => (self: HashSet<V>) => HashSet<V>,
   <V>(self: HashSet<V>, value: V) => HashSet<V>
->(2, internal.remove)
+>(2, internal.remove);
 
 /**
  * Returns the number of values in the HashSet.
@@ -313,7 +313,7 @@ export const remove: {
  * @category getters
  * @since 2.0.0
  */
-export const size: <V>(self: HashSet<V>) => number = internal.size
+export const size: <V>(self: HashSet<V>) => number = internal.size;
 
 /**
  * Checks whether the HashSet is empty.
@@ -331,7 +331,7 @@ export const size: <V>(self: HashSet<V>) => number = internal.size
  * @category predicates
  * @since 4.0.0
  */
-export const isEmpty: <V>(self: HashSet<V>) => boolean = internal.isEmpty
+export const isEmpty: <V>(self: HashSet<V>) => boolean = internal.isEmpty;
 
 /**
  * Creates the union of two HashSets.
@@ -348,12 +348,12 @@ export const isEmpty: <V>(self: HashSet<V>) => boolean = internal.isEmpty
  * @since 2.0.0
  */
 export const union: {
-  <V1>(that: HashSet<V1>): <V0>(self: HashSet<V0>) => HashSet<V1 | V0>
-  <V0, V1>(self: HashSet<V0>, that: HashSet<V1>): HashSet<V0 | V1>
+  <V1>(that: HashSet<V1>): <V0>(self: HashSet<V0>) => HashSet<V1 | V0>;
+  <V0, V1>(self: HashSet<V0>, that: HashSet<V1>): HashSet<V0 | V1>;
 } = Dual.dual<
   <V1>(that: HashSet<V1>) => <V0>(self: HashSet<V0>) => HashSet<V1 | V0>,
   <V0, V1>(self: HashSet<V0>, that: HashSet<V1>) => HashSet<V0 | V1>
->(2, internal.union)
+>(2, internal.union);
 
 /**
  * Creates the intersection of two HashSets.
@@ -370,12 +370,12 @@ export const union: {
  * @since 2.0.0
  */
 export const intersection: {
-  <V1>(that: HashSet<V1>): <V0>(self: HashSet<V0>) => HashSet<V1 & V0>
-  <V0, V1>(self: HashSet<V0>, that: HashSet<V1>): HashSet<V0 & V1>
+  <V1>(that: HashSet<V1>): <V0>(self: HashSet<V0>) => HashSet<V1 & V0>;
+  <V0, V1>(self: HashSet<V0>, that: HashSet<V1>): HashSet<V0 & V1>;
 } = Dual.dual<
   <V1>(that: HashSet<V1>) => <V0>(self: HashSet<V0>) => HashSet<V1 & V0>,
   <V0, V1>(self: HashSet<V0>, that: HashSet<V1>) => HashSet<V0 & V1>
->(2, internal.intersection)
+>(2, internal.intersection);
 
 /**
  * Creates the difference of two HashSets (elements in the first set that are not in the second).
@@ -392,12 +392,12 @@ export const intersection: {
  * @since 2.0.0
  */
 export const difference: {
-  <V1>(that: HashSet<V1>): <V0>(self: HashSet<V0>) => HashSet<V0>
-  <V0, V1>(self: HashSet<V0>, that: HashSet<V1>): HashSet<V0>
+  <V1>(that: HashSet<V1>): <V0>(self: HashSet<V0>) => HashSet<V0>;
+  <V0, V1>(self: HashSet<V0>, that: HashSet<V1>): HashSet<V0>;
 } = Dual.dual<
   <V1>(that: HashSet<V1>) => <V0>(self: HashSet<V0>) => HashSet<V0>,
   <V0, V1>(self: HashSet<V0>, that: HashSet<V1>) => HashSet<V0>
->(2, internal.difference)
+>(2, internal.difference);
 
 /**
  * Checks whether a HashSet is a subset of another HashSet.
@@ -421,12 +421,12 @@ export const difference: {
  * @since 2.0.0
  */
 export const isSubset: {
-  <V1>(that: HashSet<V1>): <V0>(self: HashSet<V0>) => boolean
-  <V0, V1>(self: HashSet<V0>, that: HashSet<V1>): boolean
+  <V1>(that: HashSet<V1>): <V0>(self: HashSet<V0>) => boolean;
+  <V0, V1>(self: HashSet<V0>, that: HashSet<V1>): boolean;
 } = Dual.dual<
   <V1>(that: HashSet<V1>) => <V0>(self: HashSet<V0>) => boolean,
   <V0, V1>(self: HashSet<V0>, that: HashSet<V1>) => boolean
->(2, internal.isSubset)
+>(2, internal.isSubset);
 
 /**
  * Maps each value in the HashSet using the provided function.
@@ -451,12 +451,12 @@ export const isSubset: {
  * @since 2.0.0
  */
 export const map: {
-  <V, U>(f: (value: V) => U): (self: HashSet<V>) => HashSet<U>
-  <V, U>(self: HashSet<V>, f: (value: V) => U): HashSet<U>
+  <V, U>(f: (value: V) => U): (self: HashSet<V>) => HashSet<U>;
+  <V, U>(self: HashSet<V>, f: (value: V) => U): HashSet<U>;
 } = Dual.dual<
   <V, U>(f: (value: V) => U) => (self: HashSet<V>) => HashSet<U>,
   <V, U>(self: HashSet<V>, f: (value: V) => U) => HashSet<U>
->(2, internal.map)
+>(2, internal.map);
 
 /**
  * Filters the HashSet keeping only values that satisfy the predicate.
@@ -473,20 +473,20 @@ export const map: {
  * @since 2.0.0
  */
 export const filter: {
-  <V, U extends V>(refinement: Refinement<NoInfer<V>, U>): (self: HashSet<V>) => HashSet<U>
-  <V>(predicate: Predicate<NoInfer<V>>): (self: HashSet<V>) => HashSet<V>
-  <V, U extends V>(self: HashSet<V>, refinement: Refinement<V, U>): HashSet<U>
-  <V>(self: HashSet<V>, predicate: Predicate<V>): HashSet<V>
+  <V, U extends V>(refinement: Refinement<NoInfer<V>, U>): (self: HashSet<V>) => HashSet<U>;
+  <V>(predicate: Predicate<NoInfer<V>>): (self: HashSet<V>) => HashSet<V>;
+  <V, U extends V>(self: HashSet<V>, refinement: Refinement<V, U>): HashSet<U>;
+  <V>(self: HashSet<V>, predicate: Predicate<V>): HashSet<V>;
 } = Dual.dual<
   {
-    <V, U extends V>(refinement: Refinement<NoInfer<V>, U>): (self: HashSet<V>) => HashSet<U>
-    <V>(predicate: Predicate<NoInfer<V>>): (self: HashSet<V>) => HashSet<V>
+    <V, U extends V>(refinement: Refinement<NoInfer<V>, U>): (self: HashSet<V>) => HashSet<U>;
+    <V>(predicate: Predicate<NoInfer<V>>): (self: HashSet<V>) => HashSet<V>;
   },
   {
-    <V, U extends V>(self: HashSet<V>, refinement: Refinement<V, U>): HashSet<U>
-    <V>(self: HashSet<V>, predicate: Predicate<V>): HashSet<V>
+    <V, U extends V>(self: HashSet<V>, refinement: Refinement<V, U>): HashSet<U>;
+    <V>(self: HashSet<V>, predicate: Predicate<V>): HashSet<V>;
   }
->(2, internal.filter)
+>(2, internal.filter);
 
 /**
  * Checks whether at least one value in the HashSet satisfies the predicate.
@@ -508,12 +508,12 @@ export const filter: {
  * @since 2.0.0
  */
 export const some: {
-  <V>(predicate: Predicate<V>): (self: HashSet<V>) => boolean
-  <V>(self: HashSet<V>, predicate: Predicate<V>): boolean
+  <V>(predicate: Predicate<V>): (self: HashSet<V>) => boolean;
+  <V>(self: HashSet<V>, predicate: Predicate<V>): boolean;
 } = Dual.dual<
   <V>(predicate: Predicate<V>) => (self: HashSet<V>) => boolean,
   <V>(self: HashSet<V>, predicate: Predicate<V>) => boolean
->(2, internal.some)
+>(2, internal.some);
 
 /**
  * Checks whether all values in the HashSet satisfy the predicate.
@@ -535,12 +535,12 @@ export const some: {
  * @since 2.0.0
  */
 export const every: {
-  <V>(predicate: Predicate<V>): (self: HashSet<V>) => boolean
-  <V>(self: HashSet<V>, predicate: Predicate<V>): boolean
+  <V>(predicate: Predicate<V>): (self: HashSet<V>) => boolean;
+  <V>(self: HashSet<V>, predicate: Predicate<V>): boolean;
 } = Dual.dual<
   <V>(predicate: Predicate<V>) => (self: HashSet<V>) => boolean,
   <V>(self: HashSet<V>, predicate: Predicate<V>) => boolean
->(2, internal.every)
+>(2, internal.every);
 
 /**
  * Reduces the HashSet to a single value by iterating through the values and applying an accumulator function.
@@ -558,9 +558,9 @@ export const every: {
  * @since 2.0.0
  */
 export const reduce: {
-  <V, U>(zero: U, f: (accumulator: U, value: V) => U): (self: HashSet<V>) => U
-  <V, U>(self: HashSet<V>, zero: U, f: (accumulator: U, value: V) => U): U
+  <V, U>(zero: U, f: (accumulator: U, value: V) => U): (self: HashSet<V>) => U;
+  <V, U>(self: HashSet<V>, zero: U, f: (accumulator: U, value: V) => U): U;
 } = Dual.dual<
   <V, U>(zero: U, f: (accumulator: U, value: V) => U) => (self: HashSet<V>) => U,
   <V, U>(self: HashSet<V>, zero: U, f: (accumulator: U, value: V) => U) => U
->(3, internal.reduce)
+>(3, internal.reduce);

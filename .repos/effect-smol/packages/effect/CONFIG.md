@@ -14,14 +14,14 @@ You describe _what_ you need with `Config`, and the library figures out _how_ to
 The simplest case: read one value from an environment variable.
 
 ```ts
-import { Config, Effect } from "effect"
+import { Config, Effect } from "effect";
 
-const program = Effect.gen(function*() {
-  const host = yield* Config.String("HOST")
-  console.log(host)
-})
+const program = Effect.gen(function* () {
+  const host = yield* Config.String("HOST");
+  console.log(host);
+});
 
-Effect.runSync(program)
+Effect.runSync(program);
 // reads HOST from process.env
 ```
 
@@ -32,19 +32,19 @@ When you yield a `Config` inside `Effect.gen`, it automatically uses the default
 Use `Config.all` to group related keys:
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
 const dbConfig = Config.all({
   host: Config.String("host"),
-  port: Config.Int("port")
-})
+  port: Config.Int("port"),
+});
 
 const provider = ConfigProvider.fromUnknown({
   host: "localhost",
-  port: 5432
-})
+  port: 5432,
+});
 
-const result = Effect.runSync(dbConfig.parse(provider))
+const result = Effect.runSync(dbConfig.parse(provider));
 // { host: "localhost", port: 5432 }
 ```
 
@@ -53,23 +53,23 @@ const result = Effect.runSync(dbConfig.parse(provider))
 For larger configs, use `Config.schema` with a `Schema.Struct`:
 
 ```ts
-import { Config, ConfigProvider, Effect, Schema } from "effect"
+import { Config, ConfigProvider, Effect, Schema } from "effect";
 
 const AppConfig = Config.schema(
   Schema.Struct({
     host: Schema.String,
     port: Schema.Int,
-    debug: Schema.Boolean
-  })
-)
+    debug: Schema.Boolean,
+  }),
+);
 
 const provider = ConfigProvider.fromUnknown({
   host: "localhost",
   port: 8080,
-  debug: true
-})
+  debug: true,
+});
 
-const result = Effect.runSync(AppConfig.parse(provider))
+const result = Effect.runSync(AppConfig.parse(provider));
 // { host: "localhost", port: 8080, debug: true }
 ```
 
@@ -118,12 +118,12 @@ The same rule applies when a `Config` is yielded as an `Effect`: the config uses
 Triggers when the config cannot resolve and none of its relevant provider input is present. Validation errors and partially supplied groups still propagate.
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
-const port = Config.Int("port").pipe(Config.withDefault(3000))
+const port = Config.Int("port").pipe(Config.withDefault(3000));
 
-const provider = ConfigProvider.fromUnknown({})
-Effect.runSync(port.parse(provider)) // 3000
+const provider = ConfigProvider.fromUnknown({});
+Effect.runSync(port.parse(provider)); // 3000
 ```
 
 ### `Config.option` — Optional Values
@@ -131,22 +131,20 @@ Effect.runSync(port.parse(provider)) // 3000
 Returns `Option.some(value)` on success and `Option.none()` when the config is absent. A successful `undefined` value is still a success, so a schema that accepts missing input produces `Option.some(undefined)`, not `Option.none()`.
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
-const maybePort = Config.option(Config.Int("port"))
+const maybePort = Config.option(Config.Int("port"));
 
-const provider = ConfigProvider.fromUnknown({})
-Effect.runSync(maybePort.parse(provider)) // { _tag: "None" }
+const provider = ConfigProvider.fromUnknown({});
+Effect.runSync(maybePort.parse(provider)); // { _tag: "None" }
 ```
 
 ### `Config.map` — Transform a Value
 
 ```ts
-import { Config } from "effect"
+import { Config } from "effect";
 
-const upperHost = Config.String("HOST").pipe(
-  Config.map((s) => s.toUpperCase())
-)
+const upperHost = Config.String("HOST").pipe(Config.map((s) => s.toUpperCase()));
 ```
 
 ### `Config.orElse` — Fallback on Any Error
@@ -154,11 +152,9 @@ const upperHost = Config.String("HOST").pipe(
 Unlike `withDefault`, this catches **all** `ConfigError`s:
 
 ```ts
-import { Config } from "effect"
+import { Config } from "effect";
 
-const host = Config.String("HOST").pipe(
-  Config.orElse(() => Config.succeed("localhost"))
-)
+const host = Config.String("HOST").pipe(Config.orElse(() => Config.succeed("localhost")));
 ```
 
 ### `Config.nested` — Scope a Config Under a Prefix
@@ -166,54 +162,51 @@ const host = Config.String("HOST").pipe(
 Prepends a logical path segment to every key the inner config reads. The prefix is used for both provider lookups and schema error paths:
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
 const dbConfig = Config.all({
   host: Config.String("host"),
-  port: Config.Int("port")
-}).pipe(Config.nested("database"))
+  port: Config.Int("port"),
+}).pipe(Config.nested("database"));
 
 const provider = ConfigProvider.fromUnknown({
-  database: { host: "localhost", port: 5432 }
-})
+  database: { host: "localhost", port: 5432 },
+});
 
-Effect.runSync(dbConfig.parse(provider))
+Effect.runSync(dbConfig.parse(provider));
 // { host: "localhost", port: 5432 }
 ```
 
 With environment variables, nesting uses `_` as separator:
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
-const host = Config.String("host").pipe(Config.nested("database"))
+const host = Config.String("host").pipe(Config.nested("database"));
 
 const provider = ConfigProvider.fromEnv({
-  env: { database_host: "localhost" }
-})
+  env: { database_host: "localhost" },
+});
 
-Effect.runSync(host.parse(provider)) // "localhost"
+Effect.runSync(host.parse(provider)); // "localhost"
 ```
 
 Multiple `Config.nested` calls compose with the outermost prefix first:
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
-const config = Config.String("host").pipe(
-  Config.nested("database"),
-  Config.nested("production")
-)
+const config = Config.String("host").pipe(Config.nested("database"), Config.nested("production"));
 
 const provider = ConfigProvider.fromUnknown({
   production: {
     database: {
-      host: "localhost"
-    }
-  }
-})
+      host: "localhost",
+    },
+  },
+});
 
-Effect.runSync(config.parse(provider)) // "localhost"
+Effect.runSync(config.parse(provider)); // "localhost"
 ```
 
 ### `Config.all` — Combine Multiple Configs
@@ -221,30 +214,28 @@ Effect.runSync(config.parse(provider)) // "localhost"
 Accepts a record or a tuple. A wholly absent group can be handled by `Config.withDefault` or `Config.option`. If any child reads provider input, every other required child must also resolve; partial groups fail instead of silently replacing user input with a whole-group default.
 
 ```ts
-import { Config } from "effect"
+import { Config } from "effect";
 
 // As a record
 const appConfig = Config.all({
   host: Config.String("host"),
   port: Config.Int("port"),
-  debug: Config.Boolean("debug")
-})
+  debug: Config.Boolean("debug"),
+});
 
 // As a tuple
-const pair = Config.all([Config.String("a"), Config.Int("b")])
+const pair = Config.all([Config.String("a"), Config.Int("b")]);
 ```
 
 For example, providing only `host` is an error here:
 
 ```ts
-import { Config } from "effect"
+import { Config } from "effect";
 
 const database = Config.all({
   host: Config.String("host"),
-  port: Config.Int("port")
-}).pipe(
-  Config.withDefault({ host: "localhost", port: 5432 })
-)
+  port: Config.Int("port"),
+}).pipe(Config.withDefault({ host: "localhost", port: 5432 }));
 ```
 
 The default applies when both keys are absent, but not when only one key is present. Defaults on individual children do not count as provider input:
@@ -252,8 +243,8 @@ The default applies when both keys are absent, but not when only one key is pres
 ```ts
 const listener = Config.all({
   host: Config.String("host"),
-  port: Config.Int("port").pipe(Config.withDefault(8080))
-}).pipe(Config.option)
+  port: Config.Int("port").pipe(Config.withDefault(8080)),
+}).pipe(Config.option);
 ```
 
 `listener` is `None` when both keys are absent, `Some` when `host` is present, and fails when only `port` is present.
@@ -305,13 +296,15 @@ If you need custom lookup behavior for a new backing source, implement a `Config
 `Config.Array` accepts `{ separator? }`, while `Config.Record` accepts `{ separator?, keyValueSeparator? }`. Pass the options object directly to read the provider root, or place a string or `ConfigProvider.Path` before it to select a path:
 
 ```ts
-import { Config, Schema } from "effect"
+import { Config, Schema } from "effect";
 
-const rootValues = Config.Array(Schema.String, { separator: ";" })
-const namedValues = Config.Array(Schema.String, "VALUES", { separator: ";" })
+const rootValues = Config.Array(Schema.String, { separator: ";" });
+const namedValues = Config.Array(Schema.String, "VALUES", { separator: ";" });
 
-const rootHeaders = Config.Record(Schema.String, Schema.String, { keyValueSeparator: ":" })
-const namedHeaders = Config.Record(Schema.String, Schema.String, "HEADERS", { keyValueSeparator: ":" })
+const rootHeaders = Config.Record(Schema.String, Schema.String, { keyValueSeparator: ":" });
+const namedHeaders = Config.Record(Schema.String, Schema.String, "HEADERS", {
+  keyValueSeparator: ":",
+});
 ```
 
 ## ConfigProvider Sources
@@ -333,20 +326,18 @@ scalar value.
 This is the default provider. Path segments are joined with `_` for lookup.
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
 const provider = ConfigProvider.fromEnv({
   env: {
     DATABASE_HOST: "localhost",
-    DATABASE_PORT: "5432"
-  }
-})
+    DATABASE_PORT: "5432",
+  },
+});
 
-const host = Config.String("HOST").parse(
-  provider.pipe(ConfigProvider.nested("DATABASE"))
-)
+const host = Config.String("HOST").parse(provider.pipe(ConfigProvider.nested("DATABASE")));
 
-Effect.runSync(host) // "localhost"
+Effect.runSync(host); // "localhost"
 ```
 
 **How `_` splitting works**: env var names are split on `_` to build a tree. This means `DATABASE_HOST=localhost` is accessible at both `["DATABASE_HOST"]` (flat) and `["DATABASE", "HOST"]` (nested). Querying `["DATABASE"]` returns a Record node with child key `"HOST"`.
@@ -358,7 +349,7 @@ Pass `{ env: { ... } }` for testing. Omit to use `process.env` (merged with `imp
 Ideal for testing or embedding config in code:
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
 const provider = ConfigProvider.fromUnknown({
   database: {
@@ -366,11 +357,11 @@ const provider = ConfigProvider.fromUnknown({
     port: 5432,
     credentials: {
       username: "admin",
-      password: "secret"
-    }
+      password: "secret",
+    },
   },
-  servers: ["server1", "server2", "server3"]
-})
+  servers: ["server1", "server2", "server3"],
+});
 ```
 
 Path traversal follows standard JS rules: string segments index into object keys, numeric segments index into arrays. Primitive values are automatically stringified.
@@ -380,31 +371,31 @@ Path traversal follows standard JS rules: string segments index into object keys
 When you already have the `.env` content as a string:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const contents = `
 # Database settings
 HOST=localhost
 PORT=3000
 SECRET="my-secret-value"
-`
+`;
 
-const provider = ConfigProvider.fromDotEnvContents(contents)
+const provider = ConfigProvider.fromDotEnvContents(contents);
 ```
 
 Supports `export` prefixes, single/double/backtick quoting, inline comments, and escaped newlines. Enable variable expansion with `{ expandVariables: true }`:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const contents = `
 PASSWORD=secret
 DB_PASS=$PASSWORD
-`
+`;
 
 const provider = ConfigProvider.fromDotEnvContents(contents, {
-  expandVariables: true
-})
+  expandVariables: true,
+});
 ```
 
 ### `ConfigProvider.fromDotEnv` — Load `.env` Files
@@ -412,13 +403,13 @@ const provider = ConfigProvider.fromDotEnvContents(contents, {
 Reads a `.env` file from disk. Returns an `Effect` (requires `FileSystem` in context):
 
 ```ts
-import { ConfigProvider, Effect } from "effect"
+import { ConfigProvider, Effect } from "effect";
 
-const program = Effect.gen(function*() {
-  const provider = yield* ConfigProvider.fromDotEnv()
+const program = Effect.gen(function* () {
+  const provider = yield* ConfigProvider.fromDotEnv();
   // or: yield* ConfigProvider.fromDotEnv({ path: "/custom/.env" })
-  return provider
-})
+  return provider;
+});
 ```
 
 ### `ConfigProvider.fromDir` — Directory Trees
@@ -434,14 +425,14 @@ Reads config from a file-system tree where each file is a leaf and each director
 ```
 
 ```ts
-import { ConfigProvider, Effect } from "effect"
+import { ConfigProvider, Effect } from "effect";
 
-const program = Effect.gen(function*() {
+const program = Effect.gen(function* () {
   const provider = yield* ConfigProvider.fromDir({
-    rootPath: "/etc/myapp"
-  })
-  return provider
-})
+    rootPath: "/etc/myapp",
+  });
+  return provider;
+});
 ```
 
 Requires `Path` and `FileSystem` in the Effect context.
@@ -453,20 +444,18 @@ Missing files and directories return `undefined`, so fallback providers can hand
 Build a provider from any backing store:
 
 ```ts
-import { ConfigProvider, Effect } from "effect"
+import { ConfigProvider, Effect } from "effect";
 
 const data: Record<string, string> = {
   host: "localhost",
-  port: "5432"
-}
+  port: "5432",
+};
 
 const provider = ConfigProvider.make((path) => {
-  const key = path.join(".")
-  const value = data[key]
-  return Effect.succeed(
-    value !== undefined ? ConfigProvider.makeValue(value) : undefined
-  )
-})
+  const key = path.join(".");
+  const value = data[key];
+  return Effect.succeed(value !== undefined ? ConfigProvider.makeValue(value) : undefined);
+});
 ```
 
 Return `undefined` for "not found" and a `Node` for a path that exists. Only
@@ -481,33 +470,33 @@ with `make` automatically support the path-transformation behavior used by
 Falls back to a second provider when the first returns `undefined` (path not found). Does **not** catch `SourceError`.
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const envProvider = ConfigProvider.fromEnv({
-  env: { HOST: "prod.example.com" }
-})
+  env: { HOST: "prod.example.com" },
+});
 const defaults = ConfigProvider.fromUnknown({
   HOST: "localhost",
-  PORT: "3000"
-})
+  PORT: "3000",
+});
 
-const combined = ConfigProvider.orElse(envProvider, defaults)
+const combined = ConfigProvider.orElse(envProvider, defaults);
 ```
 
 Each side keeps its own path transformations. If you combine providers that were already scoped or mapped, those transformations remain local to that side:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const envProvider = ConfigProvider.fromEnv({
-  env: { DATABASE_HOST: "localhost" }
-}).pipe(ConfigProvider.constantCase)
+  env: { DATABASE_HOST: "localhost" },
+}).pipe(ConfigProvider.constantCase);
 
 const defaults = ConfigProvider.fromEnv({
-  env: { APP_PORT: "3000" }
-}).pipe(ConfigProvider.nested("APP"))
+  env: { APP_PORT: "3000" },
+}).pipe(ConfigProvider.nested("APP"));
 
-const combined = envProvider.pipe(ConfigProvider.orElse(defaults))
+const combined = envProvider.pipe(ConfigProvider.orElse(defaults));
 ```
 
 ### `ConfigProvider.nested` — Prefix All Lookups
@@ -515,14 +504,14 @@ const combined = envProvider.pipe(ConfigProvider.orElse(defaults))
 Prepends path segments so that all lookups are scoped:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const provider = ConfigProvider.fromEnv({
-  env: { APP_HOST: "localhost", APP_PORT: "3000" }
-})
+  env: { APP_HOST: "localhost", APP_PORT: "3000" },
+});
 
 // Lookups for ["HOST"] now resolve to ["APP", "HOST"]
-const scoped = ConfigProvider.nested(provider, "APP")
+const scoped = ConfigProvider.nested(provider, "APP");
 ```
 
 Accepts a single string or a full `Path` array.
@@ -530,14 +519,11 @@ Accepts a single string or a full `Path` array.
 Provider transformations compose in application order. A later `nested` becomes the outer prefix:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const provider = ConfigProvider.fromEnv({
-  env: { B_A_KEY: "value" }
-}).pipe(
-  ConfigProvider.nested("A"),
-  ConfigProvider.nested("B")
-)
+  env: { B_A_KEY: "value" },
+}).pipe(ConfigProvider.nested("A"), ConfigProvider.nested("B"));
 
 // path ["KEY"] resolves to ["B", "A", "KEY"]
 ```
@@ -549,11 +535,11 @@ When `nested` is applied to a provider built with `ConfigProvider.orElse`, the p
 Bridges camelCase schema keys to environment variable naming:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const provider = ConfigProvider.fromEnv({
-  env: { DATABASE_HOST: "localhost" }
-}).pipe(ConfigProvider.constantCase)
+  env: { DATABASE_HOST: "localhost" },
+}).pipe(ConfigProvider.constantCase);
 
 // path ["databaseHost"] now resolves to ["DATABASE_HOST"]
 ```
@@ -561,23 +547,17 @@ const provider = ConfigProvider.fromEnv({
 Ordering matters with `nested`. `constantCase` is a path transform, so it only converts the path it receives at that point in the pipeline:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const convertedPrefix = ConfigProvider.fromEnv({
-  env: { APP_HOST: "localhost" }
-}).pipe(
-  ConfigProvider.nested("app"),
-  ConfigProvider.constantCase
-)
+  env: { APP_HOST: "localhost" },
+}).pipe(ConfigProvider.nested("app"), ConfigProvider.constantCase);
 
 // path ["host"] resolves to ["APP", "HOST"]
 
 const literalPrefix = ConfigProvider.fromEnv({
-  env: { app_HOST: "localhost" }
-}).pipe(
-  ConfigProvider.constantCase,
-  ConfigProvider.nested("app")
-)
+  env: { app_HOST: "localhost" },
+}).pipe(ConfigProvider.constantCase, ConfigProvider.nested("app"));
 
 // path ["host"] resolves to ["app", "HOST"]
 ```
@@ -589,16 +569,15 @@ Put `constantCase` after `nested` when the prefix should be converted too.
 Transform the whole path before lookup:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const provider = ConfigProvider.fromEnv({
-  env: { APP_HOST: "localhost" }
-})
+  env: { APP_HOST: "localhost" },
+});
 
-const upper = ConfigProvider.mapInput(
-  provider,
-  (path) => path.map((seg) => typeof seg === "string" ? seg.toUpperCase() : seg)
-)
+const upper = ConfigProvider.mapInput(provider, (path) =>
+  path.map((seg) => (typeof seg === "string" ? seg.toUpperCase() : seg)),
+);
 ```
 
 Path transformation is a capability of the `ConfigProvider` interface. The
@@ -612,16 +591,13 @@ which implements this capability automatically.
 `mapInput` runs after earlier provider transformations, so it sees the full path produced so far:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
-const appendLeaf = ConfigProvider.mapInput((path) => [...path, "leaf"])
+const appendLeaf = ConfigProvider.mapInput((path) => [...path, "leaf"]);
 
 const provider = ConfigProvider.fromEnv({
-  env: { APP_KEY_leaf: "value" }
-}).pipe(
-  ConfigProvider.nested("APP"),
-  appendLeaf
-)
+  env: { APP_KEY_leaf: "value" },
+}).pipe(ConfigProvider.nested("APP"), appendLeaf);
 
 // path ["KEY"] resolves to ["APP", "KEY", "leaf"]
 ```
@@ -635,18 +611,16 @@ When `mapInput` is applied to a provider built with `ConfigProvider.orElse`, the
 Replaces the active provider for all downstream effects:
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
-const TestLayer = ConfigProvider.layer(
-  ConfigProvider.fromUnknown({ port: 8080 })
-)
+const TestLayer = ConfigProvider.layer(ConfigProvider.fromUnknown({ port: 8080 }));
 
-const program = Effect.gen(function*() {
-  const port = yield* Config.Int("port")
-  return port
-})
+const program = Effect.gen(function* () {
+  const port = yield* Config.Int("port");
+  return port;
+});
 
-Effect.runSync(Effect.provide(program, TestLayer)) // 8080
+Effect.runSync(Effect.provide(program, TestLayer)); // 8080
 ```
 
 ### Using `ConfigProvider.layerAdd`
@@ -654,15 +628,15 @@ Effect.runSync(Effect.provide(program, TestLayer)) // 8080
 Adds a provider without replacing the existing one. By default, the new provider is a **fallback**:
 
 ```ts
-import { ConfigProvider } from "effect"
+import { ConfigProvider } from "effect";
 
 const defaults = ConfigProvider.fromUnknown({
   HOST: "localhost",
-  PORT: "3000"
-})
+  PORT: "3000",
+});
 
 // process.env is tried first; `defaults` is the fallback
-const DefaultsLayer = ConfigProvider.layerAdd(defaults)
+const DefaultsLayer = ConfigProvider.layerAdd(defaults);
 ```
 
 Set `{ asPrimary: true }` to make the new provider the primary source instead.
@@ -672,16 +646,14 @@ Set `{ asPrimary: true }` to make the new provider the primary source instead.
 For one-off overrides without layers:
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
-const provider = ConfigProvider.fromUnknown({ HOST: "localhost" })
+const provider = ConfigProvider.fromUnknown({ HOST: "localhost" });
 
-const program = Effect.gen(function*() {
-  const host = yield* Config.String("HOST")
-  return host
-}).pipe(
-  Effect.provideService(ConfigProvider.ConfigProvider, provider)
-)
+const program = Effect.gen(function* () {
+  const host = yield* Config.String("HOST");
+  return host;
+}).pipe(Effect.provideService(ConfigProvider.ConfigProvider, provider));
 ```
 
 ## Two Ways to Run a Config
@@ -689,16 +661,16 @@ const program = Effect.gen(function*() {
 1. **Yield in `Effect.gen`** — automatically uses the current `ConfigProvider` from the service map:
 
    ```ts
-   const program = Effect.gen(function*() {
-     const host = yield* Config.String("HOST")
-   })
+   const program = Effect.gen(function* () {
+     const host = yield* Config.String("HOST");
+   });
    ```
 
 2. **Call `.parse(provider)` directly** — useful for testing or when you have a specific provider:
 
    ```ts
-   const host = Config.String("HOST")
-   const result = Effect.runSync(host.parse(provider))
+   const host = Config.String("HOST");
+   const result = Effect.runSync(host.parse(provider));
    ```
 
    The method accepts only the provider. Use `Config.nested` or the path argument of `Config.schema` to scope lookups.
@@ -713,21 +685,21 @@ Config operations fail with `ConfigError`, which wraps either:
 Check `error.cause._tag` to distinguish:
 
 ```ts
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect } from "effect";
 
-const program = Config.Int("PORT").parse(
-  ConfigProvider.fromUnknown({ PORT: "not-a-number" })
-).pipe(
-  Effect.tapError((error) =>
-    Effect.sync(() => {
-      if (error.cause._tag === "SchemaError") {
-        console.log("Validation failed:", error.message)
-      } else {
-        console.log("Source error:", error.message)
-      }
-    })
-  )
-)
+const program = Config.Int("PORT")
+  .parse(ConfigProvider.fromUnknown({ PORT: "not-a-number" }))
+  .pipe(
+    Effect.tapError((error) =>
+      Effect.sync(() => {
+        if (error.cause._tag === "SchemaError") {
+          console.log("Validation failed:", error.message);
+        } else {
+          console.log("Source error:", error.message);
+        }
+      }),
+    ),
+  );
 ```
 
 **Important**: `Config.withDefault` and `Config.option` recover only from semantic absence. They do not classify `SchemaIssue` values as “missing.” Validation errors, source failures, and partially supplied groups still propagate.
@@ -735,48 +707,46 @@ const program = Config.Int("PORT").parse(
 ## Practical Example: Web Server Config
 
 ```ts
-import { Config, ConfigProvider, Effect, Schema } from "effect"
+import { Config, ConfigProvider, Effect, Schema } from "effect";
 
 // Define your config shape
 const ServerConfig = Config.schema(
   Schema.Struct({
     host: Schema.String,
     port: Schema.Int,
-    logLevel: Schema.Literals(["debug", "info", "warn", "error"])
+    logLevel: Schema.Literals(["debug", "info", "warn", "error"]),
   }),
-  "server"
-)
+  "server",
+);
 
 const DbConfig = Config.schema(
   Schema.Struct({
     url: Schema.String,
-    poolSize: Schema.Int
+    poolSize: Schema.Int,
   }),
-  "db"
-)
+  "db",
+);
 
 const AppConfig = Config.all({
   server: ServerConfig,
   db: DbConfig,
-  debug: Config.Boolean("debug").pipe(Config.withDefault(false))
-})
+  debug: Config.Boolean("debug").pipe(Config.withDefault(false)),
+});
 
 // In production, just yield it — reads from process.env
-const program = Effect.gen(function*() {
-  const config = yield* AppConfig
-  console.log(config)
-})
+const program = Effect.gen(function* () {
+  const config = yield* AppConfig;
+  console.log(config);
+});
 
 // For testing, provide a specific provider
 const testProvider = ConfigProvider.fromUnknown({
   server: { host: "localhost", port: 3000, logLevel: "debug" },
   db: { url: "postgres://localhost/testdb", poolSize: 5 },
-  debug: true
-})
+  debug: true,
+});
 
-Effect.runSync(
-  program.pipe(Effect.provide(ConfigProvider.layer(testProvider)))
-)
+Effect.runSync(program.pipe(Effect.provide(ConfigProvider.layer(testProvider))));
 ```
 
 With environment variables, the same config reads:

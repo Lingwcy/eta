@@ -23,21 +23,21 @@ replaced by `catchFilter` / `catchCauseFilter`.
 **v3**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
 const program = Effect.fail("error").pipe(
-  Effect.catchAll((error) => Effect.succeed(`recovered: ${error}`))
-)
+  Effect.catchAll((error) => Effect.succeed(`recovered: ${error}`)),
+);
 ```
 
 **v4**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
 const program = Effect.fail("error").pipe(
-  Effect.catch((error) => Effect.succeed(`recovered: ${error}`))
-)
+  Effect.catch((error) => Effect.succeed(`recovered: ${error}`)),
+);
 ```
 
 ## `Effect.catchAllCause` → `Effect.catchCause`
@@ -45,21 +45,21 @@ const program = Effect.fail("error").pipe(
 **v3**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
 const program = Effect.die("defect").pipe(
-  Effect.catchAllCause((cause) => Effect.succeed("recovered"))
-)
+  Effect.catchAllCause((cause) => Effect.succeed("recovered")),
+);
 ```
 
 **v4**
 
 ```ts
-import { Cause, Effect } from "effect"
+import { Cause, Effect } from "effect";
 
 const program = Effect.die("defect").pipe(
-  Effect.catchCause((cause) => Effect.succeed("recovered"))
-)
+  Effect.catchCause((cause) => Effect.succeed("recovered")),
+);
 ```
 
 ## `Effect.catchSome` → `Effect.catchFilter`
@@ -70,28 +70,26 @@ In v3, `catchSome` took a function returning `Option<Effect>`. In v4,
 **v3**
 
 ```ts
-import { Effect, Option } from "effect"
+import { Effect, Option } from "effect";
 
 const program = Effect.fail(42).pipe(
   Effect.catchSome((error) =>
-    error === 42
-      ? Option.some(Effect.succeed("caught"))
-      : Option.none()
-  )
-)
+    error === 42 ? Option.some(Effect.succeed("caught")) : Option.none(),
+  ),
+);
 ```
 
 **v4**
 
 ```ts
-import { Effect, Filter } from "effect"
+import { Effect, Filter } from "effect";
 
 const program = Effect.fail(42).pipe(
   Effect.catchFilter(
     Filter.fromPredicate((error: number) => error === 42),
-    (error) => Effect.succeed("caught")
-  )
-)
+    (error) => Effect.succeed("caught"),
+  ),
+);
 ```
 
 ## New in v4

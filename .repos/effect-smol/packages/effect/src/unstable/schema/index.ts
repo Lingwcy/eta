@@ -7,24 +7,24 @@
 /**
  * @since 4.0.0
  */
-export * as Model from "./Model.ts"
+export * as Model from "./Model.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SchemaAOTCompiler from "./SchemaAOTCompiler.ts"
+export * as SchemaAOTCompiler from "./SchemaAOTCompiler.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SchemaCompiler from "./SchemaCompiler.ts"
+export * as SchemaCompiler from "./SchemaCompiler.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SchemaJITCompiler from "./SchemaJITCompiler.ts"
+export * as SchemaJITCompiler from "./SchemaJITCompiler.ts";
 
 /**
  * @since 4.0.0
  */
-export * as VariantSchema from "./VariantSchema.ts"
+export * as VariantSchema from "./VariantSchema.ts";

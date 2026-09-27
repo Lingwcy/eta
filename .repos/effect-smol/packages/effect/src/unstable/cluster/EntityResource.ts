@@ -10,16 +10,16 @@
  *
  * @since 4.0.0
  */
-import * as Context from "../../Context.ts"
-import * as Duration from "../../Duration.ts"
-import * as Effect from "../../Effect.ts"
-import { identity } from "../../Function.ts"
-import * as RcRef from "../../RcRef.ts"
-import * as Scope from "../../Scope.ts"
-import * as Entity from "./Entity.ts"
-import * as K8sHttpClient from "./K8sHttpClient.ts"
-import type { Pod as K8sPod } from "./K8sTypes.ts"
-import type { Sharding } from "./Sharding.ts"
+import * as Context from "../../Context.ts";
+import * as Duration from "../../Duration.ts";
+import * as Effect from "../../Effect.ts";
+import { identity } from "../../Function.ts";
+import * as RcRef from "../../RcRef.ts";
+import * as Scope from "../../Scope.ts";
+import * as Entity from "./Entity.ts";
+import * as K8sHttpClient from "./K8sHttpClient.ts";
+import type { Pod as K8sPod } from "./K8sTypes.ts";
+import type { Sharding } from "./Sharding.ts";
 
 /**
  * Type identifier used to brand `EntityResource` values.
@@ -27,7 +27,7 @@ import type { Sharding } from "./Sharding.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~effect/cluster/EntityResource"
+export const TypeId: TypeId = "~effect/cluster/EntityResource";
 
 /**
  * Literal type of the `EntityResource` type identifier.
@@ -35,7 +35,7 @@ export const TypeId: TypeId = "~effect/cluster/EntityResource"
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/cluster/EntityResource"
+export type TypeId = "~effect/cluster/EntityResource";
 
 /**
  * A resource acquired inside a cluster entity and kept alive across restarts.
@@ -49,9 +49,9 @@ export type TypeId = "~effect/cluster/EntityResource"
  * @since 4.0.0
  */
 export interface EntityResource<out A, out E = never> {
-  readonly [TypeId]: TypeId
-  readonly get: Effect.Effect<A, E, Scope.Scope>
-  readonly close: Effect.Effect<void>
+  readonly [TypeId]: TypeId;
+  readonly get: Effect.Effect<A, E, Scope.Scope>;
+  readonly close: Effect.Effect<void>;
 }
 
 /**
@@ -69,10 +69,9 @@ export interface EntityResource<out A, out E = never> {
  * @category services
  * @since 4.0.0
  */
-export class CloseScope extends Context.Service<
-  CloseScope,
-  Scope.Scope
->()("effect/cluster/EntityResource/CloseScope") {}
+export class CloseScope extends Context.Service<CloseScope, Scope.Scope>()(
+  "effect/cluster/EntityResource/CloseScope",
+) {}
 
 /**
  * Creates an `EntityResource` that can be acquired inside a cluster entity.
@@ -96,57 +95,55 @@ export class CloseScope extends Context.Service<
  * @since 4.0.0
  */
 export const make: <A, E, R>(options: {
-  readonly acquire: Effect.Effect<A, E, R>
-  readonly idleTimeToLive?: Duration.Input | undefined
-  readonly acquireEagerly?: boolean | undefined
+  readonly acquire: Effect.Effect<A, E, R>;
+  readonly idleTimeToLive?: Duration.Input | undefined;
+  readonly acquireEagerly?: boolean | undefined;
 }) => Effect.Effect<
   EntityResource<A, E>,
   E,
   Scope.Scope | Exclude<R, CloseScope> | Sharding | Entity.CurrentAddress
-> = Effect.fnUntraced(function*<A, E, R>(options: {
-  readonly acquire: Effect.Effect<A, E, R>
-  readonly idleTimeToLive?: Duration.Input | undefined
-  readonly acquireEagerly?: boolean | undefined
+> = Effect.fnUntraced(function* <A, E, R>(options: {
+  readonly acquire: Effect.Effect<A, E, R>;
+  readonly idleTimeToLive?: Duration.Input | undefined;
+  readonly acquireEagerly?: boolean | undefined;
 }) {
-  let shuttingDown = false
+  let shuttingDown = false;
 
   const ref = yield* RcRef.make({
-    acquire: Effect.gen(function*() {
-      yield* Entity.keepAlive(true)
+    acquire: Effect.gen(function* () {
+      yield* Entity.keepAlive(true);
 
-      const closeable = yield* Scope.make()
+      const closeable = yield* Scope.make();
 
       yield* Effect.addFinalizer(
-        Effect.fnUntraced(function*(exit) {
-          if (shuttingDown) return
-          yield* Scope.close(closeable, exit)
-          yield* Entity.keepAlive(false)
-        })
-      )
+        Effect.fnUntraced(function* (exit) {
+          if (shuttingDown) return;
+          yield* Scope.close(closeable, exit);
+          yield* Entity.keepAlive(false);
+        }),
+      );
 
-      return yield* options.acquire.pipe(
-        Effect.provideService(CloseScope, closeable)
-      )
+      return yield* options.acquire.pipe(Effect.provideService(CloseScope, closeable));
     }),
-    idleTimeToLive: options.idleTimeToLive ?? Duration.infinity
-  })
+    idleTimeToLive: options.idleTimeToLive ?? Duration.infinity,
+  });
 
   yield* Effect.addFinalizer(() => {
-    shuttingDown = true
-    return Effect.void
-  })
+    shuttingDown = true;
+    return Effect.void;
+  });
 
   if (options.acquireEagerly) {
     // Initialize the resource
-    yield* Effect.scoped(RcRef.get(ref))
+    yield* Effect.scoped(RcRef.get(ref));
   }
 
   return identity<EntityResource<A, E>>({
     [TypeId]: TypeId,
     get: RcRef.get(ref),
-    close: RcRef.invalidate(ref)
-  })
-})
+    close: RcRef.invalidate(ref),
+  });
+});
 
 /**
  * Creates an `EntityResource` backed by a Kubernetes Pod.
@@ -161,24 +158,27 @@ export const make: <A, E, R>(options: {
  */
 export const makeK8sPod: (
   spec: K8sPod,
-  options?: {
-    readonly idleTimeToLive?: Duration.Input | undefined
-  } | undefined
+  options?:
+    | {
+        readonly idleTimeToLive?: Duration.Input | undefined;
+      }
+    | undefined,
 ) => Effect.Effect<
   EntityResource<K8sHttpClient.PodStatus>,
   never,
   Scope.Scope | Sharding | Entity.CurrentAddress | K8sHttpClient.K8sHttpClient
-> = Effect.fnUntraced(function*(spec: K8sPod, options?: {
-  readonly idleTimeToLive?: Duration.Input | undefined
-}) {
-  const createPod = yield* K8sHttpClient.makeCreatePod
+> = Effect.fnUntraced(function* (
+  spec: K8sPod,
+  options?: {
+    readonly idleTimeToLive?: Duration.Input | undefined;
+  },
+) {
+  const createPod = yield* K8sHttpClient.makeCreatePod;
   return yield* make({
     ...options,
-    acquire: Effect.gen(function*() {
-      const scope = yield* CloseScope
-      return yield* createPod(spec).pipe(
-        Scope.provide(scope)
-      )
-    })
-  })
-})
+    acquire: Effect.gen(function* () {
+      const scope = yield* CloseScope;
+      return yield* createPod(spec).pipe(Scope.provide(scope));
+    }),
+  });
+});

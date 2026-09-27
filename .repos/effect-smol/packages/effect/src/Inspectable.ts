@@ -9,9 +9,9 @@
  *
  * @since 2.0.0
  */
-import { format, formatJson } from "./Formatter.ts"
-import * as Predicate from "./Predicate.ts"
-import { redact } from "./Redactable.ts"
+import { format, formatJson } from "./Formatter.ts";
+import * as Predicate from "./Predicate.ts";
+import { redact } from "./Redactable.ts";
 
 /**
  * Defines the symbol used by Node.js for custom object inspection.
@@ -46,7 +46,7 @@ import { redact } from "./Redactable.ts"
  * @category symbols
  * @since 2.0.0
  */
-export const NodeInspectSymbol = Symbol.for("nodejs.util.inspect.custom")
+export const NodeInspectSymbol = Symbol.for("nodejs.util.inspect.custom");
 
 /**
  * The type of the Node.js inspection symbol used for custom object inspection.
@@ -77,7 +77,7 @@ export const NodeInspectSymbol = Symbol.for("nodejs.util.inspect.custom")
  * @category symbols
  * @since 2.0.0
  */
-export type NodeInspectSymbol = typeof NodeInspectSymbol
+export type NodeInspectSymbol = typeof NodeInspectSymbol;
 
 /**
  * Interface for objects that can be inspected and provide custom string representations.
@@ -124,9 +124,9 @@ export type NodeInspectSymbol = typeof NodeInspectSymbol
  * @since 2.0.0
  */
 export interface Inspectable {
-  toString(): string
-  toJSON(): unknown
-  [NodeInspectSymbol](): unknown
+  toString(): string;
+  toJSON(): unknown;
+  [NodeInspectSymbol](): unknown;
 }
 
 /**
@@ -152,21 +152,21 @@ export interface Inspectable {
  */
 export const toJson = (input: unknown): unknown => {
   try {
-    input = redact(input)
+    input = redact(input);
     if (
       Predicate.hasProperty(input, "toJSON") &&
       Predicate.isFunction(input["toJSON"]) &&
       input["toJSON"].length === 0
     ) {
-      return input.toJSON()
+      return input.toJSON();
     } else if (Array.isArray(input)) {
-      return input.map(toJson)
+      return input.map(toJson);
     }
-    return input
+    return input;
   } catch {
-    return "[toJSON threw]"
+    return "[toJSON threw]";
   }
-}
+};
 
 /**
  * Converts an unknown value to a string for diagnostics.
@@ -184,16 +184,21 @@ export const toJson = (input: unknown): unknown => {
  * @category converting
  * @since 2.0.0
  */
-export const toStringUnknown = (u: unknown, whitespace: number | string | undefined = 2): string => {
+export const toStringUnknown = (
+  u: unknown,
+  whitespace: number | string | undefined = 2,
+): string => {
   if (typeof u === "string") {
-    return u
+    return u;
   }
   try {
-    return typeof u === "object" ? formatJson(u, { space: whitespace }) : format(u, { space: whitespace })
+    return typeof u === "object"
+      ? formatJson(u, { space: whitespace })
+      : format(u, { space: whitespace });
   } catch {
-    return String(u)
+    return String(u);
   }
-}
+};
 
 /**
  * A base prototype object that implements the {@link Inspectable} interface.
@@ -233,15 +238,15 @@ export const toStringUnknown = (u: unknown, whitespace: number | string | undefi
  */
 export const BaseProto: Inspectable = {
   toJSON() {
-    return toJson(this)
+    return toJson(this);
   },
   [NodeInspectSymbol]() {
-    return this.toJSON()
+    return this.toJSON();
   },
   toString() {
-    return format(this.toJSON())
-  }
-}
+    return format(this.toJSON());
+  },
+};
 
 /**
  * Provides an abstract base class that implements the Inspectable interface.
@@ -303,7 +308,7 @@ export abstract class Class {
    *
    * @since 2.0.0
    */
-  abstract toJSON(): unknown
+  abstract toJSON(): unknown;
   /**
    * Node.js custom inspection method.
    *
@@ -314,7 +319,7 @@ export abstract class Class {
    * @since 2.0.0
    */
   [NodeInspectSymbol]() {
-    return this.toJSON()
+    return this.toJSON();
   }
   /**
    * Returns a formatted string representation of this object.
@@ -326,6 +331,6 @@ export abstract class Class {
    * @since 2.0.0
    */
   toString() {
-    return format(this.toJSON())
+    return format(this.toJSON());
   }
 }

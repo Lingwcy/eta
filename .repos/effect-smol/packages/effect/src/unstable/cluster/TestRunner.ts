@@ -8,13 +8,13 @@
  *
  * @since 4.0.0
  */
-import * as Layer from "../../Layer.ts"
-import * as MessageStorage from "./MessageStorage.ts"
-import * as RunnerHealth from "./RunnerHealth.ts"
-import * as Runners from "./Runners.ts"
-import * as RunnerStorage from "./RunnerStorage.ts"
-import * as Sharding from "./Sharding.ts"
-import * as ShardingConfig from "./ShardingConfig.ts"
+import * as Layer from "../../Layer.ts";
+import * as MessageStorage from "./MessageStorage.ts";
+import * as RunnerHealth from "./RunnerHealth.ts";
+import * as Runners from "./Runners.ts";
+import * as RunnerStorage from "./RunnerStorage.ts";
+import * as Sharding from "./Sharding.ts";
+import * as ShardingConfig from "./ShardingConfig.ts";
 
 /**
  * Layer that provides an in-memory cluster for testing.
@@ -32,5 +32,5 @@ export const layer: Layer.Layer<
   Layer.provideMerge(Runners.layerNoop),
   Layer.provideMerge(MessageStorage.layerMemory),
   Layer.provide([RunnerStorage.layerMemory, RunnerHealth.layerNoop]),
-  Layer.provide(ShardingConfig.layer())
-)
+  Layer.provide(ShardingConfig.layer()),
+);

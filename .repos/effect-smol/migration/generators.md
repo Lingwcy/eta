@@ -8,25 +8,25 @@ In v3, you could pass a `self` value directly as the first argument to
 **v3**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
 class MyService {
-  readonly local = 1
-  compute = Effect.gen(this, function*() {
-    return yield* Effect.succeed(this.local + 1)
-  })
+  readonly local = 1;
+  compute = Effect.gen(this, function* () {
+    return yield* Effect.succeed(this.local + 1);
+  });
 }
 ```
 
 **v4**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
 class MyService {
-  readonly local = 1
-  compute = Effect.gen({ self: this }, function*() {
-    return yield* Effect.succeed(this.local + 1)
-  })
+  readonly local = 1;
+  compute = Effect.gen({ self: this }, function* () {
+    return yield* Effect.succeed(this.local + 1);
+  });
 }
 ```

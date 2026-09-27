@@ -7,11 +7,11 @@ Schema: add `asClass` API to turn any schema into a class with static method sup
 **Example**
 
 ```ts
-import { Schema } from "effect"
+import { Schema } from "effect";
 
 class MyString extends Schema.asClass(Schema.String) {
-  static readonly decodeUnknownSync = Schema.decodeUnknownSync(this)
+  static readonly decodeUnknownSync = Schema.decodeUnknownSync(this);
 }
 
-MyString.decodeUnknownSync("a") // "a"
+MyString.decodeUnknownSync("a"); // "a"
 ```

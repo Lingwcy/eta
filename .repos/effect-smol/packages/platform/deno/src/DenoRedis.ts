@@ -9,15 +9,15 @@
  *
  * @since 4.0.0
  */
-import { connect, parseURL, type Redis as RedisClient, type RedisConnectOptions } from "@db/redis"
-import * as Config from "effect/Config"
-import * as Context from "effect/Context"
-import * as Effect from "effect/Effect"
-import * as Fn from "effect/Function"
-import * as Layer from "effect/Layer"
-import * as Predicate from "effect/Predicate"
-import * as Record from "effect/Record"
-import * as Redis from "effect/unstable/persistence/Redis"
+import { connect, parseURL, type Redis as RedisClient, type RedisConnectOptions } from "@db/redis";
+import * as Config from "effect/Config";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Fn from "effect/Function";
+import * as Layer from "effect/Layer";
+import * as Predicate from "effect/Predicate";
+import * as Record from "effect/Record";
+import * as Redis from "effect/unstable/persistence/Redis";
 
 /**
  * Options for connecting to Redis, including a Redis URL or individual
@@ -27,9 +27,9 @@ import * as Redis from "effect/unstable/persistence/Redis"
  * @since 4.0.0
  */
 export type RedisOptions = Omit<RedisConnectOptions, "hostname"> & {
-  readonly hostname?: string
-  readonly url?: string
-}
+  readonly hostname?: string;
+  readonly url?: string;
+};
 
 /**
  * Service tag for Deno Redis integration, exposing the raw `@db/redis` client
@@ -38,88 +38,89 @@ export type RedisOptions = Omit<RedisConnectOptions, "hostname"> & {
  * @category services
  * @since 4.0.0
  */
-export class DenoRedis extends Context.Service<DenoRedis, {
-  readonly client: RedisClient
-  readonly use: <A>(f: (client: RedisClient) => Promise<A>) => Effect.Effect<A, Redis.RedisError>
-}>()("@effect/platform-deno/DenoRedis") {}
+export class DenoRedis extends Context.Service<
+  DenoRedis,
+  {
+    readonly client: RedisClient;
+    readonly use: <A>(f: (client: RedisClient) => Promise<A>) => Effect.Effect<A, Redis.RedisError>;
+  }
+>()("@effect/platform-deno/DenoRedis") {}
 
-const make = Effect.fnUntraced(function*(options: RedisOptions = {}) {
+const make = Effect.fnUntraced(function* (options: RedisOptions = {}) {
   const connectClient = () => {
-    const { url, ...connectOptions } = options
-    const parsedUrl = url === undefined ? undefined : new URL(url)
-    const { name, ...parsed } = url === undefined ? { hostname: "localhost" } : parseURL(url)
+    const { url, ...connectOptions } = options;
+    const parsedUrl = url === undefined ? undefined : new URL(url);
+    const { name, ...parsed } = url === undefined ? { hostname: "localhost" } : parseURL(url);
     return connect({
       ...parsed,
       ...(name === undefined ? {} : { username: name }),
       ...(parsedUrl?.username ? { username: decodeURIComponent(parsedUrl.username) } : {}),
       ...(parsedUrl?.password ? { password: decodeURIComponent(parsedUrl.password) } : {}),
-      ...Record.filter(connectOptions, Predicate.isNotUndefined)
-    })
-  }
+      ...Record.filter(connectOptions, Predicate.isNotUndefined),
+    });
+  };
 
   const client = yield* Effect.acquireRelease(
     Effect.tryPromise({
       try: connectClient,
-      catch: (cause) => new Redis.RedisError({ cause })
+      catch: (cause) => new Redis.RedisError({ cause }),
     }),
-    (client) => Effect.sync(() => client.close())
-  )
+    (client) => Effect.sync(() => client.close()),
+  );
 
   const use = <A>(f: (client: RedisClient) => Promise<A>) =>
     Effect.tryPromise({
       try: () => f(client),
-      catch: (cause) => new Redis.RedisError({ cause })
-    })
+      catch: (cause) => new Redis.RedisError({ cause }),
+    });
 
   const redis = yield* Redis.make({
     send: <A = unknown>(command: string, ...args: ReadonlyArray<string>) =>
       Effect.tryPromise({
         try: () => client.sendCommand(command, args as Array<string>) as Promise<A>,
-        catch: (cause) => new Redis.RedisError({ cause })
+        catch: (cause) => new Redis.RedisError({ cause }),
       }),
     subscribe: (channel, onMessage) =>
       Effect.acquireRelease(
         Effect.tryPromise({
           try: async () => {
-            const subscriber = await connectClient()
+            const subscriber = await connectClient();
             try {
-              const subscription = await subscriber.subscribe(channel)
+              const subscription = await subscriber.subscribe(channel);
               // @db/redis resolves subscribe after writing the command, before
               // reading its acknowledgement. This ordered reply proves that
               // Redis processed SUBSCRIBE before the dequeue is returned.
-              await subscriber.ping()
-              return { subscriber, subscription }
+              await subscriber.ping();
+              return { subscriber, subscription };
             } catch (cause) {
-              subscriber.close()
-              throw cause
+              subscriber.close();
+              throw cause;
             }
           },
-          catch: (cause) => new Redis.RedisError({ cause })
+          catch: (cause) => new Redis.RedisError({ cause }),
         }),
-        ({ subscriber }) => Effect.sync(() => subscriber.close())
+        ({ subscriber }) => Effect.sync(() => subscriber.close()),
       ).pipe(
         Effect.map(({ subscription }) =>
           Effect.tryPromise({
             try: async () => {
               for await (const message of subscription.receive()) {
-                onMessage(message)
+                onMessage(message);
               }
             },
-            catch: (cause) => new Redis.RedisError({ cause })
-          })
-        )
-      )
-  })
+            catch: (cause) => new Redis.RedisError({ cause }),
+          }),
+        ),
+      ),
+  });
 
   const denoRedis = Fn.identity<DenoRedis["Service"]>({
     client,
-    use
-  })
+    use,
+  });
 
-  return Context.make(DenoRedis, denoRedis).pipe(
-    Context.add(Redis.Redis, redis)
-  )
-})
+  return Context.make(DenoRedis, denoRedis).pipe(Context.add(Redis.Redis, redis));
+});
 
 /**
  * Provides `Redis` and `DenoRedis` services backed by an `@db/redis` client,
@@ -130,8 +131,8 @@ const make = Effect.fnUntraced(function*(options: RedisOptions = {}) {
  * @since 4.0.0
  */
 export const layer = (
-  options?: RedisOptions | undefined
-): Layer.Layer<Redis.Redis | DenoRedis, Redis.RedisError> => Layer.effectContext(make(options))
+  options?: RedisOptions | undefined,
+): Layer.Layer<Redis.Redis | DenoRedis, Redis.RedisError> => Layer.effectContext(make(options));
 
 /**
  * Provides `Redis` and `DenoRedis` services from `Config`-backed options,
@@ -141,10 +142,6 @@ export const layer = (
  * @since 4.0.0
  */
 export const layerConfig = (
-  options: Config.Wrap<RedisOptions>
+  options: Config.Wrap<RedisOptions>,
 ): Layer.Layer<Redis.Redis | DenoRedis, Redis.RedisError | Config.ConfigError> =>
-  Layer.effectContext(
-    Config.unwrap(options).pipe(
-      Effect.flatMap(make)
-    )
-  )
+  Layer.effectContext(Config.unwrap(options).pipe(Effect.flatMap(make)));

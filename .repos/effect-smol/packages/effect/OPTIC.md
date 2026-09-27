@@ -38,28 +38,28 @@ The `Optic` module only works with **plain JavaScript objects** and collections 
 These are the three operations you will use most:
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
-type S = { readonly a: number }
-const _a = Optic.id<S>().key("a")
+type S = { readonly a: number };
+const _a = Optic.id<S>().key("a");
 
 /**
  * Get the value of the focused field
  */
-const value = _a.get({ a: 1 })
-console.log(value) // 1
+const value = _a.get({ a: 1 });
+console.log(value); // 1
 
 /**
  * Replace the value of the focused field
  */
-const replaced = _a.replace(2, { a: 1 })
-console.log(replaced) // { a: 2 }
+const replaced = _a.replace(2, { a: 1 });
+console.log(replaced); // { a: 2 }
 
 /**
  * Modify the value of the focused field
  */
-const modified = _a.modify((n) => n + 1)({ a: 1 })
-console.log(modified) // { a: 2 }
+const modified = _a.modify((n) => n + 1)({ a: 1 });
+console.log(modified); // { a: 2 }
 ```
 
 ### Nested data structures
@@ -69,24 +69,24 @@ Suppose we have an employee object, and we want to capitalize the first characte
 **Example** (Uppercasing the first character of a street name)
 
 ```ts
-import { Optic, String } from "effect"
+import { Optic, String } from "effect";
 
 // Define some nested data structures
 interface Street {
-  readonly num: number
-  readonly name: string
+  readonly num: number;
+  readonly name: string;
 }
 interface Address {
-  readonly city: string
-  readonly street: Street
+  readonly city: string;
+  readonly street: Street;
 }
 interface Company {
-  readonly name: string
-  readonly address: Address
+  readonly name: string;
+  readonly address: Address;
 }
 interface Employee {
-  readonly name: string
-  readonly company: Company
+  readonly name: string;
+  readonly company: Company;
 }
 
 // A sample employee object
@@ -98,23 +98,23 @@ const from: Employee = {
       city: "london",
       street: {
         num: 23,
-        name: "high street"
-      }
-    }
-  }
-}
+        name: "high street",
+      },
+    },
+  },
+};
 
 // Build an optic that drills down to the street name
 const _streetName = Optic.id<Employee>()
   .key("company") // access "company"
   .key("address") // access "address"
   .key("street") // access "street"
-  .key("name") // access "name"
+  .key("name"); // access "name"
 
 // Modify the targeted value
-const capitalizeStreetName = _streetName.modify(String.capitalize)
+const capitalizeStreetName = _streetName.modify(String.capitalize);
 
-console.dir(capitalizeStreetName(from), { depth: null })
+console.dir(capitalizeStreetName(from), { depth: null });
 /*
 {
   name: 'john',
@@ -136,30 +136,30 @@ console.dir(capitalizeStreetName(from), { depth: null })
 **Example** (Reading and updating a single struct field)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
 type S = {
-  readonly a: string
-}
+  readonly a: string;
+};
 
 // Build an optic to access the "a" field
-const _a = Optic.id<S>().key("a")
+const _a = Optic.id<S>().key("a");
 
-console.log(_a.replace("b", { a: "a" }))
+console.log(_a.replace("b", { a: "a" }));
 // { a: 'b' }
 ```
 
 **Example** (Reading and updating the first element of a tuple)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
-type S = readonly [string]
+type S = readonly [string];
 
 // Build an optic to access the first element
-const _0 = Optic.id<S>().key(0)
+const _0 = Optic.id<S>().key(0);
 
-console.log(_0.replace("b", ["a"]))
+console.log(_0.replace("b", ["a"]));
 // ["b"]
 ```
 
@@ -181,18 +181,18 @@ console.log(_0.replace("b", ["a"]))
 **Example** (Updating multiple fields with `pick`)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
 type S = {
-  readonly a: number
-  readonly b: number
-  readonly c: number
-}
+  readonly a: number;
+  readonly b: number;
+  readonly c: number;
+};
 
 // Build an optic to access the "a" and "c" fields
-const _a = Optic.id<S>().pick(["a", "c"])
+const _a = Optic.id<S>().pick(["a", "c"]);
 
-console.log(_a.replace({ a: 4, c: 5 }, { a: 1, b: 2, c: 3 }))
+console.log(_a.replace({ a: 4, c: 5 }, { a: 1, b: 2, c: 3 }));
 // { a: 4, b: 2, c: 5 }
 ```
 
@@ -201,18 +201,18 @@ console.log(_a.replace({ a: 4, c: 5 }, { a: 1, b: 2, c: 3 }))
 **Example** (Updating all fields except a set with `omit`)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
 type S = {
-  readonly a: number
-  readonly b: number
-  readonly c: number
-}
+  readonly a: number;
+  readonly b: number;
+  readonly c: number;
+};
 
 // Build an optic to access the "a" and "c" fields
-const _a = Optic.id<S>().omit(["b"])
+const _a = Optic.id<S>().omit(["b"]);
 
-console.log(_a.replace({ a: 4, c: 5 }, { a: 1, b: 2, c: 3 }))
+console.log(_a.replace({ a: 4, c: 5 }, { a: 1, b: 2, c: 3 }));
 // { a: 4, b: 2, c: 5 }
 ```
 
@@ -226,91 +226,91 @@ There are two ways to handle an optional key in a struct or a tuple, depending o
 **Example** (Preserving the key when setting `undefined`)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
 type S = {
-  readonly a?: number | undefined
-}
+  readonly a?: number | undefined;
+};
 
 // Lens<S, number | undefined>
-const _a = Optic.id<S>().key("a")
+const _a = Optic.id<S>().key("a");
 
-console.log(String(_a.getResult({ a: 1 })))
+console.log(String(_a.getResult({ a: 1 })));
 // success(1)
 
-console.log(String(_a.getResult({})))
+console.log(String(_a.getResult({})));
 // success(undefined)
 
-console.log(String(_a.getResult({ a: undefined })))
+console.log(String(_a.getResult({ a: undefined })));
 // success(undefined)
 
-console.log(_a.replace(2, { a: 1 }))
+console.log(_a.replace(2, { a: 1 }));
 // { a: 2 }
 
-console.log(_a.replace(2, {}))
+console.log(_a.replace(2, {}));
 // { a: 2 }
 
-console.log(_a.replace(undefined, { a: 1 }))
+console.log(_a.replace(undefined, { a: 1 }));
 // { a: undefined }
 
-console.log(_a.replace(undefined, {}))
+console.log(_a.replace(undefined, {}));
 // { a: undefined }
 
-console.log(_a.replace(2, { a: undefined }))
+console.log(_a.replace(2, { a: undefined }));
 // { a: 2 }
 ```
 
 **Example** (Removing the key when setting `undefined`)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
 type S = {
-  readonly a?: number
-}
+  readonly a?: number;
+};
 
 // Lens<S, number | undefined>
-const _a = Optic.id<S>().optionalKey("a")
+const _a = Optic.id<S>().optionalKey("a");
 
-console.log(String(_a.getResult({ a: 1 })))
+console.log(String(_a.getResult({ a: 1 })));
 // success(1)
 
-console.log(String(_a.getResult({})))
+console.log(String(_a.getResult({})));
 // success(undefined)
 
-console.log(_a.replace(2, { a: 1 }))
+console.log(_a.replace(2, { a: 1 }));
 // { a: 2 }
 
-console.log(_a.replace(2, {}))
+console.log(_a.replace(2, {}));
 // { a: 2 }
 
-console.log(_a.replace(undefined, { a: 1 }))
+console.log(_a.replace(undefined, { a: 1 }));
 // {}
 
-console.log(_a.replace(undefined, {}))
+console.log(_a.replace(undefined, {}));
 // {}
 ```
 
 **Example** (Dropping a tuple element when setting `undefined`)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
-type S = readonly [number, number?]
+type S = readonly [number, number?];
 
 // Build an optic to access the optional second element
-const _1 = Optic.id<S>().optionalKey(1)
+const _1 = Optic.id<S>().optionalKey(1);
 
-console.log(_1.get([1, 2]))
+console.log(_1.get([1, 2]));
 // 2
 
-console.log(_1.get([1]))
+console.log(_1.get([1]));
 // undefined
 
-console.log(_1.replace(3, [1, 2]))
+console.log(_1.replace(3, [1, 2]));
 // [1, 3]
 
-console.log(_1.replace(undefined, [1, 2]))
+console.log(_1.replace(undefined, [1, 2]));
 // [1]
 ```
 
@@ -319,28 +319,28 @@ console.log(_1.replace(undefined, [1, 2]))
 **Example** (Reading and updating a record entry)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
-type S = { [key: string]: number }
+type S = { [key: string]: number };
 
 // Build an optic to access the value at key "a"
-const _a = Optic.id<S>().at("a")
+const _a = Optic.id<S>().at("a");
 
-console.log(_a.replace(2, { a: 1 }))
+console.log(_a.replace(2, { a: 1 }));
 // { a: 2 }
 ```
 
 **Example** (Reading and updating an array element)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
-type S = ReadonlyArray<number>
+type S = ReadonlyArray<number>;
 
 // Build an optic to access the first element
-const _0 = Optic.id<S>().at(0)
+const _0 = Optic.id<S>().at(0);
 
-console.log(_0.replace(3, [1, 2]))
+console.log(_0.replace(3, [1, 2]));
 // [3, 2]
 ```
 
@@ -352,26 +352,26 @@ The convention is to use `"_tag"` as the field that identifies the variant.
 **Example** (Focusing a field inside one variant)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
 // A union of two tagged types
 type S =
   | {
-    readonly _tag: "A"
-    readonly a: number
-  }
+      readonly _tag: "A";
+      readonly a: number;
+    }
   | {
-    readonly _tag: "B"
-    readonly b: number
-  }
+      readonly _tag: "B";
+      readonly b: number;
+    };
 
 // Build an optic that focuses on the "a" field of the "A" variant
-const _a = Optic.id<S>().tag("A").key("a")
+const _a = Optic.id<S>().tag("A").key("a");
 
-console.log(_a.replace(2, { _tag: "A", a: 1 }))
+console.log(_a.replace(2, { _tag: "A", a: 1 }));
 // { _tag: 'A', a: 2 }
 
-console.log(_a.replace(2, { _tag: "B", b: 1 })) // no match, so no change
+console.log(_a.replace(2, { _tag: "B", b: 1 })); // no match, so no change
 // { _tag: 'B', b: 1 }
 ```
 
@@ -380,22 +380,22 @@ console.log(_a.replace(2, { _tag: "B", b: 1 })) // no match, so no change
 **Example** (Incrementing only positive numbers in an array field)
 
 ```ts
-import { Optic, Schema } from "effect"
+import { Optic, Schema } from "effect";
 
 type S = {
-  readonly a: ReadonlyArray<number>
-}
+  readonly a: ReadonlyArray<number>;
+};
 
 // Build an optic that focuses the field "a" and then
 // narrows the focus to elements that pass the positivity check
 const _positive = Optic.id<S>()
   .key("a") // focus the "a" array
-  .forEach((item) => item.check(Schema.isGreaterThan(0))) // keep only positive elements
+  .forEach((item) => item.check(Schema.isGreaterThan(0))); // keep only positive elements
 
 // Create a function that increments only the focused elements
-const addOne = _positive.modifyAll((n) => n + 1)
+const addOne = _positive.modifyAll((n) => n + 1);
 
-console.log(addOne({ a: [1, -2, 3] }))
+console.log(addOne({ a: [1, -2, 3] }));
 // { a: [ 2, -2, 4 ] }
 ```
 
@@ -415,18 +415,18 @@ To operate on each `A` inside a `Traversal<S, A>`, use `forEach`.
 If a focus does not exist, `getResult` lets you see success vs failure explicitly:
 
 ```ts
-import { Optic, Result } from "effect"
+import { Optic, Result } from "effect";
 
-type S = { readonly a?: number }
-const _a = Optic.id<S>().at("a")
+type S = { readonly a?: number };
+const _a = Optic.id<S>().at("a");
 
-const result = _a.getResult({})
+const result = _a.getResult({});
 const message = Result.match(result, {
   onSuccess: (value) => `value: ${value}`,
-  onFailure: () => "no focus"
-})
+  onFailure: () => "no focus",
+});
 
-console.log(message) // no focus
+console.log(message); // no focus
 ```
 
 ## Generating an Optic from a Schema
@@ -434,12 +434,12 @@ console.log(message) // no focus
 **Example** (Generating an Optic from a Struct)
 
 ```ts
-import { Schema } from "effect"
+import { Schema } from "effect";
 
 const schema = Schema.Struct({
   a: Schema.String,
-  b: Schema.Number
-})
+  b: Schema.Number,
+});
 
 /*
 const _b: Lens<{
@@ -447,9 +447,9 @@ const _b: Lens<{
     readonly b: number;
 }, number>
 */
-const _b = Schema.toIso(schema).key("b")
+const _b = Schema.toIso(schema).key("b");
 
-console.log(_b.replace(2, { a: "a", b: 1 }))
+console.log(_b.replace(2, { a: "a", b: 1 }));
 // { a: 'a', b: 2 }
 ```
 
@@ -458,17 +458,17 @@ You can also call `Schema.toIso` on custom types when their schema supplies `toC
 **Example** (Generating an Optic from a Class schema)
 
 ```ts
-import { Schema } from "effect"
+import { Schema } from "effect";
 
 // Define a class schema
 class Person extends Schema.Class<Person>("Person")({
   name: Schema.String,
-  age: Schema.Number
+  age: Schema.Number,
 }) {}
 
-const _name = Schema.toIso(Person).key("name")
+const _name = Schema.toIso(Person).key("name");
 
-console.log(_name.replace("b", new Person({ name: "a", age: 1 })))
+console.log(_name.replace("b", new Person({ name: "a", age: 1 })));
 // Person { name: 'b', age: 1 }
 ```
 
@@ -483,51 +483,51 @@ Below are the main differences, with small examples.
 **Immer:** you repeat the path to the field each time you update it.
 
 ```ts
-import { produce } from "immer"
+import { produce } from "immer";
 
 type S = {
   readonly user: {
     readonly profile: {
-      readonly name: string
-    }
-  }
-}
+      readonly name: string;
+    };
+  };
+};
 
-declare const state: S
+declare const state: S;
 
 const upperName = produce(state, (draft) => {
   // Navigate to the field inline
-  draft.user.profile.name = draft.user.profile.name.toUpperCase()
-})
+  draft.user.profile.name = draft.user.profile.name.toUpperCase();
+});
 
 const lowerName = produce(state, (draft) => {
   // Repeat the same navigation again
-  draft.user.profile.name = draft.user.profile.name.toLowerCase()
-})
+  draft.user.profile.name = draft.user.profile.name.toLowerCase();
+});
 ```
 
 **Optics:** define a **Lens** once, then reuse it.
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
 type S = {
   readonly user: {
     readonly profile: {
-      readonly name: string
-    }
-  }
-}
+      readonly name: string;
+    };
+  };
+};
 
 // Define a reusable Lens focusing the "name" field
 // Lens<S, string>
-const _name = Optic.id<S>().key("user").key("profile").key("name")
+const _name = Optic.id<S>().key("user").key("profile").key("name");
 
-declare const state: S
+declare const state: S;
 
 // Apply different transformations without repeating the path
-const upperName = _name.modify((name) => name.toUpperCase())(state)
-const lowerName = _name.modify((name) => name.toLowerCase())(state)
+const upperName = _name.modify((name) => name.toUpperCase())(state);
+const lowerName = _name.modify((name) => name.toLowerCase())(state);
 ```
 
 Why this matters: if the path changes, you update it in one place. You also get small, testable building blocks that can be shared across modules instead of repeating object navigation.
@@ -539,32 +539,32 @@ Why this matters: if the path changes, you update it in one place. You also get 
 **Example** (Uppercasing titles with optional fields)
 
 ```ts
-import { produce } from "immer"
+import { produce } from "immer";
 
 type S = {
   readonly todos?: ReadonlyArray<{
-    readonly title?: string
-    readonly description: string
-  }>
-}
+    readonly title?: string;
+    readonly description: string;
+  }>;
+};
 
 const state: S = {
-  todos: [{ title: "milk", description: "buy milk" }, { description: "buy bread" }]
-}
+  todos: [{ title: "milk", description: "buy milk" }, { description: "buy bread" }],
+};
 
 const next = produce(state, (draft) => {
   // Guard the optional array
-  if (!draft.todos) return
+  if (!draft.todos) return;
 
   for (const item of draft.todos) {
     // Guard the optional field
     if (item.title !== undefined) {
-      item.title = item.title.toUpperCase()
+      item.title = item.title.toUpperCase();
     }
   }
-})
+});
 
-console.log(next)
+console.log(next);
 /*
 {
   todos: [
@@ -580,26 +580,26 @@ console.log(next)
 **Example** (Uppercasing titles with declarative focus)
 
 ```ts
-import { Optic } from "effect"
+import { Optic } from "effect";
 
 type S = {
   readonly todos?: ReadonlyArray<{
-    readonly title?: string
-    readonly description: string
-  }>
-}
+    readonly title?: string;
+    readonly description: string;
+  }>;
+};
 
 const _title = Optic.id<S>()
   .key("todos")
   .notUndefined() // proceed only if 'todos' exists
-  .forEach((item) => item.key("title").notUndefined()) // proceed only if 'title' exists
+  .forEach((item) => item.key("title").notUndefined()); // proceed only if 'title' exists
 
 const state: S = {
-  todos: [{ title: "milk", description: "buy milk" }, { description: "buy bread" }]
-}
+  todos: [{ title: "milk", description: "buy milk" }, { description: "buy bread" }],
+};
 
 // Modify only the focused values (titles)
-console.log(_title.modifyAll((title) => title.toUpperCase())(state))
+console.log(_title.modifyAll((title) => title.toUpperCase())(state));
 /*
 {
   todos: [

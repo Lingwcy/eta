@@ -4,8 +4,8 @@
  * @since 4.0.0
  */
 
-import type * as Layer from "effect/Layer"
-import * as KeyValueStore from "effect/unstable/persistence/KeyValueStore"
+import type * as Layer from "effect/Layer";
+import * as KeyValueStore from "effect/unstable/persistence/KeyValueStore";
 
 /**
  * Creates a `KeyValueStore` layer backed by `localStorage`, with values stored between sessions.
@@ -13,9 +13,8 @@ import * as KeyValueStore from "effect/unstable/persistence/KeyValueStore"
  * @category layers
  * @since 4.0.0
  */
-export const layerLocalStorage: Layer.Layer<KeyValueStore.KeyValueStore> = KeyValueStore.layerStorage(() =>
-  localStorage
-)
+export const layerLocalStorage: Layer.Layer<KeyValueStore.KeyValueStore> =
+  KeyValueStore.layerStorage(() => localStorage);
 
 /**
  * Creates a `KeyValueStore` layer backed by `sessionStorage`, with values stored only for the current session.
@@ -23,6 +22,5 @@ export const layerLocalStorage: Layer.Layer<KeyValueStore.KeyValueStore> = KeyVa
  * @category layers
  * @since 4.0.0
  */
-export const layerSessionStorage: Layer.Layer<KeyValueStore.KeyValueStore> = KeyValueStore.layerStorage(() =>
-  sessionStorage
-)
+export const layerSessionStorage: Layer.Layer<KeyValueStore.KeyValueStore> =
+  KeyValueStore.layerStorage(() => sessionStorage);

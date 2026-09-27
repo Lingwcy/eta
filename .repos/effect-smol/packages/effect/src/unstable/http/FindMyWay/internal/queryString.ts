@@ -26,9 +26,9 @@
  * @since 1.0.0
  */
 // Taken from https://github.com/anonrig/fast-querystring under MIT License
-const plusRegex = /\+/g
-const Empty: new() => Record<string, any> = function() {} as any
-Empty.prototype = Object.create(null)
+const plusRegex = /\+/g;
+const Empty: new () => Record<string, any> = function () {} as any;
+Empty.prototype = Object.create(null);
 
 /**
  * @category parsing
@@ -37,129 +37,129 @@ Empty.prototype = Object.create(null)
 export function parse(input: string) {
   // Optimization: Use new Empty() instead of Object.create(null) for performance
   // v8 has a better optimization for initializing functions compared to Object
-  const result = new Empty()
+  const result = new Empty();
 
   if (typeof input !== "string") {
-    return result
+    return result;
   }
 
-  const inputLength = input.length
-  let key = ""
-  let value = ""
-  let startingIndex = -1
-  let equalityIndex = -1
-  let shouldDecodeKey = false
-  let shouldDecodeValue = false
-  let keyHasPlus = false
-  let valueHasPlus = false
-  let hasBothKeyValuePair = false
-  let c = 0
+  const inputLength = input.length;
+  let key = "";
+  let value = "";
+  let startingIndex = -1;
+  let equalityIndex = -1;
+  let shouldDecodeKey = false;
+  let shouldDecodeValue = false;
+  let keyHasPlus = false;
+  let valueHasPlus = false;
+  let hasBothKeyValuePair = false;
+  let c = 0;
 
   // Have a boundary of input.length + 1 to access last pair inside the loop.
   for (let i = 0; i < inputLength + 1; i++) {
-    c = i !== inputLength ? input.charCodeAt(i) : 38
+    c = i !== inputLength ? input.charCodeAt(i) : 38;
 
     // Handle '&' and end of line to pass the current values to result
     if (c === 38) {
-      hasBothKeyValuePair = equalityIndex > startingIndex
+      hasBothKeyValuePair = equalityIndex > startingIndex;
 
       // Optimization: Reuse equality index to store the end of key
       if (!hasBothKeyValuePair) {
-        equalityIndex = i
+        equalityIndex = i;
       }
 
-      key = input.slice(startingIndex + 1, equalityIndex)
+      key = input.slice(startingIndex + 1, equalityIndex);
 
       // Add key/value pair only if the range size is greater than 1; a.k.a. contains at least "="
       if (hasBothKeyValuePair || key.length > 0) {
         // Optimization: Replace '+' with space
         if (keyHasPlus) {
-          key = key.replace(plusRegex, " ")
+          key = key.replace(plusRegex, " ");
         }
 
         // Optimization: Do not decode if it's not necessary.
         if (shouldDecodeKey) {
           try {
-            key = decodeURIComponent(key) || key
+            key = decodeURIComponent(key) || key;
           } catch {}
         }
 
         if (hasBothKeyValuePair) {
-          value = input.slice(equalityIndex + 1, i)
+          value = input.slice(equalityIndex + 1, i);
 
           if (valueHasPlus) {
-            value = value.replace(plusRegex, " ")
+            value = value.replace(plusRegex, " ");
           }
 
           if (shouldDecodeValue) {
             try {
-              value = decodeURIComponent(value) || value
+              value = decodeURIComponent(value) || value;
             } catch {}
           }
         }
-        const currentValue = result[key]
+        const currentValue = result[key];
 
         if (currentValue === undefined) {
-          result[key] = value
+          result[key] = value;
         } else {
           // Optimization: value.pop is faster than Array.isArray(value)
           if (currentValue.pop) {
-            currentValue.push(value)
+            currentValue.push(value);
           } else {
-            result[key] = [currentValue, value]
+            result[key] = [currentValue, value];
           }
         }
       }
 
       // Reset reading key value pairs
-      value = ""
-      startingIndex = i
-      equalityIndex = i
-      shouldDecodeKey = false
-      shouldDecodeValue = false
-      keyHasPlus = false
-      valueHasPlus = false
+      value = "";
+      startingIndex = i;
+      equalityIndex = i;
+      shouldDecodeKey = false;
+      shouldDecodeValue = false;
+      keyHasPlus = false;
+      valueHasPlus = false;
     } // Check '='
     else if (c === 61) {
       if (equalityIndex <= startingIndex) {
-        equalityIndex = i
+        equalityIndex = i;
       } // If '=' character occurs again, we should decode the input.
       else {
-        shouldDecodeValue = true
+        shouldDecodeValue = true;
       }
     } // Check '+', and remember to replace it with empty space.
     else if (c === 43) {
       if (equalityIndex > startingIndex) {
-        valueHasPlus = true
+        valueHasPlus = true;
       } else {
-        keyHasPlus = true
+        keyHasPlus = true;
       }
     } // Check '%' character for encoding
     else if (c === 37) {
       if (equalityIndex > startingIndex) {
-        shouldDecodeValue = true
+        shouldDecodeValue = true;
       } else {
-        shouldDecodeKey = true
+        shouldDecodeKey = true;
       }
     }
   }
 
-  return result
+  return result;
 }
 
 function getAsPrimitive(value: any) {
-  const type = typeof value
+  const type = typeof value;
 
   if (type === "string") {
     // Length check is handled inside encodeString function
-    return encodeString(value)
+    return encodeString(value);
   } else if (type === "bigint" || type === "boolean") {
-    return "" + value
+    return "" + value;
   } else if (type === "number" && Number.isFinite(value)) {
-    return value < 1e21 ? "" + value : encodeString("" + value)
+    return value < 1e21 ? "" + value : encodeString("" + value);
   }
 
-  return ""
+  return "";
 }
 
 /**
@@ -167,45 +167,45 @@ function getAsPrimitive(value: any) {
  * @since 1.0.0
  */
 export function stringify(input: Record<string, any>): string {
-  let result = ""
+  let result = "";
 
   if (input === null || typeof input !== "object") {
-    return result
+    return result;
   }
 
-  const separator = "&"
-  const keys = Object.keys(input)
-  const keyLength = keys.length
-  let valueLength = 0
+  const separator = "&";
+  const keys = Object.keys(input);
+  const keyLength = keys.length;
+  let valueLength = 0;
 
   for (let i = 0; i < keyLength; i++) {
-    const key = keys[i]
-    const value = input[key]
-    const encodedKey = encodeString(key) + "="
+    const key = keys[i];
+    const value = input[key];
+    const encodedKey = encodeString(key) + "=";
 
     if (i) {
-      result += separator
+      result += separator;
     }
 
     if (Array.isArray(value)) {
-      valueLength = value.length
+      valueLength = value.length;
       for (let j = 0; j < valueLength; j++) {
         if (j) {
-          result += separator
+          result += separator;
         }
 
         // Optimization: Dividing into multiple lines improves the performance.
         // Since v8 does not need to care about the '+' character if it was one-liner.
-        result += encodedKey
-        result += getAsPrimitive(value[j])
+        result += encodedKey;
+        result += getAsPrimitive(value[j]);
       }
     } else {
-      result += encodedKey
-      result += getAsPrimitive(value)
+      result += encodedKey;
+      result += getAsPrimitive(value);
     }
   }
 
-  return result
+  return result;
 }
 
 // -----------------------------------------------------------------------------
@@ -215,8 +215,8 @@ export function stringify(input: Record<string, any>): string {
 
 const hexTable = Array.from(
   { length: 256 },
-  (_, i) => "%" + ((i < 16 ? "0" : "") + i.toString(16)).toUpperCase()
-)
+  (_, i) => "%" + ((i < 16 ? "0" : "") + i.toString(16)).toUpperCase(),
+);
 
 // These characters do not need escaping when generating query strings:
 // ! - . _ ~
@@ -353,68 +353,70 @@ const noEscape = new Int8Array([
   0,
   0,
   1,
-  0 // 112 - 127
-])
+  0, // 112 - 127
+]);
 
 function encodeString(str: string) {
-  const len = str.length
-  if (len === 0) return ""
+  const len = str.length;
+  if (len === 0) return "";
 
-  let out = ""
-  let lastPos = 0
-  let i = 0
+  let out = "";
+  let lastPos = 0;
+  let i = 0;
 
   outer: for (; i < len; i++) {
-    let c = str.charCodeAt(i)
+    let c = str.charCodeAt(i);
 
     // ASCII
     while (c < 0x80) {
       if (noEscape[c] !== 1) {
-        if (lastPos < i) out += str.slice(lastPos, i)
-        lastPos = i + 1
-        out += hexTable[c]
+        if (lastPos < i) out += str.slice(lastPos, i);
+        lastPos = i + 1;
+        out += hexTable[c];
       }
 
-      if (++i === len) break outer
+      if (++i === len) break outer;
 
-      c = str.charCodeAt(i)
+      c = str.charCodeAt(i);
     }
 
-    if (lastPos < i) out += str.slice(lastPos, i)
+    if (lastPos < i) out += str.slice(lastPos, i);
 
     // Multi-byte characters ...
     if (c < 0x800) {
-      lastPos = i + 1
-      out += hexTable[0xc0 | (c >> 6)] + hexTable[0x80 | (c & 0x3f)]
-      continue
+      lastPos = i + 1;
+      out += hexTable[0xc0 | (c >> 6)] + hexTable[0x80 | (c & 0x3f)];
+      continue;
     }
     if (c < 0xd800 || c >= 0xe000) {
-      lastPos = i + 1
-      out += hexTable[0xe0 | (c >> 12)] +
+      lastPos = i + 1;
+      out +=
+        hexTable[0xe0 | (c >> 12)] +
         hexTable[0x80 | ((c >> 6) & 0x3f)] +
-        hexTable[0x80 | (c & 0x3f)]
-      continue
+        hexTable[0x80 | (c & 0x3f)];
+      continue;
     }
     // Surrogate pair
-    ++i
+    ++i;
 
     // This branch should never happen because all URLSearchParams entries
     // should already be converted to USVString. But, included for
     // completion's sake anyway.
     if (i >= len) {
-      throw new Error("URI malformed")
+      throw new Error("URI malformed");
     }
 
-    const c2 = str.charCodeAt(i) & 0x3ff
+    const c2 = str.charCodeAt(i) & 0x3ff;
 
-    lastPos = i + 1
-    c = 0x10000 + (((c & 0x3ff) << 10) | c2)
-    out += hexTable[0xf0 | (c >> 18)] +
+    lastPos = i + 1;
+    c = 0x10000 + (((c & 0x3ff) << 10) | c2);
+    out +=
+      hexTable[0xf0 | (c >> 18)] +
       hexTable[0x80 | ((c >> 12) & 0x3f)] +
       hexTable[0x80 | ((c >> 6) & 0x3f)] +
-      hexTable[0x80 | (c & 0x3f)]
+      hexTable[0x80 | (c & 0x3f)];
   }
-  if (lastPos === 0) return str
-  if (lastPos < len) return out + str.slice(lastPos)
-  return out
+  if (lastPos === 0) return str;
+  if (lastPos < len) return out + str.slice(lastPos);
+  return out;
 }

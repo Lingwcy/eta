@@ -1,5 +1,5 @@
-import { assert, describe, it } from "@effect/vitest"
-import * as Ini from "effect/unstable/encoding/Ini"
+import { assert, describe, it } from "@effect/vitest";
+import * as Ini from "effect/unstable/encoding/Ini";
 
 describe("Ini", () => {
   it("parses sections, arrays, and scalar values", () => {
@@ -21,12 +21,12 @@ size=10
         tag: ["one", "two"],
         database: {
           pool: {
-            size: "10"
-          }
-        }
-      }
-    )
-  })
+            size: "10",
+          },
+        },
+      },
+    );
+  });
 
   it("supports quoted values, comments, and escaped section dots", () => {
     assert.deepStrictEqual(
@@ -40,9 +40,9 @@ key=yes
         plain: "value",
         quoted: "value # retained",
         "a.b": {
-          key: "yes"
-        }
-      }
-    )
-  })
-})
+          key: "yes",
+        },
+      },
+    );
+  });
+});

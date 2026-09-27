@@ -6,9 +6,9 @@ into a single value used to execute effects:
 ```ts
 // v3
 interface Runtime<in R> {
-  readonly context: Context.Context<R>
-  readonly runtimeFlags: RuntimeFlags
-  readonly fiberRefs: FiberRefs
+  readonly context: Context.Context<R>;
+  readonly runtimeFlags: RuntimeFlags;
+  readonly fiberRefs: FiberRefs;
 }
 ```
 
@@ -25,27 +25,30 @@ the main effect.
 **v3**
 
 ```ts
-import { Context, Effect, Runtime } from "effect"
+import { Context, Effect, Runtime } from "effect";
 
-class Logger extends Context.Tag("Logger")<Logger, {
-  readonly log: (message: string) => void
-}>() {}
+class Logger extends Context.Tag("Logger")<
+  Logger,
+  {
+    readonly log: (message: string) => void;
+  }
+>() {}
 
-const program = Effect.gen(function*() {
-  const logger = yield* Logger
-  logger.log("Hello from Logger")
-})
+const program = Effect.gen(function* () {
+  const logger = yield* Logger;
+  logger.log("Hello from Logger");
+});
 
-const main = Effect.gen(function*() {
-  const runtime = yield* Effect.runtime<Logger>()
-  return Runtime.runFork(runtime)(program)
+const main = Effect.gen(function* () {
+  const runtime = yield* Effect.runtime<Logger>();
+  return Runtime.runFork(runtime)(program);
 }).pipe(
   Effect.provideService(Logger, {
-    log: (message) => console.log(message)
-  })
-)
+    log: (message) => console.log(message),
+  }),
+);
 
-const fiber = Effect.runFork(main)
+const fiber = Effect.runFork(main);
 ```
 
 In v4, use the same pattern with `Effect.context<R>()`, then run with
@@ -54,27 +57,32 @@ In v4, use the same pattern with `Effect.context<R>()`, then run with
 **v4**
 
 ```ts
-import { Context, Effect } from "effect"
+import { Context, Effect } from "effect";
 
-class Logger extends Context.Service<Logger, {
-  readonly log: (message: string) => void
-}>()("Logger") {}
+class Logger extends Context.Service<
+  Logger,
+  {
+    readonly log: (message: string) => void;
+  }
+>()("Logger") {}
 
-const program = Effect.gen(function*() {
-  const logger = yield* Logger
-  logger.log("Hello from Logger")
-})
+const program = Effect.gen(function* () {
+  const logger = yield* Logger;
+  logger.log("Hello from Logger");
+});
 
-const main = Effect.gen(function*() {
-  const services = yield* Effect.context<Logger>()
-  return Effect.runForkWith(services)(program)
+const main = Effect.gen(function* () {
+  const services = yield* Effect.context<Logger>();
+  return Effect.runForkWith(services)(program);
 }).pipe(
-  Effect.provideContext(Context.make(Logger, {
-    log: (message) => console.log(message)
-  }))
-)
+  Effect.provideContext(
+    Context.make(Logger, {
+      log: (message) => console.log(message),
+    }),
+  ),
+);
 
-const fiber = Effect.runFork(main)
+const fiber = Effect.runFork(main);
 ```
 
 If your effect has no service requirements, use `Effect.runFork(effect)`.

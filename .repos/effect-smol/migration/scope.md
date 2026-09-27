@@ -14,33 +14,33 @@ Effect.
 **v3**
 
 ```ts
-import { Effect, Scope } from "effect"
+import { Effect, Scope } from "effect";
 
-const program = Effect.gen(function*() {
-  const scope = yield* Scope.make()
-  yield* Scope.extend(myEffect, scope)
-})
+const program = Effect.gen(function* () {
+  const scope = yield* Scope.make();
+  yield* Scope.extend(myEffect, scope);
+});
 ```
 
 **v4**
 
 ```ts
-import { Effect, Scope } from "effect"
+import { Effect, Scope } from "effect";
 
-const program = Effect.gen(function*() {
-  const scope = yield* Scope.make()
-  yield* Scope.provide(scope)(myEffect)
-})
+const program = Effect.gen(function* () {
+  const scope = yield* Scope.make();
+  yield* Scope.provide(scope)(myEffect);
+});
 ```
 
 Both data-first and data-last (curried) forms are supported:
 
 ```ts
 // data-first
-Scope.provide(myEffect, scope)
+Scope.provide(myEffect, scope);
 
 // data-last (curried)
-myEffect.pipe(Scope.provide(scope))
+myEffect.pipe(Scope.provide(scope));
 ```
 
 ## Quick Reference

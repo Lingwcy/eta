@@ -3,11 +3,11 @@
  *
  * @since 4.0.0
  */
-import * as Context from "effect/Context"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as GlobLib from "glob"
+import * as Context from "effect/Context";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as GlobLib from "glob";
 
 /**
  * Error during glob pattern matching.
@@ -16,8 +16,8 @@ import * as GlobLib from "glob"
  * @since 4.0.0
  */
 export class GlobError extends Data.TaggedError("GlobError")<{
-  readonly pattern: string | ReadonlyArray<string>
-  readonly cause: unknown
+  readonly pattern: string | ReadonlyArray<string>;
+  readonly cause: unknown;
 }> {}
 
 /**
@@ -29,8 +29,8 @@ export class GlobError extends Data.TaggedError("GlobError")<{
 export interface Glob {
   readonly glob: (
     pattern: string | ReadonlyArray<string>,
-    options?: GlobLib.GlobOptions
-  ) => Effect.Effect<Array<string>, GlobError>
+    options?: GlobLib.GlobOptions,
+  ) => Effect.Effect<Array<string>, GlobError>;
 }
 
 /**
@@ -39,7 +39,7 @@ export interface Glob {
  * @category services
  * @since 4.0.0
  */
-export const Glob: Context.Service<Glob, Glob> = Context.Service("@effect/ai-codegen/Glob")
+export const Glob: Context.Service<Glob, Glob> = Context.Service("@effect/ai-codegen/Glob");
 
 /**
  * Layer providing the Glob service.
@@ -50,7 +50,8 @@ export const Glob: Context.Service<Glob, Glob> = Context.Service("@effect/ai-cod
 export const layer: Layer.Layer<Glob> = Layer.succeed(Glob, {
   glob: (pattern, options) =>
     Effect.tryPromise({
-      try: () => GlobLib.glob(pattern as string | Array<string>, options ?? {}) as Promise<Array<string>>,
-      catch: (cause) => new GlobError({ pattern, cause })
-    })
-})
+      try: () =>
+        GlobLib.glob(pattern as string | Array<string>, options ?? {}) as Promise<Array<string>>,
+      catch: (cause) => new GlobError({ pattern, cause }),
+    }),
+});

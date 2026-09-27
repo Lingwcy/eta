@@ -5,19 +5,19 @@
 /**
  * @since 4.0.0
  */
-export * from "./Hooks.ts"
+export * from "./Hooks.ts";
 
 /**
  * @since 4.0.0
  */
-export * from "./RegistryContext.ts"
+export * from "./RegistryContext.ts";
 
 /**
  * @since 4.0.0
  */
-export * from "./ReactHydration.ts"
+export * from "./ReactHydration.ts";
 
 /**
  * @since 4.0.0
  */
-export * from "./ScopedAtom.ts"
+export * from "./ScopedAtom.ts";

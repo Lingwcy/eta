@@ -14,10 +14,10 @@ In v4, `Cause<E>` has been flattened to a simple wrapper around an array of
 
 ```ts
 interface Cause<E> {
-  readonly reasons: ReadonlyArray<Reason<E>>
+  readonly reasons: ReadonlyArray<Reason<E>>;
 }
 
-type Reason<E> = Fail<E> | Die | Interrupt
+type Reason<E> = Fail<E> | Die | Interrupt;
 ```
 
 There are only three reason variants — `Fail`, `Die`, and `Interrupt`. The
@@ -30,43 +30,43 @@ concurrent or sequential composition) are collected into a flat array.
 **v3** — pattern match on the recursive tree structure:
 
 ```ts
-import { Cause } from "effect"
+import { Cause } from "effect";
 
 const handle = (cause: Cause.Cause<string>) => {
   switch (cause._tag) {
     case "Fail":
-      return cause.error
+      return cause.error;
     case "Die":
-      return cause.defect
+      return cause.defect;
     case "Empty":
-      return undefined
+      return undefined;
     case "Sequential":
-      return handle(cause.left)
+      return handle(cause.left);
     case "Parallel":
-      return handle(cause.left)
+      return handle(cause.left);
     case "Interrupt":
-      return cause.fiberId
+      return cause.fiberId;
   }
-}
+};
 ```
 
 **v4** — iterate over the flat `reasons` array:
 
 ```ts
-import { Cause } from "effect"
+import { Cause } from "effect";
 
 const handle = (cause: Cause.Cause<string>) => {
   for (const reason of cause.reasons) {
     switch (reason._tag) {
       case "Fail":
-        return reason.error
+        return reason.error;
       case "Die":
-        return reason.defect
+        return reason.defect;
       case "Interrupt":
-        return reason.fiberId
+        return reason.fiberId;
     }
   }
-}
+};
 ```
 
 ## Reason Guards

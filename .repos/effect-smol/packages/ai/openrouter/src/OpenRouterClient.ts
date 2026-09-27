@@ -4,25 +4,25 @@
  *
  * @since 4.0.0
  */
-import type * as Config from "effect/Config"
-import * as Context from "effect/Context"
-import * as Effect from "effect/Effect"
-import { identity } from "effect/Function"
-import * as Layer from "effect/Layer"
-import * as Predicate from "effect/Predicate"
-import type * as Redacted from "effect/Redacted"
-import * as Schema from "effect/Schema"
-import * as Stream from "effect/Stream"
-import * as AiError from "effect/unstable/ai/AiError"
-import * as Sse from "effect/unstable/encoding/Sse"
-import * as HttpBody from "effect/unstable/http/HttpBody"
-import * as HttpClient from "effect/unstable/http/HttpClient"
-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
-import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
-import * as Generated from "./Generated.ts"
-import * as Errors from "./internal/errors.ts"
-import { OpenRouterConfig } from "./OpenRouterConfig.ts"
-import * as OpenRouterSchema from "./OpenRouterSchema.ts"
+import type * as Config from "effect/Config";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import { identity } from "effect/Function";
+import * as Layer from "effect/Layer";
+import * as Predicate from "effect/Predicate";
+import type * as Redacted from "effect/Redacted";
+import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
+import * as AiError from "effect/unstable/ai/AiError";
+import * as Sse from "effect/unstable/encoding/Sse";
+import * as HttpBody from "effect/unstable/http/HttpBody";
+import * as HttpClient from "effect/unstable/http/HttpClient";
+import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
+import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
+import * as Generated from "./Generated.ts";
+import * as Errors from "./internal/errors.ts";
+import { OpenRouterConfig } from "./OpenRouterConfig.ts";
+import * as OpenRouterSchema from "./OpenRouterSchema.ts";
 
 // =============================================================================
 // Service Interface
@@ -40,31 +40,37 @@ import * as OpenRouterSchema from "./OpenRouterSchema.ts"
  * @since 4.0.0
  */
 export interface Service {
-  readonly client: Generated.OpenRouterClient
+  readonly client: Generated.OpenRouterClient;
 
   readonly createDecisions: (
-    options: typeof OpenRouterSchema.DecisionsRequest.Encoded
+    options: typeof OpenRouterSchema.DecisionsRequest.Encoded,
   ) => Effect.Effect<
-    [body: typeof OpenRouterSchema.DecisionsResponse.Type, response: HttpClientResponse.HttpClientResponse],
+    [
+      body: typeof OpenRouterSchema.DecisionsResponse.Type,
+      response: HttpClientResponse.HttpClientResponse,
+    ],
     AiError.AiError
-  >
+  >;
 
   readonly createChatCompletion: (
-    options: typeof Generated.ChatRequest.Encoded
+    options: typeof Generated.ChatRequest.Encoded,
   ) => Effect.Effect<
-    [body: typeof Generated.SendChatCompletionRequest200.Type, response: HttpClientResponse.HttpClientResponse],
+    [
+      body: typeof Generated.SendChatCompletionRequest200.Type,
+      response: HttpClientResponse.HttpClientResponse,
+    ],
     AiError.AiError
-  >
+  >;
 
   readonly createChatCompletionStream: (
-    options: Omit<typeof Generated.ChatRequest.Encoded, "stream" | "stream_options">
+    options: Omit<typeof Generated.ChatRequest.Encoded, "stream" | "stream_options">,
   ) => Effect.Effect<
     [
       response: HttpClientResponse.HttpClientResponse,
-      stream: Stream.Stream<ChatStreamingResponseChunkData, AiError.AiError>
+      stream: Stream.Stream<ChatStreamingResponseChunkData, AiError.AiError>,
     ],
     AiError.AiError
-  >
+  >;
 }
 
 /**
@@ -78,7 +84,8 @@ export interface Service {
  * @category models
  * @since 4.0.0
  */
-export type ChatStreamingResponseChunkData = typeof Generated.ChatStreamingResponse.fields.data.Type
+export type ChatStreamingResponseChunkData =
+  typeof Generated.ChatStreamingResponse.fields.data.Type;
 
 // =============================================================================
 // Service Identifier
@@ -99,10 +106,9 @@ export type ChatStreamingResponseChunkData = typeof Generated.ChatStreamingRespo
  * @category services
  * @since 4.0.0
  */
-export class OpenRouterClient extends Context.Service<
-  OpenRouterClient,
-  Service
->()("@effect/ai-openrouter/OpenRouterClient") {}
+export class OpenRouterClient extends Context.Service<OpenRouterClient, Service>()(
+  "@effect/ai-openrouter/OpenRouterClient",
+) {}
 
 // =============================================================================
 // Options
@@ -115,23 +121,23 @@ export class OpenRouterClient extends Context.Service<
  * @since 4.0.0
  */
 export type Options = {
-  readonly apiKey?: Redacted.Redacted<string> | undefined
+  readonly apiKey?: Redacted.Redacted<string> | undefined;
 
   /**
    * Base URL for the versioned API. Decisions replace a trailing "/v1" with
    * "/alpha/decisions"; otherwise they append "/alpha/decisions" to this URL.
    */
-  readonly apiUrl?: string | undefined
+  readonly apiUrl?: string | undefined;
 
   /**
    * Optional URL of your site for rankings on `openrouter.ai`.
    */
-  readonly siteReferrer?: string | undefined
+  readonly siteReferrer?: string | undefined;
 
   /**
    * Optional title of your site for rankings on `openrouter.ai`.
    */
-  readonly siteTitle?: string | undefined
+  readonly siteTitle?: string | undefined;
 
   /**
    * Optional transformer for the underlying HTTP client.
@@ -140,8 +146,8 @@ export type Options = {
    *
    * Use to add middleware, logging, or custom request/response handling.
    */
-  readonly transformClient?: ((client: HttpClient.HttpClient) => HttpClient.HttpClient) | undefined
-}
+  readonly transformClient?: ((client: HttpClient.HttpClient) => HttpClient.HttpClient) | undefined;
+};
 
 // =============================================================================
 // Constructor
@@ -166,138 +172,162 @@ export type Options = {
  * @category constructors
  * @since 4.0.0
  */
-export const make = Effect.fnUntraced(
-  function*(options: Options): Effect.fn.Return<Service, never, HttpClient.HttpClient> {
-    const baseClient = yield* HttpClient.HttpClient
+export const make = Effect.fnUntraced(function* (
+  options: Options,
+): Effect.fn.Return<Service, never, HttpClient.HttpClient> {
+  const baseClient = yield* HttpClient.HttpClient;
 
-    const makeHttpClient = (baseUrl: string) =>
-      baseClient.pipe(
-        HttpClient.mapRequest((request) =>
-          request.pipe(
-            HttpClientRequest.prependUrl(baseUrl),
-            options.apiKey ? HttpClientRequest.bearerToken(options.apiKey) : identity,
-            options.siteReferrer ? HttpClientRequest.setHeader("HTTP-Referer", options.siteReferrer) : identity,
-            options.siteTitle ? HttpClientRequest.setHeader("X-Title", options.siteTitle) : identity,
-            HttpClientRequest.acceptJson
-          )
+  const makeHttpClient = (baseUrl: string) =>
+    baseClient.pipe(
+      HttpClient.mapRequest((request) =>
+        request.pipe(
+          HttpClientRequest.prependUrl(baseUrl),
+          options.apiKey ? HttpClientRequest.bearerToken(options.apiKey) : identity,
+          options.siteReferrer
+            ? HttpClientRequest.setHeader("HTTP-Referer", options.siteReferrer)
+            : identity,
+          options.siteTitle ? HttpClientRequest.setHeader("X-Title", options.siteTitle) : identity,
+          HttpClientRequest.acceptJson,
         ),
-        options.transformClient ?? identity
-      )
+      ),
+      options.transformClient ?? identity,
+    );
 
-    const httpClient = makeHttpClient(options.apiUrl ?? "https://openrouter.ai/api/v1")
-    const httpClientOk = HttpClient.filterStatusOk(httpClient)
+  const httpClient = makeHttpClient(options.apiUrl ?? "https://openrouter.ai/api/v1");
+  const httpClientOk = HttpClient.filterStatusOk(httpClient);
 
-    // Remove the version suffix for alpha requests, preserving proxy prefixes.
-    const decisionsClient = makeHttpClient(
-      (options.apiUrl ?? "https://openrouter.ai/api/v1").replace(/\/v1\/?$/, "")
-    )
-    const createDecisions: Service["createDecisions"] = Effect.fnUntraced(
-      function*(payload) {
-        const config = yield* OpenRouterConfig.getOrUndefined
-        const client = HttpClient.filterStatusOk(
-          config?.transformClient ? config.transformClient(decisionsClient) : decisionsClient
-        )
-        const request = yield* HttpClientRequest.bodyJson(HttpClientRequest.post("/alpha/decisions"), payload).pipe(
-          Effect.mapError((error) =>
-            AiError.make({
-              module: "OpenRouterClient",
-              method: "createDecisions",
-              reason: new AiError.InvalidRequestError({ description: String(error) })
-            })
-          )
-        )
-        const response = yield* client.execute(request)
-        const body = yield* HttpClientResponse.schemaBodyJson(OpenRouterSchema.DecisionsResponse)(response)
-        return [body, response] as [
-          typeof OpenRouterSchema.DecisionsResponse.Type,
-          HttpClientResponse.HttpClientResponse
-        ]
-      },
+  // Remove the version suffix for alpha requests, preserving proxy prefixes.
+  const decisionsClient = makeHttpClient(
+    (options.apiUrl ?? "https://openrouter.ai/api/v1").replace(/\/v1\/?$/, ""),
+  );
+  const createDecisions: Service["createDecisions"] = Effect.fnUntraced(
+    function* (payload) {
+      const config = yield* OpenRouterConfig.getOrUndefined;
+      const client = HttpClient.filterStatusOk(
+        config?.transformClient ? config.transformClient(decisionsClient) : decisionsClient,
+      );
+      const request = yield* HttpClientRequest.bodyJson(
+        HttpClientRequest.post("/alpha/decisions"),
+        payload,
+      ).pipe(
+        Effect.mapError((error) =>
+          AiError.make({
+            module: "OpenRouterClient",
+            method: "createDecisions",
+            reason: new AiError.InvalidRequestError({ description: String(error) }),
+          }),
+        ),
+      );
+      const response = yield* client.execute(request);
+      const body = yield* HttpClientResponse.schemaBodyJson(OpenRouterSchema.DecisionsResponse)(
+        response,
+      );
+      return [body, response] as [
+        typeof OpenRouterSchema.DecisionsResponse.Type,
+        HttpClientResponse.HttpClientResponse,
+      ];
+    },
+    Effect.catchTags({
+      HttpClientError: (error) => Errors.mapHttpClientError(error, "createDecisions"),
+      SchemaError: (error) => Effect.fail(Errors.mapSchemaError(error, "createDecisions")),
+    }),
+  );
+
+  const client = Generated.make(httpClient, {
+    transformClient: Effect.fnUntraced(function* (client) {
+      const config = yield* OpenRouterConfig.getOrUndefined;
+      if (Predicate.isNotUndefined(config?.transformClient)) {
+        return config.transformClient(client);
+      }
+      return client;
+    }),
+  });
+
+  const createChatCompletion: Service["createChatCompletion"] = (payload) =>
+    client.sendChatCompletionRequest({ payload, config: { includeResponse: true } }).pipe(
       Effect.catchTags({
-        HttpClientError: (error) => Errors.mapHttpClientError(error, "createDecisions"),
-        SchemaError: (error) => Effect.fail(Errors.mapSchemaError(error, "createDecisions"))
-      })
-    )
+        SendChatCompletionRequest400: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest401: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest402: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest403: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest404: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest408: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest413: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest422: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest429: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest500: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest502: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest503: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest524: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        SendChatCompletionRequest529: (error) =>
+          Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
+        HttpClientError: (error) => Errors.mapHttpClientError(error, "createChatCompletion"),
+        SchemaError: (error) => Effect.fail(Errors.mapSchemaError(error, "createChatCompletion")),
+      }),
+    );
 
-    const client = Generated.make(httpClient, {
-      transformClient: Effect.fnUntraced(function*(client) {
-        const config = yield* OpenRouterConfig.getOrUndefined
-        if (Predicate.isNotUndefined(config?.transformClient)) {
-          return config.transformClient(client)
-        }
-        return client
-      })
-    })
+  const buildChatCompletionStream = (
+    response: HttpClientResponse.HttpClientResponse,
+  ): [
+    HttpClientResponse.HttpClientResponse,
+    Stream.Stream<ChatStreamingResponseChunkData, AiError.AiError>,
+  ] => {
+    const stream = response.stream.pipe(
+      Stream.decodeText(),
+      Stream.pipeThroughChannel(Sse.decode()),
+      Stream.mapEffect((event) => decodeChatCompletionSseData(event.data)),
+      Stream.takeWhile((data) => data !== "[DONE]"),
+      Stream.catchTags({
+        // TODO: handle SSE retries
+        Retry: (error) => Stream.die(error),
+        SseError: (error) => Stream.fail(Errors.mapSseError(error, "createChatCompletionStream")),
+        HttpClientError: (error) =>
+          Stream.fromEffect(Errors.mapHttpClientError(error, "createChatCompletionStream")),
+        SchemaError: (error) =>
+          Stream.fail(Errors.mapSchemaError(error, "createChatCompletionStream")),
+      }),
+    ) as any;
+    return [response, stream];
+  };
 
-    const createChatCompletion: Service["createChatCompletion"] = (payload) =>
-      client.sendChatCompletionRequest({ payload, config: { includeResponse: true } }).pipe(
-        Effect.catchTags({
-          SendChatCompletionRequest400: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest401: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest402: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest403: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest404: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest408: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest413: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest422: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest429: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest500: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest502: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest503: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest524: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          SendChatCompletionRequest529: (error) => Effect.fail(Errors.mapClientError(error, "createChatCompletion")),
-          HttpClientError: (error) => Errors.mapHttpClientError(error, "createChatCompletion"),
-          SchemaError: (error) => Effect.fail(Errors.mapSchemaError(error, "createChatCompletion"))
-        })
-      )
-
-    const buildChatCompletionStream = (
-      response: HttpClientResponse.HttpClientResponse
-    ): [
-      HttpClientResponse.HttpClientResponse,
-      Stream.Stream<ChatStreamingResponseChunkData, AiError.AiError>
-    ] => {
-      const stream = response.stream.pipe(
-        Stream.decodeText(),
-        Stream.pipeThroughChannel(Sse.decode()),
-        Stream.mapEffect((event) => decodeChatCompletionSseData(event.data)),
-        Stream.takeWhile((data) => data !== "[DONE]"),
-        Stream.catchTags({
-          // TODO: handle SSE retries
-          Retry: (error) => Stream.die(error),
-          SseError: (error) => Stream.fail(Errors.mapSseError(error, "createChatCompletionStream")),
-          HttpClientError: (error) => Stream.fromEffect(Errors.mapHttpClientError(error, "createChatCompletionStream")),
-          SchemaError: (error) => Stream.fail(Errors.mapSchemaError(error, "createChatCompletionStream"))
-        })
-      ) as any
-      return [response, stream]
-    }
-
-    const createChatCompletionStream: Service["createChatCompletionStream"] = (payload) =>
-      httpClientOk.execute(
+  const createChatCompletionStream: Service["createChatCompletionStream"] = (payload) =>
+    httpClientOk
+      .execute(
         HttpClientRequest.post("/chat/completions", {
           body: HttpBody.jsonUnsafe({
             ...payload,
             stream: true,
-            stream_options: { include_usage: true }
-          })
-        })
-      ).pipe(
-        Effect.map(buildChatCompletionStream),
-        Effect.catchTag(
-          "HttpClientError",
-          (error) => Errors.mapHttpClientError(error, "createChatCompletionStream")
-        )
+            stream_options: { include_usage: true },
+          }),
+        }),
       )
+      .pipe(
+        Effect.map(buildChatCompletionStream),
+        Effect.catchTag("HttpClientError", (error) =>
+          Errors.mapHttpClientError(error, "createChatCompletionStream"),
+        ),
+      );
 
-    return OpenRouterClient.of({
-      client,
-      createDecisions,
-      createChatCompletion,
-      createChatCompletionStream
-    })
-  }
-)
+  return OpenRouterClient.of({
+    client,
+    createDecisions,
+    createChatCompletion,
+    createChatCompletionStream,
+  });
+});
 
 // =============================================================================
 // Layers
@@ -317,8 +347,10 @@ export const make = Effect.fnUntraced(
  * @category layers
  * @since 4.0.0
  */
-export const layer = (options: Options): Layer.Layer<OpenRouterClient, never, HttpClient.HttpClient> =>
-  Layer.effect(OpenRouterClient, make(options))
+export const layer = (
+  options: Options,
+): Layer.Layer<OpenRouterClient, never, HttpClient.HttpClient> =>
+  Layer.effect(OpenRouterClient, make(options));
 
 /**
  * Creates a layer for the OpenRouter client from provided `Config` values.
@@ -344,63 +376,61 @@ export const layerConfig = (options?: {
   /**
    * The config value to load for the API key.
    */
-  readonly apiKey?: Config.Config<Redacted.Redacted<string> | undefined> | undefined
+  readonly apiKey?: Config.Config<Redacted.Redacted<string> | undefined> | undefined;
 
   /**
    * The config value to load for the API URL.
    */
-  readonly apiUrl?: Config.Config<string> | undefined
+  readonly apiUrl?: Config.Config<string> | undefined;
 
   /**
    * The config value to load for the site referrer URL.
    */
-  readonly siteReferrer?: Config.Config<string> | undefined
+  readonly siteReferrer?: Config.Config<string> | undefined;
 
   /**
    * The config value to load for the site title.
    */
-  readonly siteTitle?: Config.Config<string> | undefined
+  readonly siteTitle?: Config.Config<string> | undefined;
 
   /**
    * Optional transformer for the HTTP client.
    */
-  readonly transformClient?: ((client: HttpClient.HttpClient) => HttpClient.HttpClient) | undefined
+  readonly transformClient?: ((client: HttpClient.HttpClient) => HttpClient.HttpClient) | undefined;
 }): Layer.Layer<OpenRouterClient, Config.ConfigError, HttpClient.HttpClient> =>
   Layer.effect(
     OpenRouterClient,
-    Effect.gen(function*() {
-      const apiKey = Predicate.isNotUndefined(options?.apiKey)
-        ? yield* options.apiKey
-        : undefined
-      const apiUrl = Predicate.isNotUndefined(options?.apiUrl)
-        ? yield* options.apiUrl
-        : undefined
+    Effect.gen(function* () {
+      const apiKey = Predicate.isNotUndefined(options?.apiKey) ? yield* options.apiKey : undefined;
+      const apiUrl = Predicate.isNotUndefined(options?.apiUrl) ? yield* options.apiUrl : undefined;
       const siteReferrer = Predicate.isNotUndefined(options?.siteReferrer)
         ? yield* options.siteReferrer
-        : undefined
+        : undefined;
       const siteTitle = Predicate.isNotUndefined(options?.siteTitle)
         ? yield* options.siteTitle
-        : undefined
+        : undefined;
       return yield* make({
         apiKey,
         apiUrl,
         siteReferrer,
         siteTitle,
-        transformClient: options?.transformClient
-      })
-    })
-  )
+        transformClient: options?.transformClient,
+      });
+    }),
+  );
 
 // =============================================================================
 // Internal Utilities
 // =============================================================================
 
-const ChatStreamingResponseChunkDataFromString = Schema.fromJsonString(Generated.ChatStreamingResponse.fields.data)
-const decodeChatStreamingResponseChunkData = Schema.decodeUnknownEffect(ChatStreamingResponseChunkDataFromString)
+const ChatStreamingResponseChunkDataFromString = Schema.fromJsonString(
+  Generated.ChatStreamingResponse.fields.data,
+);
+const decodeChatStreamingResponseChunkData = Schema.decodeUnknownEffect(
+  ChatStreamingResponseChunkDataFromString,
+);
 
 const decodeChatCompletionSseData = (
-  data: string
+  data: string,
 ): Effect.Effect<ChatStreamingResponseChunkData | "[DONE]", Schema.SchemaError> =>
-  data === "[DONE]"
-    ? Effect.succeed(data)
-    : decodeChatStreamingResponseChunkData(data)
+  data === "[DONE]" ? Effect.succeed(data) : decodeChatStreamingResponseChunkData(data);

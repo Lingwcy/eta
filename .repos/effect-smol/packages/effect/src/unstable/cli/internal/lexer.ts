@@ -13,64 +13,64 @@
 export type Token =
   | { _tag: "LongOption"; name: string; raw: string; value?: string }
   | { _tag: "ShortOption"; flag: string; raw: string; value?: string }
-  | { _tag: "Value"; value: string }
+  | { _tag: "Value"; value: string };
 
 /** @internal */
 export interface LexResult {
-  readonly tokens: ReadonlyArray<Token>
-  readonly trailingOperands: ReadonlyArray<string>
+  readonly tokens: ReadonlyArray<Token>;
+  readonly trailingOperands: ReadonlyArray<string>;
 }
 
 /** @internal */
 export function lex(argv: ReadonlyArray<string>): LexResult {
-  const endIndex = argv.indexOf("--")
+  const endIndex = argv.indexOf("--");
 
   if (endIndex === -1) {
     // No -- delimiter, lex everything normally
     return {
       tokens: lexTokens(argv),
-      trailingOperands: []
-    }
+      trailingOperands: [],
+    };
   }
 
   // Split at -- delimiter
   return {
     tokens: lexTokens(argv.slice(0, endIndex)),
-    trailingOperands: argv.slice(endIndex + 1)
-  }
+    trailingOperands: argv.slice(endIndex + 1),
+  };
 }
 
 const lexTokens = (args: ReadonlyArray<string>): ReadonlyArray<Token> => {
-  const tokens: Array<Token> = []
+  const tokens: Array<Token> = [];
 
   for (const arg of args) {
     if (!arg.startsWith("-")) {
-      tokens.push({ _tag: "Value", value: arg })
+      tokens.push({ _tag: "Value", value: arg });
     } else if (arg.startsWith("--")) {
-      const equalIndex = arg.indexOf("=")
+      const equalIndex = arg.indexOf("=");
       if (equalIndex !== -1) {
-        const name = arg.slice(2, equalIndex)
-        const value = arg.slice(equalIndex + 1)
-        tokens.push({ _tag: "LongOption", name, raw: arg, value })
+        const name = arg.slice(2, equalIndex);
+        const value = arg.slice(equalIndex + 1);
+        tokens.push({ _tag: "LongOption", name, raw: arg, value });
       } else {
-        tokens.push({ _tag: "LongOption", name: arg.slice(2), raw: arg })
+        tokens.push({ _tag: "LongOption", name: arg.slice(2), raw: arg });
       }
     } else if (arg.length > 1) {
-      const flags = arg.slice(1)
-      const equalIndex = flags.indexOf("=")
+      const flags = arg.slice(1);
+      const equalIndex = flags.indexOf("=");
       if (equalIndex !== -1) {
-        const flag = flags.slice(0, equalIndex)
-        const value = flags.slice(equalIndex + 1)
-        tokens.push({ _tag: "ShortOption", flag, raw: `-${flag}`, value })
+        const flag = flags.slice(0, equalIndex);
+        const value = flags.slice(equalIndex + 1);
+        tokens.push({ _tag: "ShortOption", flag, raw: `-${flag}`, value });
       } else {
         for (const ch of flags) {
-          tokens.push({ _tag: "ShortOption", flag: ch, raw: `-${ch}` })
+          tokens.push({ _tag: "ShortOption", flag: ch, raw: `-${ch}` });
         }
       }
     } else {
-      tokens.push({ _tag: "Value", value: arg })
+      tokens.push({ _tag: "Value", value: arg });
     }
   }
 
-  return tokens
-}
+  return tokens;
+};

@@ -9,7 +9,7 @@
  *
  * @since 4.0.0
  */
-import * as Metric from "../../Metric.ts"
+import * as Metric from "../../Metric.ts";
 
 /**
  * Creates a gauge tracking the number of active entity instances for each entity type on
@@ -36,7 +36,7 @@ import * as Metric from "../../Metric.ts"
  * @category metrics
  * @since 4.0.0
  */
-export const entities = Metric.gauge("effect_cluster_entities", { bigint: true })
+export const entities = Metric.gauge("effect_cluster_entities", { bigint: true });
 
 /**
  * Creates a gauge tracking the number of singleton processes currently running on the
@@ -45,7 +45,7 @@ export const entities = Metric.gauge("effect_cluster_entities", { bigint: true }
  * @category metrics
  * @since 4.0.0
  */
-export const singletons = Metric.gauge("effect_cluster_singletons", { bigint: true })
+export const singletons = Metric.gauge("effect_cluster_singletons", { bigint: true });
 
 /**
  * Represents a gauge tracking the number of registered cluster runners.
@@ -63,7 +63,7 @@ export const singletons = Metric.gauge("effect_cluster_singletons", { bigint: tr
  * @category metrics
  * @since 4.0.0
  */
-export const runners = Metric.gauge("effect_cluster_runners", { bigint: true })
+export const runners = Metric.gauge("effect_cluster_runners", { bigint: true });
 
 /**
  * Represents a gauge tracking the number of cluster runners currently considered healthy.
@@ -86,7 +86,7 @@ export const runners = Metric.gauge("effect_cluster_runners", { bigint: true })
  * @category metrics
  * @since 4.0.0
  */
-export const runnersHealthy = Metric.gauge("effect_cluster_runners_healthy", { bigint: true })
+export const runnersHealthy = Metric.gauge("effect_cluster_runners_healthy", { bigint: true });
 
 /**
  * Represents a gauge tracking the number of shards currently acquired by the current runner.
@@ -109,4 +109,4 @@ export const runnersHealthy = Metric.gauge("effect_cluster_runners_healthy", { b
  * @category metrics
  * @since 4.0.0
  */
-export const shards = Metric.gauge("effect_cluster_shards", { bigint: true })
+export const shards = Metric.gauge("effect_cluster_shards", { bigint: true });

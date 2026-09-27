@@ -1,38 +1,22 @@
 {
   "name": "@effect/sql-libsql",
   "version": "4.0.0-rc.117",
-  "type": "module",
-  "license": "MIT",
   "description": "A libSQL toolkit for Effect",
+  "keywords": [
+    "database",
+    "libsql",
+    "sql",
+    "typescript"
+  ],
   "homepage": "https://effect.website",
+  "bugs": {
+    "url": "https://github.com/Effect-TS/effect/issues"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/sql/libsql"
-  },
-  "bugs": {
-    "url": "https://github.com/Effect-TS/effect/issues"
-  },
-  "tags": [
-    "typescript",
-    "sql",
-    "libsql",
-    "database"
-  ],
-  "keywords": [
-    "typescript",
-    "sql",
-    "libsql",
-    "database"
-  ],
-  "sideEffects": [],
-  "exports": {
-    "./package.json": "./package.json",
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./internal/*": null,
-    "./index": null,
-    "./*/index": null
   },
   "files": [
     "src/**/*.ts",
@@ -44,9 +28,17 @@
     "CLAUDE.md",
     "ai-docs/**/*"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts",
+    "./internal/*": null,
+    "./index": null,
+    "./*/index": null
+  },
   "publishConfig": {
-    "access": "public",
-    "provenance": true,
     "exports": {
       "./package.json": "./package.json",
       ".": "./dist/index.js",
@@ -54,13 +46,18 @@
       "./internal/*": null,
       "./index": null,
       "./*/index": null
-    }
+    },
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "codegen": "effect-utils codegen",
     "build": "tsc -b tsconfig.json && pnpm babel",
     "babel": "babel dist --plugins annotate-pure-calls --out-dir dist --source-maps",
     "check": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0"
   },
   "devDependencies": {
     "effect": "workspace:^",
@@ -69,7 +66,10 @@
   "peerDependencies": {
     "effect": "workspace:^"
   },
-  "dependencies": {
-    "@libsql/client": "^0.18.0"
-  }
+  "tags": [
+    "typescript",
+    "sql",
+    "libsql",
+    "database"
+  ]
 }

@@ -3,14 +3,14 @@
  *
  * @since 4.0.0
  */
-import * as Equal from "../../Equal.ts"
-import * as Hash from "../../Hash.ts"
-import { NodeInspectSymbol } from "../../Inspectable.ts"
-import { hasProperty } from "../../Predicate.ts"
-import * as Result from "../../Result.ts"
-import * as NetAddress from "./NetAddress.ts"
+import * as Equal from "../../Equal.ts";
+import * as Hash from "../../Hash.ts";
+import { NodeInspectSymbol } from "../../Inspectable.ts";
+import { hasProperty } from "../../Predicate.ts";
+import * as Result from "../../Result.ts";
+import * as NetAddress from "./NetAddress.ts";
 
-const TypeId = "~effect/net/IpInterface" as const
+const TypeId = "~effect/net/IpInterface" as const;
 
 /**
  * An IP host address and prefix length. Host bits and any verified address
@@ -21,13 +21,14 @@ const TypeId = "~effect/net/IpInterface" as const
  * @category models
  * @since 4.0.0
  */
-export interface IpInterface<out A extends NetAddress.IpAddress = NetAddress.IpAddress> extends Equal.Equal, Hash.Hash {
-  readonly _tag: "IpInterface"
-  readonly address: A
-  readonly prefixLength: number
-  readonly [TypeId]: typeof TypeId
-  toString(): string
-  toJSON(): string
+export interface IpInterface<out A extends NetAddress.IpAddress = NetAddress.IpAddress>
+  extends Equal.Equal, Hash.Hash {
+  readonly _tag: "IpInterface";
+  readonly address: A;
+  readonly prefixLength: number;
+  readonly [TypeId]: typeof TypeId;
+  toString(): string;
+  toJSON(): string;
 }
 
 /**
@@ -36,7 +37,7 @@ export interface IpInterface<out A extends NetAddress.IpAddress = NetAddress.IpA
  * @category models
  * @since 4.0.0
  */
-export type Ipv4Interface = IpInterface<NetAddress.Ipv4Address>
+export type Ipv4Interface = IpInterface<NetAddress.Ipv4Address>;
 
 /**
  * An IPv6 host address and prefix length.
@@ -44,7 +45,7 @@ export type Ipv4Interface = IpInterface<NetAddress.Ipv4Address>
  * @category models
  * @since 4.0.0
  */
-export type Ipv6Interface = IpInterface<NetAddress.Ipv6Address>
+export type Ipv6Interface = IpInterface<NetAddress.Ipv6Address>;
 
 /**
  * Companion types for parsing IP interface addresses.
@@ -60,7 +61,7 @@ export declare namespace IpInterface {
    * @since 4.0.0
    */
   export interface ParseOptions {
-    readonly prefix?: "required" | "optional"
+    readonly prefix?: "required" | "optional";
   }
 }
 
@@ -71,7 +72,7 @@ export declare namespace IpInterface {
  * @since 4.0.0
  */
 export const isIpv4Interface = (u: unknown): u is Ipv4Interface =>
-  isIpInterface(u) && NetAddress.isIpv4Address(u.address)
+  isIpInterface(u) && NetAddress.isIpv4Address(u.address);
 
 /**
  * Returns `true` when a value is an IPv6 interface address.
@@ -80,7 +81,7 @@ export const isIpv4Interface = (u: unknown): u is Ipv4Interface =>
  * @since 4.0.0
  */
 export const isIpv6Interface = (u: unknown): u is Ipv6Interface =>
-  isIpInterface(u) && NetAddress.isIpv6Address(u.address)
+  isIpInterface(u) && NetAddress.isIpv6Address(u.address);
 
 /**
  * Returns `true` when a value is an IP interface address.
@@ -88,32 +89,37 @@ export const isIpv6Interface = (u: unknown): u is Ipv6Interface =>
  * @category guards
  * @since 4.0.0
  */
-export const isIpInterface = (u: unknown): u is IpInterface => hasProperty(u, TypeId)
+export const isIpInterface = (u: unknown): u is IpInterface => hasProperty(u, TypeId);
 
 const IpInterfaceProto = {
   _tag: "IpInterface",
   [TypeId]: TypeId,
   [Equal.symbol](this: IpInterface, that: Equal.Equal): boolean {
-    return isIpInterface(that) &&
+    return (
+      isIpInterface(that) &&
       this.prefixLength === that.prefixLength &&
       Equal.equals(this.address, that.address)
+    );
   },
   [Hash.symbol](this: IpInterface): number {
-    return Hash.combine(Hash.hash(this.address), Hash.number(this.prefixLength))
+    return Hash.combine(Hash.hash(this.address), Hash.number(this.prefixLength));
   },
   toString(this: IpInterface): string {
-    return format(this)
+    return format(this);
   },
   toJSON(this: IpInterface): string {
-    return this.toString()
+    return this.toString();
   },
   [NodeInspectSymbol](this: IpInterface): string {
-    return this.toJSON()
-  }
-}
+    return this.toJSON();
+  },
+};
 
-const interfaceError = (input: unknown, message: string): Result.Result<never, NetAddress.NetAddressError> =>
-  Result.fail(new NetAddress.NetAddressError({ input, message }))
+const interfaceError = (
+  input: unknown,
+  message: string,
+): Result.Result<never, NetAddress.NetAddressError> =>
+  Result.fail(new NetAddress.NetAddressError({ input, message }));
 
 /**
  * Creates an interface address while preserving all address bits.
@@ -123,36 +129,36 @@ const interfaceError = (input: unknown, message: string): Result.Result<never, N
  */
 export const make = <A extends NetAddress.IpAddress>(
   address: A,
-  prefixLength: number
+  prefixLength: number,
 ): Result.Result<IpInterface<A>, NetAddress.NetAddressError> => {
-  const max = NetAddress.width(address)
+  const max = NetAddress.width(address);
   if (!Number.isInteger(prefixLength) || prefixLength < 0 || prefixLength > max) {
-    return interfaceError(address, `prefix length must be an integer from 0 through ${max}`)
+    return interfaceError(address, `prefix length must be an integer from 0 through ${max}`);
   }
-  const self = Object.assign(Object.create(IpInterfaceProto), { address, prefixLength })
-  return Result.succeed(Object.freeze(self))
-}
+  const self = Object.assign(Object.create(IpInterfaceProto), { address, prefixLength });
+  return Result.succeed(Object.freeze(self));
+};
 
 const parseAddressWithPrefix = (
   input: string,
-  options?: IpInterface.ParseOptions
+  options?: IpInterface.ParseOptions,
 ): Result.Result<
   { readonly address: string; readonly prefixLength: number | undefined },
   NetAddress.NetAddressError
 > => {
-  const slash = input.indexOf("/")
+  const slash = input.indexOf("/");
   if (slash === -1 && options?.prefix !== "required") {
-    return Result.succeed({ address: input, prefixLength: undefined })
+    return Result.succeed({ address: input, prefixLength: undefined });
   }
   if (slash <= 0 || slash !== input.lastIndexOf("/") || slash === input.length - 1) {
-    return interfaceError(input, "expected an address and prefix length separated by one slash")
+    return interfaceError(input, "expected an address and prefix length separated by one slash");
   }
-  const prefix = input.slice(slash + 1)
+  const prefix = input.slice(slash + 1);
   if (!/^(0|[1-9][0-9]*)$/.test(prefix)) {
-    return interfaceError(input, "prefix length must be an unpadded ASCII decimal integer")
+    return interfaceError(input, "prefix length must be an unpadded ASCII decimal integer");
   }
-  return Result.succeed({ address: input.slice(0, slash), prefixLength: Number(prefix) })
-}
+  return Result.succeed({ address: input.slice(0, slash), prefixLength: Number(prefix) });
+};
 
 /**
  * Parses an IPv4 interface address while preserving host bits.
@@ -166,14 +172,13 @@ const parseAddressWithPrefix = (
  */
 export const ipv4FromString = (
   input: string,
-  options?: IpInterface.ParseOptions
+  options?: IpInterface.ParseOptions,
 ): Result.Result<Ipv4Interface, NetAddress.NetAddressError> =>
-  Result.flatMap(
-    parseAddressWithPrefix(input, options),
-    (parts) =>
-      Result.flatMap(NetAddress.ipv4FromString(parts.address), (address) =>
-        make(address, parts.prefixLength ?? NetAddress.width(address)))
-  )
+  Result.flatMap(parseAddressWithPrefix(input, options), (parts) =>
+    Result.flatMap(NetAddress.ipv4FromString(parts.address), (address) =>
+      make(address, parts.prefixLength ?? NetAddress.width(address)),
+    ),
+  );
 
 /**
  * Parses an IPv6 interface address while preserving host bits.
@@ -187,14 +192,13 @@ export const ipv4FromString = (
  */
 export const ipv6FromString = (
   input: string,
-  options?: IpInterface.ParseOptions
+  options?: IpInterface.ParseOptions,
 ): Result.Result<Ipv6Interface, NetAddress.NetAddressError> =>
-  Result.flatMap(
-    parseAddressWithPrefix(input, options),
-    (parts) =>
-      Result.flatMap(NetAddress.ipv6FromString(parts.address), (address) =>
-        make(address, parts.prefixLength ?? NetAddress.width(address)))
-  )
+  Result.flatMap(parseAddressWithPrefix(input, options), (parts) =>
+    Result.flatMap(NetAddress.ipv6FromString(parts.address), (address) =>
+      make(address, parts.prefixLength ?? NetAddress.width(address)),
+    ),
+  );
 
 /**
  * Parses an IP interface address while preserving host bits.
@@ -209,14 +213,13 @@ export const ipv6FromString = (
  */
 export const fromString = (
   input: string,
-  options?: IpInterface.ParseOptions
+  options?: IpInterface.ParseOptions,
 ): Result.Result<IpInterface, NetAddress.NetAddressError> =>
-  Result.flatMap(
-    parseAddressWithPrefix(input, options),
-    (parts) =>
-      Result.flatMap(NetAddress.ipFromString(parts.address), (address) =>
-        make(address, parts.prefixLength ?? NetAddress.width(address)))
-  )
+  Result.flatMap(parseAddressWithPrefix(input, options), (parts) =>
+    Result.flatMap(NetAddress.ipFromString(parts.address), (address) =>
+      make(address, parts.prefixLength ?? NetAddress.width(address)),
+    ),
+  );
 
 /**
  * Creates a trusted interface address, throwing when its prefix length is invalid.
@@ -224,8 +227,10 @@ export const fromString = (
  * @category unsafe
  * @since 4.0.0
  */
-export const makeUnsafe = <A extends NetAddress.IpAddress>(address: A, prefixLength: number): IpInterface<A> =>
-  Result.getOrThrow(make(address, prefixLength))
+export const makeUnsafe = <A extends NetAddress.IpAddress>(
+  address: A,
+  prefixLength: number,
+): IpInterface<A> => Result.getOrThrow(make(address, prefixLength));
 
 /**
  * Parses a trusted interface address, throwing on failure.
@@ -234,7 +239,7 @@ export const makeUnsafe = <A extends NetAddress.IpAddress>(address: A, prefixLen
  * @since 4.0.0
  */
 export const fromStringUnsafe = (input: string, options?: IpInterface.ParseOptions): IpInterface =>
-  Result.getOrThrow(fromString(input, options))
+  Result.getOrThrow(fromString(input, options));
 
 /**
  * Formats an interface address using canonical address text and its decimal prefix length.
@@ -242,4 +247,5 @@ export const fromStringUnsafe = (input: string, options?: IpInterface.ParseOptio
  * @category encoding
  * @since 4.0.0
  */
-export const format = (self: IpInterface): string => `${NetAddress.formatIp(self.address)}/${self.prefixLength}`
+export const format = (self: IpInterface): string =>
+  `${NetAddress.formatIp(self.address)}/${self.prefixLength}`;

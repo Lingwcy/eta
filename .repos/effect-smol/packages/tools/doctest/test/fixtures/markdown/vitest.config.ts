@@ -1,5 +1,5 @@
-import * as Doctest from "@effect/doctest/Plugin"
-import { defineConfig } from "vitest/config"
+import * as Doctest from "@effect/doctest/Plugin";
+import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   root: import.meta.dirname,
@@ -11,6 +11,6 @@ export default defineConfig({
     passWithNoTests: false,
     fileParallelism: false,
     maxWorkers: 1,
-    retry: 0
-  }
-})
+    retry: 0,
+  },
+});

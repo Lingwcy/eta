@@ -10,18 +10,18 @@
  *
  * @since 4.0.0
  */
-import * as Cause from "./Cause.ts"
-import * as Effect from "./Effect.ts"
-import * as Exit from "./Exit.ts"
-import { effectIsExit } from "./internal/effect.ts"
-import * as InternalSchemaCause from "./internal/schema/cause.ts"
-import * as CompilerRegistry from "./internal/schema/compilerRegistry.ts"
-import * as InternalParser from "./internal/schema/parser.ts"
-import * as Option from "./Option.ts"
-import * as Result from "./Result.ts"
-import type * as Schema from "./Schema.ts"
-import * as SchemaAST from "./SchemaAST.ts"
-import * as SchemaIssue from "./SchemaIssue.ts"
+import * as Cause from "./Cause.ts";
+import * as Effect from "./Effect.ts";
+import * as Exit from "./Exit.ts";
+import { effectIsExit } from "./internal/effect.ts";
+import * as InternalSchemaCause from "./internal/schema/cause.ts";
+import * as CompilerRegistry from "./internal/schema/compilerRegistry.ts";
+import * as InternalParser from "./internal/schema/parser.ts";
+import * as Option from "./Option.ts";
+import * as Result from "./Result.ts";
+import type * as Schema from "./Schema.ts";
+import * as SchemaAST from "./SchemaAST.ts";
+import * as SchemaIssue from "./SchemaIssue.ts";
 
 /**
  * Creates an effectful maker for the schema's decoded type side.
@@ -41,16 +41,24 @@ import * as SchemaIssue from "./SchemaIssue.ts"
  * @since 4.0.0
  */
 export function makeEffect<S extends Schema.Constraint>(schema: S) {
-  const ast = schema.ast
-  let parser: ReturnType<typeof runWithCompiler<S["Type"], never>>
-  return (input: S["~type.make.in"], options?: Schema.MakeOptions): Effect.Effect<S["Type"], SchemaIssue.Issue> => {
-    return (parser ??= runWithCompiler<S["Type"], never>(constructorCompiler, SchemaAST.toType(ast)))(
+  const ast = schema.ast;
+  let parser: ReturnType<typeof runWithCompiler<S["Type"], never>>;
+  return (
+    input: S["~type.make.in"],
+    options?: Schema.MakeOptions,
+  ): Effect.Effect<S["Type"], SchemaIssue.Issue> => {
+    return (parser ??= runWithCompiler<S["Type"], never>(
+      constructorCompiler,
+      SchemaAST.toType(ast),
+    ))(
       input,
       options?.disableChecks
-        ? options?.parseOptions ? { ...options.parseOptions, disableChecks: true } : { disableChecks: true }
-        : options?.parseOptions
-    )
-  }
+        ? options?.parseOptions
+          ? { ...options.parseOptions, disableChecks: true }
+          : { disableChecks: true }
+        : options?.parseOptions,
+    );
+  };
 }
 
 /**
@@ -72,15 +80,18 @@ export function makeEffect<S extends Schema.Constraint>(schema: S) {
  * @since 4.0.0
  */
 export function makeOption<S extends Schema.Constraint>(schema: S) {
-  const parser = makeEffect(schema)
+  const parser = makeEffect(schema);
   return (input: S["~type.make.in"], options?: Schema.MakeOptions): Option.Option<S["Type"]> => {
-    const exit = Effect.runSyncExit(parser(input, options))
+    const exit = Effect.runSyncExit(parser(input, options));
     if (Exit.isSuccess(exit)) {
-      return Option.some(exit.value)
+      return Option.some(exit.value);
     }
-    InternalSchemaCause.getSchemaIssueOrThrow(exit.cause, "Option adapter can only return none for schema issues")
-    return Option.none()
-  }
+    InternalSchemaCause.getSchemaIssueOrThrow(
+      exit.cause,
+      "Option adapter can only return none for schema issues",
+    );
+    return Option.none();
+  };
 }
 
 /**
@@ -109,7 +120,7 @@ export function makeOption<S extends Schema.Constraint>(schema: S) {
  * @since 4.0.0
  */
 export function make<S extends Schema.Constraint>(schema: S) {
-  return makeConstructorSync<S["Type"], S["~type.make.in"]>(SchemaAST.toType(schema.ast))
+  return makeConstructorSync<S["Type"], S["~type.make.in"]>(SchemaAST.toType(schema.ast));
 }
 
 /**
@@ -135,69 +146,79 @@ export function make<S extends Schema.Constraint>(schema: S) {
  * @category guards
  * @since 3.10.0
  */
-export function is<S extends Schema.Constraint>(schema: S): <I>(input: I) => input is I & S["Type"] {
-  return _is<S["Type"]>(schema.ast)
+export function is<S extends Schema.Constraint>(
+  schema: S,
+): <I>(input: I) => input is I & S["Type"] {
+  return _is<S["Type"]>(schema.ast);
 }
 
 function makeIs<T>(ast: SchemaAST.AST): <I>(input: I) => input is I & T {
   if (!CompilerRegistry.compilerAdaptersEnabled) {
-    const parser = asExit(run<T, never>(ast))
+    const parser = asExit(run<T, never>(ast));
     return <I>(input: I): input is I & T => {
-      const exit = parser(input, SchemaAST.defaultParseOptions)
-      if (Exit.isSuccess(exit)) return true
+      const exit = parser(input, SchemaAST.defaultParseOptions);
+      if (Exit.isSuccess(exit)) return true;
       InternalSchemaCause.getSchemaIssueOrThrow(
         exit.cause,
-        "Type guard adapter can only return false for schema issues"
-      )
-      return false
-    }
+        "Type guard adapter can only return false for schema issues",
+      );
+      return false;
+    };
   }
-  const entry = CompilerRegistry.resolve(ast)
-  const guard = entry.is
+  const entry = CompilerRegistry.resolve(ast);
+  const guard = entry.is;
   if (guard !== undefined) {
     return <I>(input: I): input is I & T => {
       try {
-        return guard(input, SchemaAST.defaultParseOptions)
+        return guard(input, SchemaAST.defaultParseOptions);
       } catch (error) {
         InternalSchemaCause.getSchemaIssueOrThrow(
           Cause.die(error),
-          "Type guard adapter can only return false for schema issues"
-        )
-        return false
+          "Type guard adapter can only return false for schema issues",
+        );
+        return false;
       }
-    }
+    };
   }
-  const parser = entry.parser
+  const parser = entry.parser;
   return <I>(input: I): input is I & T => {
-    const exit = Effect.runSyncExit(parserResult<T, never>(parser(input, SchemaAST.defaultParseOptions), input))
-    if (Exit.isSuccess(exit)) return true
-    InternalSchemaCause.getSchemaIssueOrThrow(exit.cause, "Type guard adapter can only return false for schema issues")
-    return false
-  }
+    const exit = Effect.runSyncExit(
+      parserResult<T, never>(parser(input, SchemaAST.defaultParseOptions), input),
+    );
+    if (Exit.isSuccess(exit)) return true;
+    InternalSchemaCause.getSchemaIssueOrThrow(
+      exit.cause,
+      "Type guard adapter can only return false for schema issues",
+    );
+    return false;
+  };
 }
 
 /** @internal */
 export function _is<T>(ast: SchemaAST.AST) {
-  const typeAST = SchemaAST.toType(ast)
+  const typeAST = SchemaAST.toType(ast);
   let guard: <I>(input: I) => input is I & T = <I>(input: I): input is I & T => {
-    guard = makeIs<T>(typeAST)
-    return guard(input)
-  }
+    guard = makeIs<T>(typeAST);
+    return guard(input);
+  };
   return <I>(input: I): input is I & T => {
-    return guard(input)
-  }
+    return guard(input);
+  };
 }
 
 /** @internal */
 export function _issue<T>(ast: SchemaAST.AST) {
-  const parser = run<T, never>(ast)
+  const parser = run<T, never>(ast);
   return (input: unknown, options: SchemaAST.ParseOptions): SchemaIssue.Issue | undefined => {
-    const exit = Effect.runSyncExit(parser(input, options))
+    const exit = Effect.runSyncExit(parser(input, options));
     if (Exit.isSuccess(exit)) {
-      return undefined
+      return undefined;
     }
-    return InternalSchemaCause.getSchemaIssueOrThrow(exit.cause, "Issue adapter can only return schema issues")
-  }
+    return InternalSchemaCause.getSchemaIssueOrThrow(
+      exit.cause,
+      "Issue adapter can only return schema issues",
+    );
+  };
 }
 
 /**
@@ -226,15 +247,18 @@ export function _issue<T>(ast: SchemaAST.AST) {
  * @category guards
  * @since 4.0.0
  */
-export function asserts<S extends Schema.Constraint, I>(schema: S, input: I): asserts input is I & S["Type"] {
-  const parser = asExit(run<S["Type"], never>(SchemaAST.toType(schema.ast)))
-  const exit = parser(input, SchemaAST.defaultParseOptions)
+export function asserts<S extends Schema.Constraint, I>(
+  schema: S,
+  input: I,
+): asserts input is I & S["Type"] {
+  const parser = asExit(run<S["Type"], never>(SchemaAST.toType(schema.ast)));
+  const exit = parser(input, SchemaAST.defaultParseOptions);
   if (Exit.isFailure(exit)) {
     const issue = InternalSchemaCause.getSchemaIssueOrThrow(
       exit.cause,
-      "Assertion adapter can only throw schema issues"
-    )
-    throw new Error("Schema validation failed", { cause: issue })
+      "Assertion adapter can only throw schema issues",
+    );
+    throw new Error("Schema validation failed", { cause: issue });
   }
 }
 
@@ -261,15 +285,15 @@ export function asserts<S extends Schema.Constraint, I>(schema: S, input: I): as
  */
 export function decodeUnknownEffect<S extends Schema.Constraint>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (
   input: unknown,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ) => Effect.Effect<S["Type"], SchemaIssue.Issue, S["DecodingServices"]> {
-  const parser = run<S["Type"], S["DecodingServices"]>(schema.ast)
+  const parser = run<S["Type"], S["DecodingServices"]>(schema.ast);
   return options === undefined
     ? parser
-    : (input, overrideOptions) => parser(input, mergeParseOptions(options, overrideOptions))
+    : (input, overrideOptions) => parser(input, mergeParseOptions(options, overrideOptions));
 }
 
 /**
@@ -296,11 +320,11 @@ export function decodeUnknownEffect<S extends Schema.Constraint>(
  */
 export const decodeEffect: <S extends Schema.Constraint>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ) => (
   input: S["Encoded"],
-  options?: SchemaAST.ParseOptions
-) => Effect.Effect<S["Type"], SchemaIssue.Issue, S["DecodingServices"]> = decodeUnknownEffect
+  options?: SchemaAST.ParseOptions,
+) => Effect.Effect<S["Type"], SchemaIssue.Issue, S["DecodingServices"]> = decodeUnknownEffect;
 
 /**
  * Creates a Promise-based decoder for `unknown` input.
@@ -331,9 +355,9 @@ export const decodeEffect: <S extends Schema.Constraint>(
  */
 export function decodeUnknownPromise<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => Promise<S["Type"]> {
-  return asPromise(decodeUnknownEffect(schema, options))
+  return asPromise(decodeUnknownEffect(schema, options));
 }
 
 /**
@@ -366,9 +390,9 @@ export function decodeUnknownPromise<S extends Schema.ConstraintDecoder<unknown>
  */
 export function decodePromise<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: S["Encoded"], options?: SchemaAST.ParseOptions) => Promise<S["Type"]> {
-  return asPromise(decodeEffect(schema, options))
+  return asPromise(decodeEffect(schema, options));
 }
 
 /**
@@ -402,9 +426,9 @@ export function decodePromise<S extends Schema.ConstraintDecoder<unknown>>(
  */
 export function decodeUnknownExit<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => Exit.Exit<S["Type"], SchemaIssue.Issue> {
-  return asExit(decodeUnknownEffect(schema, options))
+  return asExit(decodeUnknownEffect(schema, options));
 }
 
 /**
@@ -435,23 +459,26 @@ export function decodeUnknownExit<S extends Schema.ConstraintDecoder<unknown>>(
  */
 export const decodeExit: <S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Encoded"], options?: SchemaAST.ParseOptions) => Exit.Exit<S["Type"], SchemaIssue.Issue> =
-  decodeUnknownExit
+  options?: SchemaAST.ParseOptions,
+) => (
+  input: S["Encoded"],
+  options?: SchemaAST.ParseOptions,
+) => Exit.Exit<S["Type"], SchemaIssue.Issue> = decodeUnknownExit;
 
 /** @internal */
 export function decodeUnknownOption<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => Option.Option<S["Type"]> {
-  return asOption(decodeUnknownEffect(schema, options))
+  return asOption(decodeUnknownEffect(schema, options));
 }
 
 /** @internal */
 export const decodeOption: <S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Encoded"], options?: SchemaAST.ParseOptions) => Option.Option<S["Type"]> = decodeUnknownOption
+  options?: SchemaAST.ParseOptions,
+) => (input: S["Encoded"], options?: SchemaAST.ParseOptions) => Option.Option<S["Type"]> =
+  decodeUnknownOption;
 
 /**
  * Creates a decoder for `unknown` input that reports failure safely as a
@@ -481,9 +508,12 @@ export const decodeOption: <S extends Schema.ConstraintDecoder<unknown>>(
  */
 export function decodeUnknownResult<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-): (input: unknown, options?: SchemaAST.ParseOptions) => Result.Result<S["Type"], SchemaIssue.Issue> {
-  return asResult(decodeUnknownEffect(schema, options))
+  options?: SchemaAST.ParseOptions,
+): (
+  input: unknown,
+  options?: SchemaAST.ParseOptions,
+) => Result.Result<S["Type"], SchemaIssue.Issue> {
+  return asResult(decodeUnknownEffect(schema, options));
 }
 
 /**
@@ -514,9 +544,11 @@ export function decodeUnknownResult<S extends Schema.ConstraintDecoder<unknown>>
  */
 export const decodeResult: <S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Encoded"], options?: SchemaAST.ParseOptions) => Result.Result<S["Type"], SchemaIssue.Issue> =
-  decodeUnknownResult
+  options?: SchemaAST.ParseOptions,
+) => (
+  input: S["Encoded"],
+  options?: SchemaAST.ParseOptions,
+) => Result.Result<S["Type"], SchemaIssue.Issue> = decodeUnknownResult;
 
 /**
  * Creates a synchronous decoder for `unknown` input.
@@ -549,11 +581,11 @@ export const decodeResult: <S extends Schema.ConstraintDecoder<unknown>>(
  */
 export function decodeUnknownSync<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => S["Type"] {
   return CompilerRegistry.compilerAdaptersEnabled
     ? makeSync(schema.ast, options)
-    : asSync(decodeUnknownEffect(schema, options))
+    : asSync(decodeUnknownEffect(schema, options));
 }
 
 /**
@@ -588,8 +620,8 @@ export function decodeUnknownSync<S extends Schema.ConstraintDecoder<unknown>>(
  */
 export const decodeSync: <S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Encoded"], options?: SchemaAST.ParseOptions) => S["Type"] = decodeUnknownSync
+  options?: SchemaAST.ParseOptions,
+) => (input: S["Encoded"], options?: SchemaAST.ParseOptions) => S["Type"] = decodeUnknownSync;
 
 /**
  * Creates an effectful encoder for `unknown` input.
@@ -614,15 +646,15 @@ export const decodeSync: <S extends Schema.ConstraintDecoder<unknown>>(
  */
 export function encodeUnknownEffect<S extends Schema.Constraint>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (
   input: unknown,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ) => Effect.Effect<S["Encoded"], SchemaIssue.Issue, S["EncodingServices"]> {
-  const parser = run<S["Encoded"], S["EncodingServices"]>(SchemaAST.flip(schema.ast))
+  const parser = run<S["Encoded"], S["EncodingServices"]>(SchemaAST.flip(schema.ast));
   return options === undefined
     ? parser
-    : (input, overrideOptions) => parser(input, mergeParseOptions(options, overrideOptions))
+    : (input, overrideOptions) => parser(input, mergeParseOptions(options, overrideOptions));
 }
 
 /**
@@ -648,11 +680,11 @@ export function encodeUnknownEffect<S extends Schema.Constraint>(
  */
 export const encodeEffect: <S extends Schema.Constraint>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ) => (
   input: S["Type"],
-  options?: SchemaAST.ParseOptions
-) => Effect.Effect<S["Encoded"], SchemaIssue.Issue, S["EncodingServices"]> = encodeUnknownEffect
+  options?: SchemaAST.ParseOptions,
+) => Effect.Effect<S["Encoded"], SchemaIssue.Issue, S["EncodingServices"]> = encodeUnknownEffect;
 
 /**
  * Creates a Promise-based encoder for `unknown` input.
@@ -683,9 +715,9 @@ export const encodeEffect: <S extends Schema.Constraint>(
  */
 export const encodeUnknownPromise = <S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-): (input: unknown, options?: SchemaAST.ParseOptions) => Promise<S["Encoded"]> =>
-  asPromise(encodeUnknownEffect(schema, options))
+  options?: SchemaAST.ParseOptions,
+): ((input: unknown, options?: SchemaAST.ParseOptions) => Promise<S["Encoded"]>) =>
+  asPromise(encodeUnknownEffect(schema, options));
 
 /**
  * Creates a Promise-based encoder for input already typed as the schema's decoded
@@ -717,8 +749,9 @@ export const encodeUnknownPromise = <S extends Schema.ConstraintEncoder<unknown>
  */
 export const encodePromise: <S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Type"], options?: SchemaAST.ParseOptions) => Promise<S["Encoded"]> = encodeUnknownPromise
+  options?: SchemaAST.ParseOptions,
+) => (input: S["Type"], options?: SchemaAST.ParseOptions) => Promise<S["Encoded"]> =
+  encodeUnknownPromise;
 
 /**
  * Creates a synchronous encoder for `unknown` input that reports failure safely
@@ -748,9 +781,12 @@ export const encodePromise: <S extends Schema.ConstraintEncoder<unknown>>(
  */
 export function encodeUnknownExit<S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-): (input: unknown, options?: SchemaAST.ParseOptions) => Exit.Exit<S["Encoded"], SchemaIssue.Issue> {
-  return asExit(encodeUnknownEffect(schema, options))
+  options?: SchemaAST.ParseOptions,
+): (
+  input: unknown,
+  options?: SchemaAST.ParseOptions,
+) => Exit.Exit<S["Encoded"], SchemaIssue.Issue> {
+  return asExit(encodeUnknownEffect(schema, options));
 }
 
 /**
@@ -781,23 +817,26 @@ export function encodeUnknownExit<S extends Schema.ConstraintEncoder<unknown>>(
  */
 export const encodeExit: <S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Type"], options?: SchemaAST.ParseOptions) => Exit.Exit<S["Encoded"], SchemaIssue.Issue> =
-  encodeUnknownExit
+  options?: SchemaAST.ParseOptions,
+) => (
+  input: S["Type"],
+  options?: SchemaAST.ParseOptions,
+) => Exit.Exit<S["Encoded"], SchemaIssue.Issue> = encodeUnknownExit;
 
 /** @internal */
 export function encodeUnknownOption<S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => Option.Option<S["Encoded"]> {
-  return asOption(encodeUnknownEffect(schema, options))
+  return asOption(encodeUnknownEffect(schema, options));
 }
 
 /** @internal */
 export const encodeOption: <S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Type"], options?: SchemaAST.ParseOptions) => Option.Option<S["Encoded"]> = encodeUnknownOption
+  options?: SchemaAST.ParseOptions,
+) => (input: S["Type"], options?: SchemaAST.ParseOptions) => Option.Option<S["Encoded"]> =
+  encodeUnknownOption;
 
 /**
  * Creates an encoder for `unknown` input that reports failure safely as a
@@ -829,9 +868,12 @@ export const encodeOption: <S extends Schema.ConstraintEncoder<unknown>>(
  */
 export function encodeUnknownResult<S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-): (input: unknown, options?: SchemaAST.ParseOptions) => Result.Result<S["Encoded"], SchemaIssue.Issue> {
-  return asResult(encodeUnknownEffect(schema, options))
+  options?: SchemaAST.ParseOptions,
+): (
+  input: unknown,
+  options?: SchemaAST.ParseOptions,
+) => Result.Result<S["Encoded"], SchemaIssue.Issue> {
+  return asResult(encodeUnknownEffect(schema, options));
 }
 
 /**
@@ -862,9 +904,11 @@ export function encodeUnknownResult<S extends Schema.ConstraintEncoder<unknown>>
  */
 export const encodeResult: <S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Type"], options?: SchemaAST.ParseOptions) => Result.Result<S["Encoded"], SchemaIssue.Issue> =
-  encodeUnknownResult
+  options?: SchemaAST.ParseOptions,
+) => (
+  input: S["Type"],
+  options?: SchemaAST.ParseOptions,
+) => Result.Result<S["Encoded"], SchemaIssue.Issue> = encodeUnknownResult;
 
 /**
  * Creates a synchronous encoder for `unknown` input.
@@ -896,11 +940,11 @@ export const encodeResult: <S extends Schema.ConstraintEncoder<unknown>>(
  */
 export function encodeUnknownSync<S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => S["Encoded"] {
   return CompilerRegistry.compilerAdaptersEnabled
     ? makeSync(SchemaAST.flip(schema.ast), options)
-    : asSync(encodeUnknownEffect(schema, options))
+    : asSync(encodeUnknownEffect(schema, options));
 }
 
 /**
@@ -935,218 +979,238 @@ export function encodeUnknownSync<S extends Schema.ConstraintEncoder<unknown>>(
  */
 export const encodeSync: <S extends Schema.ConstraintEncoder<unknown>>(
   schema: S,
-  options?: SchemaAST.ParseOptions
-) => (input: S["Type"], options?: SchemaAST.ParseOptions) => S["Encoded"] = encodeUnknownSync
+  options?: SchemaAST.ParseOptions,
+) => (input: S["Type"], options?: SchemaAST.ParseOptions) => S["Encoded"] = encodeUnknownSync;
 
 const mergeParseOptions = (
   options: SchemaAST.ParseOptions,
-  overrideOptions: SchemaAST.ParseOptions | undefined
-): SchemaAST.ParseOptions => overrideOptions ? { ...options, ...overrideOptions } : options
+  overrideOptions: SchemaAST.ParseOptions | undefined,
+): SchemaAST.ParseOptions => (overrideOptions ? { ...options, ...overrideOptions } : options);
 
 const getValue = (value: unknown): Effect.Effect<any, SchemaIssue.Issue> => {
   if (value === InternalParser.missing) {
-    return Effect.fail(new SchemaIssue.InvalidValue())
+    return Effect.fail(new SchemaIssue.InvalidValue());
   }
-  return Effect.succeed(value)
-}
+  return Effect.succeed(value);
+};
 
 /** @internal */
 export function run<T, R>(ast: SchemaAST.AST) {
-  return runWithCompiler<T, R>(normalCompiler, ast)
+  return runWithCompiler<T, R>(normalCompiler, ast);
 }
 
 function parserResult<T, R>(
   result: Effect.Effect<unknown, SchemaIssue.Issue, any>,
-  input: unknown
+  input: unknown,
 ): Effect.Effect<T, SchemaIssue.Issue, R> {
   if (result === InternalParser.sameExit) {
-    return Effect.succeed(input) as Effect.Effect<T, SchemaIssue.Issue, R>
+    return Effect.succeed(input) as Effect.Effect<T, SchemaIssue.Issue, R>;
   }
   if (!effectIsExit(result)) {
-    return Effect.flatMapEager(result, getValue)
+    return Effect.flatMapEager(result, getValue);
   }
   return (result as InternalParser.Success<unknown, SchemaIssue.Issue>)[InternalParser.args] ===
-      InternalParser.missing
+    InternalParser.missing
     ? getValue(InternalParser.missing)
-    : result as Effect.Effect<T, SchemaIssue.Issue, R>
+    : (result as Effect.Effect<T, SchemaIssue.Issue, R>);
 }
 
 function runWithCompiler<T, R>(compiler: Compiler, ast: SchemaAST.AST) {
-  let parser: Parser
-  return (input: unknown, options?: SchemaAST.ParseOptions): Effect.Effect<T, SchemaIssue.Issue, R> => {
-    const result = (parser ??= compiler(ast))(
-      input,
-      options ?? SchemaAST.defaultParseOptions
-    )
+  let parser: Parser;
+  return (
+    input: unknown,
+    options?: SchemaAST.ParseOptions,
+  ): Effect.Effect<T, SchemaIssue.Issue, R> => {
+    const result = (parser ??= compiler(ast))(input, options ?? SchemaAST.defaultParseOptions);
     if (result === InternalParser.sameExit) {
-      return Effect.succeed(input) as Effect.Effect<T, SchemaIssue.Issue, R>
+      return Effect.succeed(input) as Effect.Effect<T, SchemaIssue.Issue, R>;
     }
     if (!effectIsExit(result)) {
-      return Effect.flatMapEager(result, getValue)
+      return Effect.flatMapEager(result, getValue);
     }
     return (result as InternalParser.Success<unknown, SchemaIssue.Issue>)[InternalParser.args] ===
-        InternalParser.missing
+      InternalParser.missing
       ? getValue(InternalParser.missing)
-      : result as Effect.Effect<T, SchemaIssue.Issue, R>
-  }
+      : (result as Effect.Effect<T, SchemaIssue.Issue, R>);
+  };
 }
 
 function asPromise<T, E>(
-  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue>
+  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue>,
 ): (input: E, options?: SchemaAST.ParseOptions) => Promise<T> {
   return (input: E, options?: SchemaAST.ParseOptions) =>
     Effect.runPromiseExit(parser(input, options)).then((exit) => {
       if (Exit.isSuccess(exit)) {
-        return exit.value
+        return exit.value;
       }
       const issue = InternalSchemaCause.getSchemaIssueOrThrow(
         exit.cause,
-        "Promise adapter can only reject schema issues"
-      )
-      throw new Error("Schema validation failed", { cause: issue })
-    })
+        "Promise adapter can only reject schema issues",
+      );
+      throw new Error("Schema validation failed", { cause: issue });
+    });
 }
 
 function asExit<T, E, R>(
-  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, R>
+  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, R>,
 ): (input: E, options?: SchemaAST.ParseOptions) => Exit.Exit<T, SchemaIssue.Issue> {
-  return (input: E, options?: SchemaAST.ParseOptions) => Effect.runSyncExit(parser(input, options) as any)
+  return (input: E, options?: SchemaAST.ParseOptions) =>
+    Effect.runSyncExit(parser(input, options) as any);
 }
 
 /** @internal */
 export function asOption<T, E, R>(
-  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, R>
+  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, R>,
 ): (input: E, options?: SchemaAST.ParseOptions) => Option.Option<T> {
-  const parserExit = asExit(parser)
+  const parserExit = asExit(parser);
   return (input: E, options?: SchemaAST.ParseOptions) => {
-    const exit = parserExit(input, options)
+    const exit = parserExit(input, options);
     if (Exit.isSuccess(exit)) {
-      return Option.some(exit.value)
+      return Option.some(exit.value);
     }
-    InternalSchemaCause.getSchemaIssueOrThrow(exit.cause, "Option adapter can only return none for schema issues")
-    return Option.none()
-  }
+    InternalSchemaCause.getSchemaIssueOrThrow(
+      exit.cause,
+      "Option adapter can only return none for schema issues",
+    );
+    return Option.none();
+  };
 }
 
 function asResult<T, E, R>(
-  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, R>
+  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, R>,
 ): (input: E, options?: SchemaAST.ParseOptions) => Result.Result<T, SchemaIssue.Issue> {
-  const parserExit = asExit(parser)
+  const parserExit = asExit(parser);
   return (input: E, options?: SchemaAST.ParseOptions) => {
-    const exit = parserExit(input, options)
+    const exit = parserExit(input, options);
     if (Exit.isSuccess(exit)) {
-      return Result.succeed(exit.value)
+      return Result.succeed(exit.value);
     }
     return Result.fail(
-      InternalSchemaCause.getSchemaIssueOrThrow(exit.cause, "Result adapter can only return schema issues")
-    )
-  }
+      InternalSchemaCause.getSchemaIssueOrThrow(
+        exit.cause,
+        "Result adapter can only return schema issues",
+      ),
+    );
+  };
 }
 
 function makeSync<T>(
   ast: SchemaAST.AST,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => T {
-  let run: ((input: unknown, options?: SchemaAST.ParseOptions) => T) | undefined
+  let run: ((input: unknown, options?: SchemaAST.ParseOptions) => T) | undefined;
   return (input, overrideOptions) =>
-    (run ??= makeSyncEntry<T>(CompilerRegistry.resolve(ast), options))(input, overrideOptions)
+    (run ??= makeSyncEntry<T>(CompilerRegistry.resolve(ast), options))(input, overrideOptions);
 }
 
 function makeSyncEntry<T>(
   entry: CompilerRegistry.Entry,
-  options?: SchemaAST.ParseOptions
+  options?: SchemaAST.ParseOptions,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => T {
-  const decode = entry.decode
-  let detailed: ((input: unknown, options?: SchemaAST.ParseOptions) => T) | undefined
-  const run = decode === undefined
-    ? (input: unknown, parseOptions = SchemaAST.defaultParseOptions): T =>
-      (detailed ??= makeDetailedSync<T>(entry))(input, parseOptions)
-    : (input: unknown, parseOptions = SchemaAST.defaultParseOptions): T => {
-      if (input === InternalParser.missing) {
-        return (detailed ??= makeDetailedSync<T>(entry))(input, parseOptions)
-      }
-      let output: unknown
-      try {
-        output = decode(input, parseOptions)
-      } catch (error) {
-        InternalSchemaCause.getSchemaIssueOrThrow(Cause.die(error), "Sync adapter can only throw schema issues")
-        throw error
-      }
-      if (output !== CompilerRegistry.invalid) return output as T
-      return (detailed ??= makeDetailedSync<T>(entry))(input, parseOptions)
-    }
+  const decode = entry.decode;
+  let detailed: ((input: unknown, options?: SchemaAST.ParseOptions) => T) | undefined;
+  const run =
+    decode === undefined
+      ? (input: unknown, parseOptions = SchemaAST.defaultParseOptions): T =>
+          (detailed ??= makeDetailedSync<T>(entry))(input, parseOptions)
+      : (input: unknown, parseOptions = SchemaAST.defaultParseOptions): T => {
+          if (input === InternalParser.missing) {
+            return (detailed ??= makeDetailedSync<T>(entry))(input, parseOptions);
+          }
+          let output: unknown;
+          try {
+            output = decode(input, parseOptions);
+          } catch (error) {
+            InternalSchemaCause.getSchemaIssueOrThrow(
+              Cause.die(error),
+              "Sync adapter can only throw schema issues",
+            );
+            throw error;
+          }
+          if (output !== CompilerRegistry.invalid) return output as T;
+          return (detailed ??= makeDetailedSync<T>(entry))(input, parseOptions);
+        };
   return options === undefined
     ? run
-    : (input, overrideOptions) => run(input, mergeParseOptions(options, overrideOptions))
+    : (input, overrideOptions) => run(input, mergeParseOptions(options, overrideOptions));
 }
 
 function makeDetailedSync<T>(
-  entry: CompilerRegistry.Entry
+  entry: CompilerRegistry.Entry,
 ): (input: unknown, options?: SchemaAST.ParseOptions) => T {
-  return asSync(runWithCompiler<T, never>(() => entry.decodeEffect, entry.ast))
+  return asSync(runWithCompiler<T, never>(() => entry.decodeEffect, entry.ast));
 }
 
 function asSync<T, E>(
-  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue>
+  parser: (input: E, options?: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue>,
 ): (input: E, options?: SchemaAST.ParseOptions) => T {
-  const parserExit = asExit(parser)
+  const parserExit = asExit(parser);
   return (input: E, options?: SchemaAST.ParseOptions) => {
-    const exit = parserExit(input, options)
+    const exit = parserExit(input, options);
     if (Exit.isSuccess(exit)) {
-      return exit.value
+      return exit.value;
     }
-    const issue = InternalSchemaCause.getSchemaIssueOrThrow(exit.cause, "Sync adapter can only throw schema issues")
-    throw new Error("Schema validation failed", { cause: issue })
-  }
+    const issue = InternalSchemaCause.getSchemaIssueOrThrow(
+      exit.cause,
+      "Sync adapter can only throw schema issues",
+    );
+    throw new Error("Schema validation failed", { cause: issue });
+  };
 }
 
 function runSync<T>(effect: Effect.Effect<T, SchemaIssue.Issue>, message: string): T {
-  const exit = Effect.runSyncExit(effect)
+  const exit = Effect.runSyncExit(effect);
   if (Exit.isSuccess(exit)) {
-    return exit.value
+    return exit.value;
   }
-  const issue = InternalSchemaCause.getSchemaIssueOrThrow(exit.cause, message)
-  throw new Error("Schema validation failed", { cause: issue })
+  const issue = InternalSchemaCause.getSchemaIssueOrThrow(exit.cause, message);
+  throw new Error("Schema validation failed", { cause: issue });
 }
 
 function makeConstructorSync<T, E>(
-  ast: SchemaAST.AST
+  ast: SchemaAST.AST,
 ): (input: E, options?: Schema.MakeOptions) => T {
-  let entry: CompilerRegistry.Entry | undefined
-  let parser: Parser | undefined
+  let entry: CompilerRegistry.Entry | undefined;
+  let parser: Parser | undefined;
   return (input, options) => {
-    entry ??= CompilerRegistry.resolve(ast)
+    entry ??= CompilerRegistry.resolve(ast);
     const parseOptions = options?.disableChecks
-      ? options.parseOptions ? { ...options.parseOptions, disableChecks: true } : { disableChecks: true }
-      : options?.parseOptions ?? SchemaAST.defaultParseOptions
-    const make = entry.make
+      ? options.parseOptions
+        ? { ...options.parseOptions, disableChecks: true }
+        : { disableChecks: true }
+      : (options?.parseOptions ?? SchemaAST.defaultParseOptions);
+    const make = entry.make;
     if (make !== undefined && input !== InternalParser.missing) {
-      let output: unknown
+      let output: unknown;
       try {
-        output = make(input, parseOptions)
+        output = make(input, parseOptions);
       } catch (error) {
-        InternalSchemaCause.getSchemaIssueOrThrow(Cause.die(error), "Constructor adapter can only throw schema issues")
-        throw error
+        InternalSchemaCause.getSchemaIssueOrThrow(
+          Cause.die(error),
+          "Constructor adapter can only throw schema issues",
+        );
+        throw error;
       }
-      if (output !== CompilerRegistry.invalid && output !== InternalParser.missing) return output as T
+      if (output !== CompilerRegistry.invalid && output !== InternalParser.missing)
+        return output as T;
     }
-    const result = (parser ??= entry.makeEffect)(input, parseOptions)
-    return runSync(parserResult<T, never>(result, input), "Constructor adapter can only throw schema issues")
-  }
+    const result = (parser ??= entry.makeEffect)(input, parseOptions);
+    return runSync(
+      parserResult<T, never>(result, input),
+      "Constructor adapter can only throw schema issues",
+    );
+  };
 }
 
 /** @internal */
 export interface Parser {
-  (
-    input: unknown,
-    options: SchemaAST.ParseOptions
-  ): Effect.Effect<unknown, SchemaIssue.Issue, any>
+  (input: unknown, options: SchemaAST.ParseOptions): Effect.Effect<unknown, SchemaIssue.Issue, any>;
 }
 
 /** @internal */
 export interface Compiler {
-  (ast: SchemaAST.AST): Parser
+  (ast: SchemaAST.AST): Parser;
 }
 
-const normalCompiler: Compiler = (ast) => CompilerRegistry.resolve(ast).parser
-const constructorCompiler: Compiler = (ast) => CompilerRegistry.resolve(ast).makeEffect
+const normalCompiler: Compiler = (ast) => CompilerRegistry.resolve(ast).parser;
+const constructorCompiler: Compiler = (ast) => CompilerRegistry.resolve(ast).makeEffect;

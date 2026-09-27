@@ -42,25 +42,30 @@
  * @since 2.0.0
  */
 export interface Pipeable {
-  pipe<A>(this: A): A
-  pipe<A, B = never>(this: A, ab: (_: A) => B): B
-  pipe<A, B = never, C = never>(this: A, ab: (_: A) => B, bc: (_: B) => C): C
-  pipe<A, B = never, C = never, D = never>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D): D
+  pipe<A>(this: A): A;
+  pipe<A, B = never>(this: A, ab: (_: A) => B): B;
+  pipe<A, B = never, C = never>(this: A, ab: (_: A) => B, bc: (_: B) => C): C;
+  pipe<A, B = never, C = never, D = never>(
+    this: A,
+    ab: (_: A) => B,
+    bc: (_: B) => C,
+    cd: (_: C) => D,
+  ): D;
   pipe<A, B = never, C = never, D = never, E = never>(
     this: A,
     ab: (_: A) => B,
     bc: (_: B) => C,
     cd: (_: C) => D,
-    de: (_: D) => E
-  ): E
+    de: (_: D) => E,
+  ): E;
   pipe<A, B = never, C = never, D = never, E = never, F = never>(
     this: A,
     ab: (_: A) => B,
     bc: (_: B) => C,
     cd: (_: C) => D,
     de: (_: D) => E,
-    ef: (_: E) => F
-  ): F
+    ef: (_: E) => F,
+  ): F;
   pipe<A, B = never, C = never, D = never, E = never, F = never, G = never>(
     this: A,
     ab: (_: A) => B,
@@ -68,8 +73,8 @@ export interface Pipeable {
     cd: (_: C) => D,
     de: (_: D) => E,
     ef: (_: E) => F,
-    fg: (_: F) => G
-  ): G
+    fg: (_: F) => G,
+  ): G;
   pipe<A, B = never, C = never, D = never, E = never, F = never, G = never, H = never>(
     this: A,
     ab: (_: A) => B,
@@ -78,8 +83,8 @@ export interface Pipeable {
     de: (_: D) => E,
     ef: (_: E) => F,
     fg: (_: F) => G,
-    gh: (_: G) => H
-  ): H
+    gh: (_: G) => H,
+  ): H;
   pipe<A, B = never, C = never, D = never, E = never, F = never, G = never, H = never, I = never>(
     this: A,
     ab: (_: A) => B,
@@ -89,21 +94,20 @@ export interface Pipeable {
     ef: (_: E) => F,
     fg: (_: F) => G,
     gh: (_: G) => H,
-    hi: (_: H) => I
-  ): I
-  pipe<A, B = never, C = never, D = never, E = never, F = never, G = never, H = never, I = never, J = never>(
-    this: A,
-    ab: (_: A) => B,
-    bc: (_: B) => C,
-    cd: (_: C) => D,
-    de: (_: D) => E,
-    ef: (_: E) => F,
-    fg: (_: F) => G,
-    gh: (_: G) => H,
     hi: (_: H) => I,
-    ij: (_: I) => J
-  ): J
-  pipe<A, B = never, C = never, D = never, E = never, F = never, G = never, H = never, I = never, J = never, K = never>(
+  ): I;
+  pipe<
+    A,
+    B = never,
+    C = never,
+    D = never,
+    E = never,
+    F = never,
+    G = never,
+    H = never,
+    I = never,
+    J = never,
+  >(
     this: A,
     ab: (_: A) => B,
     bc: (_: B) => C,
@@ -114,8 +118,7 @@ export interface Pipeable {
     gh: (_: G) => H,
     hi: (_: H) => I,
     ij: (_: I) => J,
-    jk: (_: J) => K
-  ): K
+  ): J;
   pipe<
     A,
     B = never,
@@ -128,7 +131,6 @@ export interface Pipeable {
     I = never,
     J = never,
     K = never,
-    L = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -141,8 +143,7 @@ export interface Pipeable {
     hi: (_: H) => I,
     ij: (_: I) => J,
     jk: (_: J) => K,
-    kl: (_: K) => L
-  ): L
+  ): K;
   pipe<
     A,
     B = never,
@@ -156,7 +157,6 @@ export interface Pipeable {
     J = never,
     K = never,
     L = never,
-    M = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -170,8 +170,7 @@ export interface Pipeable {
     ij: (_: I) => J,
     jk: (_: J) => K,
     kl: (_: K) => L,
-    lm: (_: L) => M
-  ): M
+  ): L;
   pipe<
     A,
     B = never,
@@ -186,7 +185,6 @@ export interface Pipeable {
     K = never,
     L = never,
     M = never,
-    N = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -201,8 +199,7 @@ export interface Pipeable {
     jk: (_: J) => K,
     kl: (_: K) => L,
     lm: (_: L) => M,
-    mn: (_: M) => N
-  ): N
+  ): M;
   pipe<
     A,
     B = never,
@@ -218,7 +215,6 @@ export interface Pipeable {
     L = never,
     M = never,
     N = never,
-    O = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -234,8 +230,7 @@ export interface Pipeable {
     kl: (_: K) => L,
     lm: (_: L) => M,
     mn: (_: M) => N,
-    no: (_: N) => O
-  ): O
+  ): N;
   pipe<
     A,
     B = never,
@@ -252,7 +247,6 @@ export interface Pipeable {
     M = never,
     N = never,
     O = never,
-    P = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -269,8 +263,7 @@ export interface Pipeable {
     lm: (_: L) => M,
     mn: (_: M) => N,
     no: (_: N) => O,
-    op: (_: O) => P
-  ): P
+  ): O;
   pipe<
     A,
     B = never,
@@ -288,7 +281,6 @@ export interface Pipeable {
     N = never,
     O = never,
     P = never,
-    Q = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -306,8 +298,7 @@ export interface Pipeable {
     mn: (_: M) => N,
     no: (_: N) => O,
     op: (_: O) => P,
-    pq: (_: P) => Q
-  ): Q
+  ): P;
   pipe<
     A,
     B = never,
@@ -326,7 +317,6 @@ export interface Pipeable {
     O = never,
     P = never,
     Q = never,
-    R = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -345,8 +335,7 @@ export interface Pipeable {
     no: (_: N) => O,
     op: (_: O) => P,
     pq: (_: P) => Q,
-    qr: (_: Q) => R
-  ): R
+  ): Q;
   pipe<
     A,
     B = never,
@@ -366,7 +355,6 @@ export interface Pipeable {
     P = never,
     Q = never,
     R = never,
-    S = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -386,8 +374,7 @@ export interface Pipeable {
     op: (_: O) => P,
     pq: (_: P) => Q,
     qr: (_: Q) => R,
-    rs: (_: R) => S
-  ): S
+  ): R;
   pipe<
     A,
     B = never,
@@ -408,7 +395,6 @@ export interface Pipeable {
     Q = never,
     R = never,
     S = never,
-    T = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -429,8 +415,7 @@ export interface Pipeable {
     pq: (_: P) => Q,
     qr: (_: Q) => R,
     rs: (_: R) => S,
-    st: (_: S) => T
-  ): T
+  ): S;
   pipe<
     A,
     B = never,
@@ -452,7 +437,6 @@ export interface Pipeable {
     R = never,
     S = never,
     T = never,
-    U = never
   >(
     this: A,
     ab: (_: A) => B,
@@ -474,8 +458,7 @@ export interface Pipeable {
     qr: (_: Q) => R,
     rs: (_: R) => S,
     st: (_: S) => T,
-    tu: (_: T) => U
-  ): U
+  ): T;
   pipe<
     A,
     B = never,
@@ -497,7 +480,7 @@ export interface Pipeable {
     R = never,
     S = never,
     T = never,
-    U = never
+    U = never,
   >(
     this: A,
     ab: (_: A) => B,
@@ -519,8 +502,53 @@ export interface Pipeable {
     qr: (_: Q) => R,
     rs: (_: R) => S,
     st: (_: S) => T,
-    tu: (_: T) => U
-  ): U
+    tu: (_: T) => U,
+  ): U;
+  pipe<
+    A,
+    B = never,
+    C = never,
+    D = never,
+    E = never,
+    F = never,
+    G = never,
+    H = never,
+    I = never,
+    J = never,
+    K = never,
+    L = never,
+    M = never,
+    N = never,
+    O = never,
+    P = never,
+    Q = never,
+    R = never,
+    S = never,
+    T = never,
+    U = never,
+  >(
+    this: A,
+    ab: (_: A) => B,
+    bc: (_: B) => C,
+    cd: (_: C) => D,
+    de: (_: D) => E,
+    ef: (_: E) => F,
+    fg: (_: F) => G,
+    gh: (_: G) => H,
+    hi: (_: H) => I,
+    ij: (_: I) => J,
+    jk: (_: J) => K,
+    kl: (_: K) => L,
+    lm: (_: L) => M,
+    mn: (_: M) => N,
+    no: (_: N) => O,
+    op: (_: O) => P,
+    pq: (_: P) => Q,
+    qr: (_: Q) => R,
+    rs: (_: R) => S,
+    st: (_: S) => T,
+    tu: (_: T) => U,
+  ): U;
 }
 
 /**
@@ -564,34 +592,34 @@ export interface Pipeable {
 export const pipeArguments = <A>(self: A, args: IArguments): unknown => {
   switch (args.length) {
     case 0:
-      return self
+      return self;
     case 1:
-      return args[0](self)
+      return args[0](self);
     case 2:
-      return args[1](args[0](self))
+      return args[1](args[0](self));
     case 3:
-      return args[2](args[1](args[0](self)))
+      return args[2](args[1](args[0](self)));
     case 4:
-      return args[3](args[2](args[1](args[0](self))))
+      return args[3](args[2](args[1](args[0](self))));
     case 5:
-      return args[4](args[3](args[2](args[1](args[0](self)))))
+      return args[4](args[3](args[2](args[1](args[0](self)))));
     case 6:
-      return args[5](args[4](args[3](args[2](args[1](args[0](self))))))
+      return args[5](args[4](args[3](args[2](args[1](args[0](self))))));
     case 7:
-      return args[6](args[5](args[4](args[3](args[2](args[1](args[0](self)))))))
+      return args[6](args[5](args[4](args[3](args[2](args[1](args[0](self)))))));
     case 8:
-      return args[7](args[6](args[5](args[4](args[3](args[2](args[1](args[0](self))))))))
+      return args[7](args[6](args[5](args[4](args[3](args[2](args[1](args[0](self))))))));
     case 9:
-      return args[8](args[7](args[6](args[5](args[4](args[3](args[2](args[1](args[0](self)))))))))
+      return args[8](args[7](args[6](args[5](args[4](args[3](args[2](args[1](args[0](self)))))))));
     default: {
-      let ret = self
+      let ret = self;
       for (let i = 0, len = args.length; i < len; i++) {
-        ret = args[i](ret)
+        ret = args[i](ret);
       }
-      return ret
+      return ret;
     }
   }
-}
+};
 
 /**
  * Reusable prototype that implements `Pipeable.pipe`.
@@ -606,9 +634,9 @@ export const pipeArguments = <A>(self: A, args: IArguments): unknown => {
  */
 export const Prototype: Pipeable = {
   pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+    return pipeArguments(this, arguments);
+  },
+};
 
 /**
  * Provides a base constructor whose instances implement the standard `Pipeable.pipe`
@@ -622,11 +650,11 @@ export const Prototype: Pipeable = {
  * @category constructors
  * @since 3.15.0
  */
-export const Class: new() => Pipeable = (function() {
+export const Class: new () => Pipeable = (function () {
   function PipeableBase() {}
-  PipeableBase.prototype = Prototype
-  return PipeableBase as any
-})()
+  PipeableBase.prototype = Prototype;
+  return PipeableBase as any;
+})();
 
 /**
  * Constructor type for classes whose instances implement `Pipeable`.
@@ -644,7 +672,7 @@ export const Class: new() => Pipeable = (function() {
  * @since 3.15.0
  */
 export interface PipeableConstructor {
-  new(...args: ReadonlyArray<any>): Pipeable
+  new (...args: ReadonlyArray<any>): Pipeable;
 }
 
 /**
@@ -666,10 +694,11 @@ export interface PipeableConstructor {
  * @category constructors
  * @since 4.0.0
  */
-export const Mixin = <TBase extends new(...args: ReadonlyArray<any>) => any>(
-  klass: TBase
-): TBase & PipeableConstructor => (class extends klass {
-  pipe() {
-    return pipeArguments(this, arguments)
-  }
-})
+export const Mixin = <TBase extends new (...args: ReadonlyArray<any>) => any>(
+  klass: TBase,
+): TBase & PipeableConstructor =>
+  class extends klass {
+    pipe() {
+      return pipeArguments(this, arguments);
+    }
+  };

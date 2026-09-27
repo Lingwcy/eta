@@ -10,22 +10,22 @@
  *
  * @since 4.0.0
  */
-import * as Arr from "./Array.ts"
-import * as ByteSize from "./ByteSize.ts"
-import * as Cause from "./Cause.ts"
-import * as Context from "./Context.ts"
-import * as Effect from "./Effect.ts"
-import { pipe } from "./Function.ts"
-import * as Layer from "./Layer.ts"
-import * as Option from "./Option.ts"
-import { badArgument, type PlatformError, systemError } from "./PlatformError.ts"
-import { hasProperty } from "./Predicate.ts"
-import type * as Pull from "./Pull.ts"
-import type { Scope } from "./Scope.ts"
-import * as Sink from "./Sink.ts"
-import * as Stream from "./Stream.ts"
+import * as Arr from "./Array.ts";
+import * as ByteSize from "./ByteSize.ts";
+import * as Cause from "./Cause.ts";
+import * as Context from "./Context.ts";
+import * as Effect from "./Effect.ts";
+import { pipe } from "./Function.ts";
+import * as Layer from "./Layer.ts";
+import * as Option from "./Option.ts";
+import { badArgument, type PlatformError, systemError } from "./PlatformError.ts";
+import { hasProperty } from "./Predicate.ts";
+import type * as Pull from "./Pull.ts";
+import type { Scope } from "./Scope.ts";
+import * as Sink from "./Sink.ts";
+import * as Stream from "./Stream.ts";
 
-const TypeId = "~effect/FileSystem"
+const TypeId = "~effect/FileSystem";
 
 /**
  * Core interface for file system operations in Effect.
@@ -76,7 +76,7 @@ const TypeId = "~effect/FileSystem"
  * @since 4.0.0
  */
 export interface FileSystem {
-  readonly [TypeId]: typeof TypeId
+  readonly [TypeId]: typeof TypeId;
 
   /**
    * Checks whether a file can be accessed.
@@ -85,11 +85,11 @@ export interface FileSystem {
   readonly access: (
     path: string,
     options?: {
-      readonly ok?: boolean | undefined
-      readonly readable?: boolean | undefined
-      readonly writable?: boolean | undefined
-    }
-  ) => Effect.Effect<void, PlatformError>
+      readonly ok?: boolean | undefined;
+      readonly readable?: boolean | undefined;
+      readonly writable?: boolean | undefined;
+    },
+  ) => Effect.Effect<void, PlatformError>;
   /**
    * Copy a file or directory from `fromPath` to `toPath`.
    *
@@ -101,55 +101,40 @@ export interface FileSystem {
     fromPath: string,
     toPath: string,
     options?: {
-      readonly overwrite?: boolean | undefined
-      readonly preserveTimestamps?: boolean | undefined
-    }
-  ) => Effect.Effect<void, PlatformError>
+      readonly overwrite?: boolean | undefined;
+      readonly preserveTimestamps?: boolean | undefined;
+    },
+  ) => Effect.Effect<void, PlatformError>;
   /**
    * Copy a file from `fromPath` to `toPath`.
    */
-  readonly copyFile: (
-    fromPath: string,
-    toPath: string
-  ) => Effect.Effect<void, PlatformError>
+  readonly copyFile: (fromPath: string, toPath: string) => Effect.Effect<void, PlatformError>;
   /**
    * Change the permissions of a file.
    */
-  readonly chmod: (
-    path: string,
-    mode: number
-  ) => Effect.Effect<void, PlatformError>
+  readonly chmod: (path: string, mode: number) => Effect.Effect<void, PlatformError>;
   /**
    * Change the owner and group of a file.
    */
-  readonly chown: (
-    path: string,
-    uid: number,
-    gid: number
-  ) => Effect.Effect<void, PlatformError>
+  readonly chown: (path: string, uid: number, gid: number) => Effect.Effect<void, PlatformError>;
   /**
    * Glob a directory.
    */
   readonly glob: (
     pattern: string,
     options?: {
-      readonly root?: string | undefined
-      readonly exclude?: ReadonlyArray<string> | undefined
-    }
-  ) => Effect.Effect<Array<string>, PlatformError>
+      readonly root?: string | undefined;
+      readonly exclude?: ReadonlyArray<string> | undefined;
+    },
+  ) => Effect.Effect<Array<string>, PlatformError>;
   /**
    * Checks whether a path exists.
    */
-  readonly exists: (
-    path: string
-  ) => Effect.Effect<boolean, PlatformError>
+  readonly exists: (path: string) => Effect.Effect<boolean, PlatformError>;
   /**
    * Create a hard link from `fromPath` to `toPath`.
    */
-  readonly link: (
-    fromPath: string,
-    toPath: string
-  ) => Effect.Effect<void, PlatformError>
+  readonly link: (fromPath: string, toPath: string) => Effect.Effect<void, PlatformError>;
   /**
    * Create a directory at `path`. You can optionally specify the mode and
    * whether to recursively create nested directories.
@@ -157,10 +142,10 @@ export interface FileSystem {
   readonly makeDirectory: (
     path: string,
     options?: {
-      readonly recursive?: boolean | undefined
-      readonly mode?: number | undefined
-    }
-  ) => Effect.Effect<void, PlatformError>
+      readonly recursive?: boolean | undefined;
+      readonly mode?: number | undefined;
+    },
+  ) => Effect.Effect<void, PlatformError>;
   /**
    * Create a temporary directory.
    *
@@ -174,9 +159,9 @@ export interface FileSystem {
    * `prefix` option.
    */
   readonly makeTempDirectory: (options?: {
-    readonly directory?: string | undefined
-    readonly prefix?: string | undefined
-  }) => Effect.Effect<string, PlatformError>
+    readonly directory?: string | undefined;
+    readonly prefix?: string | undefined;
+  }) => Effect.Effect<string, PlatformError>;
   /**
    * Create a temporary directory inside a scope.
    *
@@ -186,19 +171,19 @@ export interface FileSystem {
    * automatically deleted when the scope is closed.
    */
   readonly makeTempDirectoryScoped: (options?: {
-    readonly directory?: string | undefined
-    readonly prefix?: string | undefined
-  }) => Effect.Effect<string, PlatformError, Scope>
+    readonly directory?: string | undefined;
+    readonly prefix?: string | undefined;
+  }) => Effect.Effect<string, PlatformError, Scope>;
   /**
    * Create a temporary file.
    * The directory creation is functionally equivalent to `makeTempDirectory`.
    * The file name will be a randomly generated string.
    */
   readonly makeTempFile: (options?: {
-    readonly directory?: string | undefined
-    readonly prefix?: string | undefined
-    readonly suffix?: string | undefined
-  }) => Effect.Effect<string, PlatformError>
+    readonly directory?: string | undefined;
+    readonly prefix?: string | undefined;
+    readonly suffix?: string | undefined;
+  }) => Effect.Effect<string, PlatformError>;
   /**
    * Create a temporary file inside a scope.
    *
@@ -208,10 +193,10 @@ export interface FileSystem {
    * automatically deleted when the scope is closed.
    */
   readonly makeTempFileScoped: (options?: {
-    readonly directory?: string | undefined
-    readonly prefix?: string | undefined
-    readonly suffix?: string | undefined
-  }) => Effect.Effect<string, PlatformError, Scope>
+    readonly directory?: string | undefined;
+    readonly prefix?: string | undefined;
+    readonly suffix?: string | undefined;
+  }) => Effect.Effect<string, PlatformError, Scope>;
   /**
    * Open a file at `path` with the specified `options`.
    *
@@ -222,10 +207,10 @@ export interface FileSystem {
   readonly open: (
     path: string,
     options?: {
-      readonly flag?: OpenFlag | undefined
-      readonly mode?: number | undefined
-    }
-  ) => Effect.Effect<File, PlatformError, Scope>
+      readonly flag?: OpenFlag | undefined;
+      readonly mode?: number | undefined;
+    },
+  ) => Effect.Effect<File, PlatformError, Scope>;
   /**
    * List the contents of a directory.
    *
@@ -237,34 +222,28 @@ export interface FileSystem {
   readonly readDirectory: (
     path: string,
     options?: {
-      readonly recursive?: boolean | undefined
-    }
-  ) => Effect.Effect<Array<string>, PlatformError>
+      readonly recursive?: boolean | undefined;
+    },
+  ) => Effect.Effect<Array<string>, PlatformError>;
   /**
    * Read the contents of a file.
    */
-  readonly readFile: (
-    path: string
-  ) => Effect.Effect<Uint8Array, PlatformError>
+  readonly readFile: (path: string) => Effect.Effect<Uint8Array, PlatformError>;
   /**
    * Read the contents of a file.
    */
   readonly readFileString: (
     path: string,
-    encoding?: string
-  ) => Effect.Effect<string, PlatformError>
+    encoding?: string,
+  ) => Effect.Effect<string, PlatformError>;
   /**
    * Read the destination of a symbolic link.
    */
-  readonly readLink: (
-    path: string
-  ) => Effect.Effect<string, PlatformError>
+  readonly readLink: (path: string) => Effect.Effect<string, PlatformError>;
   /**
    * Resolve a path to its canonicalized absolute pathname.
    */
-  readonly realPath: (
-    path: string
-  ) => Effect.Effect<string, PlatformError>
+  readonly realPath: (path: string) => Effect.Effect<string, PlatformError>;
   /**
    * Remove a file or directory.
    */
@@ -274,36 +253,31 @@ export interface FileSystem {
       /**
        * When `true`, you can recursively remove nested directories.
        */
-      readonly recursive?: boolean | undefined
+      readonly recursive?: boolean | undefined;
       /**
        * When `true`, exceptions will be ignored if `path` does not exist.
        */
-      readonly force?: boolean | undefined
-    }
-  ) => Effect.Effect<void, PlatformError>
+      readonly force?: boolean | undefined;
+    },
+  ) => Effect.Effect<void, PlatformError>;
   /**
    * Rename a file or directory.
    */
-  readonly rename: (
-    oldPath: string,
-    newPath: string
-  ) => Effect.Effect<void, PlatformError>
+  readonly rename: (oldPath: string, newPath: string) => Effect.Effect<void, PlatformError>;
   /**
    * Create a writable `Sink` for the specified `path`.
    */
   readonly sink: (
     path: string,
     options?: {
-      readonly flag?: OpenFlag | undefined
-      readonly mode?: number | undefined
-    }
-  ) => Sink.Sink<void, Uint8Array, never, PlatformError>
+      readonly flag?: OpenFlag | undefined;
+      readonly mode?: number | undefined;
+    },
+  ) => Sink.Sink<void, Uint8Array, never, PlatformError>;
   /**
    * Get information about a file at `path`. See `File.Info` for metadata limits.
    */
-  readonly stat: (
-    path: string
-  ) => Effect.Effect<File.Info, PlatformError>
+  readonly stat: (path: string) => Effect.Effect<File.Info, PlatformError>;
   /**
    * Create a readable `Stream` for the specified `path`.
    *
@@ -321,34 +295,28 @@ export interface FileSystem {
   readonly stream: (
     path: string,
     options?: {
-      readonly bytesToRead?: ByteSize.Input | undefined
-      readonly chunkSize?: number | undefined
-      readonly offset?: ByteSize.Input | undefined
-    }
-  ) => Stream.Stream<Uint8Array, PlatformError>
+      readonly bytesToRead?: ByteSize.Input | undefined;
+      readonly chunkSize?: number | undefined;
+      readonly offset?: ByteSize.Input | undefined;
+    },
+  ) => Stream.Stream<Uint8Array, PlatformError>;
   /**
    * Create a symbolic link from `fromPath` to `toPath`.
    */
-  readonly symlink: (
-    fromPath: string,
-    toPath: string
-  ) => Effect.Effect<void, PlatformError>
+  readonly symlink: (fromPath: string, toPath: string) => Effect.Effect<void, PlatformError>;
   /**
    * Truncate a file to a specified length. If the `length` is not specified,
    * the file will be truncated to length `0`.
    */
-  readonly truncate: (
-    path: string,
-    length?: number
-  ) => Effect.Effect<void, PlatformError>
+  readonly truncate: (path: string, length?: number) => Effect.Effect<void, PlatformError>;
   /**
    * Change the file system timestamps of the file at `path`.
    */
   readonly utimes: (
     path: string,
     atime: Date | number,
-    mtime: Date | number
-  ) => Effect.Effect<void, PlatformError>
+    mtime: Date | number,
+  ) => Effect.Effect<void, PlatformError>;
   /**
    * Watch a directory or file for changes.
    *
@@ -358,7 +326,10 @@ export interface FileSystem {
    * reported. Set the `recursive` option to `true` to watch for changes in
    * subdirectories as well.
    */
-  readonly watch: (path: string, options?: WatchOptions) => Stream.Stream<WatchEvent, PlatformError>
+  readonly watch: (
+    path: string,
+    options?: WatchOptions,
+  ) => Stream.Stream<WatchEvent, PlatformError>;
   /**
    * Write data to a file at `path`.
    */
@@ -366,10 +337,10 @@ export interface FileSystem {
     path: string,
     data: Uint8Array,
     options?: {
-      readonly flag?: OpenFlag | undefined
-      readonly mode?: number | undefined
-    }
-  ) => Effect.Effect<void, PlatformError>
+      readonly flag?: OpenFlag | undefined;
+      readonly mode?: number | undefined;
+    },
+  ) => Effect.Effect<void, PlatformError>;
   /**
    * Write a string to a file at `path`.
    */
@@ -377,10 +348,10 @@ export interface FileSystem {
     path: string,
     data: string,
     options?: {
-      readonly flag?: OpenFlag | undefined
-      readonly mode?: number | undefined
-    }
-  ) => Effect.Effect<void, PlatformError>
+      readonly flag?: OpenFlag | undefined;
+      readonly mode?: number | undefined;
+    },
+  ) => Effect.Effect<void, PlatformError>;
 }
 
 /**
@@ -414,17 +385,7 @@ export interface FileSystem {
  * @category models
  * @since 4.0.0
  */
-export type OpenFlag =
-  | "r"
-  | "r+"
-  | "w"
-  | "wx"
-  | "w+"
-  | "wx+"
-  | "a"
-  | "ax"
-  | "a+"
-  | "ax+"
+export type OpenFlag = "r" | "r+" | "w" | "wx" | "w+" | "wx+" | "a" | "ax" | "a+" | "ax+";
 
 /**
  * Service tag for platform file-system operations.
@@ -467,7 +428,8 @@ export type OpenFlag =
  * @category services
  * @since 4.0.0
  */
-export const FileSystem: Context.Service<FileSystem, FileSystem> = Context.Service("effect/FileSystem")
+export const FileSystem: Context.Service<FileSystem, FileSystem> =
+  Context.Service("effect/FileSystem");
 
 /**
  * Creates a FileSystem implementation from a partial implementation.
@@ -491,7 +453,10 @@ export const FileSystem: Context.Service<FileSystem, FileSystem> = Context.Servi
  * @since 4.0.0
  */
 export const make = (
-  impl: Omit<FileSystem, typeof TypeId | "exists" | "readFileString" | "stream" | "sink" | "writeFileString">
+  impl: Omit<
+    FileSystem,
+    typeof TypeId | "exists" | "readFileString" | "stream" | "sink" | "writeFileString"
+  >,
 ): FileSystem =>
   FileSystem.of({
     ...impl,
@@ -500,10 +465,9 @@ export const make = (
       pipe(
         impl.access(path),
         Effect.as(true),
-        Effect.catchTag(
-          "PlatformError",
-          (e) => e.reason._tag === "NotFound" ? Effect.succeed(false) : Effect.fail(e)
-        )
+        Effect.catchTag("PlatformError", (e) =>
+          e.reason._tag === "NotFound" ? Effect.succeed(false) : Effect.fail(e),
+        ),
       ),
     readFileString: (path, encoding) =>
       Effect.flatMap(impl.readFile(path), (_) =>
@@ -514,47 +478,52 @@ export const make = (
               module: "FileSystem",
               method: "readFileString",
               description: "invalid encoding",
-              cause
-            })
-        })),
-    stream: Effect.fnUntraced(function*(path, options) {
-      const file = yield* impl.open(path, { flag: "r" })
-      const offset = options?.offset === undefined ? undefined : ByteSize.fromInputUnsafe(options.offset)
+              cause,
+            }),
+        }),
+      ),
+    stream: Effect.fnUntraced(function* (path, options) {
+      const file = yield* impl.open(path, { flag: "r" });
+      const offset =
+        options?.offset === undefined ? undefined : ByteSize.fromInputUnsafe(options.offset);
       if (offset) {
-        yield* file.seek(offset, "start")
+        yield* file.seek(offset, "start");
       }
-      const bytesToRead = options?.bytesToRead === undefined
-        ? undefined
-        : ByteSize.fromInputUnsafe(options.bytesToRead)
-      let totalBytesRead = BigInt(0)
+      const bytesToRead =
+        options?.bytesToRead === undefined
+          ? undefined
+          : ByteSize.fromInputUnsafe(options.bytesToRead);
+      let totalBytesRead = BigInt(0);
       // Validate chunk sizes even for zero-byte reads.
-      const chunkSize = Number(BigInt(options?.chunkSize ?? 64 * 1024))
-      const readChunk = file.readAlloc(chunkSize)
-      return Stream.fromPull(Effect.succeed(
-        Effect.flatMap(
-          Effect.suspend((): Pull.Pull<Option.Option<Uint8Array>, PlatformError> => {
-            if (bytesToRead !== undefined && bytesToRead <= totalBytesRead) {
-              return Cause.done()
-            }
-            return bytesToRead !== undefined && (bytesToRead - totalBytesRead) < chunkSize
-              ? file.readAlloc(Number(bytesToRead - totalBytesRead))
-              : readChunk
-          }),
-          Option.match({
-            onNone: () => Cause.done(),
-            onSome: (buf) => {
-              totalBytesRead += BigInt(buf.length)
-              return Effect.succeed(Arr.of(buf))
-            }
-          })
-        )
-      ))
+      const chunkSize = Number(BigInt(options?.chunkSize ?? 64 * 1024));
+      const readChunk = file.readAlloc(chunkSize);
+      return Stream.fromPull(
+        Effect.succeed(
+          Effect.flatMap(
+            Effect.suspend((): Pull.Pull<Option.Option<Uint8Array>, PlatformError> => {
+              if (bytesToRead !== undefined && bytesToRead <= totalBytesRead) {
+                return Cause.done();
+              }
+              return bytesToRead !== undefined && bytesToRead - totalBytesRead < chunkSize
+                ? file.readAlloc(Number(bytesToRead - totalBytesRead))
+                : readChunk;
+            }),
+            Option.match({
+              onNone: () => Cause.done(),
+              onSome: (buf) => {
+                totalBytesRead += BigInt(buf.length);
+                return Effect.succeed(Arr.of(buf));
+              },
+            }),
+          ),
+        ),
+      );
     }, Stream.unwrap),
     sink: (path, options) =>
       pipe(
         impl.open(path, { ...options, flag: options?.flag ?? "w" }),
         Effect.map((file) => Sink.forEach((_: Uint8Array) => file.writeAll(_))),
-        Sink.unwrap
+        Sink.unwrap,
       ),
     writeFileString: (path, data, options) =>
       Effect.flatMap(
@@ -565,12 +534,12 @@ export const make = (
               module: "FileSystem",
               method: "writeFileString",
               description: "could not encode string",
-              cause
-            })
+              cause,
+            }),
         }),
-        (_) => impl.writeFile(path, _, options)
-      )
-  })
+        (_) => impl.writeFile(path, _, options),
+      ),
+  });
 
 const notFound = (method: string, path: string) =>
   systemError({
@@ -578,8 +547,8 @@ const notFound = (method: string, path: string) =>
     method,
     _tag: "NotFound",
     description: "No such file or directory",
-    pathOrDescriptor: path
-  })
+    pathOrDescriptor: path,
+  });
 
 /**
  * Creates a stub `FileSystem` implementation for tests.
@@ -637,97 +606,97 @@ export const makeNoop = (fileSystem: Partial<FileSystem>): FileSystem =>
   FileSystem.of({
     [TypeId]: TypeId,
     access(path) {
-      return Effect.fail(notFound("access", path))
+      return Effect.fail(notFound("access", path));
     },
     chmod(path) {
-      return Effect.fail(notFound("chmod", path))
+      return Effect.fail(notFound("chmod", path));
     },
     chown(path) {
-      return Effect.fail(notFound("chown", path))
+      return Effect.fail(notFound("chown", path));
     },
     copy(path) {
-      return Effect.fail(notFound("copy", path))
+      return Effect.fail(notFound("copy", path));
     },
     copyFile(path) {
-      return Effect.fail(notFound("copyFile", path))
+      return Effect.fail(notFound("copyFile", path));
     },
     glob(pattern) {
-      return Effect.fail(notFound("glob", pattern))
+      return Effect.fail(notFound("glob", pattern));
     },
     exists() {
-      return Effect.succeed(false)
+      return Effect.succeed(false);
     },
     link(path) {
-      return Effect.fail(notFound("link", path))
+      return Effect.fail(notFound("link", path));
     },
     makeDirectory() {
-      return Effect.die("not implemented")
+      return Effect.die("not implemented");
     },
     makeTempDirectory() {
-      return Effect.die("not implemented")
+      return Effect.die("not implemented");
     },
     makeTempDirectoryScoped() {
-      return Effect.die("not implemented")
+      return Effect.die("not implemented");
     },
     makeTempFile() {
-      return Effect.die("not implemented")
+      return Effect.die("not implemented");
     },
     makeTempFileScoped() {
-      return Effect.die("not implemented")
+      return Effect.die("not implemented");
     },
     open(path) {
-      return Effect.fail(notFound("open", path))
+      return Effect.fail(notFound("open", path));
     },
     readDirectory(path) {
-      return Effect.fail(notFound("readDirectory", path))
+      return Effect.fail(notFound("readDirectory", path));
     },
     readFile(path) {
-      return Effect.fail(notFound("readFile", path))
+      return Effect.fail(notFound("readFile", path));
     },
     readFileString(path) {
-      return Effect.fail(notFound("readFileString", path))
+      return Effect.fail(notFound("readFileString", path));
     },
     readLink(path) {
-      return Effect.fail(notFound("readLink", path))
+      return Effect.fail(notFound("readLink", path));
     },
     realPath(path) {
-      return Effect.fail(notFound("realPath", path))
+      return Effect.fail(notFound("realPath", path));
     },
     remove() {
-      return Effect.void
+      return Effect.void;
     },
     rename(oldPath) {
-      return Effect.fail(notFound("rename", oldPath))
+      return Effect.fail(notFound("rename", oldPath));
     },
     sink(path) {
-      return Sink.fail(notFound("sink", path))
+      return Sink.fail(notFound("sink", path));
     },
     stat(path) {
-      return Effect.fail(notFound("stat", path))
+      return Effect.fail(notFound("stat", path));
     },
     stream(path) {
-      return Stream.fail(notFound("stream", path))
+      return Stream.fail(notFound("stream", path));
     },
     symlink(fromPath) {
-      return Effect.fail(notFound("symlink", fromPath))
+      return Effect.fail(notFound("symlink", fromPath));
     },
     truncate(path) {
-      return Effect.fail(notFound("truncate", path))
+      return Effect.fail(notFound("truncate", path));
     },
     utimes(path) {
-      return Effect.fail(notFound("utimes", path))
+      return Effect.fail(notFound("utimes", path));
     },
     watch(path) {
-      return Stream.fail(notFound("watch", path))
+      return Stream.fail(notFound("watch", path));
     },
     writeFile(path) {
-      return Effect.fail(notFound("writeFile", path))
+      return Effect.fail(notFound("writeFile", path));
     },
     writeFileString(path) {
-      return Effect.fail(notFound("writeFileString", path))
+      return Effect.fail(notFound("writeFileString", path));
     },
-    ...fileSystem
-  })
+    ...fileSystem,
+  });
 
 /**
  * Creates a Layer that provides a no-op FileSystem implementation for testing.
@@ -763,7 +732,7 @@ export const makeNoop = (fileSystem: Partial<FileSystem>): FileSystem =>
  * @since 4.0.0
  */
 export const layerNoop = (fileSystem: Partial<FileSystem>): Layer.Layer<FileSystem> =>
-  Layer.succeed(FileSystem)(makeNoop(fileSystem))
+  Layer.succeed(FileSystem)(makeNoop(fileSystem));
 
 /**
  * Runtime type identifier attached to `FileSystem.File` handles and used by
@@ -780,7 +749,7 @@ export const layerNoop = (fileSystem: Partial<FileSystem>): Layer.Layer<FileSyst
  * @category type IDs
  * @since 4.0.0
  */
-export const FileTypeId = "~effect/FileSystem/File"
+export const FileTypeId = "~effect/FileSystem/File";
 
 /**
  * Returns `true` if a value is a `File` handle by checking for the
@@ -802,7 +771,7 @@ export const FileTypeId = "~effect/FileSystem/File"
  * @category guards
  * @since 4.0.0
  */
-export const isFile = (u: unknown): u is File => hasProperty(u, FileTypeId)
+export const isFile = (u: unknown): u is File => hasProperty(u, FileTypeId);
 
 /**
  * Interface representing an open file handle.
@@ -852,21 +821,21 @@ export const isFile = (u: unknown): u is File => hasProperty(u, FileTypeId)
  * @since 4.0.0
  */
 export interface File {
-  readonly [FileTypeId]: typeof FileTypeId
+  readonly [FileTypeId]: typeof FileTypeId;
   /**
    * Get information about the open file. See `File.Info` for metadata limits.
    */
-  readonly stat: Effect.Effect<File.Info, PlatformError>
+  readonly stat: Effect.Effect<File.Info, PlatformError>;
   /**
    * Seeks before the start fail with `BadArgument` and leave the cursor unchanged.
    */
-  readonly seek: (offset: bigint, from: SeekMode) => Effect.Effect<bigint, PlatformError>
-  readonly sync: Effect.Effect<void, PlatformError>
-  readonly read: (buffer: Uint8Array) => Effect.Effect<number, PlatformError>
-  readonly readAlloc: (size: number) => Effect.Effect<Option.Option<Uint8Array>, PlatformError>
-  readonly truncate: (length?: number) => Effect.Effect<void, PlatformError>
-  readonly write: (buffer: Uint8Array) => Effect.Effect<number, PlatformError>
-  readonly writeAll: (buffer: Uint8Array) => Effect.Effect<void, PlatformError>
+  readonly seek: (offset: bigint, from: SeekMode) => Effect.Effect<bigint, PlatformError>;
+  readonly sync: Effect.Effect<void, PlatformError>;
+  readonly read: (buffer: Uint8Array) => Effect.Effect<number, PlatformError>;
+  readonly readAlloc: (size: number) => Effect.Effect<Option.Option<Uint8Array>, PlatformError>;
+  readonly truncate: (length?: number) => Effect.Effect<void, PlatformError>;
+  readonly write: (buffer: Uint8Array) => Effect.Effect<number, PlatformError>;
+  readonly writeAll: (buffer: Uint8Array) => Effect.Effect<void, PlatformError>;
 }
 
 /**
@@ -895,7 +864,7 @@ export declare namespace File {
     | "CharacterDevice"
     | "FIFO"
     | "Socket"
-    | "Unknown"
+    | "Unknown";
 
   /**
    * Comprehensive file information structure.
@@ -948,20 +917,20 @@ export declare namespace File {
    * @since 4.0.0
    */
   export interface Info {
-    readonly type: Type
-    readonly mtime: Option.Option<Date>
-    readonly atime: Option.Option<Date>
-    readonly birthtime: Option.Option<Date>
-    readonly dev: number
-    readonly ino: Option.Option<number>
-    readonly mode: number
-    readonly nlink: Option.Option<number>
-    readonly uid: Option.Option<number>
-    readonly gid: Option.Option<number>
-    readonly rdev: Option.Option<number>
-    readonly size: ByteSize.ByteSize
-    readonly blksize: Option.Option<ByteSize.ByteSize>
-    readonly blocks: Option.Option<number>
+    readonly type: Type;
+    readonly mtime: Option.Option<Date>;
+    readonly atime: Option.Option<Date>;
+    readonly birthtime: Option.Option<Date>;
+    readonly dev: number;
+    readonly ino: Option.Option<number>;
+    readonly mode: number;
+    readonly nlink: Option.Option<number>;
+    readonly uid: Option.Option<number>;
+    readonly gid: Option.Option<number>;
+    readonly rdev: Option.Option<number>;
+    readonly size: ByteSize.ByteSize;
+    readonly blksize: Option.Option<ByteSize.ByteSize>;
+    readonly blocks: Option.Option<number>;
   }
 }
 
@@ -984,7 +953,7 @@ export declare namespace File {
  * @category models
  * @since 4.0.0
  */
-export type SeekMode = "start" | "current"
+export type SeekMode = "start" | "current";
 
 /**
  * Options for watching files or directories.
@@ -996,7 +965,7 @@ export interface WatchOptions {
   /**
    * When `true`, changes in subdirectories are also reported.
    */
-  readonly recursive?: boolean | undefined
+  readonly recursive?: boolean | undefined;
 }
 
 /**
@@ -1017,7 +986,7 @@ export interface WatchOptions {
  * @category models
  * @since 4.0.0
  */
-export type WatchEvent = WatchEvent.Create | WatchEvent.Update | WatchEvent.Remove
+export type WatchEvent = WatchEvent.Create | WatchEvent.Update | WatchEvent.Remove;
 
 /**
  * Namespace containing the concrete event shapes emitted by `FileSystem.watch`.
@@ -1037,8 +1006,8 @@ export declare namespace WatchEvent {
    * @since 4.0.0
    */
   export interface Create {
-    readonly _tag: "Create"
-    readonly path: string
+    readonly _tag: "Create";
+    readonly path: string;
   }
 
   /**
@@ -1053,8 +1022,8 @@ export declare namespace WatchEvent {
    * @since 4.0.0
    */
   export interface Update {
-    readonly _tag: "Update"
-    readonly path: string
+    readonly _tag: "Update";
+    readonly path: string;
   }
 
   /**
@@ -1069,8 +1038,8 @@ export declare namespace WatchEvent {
    * @since 4.0.0
    */
   export interface Remove {
-    readonly _tag: "Remove"
-    readonly path: string
+    readonly _tag: "Remove";
+    readonly path: string;
   }
 }
 
@@ -1114,10 +1083,13 @@ export declare namespace WatchEvent {
  * @category services
  * @since 4.0.0
  */
-export class WatchBackend extends Context.Service<WatchBackend, {
-  readonly register: (
-    path: string,
-    stat: File.Info,
-    options?: WatchOptions
-  ) => Option.Option<Stream.Stream<WatchEvent, PlatformError>>
-}>()("effect/FileSystem/WatchBackend") {}
+export class WatchBackend extends Context.Service<
+  WatchBackend,
+  {
+    readonly register: (
+      path: string,
+      stat: File.Info,
+      options?: WatchOptions,
+    ) => Option.Option<Stream.Stream<WatchEvent, PlatformError>>;
+  }
+>()("effect/FileSystem/WatchBackend") {}

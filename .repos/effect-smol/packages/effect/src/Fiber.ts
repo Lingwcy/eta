@@ -7,22 +7,22 @@
  *
  * @since 2.0.0
  */
-import type * as Arr from "./Array.ts"
-import type * as Context from "./Context.ts"
-import type { Effect } from "./Effect.ts"
-import type { Exit } from "./Exit.ts"
-import * as effect from "./internal/effect.ts"
-import type { LogLevel } from "./LogLevel.ts"
-import type { FiberRuntimeMetricsService } from "./Metric.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { hasProperty } from "./Predicate.ts"
-import type { StackFrame } from "./References.ts"
-import type { Scheduler, SchedulerDispatcher } from "./Scheduler.ts"
-import type { Scope } from "./Scope.ts"
-import type { AnySpan, Tracer } from "./Tracer.ts"
-import type { Covariant } from "./Types.ts"
+import type * as Arr from "./Array.ts";
+import type * as Context from "./Context.ts";
+import type { Effect } from "./Effect.ts";
+import type { Exit } from "./Exit.ts";
+import * as effect from "./internal/effect.ts";
+import type { LogLevel } from "./LogLevel.ts";
+import type { FiberRuntimeMetricsService } from "./Metric.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { hasProperty } from "./Predicate.ts";
+import type { StackFrame } from "./References.ts";
+import type { Scheduler, SchedulerDispatcher } from "./Scheduler.ts";
+import type { Scope } from "./Scope.ts";
+import type { AnySpan, Tracer } from "./Tracer.ts";
+import type { Covariant } from "./Types.ts";
 
-const TypeId = "~effect/Fiber"
+const TypeId = "~effect/Fiber";
 
 /**
  * A runtime fiber is a lightweight thread that executes Effects. Fibers are
@@ -69,21 +69,21 @@ const TypeId = "~effect/Fiber"
  * @since 2.0.0
  */
 export interface Fiber<out A, out E = never> extends Pipeable {
-  readonly [TypeId]: Fiber.Variance<A, E>
+  readonly [TypeId]: Fiber.Variance<A, E>;
 
-  readonly id: number
-  readonly currentOpCount: number
-  readonly getRef: <A>(ref: Context.Reference<A>) => A
-  readonly context: Context.Context<never>
-  setContext(context: Context.Context<never>): void
-  readonly cache: Fiber.Cache
-  readonly currentDispatcher: SchedulerDispatcher
-  readonly addObserver: (cb: (exit: Exit<A, E>) => void) => () => void
+  readonly id: number;
+  readonly currentOpCount: number;
+  readonly getRef: <A>(ref: Context.Reference<A>) => A;
+  readonly context: Context.Context<never>;
+  setContext(context: Context.Context<never>): void;
+  readonly cache: Fiber.Cache;
+  readonly currentDispatcher: SchedulerDispatcher;
+  readonly addObserver: (cb: (exit: Exit<A, E>) => void) => () => void;
   readonly interruptUnsafe: (
     fiberId?: number | undefined,
-    annotations?: Context.Context<never> | undefined
-  ) => void
-  readonly pollUnsafe: () => Exit<A, E> | undefined
+    annotations?: Context.Context<never> | undefined,
+  ) => void;
+  readonly pollUnsafe: () => Exit<A, E> | undefined;
 }
 
 /**
@@ -147,8 +147,8 @@ export declare namespace Fiber {
    * @since 2.0.0
    */
   export interface Variance<out A, out E = never> {
-    readonly _A: Covariant<A>
-    readonly _E: Covariant<E>
+    readonly _A: Covariant<A>;
+    readonly _E: Covariant<E>;
   }
 
   /**
@@ -168,21 +168,21 @@ export declare namespace Fiber {
    * @since 4.0.0
    */
   export interface Cache {
-    readonly scheduler: Scheduler
-    readonly tracer: Tracer | undefined
-    readonly tracerContext: Tracer["context"] | undefined
-    readonly tracerEnabled: boolean
-    readonly span: AnySpan | undefined
-    readonly logLevel: LogLevel
-    readonly minimumLogLevel: LogLevel
-    readonly stackFrame: StackFrame | undefined
-    readonly runtimeMetrics: FiberRuntimeMetricsService | undefined
-    readonly maxOpsBeforeYield: number
-    readonly preventYield: boolean
+    readonly scheduler: Scheduler;
+    readonly tracer: Tracer | undefined;
+    readonly tracerContext: Tracer["context"] | undefined;
+    readonly tracerEnabled: boolean;
+    readonly span: AnySpan | undefined;
+    readonly logLevel: LogLevel;
+    readonly minimumLogLevel: LogLevel;
+    readonly stackFrame: StackFrame | undefined;
+    readonly runtimeMetrics: FiberRuntimeMetricsService | undefined;
+    readonly maxOpsBeforeYield: number;
+    readonly preventYield: boolean;
   }
 }
 
-const await_: <A, E>(self: Fiber<A, E>) => Effect<Exit<A, E>> = effect.fiberAwait
+const await_: <A, E>(self: Fiber<A, E>) => Effect<Exit<A, E>> = effect.fiberAwait;
 export {
   /**
    * Waits for a fiber to complete and returns its exit value.
@@ -219,8 +219,8 @@ export {
    * @category combinators
    * @since 2.0.0
    */
-  await_ as await
-}
+  await_ as await,
+};
 /**
  * Waits for all fibers in the provided iterable to complete and returns
  * an array of their exit values.
@@ -258,7 +258,7 @@ export {
  * @since 2.0.0
  */
 export const awaitAll: <A extends Fiber<any, any>>(
-  self: Iterable<A>
+  self: Iterable<A>,
 ) => Effect<
   Array<
     Exit<
@@ -266,7 +266,7 @@ export const awaitAll: <A extends Fiber<any, any>>(
       A extends Fiber<infer _A, infer _E> ? _E : never
     >
   >
-> = effect.fiberAwaitAll
+> = effect.fiberAwaitAll;
 
 /**
  * Joins a fiber, blocking until it completes. If the fiber succeeds,
@@ -301,7 +301,7 @@ export const awaitAll: <A extends Fiber<any, any>>(
  * @category combinators
  * @since 2.0.0
  */
-export const join: <A, E>(self: Fiber<A, E>) => Effect<A, E> = effect.fiberJoin
+export const join: <A, E>(self: Fiber<A, E>) => Effect<A, E> = effect.fiberJoin;
 
 /**
  * Waits for all fibers to succeed and returns their values in input order.
@@ -328,14 +328,11 @@ export const join: <A, E>(self: Fiber<A, E>) => Effect<A, E> = effect.fiberJoin
  * @since 2.0.0
  */
 export const joinAll: <A extends Iterable<Fiber<any, any>>>(
-  self: A
+  self: A,
 ) => Effect<
-  Arr.ReadonlyArray.With<
-    A,
-    A extends Iterable<Fiber<infer _A, infer _E>> ? _A : never
-  >,
+  Arr.ReadonlyArray.With<A, A extends Iterable<Fiber<infer _A, infer _E>> ? _A : never>,
   A extends Iterable<Fiber<infer _A, infer _E>> ? _E : never
-> = effect.fiberJoinAll
+> = effect.fiberJoinAll;
 
 /**
  * Interrupts a fiber, causing it to stop executing and clean up any
@@ -376,7 +373,7 @@ export const joinAll: <A extends Iterable<Fiber<any, any>>>(
  * @category interruption
  * @since 2.0.0
  */
-export const interrupt: <A, E>(self: Fiber<A, E>) => Effect<void> = effect.fiberInterrupt
+export const interrupt: <A, E>(self: Fiber<A, E>) => Effect<void> = effect.fiberInterrupt;
 
 /**
  * Interrupts a fiber with a specific fiber ID as the interruptor. This allows
@@ -421,14 +418,14 @@ export const interrupt: <A, E>(self: Fiber<A, E>) => Effect<void> = effect.fiber
 export const interruptAs: {
   (
     fiberId: number | undefined,
-    annotations?: Context.Context<never> | undefined
-  ): <A, E>(self: Fiber<A, E>) => Effect<void>
+    annotations?: Context.Context<never> | undefined,
+  ): <A, E>(self: Fiber<A, E>) => Effect<void>;
   <A, E>(
     self: Fiber<A, E>,
     fiberId: number | undefined,
-    annotations?: Context.Context<never> | undefined
-  ): Effect<void>
-} = effect.fiberInterruptAs
+    annotations?: Context.Context<never> | undefined,
+  ): Effect<void>;
+} = effect.fiberInterruptAs;
 
 /**
  * Interrupts all fibers in the provided iterable, causing them to stop executing
@@ -469,9 +466,8 @@ export const interruptAs: {
  * @category interruption
  * @since 2.0.0
  */
-export const interruptAll: <A extends Iterable<Fiber<any, any>>>(
-  fibers: A
-) => Effect<void> = effect.fiberInterruptAll
+export const interruptAll: <A extends Iterable<Fiber<any, any>>>(fibers: A) => Effect<void> =
+  effect.fiberInterruptAll;
 
 /**
  * Interrupts all fibers in the provided iterable using the specified fiber ID as the
@@ -517,9 +513,9 @@ export const interruptAll: <A extends Iterable<Fiber<any, any>>>(
  * @since 2.0.0
  */
 export const interruptAllAs: {
-  (fiberId: number): <A extends Iterable<Fiber<any, any>>>(fibers: A) => Effect<void>
-  <A extends Iterable<Fiber<any, any>>>(fibers: A, fiberId: number): Effect<void>
-} = effect.fiberInterruptAllAs
+  (fiberId: number): <A extends Iterable<Fiber<any, any>>>(fibers: A) => Effect<void>;
+  <A extends Iterable<Fiber<any, any>>>(fibers: A, fiberId: number): Effect<void>;
+} = effect.fiberInterruptAllAs;
 
 /**
  * Checks whether a value is a Fiber. This is a type guard that can be used to
@@ -555,9 +551,8 @@ export const interruptAllAs: {
  * @category guards
  * @since 2.0.0
  */
-export const isFiber = (
-  u: unknown
-): u is Fiber<unknown, unknown> => hasProperty(u, effect.FiberTypeId)
+export const isFiber = (u: unknown): u is Fiber<unknown, unknown> =>
+  hasProperty(u, effect.FiberTypeId);
 
 /**
  * Returns the current fiber if called from within a fiber context,
@@ -590,7 +585,7 @@ export const isFiber = (
  * @category getters
  * @since 4.0.0
  */
-export const getCurrent: () => Fiber<any, any> | undefined = effect.getCurrentFiber
+export const getCurrent: () => Fiber<any, any> | undefined = effect.getCurrentFiber;
 
 /**
  * Adds a fiber to a `Scope` and returns the same fiber.
@@ -615,6 +610,6 @@ export const getCurrent: () => Fiber<any, any> | undefined = effect.getCurrentFi
  * @since 4.0.0
  */
 export const runIn: {
-  (scope: Scope): <A, E>(self: Fiber<A, E>) => Fiber<A, E>
-  <A, E>(self: Fiber<A, E>, scope: Scope): Fiber<A, E>
-} = effect.fiberRunIn
+  (scope: Scope): <A, E>(self: Fiber<A, E>) => Fiber<A, E>;
+  <A, E>(self: Fiber<A, E>, scope: Scope): Fiber<A, E>;
+} = effect.fiberRunIn;

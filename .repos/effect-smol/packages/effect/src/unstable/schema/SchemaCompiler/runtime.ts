@@ -5,101 +5,108 @@
  *
  * @since 4.0.0
  */
-import * as Effect from "../../../Effect.ts"
-import { effectIsExit, resolveConcurrency } from "../../../internal/effect.ts"
+import * as Effect from "../../../Effect.ts";
+import { effectIsExit, resolveConcurrency } from "../../../internal/effect.ts";
 import {
   lazyParser,
   type Resolve,
   resolve,
   setCompiler,
-  withDecode
-} from "../../../internal/schema/compilerRegistry.ts"
-import * as Interpreter from "../../../internal/schema/interpreter.ts"
-import * as InternalParser from "../../../internal/schema/parser.ts"
-import * as SchemaAST from "../../../SchemaAST.ts"
-import * as SchemaIssue from "../../../SchemaIssue.ts"
-import type { Compiler } from "../../../SchemaParser.ts"
-import { type Decode, invalid } from "../SchemaCompiler.ts"
+  withDecode,
+} from "../../../internal/schema/compilerRegistry.ts";
+import * as Interpreter from "../../../internal/schema/interpreter.ts";
+import * as InternalParser from "../../../internal/schema/parser.ts";
+import * as SchemaAST from "../../../SchemaAST.ts";
+import * as SchemaIssue from "../../../SchemaIssue.ts";
+import type { Compiler } from "../../../SchemaParser.ts";
+import { type Decode, invalid } from "../SchemaCompiler.ts";
 
-type SchemaIssueParser = ReturnType<typeof Interpreter.compile>
-type ObjectParserState = Parameters<typeof SchemaAST.stepProperty>[0]
-type ParsedProperty = Parameters<typeof SchemaAST.stepProperty>[1]
-type ArrayParserState = Parameters<typeof SchemaAST.stepArray>[0]
+type SchemaIssueParser = ReturnType<typeof Interpreter.compile>;
+type ObjectParserState = Parameters<typeof SchemaAST.stepProperty>[0];
+type ParsedProperty = Parameters<typeof SchemaAST.stepProperty>[1];
+type ArrayParserState = Parameters<typeof SchemaAST.stepArray>[0];
 type GenerateObject = (context: {
-  readonly ast: SchemaAST.Objects
-  readonly getProperties: () => ReadonlyArray<ParsedProperty>
-  readonly fallback: SchemaIssueParser
+  readonly ast: SchemaAST.Objects;
+  readonly getProperties: () => ReadonlyArray<ParsedProperty>;
+  readonly fallback: SchemaIssueParser;
   readonly resume: (
     state: ObjectParserState,
     index: number,
-    pending: Effect.Effect<unknown, SchemaIssue.Issue, any>
-  ) => Effect.Effect<unknown, SchemaIssue.Issue, any>
-  readonly step: typeof SchemaAST.stepProperty
-}) => SchemaIssueParser
+    pending: Effect.Effect<unknown, SchemaIssue.Issue, any>,
+  ) => Effect.Effect<unknown, SchemaIssue.Issue, any>;
+  readonly step: typeof SchemaAST.stepProperty;
+}) => SchemaIssueParser;
 type GenerateArray = (context: {
-  readonly getElement: () => SchemaIssueParser
-  readonly step: typeof SchemaAST.stepArray
+  readonly getElement: () => SchemaIssueParser;
+  readonly step: typeof SchemaAST.stepArray;
   readonly resume: (
     state: ArrayParserState,
     item: unknown,
     index: number,
     pending: Effect.Effect<unknown, SchemaIssue.Issue, any>,
-    end: number
-  ) => Effect.Effect<void, SchemaIssue.Issue, any>
-}) => typeof SchemaAST.parseArray
+    end: number,
+  ) => Effect.Effect<void, SchemaIssue.Issue, any>;
+}) => typeof SchemaAST.parseArray;
 const makeObjectBase = (
   ast: SchemaAST.Objects,
   compile: Compiler,
   compileField: Compiler,
-  generate: GenerateObject
+  generate: GenerateObject,
 ): SchemaIssueParser => {
-  let properties: Array<ParsedProperty> | undefined
+  let properties: Array<ParsedProperty> | undefined;
   const getProperties = (): Array<ParsedProperty> => {
-    if (properties !== undefined) return properties
-    const parsers = new Map<SchemaAST.AST, SchemaIssueParser>()
-    return properties = ast.propertySignatures.map((property) => {
-      let parser = parsers.get(property.type)
+    if (properties !== undefined) return properties;
+    const parsers = new Map<SchemaAST.AST, SchemaIssueParser>();
+    return (properties = ast.propertySignatures.map((property) => {
+      let parser = parsers.get(property.type);
       if (parser === undefined) {
-        parser = compileField(property.type)
-        parsers.set(property.type, parser)
+        parser = compileField(property.type);
+        parsers.set(property.type, parser);
       }
-      return { parser, name: property.name, type: property.type }
-    })
-  }
-  let fallback: SchemaIssueParser | undefined
+      return { parser, name: property.name, type: property.type };
+    }));
+  };
+  let fallback: SchemaIssueParser | undefined;
   const runFallback: SchemaIssueParser = (input, options) =>
-    (fallback ??= ast.getParser(compile, compileField))(input, options)
+    (fallback ??= ast.getParser(compile, compileField))(input, options);
   const resume = (
     state: ObjectParserState,
     index: number,
-    pending: Effect.Effect<unknown, SchemaIssue.Issue, any>
+    pending: Effect.Effect<unknown, SchemaIssue.Issue, any>,
   ): Effect.Effect<unknown, SchemaIssue.Issue, any> => {
-    const property = properties![index]
+    const property = properties![index];
     return Effect.flatMap(Effect.exit(pending), (exit) => {
-      const terminal = SchemaAST.stepProperty(state, property, exit)
-      if (terminal) return terminal
-      const done = () => InternalParser.succeed(state.out)
-      const effect = SchemaAST.parseProperties(state, properties!.slice(index + 1))
-      return effect ? Effect.flatMapEager(effect, done) : done()
-    })
-  }
-  return generate({ ast, getProperties, fallback: runFallback, resume, step: SchemaAST.stepProperty })
-}
+      const terminal = SchemaAST.stepProperty(state, property, exit);
+      if (terminal) return terminal;
+      const done = () => InternalParser.succeed(state.out);
+      const effect = SchemaAST.parseProperties(state, properties!.slice(index + 1));
+      return effect ? Effect.flatMapEager(effect, done) : done();
+    });
+  };
+  return generate({
+    ast,
+    getProperties,
+    fallback: runFallback,
+    resume,
+    step: SchemaAST.stepProperty,
+  });
+};
 
 const makeArrayBase = (
   ast: SchemaAST.Arrays,
   compile: Compiler,
   compileField: Compiler,
-  generate: GenerateArray
+  generate: GenerateArray,
 ): SchemaIssueParser => {
-  let element: { readonly ast: SchemaAST.AST; readonly parser: SchemaIssueParser } | undefined
-  const getElement = () => (element ??= {
-    ast: ast.rest[0],
-    parser: compileField(ast.rest[0])
-  })
-  let fallback: SchemaIssueParser | undefined
+  let element: { readonly ast: SchemaAST.AST; readonly parser: SchemaIssueParser } | undefined;
+  const getElement = () =>
+    (element ??= {
+      ast: ast.rest[0],
+      parser: compileField(ast.rest[0]),
+    });
+  let fallback: SchemaIssueParser | undefined;
   const runFallback: SchemaIssueParser = (input, options) =>
-    (fallback ??= ast.getParser(compile, compileField))(input, options)
+    (fallback ??= ast.getParser(compile, compileField))(input, options);
   const run = generate({
     getElement: () => getElement().parser,
     step: SchemaAST.stepArray,
@@ -108,16 +115,20 @@ const makeArrayBase = (
         Effect.exit(pending),
         (exit) =>
           SchemaAST.stepArray(state, item, exit, index) ??
-            SchemaAST.parseArray(state, state.input, index + 1, end) ?? Effect.void
-      )
-  })
-  const specialized = Effect.fnUntracedEager(function*(input: unknown, options: SchemaAST.ParseOptions) {
-    if (input === InternalParser.missing) return InternalParser.missing
+          SchemaAST.parseArray(state, state.input, index + 1, end) ??
+          Effect.void,
+      ),
+  });
+  const specialized = Effect.fnUntracedEager(function* (
+    input: unknown,
+    options: SchemaAST.ParseOptions,
+  ) {
+    if (input === InternalParser.missing) return InternalParser.missing;
     if (!Array.isArray(input)) {
-      return yield* Effect.fail(new SchemaIssue.InvalidType(ast, input, options))
+      return yield* Effect.fail(new SchemaIssue.InvalidType(ast, input, options));
     }
-    const descriptor = getElement()
-    const len = input.length
+    const descriptor = getElement();
+    const len = input.length;
     const state: ArrayParserState = {
       ast,
       getParser: () => descriptor,
@@ -126,20 +137,20 @@ const makeArrayBase = (
       tailThreshold: len,
       output: new globalThis.Array(len),
       issues: undefined,
-      options
-    }
-    const effect = run(state, input, 0, len)
-    if (effect) yield* effect
+      options,
+    };
+    const effect = run(state, input, 0, len);
+    if (effect) yield* effect;
     if (state.issues) {
-      return yield* Effect.fail(new SchemaIssue.Composite(ast, state.issues, input, options))
+      return yield* Effect.fail(new SchemaIssue.Composite(ast, state.issues, input, options));
     }
-    return state.output
-  })
+    return state.output;
+  });
   return (input, options) =>
     options.concurrency !== undefined && resolveConcurrency(options.concurrency) !== 1
       ? runFallback(input, options)
-      : specialized(input, options)
-}
+      : specialized(input, options);
+};
 
 const decode = (
   ast: SchemaAST.AST,
@@ -147,96 +158,109 @@ const decode = (
   generate?: GenerateObject,
   detailed = false,
   makeDecode?: () => Decode,
-  generateArray?: GenerateArray
+  generateArray?: GenerateArray,
 ): SchemaIssueParser => {
-  const child = (ast: SchemaAST.AST) => lazyParser(resolve, ast, detailed ? "decodeEffect" : "parser")
-  const localChild = makeDecode === undefined
-    ? child
-    : (ast: SchemaAST.AST) => lazyParser(resolve, ast, "decodeEffect")
-  const base = ast._tag === "Objects" && generate !== undefined ?
-    makeObjectBase(ast, localChild, localChild, generate)
-    : ast._tag === "Arrays" && generateArray !== undefined
-    ? makeArrayBase(ast, localChild, localChild, generateArray)
-    : makeDecode !== undefined
-    ? ast.getParser(localChild)
-    : undefined
-  const specialize = makeDecode === undefined ? undefined : (local: SchemaIssueParser): SchemaIssueParser => {
-    try {
-      return withDecode(makeDecode(), () => local)
-    } catch {
-      // Initialization failure selects the local interpreter, without parsing again.
-      return local
-    }
-  }
-  return Interpreter.compile(ast, child, undefined, base, specialize)
-}
+  const child = (ast: SchemaAST.AST) =>
+    lazyParser(resolve, ast, detailed ? "decodeEffect" : "parser");
+  const localChild =
+    makeDecode === undefined
+      ? child
+      : (ast: SchemaAST.AST) => lazyParser(resolve, ast, "decodeEffect");
+  const base =
+    ast._tag === "Objects" && generate !== undefined
+      ? makeObjectBase(ast, localChild, localChild, generate)
+      : ast._tag === "Arrays" && generateArray !== undefined
+        ? makeArrayBase(ast, localChild, localChild, generateArray)
+        : makeDecode !== undefined
+          ? ast.getParser(localChild)
+          : undefined;
+  const specialize =
+    makeDecode === undefined
+      ? undefined
+      : (local: SchemaIssueParser): SchemaIssueParser => {
+          try {
+            return withDecode(makeDecode(), () => local);
+          } catch {
+            // Initialization failure selects the local interpreter, without parsing again.
+            return local;
+          }
+        };
+  return Interpreter.compile(ast, child, undefined, base, specialize);
+};
 
 const make = (
   ast: SchemaAST.AST,
   resolve: Resolve,
   generate?: GenerateObject,
-  generateArray?: GenerateArray
+  generateArray?: GenerateArray,
 ): SchemaIssueParser => {
-  const child = (ast: SchemaAST.AST) => lazyParser(resolve, ast, "makeEffect")
-  const field = (ast: SchemaAST.AST) => Interpreter.compileField(ast, child)
-  const base = generate !== undefined && ast._tag === "Objects" ?
-    makeObjectBase(ast, child, field, generate)
-    : generateArray !== undefined && ast._tag === "Arrays"
-    ? makeArrayBase(ast, child, field, generateArray)
-    : undefined
-  return Interpreter.compile(ast, child, field, base)
-}
+  const child = (ast: SchemaAST.AST) => lazyParser(resolve, ast, "makeEffect");
+  const field = (ast: SchemaAST.AST) => Interpreter.compileField(ast, child);
+  const base =
+    generate !== undefined && ast._tag === "Objects"
+      ? makeObjectBase(ast, child, field, generate)
+      : generateArray !== undefined && ast._tag === "Arrays"
+        ? makeArrayBase(ast, child, field, generateArray)
+        : undefined;
+  return Interpreter.compile(ast, child, field, base);
+};
 
 const getCheckIssues = (
   ast: SchemaAST.AST,
   value: unknown,
   encoded: boolean,
-  options: SchemaAST.ParseOptions
+  options: SchemaAST.ParseOptions,
 ): ReturnType<typeof SchemaAST.collectIssues> => {
-  const checks = encoded ? "encodingChecks" in ast ? ast.encodingChecks : undefined : ast.checks
+  const checks = encoded ? ("encodingChecks" in ast ? ast.encodingChecks : undefined) : ast.checks;
   return !options.disableChecks && checks !== undefined
     ? SchemaAST.collectIssues(checks, value, undefined, ast, options)
-    : undefined
-}
+    : undefined;
+};
 
 const check = (
   ast: SchemaAST.AST,
   value: unknown,
-  options: SchemaAST.ParseOptions
+  options: SchemaAST.ParseOptions,
 ): Effect.Effect<unknown, SchemaIssue.Issue> => {
-  const issues = getCheckIssues(ast, value, false, options)
+  const issues = getCheckIssues(ast, value, false, options);
   return issues === undefined
     ? InternalParser.succeed(value)
-    : Effect.fail(new SchemaIssue.Composite(ast, issues, value, options))
-}
+    : Effect.fail(new SchemaIssue.Composite(ast, issues, value, options));
+};
 
 const hasExcessProperties = (
   ast: SchemaAST.Objects,
   input: Record<PropertyKey, unknown>,
-  options: SchemaAST.ParseOptions
+  options: SchemaAST.ParseOptions,
 ): boolean => {
   const covered = new Set<PropertyKey>(
-    ast.propertySignatures.map((p) => typeof p.name === "number" ? String(p.name) : p.name)
-  )
+    ast.propertySignatures.map((p) => (typeof p.name === "number" ? String(p.name) : p.name)),
+  );
   for (const index of ast.indexSignatures) {
-    for (const key of SchemaAST.getIndexSignatureKeys(input, index.parameter, options)) covered.add(key)
+    for (const key of SchemaAST.getIndexSignatureKeys(input, index.parameter, options))
+      covered.add(key);
   }
-  return Reflect.ownKeys(input).some((key) => !covered.has(key))
-}
+  return Reflect.ownKeys(input).some((key) => !covered.has(key));
+};
 
 const invalidType = (ast: SchemaAST.AST, input: unknown, options: SchemaAST.ParseOptions) =>
-  Effect.fail(new SchemaIssue.InvalidType(ast, input, options))
+  Effect.fail(new SchemaIssue.InvalidType(ast, input, options));
 
 const invalidEncoding = (
   ast: SchemaAST.AST & { readonly encoding: SchemaAST.Encoding },
   index: number,
   input: unknown,
   value: unknown,
-  options: SchemaAST.ParseOptions
+  options: SchemaAST.ParseOptions,
 ) =>
   index === 0
     ? invalidType(ast, value, options)
-    : Interpreter.wrapEncoding(ast, input, options, invalidType(ast.encoding[index - 1].to, value, options))
+    : Interpreter.wrapEncoding(
+        ast,
+        input,
+        options,
+        invalidType(ast.encoding[index - 1].to, value, options),
+      );
 
 /** @internal */
 export const runtime = {
@@ -257,13 +281,16 @@ export const runtime = {
   getCheckIssues,
   check,
   getExpectedKeys: (ast: SchemaAST.Objects) =>
-    ast.propertySignatures.map((p) => typeof p.name === "number" ? String(p.name) : p.name),
+    ast.propertySignatures.map((p) => (typeof p.name === "number" ? String(p.name) : p.name)),
   hasExcessProperties,
-  matchesTemplateLiteral: (ast: SchemaAST.TemplateLiteral, input: unknown, options: SchemaAST.ParseOptions) =>
-    typeof input === "string" && ast.matchPart(input, options) !== undefined,
+  matchesTemplateLiteral: (
+    ast: SchemaAST.TemplateLiteral,
+    input: unknown,
+    options: SchemaAST.ParseOptions,
+  ) => typeof input === "string" && ast.matchPart(input, options) !== undefined,
   getCandidates: SchemaAST.getCandidates,
   getIndexSignatureKeys: SchemaAST.getIndexSignatureKeys,
   parameterFromPropertyKey: SchemaAST.parameterFromPropertyKey,
   getConstructorDescriptor: SchemaAST.getConstructorDescriptor,
-  defaultParseOptions: SchemaAST.defaultParseOptions
-}
+  defaultParseOptions: SchemaAST.defaultParseOptions,
+};

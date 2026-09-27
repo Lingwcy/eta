@@ -24,7 +24,7 @@ export type HttpMethod =
   | "HEAD"
   | "OPTIONS"
   | "TRACE"
-  | "QUERY"
+  | "QUERY";
 
 /**
  * Namespace containing subtype helpers associated with `HttpMethod`.
@@ -38,7 +38,7 @@ export declare namespace HttpMethod {
    * @category models
    * @since 4.0.0
    */
-  export type NoBody = "GET" | "HEAD" | "OPTIONS" | "TRACE"
+  export type NoBody = "GET" | "HEAD" | "OPTIONS" | "TRACE";
 
   /**
    * HTTP methods that this module treats as capable of carrying a request body.
@@ -46,7 +46,7 @@ export declare namespace HttpMethod {
    * @category models
    * @since 4.0.0
    */
-  export type WithBody = Exclude<HttpMethod, NoBody>
+  export type WithBody = Exclude<HttpMethod, NoBody>;
 }
 
 /**
@@ -56,7 +56,7 @@ export declare namespace HttpMethod {
  * @since 4.0.0
  */
 export const hasBody = (method: HttpMethod): method is HttpMethod.WithBody =>
-  method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE"
+  method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE";
 
 /**
  * Provides a readonly set containing every supported `HttpMethod` literal.
@@ -78,8 +78,8 @@ export const all: ReadonlySet<HttpMethod> = new Set([
   "HEAD",
   "OPTIONS",
   "TRACE",
-  "QUERY"
-])
+  "QUERY",
+]);
 
 /**
  * Provides tuples mapping each supported HTTP method to its short
@@ -102,8 +102,8 @@ export const allShort = [
   ["HEAD", "head"],
   ["OPTIONS", "options"],
   ["TRACE", "trace"],
-  ["QUERY", "query"]
-] as const
+  ["QUERY", "query"],
+] as const;
 
 /**
  * Checks whether a value is a `HttpMethod`.
@@ -121,4 +121,4 @@ export const allShort = [
  * @category guards
  * @since 4.0.0
  */
-export const isHttpMethod = (u: unknown): u is HttpMethod => all.has(u as HttpMethod)
+export const isHttpMethod = (u: unknown): u is HttpMethod => all.has(u as HttpMethod);

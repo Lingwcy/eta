@@ -9,15 +9,15 @@
  *
  * @since 2.0.0
  */
-import type * as Cause from "./Cause.ts"
-import type * as Effect from "./Effect.ts"
-import * as core from "./internal/core.ts"
-import * as effect from "./internal/effect.ts"
-import type { Option } from "./Option.ts"
-import type * as Result from "./Result.ts"
-import type { NoInfer } from "./Types.ts"
+import type * as Cause from "./Cause.ts";
+import type * as Effect from "./Effect.ts";
+import * as core from "./internal/core.ts";
+import * as effect from "./internal/effect.ts";
+import type { Option } from "./Option.ts";
+import type * as Result from "./Result.ts";
+import type { NoInfer } from "./Types.ts";
 
-const TypeId = core.ExitTypeId
+const TypeId = core.ExitTypeId;
 
 /**
  * Represents the result of an Effect computation.
@@ -56,7 +56,7 @@ const TypeId = core.ExitTypeId
  * @category models
  * @since 2.0.0
  */
-export type Exit<A, E = never> = Success<A, E> | Failure<A, E>
+export type Exit<A, E = never> = Success<A, E> | Failure<A, E>;
 
 /**
  * Namespace containing helper types shared by `Exit` values.
@@ -84,7 +84,7 @@ export declare namespace Exit {
    * @since 4.0.0
    */
   export interface Proto<out A, out E = never> extends Effect.Effect<A, E> {
-    readonly [TypeId]: typeof TypeId
+    readonly [TypeId]: typeof TypeId;
   }
 }
 
@@ -116,8 +116,8 @@ export declare namespace Exit {
  * @since 2.0.0
  */
 export interface Success<out A, out E = never> extends Exit.Proto<A, E> {
-  readonly _tag: "Success"
-  readonly value: A
+  readonly _tag: "Success";
+  readonly value: A;
 }
 
 /**
@@ -152,8 +152,8 @@ export interface Success<out A, out E = never> extends Exit.Proto<A, E> {
  * @since 2.0.0
  */
 export interface Failure<out A, out E> extends Exit.Proto<A, E> {
-  readonly _tag: "Failure"
-  readonly cause: Cause.Cause<E>
+  readonly _tag: "Failure";
+  readonly cause: Cause.Cause<E>;
 }
 
 /**
@@ -185,7 +185,7 @@ export interface Failure<out A, out E> extends Exit.Proto<A, E> {
  * @category guards
  * @since 2.0.0
  */
-export const isExit: (u: unknown) => u is Exit<unknown, unknown> = core.isExit
+export const isExit: (u: unknown) => u is Exit<unknown, unknown> = core.isExit;
 
 /**
  * Creates a successful Exit containing the given value.
@@ -213,7 +213,7 @@ export const isExit: (u: unknown) => u is Exit<unknown, unknown> = core.isExit
  * @category constructors
  * @since 2.0.0
  */
-export const succeed: <A>(a: A) => Exit<A> = core.exitSucceed
+export const succeed: <A>(a: A) => Exit<A> = core.exitSucceed;
 
 /**
  * Creates a failed Exit from a Cause.
@@ -243,7 +243,7 @@ export const succeed: <A>(a: A) => Exit<A> = core.exitSucceed
  * @category constructors
  * @since 2.0.0
  */
-export const failCause: <E>(cause: Cause.Cause<E>) => Exit<never, E> = core.exitFailCause
+export const failCause: <E>(cause: Cause.Cause<E>) => Exit<never, E> = core.exitFailCause;
 
 /**
  * Creates a failed Exit from a typed error value.
@@ -273,7 +273,7 @@ export const failCause: <E>(cause: Cause.Cause<E>) => Exit<never, E> = core.exit
  * @category constructors
  * @since 2.0.0
  */
-export const fail: <E>(e: E) => Exit<never, E> = core.exitFail
+export const fail: <E>(e: E) => Exit<never, E> = core.exitFail;
 
 /**
  * Creates a failed Exit from a defect (unexpected error).
@@ -304,7 +304,7 @@ export const fail: <E>(e: E) => Exit<never, E> = core.exitFail
  * @category constructors
  * @since 2.0.0
  */
-export const die: (defect: unknown) => Exit<never> = core.exitDie
+export const die: (defect: unknown) => Exit<never> = core.exitDie;
 
 /**
  * Creates a failed Exit representing fiber interruption.
@@ -331,9 +331,9 @@ export const die: (defect: unknown) => Exit<never> = core.exitDie
  * @category constructors
  * @since 2.0.0
  */
-export const interrupt: (fiberId?: number | undefined) => Exit<never> = effect.exitInterrupt
+export const interrupt: (fiberId?: number | undefined) => Exit<never> = effect.exitInterrupt;
 
-const void_: Exit<void> = effect.exitVoid
+const void_: Exit<void> = effect.exitVoid;
 export {
   /**
    * Provides a pre-allocated successful Exit with a `void` value.
@@ -361,8 +361,8 @@ export {
    * @category constructors
    * @since 2.0.0
    */
-  void_ as void
-}
+  void_ as void,
+};
 
 /**
  * Checks whether an Exit is a Success.
@@ -390,7 +390,7 @@ export {
  * @category guards
  * @since 2.0.0
  */
-export const isSuccess: <A, E>(self: Exit<A, E>) => self is Success<A, E> = effect.exitIsSuccess
+export const isSuccess: <A, E>(self: Exit<A, E>) => self is Success<A, E> = effect.exitIsSuccess;
 
 /**
  * Checks whether an Exit is a Failure.
@@ -418,7 +418,7 @@ export const isSuccess: <A, E>(self: Exit<A, E>) => self is Success<A, E> = effe
  * @category guards
  * @since 2.0.0
  */
-export const isFailure: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effect.exitIsFailure
+export const isFailure: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effect.exitIsFailure;
 
 /**
  * Checks whether a failed Exit contains typed errors (Fail reasons).
@@ -448,7 +448,7 @@ export const isFailure: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effe
  * @category guards
  * @since 4.0.0
  */
-export const hasFails: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effect.exitHasFails
+export const hasFails: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effect.exitHasFails;
 
 /**
  * Checks whether a failed Exit contains defects (Die reasons).
@@ -478,7 +478,7 @@ export const hasFails: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effec
  * @category guards
  * @since 4.0.0
  */
-export const hasDies: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effect.exitHasDies
+export const hasDies: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effect.exitHasDies;
 
 /**
  * Checks whether a failed Exit contains interruptions (Interrupt reasons).
@@ -508,7 +508,8 @@ export const hasDies: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effect
  * @category guards
  * @since 4.0.0
  */
-export const hasInterrupts: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = effect.exitHasInterrupts
+export const hasInterrupts: <A, E>(self: Exit<A, E>) => self is Failure<A, E> =
+  effect.exitHasInterrupts;
 
 /**
  * Extracts the Success variant from an Exit as a Result.
@@ -543,8 +544,8 @@ export const hasInterrupts: <A, E>(self: Exit<A, E>) => self is Failure<A, E> = 
  * @since 4.0.0
  */
 export const filterSuccess: <A, E>(
-  self: Exit<A, E>
-) => Result.Result<Success<A>, Failure<never, E>> = effect.exitFilterSuccess
+  self: Exit<A, E>,
+) => Result.Result<Success<A>, Failure<never, E>> = effect.exitFilterSuccess;
 
 /**
  * Extracts the success value from an Exit as a Result.
@@ -579,7 +580,8 @@ export const filterSuccess: <A, E>(
  * @category filtering
  * @since 4.0.0
  */
-export const filterValue: <A, E>(self: Exit<A, E>) => Result.Result<A, Failure<never, E>> = effect.exitFilterValue
+export const filterValue: <A, E>(self: Exit<A, E>) => Result.Result<A, Failure<never, E>> =
+  effect.exitFilterValue;
 
 /**
  * Extracts the Failure variant from an Exit as a Result.
@@ -613,8 +615,9 @@ export const filterValue: <A, E>(self: Exit<A, E>) => Result.Result<A, Failure<n
  * @category filtering
  * @since 4.0.0
  */
-export const filterFailure: <A, E>(self: Exit<A, E>) => Result.Result<Failure<never, E>, Success<A>> =
-  effect.exitFilterFailure
+export const filterFailure: <A, E>(
+  self: Exit<A, E>,
+) => Result.Result<Failure<never, E>, Success<A>> = effect.exitFilterFailure;
 
 /**
  * Extracts the Cause from a failed Exit as a Result.
@@ -648,7 +651,8 @@ export const filterFailure: <A, E>(self: Exit<A, E>) => Result.Result<Failure<ne
  * @category filtering
  * @since 4.0.0
  */
-export const filterCause: <A, E>(self: Exit<A, E>) => Result.Result<Cause.Cause<E>, Success<A>> = effect.exitFilterCause
+export const filterCause: <A, E>(self: Exit<A, E>) => Result.Result<Cause.Cause<E>, Success<A>> =
+  effect.exitFilterCause;
 
 /**
  * Extracts the first typed error value from a failed Exit as a Result.
@@ -683,7 +687,8 @@ export const filterCause: <A, E>(self: Exit<A, E>) => Result.Result<Cause.Cause<
  * @category filtering
  * @since 4.0.0
  */
-export const findError: <A, E>(input: Exit<A, E>) => Result.Result<E, Exit<A, E>> = effect.exitFindError
+export const findError: <A, E>(input: Exit<A, E>) => Result.Result<E, Exit<A, E>> =
+  effect.exitFindError;
 
 /**
  * Extracts the first defect from a failed Exit as a Result.
@@ -718,7 +723,8 @@ export const findError: <A, E>(input: Exit<A, E>) => Result.Result<E, Exit<A, E>
  * @category filtering
  * @since 4.0.0
  */
-export const findDefect: <A, E>(input: Exit<A, E>) => Result.Result<unknown, Exit<A, E>> = effect.exitFindDefect
+export const findDefect: <A, E>(input: Exit<A, E>) => Result.Result<unknown, Exit<A, E>> =
+  effect.exitFindDefect;
 
 /**
  * Pattern matches on an Exit, handling both success and failure cases.
@@ -751,17 +757,17 @@ export const findDefect: <A, E>(input: Exit<A, E>) => Result.Result<unknown, Exi
  */
 export const match: {
   <A, E, X1, X2>(options: {
-    readonly onSuccess: (a: NoInfer<A>) => X1
-    readonly onFailure: (cause: Cause.Cause<NoInfer<E>>) => X2
-  }): (self: Exit<A, E>) => X1 | X2
+    readonly onSuccess: (a: NoInfer<A>) => X1;
+    readonly onFailure: (cause: Cause.Cause<NoInfer<E>>) => X2;
+  }): (self: Exit<A, E>) => X1 | X2;
   <A, E, X1, X2>(
     self: Exit<A, E>,
     options: {
-      readonly onSuccess: (a: A) => X1
-      readonly onFailure: (cause: Cause.Cause<E>) => X2
-    }
-  ): X1 | X2
-} = effect.exitMatch
+      readonly onSuccess: (a: A) => X1;
+      readonly onFailure: (cause: Cause.Cause<E>) => X2;
+    },
+  ): X1 | X2;
+} = effect.exitMatch;
 
 /**
  * Transforms the success value of an Exit using the given function.
@@ -791,9 +797,9 @@ export const match: {
  * @since 2.0.0
  */
 export const map: {
-  <A, B>(f: (a: A) => B): <E>(self: Exit<A, E>) => Exit<B, E>
-  <A, E, B>(self: Exit<A, E>, f: (a: A) => B): Exit<B, E>
-} = effect.exitMap
+  <A, B>(f: (a: A) => B): <E>(self: Exit<A, E>) => Exit<B, E>;
+  <A, E, B>(self: Exit<A, E>, f: (a: A) => B): Exit<B, E>;
+} = effect.exitMap;
 
 /**
  * Transforms the typed error of a failed Exit using the given function.
@@ -828,9 +834,9 @@ export const map: {
  * @since 2.0.0
  */
 export const mapError: {
-  <E, E2>(f: (a: NoInfer<E>) => E2): <A>(self: Exit<A, E>) => Exit<A, E2>
-  <A, E, E2>(self: Exit<A, E>, f: (a: NoInfer<E>) => E2): Exit<A, E2>
-} = effect.exitMapError
+  <E, E2>(f: (a: NoInfer<E>) => E2): <A>(self: Exit<A, E>) => Exit<A, E2>;
+  <A, E, E2>(self: Exit<A, E>, f: (a: NoInfer<E>) => E2): Exit<A, E2>;
+} = effect.exitMapError;
 
 /**
  * Transforms both the success value and typed error of an Exit.
@@ -868,14 +874,15 @@ export const mapError: {
  * @since 2.0.0
  */
 export const mapBoth: {
-  <E, E2, A, A2>(
-    options: { readonly onFailure: (e: E) => E2; readonly onSuccess: (a: A) => A2 }
-  ): (self: Exit<A, E>) => Exit<A2, E2>
+  <E, E2, A, A2>(options: {
+    readonly onFailure: (e: E) => E2;
+    readonly onSuccess: (a: A) => A2;
+  }): (self: Exit<A, E>) => Exit<A2, E2>;
   <A, E, E2, A2>(
     self: Exit<A, E>,
-    options: { readonly onFailure: (e: E) => E2; readonly onSuccess: (a: A) => A2 }
-  ): Exit<A2, E2>
-} = effect.exitMapBoth
+    options: { readonly onFailure: (e: E) => E2; readonly onSuccess: (a: A) => A2 },
+  ): Exit<A2, E2>;
+} = effect.exitMapBoth;
 
 /**
  * Discards the success value of an Exit, replacing it with `void`.
@@ -905,7 +912,7 @@ export const mapBoth: {
  * @category combinators
  * @since 2.0.0
  */
-export const asVoid: <A, E>(self: Exit<A, E>) => Exit<void, E> = effect.exitAsVoid
+export const asVoid: <A, E>(self: Exit<A, E>) => Exit<void, E> = effect.exitAsVoid;
 
 /**
  * Combines multiple Exit values into a single `Exit<void, E>`.
@@ -937,8 +944,8 @@ export const asVoid: <A, E>(self: Exit<A, E>) => Exit<void, E> = effect.exitAsVo
  * @since 4.0.0
  */
 export const asVoidAll: <I extends Iterable<Exit<any, any>>>(
-  exits: I
-) => Exit<void, I extends Iterable<Exit<infer _A, infer _E>> ? _E : never> = effect.exitAsVoidAll
+  exits: I,
+) => Exit<void, I extends Iterable<Exit<infer _A, infer _E>> ? _E : never> = effect.exitAsVoidAll;
 
 /**
  * Returns the success value of an Exit as an Option.
@@ -967,7 +974,7 @@ export const asVoidAll: <I extends Iterable<Exit<any, any>>>(
  * @category getters
  * @since 4.0.0
  */
-export const getSuccess: <A, E>(self: Exit<A, E>) => Option<A> = effect.exitGetSuccess
+export const getSuccess: <A, E>(self: Exit<A, E>) => Option<A> = effect.exitGetSuccess;
 
 /**
  * Returns the Cause of a failed Exit as an Option.
@@ -996,7 +1003,7 @@ export const getSuccess: <A, E>(self: Exit<A, E>) => Option<A> = effect.exitGetS
  * @category getters
  * @since 4.0.0
  */
-export const getCause: <A, E>(self: Exit<A, E>) => Option<Cause.Cause<E>> = effect.exitGetCause
+export const getCause: <A, E>(self: Exit<A, E>) => Option<Cause.Cause<E>> = effect.exitGetCause;
 
 /**
  * Returns the first typed error from a failed Exit as an Option.
@@ -1032,4 +1039,4 @@ export const getCause: <A, E>(self: Exit<A, E>) => Option<Cause.Cause<E>> = effe
  * @category getters
  * @since 4.0.0
  */
-export const findErrorOption: <A, E>(self: Exit<A, E>) => Option<E> = effect.exitFindErrorOption
+export const findErrorOption: <A, E>(self: Exit<A, E>) => Option<E> = effect.exitFindErrorOption;

@@ -10,27 +10,27 @@
  *
  * @since 4.0.0
  */
-import * as Channel from "../../Channel.ts"
-import * as Chunk from "../../Chunk.ts"
-import * as Context from "../../Context.ts"
-import * as Duration from "../../Duration.ts"
-import * as Effect from "../../Effect.ts"
-import * as Layer from "../../Layer.ts"
-import * as Option from "../../Option.ts"
-import * as Predicate from "../../Predicate.ts"
-import * as Ref from "../../Ref.ts"
-import * as Schema from "../../Schema.ts"
-import * as Semaphore from "../../Semaphore.ts"
-import * as Stream from "../../Stream.ts"
-import type { NoExcessProperties } from "../../Types.ts"
-import type { PersistenceError } from "../persistence/Persistence.ts"
-import { BackingPersistence } from "../persistence/Persistence.ts"
-import * as AiError from "./AiError.ts"
-import * as IdGenerator from "./IdGenerator.ts"
-import * as LanguageModel from "./LanguageModel.ts"
-import * as Prompt from "./Prompt.ts"
-import type * as Response from "./Response.ts"
-import type * as Tool from "./Tool.ts"
+import * as Channel from "../../Channel.ts";
+import * as Chunk from "../../Chunk.ts";
+import * as Context from "../../Context.ts";
+import * as Duration from "../../Duration.ts";
+import * as Effect from "../../Effect.ts";
+import * as Layer from "../../Layer.ts";
+import * as Option from "../../Option.ts";
+import * as Predicate from "../../Predicate.ts";
+import * as Ref from "../../Ref.ts";
+import * as Schema from "../../Schema.ts";
+import * as Semaphore from "../../Semaphore.ts";
+import * as Stream from "../../Stream.ts";
+import type { NoExcessProperties } from "../../Types.ts";
+import type { PersistenceError } from "../persistence/Persistence.ts";
+import { BackingPersistence } from "../persistence/Persistence.ts";
+import * as AiError from "./AiError.ts";
+import * as IdGenerator from "./IdGenerator.ts";
+import * as LanguageModel from "./LanguageModel.ts";
+import * as Prompt from "./Prompt.ts";
+import type * as Response from "./Response.ts";
+import type * as Tool from "./Tool.ts";
 
 /**
  * Service key for stateful AI conversations.
@@ -71,7 +71,7 @@ import type * as Tool from "./Tool.ts"
  * @category services
  * @since 4.0.0
  */
-export const Chat: Context.Service<Chat, Chat> = Context.Service("effect/ai/Chat")
+export const Chat: Context.Service<Chat, Chat> = Context.Service("effect/ai/Chat");
 
 /**
  * Brand type for `Chat`.
@@ -79,7 +79,7 @@ export const Chat: Context.Service<Chat, Chat> = Context.Service("effect/ai/Chat
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/ai/Chat"
+export type TypeId = "~effect/ai/Chat";
 
 /**
  * Brand for `Chat` implementations.
@@ -87,7 +87,7 @@ export type TypeId = "~effect/ai/Chat"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~effect/ai/Chat"
+export const TypeId: TypeId = "~effect/ai/Chat";
 
 /**
  * Chat session with history, export, and generation operations.
@@ -98,7 +98,7 @@ export const TypeId: TypeId = "~effect/ai/Chat"
  * @since 4.0.0
  */
 export interface Chat {
-  readonly [TypeId]: TypeId
+  readonly [TypeId]: TypeId;
 
   /**
    * Reference to the chat history.
@@ -123,7 +123,7 @@ export interface Chat {
    * await Effect.runPromise(inspectHistory) // => 1
    * ```
    */
-  readonly history: Ref.Ref<Prompt.Prompt>
+  readonly history: Ref.Ref<Prompt.Prompt>;
 
   /**
    * Exports the chat history into a structured format.
@@ -148,7 +148,7 @@ export interface Chat {
    * await Effect.runPromise(saveChat) // => "object"
    * ```
    */
-  readonly export: Effect.Effect<unknown, AiError.AiError>
+  readonly export: Effect.Effect<unknown, AiError.AiError>;
 
   /**
    * Exports the chat history as a JSON string.
@@ -173,7 +173,7 @@ export interface Chat {
    * await Effect.runPromise(backupChat) // => 1
    * ```
    */
-  readonly exportJson: Effect.Effect<string, AiError.AiError>
+  readonly exportJson: Effect.Effect<string, AiError.AiError>;
 
   /**
    * Generate text using a language model for the specified prompt.
@@ -221,35 +221,39 @@ export interface Chat {
    */
   readonly generateText: {
     <Options extends NoExcessProperties<LanguageModel.GenerateTextOptions<{}>, Options>>(
-      options: Options & { readonly toolkit?: undefined } & LanguageModel.GenerateTextOptions<{}>
+      options: Options & { readonly toolkit?: undefined } & LanguageModel.GenerateTextOptions<{}>,
     ): Effect.Effect<
       LanguageModel.GenerateTextResponse<{}>,
       LanguageModel.ExtractError<Options>,
       LanguageModel.LanguageModel | LanguageModel.ExtractServices<Options>
-    >
+    >;
     <
       Tools extends Record<string, Tool.Any>,
       Options extends NoExcessProperties<
-        LanguageModel.GenerateTextOptions<Tools> & { readonly toolkit: LanguageModel.ToolkitInput<Tools> },
+        LanguageModel.GenerateTextOptions<Tools> & {
+          readonly toolkit: LanguageModel.ToolkitInput<Tools>;
+        },
         Options
-      >
+      >,
     >(
-      options: Options & LanguageModel.GenerateTextOptions<Tools> & {
-        readonly toolkit: LanguageModel.ToolkitInput<Tools>
-      }
+      options: Options &
+        LanguageModel.GenerateTextOptions<Tools> & {
+          readonly toolkit: LanguageModel.ToolkitInput<Tools>;
+        },
     ): Effect.Effect<
       LanguageModel.GenerateTextResponse<Tools, LanguageModel.ExtractToolParametersMode<Options>>,
       LanguageModel.ExtractError<Options>,
       LanguageModel.LanguageModel | LanguageModel.ExtractServices<Options>
-    >
+    >;
     <
       Options extends {
-        readonly toolkit: LanguageModel.ToolkitOption<any>
-      } & NoExcessProperties<LanguageModel.GenerateTextOptions<any>, Options>
+        readonly toolkit: LanguageModel.ToolkitOption<any>;
+      } & NoExcessProperties<LanguageModel.GenerateTextOptions<any>, Options>,
     >(
-      options: Options & LanguageModel.GenerateTextOptions<LanguageModel.ExtractTools<Options>> & {
-        readonly toolkit: Options["toolkit"]
-      }
+      options: Options &
+        LanguageModel.GenerateTextOptions<LanguageModel.ExtractTools<Options>> & {
+          readonly toolkit: Options["toolkit"];
+        },
     ): Effect.Effect<
       LanguageModel.GenerateTextResponse<
         LanguageModel.ExtractTools<Options>,
@@ -257,8 +261,8 @@ export interface Chat {
       >,
       LanguageModel.ExtractError<Options>,
       LanguageModel.LanguageModel | LanguageModel.ExtractServices<Options>
-    >
-  }
+    >;
+  };
 
   /**
    * Generate text using a language model with streaming output.
@@ -303,35 +307,39 @@ export interface Chat {
    */
   readonly streamText: {
     <Options extends NoExcessProperties<LanguageModel.GenerateTextOptions<{}>, Options>>(
-      options: Options & { readonly toolkit?: undefined } & LanguageModel.GenerateTextOptions<{}>
+      options: Options & { readonly toolkit?: undefined } & LanguageModel.GenerateTextOptions<{}>,
     ): Stream.Stream<
       Response.StreamPart<{}>,
       LanguageModel.ExtractError<Options>,
       LanguageModel.LanguageModel | LanguageModel.ExtractServices<Options>
-    >
+    >;
     <
       Tools extends Record<string, Tool.Any>,
       Options extends NoExcessProperties<
-        LanguageModel.GenerateTextOptions<Tools> & { readonly toolkit: LanguageModel.ToolkitInput<Tools> },
+        LanguageModel.GenerateTextOptions<Tools> & {
+          readonly toolkit: LanguageModel.ToolkitInput<Tools>;
+        },
         Options
-      >
+      >,
     >(
-      options: Options & LanguageModel.GenerateTextOptions<Tools> & {
-        readonly toolkit: LanguageModel.ToolkitInput<Tools>
-      }
+      options: Options &
+        LanguageModel.GenerateTextOptions<Tools> & {
+          readonly toolkit: LanguageModel.ToolkitInput<Tools>;
+        },
     ): Stream.Stream<
       Response.StreamPart<Tools, LanguageModel.ExtractToolParametersMode<Options>>,
       LanguageModel.ExtractError<Options>,
       LanguageModel.LanguageModel | LanguageModel.ExtractServices<Options>
-    >
+    >;
     <
       Options extends {
-        readonly toolkit: LanguageModel.ToolkitOption<any>
-      } & NoExcessProperties<LanguageModel.GenerateTextOptions<any>, Options>
+        readonly toolkit: LanguageModel.ToolkitOption<any>;
+      } & NoExcessProperties<LanguageModel.GenerateTextOptions<any>, Options>,
     >(
-      options: Options & LanguageModel.GenerateTextOptions<LanguageModel.ExtractTools<Options>> & {
-        readonly toolkit: Options["toolkit"]
-      }
+      options: Options &
+        LanguageModel.GenerateTextOptions<LanguageModel.ExtractTools<Options>> & {
+          readonly toolkit: Options["toolkit"];
+        },
     ): Stream.Stream<
       Response.StreamPart<
         LanguageModel.ExtractTools<Options>,
@@ -339,8 +347,8 @@ export interface Chat {
       >,
       LanguageModel.ExtractError<Options>,
       LanguageModel.LanguageModel | LanguageModel.ExtractServices<Options>
-    >
-  }
+    >;
+  };
 
   /**
    * Generate a structured object using a language model and schema.
@@ -390,9 +398,13 @@ export interface Chat {
   readonly generateObject: <
     ObjectEncoded extends Record<string, any>,
     ObjectSchema extends Schema.Encoder<ObjectEncoded, unknown>,
-    Options extends NoExcessProperties<LanguageModel.GenerateObjectOptions<any, ObjectSchema>, Options>
+    Options extends NoExcessProperties<
+      LanguageModel.GenerateObjectOptions<any, ObjectSchema>,
+      Options
+    >,
   >(
-    options: Options & LanguageModel.GenerateObjectOptions<LanguageModel.ExtractTools<Options>, ObjectSchema>
+    options: Options &
+      LanguageModel.GenerateObjectOptions<LanguageModel.ExtractTools<Options>, ObjectSchema>,
   ) => Effect.Effect<
     LanguageModel.GenerateObjectResponse<
       LanguageModel.ExtractTools<Options>,
@@ -400,21 +412,23 @@ export interface Chat {
       LanguageModel.ExtractToolParametersMode<Options>
     >,
     LanguageModel.ExtractError<Options>,
-    LanguageModel.ExtractServices<Options> | ObjectSchema["DecodingServices"] | LanguageModel.LanguageModel
-  >
+    | LanguageModel.ExtractServices<Options>
+    | ObjectSchema["DecodingServices"]
+    | LanguageModel.LanguageModel
+  >;
 }
 
-const decodeHistory = Schema.decodeUnknownEffect(Prompt.Prompt)
-const encodeHistory = Schema.encodeUnknownEffect(Prompt.Prompt)
-const decodeHistoryJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Prompt.Prompt))
-const encodeHistoryJson = Schema.encodeUnknownEffect(Schema.fromJsonString(Prompt.Prompt))
+const decodeHistory = Schema.decodeUnknownEffect(Prompt.Prompt);
+const encodeHistory = Schema.encodeUnknownEffect(Prompt.Prompt);
+const decodeHistoryJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Prompt.Prompt));
+const encodeHistoryJson = Schema.encodeUnknownEffect(Schema.fromJsonString(Prompt.Prompt));
 
 // =============================================================================
 // Constructors
 // =============================================================================
 
 const makeUnsafe = (history: Ref.Ref<Prompt.Prompt>) => {
-  const semaphore = Semaphore.makeUnsafe(1)
+  const semaphore = Semaphore.makeUnsafe(1);
 
   return Chat.of({
     [TypeId]: TypeId,
@@ -422,95 +436,97 @@ const makeUnsafe = (history: Ref.Ref<Prompt.Prompt>) => {
     export: Ref.get(history).pipe(
       Effect.flatMap(encodeHistory),
       Effect.catchTag("SchemaError", (error) =>
-        Effect.fail(AiError.make({
-          module: "Chat",
-          method: "export",
-          reason: AiError.InvalidOutputError.fromSchemaError(error)
-        }))),
-      Effect.withSpan("Chat.export")
+        Effect.fail(
+          AiError.make({
+            module: "Chat",
+            method: "export",
+            reason: AiError.InvalidOutputError.fromSchemaError(error),
+          }),
+        ),
+      ),
+      Effect.withSpan("Chat.export"),
     ),
     exportJson: Ref.get(history).pipe(
       Effect.flatMap(encodeHistoryJson),
       Effect.catchTag("SchemaError", (error) =>
-        Effect.fail(AiError.make({
-          module: "Chat",
-          method: "exportJson",
-          reason: AiError.InvalidOutputError.fromSchemaError(error)
-        }))),
-      Effect.withSpan("Chat.exportJson")
+        Effect.fail(
+          AiError.make({
+            module: "Chat",
+            method: "exportJson",
+            reason: AiError.InvalidOutputError.fromSchemaError(error),
+          }),
+        ),
+      ),
+      Effect.withSpan("Chat.exportJson"),
     ),
     generateText: Effect.fnUntraced(
-      function*(options) {
-        const newPrompt = Prompt.make(options.prompt)
-        const oldPrompt = yield* Ref.get(history)
-        const prompt = Prompt.concat(oldPrompt, newPrompt)
+      function* (options) {
+        const newPrompt = Prompt.make(options.prompt);
+        const oldPrompt = yield* Ref.get(history);
+        const prompt = Prompt.concat(oldPrompt, newPrompt);
 
-        const response = yield* LanguageModel.generateText({ ...options, prompt })
+        const response = yield* LanguageModel.generateText({ ...options, prompt });
 
-        const newHistory = Prompt.concat(prompt, Prompt.fromResponseParts(response.content))
-        yield* Ref.set(history, newHistory)
+        const newHistory = Prompt.concat(prompt, Prompt.fromResponseParts(response.content));
+        yield* Ref.set(history, newHistory);
 
-        return response
+        return response;
       },
       semaphore.withPermits(1),
-      (effect) => Effect.withSpan(effect, "Chat.generateText", { captureStackTrace: false })
+      (effect) => Effect.withSpan(effect, "Chat.generateText", { captureStackTrace: false }),
     ) as Chat["generateText"],
-    streamText: Effect.fnUntraced(
-      function*(options) {
-        let parts = Chunk.empty<Response.AnyPart>()
-        return Stream.fromChannel(Channel.acquireUseRelease(
+    streamText: Effect.fnUntraced(function* (options) {
+      let parts = Chunk.empty<Response.AnyPart>();
+      return Stream.fromChannel(
+        Channel.acquireUseRelease(
           semaphore.take(1).pipe(
             Effect.flatMap(() => Ref.get(history)),
-            Effect.map((history) => Prompt.concat(history, Prompt.make(options.prompt)))
+            Effect.map((history) => Prompt.concat(history, Prompt.make(options.prompt))),
           ),
           (prompt) =>
             LanguageModel.streamText({ ...options, prompt }).pipe(
               Stream.mapArray((chunk) => {
-                parts = Chunk.appendAll(parts, Chunk.fromArrayUnsafe(chunk))
-                return chunk
+                parts = Chunk.appendAll(parts, Chunk.fromArrayUnsafe(chunk));
+                return chunk;
               }),
-              Stream.toChannel
+              Stream.toChannel,
             ),
           (prompt) =>
             Effect.andThen(
-              Ref.set(
-                history,
-                Prompt.concat(prompt, Prompt.fromResponseParts(Array.from(parts)))
-              ),
-              semaphore.release(1)
-            )
-        )).pipe(
-          Stream.withSpan("Chat.streamText", {
-            captureStackTrace: false
-          })
-        )
-      },
-      Stream.unwrap
-    ) as Chat["streamText"],
+              Ref.set(history, Prompt.concat(prompt, Prompt.fromResponseParts(Array.from(parts)))),
+              semaphore.release(1),
+            ),
+        ),
+      ).pipe(
+        Stream.withSpan("Chat.streamText", {
+          captureStackTrace: false,
+        }),
+      );
+    }, Stream.unwrap) as Chat["streamText"],
     generateObject: Effect.fnUntraced(
-      function*(options) {
-        const newPrompt = Prompt.make(options.prompt)
-        const oldPrompt = yield* Ref.get(history)
-        const prompt = Prompt.concat(oldPrompt, newPrompt)
+      function* (options) {
+        const newPrompt = Prompt.make(options.prompt);
+        const oldPrompt = yield* Ref.get(history);
+        const prompt = Prompt.concat(oldPrompt, newPrompt);
 
-        const response = yield* LanguageModel.generateObject({ ...options, prompt })
+        const response = yield* LanguageModel.generateObject({ ...options, prompt });
 
-        const newHistory = Prompt.concat(prompt, Prompt.fromResponseParts(response.content))
-        yield* Ref.set(history, newHistory)
+        const newHistory = Prompt.concat(prompt, Prompt.fromResponseParts(response.content));
+        yield* Ref.set(history, newHistory);
 
-        return response
+        return response;
       },
       semaphore.withPermits(1),
       (effect, options) =>
         Effect.withSpan(effect, "Chat.generateObject", {
           attributes: {
-            objectName: LanguageModel.getObjectName(options.objectName, options.schema)
+            objectName: LanguageModel.getObjectName(options.objectName, options.schema),
           },
-          captureStackTrace: false
-        })
-    )
-  })
-}
+          captureStackTrace: false,
+        }),
+    ),
+  });
+};
 
 /**
  * Creates a new Chat service with empty conversation history.
@@ -538,7 +554,9 @@ const makeUnsafe = (history: Ref.Ref<Prompt.Prompt>) => {
  * @category constructors
  * @since 4.0.0
  */
-export const empty: Effect.Effect<Chat> = Effect.sync(() => makeUnsafe(Ref.makeUnsafe(Prompt.empty)))
+export const empty: Effect.Effect<Chat> = Effect.sync(() =>
+  makeUnsafe(Ref.makeUnsafe(Prompt.empty)),
+);
 
 /**
  * Creates a new Chat service from an initial prompt.
@@ -601,7 +619,7 @@ export const empty: Effect.Effect<Chat> = Effect.sync(() => makeUnsafe(Ref.makeU
  * @since 4.0.0
  */
 export const fromPrompt = (prompt: Prompt.RawInput) =>
-  Effect.sync(() => makeUnsafe(Ref.makeUnsafe(Prompt.make(prompt))))
+  Effect.sync(() => makeUnsafe(Ref.makeUnsafe(Prompt.make(prompt))));
 
 /**
  * Creates a Chat service from previously exported chat data.
@@ -653,10 +671,8 @@ export const fromPrompt = (prompt: Prompt.RawInput) =>
  * @category constructors
  * @since 4.0.0
  */
-export const fromExport = (data: unknown): Effect.Effect<
-  Chat,
-  Schema.SchemaError
-> => Effect.flatMap(decodeHistory(data), fromPrompt)
+export const fromExport = (data: unknown): Effect.Effect<Chat, Schema.SchemaError> =>
+  Effect.flatMap(decodeHistory(data), fromPrompt);
 
 /**
  * Creates a Chat service from previously exported JSON chat data.
@@ -687,10 +703,8 @@ export const fromExport = (data: unknown): Effect.Effect<
  * @category constructors
  * @since 4.0.0
  */
-export const fromJson = (data: string): Effect.Effect<
-  Chat,
-  Schema.SchemaError
-> => Effect.flatMap(decodeHistoryJson(data), fromPrompt)
+export const fromJson = (data: string): Effect.Effect<Chat, Schema.SchemaError> =>
+  Effect.flatMap(decodeHistoryJson(data), fromPrompt);
 
 // =============================================================================
 // Chat Persistence
@@ -709,10 +723,10 @@ export const fromJson = (data: string): Effect.Effect<
  * @since 4.0.0
  */
 export class ChatNotFoundError extends Schema.Error<ChatNotFoundError>(
-  "effect/ai/Chat/ChatNotFoundError"
+  "effect/ai/Chat/ChatNotFoundError",
 )({
   _tag: Schema.tag("ChatNotFoundError"),
-  chatId: Schema.String
+  chatId: Schema.String,
 }) {}
 
 /**
@@ -728,7 +742,7 @@ export class ChatNotFoundError extends Schema.Error<ChatNotFoundError>(
  */
 // @effect-diagnostics effect/leakingRequirements:off
 export class Persistence extends Context.Service<Persistence, Persistence.Service>()(
-  "effect/ai/Chat/Persisted"
+  "effect/ai/Chat/Persisted",
 ) {}
 
 /**
@@ -750,9 +764,12 @@ export declare namespace Persistence {
      * store with the specified chat identifer. If the chat does not exist in
      * the persistence store, a `ChatNotFoundError` will be returned.
      */
-    readonly get: (chatId: string, options?: {
-      readonly timeToLive?: Duration.Input | undefined
-    }) => Effect.Effect<Persisted, ChatNotFoundError | PersistenceError>
+    readonly get: (
+      chatId: string,
+      options?: {
+        readonly timeToLive?: Duration.Input | undefined;
+      },
+    ) => Effect.Effect<Persisted, ChatNotFoundError | PersistenceError>;
 
     /**
      * Attempts to retrieve the persisted chat from the backing persistence
@@ -760,9 +777,12 @@ export declare namespace Persistence {
      * the persistence store, an empty chat will be created, saved, and
      * returned.
      */
-    readonly getOrCreate: (chatId: string, options?: {
-      readonly timeToLive?: Duration.Input | undefined
-    }) => Effect.Effect<Persisted, AiError.AiError | PersistenceError>
+    readonly getOrCreate: (
+      chatId: string,
+      options?: {
+        readonly timeToLive?: Duration.Input | undefined;
+      },
+    ) => Effect.Effect<Persisted, AiError.AiError | PersistenceError>;
   }
 }
 
@@ -782,12 +802,12 @@ export interface Persisted extends Chat {
   /**
    * The identifier for the chat in the backing persistence store.
    */
-  readonly id: string
+  readonly id: string;
 
   /**
    * Saves the current chat history into the backing persistence store.
    */
-  readonly save: Effect.Effect<void, AiError.AiError | PersistenceError>
+  readonly save: Effect.Effect<void, AiError.AiError | PersistenceError>;
 }
 
 /**
@@ -808,149 +828,151 @@ export interface Persisted extends Chat {
  * @category constructors
  * @since 4.0.0
  */
-export const makePersisted = Effect.fnUntraced(function*(options: {
-  readonly storeId: string
-}) {
-  const persistence = yield* BackingPersistence
-  const store = yield* persistence.make(options.storeId)
+export const makePersisted = Effect.fnUntraced(function* (options: { readonly storeId: string }) {
+  const persistence = yield* BackingPersistence;
+  const store = yield* persistence.make(options.storeId);
 
-  const toPersisted = Effect.fnUntraced(
-    function*(chatId: string, chat: Chat, ttl: Duration.Input | undefined) {
-      const idGenerator = yield* Effect.serviceOption(IdGenerator.IdGenerator).pipe(
-        Effect.map(Option.getOrElse(() => IdGenerator.defaultIdGenerator))
-      )
+  const toPersisted = Effect.fnUntraced(function* (
+    chatId: string,
+    chat: Chat,
+    ttl: Duration.Input | undefined,
+  ) {
+    const idGenerator = yield* Effect.serviceOption(IdGenerator.IdGenerator).pipe(
+      Effect.map(Option.getOrElse(() => IdGenerator.defaultIdGenerator)),
+    );
 
-      const saveChat = Effect.fnUntraced(
-        function*(prevHistory: Prompt.Prompt) {
-          // Get the current chat history
-          const history = yield* Ref.get(chat.history)
-          // Get the most recent message stored in the previous chat history
-          const lastMessage = prevHistory.content[prevHistory.content.length - 1]
-          // Determine the correct message identifier to use:
-          let messageId: string | undefined = undefined
-          // If the most recent message in the chat history is an assistant message,
-          // use the message identifer stored in that message
-          if (Predicate.isNotUndefined(lastMessage) && lastMessage.role === "assistant") {
-            messageId = (lastMessage.options[Persistence.key] as any)?.messageId
-          }
-          // If the chat history is empty or a message identifier did not exist on
-          // the most recent message in the chat history, generate a new identifier
-          if (Predicate.isUndefined(messageId)) {
-            messageId = yield* idGenerator.generateId()
-          }
-          // Mutate the new messages to add the generated message identifier
-          for (let i = prevHistory.content.length; i < history.content.length; i++) {
-            const message = history.content[i]
-            ;(message.options as any)[Persistence.key] = { messageId }
-          }
-          // Save the mutated history back to the ref
-          yield* Ref.set(chat.history, history)
-          // Export the chat history
-          const exported = yield* Effect.orDie(chat.export)
-          const timeToLive = Predicate.isNotUndefined(ttl)
-            ? Option.getOrUndefined(Duration.fromInput(ttl))
-            : undefined
-          // Save the chat to the backing store
-          yield* store.set(chatId, exported as object, timeToLive)
-        }
-      )
-
-      const persisted: Persisted = {
-        ...chat,
-        id: chatId,
-        save: Effect.flatMap(Ref.get(chat.history), saveChat),
-        generateText: Effect.fnUntraced(function*(options) {
-          const history = yield* Ref.get(chat.history)
-          return yield* chat.generateText(options).pipe(
-            Effect.ensuring(Effect.orDie(saveChat(history)))
-          )
-        }) as Chat["generateText"],
-        generateObject: Effect.fnUntraced(function*(options) {
-          const history = yield* Ref.get(chat.history)
-          return yield* chat.generateObject(options).pipe(
-            Effect.ensuring(Effect.orDie(saveChat(history)))
-          )
-        }),
-        streamText: Effect.fnUntraced(function*(options) {
-          const history = yield* Ref.get(chat.history)
-          const stream = chat.streamText(options).pipe(
-            Stream.ensuring(Effect.orDie(saveChat(history)))
-          )
-          return stream
-        }, Stream.unwrap) as Chat["streamText"]
+    const saveChat = Effect.fnUntraced(function* (prevHistory: Prompt.Prompt) {
+      // Get the current chat history
+      const history = yield* Ref.get(chat.history);
+      // Get the most recent message stored in the previous chat history
+      const lastMessage = prevHistory.content[prevHistory.content.length - 1];
+      // Determine the correct message identifier to use:
+      let messageId: string | undefined = undefined;
+      // If the most recent message in the chat history is an assistant message,
+      // use the message identifer stored in that message
+      if (Predicate.isNotUndefined(lastMessage) && lastMessage.role === "assistant") {
+        messageId = (lastMessage.options[Persistence.key] as any)?.messageId;
       }
-
-      return persisted
-    }
-  )
-
-  const createChat = Effect.fnUntraced(
-    function*(chatId: string, ttl: Duration.Input | undefined) {
-      // Create an empty chat
-      const chat = yield* empty
+      // If the chat history is empty or a message identifier did not exist on
+      // the most recent message in the chat history, generate a new identifier
+      if (Predicate.isUndefined(messageId)) {
+        messageId = yield* idGenerator.generateId();
+      }
+      // Mutate the new messages to add the generated message identifier
+      for (let i = prevHistory.content.length; i < history.content.length; i++) {
+        const message = history.content[i];
+        (message.options as any)[Persistence.key] = { messageId };
+      }
+      // Save the mutated history back to the ref
+      yield* Ref.set(chat.history, history);
       // Export the chat history
-      const history = yield* Effect.orDie(chat.export)
-      // Save the history for the newly created chat
+      const exported = yield* Effect.orDie(chat.export);
       const timeToLive = Predicate.isNotUndefined(ttl)
         ? Option.getOrUndefined(Duration.fromInput(ttl))
-        : undefined
-      yield* store.set(chatId, history as object, timeToLive)
-      // Convert the chat to a persisted chat
-      return yield* toPersisted(chatId, chat, ttl)
-    }
-  )
+        : undefined;
+      // Save the chat to the backing store
+      yield* store.set(chatId, exported as object, timeToLive);
+    });
+
+    const persisted: Persisted = {
+      ...chat,
+      id: chatId,
+      save: Effect.flatMap(Ref.get(chat.history), saveChat),
+      generateText: Effect.fnUntraced(function* (options) {
+        const history = yield* Ref.get(chat.history);
+        return yield* chat
+          .generateText(options)
+          .pipe(Effect.ensuring(Effect.orDie(saveChat(history))));
+      }) as Chat["generateText"],
+      generateObject: Effect.fnUntraced(function* (options) {
+        const history = yield* Ref.get(chat.history);
+        return yield* chat
+          .generateObject(options)
+          .pipe(Effect.ensuring(Effect.orDie(saveChat(history))));
+      }),
+      streamText: Effect.fnUntraced(function* (options) {
+        const history = yield* Ref.get(chat.history);
+        const stream = chat
+          .streamText(options)
+          .pipe(Stream.ensuring(Effect.orDie(saveChat(history))));
+        return stream;
+      }, Stream.unwrap) as Chat["streamText"],
+    };
+
+    return persisted;
+  });
+
+  const createChat = Effect.fnUntraced(function* (chatId: string, ttl: Duration.Input | undefined) {
+    // Create an empty chat
+    const chat = yield* empty;
+    // Export the chat history
+    const history = yield* Effect.orDie(chat.export);
+    // Save the history for the newly created chat
+    const timeToLive = Predicate.isNotUndefined(ttl)
+      ? Option.getOrUndefined(Duration.fromInput(ttl))
+      : undefined;
+    yield* store.set(chatId, history as object, timeToLive);
+    // Convert the chat to a persisted chat
+    return yield* toPersisted(chatId, chat, ttl);
+  });
 
   const getChat = Effect.fnUntraced(
-    function*(chatId: string, ttl: Duration.Input | undefined) {
+    function* (chatId: string, ttl: Duration.Input | undefined) {
       // Create an empty chat
-      const chat = yield* empty
+      const chat = yield* empty;
       // Attempt to retrieve the previous history from the store
-      const previousHistory = yield* store.get(chatId)
+      const previousHistory = yield* store.get(chatId);
       // If the previous history was not found, raise an error
       if (Predicate.isUndefined(previousHistory)) {
-        return yield* new ChatNotFoundError({ chatId })
+        return yield* new ChatNotFoundError({ chatId });
       }
       // Decode the encoded previous history
-      const history = yield* decodeHistory(previousHistory)
+      const history = yield* decodeHistory(previousHistory);
       // Hydrate the chat history
-      yield* Ref.set(chat.history, history)
+      yield* Ref.set(chat.history, history);
       // Convert the chat to a persisted chat
-      return yield* toPersisted(chatId, chat, ttl)
+      return yield* toPersisted(chatId, chat, ttl);
     },
-    Effect.catchTag("SchemaError", Effect.die)
-  )
+    Effect.catchTag("SchemaError", Effect.die),
+  );
 
   const get = Effect.fnUntraced(
-    function*(chatId: string, options?: {
-      readonly timeToLive?: Duration.Input | undefined
-    }) {
-      return yield* getChat(chatId, options?.timeToLive)
+    function* (
+      chatId: string,
+      options?: {
+        readonly timeToLive?: Duration.Input | undefined;
+      },
+    ) {
+      return yield* getChat(chatId, options?.timeToLive);
     },
     (effect) =>
       Effect.withSpan(effect, "PersistedChat.get", {
-        captureStackTrace: false
-      })
-  )
+        captureStackTrace: false,
+      }),
+  );
 
   const getOrCreate = Effect.fnUntraced(
-    function*(chatId: string, options?: {
-      readonly timeToLive?: Duration.Input | undefined
-    }) {
+    function* (
+      chatId: string,
+      options?: {
+        readonly timeToLive?: Duration.Input | undefined;
+      },
+    ) {
       return yield* getChat(chatId, options?.timeToLive).pipe(
-        Effect.catchTag("ChatNotFoundError", () => createChat(chatId, options?.timeToLive))
-      )
+        Effect.catchTag("ChatNotFoundError", () => createChat(chatId, options?.timeToLive)),
+      );
     },
     (effect) =>
       Effect.withSpan(effect, "PersistedChat.getOrCreate", {
-        captureStackTrace: false
-      })
-  )
+        captureStackTrace: false,
+      }),
+  );
 
   return Persistence.of({
     get,
-    getOrCreate
-  })
-})
+    getOrCreate,
+  });
+});
 
 /**
  * Creates a `Layer` for a new chat persistence service.
@@ -971,5 +993,6 @@ export const makePersisted = Effect.fnUntraced(function*(options: {
  * @since 4.0.0
  */
 export const layerPersisted = (options: {
-  readonly storeId: string
-}): Layer.Layer<Persistence, never, BackingPersistence> => Layer.effect(Persistence)(makePersisted(options))
+  readonly storeId: string;
+}): Layer.Layer<Persistence, never, BackingPersistence> =>
+  Layer.effect(Persistence)(makePersisted(options));

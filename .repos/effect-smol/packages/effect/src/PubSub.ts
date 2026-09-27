@@ -10,24 +10,24 @@
  *
  * @since 2.0.0
  */
-import * as Arr from "./Array.ts"
-import * as Context from "./Context.ts"
-import * as Deferred from "./Deferred.ts"
-import * as Effect from "./Effect.ts"
-import * as Exit from "./Exit.ts"
-import type { LazyArg } from "./Function.ts"
-import { dual, identity } from "./Function.ts"
-import * as Count from "./internal/count.ts"
-import * as Latch from "./Latch.ts"
-import * as MutableList from "./MutableList.ts"
-import * as MutableRef from "./MutableRef.ts"
-import { nextPow2 } from "./Number.ts"
-import * as Option from "./Option.ts"
-import { type Pipeable, pipeArguments } from "./Pipeable.ts"
-import * as Scope from "./Scope.ts"
-import type { Covariant, Invariant } from "./Types.ts"
+import * as Arr from "./Array.ts";
+import * as Context from "./Context.ts";
+import * as Deferred from "./Deferred.ts";
+import * as Effect from "./Effect.ts";
+import * as Exit from "./Exit.ts";
+import type { LazyArg } from "./Function.ts";
+import { dual, identity } from "./Function.ts";
+import * as Count from "./internal/count.ts";
+import * as Latch from "./Latch.ts";
+import * as MutableList from "./MutableList.ts";
+import * as MutableRef from "./MutableRef.ts";
+import { nextPow2 } from "./Number.ts";
+import * as Option from "./Option.ts";
+import { type Pipeable, pipeArguments } from "./Pipeable.ts";
+import * as Scope from "./Scope.ts";
+import type { Covariant, Invariant } from "./Types.ts";
 
-const TypeId = "~effect/PubSub"
+const TypeId = "~effect/PubSub";
 
 /**
  * A `PubSub<A>` is an asynchronous message hub into which publishers can publish
@@ -64,14 +64,14 @@ const TypeId = "~effect/PubSub"
  */
 export interface PubSub<in out A> extends Pipeable {
   readonly [TypeId]: {
-    readonly _A: Invariant<A>
-  }
-  readonly pubsub: PubSub.Atomic<A>
-  readonly subscribers: PubSub.Subscribers<A>
-  readonly scope: Scope.Closeable
-  readonly shutdownHook: Latch.Latch
-  readonly shutdownFlag: MutableRef.MutableRef<boolean>
-  readonly strategy: PubSub.Strategy<A>
+    readonly _A: Invariant<A>;
+  };
+  readonly pubsub: PubSub.Atomic<A>;
+  readonly subscribers: PubSub.Subscribers<A>;
+  readonly scope: Scope.Closeable;
+  readonly shutdownHook: Latch.Latch;
+  readonly shutdownFlag: MutableRef.MutableRef<boolean>;
+  readonly strategy: PubSub.Strategy<A>;
 }
 
 /**
@@ -89,15 +89,15 @@ export declare namespace PubSub {
    * @since 4.0.0
    */
   export interface Atomic<in out A> {
-    readonly capacity: number
-    isEmpty(): boolean
-    isFull(): boolean
-    size(): number
-    publish(value: A): boolean
-    publishAll(elements: Iterable<A>): Array<A>
-    slide(): void
-    subscribe(): BackingSubscription<A>
-    replayWindow(): ReplayWindow<A>
+    readonly capacity: number;
+    isEmpty(): boolean;
+    isFull(): boolean;
+    size(): number;
+    publish(value: A): boolean;
+    publishAll(elements: Iterable<A>): Array<A>;
+    slide(): void;
+    subscribe(): BackingSubscription<A>;
+    replayWindow(): ReplayWindow<A>;
   }
 
   /**
@@ -107,11 +107,11 @@ export declare namespace PubSub {
    * @since 4.0.0
    */
   export interface BackingSubscription<out A> {
-    isEmpty(): boolean
-    size(): number
-    poll(): A | MutableList.Empty
-    pollUpTo(n: number): Array<A>
-    unsubscribe(): void
+    isEmpty(): boolean;
+    size(): number;
+    poll(): A | MutableList.Empty;
+    pollUpTo(n: number): Array<A>;
+    unsubscribe(): void;
   }
 
   /**
@@ -129,7 +129,7 @@ export declare namespace PubSub {
   export type Subscribers<A> = Map<
     BackingSubscription<A>,
     Set<MutableList.MutableList<Deferred.Deferred<A>>>
-  >
+  >;
 
   /**
    * Interface for accessing replay buffer contents for late subscribers.
@@ -138,11 +138,11 @@ export declare namespace PubSub {
    * @since 4.0.0
    */
   export interface ReplayWindow<A> {
-    take(): A | undefined
-    takeN(n: number): Array<A>
-    takeAll(): Array<A>
-    close(): void
-    readonly remaining: number
+    take(): A | undefined;
+    takeN(n: number): Array<A>;
+    takeAll(): Array<A>;
+    close(): void;
+    readonly remaining: number;
   }
 
   /**
@@ -155,7 +155,7 @@ export declare namespace PubSub {
     /**
      * Describes any finalization logic associated with this strategy.
      */
-    readonly shutdown: Effect.Effect<void>
+    readonly shutdown: Effect.Effect<void>;
 
     /**
      * Describes how publishers should signal to subscribers that they are
@@ -165,17 +165,14 @@ export declare namespace PubSub {
       pubsub: Atomic<A>,
       subscribers: Subscribers<A>,
       elements: Iterable<A>,
-      isShutdown: MutableRef.MutableRef<boolean>
-    ): Effect.Effect<boolean>
+      isShutdown: MutableRef.MutableRef<boolean>,
+    ): Effect.Effect<boolean>;
 
     /**
      * Describes how subscribers should signal to publishers waiting for space
      * to become available in the `PubSub` that space may be available.
      */
-    onPubSubEmptySpaceUnsafe(
-      pubsub: Atomic<A>,
-      subscribers: Subscribers<A>
-    ): void
+    onPubSubEmptySpaceUnsafe(pubsub: Atomic<A>, subscribers: Subscribers<A>): void;
 
     /**
      * Describes how subscribers waiting for additional values from the `PubSub`
@@ -186,21 +183,18 @@ export declare namespace PubSub {
       pubsub: Atomic<A>,
       subscribers: Subscribers<A>,
       subscription: BackingSubscription<A>,
-      pollers: MutableList.MutableList<Deferred.Deferred<A>>
-    ): void
+      pollers: MutableList.MutableList<Deferred.Deferred<A>>,
+    ): void;
 
     /**
      * Describes how publishers should signal to subscribers waiting for
      * additional values from the `PubSub` that new values are available.
      */
-    completeSubscribersUnsafe(
-      pubsub: Atomic<A>,
-      subscribers: Subscribers<A>
-    ): void
+    completeSubscribersUnsafe(pubsub: Atomic<A>, subscribers: Subscribers<A>): void;
   }
 }
 
-const SubscriptionTypeId = "~effect/PubSub/Subscription"
+const SubscriptionTypeId = "~effect/PubSub/Subscription";
 
 /**
  * A subscription represents a consumer's connection to a PubSub, allowing them to take messages.
@@ -236,16 +230,16 @@ const SubscriptionTypeId = "~effect/PubSub/Subscription"
  */
 export interface Subscription<out A> extends Pipeable {
   readonly [SubscriptionTypeId]: {
-    readonly _A: Covariant<A>
-  }
-  readonly pubsub: PubSub.Atomic<any>
-  readonly subscribers: PubSub.Subscribers<any>
-  readonly subscription: PubSub.BackingSubscription<A>
-  readonly pollers: MutableList.MutableList<Deferred.Deferred<any>>
-  readonly shutdownHook: Latch.Latch
-  readonly shutdownFlag: MutableRef.MutableRef<boolean>
-  readonly strategy: PubSub.Strategy<any>
-  readonly replayWindow: PubSub.ReplayWindow<A>
+    readonly _A: Covariant<A>;
+  };
+  readonly pubsub: PubSub.Atomic<any>;
+  readonly subscribers: PubSub.Subscribers<any>;
+  readonly subscription: PubSub.BackingSubscription<A>;
+  readonly pollers: MutableList.MutableList<Deferred.Deferred<any>>;
+  readonly shutdownHook: Latch.Latch;
+  readonly shutdownFlag: MutableRef.MutableRef<boolean>;
+  readonly strategy: PubSub.Strategy<any>;
+  readonly replayWindow: PubSub.ReplayWindow<A>;
 }
 
 /**
@@ -276,12 +270,10 @@ export interface Subscription<out A> extends Pipeable {
  * @category constructors
  * @since 4.0.0
  */
-export const make = <A>(
-  options: {
-    readonly atomicPubSub: LazyArg<PubSub.Atomic<A>>
-    readonly strategy: LazyArg<PubSub.Strategy<A>>
-  }
-): Effect.Effect<PubSub<A>> =>
+export const make = <A>(options: {
+  readonly atomicPubSub: LazyArg<PubSub.Atomic<A>>;
+  readonly strategy: LazyArg<PubSub.Strategy<A>>;
+}): Effect.Effect<PubSub<A>> =>
   Effect.sync(() =>
     makePubSubUnsafe(
       options.atomicPubSub(),
@@ -289,9 +281,9 @@ export const make = <A>(
       Scope.makeUnsafe(),
       Latch.makeUnsafe(false),
       MutableRef.make(false),
-      options.strategy()
-    )
-  )
+      options.strategy(),
+    ),
+  );
 
 /**
  * Creates a bounded `PubSub` that applies backpressure when it reaches
@@ -333,15 +325,17 @@ export const make = <A>(
  * @since 2.0.0
  */
 export const bounded = <A>(
-  capacity: number | {
-    readonly capacity: number
-    readonly replay?: number | undefined
-  }
+  capacity:
+    | number
+    | {
+        readonly capacity: number;
+        readonly replay?: number | undefined;
+      },
 ): Effect.Effect<PubSub<A>> =>
   make({
     atomicPubSub: () => makeAtomicBounded(capacity),
-    strategy: () => new BackPressureStrategy()
-  })
+    strategy: () => new BackPressureStrategy(),
+  });
 
 /**
  * Creates a bounded `PubSub` with the dropping strategy. The `PubSub` will drop new
@@ -380,15 +374,17 @@ export const bounded = <A>(
  * @since 2.0.0
  */
 export const dropping = <A>(
-  capacity: number | {
-    readonly capacity: number
-    readonly replay?: number | undefined
-  }
+  capacity:
+    | number
+    | {
+        readonly capacity: number;
+        readonly replay?: number | undefined;
+      },
 ): Effect.Effect<PubSub<A>> =>
   make({
     atomicPubSub: () => makeAtomicBounded(capacity),
-    strategy: () => new DroppingStrategy()
-  })
+    strategy: () => new DroppingStrategy(),
+  });
 
 /**
  * Creates a bounded `PubSub` with the sliding strategy. The `PubSub` will add new
@@ -426,15 +422,17 @@ export const dropping = <A>(
  * @since 2.0.0
  */
 export const sliding = <A>(
-  capacity: number | {
-    readonly capacity: number
-    readonly replay?: number | undefined
-  }
+  capacity:
+    | number
+    | {
+        readonly capacity: number;
+        readonly replay?: number | undefined;
+      },
 ): Effect.Effect<PubSub<A>> =>
   make({
     atomicPubSub: () => makeAtomicBounded(capacity),
-    strategy: () => new SlidingStrategy()
-  })
+    strategy: () => new SlidingStrategy(),
+  });
 
 /**
  * Creates an unbounded `PubSub`.
@@ -466,12 +464,12 @@ export const sliding = <A>(
  * @since 2.0.0
  */
 export const unbounded = <A>(options?: {
-  readonly replay?: number | undefined
+  readonly replay?: number | undefined;
 }): Effect.Effect<PubSub<A>> =>
   make({
     atomicPubSub: () => makeAtomicUnbounded(options),
-    strategy: () => new DroppingStrategy()
-  })
+    strategy: () => new DroppingStrategy(),
+  });
 
 /**
  * Creates a bounded atomic PubSub implementation with optional replay buffer.
@@ -502,22 +500,27 @@ export const unbounded = <A>(options?: {
  * @since 4.0.0
  */
 export const makeAtomicBounded = <A>(
-  capacity: number | {
-    readonly capacity: number
-    readonly replay?: number | undefined
-  }
+  capacity:
+    | number
+    | {
+        readonly capacity: number;
+        readonly replay?: number | undefined;
+      },
 ): PubSub.Atomic<A> => {
-  const options = typeof capacity === "number" ? { capacity } : capacity
-  ensureCapacity(options.capacity)
-  const replayBuffer = options.replay && options.replay > 0 ? new ReplayBuffer<A>(Math.ceil(options.replay)) : undefined
+  const options = typeof capacity === "number" ? { capacity } : capacity;
+  ensureCapacity(options.capacity);
+  const replayBuffer =
+    options.replay && options.replay > 0
+      ? new ReplayBuffer<A>(Math.ceil(options.replay))
+      : undefined;
   if (options.capacity === 1) {
-    return new BoundedPubSubSingle(replayBuffer)
+    return new BoundedPubSubSingle(replayBuffer);
   } else if (nextPow2(options.capacity) === options.capacity) {
-    return new BoundedPubSubPow2(options.capacity, replayBuffer)
+    return new BoundedPubSubPow2(options.capacity, replayBuffer);
   } else {
-    return new BoundedPubSubArb(options.capacity, replayBuffer)
+    return new BoundedPubSubArb(options.capacity, replayBuffer);
   }
-}
+};
 
 /**
  * Creates an unbounded atomic PubSub implementation with optional replay buffer.
@@ -540,13 +543,13 @@ export const makeAtomicBounded = <A>(
  * @since 4.0.0
  */
 export const makeAtomicUnbounded = <A>(options?: {
-  readonly replay?: number | undefined
+  readonly replay?: number | undefined;
 }): PubSub.Atomic<A> => {
-  const replay = options?.replay
+  const replay = options?.replay;
   return new UnboundedPubSub(
-    replay && replay > 0 ? new ReplayBuffer<A>(Math.ceil(replay)) : undefined
-  )
-}
+    replay && replay > 0 ? new ReplayBuffer<A>(Math.ceil(replay)) : undefined,
+  );
+};
 
 /**
  *  Returns the number of elements the queue can hold.
@@ -569,7 +572,7 @@ export const makeAtomicUnbounded = <A>(options?: {
  * @category getters
  * @since 2.0.0
  */
-export const capacity = <A>(self: PubSub<A>): number => self.pubsub.capacity
+export const capacity = <A>(self: PubSub<A>): number => self.pubsub.capacity;
 
 /**
  * Returns the current number of messages retained by the `PubSub` for active
@@ -609,7 +612,8 @@ export const capacity = <A>(self: PubSub<A>): number => self.pubsub.capacity
  * @category getters
  * @since 2.0.0
  */
-export const size = <A>(self: PubSub<A>): Effect.Effect<number> => Effect.sync(() => sizeUnsafe(self))
+export const size = <A>(self: PubSub<A>): Effect.Effect<number> =>
+  Effect.sync(() => sizeUnsafe(self));
 /**
  * Returns the current number of messages retained by the `PubSub` for active
  * subscribers synchronously.
@@ -643,10 +647,10 @@ export const size = <A>(self: PubSub<A>): Effect.Effect<number> => Effect.sync((
  */
 export const sizeUnsafe = <A>(self: PubSub<A>): number => {
   if (MutableRef.get(self.shutdownFlag)) {
-    return 0
+    return 0;
   }
-  return self.pubsub.size()
-}
+  return self.pubsub.size();
+};
 
 /**
  * Returns `true` when the `PubSub` has reached its configured capacity.
@@ -685,7 +689,7 @@ export const sizeUnsafe = <A>(self: PubSub<A>): number => {
  * @since 2.0.0
  */
 export const isFull = <A>(self: PubSub<A>): Effect.Effect<boolean> =>
-  Effect.map(size(self), (size) => size === self.pubsub.capacity)
+  Effect.map(size(self), (size) => size === self.pubsub.capacity);
 
 /**
  * Returns `true` if the `Pubsub` contains zero elements, `false` otherwise.
@@ -718,7 +722,8 @@ export const isFull = <A>(self: PubSub<A>): Effect.Effect<boolean> =>
  * @category predicates
  * @since 2.0.0
  */
-export const isEmpty = <A>(self: PubSub<A>): Effect.Effect<boolean> => Effect.map(size(self), (size) => size === 0)
+export const isEmpty = <A>(self: PubSub<A>): Effect.Effect<boolean> =>
+  Effect.map(size(self), (size) => size === 0);
 
 /**
  * Shuts down the `PubSub`, interrupting suspended publishers and subscribers
@@ -756,14 +761,16 @@ export const isEmpty = <A>(self: PubSub<A>): Effect.Effect<boolean> => Effect.ma
  * @since 2.0.0
  */
 export const shutdown = <A>(self: PubSub<A>): Effect.Effect<void> =>
-  Effect.uninterruptible(Effect.withFiber((fiber) => {
-    MutableRef.set(self.shutdownFlag, true)
-    return Scope.close(self.scope, Exit.interrupt(fiber.id)).pipe(
-      Effect.andThen(self.strategy.shutdown),
-      Effect.when(self.shutdownHook.open),
-      Effect.asVoid
-    )
-  }))
+  Effect.uninterruptible(
+    Effect.withFiber((fiber) => {
+      MutableRef.set(self.shutdownFlag, true);
+      return Scope.close(self.scope, Exit.interrupt(fiber.id)).pipe(
+        Effect.andThen(self.strategy.shutdown),
+        Effect.when(self.shutdownHook.open),
+        Effect.asVoid,
+      );
+    }),
+  );
 
 /**
  * Checks effectfully whether `shutdown` has been called, returning `true`
@@ -794,7 +801,8 @@ export const shutdown = <A>(self: PubSub<A>): Effect.Effect<void> =>
  * @category predicates
  * @since 2.0.0
  */
-export const isShutdown = <A>(self: PubSub<A>): Effect.Effect<boolean> => Effect.sync(() => isShutdownUnsafe(self))
+export const isShutdown = <A>(self: PubSub<A>): Effect.Effect<boolean> =>
+  Effect.sync(() => isShutdownUnsafe(self));
 
 /**
  * Checks synchronously whether `shutdown` has been called, returning `true`
@@ -824,7 +832,7 @@ export const isShutdown = <A>(self: PubSub<A>): Effect.Effect<boolean> => Effect
  * @category predicates
  * @since 4.0.0
  */
-export const isShutdownUnsafe = <A>(self: PubSub<A>): boolean => self.shutdownFlag.current
+export const isShutdownUnsafe = <A>(self: PubSub<A>): boolean => self.shutdownFlag.current;
 
 /**
  * Waits until the queue is shutdown. The `Effect` returned by this method will
@@ -861,7 +869,7 @@ export const isShutdownUnsafe = <A>(self: PubSub<A>): boolean => self.shutdownFl
  * @category lifecycle
  * @since 2.0.0
  */
-export const awaitShutdown = <A>(self: PubSub<A>): Effect.Effect<void> => self.shutdownHook.await
+export const awaitShutdown = <A>(self: PubSub<A>): Effect.Effect<void> => self.shutdownHook.await;
 
 /**
  * Publishes a message to the `PubSub` as an `Effect`, returning whether the
@@ -906,26 +914,22 @@ export const awaitShutdown = <A>(self: PubSub<A>): Effect.Effect<void> => self.s
  * @since 2.0.0
  */
 export const publish: {
-  <A>(value: A): (self: PubSub<A>) => Effect.Effect<boolean>
-  <A>(self: PubSub<A>, value: A): Effect.Effect<boolean>
+  <A>(value: A): (self: PubSub<A>) => Effect.Effect<boolean>;
+  <A>(self: PubSub<A>, value: A): Effect.Effect<boolean>;
 } = dual(2, <A>(self: PubSub<A>, value: A): Effect.Effect<boolean> =>
   Effect.suspend(() => {
     if (self.shutdownFlag.current) {
-      return Effect.succeed(false)
+      return Effect.succeed(false);
     }
 
     if (self.pubsub.publish(value)) {
-      self.strategy.completeSubscribersUnsafe(self.pubsub, self.subscribers)
-      return Effect.succeed(true)
+      self.strategy.completeSubscribersUnsafe(self.pubsub, self.subscribers);
+      return Effect.succeed(true);
     }
 
-    return self.strategy.handleSurplus(
-      self.pubsub,
-      self.subscribers,
-      [value],
-      self.shutdownFlag
-    )
-  }))
+    return self.strategy.handleSurplus(self.pubsub, self.subscribers, [value], self.shutdownFlag);
+  }),
+);
 
 /**
  * Attempts to publish a message synchronously without applying the PubSub
@@ -962,16 +966,16 @@ export const publish: {
  * @since 4.0.0
  */
 export const publishUnsafe: {
-  <A>(value: A): (self: PubSub<A>) => boolean
-  <A>(self: PubSub<A>, value: A): boolean
+  <A>(value: A): (self: PubSub<A>) => boolean;
+  <A>(self: PubSub<A>, value: A): boolean;
 } = dual(2, <A>(self: PubSub<A>, value: A): boolean => {
-  if (self.shutdownFlag.current) return false
+  if (self.shutdownFlag.current) return false;
   if (self.pubsub.publish(value)) {
-    self.strategy.completeSubscribersUnsafe(self.pubsub, self.subscribers)
-    return true
+    self.strategy.completeSubscribersUnsafe(self.pubsub, self.subscribers);
+    return true;
   }
-  return false
-})
+  return false;
+});
 
 /**
  * Publishes all of the specified messages to the `PubSub`, returning whether they
@@ -1009,25 +1013,21 @@ export const publishUnsafe: {
  * @since 2.0.0
  */
 export const publishAll: {
-  <A>(elements: Iterable<A>): (self: PubSub<A>) => Effect.Effect<boolean>
-  <A>(self: PubSub<A>, elements: Iterable<A>): Effect.Effect<boolean>
+  <A>(elements: Iterable<A>): (self: PubSub<A>) => Effect.Effect<boolean>;
+  <A>(self: PubSub<A>, elements: Iterable<A>): Effect.Effect<boolean>;
 } = dual(2, <A>(self: PubSub<A>, elements: Iterable<A>): Effect.Effect<boolean> =>
   Effect.suspend(() => {
     if (self.shutdownFlag.current) {
-      return Effect.succeed(false)
+      return Effect.succeed(false);
     }
-    const surplus = self.pubsub.publishAll(elements)
-    self.strategy.completeSubscribersUnsafe(self.pubsub, self.subscribers)
+    const surplus = self.pubsub.publishAll(elements);
+    self.strategy.completeSubscribersUnsafe(self.pubsub, self.subscribers);
     if (surplus.length === 0) {
-      return Effect.succeed(true)
+      return Effect.succeed(true);
     }
-    return self.strategy.handleSurplus(
-      self.pubsub,
-      self.subscribers,
-      surplus,
-      self.shutdownFlag
-    )
-  }))
+    return self.strategy.handleSurplus(self.pubsub, self.subscribers, surplus, self.shutdownFlag);
+  }),
+);
 
 /**
  * Subscribes to receive messages from the `PubSub`. The resulting subscription can
@@ -1083,38 +1083,38 @@ export const publishAll: {
 export const subscribe = <A>(self: PubSub<A>): Effect.Effect<Subscription<A>, never, Scope.Scope> =>
   Effect.uninterruptible(
     Effect.contextWith((services) => {
-      const localScope = Context.get(services, Scope.Scope)
-      const scope = Scope.forkUnsafe(self.scope)
-      const subscription = makeSubscriptionUnsafe(self.pubsub, self.subscribers, self.strategy)
+      const localScope = Context.get(services, Scope.Scope);
+      const scope = Scope.forkUnsafe(self.scope);
+      const subscription = makeSubscriptionUnsafe(self.pubsub, self.subscribers, self.strategy);
       return Scope.addFinalizer(scope, unsubscribe(subscription)).pipe(
         Effect.andThen(Scope.addFinalizerExit(localScope, (exit) => Scope.close(scope, exit))),
-        Effect.as(subscription)
-      )
-    })
-  )
+        Effect.as(subscription),
+      );
+    }),
+  );
 
 const unsubscribe = <A>(self: Subscription<A>): Effect.Effect<void> =>
   Effect.uninterruptible(
     Effect.withFiber<void>((state) => {
-      MutableRef.set(self.shutdownFlag, true)
+      MutableRef.set(self.shutdownFlag, true);
       return Effect.forEach(
         MutableList.takeAll(self.pollers),
         (d) => Deferred.interruptWith(d, state.id),
-        { discard: true, concurrency: "unbounded" }
+        { discard: true, concurrency: "unbounded" },
       ).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
-            self.subscribers.delete(self.subscription)
-            self.subscription.unsubscribe()
-            self.replayWindow.close()
-            self.strategy.onPubSubEmptySpaceUnsafe(self.pubsub, self.subscribers)
-          })
+            self.subscribers.delete(self.subscription);
+            self.subscription.unsubscribe();
+            self.replayWindow.close();
+            self.strategy.onPubSubEmptySpaceUnsafe(self.pubsub, self.subscribers);
+          }),
         ),
         Effect.when(self.shutdownHook.open),
-        Effect.asVoid
-      )
-    })
-  )
+        Effect.asVoid,
+      );
+    }),
+  );
 
 /**
  * Takes a single message from the subscription. If no messages are available,
@@ -1150,22 +1150,20 @@ const unsubscribe = <A>(self: Subscription<A>): Effect.Effect<void> =>
 export const take = <A>(self: Subscription<A>): Effect.Effect<A> =>
   Effect.suspend(() => {
     if (self.shutdownFlag.current) {
-      return Effect.interrupt
+      return Effect.interrupt;
     }
     if (self.replayWindow.remaining > 0) {
-      const message = self.replayWindow.take()!
-      return Effect.succeed(message)
+      const message = self.replayWindow.take()!;
+      return Effect.succeed(message);
     }
-    const message = self.pollers.length === 0
-      ? self.subscription.poll()
-      : MutableList.Empty
+    const message = self.pollers.length === 0 ? self.subscription.poll() : MutableList.Empty;
     if (message === MutableList.Empty) {
-      return pollForItem(self)
+      return pollForItem(self);
     } else {
-      self.strategy.onPubSubEmptySpaceUnsafe(self.pubsub, self.subscribers)
-      return Effect.succeed(message)
+      self.strategy.onPubSubEmptySpaceUnsafe(self.pubsub, self.subscribers);
+      return Effect.succeed(message);
     }
-  })
+  });
 
 /**
  * Takes all available messages from the subscription, suspending if no items
@@ -1198,46 +1196,41 @@ export const take = <A>(self: Subscription<A>): Effect.Effect<A> =>
 export const takeAll = <A>(self: Subscription<A>): Effect.Effect<Arr.NonEmptyArray<A>> =>
   Effect.suspend(function loop(value?: [A]): Effect.Effect<Arr.NonEmptyArray<A>> {
     if (self.shutdownFlag.current) {
-      return Effect.interrupt
+      return Effect.interrupt;
     }
-    let as = self.pollers.length === 0
-      ? self.subscription.pollUpTo(Number.POSITIVE_INFINITY)
-      : []
+    let as = self.pollers.length === 0 ? self.subscription.pollUpTo(Number.POSITIVE_INFINITY) : [];
     if (value) {
-      as = value.concat(as)
+      as = value.concat(as);
     }
-    self.strategy.onPubSubEmptySpaceUnsafe(self.pubsub, self.subscribers)
+    self.strategy.onPubSubEmptySpaceUnsafe(self.pubsub, self.subscribers);
     if (self.replayWindow.remaining > 0) {
-      return Effect.succeed(self.replayWindow.takeAll().concat(as) as Arr.NonEmptyArray<A>)
+      return Effect.succeed(self.replayWindow.takeAll().concat(as) as Arr.NonEmptyArray<A>);
     } else if (!Arr.isArrayNonEmpty(as)) {
-      return Effect.flatMap(pollForItem(self), (item) => loop([item]))
+      return Effect.flatMap(pollForItem(self), (item) => loop([item]));
     }
-    return Effect.succeed(as)
-  })
+    return Effect.succeed(as);
+  });
 
 const pollForItem = <A>(self: Subscription<A>) => {
-  const deferred = Deferred.makeUnsafe<A>()
-  let set = self.subscribers.get(self.subscription)
+  const deferred = Deferred.makeUnsafe<A>();
+  let set = self.subscribers.get(self.subscription);
   if (!set) {
-    set = new Set()
-    self.subscribers.set(self.subscription, set)
+    set = new Set();
+    self.subscribers.set(self.subscription, set);
   }
-  set.add(self.pollers)
-  MutableList.append(self.pollers, deferred)
+  set.add(self.pollers);
+  MutableList.append(self.pollers, deferred);
   self.strategy.completePollersUnsafe(
     self.pubsub,
     self.subscribers,
     self.subscription,
-    self.pollers
-  )
-  return Effect.onInterrupt(
-    Deferred.await(deferred),
-    () => {
-      MutableList.remove(self.pollers, deferred)
-      return Effect.void
-    }
-  )
-}
+    self.pollers,
+  );
+  return Effect.onInterrupt(Deferred.await(deferred), () => {
+    MutableList.remove(self.pollers, deferred);
+    return Effect.void;
+  });
+};
 
 /**
  * Takes up to the specified number of messages from the subscription without
@@ -1276,25 +1269,24 @@ const pollForItem = <A>(self: Subscription<A>) => {
  * @since 4.0.0
  */
 export const takeUpTo: {
-  (max: number): <A>(self: Subscription<A>) => Effect.Effect<Array<A>>
-  <A>(self: Subscription<A>, max: number): Effect.Effect<Array<A>>
+  (max: number): <A>(self: Subscription<A>) => Effect.Effect<Array<A>>;
+  <A>(self: Subscription<A>, max: number): Effect.Effect<Array<A>>;
 } = dual(2, <A>(self: Subscription<A>, max: number): Effect.Effect<Array<A>> =>
   Effect.suspend(() => {
-    if (self.shutdownFlag.current) return Effect.interrupt
-    max = Count.normalize(max)
-    let replay: Array<A> | undefined = undefined
+    if (self.shutdownFlag.current) return Effect.interrupt;
+    max = Count.normalize(max);
+    let replay: Array<A> | undefined = undefined;
     if (self.replayWindow.remaining >= max) {
-      return Effect.succeed(self.replayWindow.takeN(max))
+      return Effect.succeed(self.replayWindow.takeN(max));
     } else if (self.replayWindow.remaining > 0) {
-      replay = self.replayWindow.takeAll()
-      max = max - replay.length
+      replay = self.replayWindow.takeAll();
+      max = max - replay.length;
     }
-    const as = self.pollers.length === 0
-      ? self.subscription.pollUpTo(max)
-      : []
-    self.strategy.onPubSubEmptySpaceUnsafe(self.pubsub, self.subscribers)
-    return replay ? Effect.succeed(replay.concat(as)) : Effect.succeed(as)
-  }))
+    const as = self.pollers.length === 0 ? self.subscription.pollUpTo(max) : [];
+    self.strategy.onPubSubEmptySpaceUnsafe(self.pubsub, self.subscribers);
+    return replay ? Effect.succeed(replay.concat(as)) : Effect.succeed(as);
+  }),
+);
 
 /**
  * Takes between the specified minimum and maximum number of messages from the
@@ -1330,46 +1322,39 @@ export const takeUpTo: {
  * @since 4.0.0
  */
 export const takeBetween: {
-  (min: number, max: number): <A>(self: Subscription<A>) => Effect.Effect<Array<A>>
-  <A>(self: Subscription<A>, min: number, max: number): Effect.Effect<Array<A>>
-} = dual(
-  3,
-  <A>(self: Subscription<A>, min: number, max: number): Effect.Effect<Array<A>> =>
-    Effect.suspend(() => takeRemainderLoop(self, Count.normalize(min), Count.normalize(max), []))
-)
+  (min: number, max: number): <A>(self: Subscription<A>) => Effect.Effect<Array<A>>;
+  <A>(self: Subscription<A>, min: number, max: number): Effect.Effect<Array<A>>;
+} = dual(3, <A>(self: Subscription<A>, min: number, max: number): Effect.Effect<Array<A>> =>
+  Effect.suspend(() => takeRemainderLoop(self, Count.normalize(min), Count.normalize(max), [])),
+);
 
 const takeRemainderLoop = <A>(
   self: Subscription<A>,
   min: number,
   max: number,
-  acc: Array<A>
+  acc: Array<A>,
 ): Effect.Effect<Array<A>> => {
   if (max < min) {
-    return Effect.succeed(acc)
+    return Effect.succeed(acc);
   }
   return Effect.flatMap(takeUpTo(self, max), (bs) => {
-    acc.push(...bs)
-    const remaining = min - bs.length
+    acc.push(...bs);
+    const remaining = min - bs.length;
     if (remaining === 1) {
       return Effect.map(take(self), (b) => {
-        acc.push(b)
-        return acc
-      })
+        acc.push(b);
+        return acc;
+      });
     }
     if (remaining > 1) {
       return Effect.flatMap(take(self), (b) => {
-        acc.push(b)
-        return takeRemainderLoop(
-          self,
-          remaining - 1,
-          max - bs.length - 1,
-          acc
-        )
-      })
+        acc.push(b);
+        return takeRemainderLoop(self, remaining - 1, max - bs.length - 1, acc);
+      });
     }
-    return Effect.succeed(acc)
-  })
-}
+    return Effect.succeed(acc);
+  });
+};
 
 /**
  * Returns the number of messages currently available in the subscription as an
@@ -1421,8 +1406,8 @@ export const remaining = <A>(self: Subscription<A>): Effect.Effect<number> =>
   Effect.suspend(() =>
     self.shutdownFlag.current
       ? Effect.interrupt
-      : Effect.succeed(self.subscription.size() + self.replayWindow.remaining)
-  )
+      : Effect.succeed(self.subscription.size() + self.replayWindow.remaining),
+  );
 
 /**
  * Synchronously returns the number of messages currently available in the
@@ -1455,49 +1440,49 @@ export const remaining = <A>(self: Subscription<A>): Effect.Effect<number> =>
  */
 export const remainingUnsafe = <A>(self: Subscription<A>): Option.Option<number> => {
   if (self.shutdownFlag.current) {
-    return Option.none()
+    return Option.none();
   }
-  return Option.some(self.subscription.size() + self.replayWindow.remaining)
-}
+  return Option.some(self.subscription.size() + self.replayWindow.remaining);
+};
 
 // -----------------------------------------------------------------------------
 // internal
 // -----------------------------------------------------------------------------
 
-const AbsentValue = Symbol.for("effect/PubSub/AbsentValue")
-type AbsentValue = typeof AbsentValue
+const AbsentValue = Symbol.for("effect/PubSub/AbsentValue");
+type AbsentValue = typeof AbsentValue;
 
 const addSubscribers = <A>(
   subscribers: PubSub.Subscribers<A>,
   subscription: PubSub.BackingSubscription<A>,
-  pollers: MutableList.MutableList<Deferred.Deferred<A>>
+  pollers: MutableList.MutableList<Deferred.Deferred<A>>,
 ) => {
   if (!subscribers.has(subscription)) {
-    subscribers.set(subscription, new Set())
+    subscribers.set(subscription, new Set());
   }
-  const set = subscribers.get(subscription)!
-  set.add(pollers)
-}
+  const set = subscribers.get(subscription)!;
+  set.add(pollers);
+};
 
 const removeSubscribers = <A>(
   subscribers: PubSub.Subscribers<A>,
   subscription: PubSub.BackingSubscription<A>,
-  pollers: MutableList.MutableList<Deferred.Deferred<A>>
+  pollers: MutableList.MutableList<Deferred.Deferred<A>>,
 ) => {
   if (!subscribers.has(subscription)) {
-    return
+    return;
   }
-  const set = subscribers.get(subscription)!
-  set.delete(pollers)
+  const set = subscribers.get(subscription)!;
+  set.delete(pollers);
   if (set.size === 0) {
-    subscribers.delete(subscription)
+    subscribers.delete(subscription);
   }
-}
+};
 
 const makeSubscriptionUnsafe = <A>(
   pubsub: PubSub.Atomic<A>,
   subscribers: PubSub.Subscribers<A>,
-  strategy: PubSub.Strategy<A>
+  strategy: PubSub.Strategy<A>,
 ): Subscription<A> =>
   new SubscriptionImpl(
     pubsub,
@@ -1507,122 +1492,118 @@ const makeSubscriptionUnsafe = <A>(
     Latch.makeUnsafe(false),
     MutableRef.make(false),
     strategy,
-    pubsub.replayWindow()
-  )
+    pubsub.replayWindow(),
+  );
 
 class BoundedPubSubArb<in out A> implements PubSub.Atomic<A> {
-  array: Array<A>
-  replayIndices: Array<number>
-  publisherIndex = 0
-  subscribers: Array<number>
-  subscriberCount = 0
-  subscribersIndex = 0
+  array: Array<A>;
+  replayIndices: Array<number>;
+  publisherIndex = 0;
+  subscribers: Array<number>;
+  subscriberCount = 0;
+  subscribersIndex = 0;
 
-  readonly capacity: number
-  readonly replayBuffer: ReplayBuffer<A> | undefined
+  readonly capacity: number;
+  readonly replayBuffer: ReplayBuffer<A> | undefined;
 
   constructor(capacity: number, replayBuffer: ReplayBuffer<A> | undefined) {
-    this.capacity = capacity
-    this.replayBuffer = replayBuffer
-    this.array = Array.from({ length: capacity })
-    this.replayIndices = replayBuffer ? Array.from({ length: capacity }) : []
-    this.subscribers = Array.from({ length: capacity })
+    this.capacity = capacity;
+    this.replayBuffer = replayBuffer;
+    this.array = Array.from({ length: capacity });
+    this.replayIndices = replayBuffer ? Array.from({ length: capacity }) : [];
+    this.subscribers = Array.from({ length: capacity });
   }
 
   replayWindow(): PubSub.ReplayWindow<A> {
-    return this.replayBuffer ? new ReplayWindowImpl(this.replayBuffer) : emptyReplayWindow
+    return this.replayBuffer ? new ReplayWindowImpl(this.replayBuffer) : emptyReplayWindow;
   }
 
   isEmpty(): boolean {
-    return this.publisherIndex === this.subscribersIndex
+    return this.publisherIndex === this.subscribersIndex;
   }
 
   isFull(): boolean {
-    return this.publisherIndex === this.subscribersIndex + this.capacity
+    return this.publisherIndex === this.subscribersIndex + this.capacity;
   }
 
   size(): number {
-    return this.publisherIndex - this.subscribersIndex
+    return this.publisherIndex - this.subscribersIndex;
   }
 
   publish(value: A): boolean {
     if (this.isFull()) {
-      return false
+      return false;
     }
-    const replayIndex = this.replayBuffer?.offer(value)
+    const replayIndex = this.replayBuffer?.offer(value);
     if (this.subscriberCount !== 0) {
-      const index = this.publisherIndex % this.capacity
-      this.array[index] = value
+      const index = this.publisherIndex % this.capacity;
+      this.array[index] = value;
       if (replayIndex !== undefined) {
-        this.replayIndices[index] = replayIndex
+        this.replayIndices[index] = replayIndex;
       }
-      this.subscribers[index] = this.subscriberCount
-      this.publisherIndex += 1
+      this.subscribers[index] = this.subscriberCount;
+      this.publisherIndex += 1;
     }
-    return true
+    return true;
   }
 
   publishAll(elements: Iterable<A>): Array<A> {
     if (this.subscriberCount === 0) {
       if (this.replayBuffer) {
-        this.replayBuffer.offerAll(elements)
+        this.replayBuffer.offerAll(elements);
       }
-      return []
+      return [];
     }
-    const chunk = Arr.fromIterable(elements)
-    const n = chunk.length
-    const size = this.publisherIndex - this.subscribersIndex
-    const available = this.capacity - size
-    const forPubSub = Math.min(n, available)
+    const chunk = Arr.fromIterable(elements);
+    const n = chunk.length;
+    const size = this.publisherIndex - this.subscribersIndex;
+    const available = this.capacity - size;
+    const forPubSub = Math.min(n, available);
     if (forPubSub === 0) {
-      return chunk
+      return chunk;
     }
-    let iteratorIndex = 0
-    const publishAllIndex = this.publisherIndex + forPubSub
+    let iteratorIndex = 0;
+    const publishAllIndex = this.publisherIndex + forPubSub;
     while (this.publisherIndex !== publishAllIndex) {
-      const a = chunk[iteratorIndex++]
-      const index = this.publisherIndex % this.capacity
-      this.array[index] = a
-      const replayIndex = this.replayBuffer?.offer(a)
+      const a = chunk[iteratorIndex++];
+      const index = this.publisherIndex % this.capacity;
+      this.array[index] = a;
+      const replayIndex = this.replayBuffer?.offer(a);
       if (replayIndex !== undefined) {
-        this.replayIndices[index] = replayIndex
+        this.replayIndices[index] = replayIndex;
       }
-      this.subscribers[index] = this.subscriberCount
-      this.publisherIndex += 1
+      this.subscribers[index] = this.subscriberCount;
+      this.publisherIndex += 1;
     }
-    return chunk.slice(iteratorIndex)
+    return chunk.slice(iteratorIndex);
   }
 
   slide(): void {
     if (this.subscribersIndex !== this.publisherIndex) {
-      const index = this.subscribersIndex % this.capacity
-      const value = this.array[index]
-      this.array[index] = AbsentValue as unknown as A
-      this.subscribers[index] = 0
-      this.subscribersIndex += 1
-      this.replayBuffer?.slide(value, this.replayIndices[index])
+      const index = this.subscribersIndex % this.capacity;
+      const value = this.array[index];
+      this.array[index] = AbsentValue as unknown as A;
+      this.subscribers[index] = 0;
+      this.subscribersIndex += 1;
+      this.replayBuffer?.slide(value, this.replayIndices[index]);
     }
   }
 
   subscribe(): PubSub.BackingSubscription<A> {
-    this.subscriberCount += 1
-    return new BoundedPubSubArbSubscription(this, this.publisherIndex, false)
+    this.subscriberCount += 1;
+    return new BoundedPubSubArbSubscription(this, this.publisherIndex, false);
   }
 }
 
 class BoundedPubSubArbSubscription<in out A> implements PubSub.BackingSubscription<A> {
-  private self: BoundedPubSubArb<A>
-  private subscriberIndex: number
-  private unsubscribed: boolean
+  private self: BoundedPubSubArb<A>;
+  private subscriberIndex: number;
+  private unsubscribed: boolean;
 
-  constructor(
-    self: BoundedPubSubArb<A>,
-    subscriberIndex: number,
-    unsubscribed: boolean
-  ) {
-    this.self = self
-    this.subscriberIndex = subscriberIndex
-    this.unsubscribed = unsubscribed
+  constructor(self: BoundedPubSubArb<A>, subscriberIndex: number, unsubscribed: boolean) {
+    this.self = self;
+    this.subscriberIndex = subscriberIndex;
+    this.unsubscribed = unsubscribed;
   }
 
   isEmpty(): boolean {
@@ -1630,196 +1611,192 @@ class BoundedPubSubArbSubscription<in out A> implements PubSub.BackingSubscripti
       this.unsubscribed ||
       this.self.publisherIndex === this.subscriberIndex ||
       this.self.publisherIndex === this.self.subscribersIndex
-    )
+    );
   }
 
   size() {
     if (this.unsubscribed) {
-      return 0
+      return 0;
     }
-    return this.self.publisherIndex - Math.max(this.subscriberIndex, this.self.subscribersIndex)
+    return this.self.publisherIndex - Math.max(this.subscriberIndex, this.self.subscribersIndex);
   }
 
   poll(): A | MutableList.Empty {
     if (this.unsubscribed) {
-      return MutableList.Empty
+      return MutableList.Empty;
     }
-    this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex)
+    this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex);
     if (this.subscriberIndex !== this.self.publisherIndex) {
-      const index = this.subscriberIndex % this.self.capacity
-      const elem = this.self.array[index]!
-      this.self.subscribers[index] -= 1
+      const index = this.subscriberIndex % this.self.capacity;
+      const elem = this.self.array[index]!;
+      this.self.subscribers[index] -= 1;
       if (this.self.subscribers[index] === 0) {
-        this.self.array[index] = AbsentValue as unknown as A
-        this.self.subscribersIndex += 1
+        this.self.array[index] = AbsentValue as unknown as A;
+        this.self.subscribersIndex += 1;
       }
-      this.subscriberIndex += 1
-      return elem
+      this.subscriberIndex += 1;
+      return elem;
     }
-    return MutableList.Empty
+    return MutableList.Empty;
   }
 
   pollUpTo(n: number): Array<A> {
-    n = Count.normalize(n)
+    n = Count.normalize(n);
     if (this.unsubscribed) {
-      return []
+      return [];
     }
-    this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex)
-    const size = this.self.publisherIndex - this.subscriberIndex
-    const toPoll = Math.min(n, size)
+    this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex);
+    const size = this.self.publisherIndex - this.subscriberIndex;
+    const toPoll = Math.min(n, size);
     if (toPoll <= 0) {
-      return []
+      return [];
     }
-    const builder: Array<A> = []
-    const pollUpToIndex = this.subscriberIndex + toPoll
+    const builder: Array<A> = [];
+    const pollUpToIndex = this.subscriberIndex + toPoll;
     while (this.subscriberIndex !== pollUpToIndex) {
-      const index = this.subscriberIndex % this.self.capacity
-      const a = this.self.array[index] as A
-      this.self.subscribers[index] -= 1
+      const index = this.subscriberIndex % this.self.capacity;
+      const a = this.self.array[index] as A;
+      this.self.subscribers[index] -= 1;
       if (this.self.subscribers[index] === 0) {
-        this.self.array[index] = AbsentValue as unknown as A
-        this.self.subscribersIndex += 1
+        this.self.array[index] = AbsentValue as unknown as A;
+        this.self.subscribersIndex += 1;
       }
-      builder.push(a)
-      this.subscriberIndex += 1
+      builder.push(a);
+      this.subscriberIndex += 1;
     }
 
-    return builder
+    return builder;
   }
 
   unsubscribe(): void {
     if (!this.unsubscribed) {
-      this.unsubscribed = true
-      this.self.subscriberCount -= 1
-      this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex)
+      this.unsubscribed = true;
+      this.self.subscriberCount -= 1;
+      this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex);
       while (this.subscriberIndex !== this.self.publisherIndex) {
-        const index = this.subscriberIndex % this.self.capacity
-        this.self.subscribers[index] -= 1
+        const index = this.subscriberIndex % this.self.capacity;
+        this.self.subscribers[index] -= 1;
         if (this.self.subscribers[index] === 0) {
-          this.self.array[index] = AbsentValue as unknown as A
-          this.self.subscribersIndex += 1
+          this.self.array[index] = AbsentValue as unknown as A;
+          this.self.subscribersIndex += 1;
         }
-        this.subscriberIndex += 1
+        this.subscriberIndex += 1;
       }
     }
   }
 }
 
 class BoundedPubSubPow2<in out A> implements PubSub.Atomic<A> {
-  array: Array<A>
-  replayIndices: Array<number>
-  mask: number
-  publisherIndex = 0
-  subscribers: Array<number>
-  subscriberCount = 0
-  subscribersIndex = 0
+  array: Array<A>;
+  replayIndices: Array<number>;
+  mask: number;
+  publisherIndex = 0;
+  subscribers: Array<number>;
+  subscriberCount = 0;
+  subscribersIndex = 0;
 
-  readonly capacity: number
-  readonly replayBuffer: ReplayBuffer<A> | undefined
+  readonly capacity: number;
+  readonly replayBuffer: ReplayBuffer<A> | undefined;
 
   constructor(capacity: number, replayBuffer: ReplayBuffer<A> | undefined) {
-    this.capacity = capacity
-    this.replayBuffer = replayBuffer
-    this.array = Array.from({ length: capacity })
-    this.replayIndices = replayBuffer ? Array.from({ length: capacity }) : []
-    this.mask = capacity - 1
-    this.subscribers = Array.from({ length: capacity })
+    this.capacity = capacity;
+    this.replayBuffer = replayBuffer;
+    this.array = Array.from({ length: capacity });
+    this.replayIndices = replayBuffer ? Array.from({ length: capacity }) : [];
+    this.mask = capacity - 1;
+    this.subscribers = Array.from({ length: capacity });
   }
 
   replayWindow(): PubSub.ReplayWindow<A> {
-    return this.replayBuffer ? new ReplayWindowImpl(this.replayBuffer) : emptyReplayWindow
+    return this.replayBuffer ? new ReplayWindowImpl(this.replayBuffer) : emptyReplayWindow;
   }
 
   isEmpty(): boolean {
-    return this.publisherIndex === this.subscribersIndex
+    return this.publisherIndex === this.subscribersIndex;
   }
 
   isFull(): boolean {
-    return this.publisherIndex === this.subscribersIndex + this.capacity
+    return this.publisherIndex === this.subscribersIndex + this.capacity;
   }
 
   size(): number {
-    return this.publisherIndex - this.subscribersIndex
+    return this.publisherIndex - this.subscribersIndex;
   }
 
   publish(value: A): boolean {
     if (this.isFull()) {
-      return false
+      return false;
     }
-    const replayIndex = this.replayBuffer?.offer(value)
+    const replayIndex = this.replayBuffer?.offer(value);
     if (this.subscriberCount !== 0) {
-      const index = this.publisherIndex & this.mask
-      this.array[index] = value
+      const index = this.publisherIndex & this.mask;
+      this.array[index] = value;
       if (replayIndex !== undefined) {
-        this.replayIndices[index] = replayIndex
+        this.replayIndices[index] = replayIndex;
       }
-      this.subscribers[index] = this.subscriberCount
-      this.publisherIndex += 1
+      this.subscribers[index] = this.subscriberCount;
+      this.publisherIndex += 1;
     }
-    return true
+    return true;
   }
 
   publishAll(elements: Iterable<A>): Array<A> {
     if (this.subscriberCount === 0) {
       if (this.replayBuffer) {
-        this.replayBuffer.offerAll(elements)
+        this.replayBuffer.offerAll(elements);
       }
-      return []
+      return [];
     }
-    const chunk = Arr.fromIterable(elements)
-    const n = chunk.length
-    const size = this.publisherIndex - this.subscribersIndex
-    const available = this.capacity - size
-    const forPubSub = Math.min(n, available)
+    const chunk = Arr.fromIterable(elements);
+    const n = chunk.length;
+    const size = this.publisherIndex - this.subscribersIndex;
+    const available = this.capacity - size;
+    const forPubSub = Math.min(n, available);
     if (forPubSub === 0) {
-      return chunk
+      return chunk;
     }
-    let iteratorIndex = 0
-    const publishAllIndex = this.publisherIndex + forPubSub
+    let iteratorIndex = 0;
+    const publishAllIndex = this.publisherIndex + forPubSub;
     while (this.publisherIndex !== publishAllIndex) {
-      const elem = chunk[iteratorIndex++]
-      const index = this.publisherIndex & this.mask
-      this.array[index] = elem
-      const replayIndex = this.replayBuffer?.offer(elem)
+      const elem = chunk[iteratorIndex++];
+      const index = this.publisherIndex & this.mask;
+      this.array[index] = elem;
+      const replayIndex = this.replayBuffer?.offer(elem);
       if (replayIndex !== undefined) {
-        this.replayIndices[index] = replayIndex
+        this.replayIndices[index] = replayIndex;
       }
-      this.subscribers[index] = this.subscriberCount
-      this.publisherIndex += 1
+      this.subscribers[index] = this.subscriberCount;
+      this.publisherIndex += 1;
     }
-    return chunk.slice(iteratorIndex)
+    return chunk.slice(iteratorIndex);
   }
 
   slide(): void {
     if (this.subscribersIndex !== this.publisherIndex) {
-      const index = this.subscribersIndex & this.mask
-      const value = this.array[index]
-      this.array[index] = AbsentValue as unknown as A
-      this.subscribers[index] = 0
-      this.subscribersIndex += 1
-      this.replayBuffer?.slide(value, this.replayIndices[index])
+      const index = this.subscribersIndex & this.mask;
+      const value = this.array[index];
+      this.array[index] = AbsentValue as unknown as A;
+      this.subscribers[index] = 0;
+      this.subscribersIndex += 1;
+      this.replayBuffer?.slide(value, this.replayIndices[index]);
     }
   }
 
   subscribe(): PubSub.BackingSubscription<A> {
-    this.subscriberCount += 1
-    return new BoundedPubSubPow2Subscription(this, this.publisherIndex, false)
+    this.subscriberCount += 1;
+    return new BoundedPubSubPow2Subscription(this, this.publisherIndex, false);
   }
 }
 
 class BoundedPubSubPow2Subscription<in out A> implements PubSub.BackingSubscription<A> {
-  private self: BoundedPubSubPow2<A>
-  private subscriberIndex: number
-  private unsubscribed: boolean
+  private self: BoundedPubSubPow2<A>;
+  private subscriberIndex: number;
+  private unsubscribed: boolean;
 
-  constructor(
-    self: BoundedPubSubPow2<A>,
-    subscriberIndex: number,
-    unsubscribed: boolean
-  ) {
-    this.self = self
-    this.subscriberIndex = subscriberIndex
-    this.unsubscribed = unsubscribed
+  constructor(self: BoundedPubSubPow2<A>, subscriberIndex: number, unsubscribed: boolean) {
+    this.self = self;
+    this.subscriberIndex = subscriberIndex;
+    this.unsubscribed = unsubscribed;
   }
 
   isEmpty(): boolean {
@@ -1827,176 +1804,172 @@ class BoundedPubSubPow2Subscription<in out A> implements PubSub.BackingSubscript
       this.unsubscribed ||
       this.self.publisherIndex === this.subscriberIndex ||
       this.self.publisherIndex === this.self.subscribersIndex
-    )
+    );
   }
 
   size() {
     if (this.unsubscribed) {
-      return 0
+      return 0;
     }
-    return this.self.publisherIndex - Math.max(this.subscriberIndex, this.self.subscribersIndex)
+    return this.self.publisherIndex - Math.max(this.subscriberIndex, this.self.subscribersIndex);
   }
 
   poll(): A | MutableList.Empty {
     if (this.unsubscribed) {
-      return MutableList.Empty
+      return MutableList.Empty;
     }
-    this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex)
+    this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex);
     if (this.subscriberIndex !== this.self.publisherIndex) {
-      const index = this.subscriberIndex & this.self.mask
-      const elem = this.self.array[index]!
-      this.self.subscribers[index] -= 1
+      const index = this.subscriberIndex & this.self.mask;
+      const elem = this.self.array[index]!;
+      this.self.subscribers[index] -= 1;
       if (this.self.subscribers[index] === 0) {
-        this.self.array[index] = AbsentValue as unknown as A
-        this.self.subscribersIndex += 1
+        this.self.array[index] = AbsentValue as unknown as A;
+        this.self.subscribersIndex += 1;
       }
-      this.subscriberIndex += 1
-      return elem
+      this.subscriberIndex += 1;
+      return elem;
     }
-    return MutableList.Empty
+    return MutableList.Empty;
   }
 
   pollUpTo(n: number): Array<A> {
-    n = Count.normalize(n)
+    n = Count.normalize(n);
     if (this.unsubscribed) {
-      return []
+      return [];
     }
-    this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex)
-    const size = this.self.publisherIndex - this.subscriberIndex
-    const toPoll = Math.min(n, size)
+    this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex);
+    const size = this.self.publisherIndex - this.subscriberIndex;
+    const toPoll = Math.min(n, size);
     if (toPoll <= 0) {
-      return []
+      return [];
     }
-    const builder: Array<A> = []
-    const pollUpToIndex = this.subscriberIndex + toPoll
+    const builder: Array<A> = [];
+    const pollUpToIndex = this.subscriberIndex + toPoll;
     while (this.subscriberIndex !== pollUpToIndex) {
-      const index = this.subscriberIndex & this.self.mask
-      const elem = this.self.array[index] as A
-      this.self.subscribers[index] -= 1
+      const index = this.subscriberIndex & this.self.mask;
+      const elem = this.self.array[index] as A;
+      this.self.subscribers[index] -= 1;
       if (this.self.subscribers[index] === 0) {
-        this.self.array[index] = AbsentValue as unknown as A
-        this.self.subscribersIndex += 1
+        this.self.array[index] = AbsentValue as unknown as A;
+        this.self.subscribersIndex += 1;
       }
-      builder.push(elem)
-      this.subscriberIndex += 1
+      builder.push(elem);
+      this.subscriberIndex += 1;
     }
-    return builder
+    return builder;
   }
 
   unsubscribe(): void {
     if (!this.unsubscribed) {
-      this.unsubscribed = true
-      this.self.subscriberCount -= 1
-      this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex)
+      this.unsubscribed = true;
+      this.self.subscriberCount -= 1;
+      this.subscriberIndex = Math.max(this.subscriberIndex, this.self.subscribersIndex);
       while (this.subscriberIndex !== this.self.publisherIndex) {
-        const index = this.subscriberIndex & this.self.mask
-        this.self.subscribers[index] -= 1
+        const index = this.subscriberIndex & this.self.mask;
+        this.self.subscribers[index] -= 1;
         if (this.self.subscribers[index] === 0) {
-          this.self.array[index] = AbsentValue as unknown as A
-          this.self.subscribersIndex += 1
+          this.self.array[index] = AbsentValue as unknown as A;
+          this.self.subscribersIndex += 1;
         }
-        this.subscriberIndex += 1
+        this.subscriberIndex += 1;
       }
     }
   }
 }
 
 class BoundedPubSubSingle<in out A> implements PubSub.Atomic<A> {
-  publisherIndex = 0
-  subscriberCount = 0
-  subscribers = 0
-  value: A = AbsentValue as unknown as A
-  replayIndex = 0
+  publisherIndex = 0;
+  subscriberCount = 0;
+  subscribers = 0;
+  value: A = AbsentValue as unknown as A;
+  replayIndex = 0;
 
-  readonly capacity = 1
-  readonly replayBuffer: ReplayBuffer<A> | undefined
+  readonly capacity = 1;
+  readonly replayBuffer: ReplayBuffer<A> | undefined;
 
   constructor(replayBuffer: ReplayBuffer<A> | undefined) {
-    this.replayBuffer = replayBuffer
+    this.replayBuffer = replayBuffer;
   }
 
   replayWindow(): PubSub.ReplayWindow<A> {
-    return this.replayBuffer ? new ReplayWindowImpl(this.replayBuffer) : emptyReplayWindow
+    return this.replayBuffer ? new ReplayWindowImpl(this.replayBuffer) : emptyReplayWindow;
   }
 
   pipe() {
-    return pipeArguments(this, arguments)
+    return pipeArguments(this, arguments);
   }
 
   isEmpty(): boolean {
-    return this.subscribers === 0
+    return this.subscribers === 0;
   }
 
   isFull(): boolean {
-    return !this.isEmpty()
+    return !this.isEmpty();
   }
 
   size(): number {
-    return this.isEmpty() ? 0 : 1
+    return this.isEmpty() ? 0 : 1;
   }
 
   publish(value: A): boolean {
     if (this.isFull()) {
-      return false
+      return false;
     }
-    const replayIndex = this.replayBuffer?.offer(value)
+    const replayIndex = this.replayBuffer?.offer(value);
     if (this.subscriberCount !== 0) {
-      this.value = value
+      this.value = value;
       if (replayIndex !== undefined) {
-        this.replayIndex = replayIndex
+        this.replayIndex = replayIndex;
       }
-      this.subscribers = this.subscriberCount
-      this.publisherIndex += 1
+      this.subscribers = this.subscriberCount;
+      this.publisherIndex += 1;
     }
-    return true
+    return true;
   }
 
   publishAll(elements: Iterable<A>): Array<A> {
     if (this.subscriberCount === 0) {
       if (this.replayBuffer) {
-        this.replayBuffer.offerAll(elements)
+        this.replayBuffer.offerAll(elements);
       }
-      return []
+      return [];
     }
-    const chunk = Arr.fromIterable(elements)
+    const chunk = Arr.fromIterable(elements);
     if (chunk.length === 0) {
-      return chunk
+      return chunk;
     }
     if (this.publish(chunk[0])) {
-      return chunk.slice(1)
+      return chunk.slice(1);
     } else {
-      return chunk
+      return chunk;
     }
   }
 
   slide(): void {
     if (this.isFull()) {
-      const value = this.value
-      this.subscribers = 0
-      this.value = AbsentValue as unknown as A
-      this.replayBuffer?.slide(value, this.replayIndex)
+      const value = this.value;
+      this.subscribers = 0;
+      this.value = AbsentValue as unknown as A;
+      this.replayBuffer?.slide(value, this.replayIndex);
     }
   }
 
   subscribe(): PubSub.BackingSubscription<A> {
-    this.subscriberCount += 1
-    return new BoundedPubSubSingleSubscription(this, this.publisherIndex, false)
+    this.subscriberCount += 1;
+    return new BoundedPubSubSingleSubscription(this, this.publisherIndex, false);
   }
 }
 
 class BoundedPubSubSingleSubscription<in out A> implements PubSub.BackingSubscription<A> {
-  private self: BoundedPubSubSingle<A>
-  private subscriberIndex: number
-  private unsubscribed: boolean
+  private self: BoundedPubSubSingle<A>;
+  private subscriberIndex: number;
+  private unsubscribed: boolean;
 
-  constructor(
-    self: BoundedPubSubSingle<A>,
-    subscriberIndex: number,
-    unsubscribed: boolean
-  ) {
-    this.self = self
-    this.subscriberIndex = subscriberIndex
-    this.unsubscribed = unsubscribed
+  constructor(self: BoundedPubSubSingle<A>, subscriberIndex: number, unsubscribed: boolean) {
+    this.self = self;
+    this.subscriberIndex = subscriberIndex;
+    this.unsubscribed = unsubscribed;
   }
 
   isEmpty(): boolean {
@@ -2004,41 +1977,41 @@ class BoundedPubSubSingleSubscription<in out A> implements PubSub.BackingSubscri
       this.unsubscribed ||
       this.self.subscribers === 0 ||
       this.subscriberIndex === this.self.publisherIndex
-    )
+    );
   }
 
   size() {
-    return this.isEmpty() ? 0 : 1
+    return this.isEmpty() ? 0 : 1;
   }
 
   poll(): A | MutableList.Empty {
     if (this.isEmpty()) {
-      return MutableList.Empty
+      return MutableList.Empty;
     }
-    const elem = this.self.value
-    this.self.subscribers -= 1
+    const elem = this.self.value;
+    this.self.subscribers -= 1;
     if (this.self.subscribers === 0) {
-      this.self.value = AbsentValue as unknown as A
+      this.self.value = AbsentValue as unknown as A;
     }
-    this.subscriberIndex = this.self.publisherIndex
-    return elem
+    this.subscriberIndex = this.self.publisherIndex;
+    return elem;
   }
 
   pollUpTo(n: number): Array<A> {
     if (Count.normalize(n) < 1 || this.isEmpty()) {
-      return []
+      return [];
     }
-    return [this.poll() as A]
+    return [this.poll() as A];
   }
 
   unsubscribe(): void {
     if (!this.unsubscribed) {
-      this.unsubscribed = true
-      this.self.subscriberCount -= 1
+      this.unsubscribed = true;
+      this.self.subscriberCount -= 1;
       if (this.self.subscribers !== 0 && this.subscriberIndex !== this.self.publisherIndex) {
-        this.self.subscribers -= 1
+        this.self.subscribers -= 1;
         if (this.self.subscribers === 0) {
-          this.self.value = AbsentValue as unknown as A
+          this.self.value = AbsentValue as unknown as A;
         }
       }
     }
@@ -2046,10 +2019,10 @@ class BoundedPubSubSingleSubscription<in out A> implements PubSub.BackingSubscri
 }
 
 interface Node<out A> {
-  value: A | AbsentValue
-  replayIndex: number | undefined
-  subscribers: number
-  next: Node<A> | null
+  value: A | AbsentValue;
+  replayIndex: number | undefined;
+  subscribers: number;
+  next: Node<A> | null;
 }
 
 class UnboundedPubSub<in out A> implements PubSub.Atomic<A> {
@@ -2057,190 +2030,185 @@ class UnboundedPubSub<in out A> implements PubSub.Atomic<A> {
     value: AbsentValue,
     replayIndex: undefined,
     subscribers: 0,
-    next: null
-  }
-  publisherTail = this.publisherHead
-  publisherIndex = 0
-  subscribersIndex = 0
+    next: null,
+  };
+  publisherTail = this.publisherHead;
+  publisherIndex = 0;
+  subscribersIndex = 0;
 
-  readonly capacity = Number.MAX_SAFE_INTEGER
-  readonly replayBuffer: ReplayBuffer<A> | undefined
+  readonly capacity = Number.MAX_SAFE_INTEGER;
+  readonly replayBuffer: ReplayBuffer<A> | undefined;
 
   constructor(replayBuffer: ReplayBuffer<A> | undefined) {
-    this.replayBuffer = replayBuffer
+    this.replayBuffer = replayBuffer;
   }
 
   replayWindow(): PubSub.ReplayWindow<A> {
-    return this.replayBuffer ? new ReplayWindowImpl(this.replayBuffer) : emptyReplayWindow
+    return this.replayBuffer ? new ReplayWindowImpl(this.replayBuffer) : emptyReplayWindow;
   }
 
   isEmpty(): boolean {
-    return this.publisherHead === this.publisherTail
+    return this.publisherHead === this.publisherTail;
   }
 
   isFull(): boolean {
-    return false
+    return false;
   }
 
   size(): number {
-    return this.publisherIndex - this.subscribersIndex
+    return this.publisherIndex - this.subscribersIndex;
   }
 
   publish(value: A): boolean {
-    const replayIndex = this.replayBuffer?.offer(value)
-    const subscribers = this.publisherTail.subscribers
+    const replayIndex = this.replayBuffer?.offer(value);
+    const subscribers = this.publisherTail.subscribers;
     if (subscribers !== 0) {
       const node: Node<A> = {
         value,
         replayIndex,
         subscribers,
-        next: null
-      }
-      this.publisherTail.next = node
-      this.publisherTail = this.publisherTail.next
-      this.publisherIndex += 1
+        next: null,
+      };
+      this.publisherTail.next = node;
+      this.publisherTail = this.publisherTail.next;
+      this.publisherIndex += 1;
     }
-    return true
+    return true;
   }
 
   publishAll(elements: Iterable<A>): Array<A> {
     if (this.publisherTail.subscribers !== 0) {
       for (const a of elements) {
-        this.publish(a)
+        this.publish(a);
       }
     } else if (this.replayBuffer) {
-      this.replayBuffer.offerAll(elements)
+      this.replayBuffer.offerAll(elements);
     }
-    return []
+    return [];
   }
 
   slide(): void {
     if (this.publisherHead !== this.publisherTail) {
-      const node = this.publisherHead.next!
-      const value = node.value as A
-      this.publisherHead = this.publisherHead.next!
-      this.publisherHead.value = AbsentValue
-      this.subscribersIndex += 1
-      this.replayBuffer?.slide(value, node.replayIndex!)
+      const node = this.publisherHead.next!;
+      const value = node.value as A;
+      this.publisherHead = this.publisherHead.next!;
+      this.publisherHead.value = AbsentValue;
+      this.subscribersIndex += 1;
+      this.replayBuffer?.slide(value, node.replayIndex!);
     }
   }
 
   subscribe(): PubSub.BackingSubscription<A> {
-    this.publisherTail.subscribers += 1
-    return new UnboundedPubSubSubscription(
-      this,
-      this.publisherTail,
-      this.publisherIndex,
-      false
-    )
+    this.publisherTail.subscribers += 1;
+    return new UnboundedPubSubSubscription(this, this.publisherTail, this.publisherIndex, false);
   }
 }
 
 class UnboundedPubSubSubscription<in out A> implements PubSub.BackingSubscription<A> {
-  private self: UnboundedPubSub<A>
-  private subscriberHead: Node<A>
-  private subscriberIndex: number
-  private unsubscribed: boolean
+  private self: UnboundedPubSub<A>;
+  private subscriberHead: Node<A>;
+  private subscriberIndex: number;
+  private unsubscribed: boolean;
 
   constructor(
     self: UnboundedPubSub<A>,
     subscriberHead: Node<A>,
     subscriberIndex: number,
-    unsubscribed: boolean
+    unsubscribed: boolean,
   ) {
-    this.self = self
-    this.subscriberHead = subscriberHead
-    this.subscriberIndex = subscriberIndex
-    this.unsubscribed = unsubscribed
+    this.self = self;
+    this.subscriberHead = subscriberHead;
+    this.subscriberIndex = subscriberIndex;
+    this.unsubscribed = unsubscribed;
   }
 
   isEmpty(): boolean {
     if (this.unsubscribed) {
-      return true
+      return true;
     }
-    let empty = true
-    let loop = true
+    let empty = true;
+    let loop = true;
     while (loop) {
       if (this.subscriberHead === this.self.publisherTail) {
-        loop = false
+        loop = false;
       } else {
         if (this.subscriberHead.next!.value !== AbsentValue) {
-          empty = false
-          loop = false
+          empty = false;
+          loop = false;
         } else {
-          this.subscriberHead = this.subscriberHead.next!
-          this.subscriberIndex += 1
+          this.subscriberHead = this.subscriberHead.next!;
+          this.subscriberIndex += 1;
         }
       }
     }
-    return empty
+    return empty;
   }
 
   size() {
     if (this.unsubscribed) {
-      return 0
+      return 0;
     }
-    return this.self.publisherIndex - Math.max(this.subscriberIndex, this.self.subscribersIndex)
+    return this.self.publisherIndex - Math.max(this.subscriberIndex, this.self.subscribersIndex);
   }
 
   poll(): A | MutableList.Empty {
     if (this.unsubscribed) {
-      return MutableList.Empty
+      return MutableList.Empty;
     }
-    let loop = true
-    let polled: A | MutableList.Empty = MutableList.Empty
+    let loop = true;
+    let polled: A | MutableList.Empty = MutableList.Empty;
     while (loop) {
       if (this.subscriberHead === this.self.publisherTail) {
-        loop = false
+        loop = false;
       } else {
-        const elem = this.subscriberHead.next!.value
+        const elem = this.subscriberHead.next!.value;
         if (elem !== AbsentValue) {
-          polled = elem
-          this.subscriberHead.subscribers -= 1
+          polled = elem;
+          this.subscriberHead.subscribers -= 1;
           if (this.subscriberHead.subscribers === 0) {
-            this.self.publisherHead = this.self.publisherHead.next!
-            this.self.publisherHead.value = AbsentValue
-            this.self.subscribersIndex += 1
+            this.self.publisherHead = this.self.publisherHead.next!;
+            this.self.publisherHead.value = AbsentValue;
+            this.self.subscribersIndex += 1;
           }
-          loop = false
+          loop = false;
         }
-        this.subscriberHead = this.subscriberHead.next!
-        this.subscriberIndex += 1
+        this.subscriberHead = this.subscriberHead.next!;
+        this.subscriberIndex += 1;
       }
     }
-    return polled
+    return polled;
   }
 
   pollUpTo(n: number): Array<A> {
-    n = Count.normalize(n)
-    const builder: Array<A> = []
-    let i = 0
+    n = Count.normalize(n);
+    const builder: Array<A> = [];
+    let i = 0;
     while (i !== n) {
-      const a = this.poll()
+      const a = this.poll();
       if (a === MutableList.Empty) {
-        i = n
+        i = n;
       } else {
-        builder.push(a)
-        i += 1
+        builder.push(a);
+        i += 1;
       }
     }
-    return builder
+    return builder;
   }
 
   unsubscribe(): void {
     if (!this.unsubscribed) {
-      this.unsubscribed = true
-      this.self.publisherTail.subscribers -= 1
+      this.unsubscribed = true;
+      this.self.publisherTail.subscribers -= 1;
       while (this.subscriberHead !== this.self.publisherTail) {
         if (this.subscriberHead.next!.value !== AbsentValue) {
-          this.subscriberHead.subscribers -= 1
+          this.subscriberHead.subscribers -= 1;
           if (this.subscriberHead.subscribers === 0) {
-            this.self.publisherHead = this.self.publisherHead.next!
-            this.self.publisherHead.value = AbsentValue
-            this.self.subscribersIndex += 1
+            this.self.publisherHead = this.self.publisherHead.next!;
+            this.self.publisherHead.value = AbsentValue;
+            this.self.subscribersIndex += 1;
           }
         }
-        this.subscriberHead = this.subscriberHead.next!
+        this.subscriberHead = this.subscriberHead.next!;
       }
     }
   }
@@ -2248,17 +2216,17 @@ class UnboundedPubSubSubscription<in out A> implements PubSub.BackingSubscriptio
 
 class SubscriptionImpl<in out A> implements Subscription<A> {
   readonly [SubscriptionTypeId] = {
-    _A: identity
-  }
+    _A: identity,
+  };
 
-  readonly pubsub: PubSub.Atomic<A>
-  readonly subscribers: PubSub.Subscribers<A>
-  readonly subscription: PubSub.BackingSubscription<A>
-  readonly pollers: MutableList.MutableList<Deferred.Deferred<A>>
-  readonly shutdownHook: Latch.Latch
-  readonly shutdownFlag: MutableRef.MutableRef<boolean>
-  readonly strategy: PubSub.Strategy<A>
-  readonly replayWindow: PubSub.ReplayWindow<A>
+  readonly pubsub: PubSub.Atomic<A>;
+  readonly subscribers: PubSub.Subscribers<A>;
+  readonly subscription: PubSub.BackingSubscription<A>;
+  readonly pollers: MutableList.MutableList<Deferred.Deferred<A>>;
+  readonly shutdownHook: Latch.Latch;
+  readonly shutdownFlag: MutableRef.MutableRef<boolean>;
+  readonly strategy: PubSub.Strategy<A>;
+  readonly replayWindow: PubSub.ReplayWindow<A>;
 
   constructor(
     pubsub: PubSub.Atomic<A>,
@@ -2268,34 +2236,34 @@ class SubscriptionImpl<in out A> implements Subscription<A> {
     shutdownHook: Latch.Latch,
     shutdownFlag: MutableRef.MutableRef<boolean>,
     strategy: PubSub.Strategy<A>,
-    replayWindow: PubSub.ReplayWindow<A>
+    replayWindow: PubSub.ReplayWindow<A>,
   ) {
-    this.pubsub = pubsub
-    this.subscribers = subscribers
-    this.subscription = subscription
-    this.pollers = pollers
-    this.shutdownHook = shutdownHook
-    this.shutdownFlag = shutdownFlag
-    this.strategy = strategy
-    this.replayWindow = replayWindow
+    this.pubsub = pubsub;
+    this.subscribers = subscribers;
+    this.subscription = subscription;
+    this.pollers = pollers;
+    this.shutdownHook = shutdownHook;
+    this.shutdownFlag = shutdownFlag;
+    this.strategy = strategy;
+    this.replayWindow = replayWindow;
   }
 
   pipe() {
-    return pipeArguments(this, arguments)
+    return pipeArguments(this, arguments);
   }
 }
 
 class PubSubImpl<in out A> implements PubSub<A> {
   readonly [TypeId] = {
-    _A: identity
-  }
+    _A: identity,
+  };
 
-  readonly pubsub: PubSub.Atomic<A>
-  readonly subscribers: PubSub.Subscribers<A>
-  readonly scope: Scope.Closeable
-  readonly shutdownHook: Latch.Latch
-  readonly shutdownFlag: MutableRef.MutableRef<boolean>
-  readonly strategy: PubSub.Strategy<A>
+  readonly pubsub: PubSub.Atomic<A>;
+  readonly subscribers: PubSub.Subscribers<A>;
+  readonly scope: Scope.Closeable;
+  readonly shutdownHook: Latch.Latch;
+  readonly shutdownFlag: MutableRef.MutableRef<boolean>;
+  readonly strategy: PubSub.Strategy<A>;
 
   constructor(
     pubsub: PubSub.Atomic<A>,
@@ -2303,18 +2271,18 @@ class PubSubImpl<in out A> implements PubSub<A> {
     scope: Scope.Closeable,
     shutdownHook: Latch.Latch,
     shutdownFlag: MutableRef.MutableRef<boolean>,
-    strategy: PubSub.Strategy<A>
+    strategy: PubSub.Strategy<A>,
   ) {
-    this.pubsub = pubsub
-    this.subscribers = subscribers
-    this.scope = scope
-    this.shutdownHook = shutdownHook
-    this.shutdownFlag = shutdownFlag
-    this.strategy = strategy
+    this.pubsub = pubsub;
+    this.subscribers = subscribers;
+    this.scope = scope;
+    this.shutdownHook = shutdownHook;
+    this.shutdownFlag = shutdownFlag;
+    this.strategy = strategy;
   }
 
   pipe() {
-    return pipeArguments(this, arguments)
+    return pipeArguments(this, arguments);
   }
 }
 
@@ -2324,14 +2292,14 @@ const makePubSubUnsafe = <A>(
   scope: Scope.Closeable,
   shutdownHook: Latch.Latch,
   shutdownFlag: MutableRef.MutableRef<boolean>,
-  strategy: PubSub.Strategy<A>
-): PubSub<A> => new PubSubImpl(pubsub, subscribers, scope, shutdownHook, shutdownFlag, strategy)
+  strategy: PubSub.Strategy<A>,
+): PubSub<A> => new PubSubImpl(pubsub, subscribers, scope, shutdownHook, shutdownFlag, strategy);
 
 const ensureCapacity = (capacity: number): void => {
   if (capacity <= 0) {
-    throw new Error(`Cannot construct PubSub with capacity of ${capacity}`)
+    throw new Error(`Cannot construct PubSub with capacity of ${capacity}`);
   }
-}
+};
 
 // -----------------------------------------------------------------------------
 // PubSub.Strategy
@@ -2363,58 +2331,54 @@ const ensureCapacity = (capacity: number): void => {
  * @since 4.0.0
  */
 export class BackPressureStrategy<in out A> implements PubSub.Strategy<A> {
-  publishers: MutableList.MutableList<
-    readonly [A, Deferred.Deferred<boolean>, boolean]
-  > = MutableList.make()
+  publishers: MutableList.MutableList<readonly [A, Deferred.Deferred<boolean>, boolean]> =
+    MutableList.make();
 
   get shutdown(): Effect.Effect<void> {
     return Effect.withFiber((fiber) =>
       Effect.forEach(
         MutableList.takeAll(this.publishers),
-        ([_, deferred, last]) => last ? Deferred.interruptWith(deferred, fiber.id) : Effect.void,
-        { concurrency: "unbounded", discard: true }
-      )
-    )
+        ([_, deferred, last]) => (last ? Deferred.interruptWith(deferred, fiber.id) : Effect.void),
+        { concurrency: "unbounded", discard: true },
+      ),
+    );
   }
 
   handleSurplus(
     pubsub: PubSub.Atomic<A>,
     subscribers: PubSub.Subscribers<A>,
     elements: Iterable<A>,
-    isShutdown: MutableRef.MutableRef<boolean>
+    isShutdown: MutableRef.MutableRef<boolean>,
   ): Effect.Effect<boolean> {
     return Effect.suspend(() => {
-      const deferred = Deferred.makeUnsafe<boolean>()
-      this.offerUnsafe(elements, deferred)
-      this.onPubSubEmptySpaceUnsafe(pubsub, subscribers)
-      this.completeSubscribersUnsafe(pubsub, subscribers)
+      const deferred = Deferred.makeUnsafe<boolean>();
+      this.offerUnsafe(elements, deferred);
+      this.onPubSubEmptySpaceUnsafe(pubsub, subscribers);
+      this.completeSubscribersUnsafe(pubsub, subscribers);
       return (MutableRef.get(isShutdown) ? Effect.interrupt : Deferred.await(deferred)).pipe(
         Effect.onInterrupt(() => {
-          this.removeUnsafe(deferred)
-          return Effect.void
-        })
-      )
-    })
+          this.removeUnsafe(deferred);
+          return Effect.void;
+        }),
+      );
+    });
   }
 
-  onPubSubEmptySpaceUnsafe(
-    pubsub: PubSub.Atomic<A>,
-    subscribers: PubSub.Subscribers<A>
-  ): void {
-    let keepPolling = true
+  onPubSubEmptySpaceUnsafe(pubsub: PubSub.Atomic<A>, subscribers: PubSub.Subscribers<A>): void {
+    let keepPolling = true;
     while (keepPolling && !pubsub.isFull()) {
-      const publisher = MutableList.take(this.publishers)
+      const publisher = MutableList.take(this.publishers);
       if (publisher === MutableList.Empty) {
-        keepPolling = false
+        keepPolling = false;
       } else {
-        const [value, deferred] = publisher
-        const published = pubsub.publish(value)
+        const [value, deferred] = publisher;
+        const published = pubsub.publish(value);
         if (published && publisher[2]) {
-          Deferred.doneUnsafe(deferred, Exit.succeed(true))
+          Deferred.doneUnsafe(deferred, Exit.succeed(true));
         } else if (!published) {
-          MutableList.prepend(this.publishers, publisher)
+          MutableList.prepend(this.publishers, publisher);
         }
-        this.completeSubscribersUnsafe(pubsub, subscribers)
+        this.completeSubscribersUnsafe(pubsub, subscribers);
       }
     }
   }
@@ -2423,34 +2387,34 @@ export class BackPressureStrategy<in out A> implements PubSub.Strategy<A> {
     pubsub: PubSub.Atomic<A>,
     subscribers: PubSub.Subscribers<A>,
     subscription: PubSub.BackingSubscription<A>,
-    pollers: MutableList.MutableList<Deferred.Deferred<A>>
+    pollers: MutableList.MutableList<Deferred.Deferred<A>>,
   ): void {
-    return strategyCompletePollersUnsafe(this, pubsub, subscribers, subscription, pollers)
+    return strategyCompletePollersUnsafe(this, pubsub, subscribers, subscription, pollers);
   }
 
   completeSubscribersUnsafe(pubsub: PubSub.Atomic<A>, subscribers: PubSub.Subscribers<A>): void {
-    return strategyCompleteSubscribersUnsafe(this, pubsub, subscribers)
+    return strategyCompleteSubscribersUnsafe(this, pubsub, subscribers);
   }
 
   private offerUnsafe(elements: Iterable<A>, deferred: Deferred.Deferred<boolean>): void {
-    const iterator = elements[Symbol.iterator]()
-    let next: IteratorResult<A> = iterator.next()
+    const iterator = elements[Symbol.iterator]();
+    let next: IteratorResult<A> = iterator.next();
     if (!next.done) {
       // oxlint-disable-next-line no-constant-condition
       while (1) {
-        const value = next.value
-        next = iterator.next()
+        const value = next.value;
+        next = iterator.next();
         if (next.done) {
-          MutableList.append(this.publishers, [value, deferred, true])
-          break
+          MutableList.append(this.publishers, [value, deferred, true]);
+          break;
         }
-        MutableList.append(this.publishers, [value, deferred, false])
+        MutableList.append(this.publishers, [value, deferred, false]);
       }
     }
   }
 
   removeUnsafe(deferred: Deferred.Deferred<boolean>): void {
-    MutableList.filter(this.publishers, ([_, d]) => d !== deferred)
+    MutableList.filter(this.publishers, ([_, d]) => d !== deferred);
   }
 }
 
@@ -2504,22 +2468,19 @@ export class BackPressureStrategy<in out A> implements PubSub.Strategy<A> {
  */
 export class DroppingStrategy<in out A> implements PubSub.Strategy<A> {
   get shutdown(): Effect.Effect<void> {
-    return Effect.void
+    return Effect.void;
   }
 
   handleSurplus(
     _pubsub: PubSub.Atomic<A>,
     _subscribers: PubSub.Subscribers<A>,
     _elements: Iterable<A>,
-    _isShutdown: MutableRef.MutableRef<boolean>
+    _isShutdown: MutableRef.MutableRef<boolean>,
   ): Effect.Effect<boolean> {
-    return Effect.succeed(false)
+    return Effect.succeed(false);
   }
 
-  onPubSubEmptySpaceUnsafe(
-    _pubsub: PubSub.Atomic<A>,
-    _subscribers: PubSub.Subscribers<A>
-  ): void {
+  onPubSubEmptySpaceUnsafe(_pubsub: PubSub.Atomic<A>, _subscribers: PubSub.Subscribers<A>): void {
     //
   }
 
@@ -2527,13 +2488,13 @@ export class DroppingStrategy<in out A> implements PubSub.Strategy<A> {
     pubsub: PubSub.Atomic<A>,
     subscribers: PubSub.Subscribers<A>,
     subscription: PubSub.BackingSubscription<A>,
-    pollers: MutableList.MutableList<Deferred.Deferred<A>>
+    pollers: MutableList.MutableList<Deferred.Deferred<A>>,
   ): void {
-    return strategyCompletePollersUnsafe(this, pubsub, subscribers, subscription, pollers)
+    return strategyCompletePollersUnsafe(this, pubsub, subscribers, subscription, pollers);
   }
 
   completeSubscribersUnsafe(pubsub: PubSub.Atomic<A>, subscribers: PubSub.Subscribers<A>): void {
-    return strategyCompleteSubscribersUnsafe(this, pubsub, subscribers)
+    return strategyCompleteSubscribersUnsafe(this, pubsub, subscribers);
   }
 }
 
@@ -2587,26 +2548,23 @@ export class DroppingStrategy<in out A> implements PubSub.Strategy<A> {
  */
 export class SlidingStrategy<in out A> implements PubSub.Strategy<A> {
   get shutdown(): Effect.Effect<void> {
-    return Effect.void
+    return Effect.void;
   }
 
   handleSurplus(
     pubsub: PubSub.Atomic<A>,
     subscribers: PubSub.Subscribers<A>,
     elements: Iterable<A>,
-    _isShutdown: MutableRef.MutableRef<boolean>
+    _isShutdown: MutableRef.MutableRef<boolean>,
   ): Effect.Effect<boolean> {
     return Effect.sync(() => {
-      this.slidingPublishUnsafe(pubsub, elements)
-      this.completeSubscribersUnsafe(pubsub, subscribers)
-      return true
-    })
+      this.slidingPublishUnsafe(pubsub, elements);
+      this.completeSubscribersUnsafe(pubsub, subscribers);
+      return true;
+    });
   }
 
-  onPubSubEmptySpaceUnsafe(
-    _pubsub: PubSub.Atomic<A>,
-    _subscribers: PubSub.Subscribers<A>
-  ): void {
+  onPubSubEmptySpaceUnsafe(_pubsub: PubSub.Atomic<A>, _subscribers: PubSub.Subscribers<A>): void {
     //
   }
 
@@ -2614,28 +2572,28 @@ export class SlidingStrategy<in out A> implements PubSub.Strategy<A> {
     pubsub: PubSub.Atomic<A>,
     subscribers: PubSub.Subscribers<A>,
     subscription: PubSub.BackingSubscription<A>,
-    pollers: MutableList.MutableList<Deferred.Deferred<A>>
+    pollers: MutableList.MutableList<Deferred.Deferred<A>>,
   ): void {
-    return strategyCompletePollersUnsafe(this, pubsub, subscribers, subscription, pollers)
+    return strategyCompletePollersUnsafe(this, pubsub, subscribers, subscription, pollers);
   }
 
   completeSubscribersUnsafe(pubsub: PubSub.Atomic<A>, subscribers: PubSub.Subscribers<A>): void {
-    return strategyCompleteSubscribersUnsafe(this, pubsub, subscribers)
+    return strategyCompleteSubscribersUnsafe(this, pubsub, subscribers);
   }
 
   slidingPublishUnsafe(pubsub: PubSub.Atomic<A>, elements: Iterable<A>): void {
-    const it = elements[Symbol.iterator]()
-    let next = it.next()
+    const it = elements[Symbol.iterator]();
+    let next = it.next();
     if (!next.done && pubsub.capacity > 0) {
-      let a = next.value
-      let loop = true
+      let a = next.value;
+      let loop = true;
       while (loop) {
-        pubsub.slide()
-        const pub = pubsub.publish(a)
+        pubsub.slide();
+        const pub = pubsub.publish(a);
         if (pub && (next = it.next()) && !next.done) {
-          a = next.value
+          a = next.value;
         } else if (pub) {
-          loop = false
+          loop = false;
         }
       }
     }
@@ -2647,163 +2605,161 @@ const strategyCompletePollersUnsafe = <A>(
   pubsub: PubSub.Atomic<A>,
   subscribers: PubSub.Subscribers<A>,
   subscription: PubSub.BackingSubscription<A>,
-  pollers: MutableList.MutableList<Deferred.Deferred<A>>
+  pollers: MutableList.MutableList<Deferred.Deferred<A>>,
 ): void => {
-  let keepPolling = true
+  let keepPolling = true;
   while (keepPolling && !subscription.isEmpty()) {
-    const poller = MutableList.take(pollers)
+    const poller = MutableList.take(pollers);
     if (poller === MutableList.Empty) {
-      removeSubscribers(subscribers, subscription, pollers)
+      removeSubscribers(subscribers, subscription, pollers);
       if (pollers.length === 0) {
-        keepPolling = false
+        keepPolling = false;
       } else {
-        addSubscribers(subscribers, subscription, pollers)
+        addSubscribers(subscribers, subscription, pollers);
       }
     } else {
-      const pollResult = subscription.poll()
+      const pollResult = subscription.poll();
       if (pollResult === MutableList.Empty) {
-        MutableList.prepend(pollers, poller)
+        MutableList.prepend(pollers, poller);
       } else {
-        Deferred.doneUnsafe(poller, Exit.succeed(pollResult))
-        strategy.onPubSubEmptySpaceUnsafe(pubsub, subscribers)
+        Deferred.doneUnsafe(poller, Exit.succeed(pollResult));
+        strategy.onPubSubEmptySpaceUnsafe(pubsub, subscribers);
       }
     }
   }
-}
+};
 
 const strategyCompleteSubscribersUnsafe = <A>(
   strategy: PubSub.Strategy<A>,
   pubsub: PubSub.Atomic<A>,
-  subscribers: PubSub.Subscribers<A>
+  subscribers: PubSub.Subscribers<A>,
 ): void => {
-  for (
-    const [subscription, pollersSet] of subscribers
-  ) {
+  for (const [subscription, pollersSet] of subscribers) {
     for (const pollers of pollersSet) {
-      strategy.completePollersUnsafe(pubsub, subscribers, subscription, pollers)
+      strategy.completePollersUnsafe(pubsub, subscribers, subscription, pollers);
     }
   }
-}
+};
 
 interface ReplayNode<A> {
-  value: A | AbsentValue
-  index: number
-  next: ReplayNode<A> | null
+  value: A | AbsentValue;
+  index: number;
+  next: ReplayNode<A> | null;
 }
 
 class ReplayBuffer<A> {
-  readonly capacity: number
-  head: ReplayNode<A> = { value: AbsentValue, index: 0, next: null }
-  tail: ReplayNode<A> = this.head
+  readonly capacity: number;
+  head: ReplayNode<A> = { value: AbsentValue, index: 0, next: null };
+  tail: ReplayNode<A> = this.head;
   readonly slideValues: Array<{
-    readonly value: A
-    readonly index: number
-  }> = []
-  size = 0
-  index = 0
-  publisherIndex = 0
+    readonly value: A;
+    readonly index: number;
+  }> = [];
+  size = 0;
+  index = 0;
+  publisherIndex = 0;
 
   constructor(capacity: number) {
-    this.capacity = capacity
+    this.capacity = capacity;
   }
 
   slide(value: A, publisherIndex: number): void {
     this.slideValues[this.index % this.capacity] = {
       value,
-      index: publisherIndex
-    }
-    this.index++
+      index: publisherIndex,
+    };
+    this.index++;
   }
   offer(a: A): number {
-    const index = this.publisherIndex++
-    this.tail.value = a
-    this.tail.index = index
+    const index = this.publisherIndex++;
+    this.tail.value = a;
+    this.tail.index = index;
     this.tail.next = {
       value: AbsentValue,
       index: 0,
-      next: null
-    }
-    this.tail = this.tail.next
+      next: null,
+    };
+    this.tail = this.tail.next;
     if (this.size === this.capacity) {
-      this.head = this.head.next!
+      this.head = this.head.next!;
     } else {
-      this.size += 1
+      this.size += 1;
     }
-    return index
+    return index;
   }
   offerAll(as: Iterable<A>): void {
     for (const a of as) {
-      this.offer(a)
+      this.offer(a);
     }
   }
 }
 
 class ReplayWindowImpl<A> implements PubSub.ReplayWindow<A> {
-  readonly buffer: ReplayBuffer<A>
-  readonly values: Array<A>
-  index = 0
-  remaining: number
-  slideIndex: number
-  newestIndex = -1
+  readonly buffer: ReplayBuffer<A>;
+  readonly values: Array<A>;
+  index = 0;
+  remaining: number;
+  slideIndex: number;
+  newestIndex = -1;
 
   constructor(buffer: ReplayBuffer<A>) {
-    this.buffer = buffer
-    this.remaining = buffer.size
-    this.slideIndex = buffer.index
-    this.values = new Array(this.remaining)
-    let node = buffer.head
+    this.buffer = buffer;
+    this.remaining = buffer.size;
+    this.slideIndex = buffer.index;
+    this.values = new Array(this.remaining);
+    let node = buffer.head;
     for (let i = 0; i < this.remaining; i++) {
-      this.values[i] = node.value as A
-      this.newestIndex = node.index
-      node = node.next!
+      this.values[i] = node.value as A;
+      this.newestIndex = node.index;
+      node = node.next!;
     }
   }
   close(): void {
-    this.values.length = 0
-    this.remaining = 0
+    this.values.length = 0;
+    this.remaining = 0;
   }
   sync(): void {
-    const slides = this.buffer.index - this.slideIndex
+    const slides = this.buffer.index - this.slideIndex;
     if (slides === 0 || this.remaining === 0) {
-      return
+      return;
     }
-    const count = Math.min(slides, this.buffer.capacity)
-    const start = this.buffer.index - count
+    const count = Math.min(slides, this.buffer.capacity);
+    const start = this.buffer.index - count;
     for (let i = 0; i < count; i++) {
-      const entry = this.buffer.slideValues[(start + i) % this.buffer.capacity]
+      const entry = this.buffer.slideValues[(start + i) % this.buffer.capacity];
       if (entry.index > this.newestIndex) {
-        this.index = (this.index + 1) % this.values.length
-        this.values[(this.index + this.remaining - 1) % this.values.length] = entry.value
-        this.newestIndex = entry.index
+        this.index = (this.index + 1) % this.values.length;
+        this.values[(this.index + this.remaining - 1) % this.values.length] = entry.value;
+        this.newestIndex = entry.index;
       }
     }
-    this.slideIndex = this.buffer.index
+    this.slideIndex = this.buffer.index;
   }
   take(): A | undefined {
     if (this.remaining === 0) {
-      return undefined
+      return undefined;
     }
-    this.sync()
-    const value = this.values[this.index]
-    this.values[this.index] = AbsentValue as unknown as A
-    this.index = (this.index + 1) % this.values.length
-    this.remaining--
+    this.sync();
+    const value = this.values[this.index];
+    this.values[this.index] = AbsentValue as unknown as A;
+    this.index = (this.index + 1) % this.values.length;
+    this.remaining--;
     if (this.remaining === 0) {
-      this.close()
+      this.close();
     }
-    return value as A
+    return value as A;
   }
   takeN(n: number): Array<A> {
-    n = Count.normalize(n)
-    const len = Math.min(n, this.remaining)
-    const items = new Array(len)
+    n = Count.normalize(n);
+    const len = Math.min(n, this.remaining);
+    const items = new Array(len);
     for (let i = 0; i < len; i++) {
-      items[i] = this.take()!
+      items[i] = this.take()!;
     }
-    return items
+    return items;
   }
   takeAll(): Array<A> {
-    return this.takeN(this.remaining)
+    return this.takeN(this.remaining);
   }
 }
 
@@ -2812,5 +2768,5 @@ const emptyReplayWindow: PubSub.ReplayWindow<never> = {
   take: () => undefined,
   takeN: () => [],
   takeAll: () => [],
-  close: () => void 0
-}
+  close: () => void 0,
+};

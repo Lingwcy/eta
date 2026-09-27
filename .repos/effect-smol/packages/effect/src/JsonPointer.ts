@@ -40,7 +40,7 @@
  * @since 4.0.0
  */
 export function escapeToken(token: string): string {
-  return token.replace(/~/g, "~0").replace(/\//g, "~1")
+  return token.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 
 /**
@@ -76,25 +76,25 @@ export function escapeToken(token: string): string {
  * @since 4.0.0
  */
 export function unescapeToken(token: string): string {
-  return token.replace(/~1/g, "/").replace(/~0/g, "~")
+  return token.replace(/~1/g, "/").replace(/~0/g, "~");
 }
 
 /** @internal */
 export function formatUriFragmentToken(token: string): string {
-  return encodeURI(escapeToken(token)).replace(/#/g, "%23")
+  return encodeURI(escapeToken(token)).replace(/#/g, "%23");
 }
 
 /** @internal */
 export function decodeUriFragment(fragment: string): string | undefined {
-  if (fragment.length === 0 || fragment === "#") return ""
-  if (!fragment.startsWith("#")) return undefined
-  const encoded = fragment.slice(1)
+  if (fragment.length === 0 || fragment === "#") return "";
+  if (!fragment.startsWith("#")) return undefined;
+  const encoded = fragment.slice(1);
   try {
-    if (encodeURI(encoded).replace(/%25/g, "%").replace(/#/g, "%23") !== encoded) return undefined
-    const pointer = decodeURIComponent(encoded)
-    return pointer.startsWith("/") && !/~(?:[^01]|$)/.test(pointer) ? pointer : undefined
+    if (encodeURI(encoded).replace(/%25/g, "%").replace(/#/g, "%23") !== encoded) return undefined;
+    const pointer = decodeURIComponent(encoded);
+    return pointer.startsWith("/") && !/~(?:[^01]|$)/.test(pointer) ? pointer : undefined;
   } catch {
-    return undefined
+    return undefined;
   }
 }
 
@@ -133,8 +133,12 @@ export function decodeUriFragment(fragment: string): string | undefined {
  * @since 4.0.0
  */
 export function parseUriFragment(fragment: string): ReadonlyArray<string> | undefined {
-  const pointer = decodeUriFragment(fragment)
-  return pointer === undefined ? undefined : pointer.length === 0 ? [] : pointer.slice(1).split("/").map(unescapeToken)
+  const pointer = decodeUriFragment(fragment);
+  return pointer === undefined
+    ? undefined
+    : pointer.length === 0
+      ? []
+      : pointer.slice(1).split("/").map(unescapeToken);
 }
 
 /**
@@ -166,8 +170,5 @@ export function parseUriFragment(fragment: string): ReadonlyArray<string> | unde
  * @since 4.0.0
  */
 export function formatUriFragment(path: ReadonlyArray<string>): string {
-  return path.reduce(
-    (fragment, token) => `${fragment}/${formatUriFragmentToken(token)}`,
-    "#"
-  )
+  return path.reduce((fragment, token) => `${fragment}/${formatUriFragmentToken(token)}`, "#");
 }

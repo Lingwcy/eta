@@ -1,28 +1,28 @@
-import { memoize } from "../../Function.ts"
-import type * as Schema from "../../Schema.ts"
-import type * as SchemaAST from "../../SchemaAST.ts"
+import { memoize } from "../../Function.ts";
+import type * as Schema from "../../Schema.ts";
+import type * as SchemaAST from "../../SchemaAST.ts";
 
 /** @internal */
 export function resolve(ast: SchemaAST.AST): Schema.Annotations.Annotations | undefined {
-  return ast.checks ? ast.checks[ast.checks.length - 1].annotations : ast.annotations
+  return ast.checks ? ast.checks[ast.checks.length - 1].annotations : ast.annotations;
 }
 
 /** @internal */
 export function resolveAt<A>(key: string) {
-  return (ast: SchemaAST.AST): A | undefined => resolve(ast)?.[key] as A | undefined
+  return (ast: SchemaAST.AST): A | undefined => resolve(ast)?.[key] as A | undefined;
 }
 
 /** @internal */
-export const STRUCTURAL_ANNOTATION_KEY = "~structural"
+export const STRUCTURAL_ANNOTATION_KEY = "~structural";
 
 /** @internal */
-export const IDENTIFIER_FALLBACK_KEY = "~identifier"
+export const IDENTIFIER_FALLBACK_KEY = "~identifier";
 
 /** @internal */
-export const SENTINELS_ANNOTATION_KEY = "~sentinels"
+export const SENTINELS_ANNOTATION_KEY = "~sentinels";
 
 /** @internal */
-export const CONSTRUCTOR_ANNOTATION_KEY = "~constructor"
+export const CONSTRUCTOR_ANNOTATION_KEY = "~constructor";
 
 /** @internal */
 export const jsonSchemaAnnotationKeys = [
@@ -35,34 +35,36 @@ export const jsonSchemaAnnotationKeys = [
   "format",
   "contentEncoding",
   "contentMediaType",
-  "contentSchema"
-] as const
+  "contentSchema",
+] as const;
 
 /** @internal */
-export const resolveIdentifier = resolveAt<string>("identifier")
+export const resolveIdentifier = resolveAt<string>("identifier");
 
 /** @internal */
-export const resolveIdentifierFallback = resolveAt<string>(IDENTIFIER_FALLBACK_KEY)
+export const resolveIdentifierFallback = resolveAt<string>(IDENTIFIER_FALLBACK_KEY);
 
 /** @internal */
-export const resolveTitle = resolveAt<string>("title")
+export const resolveTitle = resolveAt<string>("title");
 
 /** @internal */
-export const resolveDescription = resolveAt<string>("description")
+export const resolveDescription = resolveAt<string>("description");
 
 /** @internal */
-export const resolveBrands = resolveAt<ReadonlyArray<string>>("brands")
+export const resolveBrands = resolveAt<ReadonlyArray<string>>("brands");
 
 /** @internal */
 export const getExpected = memoize((ast: SchemaAST.AST): string => {
-  const identifier = resolve(ast)?.identifier
-  if (typeof identifier === "string") return identifier
-  return ast.getExpected(getExpected)
-})
+  const identifier = resolve(ast)?.identifier;
+  if (typeof identifier === "string") return identifier;
+  return ast.getExpected(getExpected);
+});
 
 /** @internal */
-export function collectBrands(annotations: Schema.Annotations.Annotations | undefined): ReadonlyArray<string> {
-  return annotations !== undefined && Array.isArray(annotations.brands) ? annotations.brands : []
+export function collectBrands(
+  annotations: Schema.Annotations.Annotations | undefined,
+): ReadonlyArray<string> {
+  return annotations !== undefined && Array.isArray(annotations.brands) ? annotations.brands : [];
 }
 
 /** @internal */
@@ -80,5 +82,5 @@ export const annotationExcludedKeys = new Set([
   "toCodecJson",
   "toCodecStringTree",
   "toCodecIso",
-  "toCodecArbitrary"
-])
+  "toCodecArbitrary",
+]);

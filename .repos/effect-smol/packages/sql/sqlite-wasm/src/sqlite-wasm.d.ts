@@ -18,7 +18,7 @@ declare module "@effect/wa-sqlite/src/examples/IDBBatchAtomicVFS.js" {
      * provided wa-sqlite module. The optional `options` value is forwarded to
      * the upstream VFS implementation.
      */
-    static async create(name: string, module: any, options?: any): Promise<any>
+    static async create(name: string, module: any, options?: any): Promise<any>;
   }
 }
 
@@ -42,6 +42,6 @@ declare module "@effect/wa-sqlite/src/examples/AccessHandlePoolVFS.js" {
      * provided wa-sqlite module. The optional `options` value is forwarded to
      * the upstream VFS implementation.
      */
-    static async create(name: string, module: any, options?: any): Promise<any>
+    static async create(name: string, module: any, options?: any): Promise<any>;
   }
 }

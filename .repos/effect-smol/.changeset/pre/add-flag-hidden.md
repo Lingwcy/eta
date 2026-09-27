@@ -7,9 +7,7 @@ Add `Flag.withHidden` (and `Param.withHidden`) to hide flags from `--help` outpu
 Useful for experimental, internal, or deprecated flags that should be accepted but not advertised, e.g. `--experimental-foo`, debug toggles, or escape hatches that are not yet committed to the public CLI surface.
 
 ```ts
-import { Flag } from "effect/unstable/cli"
+import { Flag } from "effect/unstable/cli";
 
-const experimental = Flag.boolean("experimental-foo").pipe(
-  Flag.withHidden
-)
+const experimental = Flag.boolean("experimental-foo").pipe(Flag.withHidden);
 ```

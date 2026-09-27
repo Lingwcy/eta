@@ -10,15 +10,15 @@
  *
  * @since 4.0.0
  */
-import * as Context from "../../Context.ts"
-import * as Effect from "../../Effect.ts"
-import * as Layer from "../../Layer.ts"
-import type * as HttpApi from "../httpapi/HttpApi.ts"
-import * as HttpApiBuilder from "../httpapi/HttpApiBuilder.ts"
-import type * as HttpApiGroup from "../httpapi/HttpApiGroup.ts"
-import type * as Rpc from "../rpc/Rpc.ts"
-import type * as Entity from "./Entity.ts"
-import type { Sharding } from "./Sharding.ts"
+import * as Context from "../../Context.ts";
+import * as Effect from "../../Effect.ts";
+import * as Layer from "../../Layer.ts";
+import type * as HttpApi from "../httpapi/HttpApi.ts";
+import * as HttpApiBuilder from "../httpapi/HttpApiBuilder.ts";
+import type * as HttpApiGroup from "../httpapi/HttpApiGroup.ts";
+import type * as Rpc from "../rpc/Rpc.ts";
+import type * as Entity from "./Entity.ts";
+import type { Sharding } from "./Sharding.ts";
 
 /**
  * Creates HTTP API handlers for an entity proxy group.
@@ -37,11 +37,11 @@ export const layerHttpApi = <
   Groups extends HttpApiGroup.Constraint,
   Identifier extends HttpApiGroup.Identifier<Groups>,
   Type extends string,
-  Rpcs extends Rpc.Any
+  Rpcs extends Rpc.Any,
 >(
   api: HttpApi.HttpApi<ApiId, Groups>,
   identifier: Identifier,
-  entity: Entity.Entity<Type, Rpcs>
+  entity: Entity.Entity<Type, Rpcs>,
 ): Layer.Layer<
   HttpApiGroup.Service<ApiId, Identifier>,
   never,
@@ -50,45 +50,49 @@ export const layerHttpApi = <
   HttpApiBuilder.group(
     api,
     identifier,
-    Effect.fnUntraced(function*(handlers: any) {
-      const client = yield* entity.client
+    Effect.fnUntraced(function* (handlers: any) {
+      const client = yield* entity.client;
       for (const parentRpc of entity.protocol.requests.values()) {
         handlers = handlers
           .handle(
             parentRpc._tag,
             ({ params, payload }: { params: { entityId: string }; payload: any }) =>
-              (client(params.entityId) as any as Record<string, (p: any) => Effect.Effect<any>>)[parentRpc._tag](
-                payload
-              ).pipe(
-                Effect.tapDefect(Effect.logError),
-                Effect.annotateLogs({
-                  module: "EntityProxyServer",
-                  entity: entity.type,
-                  entityId: params.entityId,
-                  method: parentRpc._tag
-                })
-              )
+              (client(params.entityId) as any as Record<string, (p: any) => Effect.Effect<any>>)
+                [parentRpc._tag](payload)
+                .pipe(
+                  Effect.tapDefect(Effect.logError),
+                  Effect.annotateLogs({
+                    module: "EntityProxyServer",
+                    entity: entity.type,
+                    entityId: params.entityId,
+                    method: parentRpc._tag,
+                  }),
+                ),
           )
           .handle(
             `${parentRpc._tag}Discard`,
             ({ params, payload }: { params: { entityId: string }; payload: any }) =>
-              (client(params.entityId) as any as Record<string, (p: any, o: {}) => Effect.Effect<any>>)[parentRpc._tag](
-                payload,
-                { discard: true }
-              ).pipe(
-                Effect.tapDefect(Effect.logError),
-                Effect.annotateLogs({
-                  module: "EntityProxyServer",
-                  entity: entity.type,
-                  entityId: params.entityId,
-                  method: `${parentRpc._tag}Discard`
-                })
+              (
+                client(params.entityId) as any as Record<
+                  string,
+                  (p: any, o: {}) => Effect.Effect<any>
+                >
               )
-          )
+                [parentRpc._tag](payload, { discard: true })
+                .pipe(
+                  Effect.tapDefect(Effect.logError),
+                  Effect.annotateLogs({
+                    module: "EntityProxyServer",
+                    entity: entity.type,
+                    entityId: params.entityId,
+                    method: `${parentRpc._tag}Discard`,
+                  }),
+                ),
+          );
       }
-      return handlers as HttpApiBuilder.Handlers<never>
-    })
-  )
+      return handlers as HttpApiBuilder.Handlers<never>;
+    }),
+  );
 
 /**
  * Creates RPC handlers for the group produced by `EntityProxy.toRpcGroup`.
@@ -101,34 +105,38 @@ export const layerHttpApi = <
  * @category layers
  * @since 4.0.0
  */
-export const layerRpcHandlers = <
-  const Type extends string,
-  Rpcs extends Rpc.Any
->(
-  entity: Entity.Entity<Type, Rpcs>
-): Layer.Layer<RpcHandlers<Rpcs, Type>, never, Sharding | Rpc.ServicesServer<Rpcs> | Rpc.ServicesClient<Rpcs>> =>
-  Layer.effectContext(Effect.gen(function*() {
-    const context = yield* Effect.context<never>()
-    const client = yield* entity.client
-    const handlers = new Map<string, Rpc.Handler<string>>()
-    for (const parentRpc_ of entity.protocol.requests.values()) {
-      const parentRpc = parentRpc_ as any as Rpc.AnyWithProps
-      const tag = `${entity.type}.${parentRpc._tag}` as const
-      const key = `effect/rpc/Rpc/${tag}`
-      handlers.set(key, {
-        context,
-        tag,
-        handler: ({ entityId, payload }: any) => (client(entityId) as any)[parentRpc._tag](payload) as any
-      } as any)
-      handlers.set(`${key}Discard`, {
-        context,
-        tag,
-        handler: ({ entityId, payload }: any) =>
-          (client(entityId) as any)[parentRpc._tag](payload, { discard: true }) as any
-      } as any)
-    }
-    return Context.makeUnsafe(handlers)
-  }))
+export const layerRpcHandlers = <const Type extends string, Rpcs extends Rpc.Any>(
+  entity: Entity.Entity<Type, Rpcs>,
+): Layer.Layer<
+  RpcHandlers<Rpcs, Type>,
+  never,
+  Sharding | Rpc.ServicesServer<Rpcs> | Rpc.ServicesClient<Rpcs>
+> =>
+  Layer.effectContext(
+    Effect.gen(function* () {
+      const context = yield* Effect.context<never>();
+      const client = yield* entity.client;
+      const handlers = new Map<string, Rpc.Handler<string>>();
+      for (const parentRpc_ of entity.protocol.requests.values()) {
+        const parentRpc = parentRpc_ as any as Rpc.AnyWithProps;
+        const tag = `${entity.type}.${parentRpc._tag}` as const;
+        const key = `effect/rpc/Rpc/${tag}`;
+        handlers.set(key, {
+          context,
+          tag,
+          handler: ({ entityId, payload }: any) =>
+            (client(entityId) as any)[parentRpc._tag](payload) as any,
+        } as any);
+        handlers.set(`${key}Discard`, {
+          context,
+          tag,
+          handler: ({ entityId, payload }: any) =>
+            (client(entityId) as any)[parentRpc._tag](payload, { discard: true }) as any,
+        } as any);
+      }
+      return Context.makeUnsafe(handlers);
+    }),
+  );
 
 /**
  * Union of RPC handler services required to serve the proxy RPCs for an entity.
@@ -140,12 +148,14 @@ export const layerRpcHandlers = <
  * @category services
  * @since 4.0.0
  */
-export type RpcHandlers<Rpcs extends Rpc.Any, Prefix extends string> = Rpcs extends Rpc.Rpc<
-  infer _Tag,
-  infer _Payload,
-  infer _Success,
-  infer _Error,
-  infer _Middleware,
-  infer _Requires
-> ? Rpc.Handler<`${Prefix}.${_Tag}`> | Rpc.Handler<`${Prefix}.${_Tag}Discard`>
-  : never
+export type RpcHandlers<Rpcs extends Rpc.Any, Prefix extends string> =
+  Rpcs extends Rpc.Rpc<
+    infer _Tag,
+    infer _Payload,
+    infer _Success,
+    infer _Error,
+    infer _Middleware,
+    infer _Requires
+  >
+    ? Rpc.Handler<`${Prefix}.${_Tag}`> | Rpc.Handler<`${Prefix}.${_Tag}Discard`>
+    : never;

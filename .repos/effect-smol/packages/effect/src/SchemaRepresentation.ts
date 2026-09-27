@@ -3,17 +3,17 @@
  *
  * @since 4.0.0
  */
-import * as InternalRecord from "./internal/record.ts"
-import * as InternalFromJsonSchemaDocument from "./internal/schema/fromJsonSchemaDocument.ts"
-import * as InternalFromRepresentation from "./internal/schema/fromRepresentation.ts"
-import * as InternalToCodeDocument from "./internal/schema/toCodeDocument.ts"
-import * as InternalToJsonSchemaDocument from "./internal/schema/toJsonSchemaDocument.ts"
-import * as InternalToRepresentation from "./internal/schema/toRepresentation.ts"
-import type * as JsonSchema from "./JsonSchema.ts"
-import * as Option from "./Option.ts"
-import * as Schema from "./Schema.ts"
-import * as SchemaAST from "./SchemaAST.ts"
-import * as InternalGetter from "./SchemaGetter.ts"
+import * as InternalRecord from "./internal/record.ts";
+import * as InternalFromJsonSchemaDocument from "./internal/schema/fromJsonSchemaDocument.ts";
+import * as InternalFromRepresentation from "./internal/schema/fromRepresentation.ts";
+import * as InternalToCodeDocument from "./internal/schema/toCodeDocument.ts";
+import * as InternalToJsonSchemaDocument from "./internal/schema/toJsonSchemaDocument.ts";
+import * as InternalToRepresentation from "./internal/schema/toRepresentation.ts";
+import type * as JsonSchema from "./JsonSchema.ts";
+import * as Option from "./Option.ts";
+import * as Schema from "./Schema.ts";
+import * as SchemaAST from "./SchemaAST.ts";
+import * as InternalGetter from "./SchemaGetter.ts";
 
 /**
  * Open persistence identity carried by declarations and opaque checks.
@@ -22,8 +22,8 @@ import * as InternalGetter from "./SchemaGetter.ts"
  * @since 4.0.0
  */
 export interface RepresentationAnnotation {
-  readonly id: string
-  readonly payload: Schema.Json
+  readonly id: string;
+  readonly payload: Schema.Json;
 }
 
 /**
@@ -33,7 +33,7 @@ export interface RepresentationAnnotation {
  * @since 4.0.0
  */
 export interface CheckRepresentationAnnotation<S> extends RepresentationAnnotation {
-  readonly schemas?: ReadonlyArray<S> | undefined
+  readonly schemas?: ReadonlyArray<S> | undefined;
 }
 
 /**
@@ -49,8 +49,8 @@ export declare namespace ToJsonSchema {
    * @since 4.0.0
    */
   export interface CheckInput {
-    readonly type: JsonSchema.Type | undefined
-    readonly schemas: ReadonlyArray<JsonSchema.JsonSchema>
+    readonly type: JsonSchema.Type | undefined;
+    readonly schemas: ReadonlyArray<JsonSchema.JsonSchema>;
   }
 
   /**
@@ -65,7 +65,7 @@ export declare namespace ToJsonSchema {
    * @category models
    * @since 4.0.0
    */
-  export type Check = (input: CheckInput) => JsonSchema.JsonSchema
+  export type Check = (input: CheckInput) => JsonSchema.JsonSchema;
 }
 
 /**
@@ -81,7 +81,7 @@ export declare namespace Generation {
    * @since 4.0.0
    */
   export interface DeclarationInput {
-    readonly typeParameters: ReadonlyArray<Code>
+    readonly typeParameters: ReadonlyArray<Code>;
   }
 
   /**
@@ -91,9 +91,9 @@ export declare namespace Generation {
    * @since 4.0.0
    */
   export interface DeclarationOutput {
-    readonly runtime: string
-    readonly Type: string
-    readonly importDeclarations?: ReadonlyArray<string> | undefined
+    readonly runtime: string;
+    readonly Type: string;
+    readonly importDeclarations?: ReadonlyArray<string> | undefined;
   }
 
   /**
@@ -102,7 +102,7 @@ export declare namespace Generation {
    * @category models
    * @since 4.0.0
    */
-  export type Declaration = (input: DeclarationInput) => DeclarationOutput
+  export type Declaration = (input: DeclarationInput) => DeclarationOutput;
 
   /**
    * Input for check code generation.
@@ -111,7 +111,7 @@ export declare namespace Generation {
    * @since 4.0.0
    */
   export interface CheckInput {
-    readonly schemas: ReadonlyArray<Code>
+    readonly schemas: ReadonlyArray<Code>;
   }
 
   /**
@@ -121,8 +121,8 @@ export declare namespace Generation {
    * @since 4.0.0
    */
   export interface CheckOutput {
-    readonly runtime: string
-    readonly importDeclarations?: ReadonlyArray<string> | undefined
+    readonly runtime: string;
+    readonly importDeclarations?: ReadonlyArray<string> | undefined;
   }
 
   /**
@@ -131,7 +131,7 @@ export declare namespace Generation {
    * @category models
    * @since 4.0.0
    */
-  export type Check = (input: CheckInput) => CheckOutput
+  export type Check = (input: CheckInput) => CheckOutput;
 }
 
 /**
@@ -141,11 +141,11 @@ export declare namespace Generation {
  * @since 4.0.0
  */
 export interface Declaration {
-  readonly _tag: "Declaration"
-  readonly representation?: RepresentationAnnotation | undefined
-  readonly annotations?: Schema.Annotations.Annotations | undefined
-  readonly typeParameters: ReadonlyArray<Representation>
-  readonly checks: ReadonlyArray<Check>
+  readonly _tag: "Declaration";
+  readonly representation?: RepresentationAnnotation | undefined;
+  readonly annotations?: Schema.Annotations.Annotations | undefined;
+  readonly typeParameters: ReadonlyArray<Representation>;
+  readonly checks: ReadonlyArray<Check>;
 }
 
 /**
@@ -155,10 +155,10 @@ export interface Declaration {
  * @since 4.0.0
  */
 export interface Suspend {
-  readonly _tag: "Suspend"
-  readonly annotations?: Schema.Annotations.Annotations | undefined
-  readonly checks: readonly []
-  readonly thunk: Representation
+  readonly _tag: "Suspend";
+  readonly annotations?: Schema.Annotations.Annotations | undefined;
+  readonly checks: readonly [];
+  readonly thunk: Representation;
 }
 
 /**
@@ -168,14 +168,14 @@ export interface Suspend {
  * @since 4.0.0
  */
 export interface Reference {
-  readonly _tag: "Reference"
-  readonly $ref: string
+  readonly _tag: "Reference";
+  readonly $ref: string;
 }
 
 interface Keyword<Tag extends string> {
-  readonly _tag: Tag
-  readonly annotations?: Schema.Annotations.Annotations | undefined
-  readonly checks: ReadonlyArray<Check>
+  readonly _tag: Tag;
+  readonly annotations?: Schema.Annotations.Annotations | undefined;
+  readonly checks: ReadonlyArray<Check>;
 }
 
 /**
@@ -270,7 +270,7 @@ export interface Symbol extends Keyword<"Symbol"> {}
  * @since 4.0.0
  */
 export interface Literal extends Keyword<"Literal"> {
-  readonly literal: SchemaAST.LiteralValue
+  readonly literal: SchemaAST.LiteralValue;
 }
 
 /**
@@ -285,7 +285,7 @@ export interface Literal extends Keyword<"Literal"> {
  * @since 4.0.0
  */
 export interface UniqueSymbol extends Keyword<"UniqueSymbol"> {
-  readonly symbol: symbol
+  readonly symbol: symbol;
 }
 
 /**
@@ -308,7 +308,7 @@ export interface ObjectKeyword extends Keyword<"ObjectKeyword"> {}
  * @since 4.0.0
  */
 export interface Enum extends Keyword<"Enum"> {
-  readonly enums: ReadonlyArray<readonly [string, string | number]>
+  readonly enums: ReadonlyArray<readonly [string, string | number]>;
 }
 
 /**
@@ -318,7 +318,7 @@ export interface Enum extends Keyword<"Enum"> {
  * @since 4.0.0
  */
 export interface TemplateLiteral extends Keyword<"TemplateLiteral"> {
-  readonly parts: ReadonlyArray<Representation>
+  readonly parts: ReadonlyArray<Representation>;
 }
 
 /**
@@ -328,9 +328,9 @@ export interface TemplateLiteral extends Keyword<"TemplateLiteral"> {
  * @since 4.0.0
  */
 export interface Element {
-  readonly isOptional: boolean
-  readonly type: Representation
-  readonly annotations?: Schema.Annotations.Annotations | undefined
+  readonly isOptional: boolean;
+  readonly type: Representation;
+  readonly annotations?: Schema.Annotations.Annotations | undefined;
 }
 
 /**
@@ -340,8 +340,8 @@ export interface Element {
  * @since 4.0.0
  */
 export interface Arrays extends Keyword<"Arrays"> {
-  readonly elements: ReadonlyArray<Element>
-  readonly rest: ReadonlyArray<Representation>
+  readonly elements: ReadonlyArray<Element>;
+  readonly rest: ReadonlyArray<Representation>;
 }
 
 /**
@@ -361,11 +361,11 @@ export interface Arrays extends Keyword<"Arrays"> {
  * @since 4.0.0
  */
 export interface PropertySignature {
-  readonly name: PropertyKey
-  readonly type: Representation
-  readonly isOptional: boolean
-  readonly isMutable: boolean
-  readonly annotations?: Schema.Annotations.Annotations | undefined
+  readonly name: PropertyKey;
+  readonly type: Representation;
+  readonly isOptional: boolean;
+  readonly isMutable: boolean;
+  readonly annotations?: Schema.Annotations.Annotations | undefined;
 }
 
 /**
@@ -375,8 +375,8 @@ export interface PropertySignature {
  * @since 4.0.0
  */
 export interface IndexSignature {
-  readonly parameter: Representation
-  readonly type: Representation
+  readonly parameter: Representation;
+  readonly type: Representation;
 }
 
 /**
@@ -386,8 +386,8 @@ export interface IndexSignature {
  * @since 4.0.0
  */
 export interface Objects extends Keyword<"Objects"> {
-  readonly propertySignatures: ReadonlyArray<PropertySignature>
-  readonly indexSignatures: ReadonlyArray<IndexSignature>
+  readonly propertySignatures: ReadonlyArray<PropertySignature>;
+  readonly indexSignatures: ReadonlyArray<IndexSignature>;
 }
 
 /**
@@ -397,8 +397,8 @@ export interface Objects extends Keyword<"Objects"> {
  * @since 4.0.0
  */
 export interface Union extends Keyword<"Union"> {
-  readonly types: ReadonlyArray<Representation>
-  readonly options?: SchemaAST.UnionOptions | undefined
+  readonly types: ReadonlyArray<Representation>;
+  readonly options?: SchemaAST.UnionOptions | undefined;
 }
 
 /**
@@ -429,7 +429,7 @@ export type Representation =
   | TemplateLiteral
   | Arrays
   | Objects
-  | Union
+  | Union;
 
 /**
  * A structural check.
@@ -437,7 +437,7 @@ export type Representation =
  * @category models
  * @since 4.0.0
  */
-export type Check = Filter | FilterGroup
+export type Check = Filter | FilterGroup;
 
 /**
  * An opaque leaf check.
@@ -446,10 +446,10 @@ export type Check = Filter | FilterGroup
  * @since 4.0.0
  */
 export interface Filter {
-  readonly _tag: "Filter"
-  readonly representation?: CheckRepresentationAnnotation<Representation> | undefined
-  readonly annotations?: Schema.Annotations.Annotations | undefined
-  readonly aborted: boolean
+  readonly _tag: "Filter";
+  readonly representation?: CheckRepresentationAnnotation<Representation> | undefined;
+  readonly annotations?: Schema.Annotations.Annotations | undefined;
+  readonly aborted: boolean;
 }
 
 /**
@@ -459,10 +459,10 @@ export interface Filter {
  * @since 4.0.0
  */
 export interface FilterGroup {
-  readonly _tag: "FilterGroup"
-  readonly representation?: CheckRepresentationAnnotation<Representation> | undefined
-  readonly annotations?: Schema.Annotations.Annotations | undefined
-  readonly checks: readonly [Check, ...Array<Check>]
+  readonly _tag: "FilterGroup";
+  readonly representation?: CheckRepresentationAnnotation<Representation> | undefined;
+  readonly annotations?: Schema.Annotations.Annotations | undefined;
+  readonly checks: readonly [Check, ...Array<Check>];
 }
 
 /**
@@ -472,7 +472,7 @@ export interface FilterGroup {
  * @since 4.0.0
  */
 export interface References {
-  readonly [$ref: string]: Representation
+  readonly [$ref: string]: Representation;
 }
 
 /**
@@ -482,8 +482,8 @@ export interface References {
  * @since 4.0.0
  */
 export interface Document {
-  readonly representation: Representation
-  readonly references: References
+  readonly representation: Representation;
+  readonly references: References;
 }
 
 /**
@@ -493,8 +493,8 @@ export interface Document {
  * @since 4.0.0
  */
 export interface MultiDocument {
-  readonly representations: readonly [Representation, ...Array<Representation>]
-  readonly references: References
+  readonly representations: readonly [Representation, ...Array<Representation>];
+  readonly references: References;
 }
 
 /**
@@ -504,13 +504,13 @@ export interface MultiDocument {
  * @since 4.0.0
  */
 export interface DeclarationReviver<P> {
-  readonly id: string
-  readonly payloadSchema: Schema.Decoder<P>
+  readonly id: string;
+  readonly payloadSchema: Schema.Decoder<P>;
   readonly revive: (input: {
-    readonly payload: P
-    readonly typeParameters: ReadonlyArray<Schema.Top>
-    readonly annotations: Schema.Annotations.Annotations | undefined
-  }) => Schema.Top
+    readonly payload: P;
+    readonly typeParameters: ReadonlyArray<Schema.Top>;
+    readonly annotations: Schema.Annotations.Annotations | undefined;
+  }) => Schema.Top;
 }
 
 /**
@@ -520,13 +520,13 @@ export interface DeclarationReviver<P> {
  * @since 4.0.0
  */
 export interface FilterReviver<P> {
-  readonly id: string
-  readonly payloadSchema: Schema.Decoder<P>
+  readonly id: string;
+  readonly payloadSchema: Schema.Decoder<P>;
   readonly revive: (input: {
-    readonly payload: P
-    readonly schemas: ReadonlyArray<Schema.Top>
-    readonly annotations: Schema.Annotations.Filter | undefined
-  }) => SchemaAST.Filter<any>
+    readonly payload: P;
+    readonly schemas: ReadonlyArray<Schema.Top>;
+    readonly annotations: Schema.Annotations.Filter | undefined;
+  }) => SchemaAST.Filter<any>;
 }
 
 /**
@@ -536,13 +536,13 @@ export interface FilterReviver<P> {
  * @since 4.0.0
  */
 export interface FilterGroupReviver<P> {
-  readonly id: string
-  readonly payloadSchema: Schema.Decoder<P>
+  readonly id: string;
+  readonly payloadSchema: Schema.Decoder<P>;
   readonly revive: (input: {
-    readonly payload: P
-    readonly schemas: ReadonlyArray<Schema.Top>
-    readonly annotations: Schema.Annotations.Filter | undefined
-  }) => SchemaAST.FilterGroup<any>
+    readonly payload: P;
+    readonly schemas: ReadonlyArray<Schema.Top>;
+    readonly annotations: Schema.Annotations.Filter | undefined;
+  }) => SchemaAST.FilterGroup<any>;
 }
 
 /**
@@ -551,7 +551,7 @@ export interface FilterGroupReviver<P> {
  * @category models
  * @since 4.0.0
  */
-export type CheckReviver<P> = FilterReviver<P> | FilterGroupReviver<P>
+export type CheckReviver<P> = FilterReviver<P> | FilterGroupReviver<P>;
 
 /**
  * A typed reviver.
@@ -559,7 +559,7 @@ export type CheckReviver<P> = FilterReviver<P> | FilterGroupReviver<P>
  * @category models
  * @since 4.0.0
  */
-export type Reviver<P> = DeclarationReviver<P> | CheckReviver<P>
+export type Reviver<P> = DeclarationReviver<P> | CheckReviver<P>;
 
 /**
  * A reviver erased only at collection boundaries.
@@ -567,7 +567,7 @@ export type Reviver<P> = DeclarationReviver<P> | CheckReviver<P>
  * @category models
  * @since 4.0.0
  */
-export type AnyReviver = Reviver<any>
+export type AnyReviver = Reviver<any>;
 
 /**
  * Creates a declaration reviver while inferring its payload type from `payloadSchema`.
@@ -578,8 +578,8 @@ export type AnyReviver = Reviver<any>
 export const makeReviverDeclaration: <P>(
   id: string,
   payloadSchema: Schema.Decoder<P>,
-  revive: DeclarationReviver<P>["revive"]
-) => DeclarationReviver<P> = (id, payloadSchema, revive) => ({ id, payloadSchema, revive })
+  revive: DeclarationReviver<P>["revive"],
+) => DeclarationReviver<P> = (id, payloadSchema, revive) => ({ id, payloadSchema, revive });
 
 /**
  * Creates a filter reviver while inferring its payload type from `payloadSchema`.
@@ -590,8 +590,8 @@ export const makeReviverDeclaration: <P>(
 export const makeReviverFilter: <P>(
   id: string,
   payloadSchema: Schema.Decoder<P>,
-  revive: FilterReviver<P>["revive"]
-) => FilterReviver<P> = (id, payloadSchema, revive) => ({ id, payloadSchema, revive })
+  revive: FilterReviver<P>["revive"],
+) => FilterReviver<P> = (id, payloadSchema, revive) => ({ id, payloadSchema, revive });
 
 /**
  * Creates a filter group reviver while inferring its payload type from `payloadSchema`.
@@ -602,70 +602,75 @@ export const makeReviverFilter: <P>(
 export const makeReviverFilterGroup: <P>(
   id: string,
   payloadSchema: Schema.Decoder<P>,
-  revive: FilterGroupReviver<P>["revive"]
-) => FilterGroupReviver<P> = (id, payloadSchema, revive) => ({ id, payloadSchema, revive })
+  revive: FilterGroupReviver<P>["revive"],
+) => FilterGroupReviver<P> = (id, payloadSchema, revive) => ({ id, payloadSchema, revive });
 
 function makeFixedDeclarationReviver(id: string, schema: Schema.Top): DeclarationReviver<null> {
-  return makeReviverDeclaration(
-    id,
-    Schema.Null,
-    ({ annotations }) => annotations === undefined ? schema : schema.annotate(annotations)
-  )
+  return makeReviverDeclaration(id, Schema.Null, ({ annotations }) =>
+    annotations === undefined ? schema : schema.annotate(annotations),
+  );
 }
 
 const IsPatternPayload = Schema.Struct({
   source: Schema.String,
-  flags: Schema.String
-}).check(Schema.makeFilter((payload: { readonly source: string; readonly flags: string }) => {
-  try {
-    const regExp = new globalThis.RegExp(payload.source, payload.flags)
-    return regExp.source === payload.source && regExp.flags === payload.flags
-  } catch {
-    return false
-  }
-}))
+  flags: Schema.String,
+}).check(
+  Schema.makeFilter((payload: { readonly source: string; readonly flags: string }) => {
+    try {
+      const regExp = new globalThis.RegExp(payload.source, payload.flags);
+      return regExp.source === payload.source && regExp.flags === payload.flags;
+    } catch {
+      return false;
+    }
+  }),
+);
 
 type ErrorRepresentationOptions = {
-  readonly includeStack?: true | undefined
-  readonly excludeCause?: true | undefined
-}
-type ErrorRepresentationPayload = ErrorRepresentationOptions | null
+  readonly includeStack?: true | undefined;
+  readonly excludeCause?: true | undefined;
+};
+type ErrorRepresentationPayload = ErrorRepresentationOptions | null;
 const ErrorOptionsPayload = Schema.declare((input): input is ErrorRepresentationOptions => {
-  if (typeof input !== "object" || input === null) return false
-  const object = input as Record<string, unknown>
-  const keys = globalThis.Object.keys(input)
-  return keys.length > 0 &&
+  if (typeof input !== "object" || input === null) return false;
+  const object = input as Record<string, unknown>;
+  const keys = globalThis.Object.keys(input);
+  return (
+    keys.length > 0 &&
     keys.every((key) => (key === "includeStack" || key === "excludeCause") && object[key] === true)
-})
+  );
+});
 const ErrorRepresentationPayload: Schema.Decoder<ErrorRepresentationPayload> = Schema.Union([
   Schema.Null,
-  ErrorOptionsPayload
-])
+  ErrorOptionsPayload,
+]);
 
 type RedactedRepresentationOptions = {
-  readonly label?: string | undefined
-  readonly disallowJsonEncode?: true | undefined
-}
-type RedactedRepresentationPayload = RedactedRepresentationOptions | null
+  readonly label?: string | undefined;
+  readonly disallowJsonEncode?: true | undefined;
+};
+type RedactedRepresentationPayload = RedactedRepresentationOptions | null;
 const RedactedOptionsPayload = Schema.declare((input): input is RedactedRepresentationOptions => {
-  if (typeof input !== "object" || input === null) return false
-  const object = input as Record<string, unknown>
-  const keys = globalThis.Object.keys(input)
-  return keys.length > 0 && keys.every((key) => {
-    switch (key) {
-      case "label":
-        return typeof object[key] === "string"
-      case "disallowJsonEncode":
-        return object[key] === true
-      default:
-        return false
-    }
-  })
-})
+  if (typeof input !== "object" || input === null) return false;
+  const object = input as Record<string, unknown>;
+  const keys = globalThis.Object.keys(input);
+  return (
+    keys.length > 0 &&
+    keys.every((key) => {
+      switch (key) {
+        case "label":
+          return typeof object[key] === "string";
+        case "disallowJsonEncode":
+          return object[key] === true;
+        default:
+          return false;
+      }
+    })
+  );
+});
 const RedactedRepresentationPayload: Schema.Decoder<RedactedRepresentationPayload> = Schema.Union([
   Schema.Null,
-  RedactedOptionsPayload
-])
+  RedactedOptionsPayload,
+]);
 
 /**
  * Reviver for persisted `isTrimmed` checks.
@@ -682,8 +687,8 @@ const RedactedRepresentationPayload: Schema.Decoder<RedactedRepresentationPayloa
 export const isTrimmedReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isTrimmed",
   Schema.Null,
-  ({ annotations }) => Schema.isTrimmed(annotations)
-)
+  ({ annotations }) => Schema.isTrimmed(annotations),
+);
 
 /**
  * Reviver for persisted `isPattern` checks.
@@ -698,13 +703,11 @@ export const isTrimmedReviver: FilterReviver<null> = makeReviverFilter(
  * @since 4.0.0
  */
 export const isPatternReviver: FilterReviver<{
-  readonly source: string
-  readonly flags: string
-}> = makeReviverFilter(
-  "effect/schema/isPattern",
-  IsPatternPayload,
-  ({ annotations, payload }) => Schema.isPattern(new globalThis.RegExp(payload.source, payload.flags), annotations)
-)
+  readonly source: string;
+  readonly flags: string;
+}> = makeReviverFilter("effect/schema/isPattern", IsPatternPayload, ({ annotations, payload }) =>
+  Schema.isPattern(new globalThis.RegExp(payload.source, payload.flags), annotations),
+);
 
 /**
  * Reviver for persisted `isStringFinite` checks.
@@ -721,8 +724,8 @@ export const isPatternReviver: FilterReviver<{
 export const isStringFiniteReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isStringFinite",
   Schema.Null,
-  ({ annotations }) => Schema.isStringFinite(annotations)
-)
+  ({ annotations }) => Schema.isStringFinite(annotations),
+);
 
 /**
  * Reviver for persisted `isStringBigInt` checks.
@@ -739,8 +742,8 @@ export const isStringFiniteReviver: FilterReviver<null> = makeReviverFilter(
 export const isStringBigIntReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isStringBigInt",
   Schema.Null,
-  ({ annotations }) => Schema.isStringBigInt(annotations)
-)
+  ({ annotations }) => Schema.isStringBigInt(annotations),
+);
 
 /**
  * Reviver for persisted `isStringSymbol` checks.
@@ -757,8 +760,8 @@ export const isStringBigIntReviver: FilterReviver<null> = makeReviverFilter(
 export const isStringSymbolReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isStringSymbol",
   Schema.Null,
-  ({ annotations }) => Schema.isStringSymbol(annotations)
-)
+  ({ annotations }) => Schema.isStringSymbol(annotations),
+);
 
 /**
  * Reviver for persisted `isUUID` checks.
@@ -773,12 +776,14 @@ export const isStringSymbolReviver: FilterReviver<null> = makeReviverFilter(
  * @since 4.0.0
  */
 export const isUUIDReviver: FilterReviver<{
-  readonly version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | null
+  readonly version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | null;
 }> = makeReviverFilter(
   "effect/schema/isUUID",
-  Schema.Struct({ version: Schema.Union([Schema.Literals([1, 2, 3, 4, 5, 6, 7, 8]), Schema.Null]) }),
-  ({ annotations, payload }) => Schema.isUUID(payload.version ?? undefined, annotations)
-)
+  Schema.Struct({
+    version: Schema.Union([Schema.Literals([1, 2, 3, 4, 5, 6, 7, 8]), Schema.Null]),
+  }),
+  ({ annotations, payload }) => Schema.isUUID(payload.version ?? undefined, annotations),
+);
 
 /**
  * Reviver for persisted `isGUID` checks.
@@ -795,8 +800,8 @@ export const isUUIDReviver: FilterReviver<{
 export const isGUIDReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isGUID",
   Schema.Null,
-  ({ annotations }) => Schema.isGUID(annotations)
-)
+  ({ annotations }) => Schema.isGUID(annotations),
+);
 
 /**
  * Reviver for persisted `isULID` checks.
@@ -813,8 +818,8 @@ export const isGUIDReviver: FilterReviver<null> = makeReviverFilter(
 export const isULIDReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isULID",
   Schema.Null,
-  ({ annotations }) => Schema.isULID(annotations)
-)
+  ({ annotations }) => Schema.isULID(annotations),
+);
 
 /**
  * Reviver for persisted `isBase64` checks.
@@ -831,8 +836,8 @@ export const isULIDReviver: FilterReviver<null> = makeReviverFilter(
 export const isBase64Reviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isBase64",
   Schema.Null,
-  ({ annotations }) => Schema.isBase64(annotations)
-)
+  ({ annotations }) => Schema.isBase64(annotations),
+);
 
 /**
  * Reviver for persisted `isBase64Url` checks.
@@ -849,8 +854,8 @@ export const isBase64Reviver: FilterReviver<null> = makeReviverFilter(
 export const isBase64UrlReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isBase64Url",
   Schema.Null,
-  ({ annotations }) => Schema.isBase64Url(annotations)
-)
+  ({ annotations }) => Schema.isBase64Url(annotations),
+);
 
 /**
  * Reviver for persisted `isStartsWith` checks.
@@ -865,12 +870,12 @@ export const isBase64UrlReviver: FilterReviver<null> = makeReviverFilter(
  * @since 4.0.0
  */
 export const isStartsWithReviver: FilterReviver<{
-  readonly startsWith: string
+  readonly startsWith: string;
 }> = makeReviverFilter(
   "effect/schema/isStartsWith",
   Schema.Struct({ startsWith: Schema.String }),
-  ({ annotations, payload }) => Schema.isStartsWith(payload.startsWith, annotations)
-)
+  ({ annotations, payload }) => Schema.isStartsWith(payload.startsWith, annotations),
+);
 
 /**
  * Reviver for persisted `isEndsWith` checks.
@@ -885,12 +890,12 @@ export const isStartsWithReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isEndsWithReviver: FilterReviver<{
-  readonly endsWith: string
+  readonly endsWith: string;
 }> = makeReviverFilter(
   "effect/schema/isEndsWith",
   Schema.Struct({ endsWith: Schema.String }),
-  ({ annotations, payload }) => Schema.isEndsWith(payload.endsWith, annotations)
-)
+  ({ annotations, payload }) => Schema.isEndsWith(payload.endsWith, annotations),
+);
 
 /**
  * Reviver for persisted `isIncludes` checks.
@@ -905,12 +910,12 @@ export const isEndsWithReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isIncludesReviver: FilterReviver<{
-  readonly includes: string
+  readonly includes: string;
 }> = makeReviverFilter(
   "effect/schema/isIncludes",
   Schema.Struct({ includes: Schema.String }),
-  ({ annotations, payload }) => Schema.isIncludes(payload.includes, annotations)
-)
+  ({ annotations, payload }) => Schema.isIncludes(payload.includes, annotations),
+);
 
 /**
  * Reviver for persisted `isUppercased` checks.
@@ -927,8 +932,8 @@ export const isIncludesReviver: FilterReviver<{
 export const isUppercasedReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isUppercased",
   Schema.Null,
-  ({ annotations }) => Schema.isUppercased(annotations)
-)
+  ({ annotations }) => Schema.isUppercased(annotations),
+);
 
 /**
  * Reviver for persisted `isLowercased` checks.
@@ -945,8 +950,8 @@ export const isUppercasedReviver: FilterReviver<null> = makeReviverFilter(
 export const isLowercasedReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isLowercased",
   Schema.Null,
-  ({ annotations }) => Schema.isLowercased(annotations)
-)
+  ({ annotations }) => Schema.isLowercased(annotations),
+);
 
 /**
  * Reviver for persisted `isCapitalized` checks.
@@ -963,8 +968,8 @@ export const isLowercasedReviver: FilterReviver<null> = makeReviverFilter(
 export const isCapitalizedReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isCapitalized",
   Schema.Null,
-  ({ annotations }) => Schema.isCapitalized(annotations)
-)
+  ({ annotations }) => Schema.isCapitalized(annotations),
+);
 
 /**
  * Reviver for persisted `isUncapitalized` checks.
@@ -981,8 +986,8 @@ export const isCapitalizedReviver: FilterReviver<null> = makeReviverFilter(
 export const isUncapitalizedReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isUncapitalized",
   Schema.Null,
-  ({ annotations }) => Schema.isUncapitalized(annotations)
-)
+  ({ annotations }) => Schema.isUncapitalized(annotations),
+);
 
 /**
  * Reviver for persisted `isFinite` checks.
@@ -999,8 +1004,8 @@ export const isUncapitalizedReviver: FilterReviver<null> = makeReviverFilter(
 export const isFiniteReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isFinite",
   Schema.Null,
-  ({ annotations }) => Schema.isFinite(annotations)
-)
+  ({ annotations }) => Schema.isFinite(annotations),
+);
 
 /**
  * Reviver for persisted `isGreaterThan` checks.
@@ -1015,12 +1020,12 @@ export const isFiniteReviver: FilterReviver<null> = makeReviverFilter(
  * @since 4.0.0
  */
 export const isGreaterThanReviver: FilterReviver<{
-  readonly exclusiveMinimum: number
+  readonly exclusiveMinimum: number;
 }> = makeReviverFilter(
   "effect/schema/isGreaterThan",
   Schema.Struct({ exclusiveMinimum: Schema.Finite }),
-  ({ annotations, payload }) => Schema.isGreaterThan(payload.exclusiveMinimum, annotations)
-)
+  ({ annotations, payload }) => Schema.isGreaterThan(payload.exclusiveMinimum, annotations),
+);
 
 /**
  * Reviver for persisted `isGreaterThanOrEqualTo` checks.
@@ -1035,12 +1040,12 @@ export const isGreaterThanReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isGreaterThanOrEqualToReviver: FilterReviver<{
-  readonly minimum: number
+  readonly minimum: number;
 }> = makeReviverFilter(
   "effect/schema/isGreaterThanOrEqualTo",
   Schema.Struct({ minimum: Schema.Finite }),
-  ({ annotations, payload }) => Schema.isGreaterThanOrEqualTo(payload.minimum, annotations)
-)
+  ({ annotations, payload }) => Schema.isGreaterThanOrEqualTo(payload.minimum, annotations),
+);
 
 /**
  * Reviver for persisted `isLessThan` checks.
@@ -1055,12 +1060,12 @@ export const isGreaterThanOrEqualToReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isLessThanReviver: FilterReviver<{
-  readonly exclusiveMaximum: number
+  readonly exclusiveMaximum: number;
 }> = makeReviverFilter(
   "effect/schema/isLessThan",
   Schema.Struct({ exclusiveMaximum: Schema.Finite }),
-  ({ annotations, payload }) => Schema.isLessThan(payload.exclusiveMaximum, annotations)
-)
+  ({ annotations, payload }) => Schema.isLessThan(payload.exclusiveMaximum, annotations),
+);
 
 /**
  * Reviver for persisted `isLessThanOrEqualTo` checks.
@@ -1075,12 +1080,12 @@ export const isLessThanReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isLessThanOrEqualToReviver: FilterReviver<{
-  readonly maximum: number
+  readonly maximum: number;
 }> = makeReviverFilter(
   "effect/schema/isLessThanOrEqualTo",
   Schema.Struct({ maximum: Schema.Finite }),
-  ({ annotations, payload }) => Schema.isLessThanOrEqualTo(payload.maximum, annotations)
-)
+  ({ annotations, payload }) => Schema.isLessThanOrEqualTo(payload.maximum, annotations),
+);
 
 /**
  * Reviver for persisted `isBetween` checks.
@@ -1095,20 +1100,20 @@ export const isLessThanOrEqualToReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isBetweenReviver: FilterReviver<{
-  readonly minimum: number
-  readonly maximum: number
-  readonly exclusiveMinimum?: true | undefined
-  readonly exclusiveMaximum?: true | undefined
+  readonly minimum: number;
+  readonly maximum: number;
+  readonly exclusiveMinimum?: true | undefined;
+  readonly exclusiveMaximum?: true | undefined;
 }> = makeReviverFilter(
   "effect/schema/isBetween",
   Schema.Struct({
     minimum: Schema.Finite,
     maximum: Schema.Finite,
     exclusiveMinimum: Schema.optional(Schema.Literal(true)),
-    exclusiveMaximum: Schema.optional(Schema.Literal(true))
+    exclusiveMaximum: Schema.optional(Schema.Literal(true)),
   }),
-  ({ annotations, payload }) => Schema.isBetween(payload, annotations)
-)
+  ({ annotations, payload }) => Schema.isBetween(payload, annotations),
+);
 
 /**
  * Reviver for persisted `isMultipleOf` checks.
@@ -1123,12 +1128,12 @@ export const isBetweenReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isMultipleOfReviver: FilterReviver<{
-  readonly divisor: number
+  readonly divisor: number;
 }> = makeReviverFilter(
   "effect/schema/isMultipleOf",
   Schema.Struct({ divisor: Schema.Finite }),
-  ({ annotations, payload }) => Schema.isMultipleOf(payload.divisor, annotations)
-)
+  ({ annotations, payload }) => Schema.isMultipleOf(payload.divisor, annotations),
+);
 
 /**
  * Reviver for persisted `isInt` checks.
@@ -1145,8 +1150,8 @@ export const isMultipleOfReviver: FilterReviver<{
 export const isIntReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isInt",
   Schema.Null,
-  ({ annotations }) => Schema.isInt(annotations)
-)
+  ({ annotations }) => Schema.isInt(annotations),
+);
 
 /**
  * Reviver for persisted `isMinLength` checks.
@@ -1161,12 +1166,12 @@ export const isIntReviver: FilterReviver<null> = makeReviverFilter(
  * @since 4.0.0
  */
 export const isMinLengthReviver: FilterReviver<{
-  readonly minLength: number
+  readonly minLength: number;
 }> = makeReviverFilter(
   "effect/schema/isMinLength",
   Schema.Struct({ minLength: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isMinLength(payload.minLength, annotations)
-)
+  ({ annotations, payload }) => Schema.isMinLength(payload.minLength, annotations),
+);
 
 /**
  * Reviver for persisted `isMaxLength` checks.
@@ -1181,12 +1186,12 @@ export const isMinLengthReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isMaxLengthReviver: FilterReviver<{
-  readonly maxLength: number
+  readonly maxLength: number;
 }> = makeReviverFilter(
   "effect/schema/isMaxLength",
   Schema.Struct({ maxLength: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isMaxLength(payload.maxLength, annotations)
-)
+  ({ annotations, payload }) => Schema.isMaxLength(payload.maxLength, annotations),
+);
 
 /**
  * Reviver for persisted `isLengthBetween` checks.
@@ -1201,13 +1206,14 @@ export const isMaxLengthReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isLengthBetweenReviver: FilterReviver<{
-  readonly minimum: number
-  readonly maximum: number
+  readonly minimum: number;
+  readonly maximum: number;
 }> = makeReviverFilter(
   "effect/schema/isLengthBetween",
   Schema.Struct({ minimum: Schema.Natural, maximum: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isLengthBetween(payload.minimum, payload.maximum, annotations)
-)
+  ({ annotations, payload }) =>
+    Schema.isLengthBetween(payload.minimum, payload.maximum, annotations),
+);
 
 /**
  * Reviver for persisted `isMinSize` checks.
@@ -1222,12 +1228,12 @@ export const isLengthBetweenReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isMinSizeReviver: FilterReviver<{
-  readonly minSize: number
+  readonly minSize: number;
 }> = makeReviverFilter(
   "effect/schema/isMinSize",
   Schema.Struct({ minSize: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isMinSize(payload.minSize, annotations)
-)
+  ({ annotations, payload }) => Schema.isMinSize(payload.minSize, annotations),
+);
 
 /**
  * Reviver for persisted `isMaxSize` checks.
@@ -1242,12 +1248,12 @@ export const isMinSizeReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isMaxSizeReviver: FilterReviver<{
-  readonly maxSize: number
+  readonly maxSize: number;
 }> = makeReviverFilter(
   "effect/schema/isMaxSize",
   Schema.Struct({ maxSize: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isMaxSize(payload.maxSize, annotations)
-)
+  ({ annotations, payload }) => Schema.isMaxSize(payload.maxSize, annotations),
+);
 
 /**
  * Reviver for persisted `isSizeBetween` checks.
@@ -1262,13 +1268,13 @@ export const isMaxSizeReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isSizeBetweenReviver: FilterReviver<{
-  readonly minimum: number
-  readonly maximum: number
+  readonly minimum: number;
+  readonly maximum: number;
 }> = makeReviverFilter(
   "effect/schema/isSizeBetween",
   Schema.Struct({ minimum: Schema.Natural, maximum: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isSizeBetween(payload.minimum, payload.maximum, annotations)
-)
+  ({ annotations, payload }) => Schema.isSizeBetween(payload.minimum, payload.maximum, annotations),
+);
 
 /**
  * Reviver for persisted `isMinProperties` checks.
@@ -1283,12 +1289,12 @@ export const isSizeBetweenReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isMinPropertiesReviver: FilterReviver<{
-  readonly minProperties: number
+  readonly minProperties: number;
 }> = makeReviverFilter(
   "effect/schema/isMinProperties",
   Schema.Struct({ minProperties: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isMinProperties(payload.minProperties, annotations)
-)
+  ({ annotations, payload }) => Schema.isMinProperties(payload.minProperties, annotations),
+);
 
 /**
  * Reviver for persisted `isMaxProperties` checks.
@@ -1303,12 +1309,12 @@ export const isMinPropertiesReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isMaxPropertiesReviver: FilterReviver<{
-  readonly maxProperties: number
+  readonly maxProperties: number;
 }> = makeReviverFilter(
   "effect/schema/isMaxProperties",
   Schema.Struct({ maxProperties: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isMaxProperties(payload.maxProperties, annotations)
-)
+  ({ annotations, payload }) => Schema.isMaxProperties(payload.maxProperties, annotations),
+);
 
 /**
  * Reviver for persisted `isPropertiesLengthBetween` checks.
@@ -1323,13 +1329,14 @@ export const isMaxPropertiesReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isPropertiesLengthBetweenReviver: FilterReviver<{
-  readonly minimum: number
-  readonly maximum: number
+  readonly minimum: number;
+  readonly maximum: number;
 }> = makeReviverFilter(
   "effect/schema/isPropertiesLengthBetween",
   Schema.Struct({ minimum: Schema.Natural, maximum: Schema.Natural }),
-  ({ annotations, payload }) => Schema.isPropertiesLengthBetween(payload.minimum, payload.maximum, annotations)
-)
+  ({ annotations, payload }) =>
+    Schema.isPropertiesLengthBetween(payload.minimum, payload.maximum, annotations),
+);
 
 /**
  * Reviver for persisted `isPropertyNames` checks.
@@ -1346,8 +1353,8 @@ export const isPropertiesLengthBetweenReviver: FilterReviver<{
 export const isPropertyNamesReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isPropertyNames",
   Schema.Null,
-  ({ annotations, schemas }) => Schema.isPropertyNames(schemas[0], annotations)
-)
+  ({ annotations, schemas }) => Schema.isPropertyNames(schemas[0], annotations),
+);
 
 /**
  * Reviver for persisted `isUnique` checks.
@@ -1364,8 +1371,8 @@ export const isPropertyNamesReviver: FilterReviver<null> = makeReviverFilter(
 export const isUniqueReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isUnique",
   Schema.Null,
-  ({ annotations }) => Schema.isUnique(annotations)
-)
+  ({ annotations }) => Schema.isUnique(annotations),
+);
 
 /**
  * Reviver for persisted `isUniqueKey` checks.
@@ -1381,8 +1388,8 @@ export const isUniqueReviver: FilterReviver<null> = makeReviverFilter(
 export const isUniqueKeyReviver: FilterReviver<null> = makeReviverFilter(
   "effect/schema/isUniqueKey",
   Schema.Null,
-  ({ annotations }) => Schema.isUniqueKey(annotations)
-)
+  ({ annotations }) => Schema.isUniqueKey(annotations),
+);
 
 /**
  * Reviver for persisted `Option` declarations.
@@ -1400,10 +1407,10 @@ export const OptionReviver: DeclarationReviver<null> = makeReviverDeclaration(
   "effect/schema/Option",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.Option(typeParameters[0])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.Option(typeParameters[0]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted {@link Schema.Result} declarations.
@@ -1421,10 +1428,10 @@ export const ResultReviver: DeclarationReviver<null> = makeReviverDeclaration(
   "effect/schema/Result",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.Result(typeParameters[0], typeParameters[1])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.Result(typeParameters[0], typeParameters[1]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted {@link Schema.Redacted} declarations.
@@ -1438,14 +1445,15 @@ export const ResultReviver: DeclarationReviver<null> = makeReviverDeclaration(
  * @category schemas
  * @since 4.0.0
  */
-export const RedactedReviver: DeclarationReviver<RedactedRepresentationPayload> = makeReviverDeclaration(
-  "effect/schema/Redacted",
-  RedactedRepresentationPayload,
-  ({ annotations, payload, typeParameters }) => {
-    const schema = Schema.Redacted(typeParameters[0], payload ?? undefined)
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+export const RedactedReviver: DeclarationReviver<RedactedRepresentationPayload> =
+  makeReviverDeclaration(
+    "effect/schema/Redacted",
+    RedactedRepresentationPayload,
+    ({ annotations, payload, typeParameters }) => {
+      const schema = Schema.Redacted(typeParameters[0], payload ?? undefined);
+      return annotations === undefined ? schema : schema.annotate(annotations);
+    },
+  );
 
 /**
  * Reviver for persisted `CauseReason` declarations.
@@ -1463,10 +1471,10 @@ export const CauseReasonReviver: DeclarationReviver<null> = makeReviverDeclarati
   "effect/schema/CauseReason",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.CauseReason(typeParameters[0], typeParameters[1])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.CauseReason(typeParameters[0], typeParameters[1]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted `Cause` declarations.
@@ -1484,10 +1492,10 @@ export const CauseReviver: DeclarationReviver<null> = makeReviverDeclaration(
   "effect/schema/Cause",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.Cause(typeParameters[0], typeParameters[1])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.Cause(typeParameters[0], typeParameters[1]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted {@link Schema.ErrorInstance} declarations.
@@ -1501,14 +1509,15 @@ export const CauseReviver: DeclarationReviver<null> = makeReviverDeclaration(
  * @category schemas
  * @since 4.0.0
  */
-export const ErrorInstanceReviver: DeclarationReviver<ErrorRepresentationPayload> = makeReviverDeclaration(
-  "effect/schema/Error",
-  ErrorRepresentationPayload,
-  ({ annotations, payload }) => {
-    const schema = Schema.ErrorInstance(payload ?? undefined)
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+export const ErrorInstanceReviver: DeclarationReviver<ErrorRepresentationPayload> =
+  makeReviverDeclaration(
+    "effect/schema/Error",
+    ErrorRepresentationPayload,
+    ({ annotations, payload }) => {
+      const schema = Schema.ErrorInstance(payload ?? undefined);
+      return annotations === undefined ? schema : schema.annotate(annotations);
+    },
+  );
 
 /**
  * Reviver for persisted `Exit` declarations.
@@ -1526,10 +1535,10 @@ export const ExitReviver: DeclarationReviver<null> = makeReviverDeclaration(
   "effect/schema/Exit",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.Exit(typeParameters[0], typeParameters[1], typeParameters[2])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.Exit(typeParameters[0], typeParameters[1], typeParameters[2]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted {@link Schema.ReadonlyMap} declarations.
@@ -1547,10 +1556,10 @@ export const ReadonlyMapReviver: DeclarationReviver<null> = makeReviverDeclarati
   "effect/schema/ReadonlyMap",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.ReadonlyMap(typeParameters[0], typeParameters[1])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.ReadonlyMap(typeParameters[0], typeParameters[1]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted {@link Schema.Graph} declarations.
@@ -1562,10 +1571,10 @@ export const GraphReviver: DeclarationReviver<"directed" | "undirected"> = makeR
   "effect/schema/Graph",
   Schema.Literals(["directed", "undirected"]),
   ({ annotations, payload, typeParameters }) => {
-    const schema = Schema.Graph(payload, typeParameters[0], typeParameters[1])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.Graph(payload, typeParameters[0], typeParameters[1]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted `HashMap` declarations.
@@ -1583,10 +1592,10 @@ export const HashMapReviver: DeclarationReviver<null> = makeReviverDeclaration(
   "effect/schema/HashMap",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.HashMap(typeParameters[0], typeParameters[1])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.HashMap(typeParameters[0], typeParameters[1]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted {@link Schema.ReadonlySet} declarations.
@@ -1604,10 +1613,10 @@ export const ReadonlySetReviver: DeclarationReviver<null> = makeReviverDeclarati
   "effect/schema/ReadonlySet",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.ReadonlySet(typeParameters[0])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.ReadonlySet(typeParameters[0]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted `HashSet` declarations.
@@ -1625,10 +1634,10 @@ export const HashSetReviver: DeclarationReviver<null> = makeReviverDeclaration(
   "effect/schema/HashSet",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.HashSet(typeParameters[0])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.HashSet(typeParameters[0]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted {@link Schema.Chunk} declarations.
@@ -1646,10 +1655,10 @@ export const ChunkReviver: DeclarationReviver<null> = makeReviverDeclaration(
   "effect/schema/Chunk",
   Schema.Null,
   ({ annotations, typeParameters }) => {
-    const schema = Schema.Chunk(typeParameters[0])
-    return annotations === undefined ? schema : schema.annotate(annotations)
-  }
-)
+    const schema = Schema.Chunk(typeParameters[0]);
+    return annotations === undefined ? schema : schema.annotate(annotations);
+  },
+);
 
 /**
  * Reviver for persisted `RegExp` declarations.
@@ -1665,8 +1674,8 @@ export const ChunkReviver: DeclarationReviver<null> = makeReviverDeclaration(
  */
 export const RegExpReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/RegExp",
-  Schema.RegExp
-)
+  Schema.RegExp,
+);
 
 /**
  * Reviver for persisted `URL` declarations.
@@ -1680,7 +1689,10 @@ export const RegExpReviver: DeclarationReviver<null> = makeFixedDeclarationReviv
  * @category schemas
  * @since 4.0.0
  */
-export const URLReviver: DeclarationReviver<null> = makeFixedDeclarationReviver("effect/schema/URL", Schema.URL)
+export const URLReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
+  "effect/schema/URL",
+  Schema.URL,
+);
 
 /**
  * Reviver for persisted `Date` declarations.
@@ -1694,7 +1706,10 @@ export const URLReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
  * @category schemas
  * @since 4.0.0
  */
-export const DateReviver: DeclarationReviver<null> = makeFixedDeclarationReviver("effect/schema/Date", Schema.Date)
+export const DateReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
+  "effect/schema/Date",
+  Schema.Date,
+);
 
 /**
  * Reviver for persisted {@link Schema.Duration} declarations.
@@ -1710,8 +1725,8 @@ export const DateReviver: DeclarationReviver<null> = makeFixedDeclarationReviver
  */
 export const DurationReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/Duration",
-  Schema.Duration
-)
+  Schema.Duration,
+);
 
 /**
  * Reviver for persisted {@link Schema.ByteSize} declarations.
@@ -1721,8 +1736,8 @@ export const DurationReviver: DeclarationReviver<null> = makeFixedDeclarationRev
  */
 export const ByteSizeReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/ByteSize",
-  Schema.ByteSize
-)
+  Schema.ByteSize,
+);
 
 /**
  * Reviver for persisted {@link Schema.BigDecimal} declarations.
@@ -1738,8 +1753,8 @@ export const ByteSizeReviver: DeclarationReviver<null> = makeFixedDeclarationRev
  */
 export const BigDecimalReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/BigDecimal",
-  Schema.BigDecimal
-)
+  Schema.BigDecimal,
+);
 
 /**
  * Reviver for persisted `File` declarations.
@@ -1753,7 +1768,10 @@ export const BigDecimalReviver: DeclarationReviver<null> = makeFixedDeclarationR
  * @category schemas
  * @since 4.0.0
  */
-export const FileReviver: DeclarationReviver<null> = makeFixedDeclarationReviver("effect/schema/File", Schema.File)
+export const FileReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
+  "effect/schema/File",
+  Schema.File,
+);
 
 /**
  * Reviver for persisted `FormData` declarations.
@@ -1769,8 +1787,8 @@ export const FileReviver: DeclarationReviver<null> = makeFixedDeclarationReviver
  */
 export const FormDataReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/FormData",
-  Schema.FormData
-)
+  Schema.FormData,
+);
 
 /**
  * Reviver for persisted `URLSearchParams` declarations.
@@ -1786,8 +1804,8 @@ export const FormDataReviver: DeclarationReviver<null> = makeFixedDeclarationRev
  */
 export const URLSearchParamsReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/URLSearchParams",
-  Schema.URLSearchParams
-)
+  Schema.URLSearchParams,
+);
 
 /**
  * Reviver for persisted `Uint8Array` declarations.
@@ -1803,8 +1821,8 @@ export const URLSearchParamsReviver: DeclarationReviver<null> = makeFixedDeclara
  */
 export const Uint8ArrayReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/Uint8Array",
-  Schema.Uint8Array
-)
+  Schema.Uint8Array,
+);
 
 /**
  * Reviver for persisted {@link Schema.DateTimeUtc} declarations.
@@ -1820,8 +1838,8 @@ export const Uint8ArrayReviver: DeclarationReviver<null> = makeFixedDeclarationR
  */
 export const DateTimeUtcReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/DateTimeUtc",
-  Schema.DateTimeUtc
-)
+  Schema.DateTimeUtc,
+);
 
 /**
  * Reviver for persisted {@link Schema.TimeZoneOffset} declarations.
@@ -1837,8 +1855,8 @@ export const DateTimeUtcReviver: DeclarationReviver<null> = makeFixedDeclaration
  */
 export const TimeZoneOffsetReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/TimeZoneOffset",
-  Schema.TimeZoneOffset
-)
+  Schema.TimeZoneOffset,
+);
 
 /**
  * Reviver for persisted {@link Schema.TimeZoneNamed} declarations.
@@ -1854,8 +1872,8 @@ export const TimeZoneOffsetReviver: DeclarationReviver<null> = makeFixedDeclarat
  */
 export const TimeZoneNamedReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/TimeZoneNamed",
-  Schema.TimeZoneNamed
-)
+  Schema.TimeZoneNamed,
+);
 
 /**
  * Reviver for persisted {@link Schema.TimeZone} declarations.
@@ -1871,8 +1889,8 @@ export const TimeZoneNamedReviver: DeclarationReviver<null> = makeFixedDeclarati
  */
 export const TimeZoneReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/TimeZone",
-  Schema.TimeZone
-)
+  Schema.TimeZone,
+);
 
 /**
  * Reviver for persisted {@link Schema.DateTimeZoned} declarations.
@@ -1888,8 +1906,8 @@ export const TimeZoneReviver: DeclarationReviver<null> = makeFixedDeclarationRev
  */
 export const DateTimeZonedReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/DateTimeZoned",
-  Schema.DateTimeZoned
-)
+  Schema.DateTimeZoned,
+);
 
 /**
  * Reviver for persisted `isGreaterThanDate` checks.
@@ -1904,12 +1922,12 @@ export const DateTimeZonedReviver: DeclarationReviver<null> = makeFixedDeclarati
  * @since 4.0.0
  */
 export const isGreaterThanDateReviver: FilterReviver<{
-  readonly exclusiveMinimum: globalThis.Date
+  readonly exclusiveMinimum: globalThis.Date;
 }> = makeReviverFilter(
   "effect/schema/isGreaterThanDate",
   Schema.Struct({ exclusiveMinimum: Schema.Date }),
-  ({ annotations, payload }) => Schema.isGreaterThanDate(payload.exclusiveMinimum, annotations)
-)
+  ({ annotations, payload }) => Schema.isGreaterThanDate(payload.exclusiveMinimum, annotations),
+);
 
 /**
  * Reviver for persisted `isGreaterThanOrEqualToDate` checks.
@@ -1924,12 +1942,12 @@ export const isGreaterThanDateReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isGreaterThanOrEqualToDateReviver: FilterReviver<{
-  readonly minimum: globalThis.Date
+  readonly minimum: globalThis.Date;
 }> = makeReviverFilter(
   "effect/schema/isGreaterThanOrEqualToDate",
   Schema.Struct({ minimum: Schema.Date }),
-  ({ annotations, payload }) => Schema.isGreaterThanOrEqualToDate(payload.minimum, annotations)
-)
+  ({ annotations, payload }) => Schema.isGreaterThanOrEqualToDate(payload.minimum, annotations),
+);
 
 /**
  * Reviver for persisted `isLessThanDate` checks.
@@ -1944,12 +1962,12 @@ export const isGreaterThanOrEqualToDateReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isLessThanDateReviver: FilterReviver<{
-  readonly exclusiveMaximum: globalThis.Date
+  readonly exclusiveMaximum: globalThis.Date;
 }> = makeReviverFilter(
   "effect/schema/isLessThanDate",
   Schema.Struct({ exclusiveMaximum: Schema.Date }),
-  ({ annotations, payload }) => Schema.isLessThanDate(payload.exclusiveMaximum, annotations)
-)
+  ({ annotations, payload }) => Schema.isLessThanDate(payload.exclusiveMaximum, annotations),
+);
 
 /**
  * Reviver for persisted `isLessThanOrEqualToDate` checks.
@@ -1964,12 +1982,12 @@ export const isLessThanDateReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isLessThanOrEqualToDateReviver: FilterReviver<{
-  readonly maximum: globalThis.Date
+  readonly maximum: globalThis.Date;
 }> = makeReviverFilter(
   "effect/schema/isLessThanOrEqualToDate",
   Schema.Struct({ maximum: Schema.Date }),
-  ({ annotations, payload }) => Schema.isLessThanOrEqualToDate(payload.maximum, annotations)
-)
+  ({ annotations, payload }) => Schema.isLessThanOrEqualToDate(payload.maximum, annotations),
+);
 
 /**
  * Reviver for persisted `isBetweenDate` checks.
@@ -1984,20 +2002,20 @@ export const isLessThanOrEqualToDateReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isBetweenDateReviver: FilterReviver<{
-  readonly minimum: globalThis.Date
-  readonly maximum: globalThis.Date
-  readonly exclusiveMinimum?: true | undefined
-  readonly exclusiveMaximum?: true | undefined
+  readonly minimum: globalThis.Date;
+  readonly maximum: globalThis.Date;
+  readonly exclusiveMinimum?: true | undefined;
+  readonly exclusiveMaximum?: true | undefined;
 }> = makeReviverFilter(
   "effect/schema/isBetweenDate",
   Schema.Struct({
     minimum: Schema.Date,
     maximum: Schema.Date,
     exclusiveMinimum: Schema.optional(Schema.Literal(true)),
-    exclusiveMaximum: Schema.optional(Schema.Literal(true))
+    exclusiveMaximum: Schema.optional(Schema.Literal(true)),
   }),
-  ({ annotations, payload }) => Schema.isBetweenDate(payload, annotations)
-)
+  ({ annotations, payload }) => Schema.isBetweenDate(payload, annotations),
+);
 
 /**
  * Reviver for persisted `isGreaterThanBigInt` checks.
@@ -2012,12 +2030,12 @@ export const isBetweenDateReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isGreaterThanBigIntReviver: FilterReviver<{
-  readonly exclusiveMinimum: bigint
+  readonly exclusiveMinimum: bigint;
 }> = makeReviverFilter(
   "effect/schema/isGreaterThanBigInt",
   Schema.Struct({ exclusiveMinimum: Schema.BigInt }),
-  ({ annotations, payload }) => Schema.isGreaterThanBigInt(payload.exclusiveMinimum, annotations)
-)
+  ({ annotations, payload }) => Schema.isGreaterThanBigInt(payload.exclusiveMinimum, annotations),
+);
 
 /**
  * Reviver for persisted `isGreaterThanOrEqualToBigInt` checks.
@@ -2032,12 +2050,12 @@ export const isGreaterThanBigIntReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isGreaterThanOrEqualToBigIntReviver: FilterReviver<{
-  readonly minimum: bigint
+  readonly minimum: bigint;
 }> = makeReviverFilter(
   "effect/schema/isGreaterThanOrEqualToBigInt",
   Schema.Struct({ minimum: Schema.BigInt }),
-  ({ annotations, payload }) => Schema.isGreaterThanOrEqualToBigInt(payload.minimum, annotations)
-)
+  ({ annotations, payload }) => Schema.isGreaterThanOrEqualToBigInt(payload.minimum, annotations),
+);
 
 /**
  * Reviver for persisted `isLessThanBigInt` checks.
@@ -2052,12 +2070,12 @@ export const isGreaterThanOrEqualToBigIntReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isLessThanBigIntReviver: FilterReviver<{
-  readonly exclusiveMaximum: bigint
+  readonly exclusiveMaximum: bigint;
 }> = makeReviverFilter(
   "effect/schema/isLessThanBigInt",
   Schema.Struct({ exclusiveMaximum: Schema.BigInt }),
-  ({ annotations, payload }) => Schema.isLessThanBigInt(payload.exclusiveMaximum, annotations)
-)
+  ({ annotations, payload }) => Schema.isLessThanBigInt(payload.exclusiveMaximum, annotations),
+);
 
 /**
  * Reviver for persisted `isLessThanOrEqualToBigInt` checks.
@@ -2072,12 +2090,12 @@ export const isLessThanBigIntReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isLessThanOrEqualToBigIntReviver: FilterReviver<{
-  readonly maximum: bigint
+  readonly maximum: bigint;
 }> = makeReviverFilter(
   "effect/schema/isLessThanOrEqualToBigInt",
   Schema.Struct({ maximum: Schema.BigInt }),
-  ({ annotations, payload }) => Schema.isLessThanOrEqualToBigInt(payload.maximum, annotations)
-)
+  ({ annotations, payload }) => Schema.isLessThanOrEqualToBigInt(payload.maximum, annotations),
+);
 
 /**
  * Reviver for persisted `isBetweenBigInt` checks.
@@ -2092,20 +2110,20 @@ export const isLessThanOrEqualToBigIntReviver: FilterReviver<{
  * @since 4.0.0
  */
 export const isBetweenBigIntReviver: FilterReviver<{
-  readonly minimum: bigint
-  readonly maximum: bigint
-  readonly exclusiveMinimum?: true | undefined
-  readonly exclusiveMaximum?: true | undefined
+  readonly minimum: bigint;
+  readonly maximum: bigint;
+  readonly exclusiveMinimum?: true | undefined;
+  readonly exclusiveMaximum?: true | undefined;
 }> = makeReviverFilter(
   "effect/schema/isBetweenBigInt",
   Schema.Struct({
     minimum: Schema.BigInt,
     maximum: Schema.BigInt,
     exclusiveMinimum: Schema.optional(Schema.Literal(true)),
-    exclusiveMaximum: Schema.optional(Schema.Literal(true))
+    exclusiveMaximum: Schema.optional(Schema.Literal(true)),
   }),
-  ({ annotations, payload }) => Schema.isBetweenBigInt(payload, annotations)
-)
+  ({ annotations, payload }) => Schema.isBetweenBigInt(payload, annotations),
+);
 
 /**
  * Reviver for persisted `Json` declarations.
@@ -2119,7 +2137,10 @@ export const isBetweenBigIntReviver: FilterReviver<{
  * @category schemas
  * @since 4.0.0
  */
-export const JsonReviver: DeclarationReviver<null> = makeFixedDeclarationReviver("effect/schema/Json", Schema.Json)
+export const JsonReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
+  "effect/schema/Json",
+  Schema.Json,
+);
 
 /**
  * Reviver for persisted `MutableJson` declarations.
@@ -2135,8 +2156,8 @@ export const JsonReviver: DeclarationReviver<null> = makeFixedDeclarationReviver
  */
 export const MutableJsonReviver: DeclarationReviver<null> = makeFixedDeclarationReviver(
   "effect/schema/MutableJson",
-  Schema.MutableJson
-)
+  Schema.MutableJson,
+);
 
 const jsonSchemaRevivers: ReadonlyArray<AnyReviver> = [
   JsonReviver,
@@ -2153,8 +2174,8 @@ const jsonSchemaRevivers: ReadonlyArray<AnyReviver> = [
   isMinPropertiesReviver,
   isMaxPropertiesReviver,
   isPropertyNamesReviver,
-  isUniqueReviver
-]
+  isUniqueReviver,
+];
 
 /**
  * Options for importing JSON Schema Draft 2020-12 documents.
@@ -2186,13 +2207,13 @@ const jsonSchemaRevivers: ReadonlyArray<AnyReviver> = [
  * @since 4.0.0
  */
 export interface FromJsonSchemaOptions {
-  readonly onEnter?: ((schema: JsonSchema.JsonSchema) => JsonSchema.JsonSchema) | undefined
+  readonly onEnter?: ((schema: JsonSchema.JsonSchema) => JsonSchema.JsonSchema) | undefined;
   /**
    * Controls how reached JSON Schema regular expression patterns are imported.
    *
    * @default "error"
    */
-  readonly patterns?: "error" | "ignore" | "apply" | undefined
+  readonly patterns?: "error" | "ignore" | "apply" | undefined;
 }
 
 /**
@@ -2202,8 +2223,8 @@ export interface FromJsonSchemaOptions {
  * @since 4.0.0
  */
 export interface Code {
-  readonly runtime: string
-  readonly Type: string
+  readonly runtime: string;
+  readonly Type: string;
 }
 
 /**
@@ -2212,7 +2233,7 @@ export interface Code {
  * @category constructors
  * @since 4.0.0
  */
-export const makeCode: (runtime: string, Type: string) => Code = InternalToCodeDocument.makeCode
+export const makeCode: (runtime: string, Type: string) => Code = InternalToCodeDocument.makeCode;
 
 /**
  * Auxiliary source artifact emitted while generating schema code.
@@ -2222,19 +2243,19 @@ export const makeCode: (runtime: string, Type: string) => Code = InternalToCodeD
  */
 export type Artifact =
   | {
-    readonly _tag: "Symbol"
-    readonly identifier: string
-    readonly code: Code
-  }
+      readonly _tag: "Symbol";
+      readonly identifier: string;
+      readonly code: Code;
+    }
   | {
-    readonly _tag: "Enum"
-    readonly identifier: string
-    readonly code: Code
-  }
+      readonly _tag: "Enum";
+      readonly identifier: string;
+      readonly code: Code;
+    }
   | {
-    readonly _tag: "Import"
-    readonly importDeclaration: string
-  }
+      readonly _tag: "Import";
+      readonly importDeclaration: string;
+    };
 
 /**
  * Generated schema code together with named references and auxiliary artifacts.
@@ -2243,15 +2264,15 @@ export type Artifact =
  * @since 4.0.0
  */
 export interface CodeDocument {
-  readonly codes: ReadonlyArray<Code>
+  readonly codes: ReadonlyArray<Code>;
   readonly references: {
     readonly nonRecursives: ReadonlyArray<{
-      readonly $ref: string
-      readonly code: Code
-    }>
-    readonly recursives: Readonly<Record<string, Code>>
-  }
-  readonly artifacts: ReadonlyArray<Artifact>
+      readonly $ref: string;
+      readonly code: Code;
+    }>;
+    readonly recursives: Readonly<Record<string, Code>>;
+  };
+  readonly artifacts: ReadonlyArray<Artifact>;
 }
 
 /**
@@ -2262,11 +2283,11 @@ export interface CodeDocument {
  */
 export interface ReferencePolicyInput {
   /** The encoded-side AST owner for the candidate. Contextual copies can share the same owner. */
-  readonly ast: SchemaAST.AST
+  readonly ast: SchemaAST.AST;
   /** The number of times this candidate was encountered. Structurally equal ASTs remain distinct candidates. */
-  readonly occurrences: number
+  readonly occurrences: number;
   /** The resolved encoded-side identifier, including an inherited `Encoded` suffix when applicable. */
-  readonly identifier: string | undefined
+  readonly identifier: string | undefined;
 }
 
 /**
@@ -2294,7 +2315,7 @@ export interface ReferencePolicyInput {
  * @category models
  * @since 4.0.0
  */
-export type ReferencePolicy = (input: ReferencePolicyInput) => string | undefined
+export type ReferencePolicy = (input: ReferencePolicyInput) => string | undefined;
 
 /**
  * Options for generating schema representations.
@@ -2317,7 +2338,7 @@ export interface ToRepresentationOptions {
    *
    * @default ({ identifier }) => identifier
    */
-  readonly referencePolicy?: ReferencePolicy | undefined
+  readonly referencePolicy?: ReferencePolicy | undefined;
 }
 
 /**
@@ -2338,7 +2359,7 @@ export interface ToRepresentationOptions {
  * @since 4.0.0
  */
 export function toRepresentation(ast: SchemaAST.AST, options?: ToRepresentationOptions): Document {
-  return InternalToRepresentation.toRepresentation(ast, options)
+  return InternalToRepresentation.toRepresentation(ast, options);
 }
 
 /**
@@ -2360,9 +2381,9 @@ export function toRepresentation(ast: SchemaAST.AST, options?: ToRepresentationO
  */
 export function toRepresentations(
   asts: readonly [SchemaAST.AST, ...Array<SchemaAST.AST>],
-  options?: ToRepresentationOptions
+  options?: ToRepresentationOptions,
 ): MultiDocument {
-  return InternalToRepresentation.toRepresentations(asts, options)
+  return InternalToRepresentation.toRepresentations(asts, options);
 }
 
 /**
@@ -2378,8 +2399,8 @@ export function toRepresentations(
 export function toMultiDocument(document: Document): MultiDocument {
   return {
     representations: [document.representation],
-    references: document.references
-  }
+    references: document.references,
+  };
 }
 
 /**
@@ -2417,9 +2438,9 @@ export function toMultiDocument(document: Document): MultiDocument {
  */
 export function toJsonSchemaDocument(
   document: Document,
-  options?: Schema.ToJsonSchemaOptions
+  options?: Schema.ToJsonSchemaOptions,
 ): JsonSchema.Document<"draft-2020-12"> {
-  return InternalToJsonSchemaDocument.toJsonSchemaDocument(document, options)
+  return InternalToJsonSchemaDocument.toJsonSchemaDocument(document, options);
 }
 
 /**
@@ -2447,9 +2468,9 @@ export function toJsonSchemaDocument(
  */
 export function toJsonSchemaMultiDocument(
   document: MultiDocument,
-  options?: Schema.ToJsonSchemaOptions
+  options?: Schema.ToJsonSchemaOptions,
 ): JsonSchema.MultiDocument<"draft-2020-12"> {
-  return InternalToJsonSchemaDocument.toJsonSchemaMultiDocument(document, options)
+  return InternalToJsonSchemaDocument.toJsonSchemaMultiDocument(document, options);
 }
 
 /**
@@ -2467,74 +2488,72 @@ export function toJsonSchemaMultiDocument(
  * @since 4.0.0
  */
 export function toCodeDocument(document: MultiDocument): CodeDocument {
-  return InternalToCodeDocument.toCodeDocument(document)
+  return InternalToCodeDocument.toCodeDocument(document);
 }
 
 const RepresentationSchema = Schema.suspend(
-  (): Schema.Codec<Representation, unknown> => RepresentationUnion
-)
-const RepresentationsSchema = Schema.Array(RepresentationSchema)
+  (): Schema.Codec<Representation, unknown> => RepresentationUnion,
+);
+const RepresentationsSchema = Schema.Array(RepresentationSchema);
 
 const RepresentationAnnotationSchema = Schema.Struct({
   id: Schema.NonEmptyString,
-  payload: Schema.Json
-})
+  payload: Schema.Json,
+});
 
 const CheckRepresentationAnnotationSchema = Schema.Struct({
   ...RepresentationAnnotationSchema.fields,
-  schemas: Schema.optional(RepresentationsSchema)
-})
+  schemas: Schema.optional(RepresentationsSchema),
+});
 
 function pruneAnnotations(
-  annotations: Readonly<Record<string, unknown>>
+  annotations: Readonly<Record<string, unknown>>,
 ): Option.Option<Readonly<Record<string, Schema.Json>>> {
-  const out: Record<string, Schema.Json> = {}
+  const out: Record<string, Schema.Json> = {};
   for (const [key, value] of Object.entries(annotations)) {
     if (SchemaAST.isJson(value)) {
-      InternalRecord.assignProperty(out, key, value)
+      InternalRecord.assignProperty(out, key, value);
     }
   }
-  return Object.keys(out).length === 0 ? Option.none() : Option.some(out)
+  return Object.keys(out).length === 0 ? Option.none() : Option.some(out);
 }
 
-const AnnotationsSchema = Schema.optional(
-  Schema.Record(Schema.String, Schema.Unknown)
-).pipe(
+const AnnotationsSchema = Schema.optional(Schema.Record(Schema.String, Schema.Unknown)).pipe(
   Schema.encodeTo(Schema.optionalKey(Schema.JsonObject), {
     decode: InternalGetter.passthroughSubtype(),
     encode: InternalGetter.transformOptional((annotations) =>
       Option.isNone(annotations) || annotations.value === undefined
         ? Option.none()
-        : pruneAnnotations(annotations.value)
-    )
-  })
-)
+        : pruneAnnotations(annotations.value),
+    ),
+  }),
+);
 
-const CheckSchema = Schema.suspend((): Schema.Codec<Check, unknown> => CheckUnion)
-const ChecksSchema = Schema.Array(CheckSchema)
+const CheckSchema = Schema.suspend((): Schema.Codec<Check, unknown> => CheckUnion);
+const ChecksSchema = Schema.Array(CheckSchema);
 const KeywordFields = {
   annotations: AnnotationsSchema,
-  checks: ChecksSchema
-}
+  checks: ChecksSchema,
+};
 const FilterSchema = Schema.Struct({
   _tag: Schema.tag("Filter"),
   representation: CheckRepresentationAnnotationSchema,
   annotations: AnnotationsSchema,
-  aborted: Schema.Boolean
-})
+  aborted: Schema.Boolean,
+});
 const FilterGroupSchema = Schema.Struct({
   _tag: Schema.tag("FilterGroup"),
   representation: Schema.optional(CheckRepresentationAnnotationSchema),
   annotations: AnnotationsSchema,
-  checks: Schema.NonEmptyArray(CheckSchema)
-})
-const CheckUnion = Schema.Union([FilterSchema, FilterGroupSchema])
+  checks: Schema.NonEmptyArray(CheckSchema),
+});
+const CheckUnion = Schema.Union([FilterSchema, FilterGroupSchema]);
 
 function makeKeywordSchema<Tag extends Exclude<Representation["_tag"], "Reference">>(tag: Tag) {
   return Schema.Struct({
     _tag: Schema.tag(tag),
-    ...KeywordFields
-  })
+    ...KeywordFields,
+  });
 }
 
 const DeclarationSchema = Schema.Struct({
@@ -2542,24 +2561,26 @@ const DeclarationSchema = Schema.Struct({
   representation: RepresentationAnnotationSchema,
   annotations: AnnotationsSchema,
   typeParameters: RepresentationsSchema,
-  checks: ChecksSchema
-})
+  checks: ChecksSchema,
+});
 const SuspendSchema = Schema.Struct({
   _tag: Schema.tag("Suspend"),
   annotations: AnnotationsSchema,
   checks: Schema.Tuple([]),
-  thunk: RepresentationSchema
-})
+  thunk: RepresentationSchema,
+});
 function makeValueSchema<Type extends string, Value>(type: Type, value: Schema.Codec<Value>) {
   return value.pipe(
     Schema.encodeTo(Schema.Struct({ type: Schema.tag(type), value }), {
-      decode: InternalGetter.transform((encoded: { readonly type: Type; readonly value: Value }) => encoded.value),
-      encode: InternalGetter.transform((value: Value) => ({ type, value }))
-    })
-  )
+      decode: InternalGetter.transform(
+        (encoded: { readonly type: Type; readonly value: Value }) => encoded.value,
+      ),
+      encode: InternalGetter.transform((value: Value) => ({ type, value })),
+    }),
+  );
 }
-const StringValueCodec = makeValueSchema("string", Schema.String)
-const NumberValueCodec = makeValueSchema("number", Schema.Number)
+const StringValueCodec = makeValueSchema("string", Schema.String);
+const NumberValueCodec = makeValueSchema("number", Schema.Number);
 const LiteralSchema = Schema.Struct({
   _tag: Schema.tag("Literal"),
   ...KeywordFields,
@@ -2567,71 +2588,72 @@ const LiteralSchema = Schema.Struct({
     StringValueCodec,
     makeValueSchema("number", Schema.Finite),
     makeValueSchema("bigint", Schema.BigInt),
-    makeValueSchema("boolean", Schema.Boolean)
-  ])
-})
+    makeValueSchema("boolean", Schema.Boolean),
+  ]),
+});
 const UniqueSymbolSchema = Schema.Struct({
   _tag: Schema.tag("UniqueSymbol"),
   ...KeywordFields,
-  symbol: Schema.Symbol
-})
+  symbol: Schema.Symbol,
+});
 const EnumSchema = Schema.Struct({
   _tag: Schema.tag("Enum"),
   ...KeywordFields,
-  enums: Schema.Array(Schema.Tuple([
-    Schema.String,
-    Schema.Union([StringValueCodec, NumberValueCodec])
-  ]))
-})
+  enums: Schema.Array(
+    Schema.Tuple([Schema.String, Schema.Union([StringValueCodec, NumberValueCodec])]),
+  ),
+});
 const TemplateLiteralSchema = Schema.Struct({
   _tag: Schema.tag("TemplateLiteral"),
   ...KeywordFields,
-  parts: RepresentationsSchema
-})
+  parts: RepresentationsSchema,
+});
 const ElementSchema = Schema.Struct({
   isOptional: Schema.Boolean,
   type: RepresentationSchema,
-  annotations: AnnotationsSchema
-})
+  annotations: AnnotationsSchema,
+});
 const ArraysSchema = Schema.Struct({
   _tag: Schema.tag("Arrays"),
   ...KeywordFields,
   elements: Schema.Array(ElementSchema),
-  rest: RepresentationsSchema
-})
+  rest: RepresentationsSchema,
+});
 const PropertySignatureSchema = Schema.Struct({
   name: Schema.Union([
     StringValueCodec,
     NumberValueCodec,
-    makeValueSchema("symbol", Schema.Symbol)
+    makeValueSchema("symbol", Schema.Symbol),
   ]),
   type: RepresentationSchema,
   isOptional: Schema.Boolean,
   isMutable: Schema.Boolean,
-  annotations: AnnotationsSchema
-})
+  annotations: AnnotationsSchema,
+});
 const IndexSignatureSchema = Schema.Struct({
   parameter: RepresentationSchema,
-  type: RepresentationSchema
-})
+  type: RepresentationSchema,
+});
 const ObjectsSchema = Schema.Struct({
   _tag: Schema.tag("Objects"),
   ...KeywordFields,
   propertySignatures: Schema.Array(PropertySignatureSchema),
-  indexSignatures: Schema.Array(IndexSignatureSchema)
-})
+  indexSignatures: Schema.Array(IndexSignatureSchema),
+});
 const UnionSchema = Schema.Struct({
   _tag: Schema.tag("Union"),
   ...KeywordFields,
   types: RepresentationsSchema,
-  options: Schema.optionalKey(Schema.Struct({
-    mode: Schema.optionalKey(Schema.Literals(["anyOf", "oneOf"]))
-  }))
-})
+  options: Schema.optionalKey(
+    Schema.Struct({
+      mode: Schema.optionalKey(Schema.Literals(["anyOf", "oneOf"])),
+    }),
+  ),
+});
 const ReferenceSchema = Schema.Struct({
   _tag: Schema.tag("Reference"),
-  $ref: Schema.NonEmptyString
-})
+  $ref: Schema.NonEmptyString,
+});
 
 const RepresentationUnion = Schema.Union([
   DeclarationSchema,
@@ -2655,29 +2677,29 @@ const RepresentationUnion = Schema.Union([
   TemplateLiteralSchema,
   ArraysSchema,
   ObjectsSchema,
-  UnionSchema
-])
+  UnionSchema,
+]);
 
-const ReferencesSchema = Schema.Record(Schema.String, RepresentationSchema)
+const ReferencesSchema = Schema.Record(Schema.String, RepresentationSchema);
 
 const DocumentFromJson: Schema.Codec<Document, Schema.Json> = Schema.toCodecJson(
   Schema.Struct({
     representation: RepresentationSchema,
-    references: ReferencesSchema
-  })
-)
+    references: ReferencesSchema,
+  }),
+);
 
 const MultiDocumentFromJson: Schema.Codec<MultiDocument, Schema.Json> = Schema.toCodecJson(
   Schema.Struct({
     representations: Schema.NonEmptyArray(RepresentationSchema),
-    references: ReferencesSchema
-  })
-)
+    references: ReferencesSchema,
+  }),
+);
 
-const encodeDocument = Schema.encodeSync(DocumentFromJson)
-const encodeMultiDocument = Schema.encodeSync(MultiDocumentFromJson)
-const decodeDocument = Schema.decodeSync(DocumentFromJson)
-const decodeMultiDocument = Schema.decodeSync(MultiDocumentFromJson)
+const encodeDocument = Schema.encodeSync(DocumentFromJson);
+const encodeMultiDocument = Schema.encodeSync(MultiDocumentFromJson);
+const decodeDocument = Schema.decodeSync(DocumentFromJson);
+const decodeMultiDocument = Schema.decodeSync(MultiDocumentFromJson);
 
 /**
  * Projects a live single-root representation document and encodes it as JSON.
@@ -2697,7 +2719,7 @@ const decodeMultiDocument = Schema.decodeSync(MultiDocumentFromJson)
  * @since 4.0.0
  */
 export function toJson(document: Document): Schema.Json {
-  return encodeDocument(document)
+  return encodeDocument(document);
 }
 
 /**
@@ -2718,7 +2740,7 @@ export function toJson(document: Document): Schema.Json {
  * @since 4.0.0
  */
 export function toJsonMultiDocument(document: MultiDocument): Schema.Json {
-  return encodeMultiDocument(document)
+  return encodeMultiDocument(document);
 }
 
 /**
@@ -2740,7 +2762,7 @@ export function toJsonMultiDocument(document: MultiDocument): Schema.Json {
  * @since 4.0.0
  */
 export function fromJson(input: Schema.Json): Document {
-  return decodeDocument(input)
+  return decodeDocument(input);
 }
 
 /**
@@ -2762,7 +2784,7 @@ export function fromJson(input: Schema.Json): Document {
  * @since 4.0.0
  */
 export function fromJsonMultiDocument(input: Schema.Json): MultiDocument {
-  return decodeMultiDocument(input)
+  return decodeMultiDocument(input);
 }
 
 /**
@@ -2798,9 +2820,9 @@ export function fromJsonMultiDocument(input: Schema.Json): MultiDocument {
  */
 export function fromRepresentation(
   document: Document,
-  options: { readonly revivers: ReadonlyArray<AnyReviver> }
+  options: { readonly revivers: ReadonlyArray<AnyReviver> },
 ): Schema.Top {
-  return InternalFromRepresentation.fromRepresentation(document, options.revivers)
+  return InternalFromRepresentation.fromRepresentation(document, options.revivers);
 }
 
 /**
@@ -2822,9 +2844,9 @@ export function fromRepresentation(
  */
 export function fromRepresentations(
   document: MultiDocument,
-  options: { readonly revivers: ReadonlyArray<AnyReviver> }
+  options: { readonly revivers: ReadonlyArray<AnyReviver> },
 ): readonly [Schema.Top, ...Array<Schema.Top>] {
-  return InternalFromRepresentation.fromRepresentations(document, options.revivers)
+  return InternalFromRepresentation.fromRepresentations(document, options.revivers);
 }
 
 /**
@@ -2879,9 +2901,13 @@ export function fromRepresentations(
  */
 export function fromJsonSchemaDocument(
   document: JsonSchema.Document<"draft-2020-12">,
-  options?: FromJsonSchemaOptions
+  options?: FromJsonSchemaOptions,
 ): Schema.Top {
-  return InternalFromJsonSchemaDocument.fromJsonSchemaDocument(document, options, jsonSchemaRevivers)
+  return InternalFromJsonSchemaDocument.fromJsonSchemaDocument(
+    document,
+    options,
+    jsonSchemaRevivers,
+  );
 }
 
 /**
@@ -2921,7 +2947,11 @@ export function fromJsonSchemaDocument(
  */
 export function fromJsonSchemaMultiDocument(
   document: JsonSchema.MultiDocument<"draft-2020-12">,
-  options?: FromJsonSchemaOptions
+  options?: FromJsonSchemaOptions,
 ): readonly [Schema.Top, ...Array<Schema.Top>] {
-  return InternalFromJsonSchemaDocument.fromJsonSchemaMultiDocument(document, options, jsonSchemaRevivers)
+  return InternalFromJsonSchemaDocument.fromJsonSchemaMultiDocument(
+    document,
+    options,
+    jsonSchemaRevivers,
+  );
 }

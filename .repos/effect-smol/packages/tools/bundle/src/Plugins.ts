@@ -18,30 +18,34 @@
  *
  * @since 4.0.0
  */
-import { nodeResolve } from "@rollup/plugin-node-resolve"
-import replace from "@rollup/plugin-replace"
-import terser from "@rollup/plugin-terser"
-import type * as Path from "effect/Path"
-import * as Predicate from "effect/Predicate"
-import type { Plugin } from "rollup"
-import esbuild from "rollup-plugin-esbuild"
-import { type PluginVisualizerOptions, visualizer } from "rollup-plugin-visualizer"
+import { nodeResolve } from "@rollup/plugin-node-resolve";
+import replace from "@rollup/plugin-replace";
+import terser from "@rollup/plugin-terser";
+import type * as Path from "effect/Path";
+import * as Predicate from "effect/Predicate";
+import type { Plugin } from "rollup";
+import esbuild from "rollup-plugin-esbuild";
+import { type PluginVisualizerOptions, visualizer } from "rollup-plugin-visualizer";
 
-const EFFECT_PACKAGE_REGEX = /^(@effect\/[\w-]+|effect)(\/.*)?$/
-const TYPE_SCRIPT_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"])
+const EFFECT_PACKAGE_REGEX = /^(@effect\/[\w-]+|effect)(\/.*)?$/;
+const TYPE_SCRIPT_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
 
-const toLocalDistPath = (pathService: Path.Path, packageDir: string, resolvedId: string): string => {
-  const srcDir = pathService.join(packageDir, "src")
-  const relative = pathService.relative(srcDir, resolvedId)
+const toLocalDistPath = (
+  pathService: Path.Path,
+  packageDir: string,
+  resolvedId: string,
+): string => {
+  const srcDir = pathService.join(packageDir, "src");
+  const relative = pathService.relative(srcDir, resolvedId);
   if (relative === "" || relative.startsWith("..") || pathService.isAbsolute(relative)) {
-    return resolvedId
+    return resolvedId;
   }
-  const extension = pathService.extname(relative)
+  const extension = pathService.extname(relative);
   if (!TYPE_SCRIPT_EXTENSIONS.has(extension)) {
-    return resolvedId
+    return resolvedId;
   }
-  return pathService.join(packageDir, "dist", relative.slice(0, -extension.length) + ".js")
-}
+  return pathService.join(packageDir, "dist", relative.slice(0, -extension.length) + ".js");
+};
 
 /**
  * Options for configuring Rollup plugins.
@@ -50,11 +54,11 @@ const toLocalDistPath = (pathService: Path.Path, packageDir: string, resolvedId:
  * @since 4.0.0
  */
 export interface PluginOptions {
-  readonly nodeTarget?: string | undefined
-  readonly minify?: boolean | undefined
-  readonly mangle?: boolean | undefined
-  readonly visualize?: boolean | undefined
-  readonly visualizations?: ReadonlyArray<VisualizationOutput> | undefined
+  readonly nodeTarget?: string | undefined;
+  readonly minify?: boolean | undefined;
+  readonly mangle?: boolean | undefined;
+  readonly visualize?: boolean | undefined;
+  readonly visualizations?: ReadonlyArray<VisualizationOutput> | undefined;
 }
 
 /**
@@ -64,17 +68,17 @@ export interface PluginOptions {
  * @since 4.0.0
  */
 export interface VisualizationOutput {
-  readonly filename: string
-  readonly template: NonNullable<PluginVisualizerOptions["template"]>
-  readonly title?: string | undefined
+  readonly filename: string;
+  readonly template: NonNullable<PluginVisualizerOptions["template"]>;
+  readonly title?: string | undefined;
 }
 
 interface ResolvedPluginOptions {
-  readonly nodeTarget: string
-  readonly minify: boolean
-  readonly mangle: boolean
-  readonly visualize: boolean
-  readonly visualizations: ReadonlyArray<VisualizationOutput>
+  readonly nodeTarget: string;
+  readonly minify: boolean;
+  readonly mangle: boolean;
+  readonly visualize: boolean;
+  readonly visualizations: ReadonlyArray<VisualizationOutput>;
 }
 
 const defaultPluginOptions: ResolvedPluginOptions = {
@@ -82,8 +86,8 @@ const defaultPluginOptions: ResolvedPluginOptions = {
   minify: true,
   mangle: true,
   visualize: false,
-  visualizations: []
-}
+  visualizations: [],
+};
 
 /**
  * Merges provided options with defaults.
@@ -93,8 +97,8 @@ const resolvePluginOptions = (options: PluginOptions): ResolvedPluginOptions => 
   minify: options.minify ?? defaultPluginOptions.minify,
   mangle: options.mangle ?? defaultPluginOptions.mangle,
   visualize: options.visualize ?? defaultPluginOptions.visualize,
-  visualizations: options.visualizations ?? defaultPluginOptions.visualizations
-})
+  visualizations: options.visualizations ?? defaultPluginOptions.visualizations,
+});
 
 /**
  * Creates a custom Rollup plugin that resolves Effect package imports to their
@@ -106,22 +110,24 @@ const resolvePluginOptions = (options: PluginOptions): ResolvedPluginOptions => 
 export const createResolveLocalPackageImports = (pathService: Path.Path): Plugin => ({
   name: "rollup-plugin-resolve-imports",
   async resolveId(source, importer) {
-    const match = source.match(EFFECT_PACKAGE_REGEX)
+    const match = source.match(EFFECT_PACKAGE_REGEX);
     if (Predicate.isNotNull(match)) {
-      const packageName = match[1]
-      const packageJson = await this.resolve(`${packageName}/package.json`, importer, { skipSelf: true })
-      if (packageJson === null) return null
-      const resolved = await this.resolve(source, importer, { skipSelf: true })
-      if (resolved === null) return null
+      const packageName = match[1];
+      const packageJson = await this.resolve(`${packageName}/package.json`, importer, {
+        skipSelf: true,
+      });
+      if (packageJson === null) return null;
+      const resolved = await this.resolve(source, importer, { skipSelf: true });
+      if (resolved === null) return null;
       return {
         ...resolved,
         id: toLocalDistPath(pathService, pathService.dirname(packageJson.id), resolved.id),
-        external: false
-      }
+        external: false,
+      };
     }
-    return null
-  }
-})
+    return null;
+  },
+});
 
 /**
  * Creates the full Rollup plugin pipeline for bundling.
@@ -129,28 +135,31 @@ export const createResolveLocalPackageImports = (pathService: Path.Path): Plugin
  * @category constructors
  * @since 4.0.0
  */
-export const createPlugins = (pathService: Path.Path, options: PluginOptions = {}): Array<Plugin> => {
-  const resolved = resolvePluginOptions(options)
+export const createPlugins = (
+  pathService: Path.Path,
+  options: PluginOptions = {},
+): Array<Plugin> => {
+  const resolved = resolvePluginOptions(options);
   const plugins: Array<Plugin> = [
     createResolveLocalPackageImports(pathService),
     nodeResolve(),
     // @ts-expect-error see https://github.com/rollup/plugins/issues/1662
     replace({
       "process.env.NODE_ENV": JSON.stringify("production"),
-      preventAssignment: true
+      preventAssignment: true,
     }),
     esbuild({
       target: resolved.nodeTarget,
       format: "esm",
-      treeShaking: true
+      treeShaking: true,
     }),
     // @ts-expect-error see https://github.com/rollup/plugins/issues/1662
     terser({
       format: { comments: false },
       compress: resolved.minify,
-      mangle: resolved.mangle && !resolved.visualize
-    })
-  ]
+      mangle: resolved.mangle && !resolved.visualize,
+    }),
+  ];
 
   if (resolved.visualizations.length > 0) {
     for (const output of resolved.visualizations) {
@@ -158,19 +167,21 @@ export const createPlugins = (pathService: Path.Path, options: PluginOptions = {
         filename: output.filename,
         gzipSize: true,
         open: false,
-        template: output.template
-      }
+        template: output.template,
+      };
       if (output.title !== undefined) {
-        visualizerOptions.title = output.title
+        visualizerOptions.title = output.title;
       }
-      plugins.push(visualizer(visualizerOptions) as unknown as Plugin)
+      plugins.push(visualizer(visualizerOptions) as unknown as Plugin);
     }
   } else if (resolved.visualize) {
-    plugins.push(visualizer({
-      open: true,
-      gzipSize: true
-    }) as unknown as Plugin)
+    plugins.push(
+      visualizer({
+        open: true,
+        gzipSize: true,
+      }) as unknown as Plugin,
+    );
   }
 
-  return plugins
-}
+  return plugins;
+};

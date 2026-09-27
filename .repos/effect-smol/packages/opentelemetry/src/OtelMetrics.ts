@@ -9,15 +9,15 @@
  *
  * @since 4.0.0
  */
-import type { MetricProducer, MetricReader } from "@opentelemetry/sdk-metrics"
-import type * as Arr from "effect/Array"
-import type * as Duration from "effect/Duration"
-import * as Effect from "effect/Effect"
-import type { LazyArg } from "effect/Function"
-import * as Layer from "effect/Layer"
-import type * as Scope from "effect/Scope"
-import { MetricProducerImpl } from "./internal/metrics.ts"
-import { Resource } from "./Resource.ts"
+import type { MetricProducer, MetricReader } from "@opentelemetry/sdk-metrics";
+import type * as Arr from "effect/Array";
+import type * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import type { LazyArg } from "effect/Function";
+import * as Layer from "effect/Layer";
+import type * as Scope from "effect/Scope";
+import { MetricProducerImpl } from "./internal/metrics.ts";
+import { Resource } from "./Resource.ts";
 
 /**
  * Determines how metric values relate to the time interval over which they
@@ -33,7 +33,7 @@ import { Resource } from "./Resource.ts"
  * @category models
  * @since 4.0.0
  */
-export type TemporalityPreference = "cumulative" | "delta"
+export type TemporalityPreference = "cumulative" | "delta";
 
 /**
  * Creates an OpenTelemetry metric producer from Effect metrics.
@@ -55,12 +55,14 @@ export type TemporalityPreference = "cumulative" | "delta"
  * @category constructors
  * @since 4.0.0
  */
-export const makeProducer = (temporality?: TemporalityPreference): Effect.Effect<MetricProducer, never, Resource> =>
-  Effect.gen(function*() {
-    const resource = yield* Resource
-    const services = yield* Effect.context<never>()
-    return new MetricProducerImpl(resource, services, temporality)
-  })
+export const makeProducer = (
+  temporality?: TemporalityPreference,
+): Effect.Effect<MetricProducer, never, Resource> =>
+  Effect.gen(function* () {
+    const resource = yield* Resource;
+    const services = yield* Effect.context<never>();
+    return new MetricProducerImpl(resource, services, temporality);
+  });
 
 /**
  * Registers a metric producer with one or more metric readers.
@@ -72,27 +74,25 @@ export const registerProducer = (
   self: MetricProducer,
   metricReader: LazyArg<MetricReader | Arr.NonEmptyReadonlyArray<MetricReader>>,
   options?: {
-    readonly shutdownTimeout?: Duration.Input | undefined
-  }
+    readonly shutdownTimeout?: Duration.Input | undefined;
+  },
 ): Effect.Effect<Array<any>, never, Scope.Scope> =>
   Effect.acquireRelease(
     Effect.sync(() => {
-      const reader = metricReader()
-      const readers: Array<MetricReader> = Array.isArray(reader) ? reader : [reader] as any
-      readers.forEach((reader) => reader.setMetricProducer(self instanceof MetricProducerImpl ? self.fork() : self))
-      return readers
+      const reader = metricReader();
+      const readers: Array<MetricReader> = Array.isArray(reader) ? reader : ([reader] as any);
+      readers.forEach((reader) =>
+        reader.setMetricProducer(self instanceof MetricProducerImpl ? self.fork() : self),
+      );
+      return readers;
     }),
     (readers) =>
-      Effect.promise(() =>
-        Promise.all(
-          readers.map((reader) => reader.shutdown())
-        )
-      ).pipe(
+      Effect.promise(() => Promise.all(readers.map((reader) => reader.shutdown()))).pipe(
         Effect.ignore,
         Effect.interruptible,
-        Effect.timeoutOption(options?.shutdownTimeout ?? 3000)
-      )
-  )
+        Effect.timeoutOption(options?.shutdownTimeout ?? 3000),
+      ),
+  );
 
 /**
  * Creates a Layer that registers a metric producer with metric readers.
@@ -139,11 +139,12 @@ export const registerProducer = (
 export const layer = (
   evaluate: LazyArg<MetricReader | Arr.NonEmptyReadonlyArray<MetricReader>>,
   options?: {
-    readonly shutdownTimeout?: Duration.Input | undefined
-    readonly temporality?: TemporalityPreference | undefined
-  }
+    readonly shutdownTimeout?: Duration.Input | undefined;
+    readonly temporality?: TemporalityPreference | undefined;
+  },
 ): Layer.Layer<never, never, Resource> =>
-  Layer.effectDiscard(Effect.flatMap(
-    makeProducer(options?.temporality),
-    (producer) => registerProducer(producer, evaluate, options)
-  ))
+  Layer.effectDiscard(
+    Effect.flatMap(makeProducer(options?.temporality), (producer) =>
+      registerProducer(producer, evaluate, options),
+    ),
+  );

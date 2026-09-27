@@ -9,8 +9,8 @@
  *
  * @since 4.0.0
  */
-import * as Predicate from "./Predicate.ts"
-import { getRedacted, redact, symbolRedactable } from "./Redactable.ts"
+import * as Predicate from "./Predicate.ts";
+import { getRedacted, redact, symbolRedactable } from "./Redactable.ts";
 
 /**
  * A callable interface representing a function that converts a `Value` into a `Format`, which defaults to `string`.
@@ -39,7 +39,7 @@ import { getRedacted, redact, symbolRedactable } from "./Redactable.ts"
  * @since 4.0.0
  */
 export interface Formatter<in Value, out Format = string> {
-  (value: Value): Format
+  (value: Value): Format;
 }
 
 /**
@@ -105,62 +105,64 @@ export interface Formatter<in Value, out Format = string> {
  * @category formatting
  * @since 2.0.0
  */
-export function format(input: unknown, options?: {
-  readonly space?: number | string | undefined
-  readonly ignoreToString?: boolean | undefined
-}): string {
-  const space = options?.space ?? 0
-  const ancestors = new WeakSet<object>()
-  const gap = !space ? "" : (typeof space === "number" ? " ".repeat(space) : space)
-  const ind = (d: number) => gap.repeat(d)
+export function format(
+  input: unknown,
+  options?: {
+    readonly space?: number | string | undefined;
+    readonly ignoreToString?: boolean | undefined;
+  },
+): string {
+  const space = options?.space ?? 0;
+  const ancestors = new WeakSet<object>();
+  const gap = !space ? "" : typeof space === "number" ? " ".repeat(space) : space;
+  const ind = (d: number) => gap.repeat(d);
 
   const wrap = (v: unknown, body: string): string => {
-    const ctor = (v as any)?.constructor
-    return ctor && ctor !== Object.prototype.constructor && ctor.name ? `${ctor.name}(${body})` : body
-  }
+    const ctor = (v as any)?.constructor;
+    return ctor && ctor !== Object.prototype.constructor && ctor.name
+      ? `${ctor.name}(${body})`
+      : body;
+  };
 
   const ownKeys = (o: object): Array<PropertyKey> => {
     try {
-      return Reflect.ownKeys(o)
+      return Reflect.ownKeys(o);
     } catch {
-      return ["[ownKeys threw]"]
+      return ["[ownKeys threw]"];
     }
-  }
+  };
 
   function recur(v: unknown, d = 0): string {
     try {
-      return recurUnsafe(v, d)
+      return recurUnsafe(v, d);
     } catch {
-      if ((typeof v === "object" && v !== null) || typeof v === "function") ancestors.delete(v)
-      return "[inspection threw]"
+      if ((typeof v === "object" && v !== null) || typeof v === "function") ancestors.delete(v);
+      return "[inspection threw]";
     }
   }
 
   function recurUnsafe(v: unknown, d = 0): string {
-    if (typeof v === "string") return JSON.stringify(v)
+    if (typeof v === "string") return JSON.stringify(v);
 
-    if (
-      typeof v === "number" ||
-      v == null ||
-      typeof v === "boolean" ||
-      typeof v === "symbol"
-    ) return String(v)
+    if (typeof v === "number" || v == null || typeof v === "boolean" || typeof v === "symbol")
+      return String(v);
 
-    if (typeof v === "bigint") return String(v) + "n"
+    if (typeof v === "bigint") return String(v) + "n";
 
     if (typeof v === "object" || typeof v === "function") {
-      if (ancestors.has(v)) return CIRCULAR
-      ancestors.add(v)
+      if (ancestors.has(v)) return CIRCULAR;
+      ancestors.add(v);
 
-      let output: string
+      let output: string;
       if (symbolRedactable in v) {
-        output = recur(getRedacted(v as any), d)
+        output = recur(getRedacted(v as any), d);
       } else if (Array.isArray(v)) {
-        output = !gap || v.length <= 1
-          ? `[${v.map((x) => recur(x, d)).join(",")}]`
-          : `[\n${ind(d + 1)}${v.map((x) => recur(x, d + 1)).join(",\n" + ind(d + 1))}\n${ind(d)}]`
+        output =
+          !gap || v.length <= 1
+            ? `[${v.map((x) => recur(x, d)).join(",")}]`
+            : `[\n${ind(d + 1)}${v.map((x) => recur(x, d + 1)).join(",\n" + ind(d + 1))}\n${ind(d)}]`;
       } else if (v instanceof Date) {
-        output = formatDate(v)
+        output = formatDate(v);
       } else if (
         !options?.ignoreToString &&
         Predicate.hasProperty(v, "toString") &&
@@ -168,39 +170,40 @@ export function format(input: unknown, options?: {
         v["toString"] !== Object.prototype.toString &&
         v["toString"] !== Array.prototype.toString
       ) {
-        const s = safeToString(v)
-        output = v instanceof Error && v.cause !== undefined ? `${s} (cause: ${recur(v.cause, d)})` : s
+        const s = safeToString(v);
+        output =
+          v instanceof Error && v.cause !== undefined ? `${s} (cause: ${recur(v.cause, d)})` : s;
       } else if (Symbol.iterator in v) {
-        output = `${v.constructor.name}(${recur(Array.from(v as any), d)})`
+        output = `${v.constructor.name}(${recur(Array.from(v as any), d)})`;
       } else {
-        const keys = ownKeys(v)
+        const keys = ownKeys(v);
         if (!gap || keys.length <= 1) {
-          const body = `{${keys.map((k) => `${formatPropertyKey(k)}:${recur(safeGet(v, k), d)}`).join(",")}}`
-          output = wrap(v, body)
+          const body = `{${keys.map((k) => `${formatPropertyKey(k)}:${recur(safeGet(v, k), d)}`).join(",")}}`;
+          output = wrap(v, body);
         } else {
-          const body = `{\n${
-            keys.map((k) => `${ind(d + 1)}${formatPropertyKey(k)}: ${recur(safeGet(v, k), d + 1)}`).join(",\n")
-          }\n${ind(d)}}`
-          output = wrap(v, body)
+          const body = `{\n${keys
+            .map((k) => `${ind(d + 1)}${formatPropertyKey(k)}: ${recur(safeGet(v, k), d + 1)}`)
+            .join(",\n")}\n${ind(d)}}`;
+          output = wrap(v, body);
         }
       }
-      ancestors.delete(v)
-      return output
+      ancestors.delete(v);
+      return output;
     }
 
-    return String(v)
+    return String(v);
   }
 
-  return recur(input, 0)
+  return recur(input, 0);
 }
 
-const CIRCULAR = "[Circular]"
+const CIRCULAR = "[Circular]";
 
 /**
  * @internal
  */
 export function formatPropertyKey(name: PropertyKey): string {
-  return typeof name === "string" ? JSON.stringify(name) : String(name)
+  return typeof name === "string" ? JSON.stringify(name) : String(name);
 }
 
 /**
@@ -209,7 +212,7 @@ export function formatPropertyKey(name: PropertyKey): string {
  * @internal
  */
 export function formatPath(path: ReadonlyArray<PropertyKey>): string {
-  return path.map((key) => `[${formatPropertyKey(key)}]`).join("")
+  return path.map((key) => `[${formatPropertyKey(key)}]`).join("");
 }
 
 /**
@@ -220,26 +223,26 @@ export function formatPath(path: ReadonlyArray<PropertyKey>): string {
  */
 export function formatDate(date: Date): string {
   try {
-    return date.toISOString()
+    return date.toISOString();
   } catch {
-    return "Invalid Date"
+    return "Invalid Date";
   }
 }
 
 function safeToString(input: any): string {
   try {
-    const s = input.toString()
-    return typeof s === "string" ? s : String(s)
+    const s = input.toString();
+    return typeof s === "string" ? s : String(s);
   } catch {
-    return "[toString threw]"
+    return "[toString threw]";
   }
 }
 
 function safeGet(input: object, key: PropertyKey): unknown {
   try {
-    return (input as any)[key]
+    return (input as any)[key];
   } catch {
-    return "[property access threw]"
+    return "[property access threw]";
   }
 }
 
@@ -299,32 +302,37 @@ function safeGet(input: object, key: PropertyKey): unknown {
  * @category serialization
  * @since 4.0.0
  */
-export function formatJson(input: unknown, options?: {
-  readonly space?: number | string | undefined
-}): string {
-  const ancestors: Array<object> = []
-  return JSON.stringify(
-    input,
-    function(this: object, key: string, value: unknown) {
-      const original = Object.getOwnPropertyDescriptor(this, key)?.value
-      const redacted = Predicate.hasProperty(original, symbolRedactable)
-        ? redact(original)
-        : redact(value)
-      if (typeof redacted === "bigint") {
-        return format(redacted)
-      }
-      if (typeof redacted !== "object" || redacted === null) {
-        return redacted
-      }
-      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
-        ancestors.pop()
-      }
-      if (ancestors.includes(redacted)) {
-        return undefined // circular reference
-      }
-      ancestors.push(redacted)
-      return redacted
-    },
-    options?.space
-  ) ?? "null"
+export function formatJson(
+  input: unknown,
+  options?: {
+    readonly space?: number | string | undefined;
+  },
+): string {
+  const ancestors: Array<object> = [];
+  return (
+    JSON.stringify(
+      input,
+      function (this: object, key: string, value: unknown) {
+        const original = Object.getOwnPropertyDescriptor(this, key)?.value;
+        const redacted = Predicate.hasProperty(original, symbolRedactable)
+          ? redact(original)
+          : redact(value);
+        if (typeof redacted === "bigint") {
+          return format(redacted);
+        }
+        if (typeof redacted !== "object" || redacted === null) {
+          return redacted;
+        }
+        while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+          ancestors.pop();
+        }
+        if (ancestors.includes(redacted)) {
+          return undefined; // circular reference
+        }
+        ancestors.push(redacted);
+        return redacted;
+      },
+      options?.space,
+    ) ?? "null"
+  );
 }

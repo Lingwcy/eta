@@ -1,12 +1,13 @@
-import * as DenoKeyValueStore from "@effect/platform-deno/DenoKeyValueStore"
-import { beforeAll, describe } from "@effect/vitest"
-import { testLayer } from "../../../effect/test/unstable/persistence/KeyValueStore.test.ts"
+import * as DenoKeyValueStore from "@effect/platform-deno/DenoKeyValueStore";
+import { beforeAll, describe } from "@effect/vitest";
+import { testLayer } from "../../../effect/test/unstable/persistence/KeyValueStore.test.ts";
 
 beforeAll(() => {
-  localStorage.clear()
-  sessionStorage.clear()
-})
+  localStorage.clear();
+  sessionStorage.clear();
+});
 
-describe("KeyValueStore / layerLocalStorage", () => testLayer(DenoKeyValueStore.layerLocalStorage))
+describe("KeyValueStore / layerLocalStorage", () => testLayer(DenoKeyValueStore.layerLocalStorage));
 
-describe("KeyValueStore / layerSessionStorage", () => testLayer(DenoKeyValueStore.layerSessionStorage))
+describe("KeyValueStore / layerSessionStorage", () =>
+  testLayer(DenoKeyValueStore.layerSessionStorage));

@@ -1,25 +1,35 @@
-const endpointIdentifier = (index) => `getUser${String(index).padStart(4, "0")}`
+const endpointIdentifier = (index) => `getUser${String(index).padStart(4, "0")}`;
 
-const endpoint = (index, indent = "    ") => `${indent}HttpApiEndpoint.get("${endpointIdentifier(index)}", "/users/:id", {
+const endpoint = (
+  index,
+  indent = "    ",
+) => `${indent}HttpApiEndpoint.get("${endpointIdentifier(index)}", "/users/:id", {
 ${indent}  params: Params,
 ${indent}  success: User
-${indent}})`
+${indent}})`;
 
 const endpoints = (count, indent = "    ") =>
-  Array.from({ length: count }, (_, index) => endpoint(index + 1, indent)).join(",\n")
+  Array.from({ length: count }, (_, index) => endpoint(index + 1, indent)).join(",\n");
 
 const imports = ({ builder = false, client = false, effect = false, httpClient = false } = {}) => {
-  const effectImports = effect ? "Effect, Schema" : "Schema"
-  const httpApiImports = ["HttpApi", builder ? "HttpApiBuilder" : undefined, client ? "HttpApiClient" : undefined,
-    "HttpApiEndpoint", "HttpApiGroup"].filter((name) => name !== undefined).join(", ")
+  const effectImports = effect ? "Effect, Schema" : "Schema";
+  const httpApiImports = [
+    "HttpApi",
+    builder ? "HttpApiBuilder" : undefined,
+    client ? "HttpApiClient" : undefined,
+    "HttpApiEndpoint",
+    "HttpApiGroup",
+  ]
+    .filter((name) => name !== undefined)
+    .join(", ");
   return `import { ${effectImports} } from "effect"
-${httpClient ? `import { HttpClient } from "effect/unstable/http"\n` : ""}import { ${httpApiImports} } from "effect/unstable/httpapi"`
-}
+${httpClient ? `import { HttpClient } from "effect/unstable/http"\n` : ""}import { ${httpApiImports} } from "effect/unstable/httpapi"`;
+};
 
 const warmup = `Schema.String
 HttpApi.make("Api")
 HttpApiGroup.make("users")
-HttpApiEndpoint.get("warmup", "/warmup")`
+HttpApiEndpoint.get("warmup", "/warmup")`;
 
 const schemas = `const Params = Schema.Struct({
   id: Schema.FiniteFromString
@@ -28,22 +38,24 @@ const schemas = `const Params = Schema.Struct({
 const User = Schema.Struct({
   id: Schema.String,
   name: Schema.String
-})`
+})`;
 
 const assertions = `type Assert<T extends true> = T
-type IsNever<T> = [T] extends [never] ? true : false`
+type IsNever<T> = [T] extends [never] ? true : false`;
 
 const api = (count, options = {}) => {
-  const groupIdentifier = options.groupIdentifier ?? "users"
-  const topLevel = options.topLevel === true ? ", { topLevel: true }" : ""
+  const groupIdentifier = options.groupIdentifier ?? "users";
+  const topLevel = options.topLevel === true ? ", { topLevel: true }" : "";
   return `const api = HttpApi.make("Api").add(
   HttpApiGroup.make("${groupIdentifier}"${topLevel}).add(
 ${endpoints(count)}
   )
-)`
-}
+)`;
+};
 
-const endpointDeclarationFixture = (count) => `// Compares endpoint declaration for ${count} same-shaped endpoints.
+const endpointDeclarationFixture = (
+  count,
+) => `// Compares endpoint declaration for ${count} same-shaped endpoints.
 ${imports()}
 
 ${warmup}
@@ -62,9 +74,10 @@ export type EndpointsExist = Assert<IsNever<EndpointUnion> extends false ? true 
 export type EndpointRequests = HttpApiEndpoint.Request<EndpointUnion>
 export type ServerServices = HttpApiEndpoint.ServerServices<EndpointUnion>
 export type ClientServices = HttpApiEndpoint.ClientServices<EndpointUnion>
-`
+`;
 
-const clientMethodsFixture = () => `// Compares grouped client method derivation from 500 same-shaped endpoints.
+const clientMethodsFixture =
+  () => `// Compares grouped client method derivation from 500 same-shaped endpoints.
 ${imports({ client: true })}
 
 ${warmup}
@@ -84,9 +97,10 @@ export type HasLastEndpoint = Assert<"getUser0500" extends keyof Users ? true : 
 export type MethodsExist = Assert<IsNever<Methods> extends false ? true : false>
 export type ClientMethodRequests = Parameters<Methods>[0]
 export type ClientMethodResults = ReturnType<Methods>
-`
+`;
 
-const topLevelClientMethodsFixture = () => `// Compares top-level client method derivation from 500 same-shaped endpoints.
+const topLevelClientMethodsFixture =
+  () => `// Compares top-level client method derivation from 500 same-shaped endpoints.
 ${imports({ client: true })}
 
 ${warmup}
@@ -104,20 +118,21 @@ export type HasLastEndpoint = Assert<"getUser0500" extends keyof Client ? true :
 export type MethodsExist = Assert<IsNever<Methods> extends false ? true : false>
 export type ClientMethodRequests = Parameters<Methods>[0]
 export type ClientMethodResults = ReturnType<Methods>
-`
+`;
 
 const group = (groupIndex, endpointCount) => {
-  const identifier = `group${String(groupIndex).padStart(3, "0")}`
+  const identifier = `group${String(groupIndex).padStart(3, "0")}`;
   return `  HttpApiGroup.make("${identifier}").add(
 ${endpoints(endpointCount)}
-  )`
-}
+  )`;
+};
 
 const multipleGroupsApi = (groupCount, endpointCount) => `const api = HttpApi.make("Api").add(
 ${Array.from({ length: groupCount }, (_, index) => group(index + 1, endpointCount)).join(",\n")}
-)`
+)`;
 
-const clientGroupsFixture = () => `// Compares client derivation for 100 groups with 5 same-shaped endpoints each.
+const clientGroupsFixture =
+  () => `// Compares client derivation for 100 groups with 5 same-shaped endpoints each.
 ${imports({ client: true })}
 
 ${warmup}
@@ -137,9 +152,10 @@ export type HasLastEndpoint = Assert<"getUser0005" extends keyof GroupClients ? 
 export type MethodsExist = Assert<IsNever<Methods> extends false ? true : false>
 export type ClientMethodRequests = Parameters<Methods>[0]
 export type ClientMethodResults = ReturnType<Methods>
-`
+`;
 
-const clientEndpointFixture = () => `// Compares HttpApiClient.endpoint selection from 500 same-shaped endpoints.
+const clientEndpointFixture =
+  () => `// Compares HttpApiClient.endpoint selection from 500 same-shaped endpoints.
 ${imports({ client: true, effect: true, httpClient: true })}
 
 ${warmup}
@@ -163,9 +179,11 @@ ${assertions}
 export type MethodExists = Assert<IsNever<Method> extends false ? true : false>
 export type EndpointClientRequest = Parameters<Method>[0]
 export type EndpointClientResult = ReturnType<Method>
-`
+`;
 
-const urlBuilderFixture = (topLevel) => `// Compares ${topLevel ? "top-level" : "grouped"} URL builder derivation from 500 same-shaped endpoints.
+const urlBuilderFixture = (
+  topLevel,
+) => `// Compares ${topLevel ? "top-level" : "grouped"} URL builder derivation from 500 same-shaped endpoints.
 ${imports({ client: true })}
 
 ${warmup}
@@ -175,17 +193,18 @@ ${schemas}
 ${api(500, topLevel ? { groupIdentifier: "top", topLevel: true } : {})}
 
 type UrlBuilder = HttpApiClient.UrlBuilder<typeof api>
-type Methods = ${topLevel ? "UrlBuilder[keyof UrlBuilder]" : "UrlBuilder[\"users\"][keyof UrlBuilder[\"users\"]]"}
+type Methods = ${topLevel ? "UrlBuilder[keyof UrlBuilder]" : 'UrlBuilder["users"][keyof UrlBuilder["users"]]'}
 
 ${assertions}
 
-export type HasLastEndpoint = Assert<"getUser0500" extends ${topLevel ? "keyof UrlBuilder" : "keyof UrlBuilder[\"users\"]"} ? true : false>
+export type HasLastEndpoint = Assert<"getUser0500" extends ${topLevel ? "keyof UrlBuilder" : 'keyof UrlBuilder["users"]'} ? true : false>
 export type MethodsExist = Assert<IsNever<Methods> extends false ? true : false>
 export type UrlBuilderMethodRequests = Parameters<Methods>[0]
 export type UrlBuilderMethodResults = ReturnType<Methods>
-`
+`;
 
-const builderEndpointFixture = () => `// Compares HttpApiBuilder.endpoint selection from 500 same-shaped endpoints.
+const builderEndpointFixture =
+  () => `// Compares HttpApiBuilder.endpoint selection from 500 same-shaped endpoints.
 ${imports({ builder: true, effect: true })}
 
 ${warmup}
@@ -209,15 +228,21 @@ export type EndpointHandlerExists = Assert<IsNever<typeof endpointHandler> exten
 export type HttpEffectExists = Assert<IsNever<HttpEffect> extends false ? true : false>
 export type EndpointHandlerServices = Effect.Services<typeof endpointHandler>
 export type HttpEffectServices = Effect.Services<HttpEffect>
-`
+`;
 
-const handlerCall = (index, raw) => `    .${raw ? "handleRaw" : "handle"}("${endpointIdentifier(index)}", ({ params }) =>
+const handlerCall = (
+  index,
+  raw,
+) => `    .${raw ? "handleRaw" : "handle"}("${endpointIdentifier(index)}", ({ params }) =>
       Effect.succeed({
         id: String(params.id),
         name: "Ada"
-      }))`
+      }))`;
 
-const handlersFixture = (count, raw = false) => `// Compares chained builder ${raw ? "handleRaw" : "handle"} registration for ${count} same-shaped endpoints.
+const handlersFixture = (
+  count,
+  raw = false,
+) => `// Compares chained builder ${raw ? "handleRaw" : "handle"} registration for ${count} same-shaped endpoints.
 ${imports({ builder: true, effect: true })}
 
 ${warmup}
@@ -239,7 +264,7 @@ ${assertions}
 
 export type LayerExists = Assert<IsNever<typeof layer> extends false ? true : false>
 export type Layer = typeof layer
-`
+`;
 
 export const httpapi = {
   name: "httpapi",
@@ -251,7 +276,7 @@ ${warmup}
   fixtures: [
     ...[10, 50, 100, 500].map((count) => ({
       name: `endpoint-count-${count}`,
-      source: endpointDeclarationFixture(count)
+      source: endpointDeclarationFixture(count),
     })),
     { name: "client-methods-count-500", source: clientMethodsFixture() },
     { name: "client-top-level-methods-count-500", source: topLevelClientMethodsFixture() },
@@ -262,8 +287,8 @@ ${warmup}
     { name: "builder-endpoint-count-500", source: builderEndpointFixture() },
     ...[10, 50, 100, 500].map((count) => ({
       name: `builder-handlers-count-${count}`,
-      source: handlersFixture(count)
+      source: handlersFixture(count),
     })),
-    { name: "builder-raw-handlers-count-500", source: handlersFixture(500, true) }
-  ]
-}
+    { name: "builder-raw-handlers-count-500", source: handlersFixture(500, true) },
+  ],
+};

@@ -6,11 +6,11 @@
  *
  * @since 4.0.0
  */
-import { dual } from "effect/Function"
-import * as String from "effect/String"
-import type { Span } from "effect/Tracer"
-import type { Simplify } from "effect/Types"
-import * as Telemetry from "effect/unstable/ai/Telemetry"
+import { dual } from "effect/Function";
+import * as String from "effect/String";
+import type { Span } from "effect/Tracer";
+import type { Simplify } from "effect/Types";
+import * as Telemetry from "effect/unstable/ai/Telemetry";
 
 /**
  * The attributes used to describe telemetry in the context of Generative
@@ -26,10 +26,10 @@ import * as Telemetry from "effect/unstable/ai/Telemetry"
  * @since 4.0.0
  */
 export type AnthropicTelemetryAttributes = Simplify<
-  & Telemetry.GenAITelemetryAttributes
-  & Telemetry.AttributesWithPrefix<RequestAttributes, "gen_ai.anthropic.request">
-  & Telemetry.AttributesWithPrefix<ResponseAttributes, "gen_ai.anthropic.response">
->
+  Telemetry.GenAITelemetryAttributes &
+    Telemetry.AttributesWithPrefix<RequestAttributes, "gen_ai.anthropic.request"> &
+    Telemetry.AttributesWithPrefix<ResponseAttributes, "gen_ai.anthropic.response">
+>;
 
 /**
  * All telemetry attributes which are part of the GenAI specification,
@@ -38,7 +38,7 @@ export type AnthropicTelemetryAttributes = Simplify<
  * @category models
  * @since 4.0.0
  */
-export type AllAttributes = Telemetry.AllAttributes & RequestAttributes & ResponseAttributes
+export type AllAttributes = Telemetry.AllAttributes & RequestAttributes & ResponseAttributes;
 
 /**
  * Telemetry attributes which are part of the GenAI specification and are
@@ -51,11 +51,11 @@ export interface RequestAttributes {
   /**
    * Whether extended thinking is enabled.
    */
-  readonly extendedThinking?: boolean | null | undefined
+  readonly extendedThinking?: boolean | null | undefined;
   /**
    * The budget tokens for extended thinking.
    */
-  readonly thinkingBudgetTokens?: number | null | undefined
+  readonly thinkingBudgetTokens?: number | null | undefined;
 }
 
 /**
@@ -69,15 +69,15 @@ export interface ResponseAttributes {
   /**
    * The stop reason from the response.
    */
-  readonly stopReason?: string | null | undefined
+  readonly stopReason?: string | null | undefined;
   /**
    * Number of cache creation input tokens.
    */
-  readonly cacheCreationInputTokens?: number | null | undefined
+  readonly cacheCreationInputTokens?: number | null | undefined;
   /**
    * Number of cache read input tokens.
    */
-  readonly cacheReadInputTokens?: number | null | undefined
+  readonly cacheReadInputTokens?: number | null | undefined;
 }
 
 /**
@@ -87,18 +87,22 @@ export interface ResponseAttributes {
  * @since 4.0.0
  */
 export type AnthropicTelemetryAttributeOptions = Telemetry.GenAITelemetryAttributeOptions & {
-  anthropic?: {
-    request?: RequestAttributes | undefined
-    response?: ResponseAttributes | undefined
-  } | undefined
-}
+  anthropic?:
+    | {
+        request?: RequestAttributes | undefined;
+        response?: ResponseAttributes | undefined;
+      }
+    | undefined;
+};
 
-const addAnthropicRequestAttributes = Telemetry.addSpanAttributes("gen_ai.anthropic.request", String.camelToSnake)<
-  RequestAttributes
->
-const addAnthropicResponseAttributes = Telemetry.addSpanAttributes("gen_ai.anthropic.response", String.camelToSnake)<
-  ResponseAttributes
->
+const addAnthropicRequestAttributes = Telemetry.addSpanAttributes(
+  "gen_ai.anthropic.request",
+  String.camelToSnake,
+)<RequestAttributes>;
+const addAnthropicResponseAttributes = Telemetry.addSpanAttributes(
+  "gen_ai.anthropic.response",
+  String.camelToSnake,
+)<ResponseAttributes>;
 
 /**
  * Applies the specified Anthropic GenAI telemetry attributes to the provided
@@ -117,16 +121,16 @@ const addAnthropicResponseAttributes = Telemetry.addSpanAttributes("gen_ai.anthr
  * @since 4.0.0
  */
 export const addGenAIAnnotations: {
-  (options: AnthropicTelemetryAttributeOptions): (span: Span) => void
-  (span: Span, options: AnthropicTelemetryAttributeOptions): void
+  (options: AnthropicTelemetryAttributeOptions): (span: Span) => void;
+  (span: Span, options: AnthropicTelemetryAttributeOptions): void;
 } = dual(2, (span: Span, options: AnthropicTelemetryAttributeOptions) => {
-  Telemetry.addGenAIAnnotations(span, options)
+  Telemetry.addGenAIAnnotations(span, options);
   if (options.anthropic != null) {
     if (options.anthropic.request != null) {
-      addAnthropicRequestAttributes(span, options.anthropic.request)
+      addAnthropicRequestAttributes(span, options.anthropic.request);
     }
     if (options.anthropic.response != null) {
-      addAnthropicResponseAttributes(span, options.anthropic.response)
+      addAnthropicResponseAttributes(span, options.anthropic.response);
     }
   }
-})
+});

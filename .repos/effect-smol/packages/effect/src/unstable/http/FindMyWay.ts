@@ -3,7 +3,7 @@
  *
  * @since 4.0.0
  */
-import * as internal from "./FindMyWay/internal/router.ts"
+import * as internal from "./FindMyWay/internal/router.ts";
 
 /*
  * MIT License
@@ -36,10 +36,10 @@ import * as internal from "./FindMyWay/internal/router.ts"
  * @since 4.0.0
  */
 export interface RouterConfig {
-  readonly ignoreTrailingSlash: boolean
-  readonly ignoreDuplicateSlashes: boolean
-  readonly caseSensitive: boolean
-  readonly maxParamLength: number
+  readonly ignoreTrailingSlash: boolean;
+  readonly ignoreDuplicateSlashes: boolean;
+  readonly caseSensitive: boolean;
+  readonly maxParamLength: number;
 }
 
 /**
@@ -48,7 +48,7 @@ export interface RouterConfig {
  * @category models
  * @since 4.0.0
  */
-export type PathInput = `/${string}` | "*"
+export type PathInput = `/${string}` | "*";
 
 /**
  * Mutable router used to register and resolve route handlers.
@@ -57,10 +57,10 @@ export type PathInput = `/${string}` | "*"
  * @since 4.0.0
  */
 export interface Router<A> {
-  readonly on: (method: string | Iterable<string>, path: PathInput, handler: A) => void
-  readonly all: (path: PathInput, handler: A) => void
-  readonly find: (method: string, url: string) => FindResult<A> | undefined
-  readonly has: (method: string, url: string) => boolean
+  readonly on: (method: string | Iterable<string>, path: PathInput, handler: A) => void;
+  readonly all: (path: PathInput, handler: A) => void;
+  readonly find: (method: string, url: string) => FindResult<A> | undefined;
+  readonly has: (method: string, url: string) => boolean;
 }
 
 /**
@@ -70,9 +70,9 @@ export interface Router<A> {
  * @since 4.0.0
  */
 export interface FindResult<A> {
-  readonly handler: A
-  readonly params: Record<string, string | undefined>
-  readonly searchParams: Record<string, string | Array<string>>
+  readonly handler: A;
+  readonly params: Record<string, string | undefined>;
+  readonly searchParams: Record<string, string | Array<string>>;
 }
 
 /**
@@ -81,4 +81,4 @@ export interface FindResult<A> {
  * @category constructors
  * @since 4.0.0
  */
-export const make: <A>(options?: Partial<RouterConfig>) => Router<A> = internal.make
+export const make: <A>(options?: Partial<RouterConfig>) => Router<A> = internal.make;

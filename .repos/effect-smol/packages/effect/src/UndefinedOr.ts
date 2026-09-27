@@ -10,10 +10,10 @@
  *
  * @since 4.0.0
  */
-import * as Combiner from "./Combiner.ts"
-import type { LazyArg } from "./Function.ts"
-import { dual } from "./Function.ts"
-import * as Reducer from "./Reducer.ts"
+import * as Combiner from "./Combiner.ts";
+import type { LazyArg } from "./Function.ts";
+import { dual } from "./Function.ts";
+import * as Reducer from "./Reducer.ts";
 
 /**
  * Maps a defined value with `f`, or returns `undefined` unchanged.
@@ -29,9 +29,9 @@ import * as Reducer from "./Reducer.ts"
  * @since 4.0.0
  */
 export const map: {
-  <A, B>(f: (a: A) => B): (self: A | undefined) => B | undefined
-  <A, B>(self: A | undefined, f: (a: A) => B): B | undefined
-} = dual(2, (self, f) => (self === undefined ? undefined : f(self)))
+  <A, B>(f: (a: A) => B): (self: A | undefined) => B | undefined;
+  <A, B>(self: A | undefined, f: (a: A) => B): B | undefined;
+} = dual(2, (self, f) => (self === undefined ? undefined : f(self)));
 
 /**
  * Pattern matches on an `A | undefined` value, running `onDefined` when the
@@ -50,20 +50,29 @@ export const map: {
  */
 export const match: {
   <B, A, C = B>(options: {
-    readonly onUndefined: LazyArg<B>
-    readonly onDefined: (a: A) => C
-  }): (self: A | undefined) => B | C
-  <A, B, C = B>(self: A | undefined, options: {
-    readonly onUndefined: LazyArg<B>
-    readonly onDefined: (a: A) => C
-  }): B | C
+    readonly onUndefined: LazyArg<B>;
+    readonly onDefined: (a: A) => C;
+  }): (self: A | undefined) => B | C;
+  <A, B, C = B>(
+    self: A | undefined,
+    options: {
+      readonly onUndefined: LazyArg<B>;
+      readonly onDefined: (a: A) => C;
+    },
+  ): B | C;
 } = dual(
   2,
-  <A, B, C = B>(self: A | undefined, { onDefined, onUndefined }: {
-    readonly onUndefined: LazyArg<B>
-    readonly onDefined: (a: A) => C
-  }): B | C => self === undefined ? onUndefined() : onDefined(self)
-)
+  <A, B, C = B>(
+    self: A | undefined,
+    {
+      onDefined,
+      onUndefined,
+    }: {
+      readonly onUndefined: LazyArg<B>;
+      readonly onDefined: (a: A) => C;
+    },
+  ): B | C => (self === undefined ? onUndefined() : onDefined(self)),
+);
 
 /**
  * Returns the defined value, or throws the value produced by `onUndefined`
@@ -86,14 +95,14 @@ export const match: {
  * @since 4.0.0
  */
 export const getOrThrowWith: {
-  (onUndefined: () => unknown): <A>(self: A | undefined) => A
-  <A>(self: A | undefined, onUndefined: () => unknown): A
+  (onUndefined: () => unknown): <A>(self: A | undefined) => A;
+  <A>(self: A | undefined, onUndefined: () => unknown): A;
 } = dual(2, <A>(self: A | undefined, onUndefined: () => unknown): A => {
   if (self !== undefined) {
-    return self
+    return self;
   }
-  throw onUndefined()
-})
+  throw onUndefined();
+});
 
 /**
  * Returns the defined value, or throws a default `Error` when the input is
@@ -115,9 +124,9 @@ export const getOrThrowWith: {
  * @category getters
  * @since 4.0.0
  */
-export const getOrThrow: <A>(self: A | undefined) => A = getOrThrowWith(() =>
-  new Error("getOrThrow called on a undefined")
-)
+export const getOrThrow: <A>(self: A | undefined) => A = getOrThrowWith(
+  () => new Error("getOrThrow called on a undefined"),
+);
 
 /**
  * Converts a throwing function into one that returns successful results
@@ -136,16 +145,15 @@ export const getOrThrow: <A>(self: A | undefined) => A = getOrThrowWith(() =>
  * @category converting
  * @since 4.0.0
  */
-export const liftThrowable = <A extends ReadonlyArray<unknown>, B>(
-  f: (...a: A) => B
-): (...a: A) => B | undefined =>
-(...a) => {
-  try {
-    return f(...a)
-  } catch {
-    return undefined
-  }
-}
+export const liftThrowable =
+  <A extends ReadonlyArray<unknown>, B>(f: (...a: A) => B): ((...a: A) => B | undefined) =>
+  (...a) => {
+    try {
+      return f(...a);
+    } catch {
+      return undefined;
+    }
+  };
 
 /**
  * Creates a `Reducer` for `UndefinedOr<A>` that prioritizes the first non-`undefined`
@@ -169,11 +177,14 @@ export const liftThrowable = <A extends ReadonlyArray<unknown>, B>(
  * @since 4.0.0
  */
 export function makeReducer<A>(combiner: Combiner.Combiner<A>): Reducer.Reducer<A | undefined> {
-  return Reducer.make((self, that) => {
-    if (self === undefined) return that
-    if (that === undefined) return self
-    return combiner.combine(self, that)
-  }, undefined as A | undefined)
+  return Reducer.make(
+    (self, that) => {
+      if (self === undefined) return that;
+      if (that === undefined) return self;
+      return combiner.combine(self, that);
+    },
+    undefined as A | undefined,
+  );
 }
 
 /**
@@ -197,11 +208,13 @@ export function makeReducer<A>(combiner: Combiner.Combiner<A>): Reducer.Reducer<
  * @category constructors
  * @since 4.0.0
  */
-export function makeCombinerFailFast<A>(combiner: Combiner.Combiner<A>): Combiner.Combiner<A | undefined> {
+export function makeCombinerFailFast<A>(
+  combiner: Combiner.Combiner<A>,
+): Combiner.Combiner<A | undefined> {
   return Combiner.make((self, that) => {
-    if (self === undefined || that === undefined) return undefined
-    return combiner.combine(self, that)
-  })
+    if (self === undefined || that === undefined) return undefined;
+    return combiner.combine(self, that);
+  });
 }
 
 /**
@@ -225,15 +238,17 @@ export function makeCombinerFailFast<A>(combiner: Combiner.Combiner<A>): Combine
  * @category constructors
  * @since 4.0.0
  */
-export function makeReducerFailFast<A>(reducer: Reducer.Reducer<A>): Reducer.Reducer<A | undefined> {
-  const combine = makeCombinerFailFast(reducer).combine
-  const initialValue = reducer.initialValue as A | undefined
+export function makeReducerFailFast<A>(
+  reducer: Reducer.Reducer<A>,
+): Reducer.Reducer<A | undefined> {
+  const combine = makeCombinerFailFast(reducer).combine;
+  const initialValue = reducer.initialValue as A | undefined;
   return Reducer.make(combine, initialValue, (collection) => {
-    let out = initialValue
+    let out = initialValue;
     for (const value of collection) {
-      out = combine(out, value)
-      if (out === undefined) return out
+      out = combine(out, value);
+      if (out === undefined) return out;
     }
-    return out
-  })
+    return out;
+  });
 }

@@ -11,7 +11,7 @@ effect/Scheduler#make:
   replacement: "none"
   note: "Implement the redesigned Scheduler interface and return task dispatch through makeDispatcher."
 effect/Scheduler#makeBatched:
-  replacement: "new Scheduler.MixedScheduler(\"async\", schedule)"
+  replacement: 'new Scheduler.MixedScheduler("async", schedule)'
   note: "Pass a cancellable scheduling function; the dispatcher performs priority batching."
 effect/Scheduler#makeMatrix:
   replacement: "none"
@@ -29,7 +29,7 @@ effect/Scheduler#SchedulerRunner:
   replacement: "Scheduler.SchedulerDispatcher"
   note: "Task scheduling and flushing moved to the dispatcher returned by Scheduler.makeDispatcher."
 effect/Scheduler#SyncScheduler:
-  replacement: "new Scheduler.MixedScheduler(\"sync\")"
+  replacement: 'new Scheduler.MixedScheduler("sync")'
   note: "Use a synchronous MixedScheduler and its dispatcher; call flush when directly driving queued tasks."
 effect/Scheduler#Task:
   replacement: "() => void"
@@ -38,5 +38,5 @@ effect/Scheduler#timer:
   replacement: "Effect.delay"
   note: "Use Effect delay or sleep for effect timing; implement a custom dispatcher for exact per-task scheduler timing."
 effect/Scheduler#timerBatched:
-  replacement: "new Scheduler.MixedScheduler(\"async\", scheduleWithTimer)"
+  replacement: 'new Scheduler.MixedScheduler("async", scheduleWithTimer)'
   note: "Use a setTimeout-based cancellable scheduling function; the dispatcher batches queued tasks."

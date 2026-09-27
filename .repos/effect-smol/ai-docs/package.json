@@ -1,8 +1,8 @@
 {
   "name": "ai-docs",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
-  "version": "0.0.0",
   "dependencies": {
     "@effect/ai-anthropic": "workspace:*",
     "@effect/ai-openai": "workspace:*",

@@ -17,10 +17,7 @@ Improve `SchemaRepresentation.fromJsonSchemaDocument` and `fromJsonSchemaMultiDo
   ```
 
   ```ts
-  Schema.Record(
-    Schema.String.check(Schema.isPattern(/^a/)),
-    Schema.Finite
-  )
+  Schema.Record(Schema.String.check(Schema.isPattern(/^a/)), Schema.Finite);
   ```
 
 - Reject open patterned objects with `patterns: "apply"` instead of generating incompatible TypeScript index signatures.

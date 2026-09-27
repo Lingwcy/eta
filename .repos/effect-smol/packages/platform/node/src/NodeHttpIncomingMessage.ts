@@ -11,16 +11,16 @@
  *
  * @since 4.0.0
  */
-import * as Effect from "effect/Effect"
-import * as Inspectable from "effect/Inspectable"
-import * as Option from "effect/Option"
-import type * as Schema from "effect/Schema"
-import type * as Stream from "effect/Stream"
-import * as Headers from "effect/unstable/http/Headers"
-import * as IncomingMessage from "effect/unstable/http/HttpIncomingMessage"
-import * as UrlParams from "effect/unstable/http/UrlParams"
-import type * as Http from "node:http"
-import * as NodeStream from "./NodeStream.ts"
+import * as Effect from "effect/Effect";
+import * as Inspectable from "effect/Inspectable";
+import * as Option from "effect/Option";
+import type * as Schema from "effect/Schema";
+import type * as Stream from "effect/Stream";
+import * as Headers from "effect/unstable/http/Headers";
+import * as IncomingMessage from "effect/unstable/http/HttpIncomingMessage";
+import * as UrlParams from "effect/unstable/http/UrlParams";
+import type * as Http from "node:http";
+import * as NodeStream from "./NodeStream.ts";
 
 /**
  * Adapts a Node `IncomingMessage` to Effect HTTP incoming messages.
@@ -38,7 +38,8 @@ import * as NodeStream from "./NodeStream.ts"
  * @category constructors
  * @since 4.0.0
  */
-export abstract class NodeHttpIncomingMessage<E> extends Inspectable.Class
+export abstract class NodeHttpIncomingMessage<E>
+  extends Inspectable.Class
   implements IncomingMessage.HttpIncomingMessage<E>
 {
   /**
@@ -46,86 +47,85 @@ export abstract class NodeHttpIncomingMessage<E> extends Inspectable.Class
    *
    * @since 4.0.0
    */
-  readonly [IncomingMessage.TypeId]: typeof IncomingMessage.TypeId
-  readonly source: Http.IncomingMessage
-  readonly onError: (error: unknown) => E
-  readonly remoteAddressOverride?: Option.Option<string> | undefined
+  readonly [IncomingMessage.TypeId]: typeof IncomingMessage.TypeId;
+  readonly source: Http.IncomingMessage;
+  readonly onError: (error: unknown) => E;
+  readonly remoteAddressOverride?: Option.Option<string> | undefined;
 
   constructor(
     source: Http.IncomingMessage,
     onError: (error: unknown) => E,
-    remoteAddressOverride?: Option.Option<string>
+    remoteAddressOverride?: Option.Option<string>,
   ) {
-    super()
-    this[IncomingMessage.TypeId] = IncomingMessage.TypeId
-    this.source = source
-    this.onError = onError
-    this.remoteAddressOverride = remoteAddressOverride
+    super();
+    this[IncomingMessage.TypeId] = IncomingMessage.TypeId;
+    this.source = source;
+    this.onError = onError;
+    this.remoteAddressOverride = remoteAddressOverride;
   }
 
   get headers() {
-    return Headers.fromInput(this.source.headers as any)
+    return Headers.fromInput(this.source.headers as any);
   }
 
   get remoteAddress() {
-    return this.remoteAddressOverride ?? Option.fromNullishOr(this.source.socket?.remoteAddress)
+    return this.remoteAddressOverride ?? Option.fromNullishOr(this.source.socket?.remoteAddress);
   }
 
-  private textEffect: Effect.Effect<string, E> | undefined
+  private textEffect: Effect.Effect<string, E> | undefined;
   get text(): Effect.Effect<string, E> {
     if (this.textEffect) {
-      return this.textEffect
+      return this.textEffect;
     }
-    this.textEffect = Effect.map(this.arrayBuffer, (_) => Buffer.from(_).toString("utf8"))
-    return this.textEffect
+    this.textEffect = Effect.map(this.arrayBuffer, (_) => Buffer.from(_).toString("utf8"));
+    return this.textEffect;
   }
 
   get textUnsafe(): string {
-    return Effect.runSync(this.text)
+    return Effect.runSync(this.text);
   }
 
   get json(): Effect.Effect<Schema.Json, E> {
     return Effect.flatMap(this.text, (text) =>
       Effect.try({
-        try: () => text === "" ? null : JSON.parse(text),
-        catch: this.onError
-      }))
+        try: () => (text === "" ? null : JSON.parse(text)),
+        catch: this.onError,
+      }),
+    );
   }
 
   get jsonUnsafe(): Schema.Json {
-    return Effect.runSync(this.json)
+    return Effect.runSync(this.json);
   }
 
   get urlParamsBody(): Effect.Effect<UrlParams.UrlParams, E> {
     return Effect.flatMap(this.text, (_) =>
       Effect.try({
         try: () => UrlParams.fromInput(new URLSearchParams(_)),
-        catch: this.onError
-      }))
+        catch: this.onError,
+      }),
+    );
   }
 
   get stream(): Stream.Stream<Uint8Array, E> {
     return NodeStream.fromReadable({
       evaluate: () => this.source,
-      onError: this.onError
-    })
+      onError: this.onError,
+    });
   }
 
-  private arrayBufferEffect: Effect.Effect<ArrayBuffer, E> | undefined
+  private arrayBufferEffect: Effect.Effect<ArrayBuffer, E> | undefined;
   get arrayBuffer(): Effect.Effect<ArrayBuffer, E> {
     if (this.arrayBufferEffect) {
-      return this.arrayBufferEffect
+      return this.arrayBufferEffect;
     }
     this.arrayBufferEffect = Effect.withFiber((fiber) =>
       NodeStream.toArrayBuffer(() => this.source, {
         onError: this.onError,
-        maxBytes: fiber.getRef(IncomingMessage.MaxBodySize)
-      })
-    ).pipe(
-      Effect.cached,
-      Effect.runSync
-    )
-    this.textEffect = Effect.map(this.arrayBufferEffect, (_) => new TextDecoder().decode(_))
-    return this.arrayBufferEffect
+        maxBytes: fiber.getRef(IncomingMessage.MaxBodySize),
+      }),
+    ).pipe(Effect.cached, Effect.runSync);
+    this.textEffect = Effect.map(this.arrayBufferEffect, (_) => new TextDecoder().decode(_));
+    return this.arrayBufferEffect;
   }
 }

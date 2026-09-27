@@ -1,36 +1,21 @@
 {
   "name": "@effect/atom-react",
   "version": "4.0.0-rc.117",
-  "type": "module",
-  "license": "MIT",
   "description": "React bindings for the Effect Atom modules",
+  "keywords": [
+    "database",
+    "react",
+    "typescript"
+  ],
   "homepage": "https://effect.website",
+  "bugs": {
+    "url": "https://github.com/Effect-TS/effect/issues"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/atom/react"
-  },
-  "bugs": {
-    "url": "https://github.com/Effect-TS/effect/issues"
-  },
-  "tags": [
-    "typescript",
-    "react",
-    "database"
-  ],
-  "keywords": [
-    "typescript",
-    "react",
-    "database"
-  ],
-  "sideEffects": [],
-  "exports": {
-    "./package.json": "./package.json",
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./internal/*": null,
-    "./index": null,
-    "./*/index": null
   },
   "files": [
     "src/**/*.ts",
@@ -42,9 +27,17 @@
     "CLAUDE.md",
     "ai-docs/**/*"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts",
+    "./internal/*": null,
+    "./index": null,
+    "./*/index": null
+  },
   "publishConfig": {
-    "access": "public",
-    "provenance": true,
     "exports": {
       "./package.json": "./package.json",
       ".": "./dist/index.js",
@@ -52,17 +45,14 @@
       "./internal/*": null,
       "./index": null,
       "./*/index": null
-    }
+    },
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "tsc -b tsconfig.json && pnpm babel",
     "babel": "babel dist --plugins annotate-pure-calls --out-dir dist --source-maps",
     "check": "tsc -b tsconfig.json"
-  },
-  "peerDependencies": {
-    "effect": "workspace:^",
-    "react": ">=19.0.0 <20.0.0",
-    "scheduler": ">=0.25.0 <0.28.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
@@ -77,5 +67,15 @@
     "react-dom": "^19.3.0",
     "react-error-boundary": "^6.1.5",
     "scheduler": "^0.28.0"
-  }
+  },
+  "peerDependencies": {
+    "effect": "workspace:^",
+    "react": ">=19.0.0 <20.0.0",
+    "scheduler": ">=0.25.0 <0.28.0"
+  },
+  "tags": [
+    "typescript",
+    "react",
+    "database"
+  ]
 }

@@ -1,24 +1,24 @@
 /**
  * @since 4.0.0
  */
-import type * as Duration from "effect/Duration"
-import type * as Effect from "effect/Effect"
-import type * as Layer from "effect/Layer"
-import type * as Schema from "effect/Schema"
-import type * as Scope from "effect/Scope"
-import type * as Arbitrary from "effect/unstable/arbitrary/Arbitrary"
-import * as V from "vitest"
-import * as internal from "./internal/internal.ts"
+import type * as Duration from "effect/Duration";
+import type * as Effect from "effect/Effect";
+import type * as Layer from "effect/Layer";
+import type * as Schema from "effect/Schema";
+import type * as Scope from "effect/Scope";
+import type * as Arbitrary from "effect/unstable/arbitrary/Arbitrary";
+import * as V from "vite-plus/test";
+import * as internal from "./internal/internal.ts";
 
 /**
  * @since 4.0.0
  */
-export * from "vitest"
+export * from "vite-plus/test";
 
 /**
  * @since 4.0.0
  */
-export type API = V.TestAPI<{}>
+export type API = V.TestAPI<{}>;
 
 /**
  * @since 4.0.0
@@ -28,7 +28,7 @@ export namespace Vitest {
    * @since 4.0.0
    */
   export interface TestFunction<A, E, R, TestArgs extends Array<any>> {
-    (...args: TestArgs): Effect.Effect<A, E, R>
+    (...args: TestArgs): Effect.Effect<A, E, R>;
   }
 
   /**
@@ -38,8 +38,8 @@ export namespace Vitest {
     <A, E>(
       name: string,
       self: TestFunction<A, E, R, [V.TestContext]>,
-      timeout?: number | V.TestOptions
-    ): void
+      timeout?: number | V.TestOptions,
+    ): void;
   }
 
   /**
@@ -47,24 +47,27 @@ export namespace Vitest {
    */
   export type Arbitraries =
     | Array<Schema.Schema<any> | Arbitrary.Arbitrary<any>>
-    | { [K in string]: Schema.Schema<any> | Arbitrary.Arbitrary<any> }
+    | { [K in string]: Schema.Schema<any> | Arbitrary.Arbitrary<any> };
 
-  type ArbitraryValue<A> = A extends Schema.Schema<infer T> ? T
-    : A extends Arbitrary.Arbitrary<infer T> ? T
-    : never
+  type ArbitraryValue<A> =
+    A extends Schema.Schema<infer T> ? T : A extends Arbitrary.Arbitrary<infer T> ? T : never;
 
   /**
    * @since 4.0.0
    */
   export interface Tester<R> extends Vitest.Test<R> {
-    skip: Vitest.Test<R>
-    skipIf: (condition: unknown) => Vitest.Test<R>
-    runIf: (condition: unknown) => Vitest.Test<R>
-    only: Vitest.Test<R>
+    skip: Vitest.Test<R>;
+    skipIf: (condition: unknown) => Vitest.Test<R>;
+    runIf: (condition: unknown) => Vitest.Test<R>;
+    only: Vitest.Test<R>;
     each: <T>(
-      cases: ReadonlyArray<T>
-    ) => <A, E>(name: string, self: TestFunction<A, E, R, Array<T>>, timeout?: number | V.TestOptions) => void
-    fails: Vitest.Test<R>
+      cases: ReadonlyArray<T>,
+    ) => <A, E>(
+      name: string,
+      self: TestFunction<A, E, R, Array<T>>,
+      timeout?: number | V.TestOptions,
+    ) => void;
+    fails: Vitest.Test<R>;
 
     /**
      * Runs an Effectful property test using Schema or Arbitrary inputs.
@@ -93,38 +96,38 @@ export namespace Vitest {
         R,
         [
           {
-            [K in keyof Arbs]: ArbitraryValue<Arbs[K]>
+            [K in keyof Arbs]: ArbitraryValue<Arbs[K]>;
           },
-          V.TestContext
+          V.TestContext,
         ]
       >,
       timeout?:
         | number
-        | V.TestOptions & {
-          arbitrary?: Arbitrary.CheckOptions
-        }
-    ) => void
+        | (V.TestOptions & {
+            arbitrary?: Arbitrary.CheckOptions;
+          }),
+    ) => void;
   }
 
   /**
    * @since 4.0.0
    */
   export interface MethodsNonLive<R = never> extends API {
-    readonly effect: Vitest.Tester<R | Scope.Scope>
+    readonly effect: Vitest.Tester<R | Scope.Scope>;
     readonly flakyTest: <A, E, R2>(
       self: Effect.Effect<A, E, R2 | Scope.Scope>,
-      timeout?: Duration.Input
-    ) => Effect.Effect<A, never, R2>
-    readonly layer: <R2, E>(layer: Layer.Layer<R2, E, R>, options?: {
-      readonly concurrent?: boolean
-      readonly timeout?: Duration.Input
-    }) => {
-      (f: (it: Vitest.MethodsNonLive<R | R2>) => void): void
-      (
-        name: string,
-        f: (it: Vitest.MethodsNonLive<R | R2>) => void
-      ): void
-    }
+      timeout?: Duration.Input,
+    ) => Effect.Effect<A, never, R2>;
+    readonly layer: <R2, E>(
+      layer: Layer.Layer<R2, E, R>,
+      options?: {
+        readonly concurrent?: boolean;
+        readonly timeout?: Duration.Input;
+      },
+    ) => {
+      (f: (it: Vitest.MethodsNonLive<R | R2>) => void): void;
+      (name: string, f: (it: Vitest.MethodsNonLive<R | R2>) => void): void;
+    };
 
     /**
      * Runs a synchronous property test using Schema or Arbitrary inputs.
@@ -147,52 +150,52 @@ export namespace Vitest {
       arbitraries: Arbs,
       self: (
         properties: {
-          [K in keyof Arbs]: ArbitraryValue<Arbs[K]>
+          [K in keyof Arbs]: ArbitraryValue<Arbs[K]>;
         },
-        ctx: V.TestContext
+        ctx: V.TestContext,
       ) => void,
       timeout?:
         | number
-        | V.TestOptions & {
-          arbitrary?: Arbitrary.CheckOptions
-        }
-    ) => void
+        | (V.TestOptions & {
+            arbitrary?: Arbitrary.CheckOptions;
+          }),
+    ) => void;
   }
 
   /**
    * @since 4.0.0
    */
   export interface Methods<R = never> extends MethodsNonLive<R> {
-    readonly live: Vitest.Tester<Scope.Scope | R>
-    readonly layer: <R2, E>(layer: Layer.Layer<R2, E, R>, options?: {
-      readonly concurrent?: boolean
-      readonly memoMap?: Layer.MemoMap
-      readonly timeout?: Duration.Input
-      readonly excludeTestServices?: boolean
-    }) => {
-      (f: (it: Vitest.MethodsNonLive<R | R2>) => void): void
-      (
-        name: string,
-        f: (it: Vitest.MethodsNonLive<R | R2>) => void
-      ): void
-    }
+    readonly live: Vitest.Tester<Scope.Scope | R>;
+    readonly layer: <R2, E>(
+      layer: Layer.Layer<R2, E, R>,
+      options?: {
+        readonly concurrent?: boolean;
+        readonly memoMap?: Layer.MemoMap;
+        readonly timeout?: Duration.Input;
+        readonly excludeTestServices?: boolean;
+      },
+    ) => {
+      (f: (it: Vitest.MethodsNonLive<R | R2>) => void): void;
+      (name: string, f: (it: Vitest.MethodsNonLive<R | R2>) => void): void;
+    };
   }
 }
 
 /**
  * @since 4.0.0
  */
-export const addEqualityTesters: () => void = internal.addEqualityTesters
+export const addEqualityTesters: () => void = internal.addEqualityTesters;
 
 /**
  * @since 4.0.0
  */
-export const effect: Vitest.Tester<Scope.Scope> = internal.effect
+export const effect: Vitest.Tester<Scope.Scope> = internal.effect;
 
 /**
  * @since 4.0.0
  */
-export const live: Vitest.Tester<Scope.Scope> = internal.live
+export const live: Vitest.Tester<Scope.Scope> = internal.live;
 
 /**
  * Share a `Layer` between multiple tests, optionally wrapping
@@ -241,28 +244,28 @@ export const live: Vitest.Tester<Scope.Scope> = internal.live
 export const layer: <R, E>(
   layer_: Layer.Layer<R, E>,
   options?: {
-    readonly concurrent?: boolean
-    readonly memoMap?: Layer.MemoMap
-    readonly timeout?: Duration.Input
-    readonly excludeTestServices?: boolean
-  }
+    readonly concurrent?: boolean;
+    readonly memoMap?: Layer.MemoMap;
+    readonly timeout?: Duration.Input;
+    readonly excludeTestServices?: boolean;
+  },
 ) => {
-  (f: (it: Vitest.MethodsNonLive<R>) => void): void
-  (name: string, f: (it: Vitest.MethodsNonLive<R>) => void): void
-} = internal.layer
+  (f: (it: Vitest.MethodsNonLive<R>) => void): void;
+  (name: string, f: (it: Vitest.MethodsNonLive<R>) => void): void;
+} = internal.layer;
 
 /**
  * @since 4.0.0
  */
 export const flakyTest: <A, E, R>(
   self: Effect.Effect<A, E, R | Scope.Scope>,
-  timeout?: Duration.Input
-) => Effect.Effect<A, never, R> = internal.flakyTest
+  timeout?: Duration.Input,
+) => Effect.Effect<A, never, R> = internal.flakyTest;
 
 /**
  * @since 4.0.0
  */
-export const prop: Vitest.Methods["prop"] = internal.prop
+export const prop: Vitest.Methods["prop"] = internal.prop;
 
 /**
  * @since 4.0.0
@@ -271,15 +274,15 @@ export const prop: Vitest.Methods["prop"] = internal.prop
 /**
  * @since 4.0.0
  */
-export const it: Vitest.Methods = internal.makeMethods(V.it)
+export const it: Vitest.Methods = internal.makeMethods(V.it);
 
 /**
  * @since 4.0.0
  */
-export const makeMethods: (it: V.TestAPI) => Vitest.Methods = internal.makeMethods
+export const makeMethods: (it: V.TestAPI) => Vitest.Methods = internal.makeMethods;
 
 /**
  * @since 4.0.0
  */
 export const describeWrapped: (name: string, f: (it: Vitest.Methods) => void) => V.SuiteCollector =
-  internal.describeWrapped
+  internal.describeWrapped;

@@ -13,10 +13,11 @@
 ### Patch Changes
 
 - [#8254](https://github.com/Effect-TS/effect/pull/8254) [`77a5612`](https://github.com/Effect-TS/effect/commit/77a56120354d1d3f7341b117266f211143a3734a) Thanks @tim-smart! - Fix file response content types: honor the `contentType` option and preserve explicit headers, including MIME types set by `HttpStaticServer`. The default `HttpPlatform.layer` now infers missing content types from file extensions.
-  
+
   Web file responses on the default, Node, and Deno platforms prefer explicit content types, then nonempty `File.type`, then the file extension.
-  
+
   Removed the unused `contentLength` option from `HttpServerResponse.file`; lengths are calculated from the file and requested range.
+
 - Updated dependencies [[`c19c63f`](https://github.com/Effect-TS/effect/commit/c19c63fb710422aaf00b8d923188aa2e52a6776f), [`8cb0a4f`](https://github.com/Effect-TS/effect/commit/8cb0a4f28fba991e15659d08ecc09da28cf742d2), [`8f420bb`](https://github.com/Effect-TS/effect/commit/8f420bb3dc3c9be8c4a48d57dccee201dcb0260d), [`05a6405`](https://github.com/Effect-TS/effect/commit/05a6405d3d729f9487121249435eae810233b949), [`1393080`](https://github.com/Effect-TS/effect/commit/1393080f1cc8f47d459119fcb759e2cc00fd7356), [`ccae354`](https://github.com/Effect-TS/effect/commit/ccae35423188f58d7c3dec5db3e36ed4bf42bcdf), [`553c403`](https://github.com/Effect-TS/effect/commit/553c403f1d9199df738f73446dacd090da2e698b), [`45b5103`](https://github.com/Effect-TS/effect/commit/45b510352d42ac55718f9f5f43573975b323143f), [`77a5612`](https://github.com/Effect-TS/effect/commit/77a56120354d1d3f7341b117266f211143a3734a), [`1076170`](https://github.com/Effect-TS/effect/commit/10761707b5cae0a66ef605abd1737ae59a18f5ac), [`f110af1`](https://github.com/Effect-TS/effect/commit/f110af1ac5a54a7d62c2b96e35d4521a09f3fa06), [`0045152`](https://github.com/Effect-TS/effect/commit/0045152cdf796f20be5e690c69c40da611f813b8), [`51d4a2f`](https://github.com/Effect-TS/effect/commit/51d4a2f08a5c7691dc876415bc9fc0ecf467e153), [`4d4c4e8`](https://github.com/Effect-TS/effect/commit/4d4c4e8a4436d49997a5a7234860ede651467537), [`ccfe152`](https://github.com/Effect-TS/effect/commit/ccfe152d11bed497f2d26aba8ef1a3613d0d6746), [`d30a0c8`](https://github.com/Effect-TS/effect/commit/d30a0c880f8ffe06d7f0695c17f35910f1fcfbc9), [`84fe64a`](https://github.com/Effect-TS/effect/commit/84fe64a5fbfdecd23b66c207d0daa848d59dd825), [`49e4b37`](https://github.com/Effect-TS/effect/commit/49e4b37b831a573567e0b67d3ec4593403dc2e72), [`49e4b37`](https://github.com/Effect-TS/effect/commit/49e4b37b831a573567e0b67d3ec4593403dc2e72), [`a2c4154`](https://github.com/Effect-TS/effect/commit/a2c4154cf8bcbe455bd43bf7f3f12d9cbf38247c), [`23a58c0`](https://github.com/Effect-TS/effect/commit/23a58c020b25dde573ce523c2d157032676de0a3), [`feef90c`](https://github.com/Effect-TS/effect/commit/feef90ccbd86e5ab49b7e3cc3845591e23bdcb1b), [`755e863`](https://github.com/Effect-TS/effect/commit/755e863a793e5621183e7992cb3f85d29030ad7b), [`49e4b37`](https://github.com/Effect-TS/effect/commit/49e4b37b831a573567e0b67d3ec4593403dc2e72), [`9ad9891`](https://github.com/Effect-TS/effect/commit/9ad9891e24058065bcd445772e005f8ce4b3e42f), [`0beded0`](https://github.com/Effect-TS/effect/commit/0beded04f5cffe8dd263f989c38a609e27f27fa5), [`2940742`](https://github.com/Effect-TS/effect/commit/2940742c3f8529bc3b024b379904fbefd40ece55), [`63c1566`](https://github.com/Effect-TS/effect/commit/63c15662f90ae970969de29761207c99ecdbf66b)]:
   - effect@4.0.0-rc.116
   - @effect/platform-node-shared@4.0.0-rc.116
@@ -57,7 +58,7 @@
   byte views by their exact range when exposing `ArrayBuffer` values.
 
 - [#7511](https://github.com/Effect-TS/effect/pull/7511) [`a4bb2aa`](https://github.com/Effect-TS/effect/commit/a4bb2aa22698ea8a98d5172d81305f4f74bd7caa) Thanks @tim-smart! - Add `NodeSocket.makeTls`, `NodeSocket.makeTlsChannel`, and `NodeSocket.layerTls` for TLS client connections.
-  
+
   These mirror the existing `makeNet` family but dial `tls.connect`, so they take the full `tls.ConnectionOptions` set:
   trust anchors (`ca`), client certificates (`cert` / `key`), ALPN protocols, and `servername`. The socket opens once the
   handshake completes; a failed handshake fails with a `SocketOpenError`.
@@ -75,9 +76,9 @@
 - [#7528](https://github.com/Effect-TS/effect/pull/7528) [`dd6ce2d`](https://github.com/Effect-TS/effect/commit/dd6ce2d6e32c86465a7e706ffd31c0925ec6a9b9) Thanks @Kashkovsky! - Defer loading Undici until an Undici-backed layer is acquired, preventing Node HTTP client imports from replacing Node's global fetch dispatcher. Import Undici APIs from `@effect/platform-node/Undici` instead of the package root.
 
 - [#7524](https://github.com/Effect-TS/effect/pull/7524) [`0a08ae0`](https://github.com/Effect-TS/effect/commit/0a08ae0626f8124779ec2e32ae2088d28db157c6) Thanks @fubhy! - Add `NetAddress` under `effect/unstable/net` for MAC, IP, internet socket, and Unix socket addresses, with checked parsing, schemas, equality, canonical string serialization, and URL formatting. Companion modules `IpInterface` and `IpNetwork` represent IP interfaces and CIDR networks.
-  
+
   HTTP and socket servers now expose `NetAddress.SocketAddress`. Replace TCP `hostname` access with `NetAddress.formatIp(address.address)` and use `UnixPathAddress.path` for Unix sockets. URL helpers bracket IPv6 addresses and reject scoped IPv6. Bun and Deno HTTP server layers can now fail with `ServeError` when listener address conversion fails.
-  
+
   PostgreSQL `inet` values now use `IpInterface`; `cidr` values use `IpNetwork` and reject addresses with host bits set.
 
 - [#7730](https://github.com/Effect-TS/effect/pull/7730) [`e406217`](https://github.com/Effect-TS/effect/commit/e406217f8c12f95626e72bb2b23054d8483b1009) Thanks @kitlangton! - Forward custom and empty status text from NodeHttpServer responses.
@@ -87,11 +88,10 @@
 - [#7810](https://github.com/Effect-TS/effect/pull/7810) [`9252a00`](https://github.com/Effect-TS/effect/commit/9252a00ba3cf8a9eacb72ed161d6bed306444f6c) Thanks @kitlangton! - Preserve reply payloads sent through `NodeWorkerRunner.sendUnsafe`.
 
 - [#7487](https://github.com/Effect-TS/effect/pull/7487) [`ba53b64`](https://github.com/Effect-TS/effect/commit/ba53b646e9dad9b39fd6cf5b2d89de9bf858bb80) Thanks @tim-smart! - Redesign `Socket` around a scoped, pull-based reader with transport backpressure.
-  
+
   `Socket` now exposes `reader` and `writer`. Client reader acquisition dials and yields a pull of non-empty batches: one buffer for TCP and one entry per WebSocket frame. TCP applies backpressure while paused; pausable WebSockets pause at `highWaterMark` (64 KiB by default) and resume after draining. Browser WebSockets cannot pause, so they can fail with `SocketReadError` at a configured `highWaterMark`. Writes await native drain signals and batch with `cork` / `uncork` where available.
-  
+
   ### Breaking changes
-  
   - `Socket.run`, `Socket.runString`, and `Socket.runRaw` are removed. Acquire `socket.reader` (or `Socket.readerBytes` / `Socket.readerString`) in a scope and pull in a loop. Code before the first pull replaces `onOpen`.
   - `Socket.make` now takes `{ reader, writer }`. The writer acquisition is infallible and yields a `Writer` with `write` and `writeAll`; both operations can still fail with `SocketError`.
   - Every close fails the pull with `SocketError` wrapping `SocketCloseError`. The close-code predicates are removed; use `Effect.retry` around the scoped read loop to reconnect.
@@ -105,9 +105,9 @@
   the final URL.
 
 - [#7427](https://github.com/Effect-TS/effect/pull/7427) [`1a2ccee`](https://github.com/Effect-TS/effect/commit/1a2ccee2bbb93514dc66e0a9cdeb52a82172ab0e) Thanks @tim-smart! - Use SchemaBinary as the default RPC serialization for TCP cluster connections, including configurable frame limits.
-  
+
   Cluster payloads are encoded with the binary codec on the wire. When a persisted reply cannot be encoded for JSON storage, the defect fallback that storage records is now also the reply delivered to waiting callers, so live replies always match what was persisted.
-  
+
   SchemaBinary codecs are memoized by schema identity and wire mode, so per-message codec requests reuse the derived codec instead of rebuilding it.
 
 - [#7718](https://github.com/Effect-TS/effect/pull/7718) [`72b8582`](https://github.com/Effect-TS/effect/commit/72b85820f1baeb0abb21a47bd470720f58435a15) Thanks @kitlangton! - Parse URL-encoded and multipart response bodies in the Undici HTTP client.
@@ -148,10 +148,11 @@
 ### Patch Changes
 
 - [#7221](https://github.com/Effect-TS/effect/pull/7221) [`d8d3fdc`](https://github.com/Effect-TS/effect/commit/d8d3fdcb53186580cdbed37226515184aee5f043) Thanks @WikiRik! - Migrate `NodeRedis` from `ioredis` to `redis` (node-redis), replacing the peer dependency with `redis: >=5.0.0 <7.0.0`.
-  
+
   `layer` and `layerConfig` now accept `RedisClientOptions`: socket settings move under `socket`, `db` becomes `database`, command methods are camelCase, and arbitrary commands use `sendCommand`. Protocol selection follows the installed node-redis version's default.
-  
+
   Layers connect while being built and can fail with `RedisError`. Initial connections fail fast unless a `socket.reconnectStrategy` is provided; after `ready`, the default reconnect behavior applies. Scope finalization uses `close()`, so in-flight or blocking commands can delay closure.
+
 - Updated dependencies [[`a0743f2`](https://github.com/Effect-TS/effect/commit/a0743f2b9f20fb5d150f35510e68819f01630bac), [`17892e7`](https://github.com/Effect-TS/effect/commit/17892e75a8d584f79127805506c42b19320990a7), [`4d8a230`](https://github.com/Effect-TS/effect/commit/4d8a2306dfff8fd5406ab75d0c8d22e5300d1faa), [`2ae5a96`](https://github.com/Effect-TS/effect/commit/2ae5a96266ae9a22b3d48357407bf9d8332248b7), [`f21f9c9`](https://github.com/Effect-TS/effect/commit/f21f9c9f73dc59db922bda411b6d5245dae37cdb), [`18270dd`](https://github.com/Effect-TS/effect/commit/18270ddeaf4ad28723ca8a40aff04a5d4707b575), [`26db404`](https://github.com/Effect-TS/effect/commit/26db404a3284cfdbf4a3f351ccd05afc0de743b8), [`2670398`](https://github.com/Effect-TS/effect/commit/26703982612e12954360382e4b1d177002699d1c), [`3702bed`](https://github.com/Effect-TS/effect/commit/3702bedd8f6bcb3f603b87c640c521878d824eb3), [`ccae60e`](https://github.com/Effect-TS/effect/commit/ccae60e5edb2bef553f4af52afb509dfd443cd03), [`6ff5396`](https://github.com/Effect-TS/effect/commit/6ff53968138bbd7d4728ce8014e35eae8d6ca5d0)]:
   - effect@4.0.0-rc.109
   - @effect/platform-node-shared@4.0.0-rc.109

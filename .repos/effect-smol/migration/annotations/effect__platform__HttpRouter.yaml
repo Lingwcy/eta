@@ -1,5 +1,5 @@
 "@effect/platform/HttpRouter#all":
-  replacement: "HttpRouter.add(\"*\", path, handler, options)"
+  replacement: 'HttpRouter.add("*", path, handler, options)'
   note: "v4 registers a route layer instead of returning an immutable router."
 "@effect/platform/HttpRouter#append":
   replacement: "HttpRouter.addAll([route])"
@@ -32,10 +32,10 @@
   replacement: "HttpRouter.addAll(Array.from(routes))"
   note: "Materialize and register the route descriptors as a layer."
 "@effect/platform/HttpRouter#get":
-  replacement: "HttpRouter.add(\"GET\", path, handler, options)"
+  replacement: 'HttpRouter.add("GET", path, handler, options)'
   note: "Register a route layer; handlers must produce HttpServerResponse."
 "@effect/platform/HttpRouter#head":
-  replacement: "HttpRouter.addAll([HttpRouter.route(\"HEAD\", path, handler, options)])"
+  replacement: 'HttpRouter.addAll([HttpRouter.route("HEAD", path, handler, options)])'
   note: "Use route plus addAll because add does not expose HEAD."
 "@effect/platform/HttpRouter#HttpRouter":
   replacement: "HttpRouter.HttpRouter"
@@ -53,25 +53,25 @@
   replacement: "HttpRouter.addAll(routes, { prefix: path })"
   note: "Register child routes with a prefix, or use router.prefixed(path)."
 "@effect/platform/HttpRouter#mountApp":
-  replacement: "HttpRouter.use((router) => router.prefixed(path).add(\"*\", \"/*\", app))"
+  replacement: 'HttpRouter.use((router) => router.prefixed(path).add("*", "/*", app))'
   note: "Register the app on the prefixed router service; no direct mount API remains."
 "@effect/platform/HttpRouter#options":
-  replacement: "HttpRouter.add(\"OPTIONS\", path, handler, options)"
+  replacement: 'HttpRouter.add("OPTIONS", path, handler, options)'
   note: "Register a route layer; handlers must produce HttpServerResponse."
 "@effect/platform/HttpRouter#patch":
-  replacement: "HttpRouter.add(\"PATCH\", path, handler, options)"
+  replacement: 'HttpRouter.add("PATCH", path, handler, options)'
   note: "Register a route layer; handlers must produce HttpServerResponse."
 "@effect/platform/HttpRouter#PathInput":
   replacement: "HttpRouter.PathInput"
   note: "Retained as an absolute slash path or wildcard."
 "@effect/platform/HttpRouter#post":
-  replacement: "HttpRouter.add(\"POST\", path, handler, options)"
+  replacement: 'HttpRouter.add("POST", path, handler, options)'
   note: "Register a route layer; handlers must produce HttpServerResponse."
 "@effect/platform/HttpRouter#prefixAll":
   replacement: "HttpRouter.addAll(routes, { prefix })"
   note: "Apply the prefix while registering route descriptors."
 "@effect/platform/HttpRouter#put":
-  replacement: "HttpRouter.add(\"PUT\", path, handler, options)"
+  replacement: 'HttpRouter.add("PUT", path, handler, options)'
   note: "Register a route layer; handlers must produce HttpServerResponse."
 "@effect/platform/HttpRouter#Route.Middleware":
   replacement: "Effect.Effect"

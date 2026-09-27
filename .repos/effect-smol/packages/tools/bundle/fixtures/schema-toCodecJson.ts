@@ -1,9 +1,9 @@
-import * as Schema from "effect/Schema"
+import * as Schema from "effect/Schema";
 
 const schema = Schema.Struct({
   a: Schema.String,
   b: Schema.optional(Schema.FiniteFromString),
-  c: Schema.Array(Schema.String)
-})
+  c: Schema.Array(Schema.String),
+});
 
-export const codec = Schema.toCodecJson(schema)
+export const codec = Schema.toCodecJson(schema);

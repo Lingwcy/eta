@@ -19,17 +19,17 @@ variants now accept an options object for controlling fiber startup behavior.
 **v3**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
-const fiber = Effect.fork(myEffect)
+const fiber = Effect.fork(myEffect);
 ```
 
 **v4**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
-const fiber = Effect.forkChild(myEffect)
+const fiber = Effect.forkChild(myEffect);
 ```
 
 ## `Effect.forkDaemon` → `Effect.forkDetach`
@@ -37,17 +37,17 @@ const fiber = Effect.forkChild(myEffect)
 **v3**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
-const fiber = Effect.forkDaemon(myEffect)
+const fiber = Effect.forkDaemon(myEffect);
 ```
 
 **v4**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
-const fiber = Effect.forkDetach(myEffect)
+const fiber = Effect.forkDetach(myEffect);
 ```
 
 ## Fork Options
@@ -71,19 +71,17 @@ optional options object with the following fields:
 **Usage as data-last (curried)**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
-const fiber = myEffect.pipe(
-  Effect.forkChild({ startImmediately: true })
-)
+const fiber = myEffect.pipe(Effect.forkChild({ startImmediately: true }));
 ```
 
 **Usage as data-first**
 
 ```ts
-import { Effect } from "effect"
+import { Effect } from "effect";
 
-const fiber = Effect.forkChild(myEffect, { startImmediately: true })
+const fiber = Effect.forkChild(myEffect, { startImmediately: true });
 ```
 
 ## Removed Combinators

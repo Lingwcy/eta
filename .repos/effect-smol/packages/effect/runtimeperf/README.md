@@ -164,11 +164,11 @@ Each configured export is a factory:
 
 ```ts
 type RuntimePerfCase = {
-  readonly run: () => unknown
-  readonly validate: (result: unknown) => void
-}
+  readonly run: () => unknown;
+  readonly validate: (result: unknown) => void;
+};
 
-type RuntimePerfCaseFactory = () => RuntimePerfCase
+type RuntimePerfCaseFactory = () => RuntimePerfCase;
 ```
 
 Construct schemas, steady-state adapters and deterministic inputs in the

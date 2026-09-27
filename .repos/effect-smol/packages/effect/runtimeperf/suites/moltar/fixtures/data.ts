@@ -12,20 +12,20 @@ export const validData = Object.freeze({
   deeplyNested: {
     foo: "bar",
     num: 1,
-    bool: false
-  }
-})
+    bool: false,
+  },
+});
 
 export const validDataWithExtras = Object.freeze({
   ...validData,
   extraAttribute: "foo",
   deeplyNested: {
     ...validData.deeplyNested,
-    extraNestedAttribute: "bar"
-  }
-})
+    extraNestedAttribute: "bar",
+  },
+});
 
 export const invalidData = Object.freeze({
   ...validData,
-  number: "invalid"
-})
+  number: "invalid",
+});

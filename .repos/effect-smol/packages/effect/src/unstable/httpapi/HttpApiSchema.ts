@@ -9,33 +9,33 @@
  *
  * @since 4.0.0
  */
-import { constVoid, type LazyArg } from "../../Function.ts"
-import * as Predicate from "../../Predicate.ts"
-import * as Schema from "../../Schema.ts"
-import * as SchemaAST from "../../SchemaAST.ts"
-import * as SchemaTransformation from "../../SchemaTransformation.ts"
-import * as Stream from "../../Stream.ts"
-import * as Sse from "../encoding/Sse.ts"
-import { hasBody, type HttpMethod } from "../http/HttpMethod.ts"
-import * as HttpStatus from "../http/HttpStatus.ts"
-import type * as Multipart_ from "../http/Multipart.ts"
+import { constVoid, type LazyArg } from "../../Function.ts";
+import * as Predicate from "../../Predicate.ts";
+import * as Schema from "../../Schema.ts";
+import * as SchemaAST from "../../SchemaAST.ts";
+import * as SchemaTransformation from "../../SchemaTransformation.ts";
+import * as Stream from "../../Stream.ts";
+import * as Sse from "../encoding/Sse.ts";
+import { hasBody, type HttpMethod } from "../http/HttpMethod.ts";
+import * as HttpStatus from "../http/HttpStatus.ts";
+import type * as Multipart_ from "../http/Multipart.ts";
 
 declare module "../../Schema.ts" {
   namespace Annotations {
     interface Augment {
-      readonly httpApiStatus?: number | undefined
+      readonly httpApiStatus?: number | undefined;
       /**
        * The encoding of the payload or response.
        * This is kept internal because encodings are only exposed through the `as*` functions.
        * @internal
        */
-      readonly "~httpApiEncoding"?: Encoding | undefined
+      readonly "~httpApiEncoding"?: Encoding | undefined;
       /**
        * Marks schemas produced by `encodeToWithHeaders`, carrying the body and
        * headers schemas so integrations can split the encoded pair.
        * @internal
        */
-      readonly "~httpApiWithHeaders"?: WithHeadersAnnotation | undefined
+      readonly "~httpApiWithHeaders"?: WithHeadersAnnotation | undefined;
     }
   }
 }
@@ -46,9 +46,9 @@ declare module "../../Schema.ts" {
  * @internal
  */
 export interface WithHeadersAnnotation {
-  readonly body: Schema.Top
-  readonly headers: Schema.Top
-  readonly headersCodec: Schema.Top
+  readonly body: Schema.Top;
+  readonly headers: Schema.Top;
+  readonly headersCodec: Schema.Top;
 }
 
 /**
@@ -57,7 +57,7 @@ export interface WithHeadersAnnotation {
  * @category models
  * @since 4.0.0
  */
-export type Encoding = PayloadEncoding | ResponseEncoding
+export type Encoding = PayloadEncoding | ResponseEncoding;
 
 /**
  * HTTP API request payload encoding metadata.
@@ -67,15 +67,15 @@ export type Encoding = PayloadEncoding | ResponseEncoding
  */
 export type PayloadEncoding =
   | {
-    readonly _tag: "Multipart"
-    readonly mode: "buffered" | "stream"
-    readonly contentType: string
-    readonly limits?: Multipart_.withLimits.Options | undefined
-  }
+      readonly _tag: "Multipart";
+      readonly mode: "buffered" | "stream";
+      readonly contentType: string;
+      readonly limits?: Multipart_.withLimits.Options | undefined;
+    }
   | {
-    readonly _tag: "Json" | "FormUrlEncoded" | "Uint8Array" | "Text"
-    readonly contentType: string
-  }
+      readonly _tag: "Json" | "FormUrlEncoded" | "Uint8Array" | "Text";
+      readonly contentType: string;
+    };
 
 /**
  * HTTP API response body encoding metadata.
@@ -84,11 +84,11 @@ export type PayloadEncoding =
  * @since 4.0.0
  */
 export type ResponseEncoding = {
-  readonly _tag: "Json" | "FormUrlEncoded" | "Uint8Array" | "Text"
-  readonly contentType: string
-}
+  readonly _tag: "Json" | "FormUrlEncoded" | "Uint8Array" | "Text";
+  readonly contentType: string;
+};
 
-const StreamSchemaTypeId = "~effect/httpapi/HttpApiSchema/Stream"
+const StreamSchemaTypeId = "~effect/httpapi/HttpApiSchema/Stream";
 
 /**
  * Common HTTP status code literals accepted by {@link status}.
@@ -96,7 +96,7 @@ const StreamSchemaTypeId = "~effect/httpapi/HttpApiSchema/Stream"
  * @category models
  * @since 4.0.0
  */
-export type StatusLiteral = HttpStatus.Literal
+export type StatusLiteral = HttpStatus.Literal;
 
 /**
  * Sets the HTTP status code of a schema.
@@ -111,14 +111,15 @@ export type StatusLiteral = HttpStatus.Literal
  * @since 4.0.0
  */
 export function status(code: number): {
-  <S extends Schema.Top>(self: S): S["Rebuild"]
-}
+  <S extends Schema.Top>(self: S): S["Rebuild"];
+};
 export function status(code: StatusLiteral): {
-  <S extends Schema.Top>(self: S): S["Rebuild"]
-}
+  <S extends Schema.Top>(self: S): S["Rebuild"];
+};
 export function status(code: number | StatusLiteral) {
-  const statusCode = typeof code === "string" ? HttpStatus.fromLiteral(code) : code
-  return <S extends Schema.Top>(self: S): S["Rebuild"] => self.annotate({ httpApiStatus: statusCode })
+  const statusCode = typeof code === "string" ? HttpStatus.fromLiteral(code) : code;
+  return <S extends Schema.Top>(self: S): S["Rebuild"] =>
+    self.annotate({ httpApiStatus: statusCode });
 }
 
 /**
@@ -130,7 +131,7 @@ export function status(code: number | StatusLiteral) {
  * @category constructors
  * @since 4.0.0
  */
-export const Empty = (code: number): Schema.Void => Schema.Void.pipe(status(code))
+export const Empty = (code: number): Schema.Void => Schema.Void.pipe(status(code));
 
 /**
  * Type of the `NoContent` schema, a void schema annotated with HTTP status code 204.
@@ -146,7 +147,7 @@ export interface NoContent extends Schema.Void {}
  * @category schemas
  * @since 4.0.0
  */
-export const NoContent: NoContent = Empty(204)
+export const NoContent: NoContent = Empty(204);
 
 /**
  * Type of the `Created` schema, a void schema annotated with HTTP status code 201.
@@ -162,7 +163,7 @@ export interface Created extends Schema.Void {}
  * @category schemas
  * @since 4.0.0
  */
-export const Created: Created = Empty(201)
+export const Created: Created = Empty(201);
 
 /**
  * Type of the `Accepted` schema, a void schema annotated with HTTP status code 202.
@@ -178,7 +179,7 @@ export interface Accepted extends Schema.Void {}
  * @category schemas
  * @since 4.0.0
  */
-export const Accepted: Accepted = Empty(202)
+export const Accepted: Accepted = Empty(202);
 
 /**
  * Schema type returned by `asNoContent`, encoding as `void` while decoding to the original schema type.
@@ -186,7 +187,10 @@ export const Accepted: Accepted = Empty(202)
  * @category schemas
  * @since 4.0.0
  */
-export interface asNoContent<S extends Schema.Constraint> extends Schema.decodeTo<Schema.toType<S>, Schema.Void> {}
+export interface asNoContent<S extends Schema.Constraint> extends Schema.decodeTo<
+  Schema.toType<S>,
+  Schema.Void
+> {}
 
 /**
  * Marks a schema as a no-content response while preserving a decoded client value.
@@ -203,7 +207,7 @@ export interface asNoContent<S extends Schema.Constraint> extends Schema.decodeT
  * @since 4.0.0
  */
 export function asNoContent<S extends Schema.Constraint>(options: {
-  readonly decode: LazyArg<S["Type"]>
+  readonly decode: LazyArg<S["Type"]>;
 }) {
   return (self: S): asNoContent<S> => {
     return Schema.Void.pipe(
@@ -211,14 +215,14 @@ export function asNoContent<S extends Schema.Constraint>(options: {
         Schema.toType(self),
         SchemaTransformation.transform({
           decode: options.decode,
-          encode: constVoid
-        })
-      )
-    )
-  }
+          encode: constVoid,
+        }),
+      ),
+    );
+  };
 }
 
-type StreamMode = "sse" | "uint8array"
+type StreamMode = "sse" | "uint8array";
 
 /**
  * Mode describing whether an SSE stream emits full events or raw data values.
@@ -226,7 +230,7 @@ type StreamMode = "sse" | "uint8array"
  * @category models
  * @since 4.0.0
  */
-export type StreamSseMode = "events" | "data"
+export type StreamSseMode = "events" | "data";
 
 /**
  * Schema for a Server-Sent Events success response.
@@ -254,29 +258,24 @@ export type StreamSseMode = "events" | "data"
 export interface StreamSse<
   Events extends Sse.EventCodec,
   Error extends Schema.Constraint,
-  Value = Events["Type"]
-> extends
-  Schema.BottomLazy<
-    SchemaAST.Declaration,
-    StreamSse<Events, Error, Value>
-  >
-{
-  readonly "Type": Stream.Stream<Value, Error["Type"], never>
-  readonly "Encoded": Stream.Stream<Value, Error["Type"], never>
-  readonly "DecodingServices": Events["DecodingServices"] | Error["DecodingServices"]
-  readonly "EncodingServices": Events["EncodingServices"] | Error["EncodingServices"]
-  readonly "Rebuild": StreamSse<Events, Error, Value>
-  readonly "~type.make.in": Stream.Stream<Value, Error["Type"], never>
-  readonly "~type.make": Stream.Stream<Value, Error["Type"], never>
-  readonly "Iso": Stream.Stream<Value, Error["Type"], never>
-  readonly [StreamSchemaTypeId]: typeof StreamSchemaTypeId
-  readonly _tag: "StreamSse"
-  readonly mode: "sse"
-  readonly sseMode: StreamSseMode
-  readonly contentType: string
-  readonly events: Events
-  readonly error: Error
-  readonly "~Value"?: Value | undefined
+  Value = Events["Type"],
+> extends Schema.BottomLazy<SchemaAST.Declaration, StreamSse<Events, Error, Value>> {
+  readonly Type: Stream.Stream<Value, Error["Type"], never>;
+  readonly Encoded: Stream.Stream<Value, Error["Type"], never>;
+  readonly DecodingServices: Events["DecodingServices"] | Error["DecodingServices"];
+  readonly EncodingServices: Events["EncodingServices"] | Error["EncodingServices"];
+  readonly Rebuild: StreamSse<Events, Error, Value>;
+  readonly "~type.make.in": Stream.Stream<Value, Error["Type"], never>;
+  readonly "~type.make": Stream.Stream<Value, Error["Type"], never>;
+  readonly Iso: Stream.Stream<Value, Error["Type"], never>;
+  readonly [StreamSchemaTypeId]: typeof StreamSchemaTypeId;
+  readonly _tag: "StreamSse";
+  readonly mode: "sse";
+  readonly sseMode: StreamSseMode;
+  readonly contentType: string;
+  readonly events: Events;
+  readonly error: Error;
+  readonly "~Value"?: Value | undefined;
 }
 
 /**
@@ -285,22 +284,20 @@ export interface StreamSse<
  * @category models
  * @since 4.0.0
  */
-export interface SseEventFromData<Data extends Schema.Constraint> extends
-  Schema.ConstraintCodec<
-    {
-      readonly id?: string | undefined
-      readonly event: string
-      readonly data: Data["Type"]
-    },
-    {
-      readonly id?: string | undefined
-      readonly event?: string | undefined
-      readonly data: string
-    },
-    Data["DecodingServices"],
-    Data["EncodingServices"]
-  >
-{}
+export interface SseEventFromData<Data extends Schema.Constraint> extends Schema.ConstraintCodec<
+  {
+    readonly id?: string | undefined;
+    readonly event: string;
+    readonly data: Data["Type"];
+  },
+  {
+    readonly id?: string | undefined;
+    readonly event?: string | undefined;
+    readonly data: string;
+  },
+  Data["DecodingServices"],
+  Data["EncodingServices"]
+> {}
 
 /**
  * Schema for a streaming `Uint8Array` success response.
@@ -314,21 +311,19 @@ export interface SseEventFromData<Data extends Schema.Constraint> extends
  * @category models
  * @since 4.0.0
  */
-export interface StreamUint8Array extends
-  Schema.Bottom<
-    Stream.Stream<Uint8Array, unknown, never>,
-    Stream.Stream<Uint8Array, unknown, never>,
-    never,
-    never,
-    SchemaAST.Declaration,
-    StreamUint8Array
-  >
-{
-  readonly "Rebuild": StreamUint8Array
-  readonly [StreamSchemaTypeId]: typeof StreamSchemaTypeId
-  readonly _tag: "StreamUint8Array"
-  readonly mode: "uint8array"
-  readonly contentType: string
+export interface StreamUint8Array extends Schema.Bottom<
+  Stream.Stream<Uint8Array, unknown, never>,
+  Stream.Stream<Uint8Array, unknown, never>,
+  never,
+  never,
+  SchemaAST.Declaration,
+  StreamUint8Array
+> {
+  readonly Rebuild: StreamUint8Array;
+  readonly [StreamSchemaTypeId]: typeof StreamSchemaTypeId;
+  readonly _tag: "StreamUint8Array";
+  readonly mode: "uint8array";
+  readonly contentType: string;
 }
 
 /**
@@ -337,9 +332,9 @@ export interface StreamUint8Array extends
  * @category models
  * @since 4.0.0
  */
-export type StreamSchema = StreamSse<Sse.EventCodec, Schema.Top, unknown> | StreamUint8Array
+export type StreamSchema = StreamSse<Sse.EventCodec, Schema.Top, unknown> | StreamUint8Array;
 
-const streamSchema = Schema.declare(Stream.isStream)
+const streamSchema = Schema.declare(Stream.isStream);
 
 /**
  * Creates a Server-Sent Events streaming success response schema.
@@ -349,27 +344,31 @@ const streamSchema = Schema.declare(Stream.isStream)
  */
 export const StreamSse: {
   <Events extends Sse.EventCodec, Error extends Schema.Constraint = Schema.Never>(options: {
-    readonly contentType?: string | undefined
-    readonly events: Events
-    readonly error?: Error | undefined
-  }): StreamSse<Events, Error, Events["Type"]>
+    readonly contentType?: string | undefined;
+    readonly events: Events;
+    readonly error?: Error | undefined;
+  }): StreamSse<Events, Error, Events["Type"]>;
   <Data extends Schema.Constraint, Error extends Schema.Constraint = Schema.Never>(options: {
-    readonly contentType?: string | undefined
-    readonly data: Data
-    readonly error?: Error | undefined
-  }): StreamSse<SseEventFromData<Data>, Error, Data["Type"]>
+    readonly contentType?: string | undefined;
+    readonly data: Data;
+    readonly error?: Error | undefined;
+  }): StreamSse<SseEventFromData<Data>, Error, Data["Type"]>;
 } = (options: {
-  readonly contentType?: string | undefined
-  readonly events?: Sse.EventCodec | undefined
-  readonly data?: Schema.Constraint | undefined
-  readonly error?: Schema.Constraint | undefined
+  readonly contentType?: string | undefined;
+  readonly events?: Sse.EventCodec | undefined;
+  readonly data?: Schema.Constraint | undefined;
+  readonly error?: Schema.Constraint | undefined;
 }): StreamSse<Sse.EventCodec, Schema.Top, unknown> => {
-  const events = options.events ?? (options.data === undefined ? undefined : Schema.Struct({
-    ...Sse.EventEncoded.fields,
-    data: Schema.fromJsonString(options.data)
-  }))
+  const events =
+    options.events ??
+    (options.data === undefined
+      ? undefined
+      : Schema.Struct({
+          ...Sse.EventEncoded.fields,
+          data: Schema.fromJsonString(options.data),
+        }));
   if (events === undefined) {
-    throw new Error("StreamSse requires either an events schema or a data schema")
+    throw new Error("StreamSse requires either an events schema or a data schema");
   }
   return Schema.make<StreamSse<Sse.EventCodec, Schema.Top, unknown>>(streamSchema.ast, {
     [StreamSchemaTypeId]: StreamSchemaTypeId,
@@ -378,9 +377,9 @@ export const StreamSse: {
     sseMode: options.events === undefined ? "data" : "events",
     contentType: options.contentType ?? defaultStreamContentType("sse"),
     events,
-    error: options.error ?? Schema.Never
-  })
-}
+    error: options.error ?? Schema.Never,
+  });
+};
 
 /**
  * Creates a streaming `Uint8Array` success response schema.
@@ -389,33 +388,33 @@ export const StreamSse: {
  * @since 4.0.0
  */
 export const StreamUint8Array = (options?: {
-  readonly contentType?: string | undefined
+  readonly contentType?: string | undefined;
 }): StreamUint8Array =>
   Schema.make<StreamUint8Array>(streamSchema.ast, {
     [StreamSchemaTypeId]: StreamSchemaTypeId,
     _tag: "StreamUint8Array",
     mode: "uint8array",
-    contentType: options?.contentType ?? defaultStreamContentType("uint8array")
-  })
+    contentType: options?.contentType ?? defaultStreamContentType("uint8array"),
+  });
 
 /** @internal */
 export const isStreamSchema = (u: unknown): u is StreamSchema =>
-  Schema.isSchema(u) && Predicate.hasProperty(u, StreamSchemaTypeId)
+  Schema.isSchema(u) && Predicate.hasProperty(u, StreamSchemaTypeId);
 
 /** @internal */
 export const isStreamSse = (u: unknown): u is StreamSse<Sse.EventCodec, Schema.Top, unknown> =>
-  isStreamSchema(u) && u._tag === "StreamSse"
+  isStreamSchema(u) && u._tag === "StreamSse";
 
 /** @internal */
 export const isStreamUint8Array = (u: unknown): u is StreamUint8Array =>
-  isStreamSchema(u) && u._tag === "StreamUint8Array"
+  isStreamSchema(u) && u._tag === "StreamUint8Array";
 
 function defaultStreamContentType(mode: StreamMode): string {
   switch (mode) {
     case "sse":
-      return "text/event-stream"
+      return "text/event-stream";
     case "uint8array":
-      return "application/octet-stream"
+      return "application/octet-stream";
   }
 }
 
@@ -425,7 +424,7 @@ function defaultStreamContentType(mode: StreamMode): string {
  * @category type IDs
  * @since 4.0.0
  */
-export const WithHeadersTypeId = "~effect/httpapi/HttpApiSchema/WithHeaders"
+export const WithHeadersTypeId = "~effect/httpapi/HttpApiSchema/WithHeaders";
 
 /**
  * Type-level brand identifier used by `WithHeaders`.
@@ -433,7 +432,7 @@ export const WithHeadersTypeId = "~effect/httpapi/HttpApiSchema/WithHeaders"
  * @category type IDs
  * @since 4.0.0
  */
-export type WithHeadersTypeId = typeof WithHeadersTypeId
+export type WithHeadersTypeId = typeof WithHeadersTypeId;
 
 /**
  * Runtime brand key used to mark `WithHeaders` response values.
@@ -441,7 +440,7 @@ export type WithHeadersTypeId = typeof WithHeadersTypeId
  * @category type IDs
  * @since 4.0.0
  */
-export const WithHeadersValueTypeId = "~effect/httpapi/HttpApiSchema/WithHeadersValue"
+export const WithHeadersValueTypeId = "~effect/httpapi/HttpApiSchema/WithHeadersValue";
 
 /**
  * Type-level brand identifier used by `WithHeaders` response values.
@@ -449,7 +448,7 @@ export const WithHeadersValueTypeId = "~effect/httpapi/HttpApiSchema/WithHeaders
  * @category type IDs
  * @since 4.0.0
  */
-export type WithHeadersValueTypeId = typeof WithHeadersValueTypeId
+export type WithHeadersValueTypeId = typeof WithHeadersValueTypeId;
 
 /**
  * A response schema wrapping a body schema together with a response headers
@@ -481,20 +480,18 @@ export type WithHeadersValueTypeId = typeof WithHeadersValueTypeId
  * @category models
  * @since 4.0.0
  */
-export interface WithHeaders<S extends Schema.Top, H extends Schema.Top> extends
-  Schema.Bottom<
-    withHeaders<S["Type"], H["Type"]>,
-    withHeaders<S["Encoded"], Schema.StringTree>,
-    S["DecodingServices"] | H["DecodingServices"],
-    S["EncodingServices"] | H["EncodingServices"],
-    SchemaAST.Declaration,
-    WithHeaders<S, H>
-  >
-{
-  readonly "Rebuild": WithHeaders<S, H>
-  readonly [WithHeadersTypeId]: typeof WithHeadersTypeId
-  readonly schema: S
-  readonly headers: H
+export interface WithHeaders<S extends Schema.Top, H extends Schema.Top> extends Schema.Bottom<
+  withHeaders<S["Type"], H["Type"]>,
+  withHeaders<S["Encoded"], Schema.StringTree>,
+  S["DecodingServices"] | H["DecodingServices"],
+  S["EncodingServices"] | H["EncodingServices"],
+  SchemaAST.Declaration,
+  WithHeaders<S, H>
+> {
+  readonly Rebuild: WithHeaders<S, H>;
+  readonly [WithHeadersTypeId]: typeof WithHeadersTypeId;
+  readonly schema: S;
+  readonly headers: H;
 }
 
 /**
@@ -510,16 +507,16 @@ export interface WithHeaders<S extends Schema.Top, H extends Schema.Top> extends
  * @since 4.0.0
  */
 export interface withHeaders<A, H> {
-  readonly [WithHeadersValueTypeId]: WithHeadersValueTypeId
-  readonly body: A
-  readonly headers: H
+  readonly [WithHeadersValueTypeId]: WithHeadersValueTypeId;
+  readonly body: A;
+  readonly headers: H;
 }
 
 /** @internal */
 export const isWithHeadersValue = (u: unknown): u is withHeaders<unknown, unknown> =>
-  Predicate.hasProperty(u, WithHeadersValueTypeId)
+  Predicate.hasProperty(u, WithHeadersValueTypeId);
 
-const withHeadersValueSchema = Schema.declare(isWithHeadersValue)
+const withHeadersValueSchema = Schema.declare(isWithHeadersValue);
 
 /**
  * Wraps a success schema with a response headers schema.
@@ -553,24 +550,24 @@ const withHeadersValueSchema = Schema.declare(isWithHeadersValue)
  */
 export function WithHeaders<S extends Schema.Top, H extends Schema.Struct.Fields>(
   schema: S,
-  headers: H
-): WithHeaders<S, Schema.Struct<H>>
+  headers: H,
+): WithHeaders<S, Schema.Struct<H>>;
 export function WithHeaders<S extends Schema.Top, H extends Schema.Top>(
   schema: S,
-  headers: H
-): WithHeaders<S, H>
+  headers: H,
+): WithHeaders<S, H>;
 export function WithHeaders(
   schema: Schema.Top,
-  headers: Schema.Top | Schema.Struct.Fields
+  headers: Schema.Top | Schema.Struct.Fields,
 ): WithHeaders<Schema.Top, Schema.Top> {
   if (isWithHeaders(schema)) {
-    throw new Error("WithHeaders schemas cannot be nested")
+    throw new Error("WithHeaders schemas cannot be nested");
   }
   return Schema.make<WithHeaders<Schema.Top, Schema.Top>>(withHeadersValueSchema.ast, {
     [WithHeadersTypeId]: WithHeadersTypeId,
     schema,
-    headers: Schema.isSchema(headers) ? headers : Schema.Struct(headers)
-  })
+    headers: Schema.isSchema(headers) ? headers : Schema.Struct(headers),
+  });
 }
 
 /**
@@ -589,13 +586,13 @@ export function WithHeaders(
  * @since 4.0.0
  */
 export const withHeaders = <A, H>(options: {
-  readonly body: A
-  readonly headers: H
+  readonly body: A;
+  readonly headers: H;
 }): withHeaders<A, H> => ({
   [WithHeadersValueTypeId]: WithHeadersValueTypeId,
   body: options.body,
-  headers: options.headers
-})
+  headers: options.headers,
+});
 
 /**
  * Returns `true` when a schema is a `WithHeaders` response schema.
@@ -618,19 +615,19 @@ export const withHeaders = <A, H>(options: {
  * @since 4.0.0
  */
 export const isWithHeaders = (u: unknown): u is WithHeaders<Schema.Top, Schema.Top> =>
-  Schema.isSchema(u) && Predicate.hasProperty(u, WithHeadersTypeId)
+  Schema.isSchema(u) && Predicate.hasProperty(u, WithHeadersTypeId);
 
 /** @internal */
 export function rebuildWithHeaders(
   self: WithHeaders<Schema.Top, Schema.Top>,
   schema: Schema.Top,
-  headers: Schema.Top
+  headers: Schema.Top,
 ): WithHeaders<Schema.Top, Schema.Top> {
   return Schema.make<WithHeaders<Schema.Top, Schema.Top>>(self.ast, {
     [WithHeadersTypeId]: WithHeadersTypeId,
     schema,
-    headers
-  })
+    headers,
+  });
 }
 
 /**
@@ -643,16 +640,14 @@ export function rebuildWithHeaders(
 export interface encodeToWithHeaders<
   S extends Schema.Top,
   Body extends Schema.Top,
-  Headers extends Schema.Struct.Fields
-> extends
-  Schema.decodeTo<
-    Schema.toType<S>,
-    Schema.Struct<{
-      readonly body: Body
-      readonly headers: Schema.Struct<Headers>
-    }>
-  >
-{}
+  Headers extends Schema.Struct.Fields,
+> extends Schema.decodeTo<
+  Schema.toType<S>,
+  Schema.Struct<{
+    readonly body: Body;
+    readonly headers: Schema.Struct<Headers>;
+  }>
+> {}
 
 /**
  * Encodes a schema as a `{ body, headers }` pair, folding response headers into
@@ -710,34 +705,34 @@ export interface encodeToWithHeaders<
 export function encodeToWithHeaders<
   S extends Schema.Top,
   Body extends Schema.Top,
-  Headers extends Schema.Struct.Fields
->(options: {
-  readonly body: Body
-  readonly headers: Headers
-}, transformation: {
-  readonly decode: (
-    value: Schema.Struct.Type<{ readonly body: Body; readonly headers: Schema.Struct<Headers> }>
-  ) => S["Type"]
-  readonly encode: (
-    value: S["Type"]
-  ) => Schema.Struct.Type<{ readonly body: Body; readonly headers: Schema.Struct<Headers> }>
-}) {
+  Headers extends Schema.Struct.Fields,
+>(
+  options: {
+    readonly body: Body;
+    readonly headers: Headers;
+  },
+  transformation: {
+    readonly decode: (
+      value: Schema.Struct.Type<{ readonly body: Body; readonly headers: Schema.Struct<Headers> }>,
+    ) => S["Type"];
+    readonly encode: (
+      value: S["Type"],
+    ) => Schema.Struct.Type<{ readonly body: Body; readonly headers: Schema.Struct<Headers> }>;
+  },
+) {
   return (self: S): encodeToWithHeaders<S, Body, Headers> => {
-    const body = options.body
-    const headers = Schema.Struct(options.headers)
-    const status = resolveHttpApiStatus(body.ast)
-    const encoding = resolveHttpApiEncoding(body.ast)
-    return Schema.Struct({ body, headers }).pipe(
-      Schema.decodeTo(
-        Schema.toType(self),
-        SchemaTransformation.transform(transformation)
-      )
-    ).annotate({
-      "~httpApiWithHeaders": { body, headers, headersCodec: Schema.toEncoded(headers) },
-      httpApiStatus: status,
-      "~httpApiEncoding": encoding
-    })
-  }
+    const body = options.body;
+    const headers = Schema.Struct(options.headers);
+    const status = resolveHttpApiStatus(body.ast);
+    const encoding = resolveHttpApiEncoding(body.ast);
+    return Schema.Struct({ body, headers })
+      .pipe(Schema.decodeTo(Schema.toType(self), SchemaTransformation.transform(transformation)))
+      .annotate({
+        "~httpApiWithHeaders": { body, headers, headersCodec: Schema.toEncoded(headers) },
+        httpApiStatus: status,
+        "~httpApiEncoding": encoding,
+      });
+  };
 }
 
 /**
@@ -746,7 +741,7 @@ export function encodeToWithHeaders<
  * @category type IDs
  * @since 4.0.0
  */
-export const MultipartTypeId = "~effect/httpapi/HttpApiSchema/Multipart"
+export const MultipartTypeId = "~effect/httpapi/HttpApiSchema/Multipart";
 
 /**
  * Type-level brand identifier used by `asMultipart`.
@@ -754,7 +749,7 @@ export const MultipartTypeId = "~effect/httpapi/HttpApiSchema/Multipart"
  * @category type IDs
  * @since 4.0.0
  */
-export type MultipartTypeId = typeof MultipartTypeId
+export type MultipartTypeId = typeof MultipartTypeId;
 
 /**
  * Schema type returned by `asMultipart` for buffered multipart payloads.
@@ -762,7 +757,10 @@ export type MultipartTypeId = typeof MultipartTypeId
  * @category schemas
  * @since 4.0.0
  */
-export interface asMultipart<S extends Schema.Top> extends Schema.brand<S["Rebuild"], MultipartTypeId> {}
+export interface asMultipart<S extends Schema.Top> extends Schema.brand<
+  S["Rebuild"],
+  MultipartTypeId
+> {}
 
 /**
  * Marks a schema as a multipart payload.
@@ -779,9 +777,9 @@ export function asMultipart(options?: Multipart_.withLimits.Options) {
         _tag: "Multipart",
         mode: "buffered",
         contentType: defaultContentType("Multipart"),
-        limits: options
-      }
-    })
+        limits: options,
+      },
+    });
 }
 
 /**
@@ -790,7 +788,7 @@ export function asMultipart(options?: Multipart_.withLimits.Options) {
  * @category type IDs
  * @since 4.0.0
  */
-export const MultipartStreamTypeId = "~effect/httpapi/HttpApiSchema/MultipartStream"
+export const MultipartStreamTypeId = "~effect/httpapi/HttpApiSchema/MultipartStream";
 
 /**
  * Type-level brand identifier used by `asMultipartStream`.
@@ -798,7 +796,7 @@ export const MultipartStreamTypeId = "~effect/httpapi/HttpApiSchema/MultipartStr
  * @category type IDs
  * @since 4.0.0
  */
-export type MultipartStreamTypeId = typeof MultipartStreamTypeId
+export type MultipartStreamTypeId = typeof MultipartStreamTypeId;
 
 /**
  * Schema type returned by `asMultipartStream` for streaming multipart payloads.
@@ -806,7 +804,10 @@ export type MultipartStreamTypeId = typeof MultipartStreamTypeId
  * @category schemas
  * @since 4.0.0
  */
-export interface asMultipartStream<S extends Schema.Top> extends Schema.brand<S["Rebuild"], MultipartStreamTypeId> {}
+export interface asMultipartStream<S extends Schema.Top> extends Schema.brand<
+  S["Rebuild"],
+  MultipartStreamTypeId
+> {}
 
 /**
  * Marks a schema as a multipart stream payload.
@@ -823,35 +824,38 @@ export function asMultipartStream(options?: Multipart_.withLimits.Options) {
         _tag: "Multipart",
         mode: "stream",
         contentType: defaultContentType("Multipart"),
-        limits: options
-      }
-    })
+        limits: options,
+      },
+    });
 }
 
-function asNonMultipartEncoding<S extends Schema.Top>(self: S, options: {
-  readonly _tag: "Json" | "FormUrlEncoded" | "Uint8Array" | "Text"
-  readonly contentType?: string | undefined
-}): S["Rebuild"] {
+function asNonMultipartEncoding<S extends Schema.Top>(
+  self: S,
+  options: {
+    readonly _tag: "Json" | "FormUrlEncoded" | "Uint8Array" | "Text";
+    readonly contentType?: string | undefined;
+  },
+): S["Rebuild"] {
   return self.annotate({
     "~httpApiEncoding": {
       _tag: options._tag,
-      contentType: options.contentType ?? defaultContentType(options._tag)
-    }
-  })
+      contentType: options.contentType ?? defaultContentType(options._tag),
+    },
+  });
 }
 
 function defaultContentType(_tag: Encoding["_tag"]): string {
   switch (_tag) {
     case "Multipart":
-      return "multipart/form-data"
+      return "multipart/form-data";
     case "Json":
-      return "application/json"
+      return "application/json";
     case "FormUrlEncoded":
-      return "application/x-www-form-urlencoded"
+      return "application/x-www-form-urlencoded";
     case "Uint8Array":
-      return "application/octet-stream"
+      return "application/octet-stream";
     case "Text":
-      return "text/plain"
+      return "text/plain";
   }
 }
 
@@ -861,10 +865,9 @@ function defaultContentType(_tag: Encoding["_tag"]): string {
  * @category encoding
  * @since 4.0.0
  */
-export function asJson(options?: {
-  readonly contentType?: string
-}) {
-  return <S extends Schema.Top>(self: S) => asNonMultipartEncoding(self, { _tag: "Json", ...options })
+export function asJson(options?: { readonly contentType?: string }) {
+  return <S extends Schema.Top>(self: S) =>
+    asNonMultipartEncoding(self, { _tag: "Json", ...options });
 }
 
 /**
@@ -877,12 +880,9 @@ export function asJson(options?: {
  * @category encoding
  * @since 4.0.0
  */
-export function asFormUrlEncoded(options?: {
-  readonly contentType?: string
-}) {
-  return <S extends Schema.Top>(
-    self: S
-  ) => asNonMultipartEncoding(self, { _tag: "FormUrlEncoded", ...options })
+export function asFormUrlEncoded(options?: { readonly contentType?: string }) {
+  return <S extends Schema.Top>(self: S) =>
+    asNonMultipartEncoding(self, { _tag: "FormUrlEncoded", ...options });
 }
 
 /**
@@ -895,11 +895,9 @@ export function asFormUrlEncoded(options?: {
  * @category encoding
  * @since 4.0.0
  */
-export function asText(options?: {
-  readonly contentType?: string
-}) {
+export function asText(options?: { readonly contentType?: string }) {
   return <S extends Schema.Top & { readonly Encoded: string }>(self: S) =>
-    asNonMultipartEncoding(self, { _tag: "Text", ...options })
+    asNonMultipartEncoding(self, { _tag: "Text", ...options });
 }
 
 /**
@@ -912,11 +910,9 @@ export function asText(options?: {
  * @category encoding
  * @since 4.0.0
  */
-export function asUint8Array(options?: {
-  readonly contentType?: string
-}) {
+export function asUint8Array(options?: { readonly contentType?: string }) {
   return <S extends Schema.Top & { readonly Encoded: Uint8Array }>(self: S) =>
-    asNonMultipartEncoding(self, { _tag: "Uint8Array", ...options })
+    asNonMultipartEncoding(self, { _tag: "Uint8Array", ...options });
 }
 /**
  * Returns `true` when a schema AST represents a no-content response.
@@ -930,80 +926,81 @@ export function asUint8Array(options?: {
  * @since 4.0.0
  */
 export const isNoContent = (ast: SchemaAST.AST): boolean => {
-  if (SchemaAST.isVoid(ast)) return true
-  const encoded = SchemaAST.toEncoded(ast)
-  if (SchemaAST.isVoid(encoded)) return true
-  const target = ast.encoding?.[0].to
-  if (target === undefined) return false
-  return SchemaAST.isVoid(target)
-}
+  if (SchemaAST.isVoid(ast)) return true;
+  const encoded = SchemaAST.toEncoded(ast);
+  if (SchemaAST.isVoid(encoded)) return true;
+  const target = ast.encoding?.[0].to;
+  if (target === undefined) return false;
+  return SchemaAST.isVoid(target);
+};
 
-const resolveHttpApiEncoding = SchemaAST.resolveAt<Encoding>("~httpApiEncoding")
+const resolveHttpApiEncoding = SchemaAST.resolveAt<Encoding>("~httpApiEncoding");
 
 /** @internal */
-export const getWithHeadersAnnotation = SchemaAST.resolveAt<WithHeadersAnnotation>("~httpApiWithHeaders")
+export const getWithHeadersAnnotation =
+  SchemaAST.resolveAt<WithHeadersAnnotation>("~httpApiWithHeaders");
 
-const resolveHttpApiStatus = SchemaAST.resolveAt<number>("httpApiStatus")
+const resolveHttpApiStatus = SchemaAST.resolveAt<number>("httpApiStatus");
 
 const defaultJsonEncoding: Encoding = {
   _tag: "Json",
-  contentType: "application/json"
-}
+  contentType: "application/json",
+};
 const defaultUrlEncodedEncoding: Encoding = {
   _tag: "FormUrlEncoded",
-  contentType: "application/x-www-form-urlencoded"
-}
+  contentType: "application/x-www-form-urlencoded",
+};
 
 function getEncoding(ast: SchemaAST.AST): Encoding {
-  return resolveHttpApiEncoding(ast) ?? defaultJsonEncoding
+  return resolveHttpApiEncoding(ast) ?? defaultJsonEncoding;
 }
 
 /** @internal */
 export function getPayloadEncoding(ast: SchemaAST.AST, method: HttpMethod): PayloadEncoding {
-  const encoding = resolveHttpApiEncoding(ast)
-  if (encoding) return encoding
-  return hasBody(method) ? defaultJsonEncoding : defaultUrlEncodedEncoding
+  const encoding = resolveHttpApiEncoding(ast);
+  if (encoding) return encoding;
+  return hasBody(method) ? defaultJsonEncoding : defaultUrlEncodedEncoding;
 }
 
 /** @internal */
 export function getResponseEncoding(ast: SchemaAST.AST): ResponseEncoding {
-  const out = getEncoding(ast)
+  const out = getEncoding(ast);
   if (out._tag === "Multipart") {
-    throw new Error("Multipart is not supported in response")
+    throw new Error("Multipart is not supported in response");
   }
-  return out
+  return out;
 }
 
 /** @internal */
 export function getStatusSuccess(self: SchemaAST.AST): number {
-  return resolveHttpApiStatus(self) ?? 200
+  return resolveHttpApiStatus(self) ?? 200;
 }
 
 /** @internal */
 export function getStatusSuccessSchema(schema: Schema.Constraint): number {
   if (isWithHeaders(schema)) {
-    return resolveHttpApiStatus(schema.ast) ?? getStatusSuccess(schema.schema.ast)
+    return resolveHttpApiStatus(schema.ast) ?? getStatusSuccess(schema.schema.ast);
   }
-  return getStatusSuccess(schema.ast)
+  return getStatusSuccess(schema.ast);
 }
 
 /** @internal */
 export function getResponseEncodingSchema(schema: Schema.Constraint): ResponseEncoding {
   if (isWithHeaders(schema) && resolveHttpApiEncoding(schema.ast) === undefined) {
-    return getResponseEncoding(schema.schema.ast)
+    return getResponseEncoding(schema.schema.ast);
   }
-  return getResponseEncoding(schema.ast)
+  return getResponseEncoding(schema.ast);
 }
 
 /** @internal */
 export function getStatusError(self: SchemaAST.AST): number {
-  return resolveHttpApiStatus(self) ?? 500
+  return resolveHttpApiStatus(self) ?? 500;
 }
 
 /** @internal */
 export function getStatusErrorSchema(schema: Schema.Constraint): number {
   if (isWithHeaders(schema)) {
-    return resolveHttpApiStatus(schema.ast) ?? getStatusError(schema.schema.ast)
+    return resolveHttpApiStatus(schema.ast) ?? getStatusError(schema.schema.ast);
   }
-  return getStatusError(schema.ast)
+  return getStatusError(schema.ast);
 }

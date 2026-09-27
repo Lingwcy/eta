@@ -24,7 +24,7 @@ effect/Cache#EntryStats:
   note: "Per-entry loaded-time statistics were removed; record lookup timing in application instrumentation if needed."
 effect/Cache#Lookup:
   replacement: "(key: Key) => Effect.Effect<A, E, R>"
-  note: "The named alias was removed; use an inline lookup function type or Cache.Cache<Key, A, E, R>[\"lookup\"]."
+  note: 'The named alias was removed; use an inline lookup function type or Cache.Cache<Key, A, E, R>["lookup"].'
 effect/Cache#makeCacheStats:
   replacement: "none"
   note: "CacheStats and its constructor were removed; define an application metrics record if these counters are still required."

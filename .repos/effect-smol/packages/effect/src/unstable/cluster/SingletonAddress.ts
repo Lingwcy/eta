@@ -7,12 +7,12 @@
  *
  * @since 4.0.0
  */
-import * as Equal from "../../Equal.ts"
-import * as Hash from "../../Hash.ts"
-import * as Schema from "../../Schema.ts"
-import { ShardId } from "./ShardId.ts"
+import * as Equal from "../../Equal.ts";
+import * as Hash from "../../Hash.ts";
+import * as Schema from "../../Schema.ts";
+import { ShardId } from "./ShardId.ts";
 
-const TypeId = "~effect/cluster/SingletonAddress"
+const TypeId = "~effect/cluster/SingletonAddress";
 
 /**
  * Represents the unique address of an singleton within the cluster.
@@ -22,7 +22,7 @@ const TypeId = "~effect/cluster/SingletonAddress"
  */
 export class SingletonAddress extends Schema.Class<SingletonAddress>(TypeId)({
   shardId: ShardId,
-  name: Schema.String
+  name: Schema.String,
 }) {
   /**
    * Marks this value as a cluster singleton address for runtime guards.
@@ -36,7 +36,7 @@ export class SingletonAddress extends Schema.Class<SingletonAddress>(TypeId)({
    * @since 4.0.0
    */
   [Hash.symbol]() {
-    return Hash.string(`${this.name}:${this.shardId.toString()}`)
+    return Hash.string(`${this.name}:${this.shardId.toString()}`);
   }
   /**
    * Compares singleton addresses by name and shard id.
@@ -44,6 +44,6 @@ export class SingletonAddress extends Schema.Class<SingletonAddress>(TypeId)({
    * @since 4.0.0
    */
   [Equal.symbol](that: SingletonAddress): boolean {
-    return this.name === that.name && Equal.equals(this.shardId, that.shardId)
+    return this.name === that.name && Equal.equals(this.shardId, that.shardId);
   }
 }

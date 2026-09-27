@@ -23,29 +23,32 @@ Use `Effect.gen` to write code in an imperative style similar to async await.
 You can use `yield*` to access the result of an effect.
 
 ```ts
-import { Effect, Schema } from "effect"
+import { Effect, Schema } from "effect";
 
-Effect.gen(function*() {
-  yield* Effect.log("Starting the file processing...")
-  yield* Effect.log("Reading file...")
+Effect.gen(function* () {
+  yield* Effect.log("Starting the file processing...");
+  yield* Effect.log("Reading file...");
 
   // Always return when raising an error, to ensure typescript understands that
   // the function will not continue executing.
-  return yield* new FileProcessingError({ message: "Failed to read the file" })
+  return yield* new FileProcessingError({ message: "Failed to read the file" });
 }).pipe(
   // Add additional functionality with .pipe
   Effect.catch((error) => Effect.logError(`An error occurred: ${error}`)),
   Effect.withSpan("fileProcessing", {
     attributes: {
-      method: "Effect.gen"
-    }
-  })
-)
+      method: "Effect.gen",
+    },
+  }),
+);
 
 // Use Schema.TaggedError to define a custom error
-export class FileProcessingError extends Schema.TaggedError<FileProcessingError>()("FileProcessingError", {
-  message: Schema.String
-}) {}
+export class FileProcessingError extends Schema.TaggedError<FileProcessingError>()(
+  "FileProcessingError",
+  {
+    message: Schema.String,
+  },
+) {}
 ```
 
 ### Using Effect.fn and Effect.fnUntraced
@@ -60,7 +63,7 @@ implementations and hot paths.
 **Avoid creating functions that only wrap and return an `Effect.gen`**.
 
 ```ts
-import { Effect, Schema } from "effect"
+import { Effect, Schema } from "effect";
 
 // Pass a string to Effect.fn, which will improve stack traces and also
 // attach a tracing span (using Effect.withSpan behind the scenes).
@@ -70,34 +73,36 @@ import { Effect, Schema } from "effect"
 export const effectFunction = Effect.fn("effectFunction")(
   // You can use `Effect.fn.Return` to specify the return type of the function.
   // It accepts the same type parameters as `Effect.Effect`.
-  function*(n: number): Effect.fn.Return<string, SomeError> {
-    yield* Effect.logInfo("Received number:", n)
+  function* (n: number): Effect.fn.Return<string, SomeError> {
+    yield* Effect.logInfo("Received number:", n);
 
     // Always return when raising an error, to ensure typescript understands that
     // the function will not continue executing.
-    return yield* new SomeError({ message: "Failed to read the file" })
+    return yield* new SomeError({ message: "Failed to read the file" });
   },
   // Add additional functionality by passing in additional arguments.
   // **Do not** use .pipe with Effect.fn
   Effect.catch((error) => Effect.logError(`An error occurred: ${error}`)),
   Effect.annotateLogs({
-    method: "effectFunction"
-  })
-)
+    method: "effectFunction",
+  }),
+);
 
 // Effect.fnUntraced avoids tracing and stack-frame capture while still reusing
 // the generator body. This is preferred for library functions that do not
 // represent a useful tracing boundary.
-export const validateBatchSize = Effect.fnUntraced(function*(size: number): Effect.fn.Return<number, SomeError> {
+export const validateBatchSize = Effect.fnUntraced(function* (
+  size: number,
+): Effect.fn.Return<number, SomeError> {
   if (!Number.isInteger(size) || size <= 0) {
-    return yield* new SomeError({ message: "Batch size must be a positive integer" })
+    return yield* new SomeError({ message: "Batch size must be a positive integer" });
   }
-  return size
-})
+  return size;
+});
 
 // Use Schema.TaggedError to define a custom error
 export class SomeError extends Schema.TaggedError<SomeError>()("SomeError", {
-  message: Schema.String
+  message: Schema.String,
 }) {}
 ```
 
@@ -132,43 +137,49 @@ passing in the service interface as a type parameter.
 
 ```ts
 // file: src/db/Database.ts
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Schema } from "effect";
 
 // Pass in the service class name as the first type parameter, and the service
 // interface as the second type parameter.
-export class Database extends Context.Service<Database, {
-  query(sql: string): Effect.Effect<Array<unknown>, DatabaseError>
-}>()(
+export class Database extends Context.Service<
+  Database,
+  {
+    query(sql: string): Effect.Effect<Array<unknown>, DatabaseError>;
+  }
+>()(
   // The string identifier for the service, which should include the package
   // name and the subdirectory path to the service file.
-  "myapp/db/Database"
+  "myapp/db/Database",
 ) {
   // Attach a static layer to the service, which will be used to provide an
   // implementation of the service.
   static readonly layer = Layer.effect(
     Database,
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       // Define the service methods using Effect.fn
-      const query = Effect.fn("Database.query")(function*(sql: string) {
-        yield* Effect.log("Executing SQL query:", sql)
-        return [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }]
-      })
+      const query = Effect.fn("Database.query")(function* (sql: string) {
+        yield* Effect.log("Executing SQL query:", sql);
+        return [
+          { id: 1, name: "Alice" },
+          { id: 2, name: "Bob" },
+        ];
+      });
 
       // Return an instance of the service using Database.of, passing in an
       // object that implements the service interface.
       return Database.of({
-        query
-      })
-    })
-  )
+        query,
+      });
+    }),
+  );
 }
 
 export class DatabaseError extends Schema.TaggedError<DatabaseError>()("DatabaseError", {
-  cause: Schema.Defect()
+  cause: Schema.Defect(),
 }) {}
 
 // If you ever need to access the service type, use `Database["Service"]`
-export type DatabaseService = Database["Service"]
+export type DatabaseService = Database["Service"];
 ```
 
 ### More examples
@@ -186,31 +197,34 @@ export type DatabaseService = Database["Service"]
 Defining custom errors and handling them with Effect.catch and Effect.catchTag.
 
 ```ts
-import { Effect, Schema } from "effect"
+import { Effect, Schema } from "effect";
 
 // Define custom errors using Schema.TaggedError
 export class ParseError extends Schema.TaggedError<ParseError>()("ParseError", {
   input: Schema.String,
-  message: Schema.String
+  message: Schema.String,
 }) {}
 
-export class ReservedPortError extends Schema.TaggedError<ReservedPortError>()("ReservedPortError", {
-  port: Schema.Int
-}) {}
+export class ReservedPortError extends Schema.TaggedError<ReservedPortError>()(
+  "ReservedPortError",
+  {
+    port: Schema.Int,
+  },
+) {}
 
-declare const loadPort: (input: string) => Effect.Effect<number, ParseError | ReservedPortError>
+declare const loadPort: (input: string) => Effect.Effect<number, ParseError | ReservedPortError>;
 
 export const recovered = loadPort("80").pipe(
   // Catch multiple errors with Effect.catchTag, and return a default port number.
-  Effect.catchTag(["ParseError", "ReservedPortError"], (_) => Effect.succeed(3000))
-)
+  Effect.catchTag(["ParseError", "ReservedPortError"], (_) => Effect.succeed(3000)),
+);
 
 export const withFinalFallback = loadPort("invalid").pipe(
   // Catch a specific error with Effect.catchTag
   Effect.catchTag("ReservedPortError", (_) => Effect.succeed(3000)),
   // Catch all errors with Effect.catch
-  Effect.catch((_) => Effect.succeed(3000))
-)
+  Effect.catch((_) => Effect.succeed(3000)),
+);
 ```
 
 ### More examples
@@ -252,7 +266,7 @@ They let you model finite or infinite data sources.
 
 - **[Creating streams from common data sources](./ai-docs/src/03_stream/10_creating-streams.ts)**:
   Learn how to create streams from various data sources. Includes:
-  
+
   - `Stream.fromIterable` for arrays and other iterables
   - `Stream.fromEffectSchedule` for polling effects
   - `Stream.paginate` for paginated APIs
@@ -260,6 +274,7 @@ They let you model finite or infinite data sources.
   - `Stream.fromEventListener` for DOM events
   - `Stream.callback` for any callback-based API
   - `NodeStream.fromReadable` for Node.js readable streams
+
 - **[Consuming and transforming streams](./ai-docs/src/03_stream/20_consuming-streams.ts)**: How to transform and consume streams using operators like `map`, `flatMap`, `filter`, `mapEffect`, and various `run*` methods.
 - **[Decoding and encoding streams](./ai-docs/src/03_stream/30_encoding.ts)**:
   Use `Stream.pipeThroughChannel` with the `Ndjson` and `SchemaBinary` modules to
@@ -326,18 +341,16 @@ Predicates can be composed with apis such as `Predicate.and`,
 
 ### Using the Predicate module
 
-
-
 ```ts
-import { Predicate } from "effect"
+import { Predicate } from "effect";
 
 const thing: unknown = {
-  a: 1
-}
+  a: 1,
+};
 
 if (Predicate.isObject(thing)) {
   if (Predicate.isNumber(thing.a)) {
-    console.log("number", thing.a)
+    console.log("number", thing.a);
   }
 }
 ```

@@ -1,13 +1,13 @@
-import * as Fs from "node:fs"
+import * as Fs from "node:fs";
 
-const source = ".agents/AGENTS.md"
-const target = "AGENTS.md"
+const source = ".agents/AGENTS.md";
+const target = "AGENTS.md";
 
 try {
-  Fs.lstatSync(target)
+  Fs.lstatSync(target);
 } catch (error) {
   if (error?.code !== "ENOENT") {
-    throw error
+    throw error;
   }
-  Fs.symlinkSync(source, target)
+  Fs.symlinkSync(source, target);
 }

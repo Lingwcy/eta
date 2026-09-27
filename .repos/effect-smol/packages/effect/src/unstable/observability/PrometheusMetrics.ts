@@ -7,12 +7,12 @@
  *
  * @since 4.0.0
  */
-import type * as Context from "../../Context.ts"
-import * as Effect from "../../Effect.ts"
-import * as Layer from "../../Layer.ts"
-import * as Metric from "../../Metric.ts"
-import * as HttpRouter from "../http/HttpRouter.ts"
-import * as HttpServerResponse from "../http/HttpServerResponse.ts"
+import type * as Context from "../../Context.ts";
+import * as Effect from "../../Effect.ts";
+import * as Layer from "../../Layer.ts";
+import * as Metric from "../../Metric.ts";
+import * as HttpRouter from "../http/HttpRouter.ts";
+import * as HttpServerResponse from "../http/HttpServerResponse.ts";
 
 /**
  * A function that transforms metric names before formatting.
@@ -32,7 +32,7 @@ import * as HttpServerResponse from "../http/HttpServerResponse.ts"
  * @category models
  * @since 4.0.0
  */
-export type MetricNameMapper = (name: string) => string
+export type MetricNameMapper = (name: string) => string;
 
 /**
  * Options for formatting metrics.
@@ -45,11 +45,11 @@ export interface FormatOptions {
    * Optional prefix to prepend to all metric names.
    * The prefix will be sanitized and joined with an underscore.
    */
-  readonly prefix?: string | undefined
+  readonly prefix?: string | undefined;
   /**
    * Optional function to transform metric names before sanitization.
    */
-  readonly metricNameMapper?: MetricNameMapper | undefined
+  readonly metricNameMapper?: MetricNameMapper | undefined;
 }
 
 /**
@@ -62,7 +62,7 @@ export interface HttpOptions extends FormatOptions {
   /**
    * The path to the HTTP route on which Prometheus metrics should be served.
    */
-  readonly path?: HttpRouter.PathInput | undefined
+  readonly path?: HttpRouter.PathInput | undefined;
 }
 
 /**
@@ -100,12 +100,11 @@ export interface HttpOptions extends FormatOptions {
  * @category formatting
  * @since 4.0.0
  */
-export const format: (options?: FormatOptions | undefined) => Effect.Effect<string> = Effect.fnUntraced(
-  function*(options) {
-    const services = yield* Effect.context<never>()
-    return formatUnsafe(services, options)
-  }
-)
+export const format: (options?: FormatOptions | undefined) => Effect.Effect<string> =
+  Effect.fnUntraced(function* (options) {
+    const services = yield* Effect.context<never>();
+    return formatUnsafe(services, options);
+  });
 
 /**
  * Formats all metrics in the registry to Prometheus exposition format synchronously.
@@ -122,33 +121,33 @@ export const format: (options?: FormatOptions | undefined) => Effect.Effect<stri
  */
 export const formatUnsafe = (
   context: Context.Context<never>,
-  options?: FormatOptions | undefined
+  options?: FormatOptions | undefined,
 ): string => {
-  const snapshot = Metric.snapshotUnsafe(context)
-  const prefix = options?.prefix ? sanitizeMetricName(options.prefix) + "_" : ""
-  const mapper = options?.metricNameMapper ?? ((name: string) => name)
-  const lines: Array<string> = []
+  const snapshot = Metric.snapshotUnsafe(context);
+  const prefix = options?.prefix ? sanitizeMetricName(options.prefix) + "_" : "";
+  const mapper = options?.metricNameMapper ?? ((name: string) => name);
+  const lines: Array<string> = [];
 
   // Group metrics by base name for proper TYPE/HELP declarations
-  const metricsByName = new Map<string, Array<Metric.Metric.Snapshot>>()
+  const metricsByName = new Map<string, Array<Metric.Metric.Snapshot>>();
   for (let i = 0; i < snapshot.length; i++) {
-    const metric = snapshot[i]
-    const name = prefix + sanitizeMetricName(mapper(metric.id))
-    const existing = metricsByName.get(name)
+    const metric = snapshot[i];
+    const name = prefix + sanitizeMetricName(mapper(metric.id));
+    const existing = metricsByName.get(name);
     if (existing) {
-      existing.push(metric)
+      existing.push(metric);
     } else {
-      metricsByName.set(name, [metric])
+      metricsByName.set(name, [metric]);
     }
   }
 
   for (const [name, metrics] of metricsByName) {
-    formatMetricFamily(name, metrics, lines)
+    formatMetricFamily(name, metrics, lines);
   }
 
   // Prometheus expects a trailing newline if there's content
-  return lines.length > 0 ? lines.join("\n") + "\n" : ""
-}
+  return lines.length > 0 ? lines.join("\n") + "\n" : "";
+};
 
 /**
  * Creates a Layer that registers a `/metrics` HTTP endpoint for Prometheus
@@ -182,22 +181,24 @@ export const formatUnsafe = (
  * @since 4.0.0
  */
 export const layerHttp = (
-  options?: HttpOptions | undefined
+  options?: HttpOptions | undefined,
 ): Layer.Layer<never, never, HttpRouter.HttpRouter> =>
-  Layer.effectDiscard(Effect.gen(function*() {
-    const router = yield* HttpRouter.HttpRouter
+  Layer.effectDiscard(
+    Effect.gen(function* () {
+      const router = yield* HttpRouter.HttpRouter;
 
-    const { path, ...formatOptions } = options ?? {}
+      const { path, ...formatOptions } = options ?? {};
 
-    const handler = Effect.gen(function*() {
-      const body = yield* format(formatOptions)
-      return HttpServerResponse.text(body, {
-        contentType: "text/plain; version=0.0.4; charset=utf-8"
-      })
-    })
+      const handler = Effect.gen(function* () {
+        const body = yield* format(formatOptions);
+        return HttpServerResponse.text(body, {
+          contentType: "text/plain; version=0.0.4; charset=utf-8",
+        });
+      });
 
-    yield* router.add("GET", path ?? "/metrics", handler)
-  }))
+      yield* router.add("GET", path ?? "/metrics", handler);
+    }),
+  );
 
 // -----------------------------------------------------------------------------
 // Internal
@@ -209,17 +210,17 @@ export const layerHttp = (
  */
 const sanitizeMetricName = (name: string): string => {
   // Replace invalid characters with underscores
-  let sanitized = name.replace(/[^a-zA-Z0-9_:]/g, "_")
+  let sanitized = name.replace(/[^a-zA-Z0-9_:]/g, "_");
   // Ensure it starts with a letter or underscore (not a digit or colon)
   if (/^[0-9:]/.test(sanitized)) {
-    sanitized = "_" + sanitized
+    sanitized = "_" + sanitized;
   }
   // Remove consecutive underscores
-  sanitized = sanitized.replace(/_+/g, "_")
+  sanitized = sanitized.replace(/_+/g, "_");
   // Remove trailing underscores
-  sanitized = sanitized.replace(/_$/, "")
-  return sanitized
-}
+  sanitized = sanitized.replace(/_$/, "");
+  return sanitized;
+};
 
 /**
  * Sanitize a label name to conform to Prometheus naming rules.
@@ -227,36 +228,31 @@ const sanitizeMetricName = (name: string): string => {
  */
 const sanitizeLabelName = (name: string): string => {
   // Replace invalid characters with underscores
-  let sanitized = name.replace(/[^a-zA-Z0-9_]/g, "_")
+  let sanitized = name.replace(/[^a-zA-Z0-9_]/g, "_");
   // Ensure it starts with a letter or underscore
   if (/^[0-9]/.test(sanitized)) {
-    sanitized = "_" + sanitized
+    sanitized = "_" + sanitized;
   }
   // Remove consecutive underscores
-  sanitized = sanitized.replace(/_+/g, "_")
-  return sanitized
-}
+  sanitized = sanitized.replace(/_+/g, "_");
+  return sanitized;
+};
 
 /**
  * Escape special characters in label values.
  * Backslash, double-quote, and newline must be escaped.
  */
 const escapeLabelValue = (value: string): string => {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, "\\\"")
-    .replace(/\n/g, "\\n")
-}
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+};
 
 /**
  * Escape special characters in HELP text.
  * Backslash and newline must be escaped.
  */
 const escapeHelp = (text: string): string => {
-  return text
-    .replace(/\\/g, "\\\\")
-    .replace(/\n/g, "\\n")
-}
+  return text.replace(/\\/g, "\\\\").replace(/\n/g, "\\n");
+};
 
 /**
  * Format a numeric value for Prometheus output.
@@ -264,19 +260,19 @@ const escapeHelp = (text: string): string => {
  */
 const formatValue = (value: number | bigint): string => {
   if (typeof value === "bigint") {
-    return value.toString()
+    return value.toString();
   }
   if (Number.isNaN(value)) {
-    return "NaN"
+    return "NaN";
   }
   if (value === Infinity) {
-    return "+Inf"
+    return "+Inf";
   }
   if (value === -Infinity) {
-    return "-Inf"
+    return "-Inf";
   }
-  return value.toString()
-}
+  return value.toString();
+};
 
 /**
  * Format labels as a Prometheus label string.
@@ -284,28 +280,28 @@ const formatValue = (value: number | bigint): string => {
  */
 const formatLabels = (
   attributes: Metric.Metric.AttributeSet | undefined,
-  extraLabels?: Array<[string, string]>
+  extraLabels?: Array<[string, string]>,
 ): string => {
-  const labels: Array<string> = []
+  const labels: Array<string> = [];
 
   // Add metric attributes as labels
   if (attributes) {
     for (const [key, value] of Object.entries(attributes)) {
       // Skip internal attributes like "unit" and "time_unit"
-      if (key === "unit" || key === "time_unit") continue
-      labels.push(`${sanitizeLabelName(key)}="${escapeLabelValue(value)}"`)
+      if (key === "unit" || key === "time_unit") continue;
+      labels.push(`${sanitizeLabelName(key)}="${escapeLabelValue(value)}"`);
     }
   }
 
   // Add extra labels (e.g., for histogram buckets, summary quantiles)
   if (extraLabels) {
     for (const [key, value] of extraLabels) {
-      labels.push(`${sanitizeLabelName(key)}="${escapeLabelValue(value)}"`)
+      labels.push(`${sanitizeLabelName(key)}="${escapeLabelValue(value)}"`);
     }
   }
 
-  return labels.length > 0 ? `{${labels.join(",")}}` : ""
-}
+  return labels.length > 0 ? `{${labels.join(",")}}` : "";
+};
 
 /**
  * Map Effect metric type to Prometheus metric type string.
@@ -313,17 +309,17 @@ const formatLabels = (
 const mapMetricType = (type: Metric.Metric.Type): string => {
   switch (type) {
     case "Counter":
-      return "counter"
+      return "counter";
     case "Gauge":
-      return "gauge"
+      return "gauge";
     case "Histogram":
-      return "histogram"
+      return "histogram";
     case "Summary":
-      return "summary"
+      return "summary";
     case "Frequency":
-      return "counter"
+      return "counter";
   }
-}
+};
 
 /**
  * Format a metric family (all metrics with the same name).
@@ -331,24 +327,24 @@ const mapMetricType = (type: Metric.Metric.Type): string => {
 const formatMetricFamily = (
   name: string,
   metrics: Array<Metric.Metric.Snapshot>,
-  lines: Array<string>
+  lines: Array<string>,
 ): void => {
-  const first = metrics[0]
-  const prometheusType = mapMetricType(first.type)
+  const first = metrics[0];
+  const prometheusType = mapMetricType(first.type);
 
   // HELP line (only if description exists)
   if (first.description) {
-    lines.push(`# HELP ${name} ${escapeHelp(first.description)}`)
+    lines.push(`# HELP ${name} ${escapeHelp(first.description)}`);
   }
 
   // TYPE line
-  lines.push(`# TYPE ${name} ${prometheusType}`)
+  lines.push(`# TYPE ${name} ${prometheusType}`);
 
   // Data lines for each metric instance
   for (let i = 0; i < metrics.length; i++) {
-    formatMetricData(name, metrics[i], lines)
+    formatMetricData(name, metrics[i], lines);
   }
-}
+};
 
 /**
  * Format data lines for a single metric snapshot.
@@ -356,26 +352,26 @@ const formatMetricFamily = (
 const formatMetricData = (
   name: string,
   metric: Metric.Metric.Snapshot,
-  lines: Array<string>
+  lines: Array<string>,
 ): void => {
   switch (metric.type) {
     case "Counter":
-      formatCounter(name, metric, lines)
-      break
+      formatCounter(name, metric, lines);
+      break;
     case "Gauge":
-      formatGauge(name, metric, lines)
-      break
+      formatGauge(name, metric, lines);
+      break;
     case "Histogram":
-      formatHistogram(name, metric, lines)
-      break
+      formatHistogram(name, metric, lines);
+      break;
     case "Summary":
-      formatSummary(name, metric, lines)
-      break
+      formatSummary(name, metric, lines);
+      break;
     case "Frequency":
-      formatFrequency(name, metric, lines)
-      break
+      formatFrequency(name, metric, lines);
+      break;
   }
-}
+};
 
 /**
  * Format a Counter metric.
@@ -383,12 +379,12 @@ const formatMetricData = (
 const formatCounter = (
   name: string,
   metric: Metric.Metric.SnapshotProto<"Counter", Metric.CounterState<number | bigint>>,
-  lines: Array<string>
+  lines: Array<string>,
 ): void => {
-  const labels = formatLabels(metric.attributes)
-  const value = formatValue(metric.state.count)
-  lines.push(`${name}${labels} ${value}`)
-}
+  const labels = formatLabels(metric.attributes);
+  const value = formatValue(metric.state.count);
+  lines.push(`${name}${labels} ${value}`);
+};
 
 /**
  * Format a Gauge metric.
@@ -396,12 +392,12 @@ const formatCounter = (
 const formatGauge = (
   name: string,
   metric: Metric.Metric.SnapshotProto<"Gauge", Metric.GaugeState<number | bigint>>,
-  lines: Array<string>
+  lines: Array<string>,
 ): void => {
-  const labels = formatLabels(metric.attributes)
-  const value = formatValue(metric.state.value)
-  lines.push(`${name}${labels} ${value}`)
-}
+  const labels = formatLabels(metric.attributes);
+  const value = formatValue(metric.state.value);
+  lines.push(`${name}${labels} ${value}`);
+};
 
 /**
  * Format a Histogram metric.
@@ -410,27 +406,27 @@ const formatGauge = (
 const formatHistogram = (
   name: string,
   metric: Metric.Metric.SnapshotProto<"Histogram", Metric.HistogramState>,
-  lines: Array<string>
+  lines: Array<string>,
 ): void => {
-  const state = metric.state
+  const state = metric.state;
 
   // Format bucket lines
   // Effect buckets are [boundary, cumulativeCount] pairs
   for (let i = 0; i < state.buckets.length; i++) {
-    const [boundary, cumulativeCount] = state.buckets[i]
-    const bucketLabels = formatLabels(metric.attributes, [["le", boundary.toString()]])
-    lines.push(`${name}_bucket${bucketLabels} ${cumulativeCount}`)
+    const [boundary, cumulativeCount] = state.buckets[i];
+    const bucketLabels = formatLabels(metric.attributes, [["le", boundary.toString()]]);
+    lines.push(`${name}_bucket${bucketLabels} ${cumulativeCount}`);
   }
 
   // Add +Inf bucket (total count)
-  const infLabels = formatLabels(metric.attributes, [["le", "+Inf"]])
-  lines.push(`${name}_bucket${infLabels} ${state.count}`)
+  const infLabels = formatLabels(metric.attributes, [["le", "+Inf"]]);
+  lines.push(`${name}_bucket${infLabels} ${state.count}`);
 
   // Sum and count
-  const baseLabels = formatLabels(metric.attributes)
-  lines.push(`${name}_sum${baseLabels} ${formatValue(state.sum)}`)
-  lines.push(`${name}_count${baseLabels} ${state.count}`)
-}
+  const baseLabels = formatLabels(metric.attributes);
+  lines.push(`${name}_sum${baseLabels} ${formatValue(state.sum)}`);
+  lines.push(`${name}_count${baseLabels} ${state.count}`);
+};
 
 /**
  * Format a Summary metric.
@@ -439,25 +435,25 @@ const formatHistogram = (
 const formatSummary = (
   name: string,
   metric: Metric.Metric.SnapshotProto<"Summary", Metric.SummaryState>,
-  lines: Array<string>
+  lines: Array<string>,
 ): void => {
-  const state = metric.state
+  const state = metric.state;
 
   // Format quantile lines
   for (let i = 0; i < state.quantiles.length; i++) {
-    const [quantile, value] = state.quantiles[i]
+    const [quantile, value] = state.quantiles[i];
     // Only output quantiles with defined values
     if (value !== undefined) {
-      const quantileLabels = formatLabels(metric.attributes, [["quantile", quantile.toString()]])
-      lines.push(`${name}${quantileLabels} ${formatValue(value)}`)
+      const quantileLabels = formatLabels(metric.attributes, [["quantile", quantile.toString()]]);
+      lines.push(`${name}${quantileLabels} ${formatValue(value)}`);
     }
   }
 
   // Sum and count
-  const baseLabels = formatLabels(metric.attributes)
-  lines.push(`${name}_sum${baseLabels} ${formatValue(state.sum)}`)
-  lines.push(`${name}_count${baseLabels} ${state.count}`)
-}
+  const baseLabels = formatLabels(metric.attributes);
+  lines.push(`${name}_sum${baseLabels} ${formatValue(state.sum)}`);
+  lines.push(`${name}_count${baseLabels} ${state.count}`);
+};
 
 /**
  * Format a Frequency metric as a counter with key labels.
@@ -465,13 +461,13 @@ const formatSummary = (
 const formatFrequency = (
   name: string,
   metric: Metric.Metric.SnapshotProto<"Frequency", Metric.FrequencyState>,
-  lines: Array<string>
+  lines: Array<string>,
 ): void => {
-  const state = metric.state
+  const state = metric.state;
 
   // Each occurrence becomes a separate line with a "key" label
   for (const [key, count] of state.occurrences) {
-    const labels = formatLabels(metric.attributes, [["key", key]])
-    lines.push(`${name}${labels} ${count}`)
+    const labels = formatLabels(metric.attributes, [["key", key]]);
+    lines.push(`${name}${labels} ${count}`);
   }
-}
+};

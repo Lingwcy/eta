@@ -5,7 +5,5 @@
     "types": ["node"]
   },
   "include": ["src"],
-  "references": [
-    { "path": "../../effect" }
-  ]
+  "references": [{ "path": "../../effect" }]
 }

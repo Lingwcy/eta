@@ -9,15 +9,15 @@
  *
  * @since 2.0.0
  */
-import type { Equal } from "./Equal.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import * as TR from "./internal/trie.ts"
-import type { Option } from "./Option.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import type { Result } from "./Result.ts"
-import type { Covariant, NoInfer } from "./Types.ts"
+import type { Equal } from "./Equal.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import * as TR from "./internal/trie.ts";
+import type { Option } from "./Option.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import type { Result } from "./Result.ts";
+import type { Covariant, NoInfer } from "./Types.ts";
 
-const TypeId = TR.TrieTypeId
+const TypeId = TR.TrieTypeId;
 
 /**
  * An immutable string-keyed map optimized for prefix lookup. Iteration yields
@@ -57,10 +57,11 @@ const TypeId = TR.TrieTypeId
  * @category models
  * @since 2.0.0
  */
-export interface Trie<in out Value> extends Iterable<[string, Value]>, Equal, Pipeable, Inspectable {
+export interface Trie<in out Value>
+  extends Iterable<[string, Value]>, Equal, Pipeable, Inspectable {
   readonly [TypeId]: {
-    readonly _Value: Covariant<Value>
-  }
+    readonly _Value: Covariant<Value>;
+  };
 }
 
 /**
@@ -80,7 +81,7 @@ export interface Trie<in out Value> extends Iterable<[string, Value]>, Equal, Pi
  * @category constructors
  * @since 2.0.0
  */
-export const empty: <V = never>() => Trie<V> = TR.empty
+export const empty: <V = never>() => Trie<V> = TR.empty;
 
 /**
  * Creates a new `Trie` from an iterable collection of key/value pairs (e.g. `Array<[string, V]>`).
@@ -104,7 +105,8 @@ export const empty: <V = never>() => Trie<V> = TR.empty
  * @category constructors
  * @since 2.0.0
  */
-export const fromIterable: <V>(entries: Iterable<readonly [string, V]>) => Trie<V> = TR.fromIterable
+export const fromIterable: <V>(entries: Iterable<readonly [string, V]>) => Trie<V> =
+  TR.fromIterable;
 
 /**
  * Constructs a new `Trie` from the specified entries (`[string, V]`).
@@ -125,7 +127,7 @@ export const fromIterable: <V>(entries: Iterable<readonly [string, V]>) => Trie<
  */
 export const make: <Entries extends Array<readonly [string, any]>>(
   ...entries: Entries
-) => Trie<Entries[number] extends readonly [any, infer V] ? V : never> = TR.make
+) => Trie<Entries[number] extends readonly [any, infer V] ? V : never> = TR.make;
 
 /**
  * Inserts a new entry in the `Trie`.
@@ -152,9 +154,9 @@ export const make: <Entries extends Array<readonly [string, any]>>(
  * @since 2.0.0
  */
 export const insert: {
-  <V>(key: string, value: V): (self: Trie<V>) => Trie<V>
-  <V>(self: Trie<V>, key: string, value: V): Trie<V>
-} = TR.insert
+  <V>(key: string, value: V): (self: Trie<V>) => Trie<V>;
+  <V>(self: Trie<V>, key: string, value: V): Trie<V>;
+} = TR.insert;
 
 /**
  * Returns an `IterableIterator` of the keys within the `Trie`.
@@ -180,7 +182,7 @@ export const insert: {
  * @category getters
  * @since 2.0.0
  */
-export const keys: <V>(self: Trie<V>) => IterableIterator<string> = TR.keys
+export const keys: <V>(self: Trie<V>) => IterableIterator<string> = TR.keys;
 
 /**
  * Returns an `IterableIterator` of the values within the `Trie`.
@@ -206,7 +208,7 @@ export const keys: <V>(self: Trie<V>) => IterableIterator<string> = TR.keys
  * @category getters
  * @since 2.0.0
  */
-export const values: <V>(self: Trie<V>) => IterableIterator<V> = TR.values
+export const values: <V>(self: Trie<V>) => IterableIterator<V> = TR.values;
 
 /**
  * Returns an `IterableIterator` of the entries within the `Trie`.
@@ -231,7 +233,7 @@ export const values: <V>(self: Trie<V>) => IterableIterator<V> = TR.values
  * @category getters
  * @since 2.0.0
  */
-export const entries: <V>(self: Trie<V>) => IterableIterator<[string, V]> = TR.entries
+export const entries: <V>(self: Trie<V>) => IterableIterator<[string, V]> = TR.entries;
 
 /**
  * Returns an `Array<[string, V]>` of the entries within the `Trie`.
@@ -255,7 +257,7 @@ export const entries: <V>(self: Trie<V>) => IterableIterator<[string, V]> = TR.e
  * @category getters
  * @since 2.0.0
  */
-export const toEntries = <V>(self: Trie<V>): Array<[string, V]> => Array.from(entries(self))
+export const toEntries = <V>(self: Trie<V>): Array<[string, V]> => Array.from(entries(self));
 
 /**
  * Returns an `IterableIterator` of the keys within the `Trie`
@@ -280,9 +282,9 @@ export const toEntries = <V>(self: Trie<V>): Array<[string, V]> => Array.from(en
  * @since 2.0.0
  */
 export const keysWithPrefix: {
-  (prefix: string): <V>(self: Trie<V>) => IterableIterator<string>
-  <V>(self: Trie<V>, prefix: string): IterableIterator<string>
-} = TR.keysWithPrefix
+  (prefix: string): <V>(self: Trie<V>) => IterableIterator<string>;
+  <V>(self: Trie<V>, prefix: string): IterableIterator<string>;
+} = TR.keysWithPrefix;
 
 /**
  * Returns an `IterableIterator` of the values within the `Trie`
@@ -307,9 +309,9 @@ export const keysWithPrefix: {
  * @since 2.0.0
  */
 export const valuesWithPrefix: {
-  (prefix: string): <V>(self: Trie<V>) => IterableIterator<V>
-  <V>(self: Trie<V>, prefix: string): IterableIterator<V>
-} = TR.valuesWithPrefix
+  (prefix: string): <V>(self: Trie<V>) => IterableIterator<V>;
+  <V>(self: Trie<V>, prefix: string): IterableIterator<V>;
+} = TR.valuesWithPrefix;
 
 /**
  * Returns an `IterableIterator` of the entries within the `Trie`
@@ -334,9 +336,9 @@ export const valuesWithPrefix: {
  * @since 2.0.0
  */
 export const entriesWithPrefix: {
-  (prefix: string): <V>(self: Trie<V>) => IterableIterator<[string, V]>
-  <V>(self: Trie<V>, prefix: string): IterableIterator<[string, V]>
-} = TR.entriesWithPrefix
+  (prefix: string): <V>(self: Trie<V>) => IterableIterator<[string, V]>;
+  <V>(self: Trie<V>, prefix: string): IterableIterator<[string, V]>;
+} = TR.entriesWithPrefix;
 
 /**
  * Returns an `Array<[string, V]>` of the entries within the `Trie` whose keys
@@ -361,9 +363,9 @@ export const entriesWithPrefix: {
  * @since 2.0.0
  */
 export const toEntriesWithPrefix: {
-  (prefix: string): <V>(self: Trie<V>) => Array<[string, V]>
-  <V>(self: Trie<V>, prefix: string): Array<[string, V]>
-} = TR.toEntriesWithPrefix
+  (prefix: string): <V>(self: Trie<V>) => Array<[string, V]>;
+  <V>(self: Trie<V>, prefix: string): Array<[string, V]>;
+} = TR.toEntriesWithPrefix;
 
 /**
  * Returns the longest key/value in the `Trie`
@@ -388,9 +390,9 @@ export const toEntriesWithPrefix: {
  * @since 2.0.0
  */
 export const longestPrefixOf: {
-  (key: string): <V>(self: Trie<V>) => Option<[string, V]>
-  <V>(self: Trie<V>, key: string): Option<[string, V]>
-} = TR.longestPrefixOf
+  (key: string): <V>(self: Trie<V>) => Option<[string, V]>;
+  <V>(self: Trie<V>, key: string): Option<[string, V]>;
+} = TR.longestPrefixOf;
 
 /**
  * Returns the size of the `Trie` (number of entries in the `Trie`).
@@ -411,7 +413,7 @@ export const longestPrefixOf: {
  * @category getters
  * @since 2.0.0
  */
-export const size: <V>(self: Trie<V>) => number = TR.size
+export const size: <V>(self: Trie<V>) => number = TR.size;
 
 /**
  * Looks up the value for the specified key in the `Trie` safely.
@@ -442,9 +444,9 @@ export const size: <V>(self: Trie<V>) => number = TR.size
  * @since 2.0.0
  */
 export const get: {
-  (key: string): <V>(self: Trie<V>) => Option<V>
-  <V>(self: Trie<V>, key: string): Option<V>
-} = TR.get
+  (key: string): <V>(self: Trie<V>) => Option<V>;
+  <V>(self: Trie<V>, key: string): Option<V>;
+} = TR.get;
 
 /**
  * Checks whether the given key exists in the `Trie`.
@@ -475,9 +477,9 @@ export const get: {
  * @since 2.0.0
  */
 export const has: {
-  (key: string): <V>(self: Trie<V>) => boolean
-  <V>(self: Trie<V>, key: string): boolean
-} = TR.has
+  (key: string): <V>(self: Trie<V>) => boolean;
+  <V>(self: Trie<V>, key: string): boolean;
+} = TR.has;
 
 /**
  * Returns `true` when the `Trie` contains no entries.
@@ -497,7 +499,7 @@ export const has: {
  * @category predicates
  * @since 2.0.0
  */
-export const isEmpty: <V>(self: Trie<V>) => boolean = TR.isEmpty
+export const isEmpty: <V>(self: Trie<V>) => boolean = TR.isEmpty;
 
 /**
  * Looks up the value for the specified key in the `Trie` unsafely.
@@ -532,9 +534,9 @@ export const isEmpty: <V>(self: Trie<V>) => boolean = TR.isEmpty
  * @since 4.0.0
  */
 export const getUnsafe: {
-  (key: string): <V>(self: Trie<V>) => V
-  <V>(self: Trie<V>, key: string): V
-} = TR.getUnsafe
+  (key: string): <V>(self: Trie<V>) => V;
+  <V>(self: Trie<V>, key: string): V;
+} = TR.getUnsafe;
 
 /**
  * Removes the entry for the specified key in the `Trie`.
@@ -563,9 +565,9 @@ export const getUnsafe: {
  * @since 2.0.0
  */
 export const remove: {
-  (key: string): <V>(self: Trie<V>) => Trie<V>
-  <V>(self: Trie<V>, key: string): Trie<V>
-} = TR.remove
+  (key: string): <V>(self: Trie<V>) => Trie<V>;
+  <V>(self: Trie<V>, key: string): Trie<V>;
+} = TR.remove;
 
 /**
  * Reduces a state over the entries of the `Trie`.
@@ -590,9 +592,9 @@ export const remove: {
  * @since 2.0.0
  */
 export const reduce: {
-  <Z, V>(zero: Z, f: (accumulator: Z, value: V, key: string) => Z): (self: Trie<V>) => Z
-  <Z, V>(self: Trie<V>, zero: Z, f: (accumulator: Z, value: V, key: string) => Z): Z
-} = TR.reduce
+  <Z, V>(zero: Z, f: (accumulator: Z, value: V, key: string) => Z): (self: Trie<V>) => Z;
+  <Z, V>(self: Trie<V>, zero: Z, f: (accumulator: Z, value: V, key: string) => Z): Z;
+} = TR.reduce;
 
 /**
  * Maps over the entries of the `Trie` using the specified function.
@@ -616,9 +618,9 @@ export const reduce: {
  * @since 2.0.0
  */
 export const map: {
-  <A, V>(f: (value: V, key: string) => A): (self: Trie<V>) => Trie<A>
-  <V, A>(self: Trie<V>, f: (value: V, key: string) => A): Trie<A>
-} = TR.map
+  <A, V>(f: (value: V, key: string) => A): (self: Trie<V>) => Trie<A>;
+  <V, A>(self: Trie<V>, f: (value: V, key: string) => A): Trie<A>;
+} = TR.map;
 
 /**
  * Filters entries out of a `Trie` using the specified predicate.
@@ -642,11 +644,11 @@ export const map: {
  * @since 2.0.0
  */
 export const filter: {
-  <A, B extends A>(f: (a: NoInfer<A>, k: string) => a is B): (self: Trie<A>) => Trie<B>
-  <A>(f: (a: NoInfer<A>, k: string) => boolean): (self: Trie<A>) => Trie<A>
-  <A, B extends A>(self: Trie<A>, f: (a: A, k: string) => a is B): Trie<B>
-  <A>(self: Trie<A>, f: (a: A, k: string) => boolean): Trie<A>
-} = TR.filter
+  <A, B extends A>(f: (a: NoInfer<A>, k: string) => a is B): (self: Trie<A>) => Trie<B>;
+  <A>(f: (a: NoInfer<A>, k: string) => boolean): (self: Trie<A>) => Trie<A>;
+  <A, B extends A>(self: Trie<A>, f: (a: A, k: string) => a is B): Trie<B>;
+  <A>(self: Trie<A>, f: (a: A, k: string) => boolean): Trie<A>;
+} = TR.filter;
 
 /**
  * Maps over the entries of the `Trie` using the specified filter and keeps
@@ -674,9 +676,9 @@ export const filter: {
  * @since 2.0.0
  */
 export const filterMap: {
-  <A, B, X>(f: (input: A, key: string) => Result<B, X>): (self: Trie<A>) => Trie<B>
-  <A, B, X>(self: Trie<A>, f: (input: A, key: string) => Result<B, X>): Trie<B>
-} = TR.filterMap
+  <A, B, X>(f: (input: A, key: string) => Result<B, X>): (self: Trie<A>) => Trie<B>;
+  <A, B, X>(self: Trie<A>, f: (input: A, key: string) => Result<B, X>): Trie<B>;
+} = TR.filterMap;
 
 /**
  * Filters out `None` values from a `Trie` of `Options`s.
@@ -698,7 +700,7 @@ export const filterMap: {
  * @category filtering
  * @since 2.0.0
  */
-export const compact: <A>(self: Trie<Option<A>>) => Trie<A> = TR.compact
+export const compact: <A>(self: Trie<Option<A>>) => Trie<A> = TR.compact;
 
 /**
  * Applies the specified function to the entries of the `Trie`.
@@ -726,9 +728,9 @@ export const compact: <A>(self: Trie<Option<A>>) => Trie<A> = TR.compact
  * @since 2.0.0
  */
 export const forEach: {
-  <V>(f: (value: V, key: string) => void): (self: Trie<V>) => void
-  <V>(self: Trie<V>, f: (value: V, key: string) => void): void
-} = TR.forEach
+  <V>(f: (value: V, key: string) => void): (self: Trie<V>) => void;
+  <V>(self: Trie<V>, f: (value: V, key: string) => void): void;
+} = TR.forEach;
 
 /**
  * Updates the value of the specified key within the `Trie` if it exists.
@@ -752,9 +754,9 @@ export const forEach: {
  * @since 2.0.0
  */
 export const modify: {
-  <V>(key: string, f: (v: V) => V): (self: Trie<V>) => Trie<V>
-  <V>(self: Trie<V>, key: string, f: (v: V) => V): Trie<V>
-} = TR.modify
+  <V>(key: string, f: (v: V) => V): (self: Trie<V>) => Trie<V>;
+  <V>(self: Trie<V>, key: string, f: (v: V) => V): Trie<V>;
+} = TR.modify;
 
 /**
  * Removes all entries in the `Trie` which have the specified keys.
@@ -777,9 +779,9 @@ export const modify: {
  * @since 2.0.0
  */
 export const removeMany: {
-  (keys: Iterable<string>): <V>(self: Trie<V>) => Trie<V>
-  <V>(self: Trie<V>, keys: Iterable<string>): Trie<V>
-} = TR.removeMany
+  (keys: Iterable<string>): <V>(self: Trie<V>) => Trie<V>;
+  <V>(self: Trie<V>, keys: Iterable<string>): Trie<V>;
+} = TR.removeMany;
 
 /**
  * Inserts multiple entries in the `Trie` at once.
@@ -802,6 +804,6 @@ export const removeMany: {
  * @since 2.0.0
  */
 export const insertMany: {
-  <V>(iter: Iterable<[string, V]>): (self: Trie<V>) => Trie<V>
-  <V>(self: Trie<V>, iter: Iterable<[string, V]>): Trie<V>
-} = TR.insertMany
+  <V>(iter: Iterable<[string, V]>): (self: Trie<V>) => Trie<V>;
+  <V>(self: Trie<V>, iter: Iterable<[string, V]>): Trie<V>;
+} = TR.insertMany;

@@ -126,7 +126,7 @@
   note: "Use Channel.mapEffect(self, f, { concurrency: n }); ordered output remains the default."
 "effect/Channel#mergeAllUnbounded":
   replacement: "Channel.mergeAll"
-  note: "Use Channel.mergeAll(channels, { concurrency: \"unbounded\" }); child done values are discarded and the outer done value is preserved."
+  note: 'Use Channel.mergeAll(channels, { concurrency: "unbounded" }); child done values are discarded and the outer done value is preserved.'
 "effect/Channel#mergeAllUnboundedWith":
   replacement: "none"
   note: "V4 mergeAll removed child-done combining. Use Channel.mergeAll if terminal accumulation can be dropped; otherwise implement a custom Pull merge."

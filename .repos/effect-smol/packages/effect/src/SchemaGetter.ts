@@ -11,20 +11,20 @@
  *
  * @since 4.0.0
  */
-import * as Arr from "./Array.ts"
-import * as DateTime from "./DateTime.ts"
-import * as Effect from "./Effect.ts"
-import * as Encoding from "./Encoding.ts"
-import { dual } from "./Function.ts"
-import * as InternalRecord from "./internal/record.ts"
-import * as Option from "./Option.ts"
-import * as Pipeable from "./Pipeable.ts"
-import * as Predicate from "./Predicate.ts"
-import * as Result from "./Result.ts"
-import type * as Schema from "./Schema.ts"
-import type * as SchemaAST from "./SchemaAST.ts"
-import * as SchemaIssue from "./SchemaIssue.ts"
-import * as Str from "./String.ts"
+import * as Arr from "./Array.ts";
+import * as DateTime from "./DateTime.ts";
+import * as Effect from "./Effect.ts";
+import * as Encoding from "./Encoding.ts";
+import { dual } from "./Function.ts";
+import * as InternalRecord from "./internal/record.ts";
+import * as Option from "./Option.ts";
+import * as Pipeable from "./Pipeable.ts";
+import * as Predicate from "./Predicate.ts";
+import * as Result from "./Result.ts";
+import type * as Schema from "./Schema.ts";
+import type * as SchemaAST from "./SchemaAST.ts";
+import * as SchemaIssue from "./SchemaIssue.ts";
+import * as Str from "./String.ts";
 
 /**
  * A transformation that returns its input unchanged.
@@ -33,7 +33,7 @@ import * as Str from "./String.ts"
  * @since 4.0.0
  */
 export interface Passthrough extends Pipeable.Pipeable {
-  readonly _tag: "Passthrough"
+  readonly _tag: "Passthrough";
 }
 
 /**
@@ -43,8 +43,8 @@ export interface Passthrough extends Pipeable.Pipeable {
  * @since 4.0.0
  */
 export interface Transform<out T, in E> extends Pipeable.Pipeable {
-  readonly _tag: "Transform"
-  readonly transform: (input: E) => T
+  readonly _tag: "Transform";
+  readonly transform: (input: E) => T;
 }
 
 /**
@@ -54,8 +54,8 @@ export interface Transform<out T, in E> extends Pipeable.Pipeable {
  * @since 4.0.0
  */
 export interface TransformOptional<out T, in E> extends Pipeable.Pipeable {
-  readonly _tag: "TransformOptional"
-  readonly transform: (input: Option.Option<E>) => Option.Option<T>
+  readonly _tag: "TransformOptional";
+  readonly transform: (input: Option.Option<E>) => Option.Option<T>;
 }
 
 /**
@@ -65,11 +65,11 @@ export interface TransformOptional<out T, in E> extends Pipeable.Pipeable {
  * @since 4.0.0
  */
 export interface TransformEffect<out T, in E, R> extends Pipeable.Pipeable {
-  readonly _tag: "TransformEffect"
+  readonly _tag: "TransformEffect";
   readonly transform: (
     input: E,
-    options: SchemaAST.ParseOptions
-  ) => Effect.Effect<T, SchemaIssue.Issue, R>
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<T, SchemaIssue.Issue, R>;
 }
 
 /**
@@ -79,11 +79,11 @@ export interface TransformEffect<out T, in E, R> extends Pipeable.Pipeable {
  * @since 4.0.0
  */
 export interface TransformOptionalEffect<out T, in E, R> extends Pipeable.Pipeable {
-  readonly _tag: "TransformOptionalEffect"
+  readonly _tag: "TransformOptionalEffect";
   readonly transform: (
     input: Option.Option<E>,
-    options: SchemaAST.ParseOptions
-  ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R>
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R>;
 }
 
 /**
@@ -128,28 +128,28 @@ export type Getter<T, E, R = never> =
   | Transform<T, E>
   | TransformOptional<T, E>
   | TransformEffect<T, E, R>
-  | TransformOptionalEffect<T, E, R>
+  | TransformOptionalEffect<T, E, R>;
 
 const runGetter = <T, E, R>(
   self: Getter<T, E, R>,
   input: Option.Option<E>,
-  options: SchemaAST.ParseOptions
+  options: SchemaAST.ParseOptions,
 ): Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R> => {
   switch (self._tag) {
     case "Passthrough":
-      return Effect.succeed(input as unknown as Option.Option<T>)
+      return Effect.succeed(input as unknown as Option.Option<T>);
     case "Transform":
-      return Effect.succeed(Option.map(input, self.transform))
+      return Effect.succeed(Option.map(input, self.transform));
     case "TransformOptional":
-      return Effect.succeed(self.transform(input))
+      return Effect.succeed(self.transform(input));
     case "TransformEffect":
       return Option.isNone(input)
         ? Effect.succeedNone
-        : Effect.mapEager(self.transform(input.value, options), Option.some)
+        : Effect.mapEager(self.transform(input.value, options), Option.some);
     case "TransformOptionalEffect":
-      return self.transform(input, options)
+      return self.transform(input, options);
   }
-}
+};
 
 /**
  * Runs a getter directly.
@@ -179,25 +179,27 @@ const runGetter = <T, E, R>(
 export const run: {
   <E>(
     input: Option.Option<E>,
-    options: SchemaAST.ParseOptions
-  ): <T, R>(self: Getter<T, E, R>) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R>
+    options: SchemaAST.ParseOptions,
+  ): <T, R>(self: Getter<T, E, R>) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R>;
   <T, E, R>(
     self: Getter<T, E, R>,
     input: Option.Option<E>,
-    options: SchemaAST.ParseOptions
-  ): Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R>
-} = dual(3, runGetter)
+    options: SchemaAST.ParseOptions,
+  ): Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R>;
+} = dual(3, runGetter);
 
 const makeGetter = <const A extends object>(fields: A): A & Pipeable.Pipeable =>
-  Object.assign(Object.create(Pipeable.Prototype), fields)
+  Object.assign(Object.create(Pipeable.Prototype), fields);
 
 const composeOptionalEffect = <T, E, R, T2, R2>(
   first: Getter<T, E, R>,
-  second: Getter<T2, T, R2>
+  second: Getter<T2, T, R2>,
 ): Getter<T2, E, R | R2> =>
   transformOptionalEffect((input, options) =>
-    Effect.flatMapEager(runGetter(first, input, options), (output) => runGetter(second, output, options))
-  )
+    Effect.flatMapEager(runGetter(first, input, options), (output) =>
+      runGetter(second, output, options),
+    ),
+  );
 
 /**
  * Composes two getters by passing the output of the first to the second.
@@ -230,57 +232,61 @@ const composeOptionalEffect = <T, E, R, T2, R2>(
  * @since 4.0.0
  */
 export const compose: {
-  <T, T2, R2>(other: Getter<T2, T, R2>): <E, R>(self: Getter<T, E, R>) => Getter<T2, E, R | R2>
-  <T, E, R, T2, R2>(self: Getter<T, E, R>, other: Getter<T2, T, R2>): Getter<T2, E, R | R2>
-} = dual(2, <T, E, R, T2, R2>(
-  self: Getter<T, E, R>,
-  other: Getter<T2, T, R2>
-): Getter<T2, E, R | R2> => {
-  if (self._tag === "Passthrough") return other as Getter<T2, E, R | R2>
-  if (other._tag === "Passthrough") return self as unknown as Getter<T2, E, R | R2>
-  switch (self._tag) {
-    case "Transform": {
-      switch (other._tag) {
-        case "Transform":
-          return transform((input: E) => other.transform(self.transform(input)))
-        case "TransformOptional":
-          return transformOptional((input) => other.transform(Option.map(input, self.transform)))
-        case "TransformEffect":
-          return transformEffect((input: E, options) => other.transform(self.transform(input), options))
-        case "TransformOptionalEffect":
-          return composeOptionalEffect(self, other)
+  <T, T2, R2>(other: Getter<T2, T, R2>): <E, R>(self: Getter<T, E, R>) => Getter<T2, E, R | R2>;
+  <T, E, R, T2, R2>(self: Getter<T, E, R>, other: Getter<T2, T, R2>): Getter<T2, E, R | R2>;
+} = dual(
+  2,
+  <T, E, R, T2, R2>(self: Getter<T, E, R>, other: Getter<T2, T, R2>): Getter<T2, E, R | R2> => {
+    if (self._tag === "Passthrough") return other as Getter<T2, E, R | R2>;
+    if (other._tag === "Passthrough") return self as unknown as Getter<T2, E, R | R2>;
+    switch (self._tag) {
+      case "Transform": {
+        switch (other._tag) {
+          case "Transform":
+            return transform((input: E) => other.transform(self.transform(input)));
+          case "TransformOptional":
+            return transformOptional((input) => other.transform(Option.map(input, self.transform)));
+          case "TransformEffect":
+            return transformEffect((input: E, options) =>
+              other.transform(self.transform(input), options),
+            );
+          case "TransformOptionalEffect":
+            return composeOptionalEffect(self, other);
+        }
       }
-    }
-    case "TransformOptional": {
-      switch (other._tag) {
-        case "Transform":
-          return transformOptional((input) => Option.map(self.transform(input), other.transform))
-        case "TransformOptional":
-          return transformOptional((input) => other.transform(self.transform(input)))
-        case "TransformEffect":
-        case "TransformOptionalEffect":
-          return composeOptionalEffect(self, other)
+      case "TransformOptional": {
+        switch (other._tag) {
+          case "Transform":
+            return transformOptional((input) => Option.map(self.transform(input), other.transform));
+          case "TransformOptional":
+            return transformOptional((input) => other.transform(self.transform(input)));
+          case "TransformEffect":
+          case "TransformOptionalEffect":
+            return composeOptionalEffect(self, other);
+        }
       }
-    }
-    case "TransformEffect": {
-      switch (other._tag) {
-        case "Transform":
-          return transformEffect((input: E, options) =>
-            Effect.mapEager(self.transform(input, options), other.transform)
-          )
-        case "TransformOptional":
-        case "TransformOptionalEffect":
-          return composeOptionalEffect(self, other)
-        case "TransformEffect":
-          return transformEffect((input: E, options) =>
-            Effect.flatMapEager(self.transform(input, options), (output) => other.transform(output, options))
-          )
+      case "TransformEffect": {
+        switch (other._tag) {
+          case "Transform":
+            return transformEffect((input: E, options) =>
+              Effect.mapEager(self.transform(input, options), other.transform),
+            );
+          case "TransformOptional":
+          case "TransformOptionalEffect":
+            return composeOptionalEffect(self, other);
+          case "TransformEffect":
+            return transformEffect((input: E, options) =>
+              Effect.flatMapEager(self.transform(input, options), (output) =>
+                other.transform(output, options),
+              ),
+            );
+        }
       }
+      case "TransformOptionalEffect":
+        return composeOptionalEffect(self, other);
     }
-    case "TransformOptionalEffect":
-      return composeOptionalEffect(self, other)
-  }
-})
+  },
+);
 
 /**
  * Maps the output of a getter while preserving missing values.
@@ -310,9 +316,11 @@ export const compose: {
  * @since 4.0.0
  */
 export const map: {
-  <T, T2>(f: (value: T) => T2): <E, R>(self: Getter<T, E, R>) => Getter<T2, E, R>
-  <T, E, R, T2>(self: Getter<T, E, R>, f: (value: T) => T2): Getter<T2, E, R>
-} = dual(2, <T, E, R, T2>(self: Getter<T, E, R>, f: (value: T) => T2): Getter<T2, E, R> => compose(self, transform(f)))
+  <T, T2>(f: (value: T) => T2): <E, R>(self: Getter<T, E, R>) => Getter<T2, E, R>;
+  <T, E, R, T2>(self: Getter<T, E, R>, f: (value: T) => T2): Getter<T2, E, R>;
+} = dual(2, <T, E, R, T2>(self: Getter<T, E, R>, f: (value: T) => T2): Getter<T2, E, R> =>
+  compose(self, transform(f)),
+);
 
 /**
  * Creates a getter that always produces the given constant value, ignoring the input.
@@ -343,7 +351,7 @@ export const map: {
  * @since 4.0.0
  */
 export function succeed<const T, E>(t: T): Getter<T, E> {
-  return transformOptional(() => Option.some(t))
+  return transformOptional(() => Option.some(t));
 }
 
 /**
@@ -381,9 +389,9 @@ export function succeed<const T, E>(t: T): Getter<T, E> {
  * @since 4.0.0
  */
 export function fail<T, E>(
-  f: (oe: Option.Option<E>, options: SchemaAST.ParseOptions) => SchemaIssue.Issue
+  f: (oe: Option.Option<E>, options: SchemaAST.ParseOptions) => SchemaIssue.Issue,
 ): Getter<T, E> {
-  return transformOptionalEffect((oe, options) => Effect.fail(f(oe, options)))
+  return transformOptionalEffect((oe, options) => Effect.fail(f(oe, options)));
 }
 
 /**
@@ -421,11 +429,11 @@ export function fail<T, E>(
  */
 export function forbidden<T, E>(message: (oe: Option.Option<E>) => string): Getter<T, E> {
   return fail<T, E>((oe, options) => {
-    const annotations = { message: message(oe) }
+    const annotations = { message: message(oe) };
     return Option.isSome(oe)
       ? new SchemaIssue.Forbidden(annotations, oe.value, options)
-      : new SchemaIssue.Forbidden(annotations)
-  })
+      : new SchemaIssue.Forbidden(annotations);
+  });
 }
 
 /**
@@ -456,9 +464,11 @@ export function forbidden<T, E>(message: (oe: Option.Option<E>) => string): Gett
  * @category constructors
  * @since 4.0.0
  */
-export const forbiddenEncoding: Getter<never, unknown> = forbidden(() => "Encoding is not supported")
+export const forbiddenEncoding: Getter<never, unknown> = forbidden(
+  () => "Encoding is not supported",
+);
 
-const passthrough_: Passthrough = makeGetter({ _tag: "Passthrough" })
+const passthrough_: Passthrough = makeGetter({ _tag: "Passthrough" });
 
 /**
  * Returns the identity getter — passes the value through unchanged.
@@ -497,10 +507,10 @@ const passthrough_: Passthrough = makeGetter({ _tag: "Passthrough" })
  * @category constructors
  * @since 4.0.0
  */
-export function passthrough<T, E>(options: { readonly strict: false }): Getter<T, E>
-export function passthrough<T>(): Getter<T, T>
+export function passthrough<T, E>(options: { readonly strict: false }): Getter<T, E>;
+export function passthrough<T>(): Getter<T, T>;
 export function passthrough<T>(): Getter<T, T> {
-  return passthrough_
+  return passthrough_;
 }
 
 /**
@@ -531,9 +541,9 @@ export function passthrough<T>(): Getter<T, T> {
  * @category constructors
  * @since 4.0.0
  */
-export function passthroughSupertype<T extends E, E>(): Getter<T, E>
+export function passthroughSupertype<T extends E, E>(): Getter<T, E>;
 export function passthroughSupertype<T>(): Getter<T, T> {
-  return passthrough_
+  return passthrough_;
 }
 
 /**
@@ -564,9 +574,9 @@ export function passthroughSupertype<T>(): Getter<T, T> {
  * @category constructors
  * @since 4.0.0
  */
-export function passthroughSubtype<T, E extends T>(): Getter<T, E>
+export function passthroughSubtype<T, E extends T>(): Getter<T, E>;
 export function passthroughSubtype<T>(): Getter<T, T> {
-  return passthrough_
+  return passthrough_;
 }
 
 /**
@@ -600,10 +610,14 @@ export function passthroughSubtype<T>(): Getter<T, T> {
  * @category validation
  * @since 4.0.0
  */
-export function required<T, E extends T = T>(annotations?: Schema.Annotations.Key<T>): Getter<T, E> {
+export function required<T, E extends T = T>(
+  annotations?: Schema.Annotations.Key<T>,
+): Getter<T, E> {
   return transformOptionalEffect((input) =>
-    Option.isNone(input) ? Effect.fail(new SchemaIssue.MissingKey(annotations)) : Effect.succeed(input)
-  )
+    Option.isNone(input)
+      ? Effect.fail(new SchemaIssue.MissingKey(annotations))
+      : Effect.succeed(input),
+  );
 }
 
 /**
@@ -644,20 +658,19 @@ export function required<T, E extends T = T>(annotations?: Schema.Annotations.Ke
  * @since 4.0.0
  */
 export function checkEffect<T, R = never>(
-  f: (input: T, options: SchemaAST.ParseOptions) => Effect.Effect<
-    undefined | boolean | Schema.FilterIssue,
-    never,
-    R
-  >
+  f: (
+    input: T,
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<undefined | boolean | Schema.FilterIssue, never, R>,
 ): Getter<T, T, R> {
   return transformEffect((t, options) => {
-    return f(t, options).pipe(Effect.flatMapEager((out) => {
-      const issue = SchemaIssue.makeSingle(out, t, options)
-      return issue ?
-        Effect.fail(issue) :
-        Effect.succeed(t)
-    }))
-  })
+    return f(t, options).pipe(
+      Effect.flatMapEager((out) => {
+        const issue = SchemaIssue.makeSingle(out, t, options);
+        return issue ? Effect.fail(issue) : Effect.succeed(t);
+      }),
+    );
+  });
 }
 
 /**
@@ -698,7 +711,7 @@ export function checkEffect<T, R = never>(
  * @since 4.0.0
  */
 export function transform<T, E>(f: (e: E) => T): Getter<T, E> {
-  return makeGetter({ _tag: "Transform", transform: f })
+  return makeGetter({ _tag: "Transform", transform: f });
 }
 
 /**
@@ -738,9 +751,9 @@ export function transform<T, E>(f: (e: E) => T): Getter<T, E> {
  * @since 4.0.0
  */
 export function transformEffect<T, E, R = never>(
-  f: (e: E, options: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, R>
+  f: (e: E, options: SchemaAST.ParseOptions) => Effect.Effect<T, SchemaIssue.Issue, R>,
 ): Getter<T, E, R> {
-  return makeGetter({ _tag: "TransformEffect", transform: f })
+  return makeGetter({ _tag: "TransformEffect", transform: f });
 }
 
 /**
@@ -773,8 +786,10 @@ export function transformEffect<T, E, R = never>(
  * @category transforming
  * @since 4.0.0
  */
-export function transformOptional<T, E>(f: (oe: Option.Option<E>) => Option.Option<T>): Getter<T, E> {
-  return makeGetter({ _tag: "TransformOptional", transform: f })
+export function transformOptional<T, E>(
+  f: (oe: Option.Option<E>) => Option.Option<T>,
+): Getter<T, E> {
+  return makeGetter({ _tag: "TransformOptional", transform: f });
 }
 
 /**
@@ -786,10 +801,10 @@ export function transformOptional<T, E>(f: (oe: Option.Option<E>) => Option.Opti
 export function transformOptionalEffect<T, E, R = never>(
   f: (
     input: Option.Option<E>,
-    options: SchemaAST.ParseOptions
-  ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R>
+    options: SchemaAST.ParseOptions,
+  ) => Effect.Effect<Option.Option<T>, SchemaIssue.Issue, R>,
 ): Getter<T, E, R> {
-  return makeGetter({ _tag: "TransformOptionalEffect", transform: f })
+  return makeGetter({ _tag: "TransformOptionalEffect", transform: f });
 }
 
 /**
@@ -821,7 +836,7 @@ export function transformOptionalEffect<T, E, R = never>(
  * @since 4.0.0
  */
 export function omit<T>(): Getter<never, T> {
-  return transformOptional(() => Option.none())
+  return transformOptional(() => Option.none());
 }
 
 /**
@@ -854,12 +869,14 @@ export function omit<T>(): Getter<never, T> {
  * @since 4.0.0
  */
 export function withDefault<T, R = never>(
-  defaultValue: Effect.Effect<T, SchemaIssue.Issue, R>
+  defaultValue: Effect.Effect<T, SchemaIssue.Issue, R>,
 ): Getter<T, T | undefined, R> {
   return transformOptionalEffect((o) => {
-    const filtered = Option.filter(o, Predicate.isNotUndefined)
-    return Option.isSome(filtered) ? Effect.succeed(filtered) : Effect.mapEager(defaultValue, Option.some)
-  })
+    const filtered = Option.filter(o, Predicate.isNotUndefined);
+    return Option.isSome(filtered)
+      ? Effect.succeed(filtered)
+      : Effect.mapEager(defaultValue, Option.some);
+  });
 }
 
 /**
@@ -889,7 +906,7 @@ export function withDefault<T, R = never>(
  * @since 4.0.0
  */
 export function String<E>(): Getter<string, E> {
-  return transform(globalThis.String)
+  return transform(globalThis.String);
 }
 
 /**
@@ -920,7 +937,7 @@ export function String<E>(): Getter<string, E> {
  * @since 4.0.0
  */
 export function Number<E>(): Getter<number, E> {
-  return transform(globalThis.Number)
+  return transform(globalThis.Number);
 }
 
 /**
@@ -948,7 +965,7 @@ export function Number<E>(): Getter<number, E> {
  * @since 4.0.0
  */
 export function Boolean<E>(): Getter<boolean, E> {
-  return transform(globalThis.Boolean)
+  return transform(globalThis.Boolean);
 }
 
 /**
@@ -977,7 +994,7 @@ export function Boolean<E>(): Getter<boolean, E> {
  * @since 4.0.0
  */
 export function BigInt<E extends string | number | bigint | boolean>(): Getter<bigint, E> {
-  return transform(globalThis.BigInt)
+  return transform(globalThis.BigInt);
 }
 
 /**
@@ -1009,7 +1026,7 @@ export function BigInt<E extends string | number | bigint | boolean>(): Getter<b
  * @since 4.0.0
  */
 export function Date<E extends string | number | Date>(): Getter<Date, E> {
-  return transform((u) => new globalThis.Date(u))
+  return transform((u) => new globalThis.Date(u));
 }
 
 /**
@@ -1032,7 +1049,7 @@ export function Date<E extends string | number | Date>(): Getter<Date, E> {
  * @since 4.0.0
  */
 export function trim<E extends string>(): Getter<string, E> {
-  return transform(Str.trim)
+  return transform(Str.trim);
 }
 
 /**
@@ -1055,7 +1072,7 @@ export function trim<E extends string>(): Getter<string, E> {
  * @since 4.0.0
  */
 export function capitalize<E extends string>(): Getter<string, E> {
-  return transform(Str.capitalize)
+  return transform(Str.capitalize);
 }
 
 /**
@@ -1078,7 +1095,7 @@ export function capitalize<E extends string>(): Getter<string, E> {
  * @since 4.0.0
  */
 export function uncapitalize<E extends string>(): Getter<string, E> {
-  return transform(Str.uncapitalize)
+  return transform(Str.uncapitalize);
 }
 
 /**
@@ -1103,7 +1120,7 @@ export function uncapitalize<E extends string>(): Getter<string, E> {
  * @since 4.0.0
  */
 export function snakeToCamel<E extends string>(): Getter<string, E> {
-  return transform(Str.snakeToCamel)
+  return transform(Str.snakeToCamel);
 }
 
 /**
@@ -1128,7 +1145,7 @@ export function snakeToCamel<E extends string>(): Getter<string, E> {
  * @since 4.0.0
  */
 export function camelToSnake<E extends string>(): Getter<string, E> {
-  return transform(Str.camelToSnake)
+  return transform(Str.camelToSnake);
 }
 
 /**
@@ -1153,7 +1170,7 @@ export function camelToSnake<E extends string>(): Getter<string, E> {
  * @since 4.0.0
  */
 export function toLowerCase<E extends string>(): Getter<string, E> {
-  return transform(Str.toLowerCase)
+  return transform(Str.toLowerCase);
 }
 
 /**
@@ -1178,12 +1195,12 @@ export function toLowerCase<E extends string>(): Getter<string, E> {
  * @since 4.0.0
  */
 export function toUpperCase<E extends string>(): Getter<string, E> {
-  return transform(Str.toUpperCase)
+  return transform(Str.toUpperCase);
 }
 
 type ParseJsonOptions = {
-  readonly reviver?: Parameters<typeof JSON.parse>[1]
-}
+  readonly reviver?: Parameters<typeof JSON.parse>[1];
+};
 
 /**
  * Parses a JSON string into a value.
@@ -1217,20 +1234,18 @@ type ParseJsonOptions = {
  * @category decoding
  * @since 4.0.0
  */
-export function parseJson<E extends string>(): Getter<Schema.MutableJson, E>
-export function parseJson<E extends string>(options: ParseJsonOptions): Getter<unknown, E>
-export function parseJson<E extends string>(options?: ParseJsonOptions | undefined): Getter<unknown, E> {
+export function parseJson<E extends string>(): Getter<Schema.MutableJson, E>;
+export function parseJson<E extends string>(options: ParseJsonOptions): Getter<unknown, E>;
+export function parseJson<E extends string>(
+  options?: ParseJsonOptions | undefined,
+): Getter<unknown, E> {
   return transformEffect((input, parseOptions) =>
     Effect.try({
       try: () => JSON.parse(input, options?.reviver),
       catch: () =>
-        new SchemaIssue.InvalidValue(
-          { expected: "a valid JSON string" },
-          input,
-          parseOptions
-        )
-    })
-  )
+        new SchemaIssue.InvalidValue({ expected: "a valid JSON string" }, input, parseOptions),
+    }),
+  );
 }
 
 /**
@@ -1242,12 +1257,12 @@ export function parseJson<E extends string>(options?: ParseJsonOptions | undefin
 export type JsonReplacer =
   | ((this: any, key: string, value: any) => any)
   | Array<string | number>
-  | null
+  | null;
 
 type StringifyJsonOptions = {
-  readonly replacer?: JsonReplacer | undefined
-  readonly space?: Parameters<typeof JSON.stringify>[2]
-}
+  readonly replacer?: JsonReplacer | undefined;
+  readonly space?: Parameters<typeof JSON.stringify>[2];
+};
 
 /**
  * Stringifies a present value using `JSON.stringify`.
@@ -1284,20 +1299,20 @@ export function stringifyJson(options?: StringifyJsonOptions): Getter<string, un
   return transformEffect((input, parseOptions) =>
     Effect.try({
       try: () => {
-        const output = JSON.stringify(input, options?.replacer as any, options?.space)
+        const output = JSON.stringify(input, options?.replacer as any, options?.space);
         if (output === undefined) {
-          throw new TypeError("Value cannot be represented as JSON")
+          throw new TypeError("Value cannot be represented as JSON");
         }
-        return output
+        return output;
       },
       catch: () =>
         new SchemaIssue.InvalidValue(
           { expected: "a JSON-serializable value" },
           input,
-          parseOptions
-        )
-    })
-  )
+          parseOptions,
+        ),
+    }),
+  );
 }
 
 /**
@@ -1331,20 +1346,23 @@ export function stringifyJson(options?: StringifyJsonOptions): Getter<string, un
  * @since 4.0.0
  */
 export function splitKeyValue<E extends string>(options?: {
-  readonly separator?: string | undefined
-  readonly keyValueSeparator?: string | undefined
+  readonly separator?: string | undefined;
+  readonly keyValueSeparator?: string | undefined;
 }): Getter<Record<string, string>, E> {
-  const separator = options?.separator ?? ","
-  const keyValueSeparator = options?.keyValueSeparator ?? "="
+  const separator = options?.separator ?? ",";
+  const keyValueSeparator = options?.keyValueSeparator ?? "=";
   return transform((input) =>
-    input.split(separator).reduce((acc, pair) => {
-      const [key, value] = pair.split(keyValueSeparator)
-      if (key && value) {
-        InternalRecord.assignProperty(acc, key, value)
-      }
-      return acc
-    }, {} as Record<string, string>)
-  )
+    input.split(separator).reduce(
+      (acc, pair) => {
+        const [key, value] = pair.split(keyValueSeparator);
+        if (key && value) {
+          InternalRecord.assignProperty(acc, key, value);
+        }
+        return acc;
+      },
+      {} as Record<string, string>,
+    ),
+  );
 }
 
 /**
@@ -1377,14 +1395,16 @@ export function splitKeyValue<E extends string>(options?: {
  * @since 4.0.0
  */
 export function joinKeyValue<E extends Record<PropertyKey, string>>(options?: {
-  readonly separator?: string | undefined
-  readonly keyValueSeparator?: string | undefined
+  readonly separator?: string | undefined;
+  readonly keyValueSeparator?: string | undefined;
 }): Getter<string, E> {
-  const separator = options?.separator ?? ","
-  const keyValueSeparator = options?.keyValueSeparator ?? "="
+  const separator = options?.separator ?? ",";
+  const keyValueSeparator = options?.keyValueSeparator ?? "=";
   return transform((input) =>
-    Object.entries(input).map(([key, value]) => `${key}${keyValueSeparator}${value}`).join(separator)
-  )
+    Object.entries(input)
+      .map(([key, value]) => `${key}${keyValueSeparator}${value}`)
+      .join(separator),
+  );
 }
 
 /**
@@ -1416,10 +1436,10 @@ export function joinKeyValue<E extends Record<PropertyKey, string>>(options?: {
  * @since 4.0.0
  */
 export function split<E extends string>(options?: {
-  readonly separator?: string | undefined
+  readonly separator?: string | undefined;
 }): Getter<ReadonlyArray<string>, E> {
-  const separator = options?.separator ?? ","
-  return transform((input) => input === "" ? [] : input.split(separator))
+  const separator = options?.separator ?? ",";
+  return transform((input) => (input === "" ? [] : input.split(separator)));
 }
 
 /**
@@ -1447,7 +1467,7 @@ export function split<E extends string>(options?: {
  * @since 4.0.0
  */
 export function encodeBase64<E extends Uint8Array | string>(): Getter<string, E> {
-  return transform(Encoding.encodeBase64)
+  return transform(Encoding.encodeBase64);
 }
 
 /**
@@ -1475,7 +1495,7 @@ export function encodeBase64<E extends Uint8Array | string>(): Getter<string, E>
  * @since 4.0.0
  */
 export function encodeBase64Url<E extends Uint8Array | string>(): Getter<string, E> {
-  return transform(Encoding.encodeBase64Url)
+  return transform(Encoding.encodeBase64Url);
 }
 
 /**
@@ -1502,7 +1522,7 @@ export function encodeBase64Url<E extends Uint8Array | string>(): Getter<string,
  * @since 4.0.0
  */
 export function encodeHex<E extends Uint8Array | string>(): Getter<string, E> {
-  return transform(Encoding.encodeHex)
+  return transform(Encoding.encodeHex);
 }
 
 /**
@@ -1532,14 +1552,9 @@ export function decodeBase64<E extends string>(): Getter<Uint8Array, E> {
   return transformEffect((input, options) =>
     Effect.mapErrorEager(
       Effect.fromResult(Encoding.decodeBase64(input)),
-      () =>
-        new SchemaIssue.InvalidValue(
-          { expected: "a valid Base64 string" },
-          input,
-          options
-        )
-    )
-  )
+      () => new SchemaIssue.InvalidValue({ expected: "a valid Base64 string" }, input, options),
+    ),
+  );
 }
 
 /**
@@ -1570,15 +1585,11 @@ export function decodeBase64String<E extends string>(): Getter<string, E> {
     Result.match(Encoding.decodeBase64String(input), {
       onFailure: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid Base64 string" },
-            input,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid Base64 string" }, input, options),
         ),
-      onSuccess: Effect.succeed
-    })
-  )
+      onSuccess: Effect.succeed,
+    }),
+  );
 }
 
 /**
@@ -1609,15 +1620,11 @@ export function decodeBase64Url<E extends string>(): Getter<Uint8Array, E> {
     Result.match(Encoding.decodeBase64Url(input), {
       onFailure: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid Base64Url string" },
-            input,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid Base64Url string" }, input, options),
         ),
-      onSuccess: Effect.succeed
-    })
-  )
+      onSuccess: Effect.succeed,
+    }),
+  );
 }
 
 /**
@@ -1648,15 +1655,11 @@ export function decodeBase64UrlString<E extends string>(): Getter<string, E> {
     Result.match(Encoding.decodeBase64UrlString(input), {
       onFailure: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid Base64Url string" },
-            input,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid Base64Url string" }, input, options),
         ),
-      onSuccess: Effect.succeed
-    })
-  )
+      onSuccess: Effect.succeed,
+    }),
+  );
 }
 
 /**
@@ -1687,15 +1690,11 @@ export function decodeHex<E extends string>(): Getter<Uint8Array, E> {
     Result.match(Encoding.decodeHex(input), {
       onFailure: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid hexadecimal string" },
-            input,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid hexadecimal string" }, input, options),
         ),
-      onSuccess: Effect.succeed
-    })
-  )
+      onSuccess: Effect.succeed,
+    }),
+  );
 }
 
 /**
@@ -1726,15 +1725,11 @@ export function decodeHexString<E extends string>(): Getter<string, E> {
     Result.match(Encoding.decodeHexString(input), {
       onFailure: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue(
-            { expected: "a valid hexadecimal string" },
-            input,
-            options
-          )
+          new SchemaIssue.InvalidValue({ expected: "a valid hexadecimal string" }, input, options),
         ),
-      onSuccess: Effect.succeed
-    })
-  )
+      onSuccess: Effect.succeed,
+    }),
+  );
 }
 
 /**
@@ -1762,7 +1757,7 @@ export function decodeHexString<E extends string>(): Getter<string, E> {
  * @since 4.0.0
  */
 export function encodeUriComponent<E extends string>(): Getter<string, E> {
-  return transform(encodeURIComponent)
+  return transform(encodeURIComponent);
 }
 
 /**
@@ -1790,17 +1785,13 @@ export function encodeUriComponent<E extends string>(): Getter<string, E> {
 export function decodeUriComponent<E extends string>(): Getter<string, E> {
   return transformEffect((input, options) => {
     try {
-      return Effect.succeed(globalThis.decodeURIComponent(input))
+      return Effect.succeed(globalThis.decodeURIComponent(input));
     } catch {
       return Effect.fail(
-        new SchemaIssue.InvalidValue(
-          { expected: "a valid URI component" },
-          input,
-          options
-        )
-      )
+        new SchemaIssue.InvalidValue({ expected: "a valid URI component" }, input, options),
+      );
     }
-  })
+  });
 }
 
 /**
@@ -1842,11 +1833,11 @@ export function dateTimeUtcFromInput<E extends DateTime.DateTime.Input>(): Gette
     return Option.match(DateTime.make(input), {
       onNone: () =>
         Effect.fail(
-          new SchemaIssue.InvalidValue({ message: "Invalid DateTime input" }, input, options)
+          new SchemaIssue.InvalidValue({ message: "Invalid DateTime input" }, input, options),
         ),
-      onSome: (dt) => Effect.succeed(DateTime.toUtc(dt))
-    })
-  })
+      onSome: (dt) => Effect.succeed(DateTime.toUtc(dt)),
+    });
+  });
 }
 
 /**
@@ -1883,12 +1874,13 @@ export function dateTimeUtcFromInput<E extends DateTime.DateTime.Input>(): Gette
  * @since 4.0.0
  */
 export function decodeFormData(): Getter<Schema.TreeRecord<string | Blob>, FormData> {
-  return transform((input) => makeTreeRecord(Array.from(input.entries())))
+  return transform((input) => makeTreeRecord(Array.from(input.entries())));
 }
 
-const collectFormDataEntries = collectBracketPathEntries((value): value is string | Blob =>
-  typeof value === "string" || (typeof Blob !== "undefined" && value instanceof Blob)
-)
+const collectFormDataEntries = collectBracketPathEntries(
+  (value): value is string | Blob =>
+    typeof value === "string" || (typeof Blob !== "undefined" && value instanceof Blob),
+);
 
 /**
  * Encodes a nested object into a `FormData` instance using bracket-path notation.
@@ -1923,15 +1915,15 @@ const collectFormDataEntries = collectBracketPathEntries((value): value is strin
  */
 export function encodeFormData(): Getter<FormData, unknown> {
   return transform((input) => {
-    const out = new FormData()
+    const out = new FormData();
     if (typeof input === "object" && input !== null) {
-      const entries = collectFormDataEntries(input)
+      const entries = collectFormDataEntries(input);
       entries.forEach(([key, value]) => {
-        out.append(key, value)
-      })
+        out.append(key, value);
+      });
     }
-    return out
-  })
+    return out;
+  });
 }
 
 /**
@@ -1967,10 +1959,10 @@ export function encodeFormData(): Getter<FormData, unknown> {
  * @since 4.0.0
  */
 export function decodeURLSearchParams(): Getter<Schema.TreeRecord<string>, URLSearchParams> {
-  return transform((input) => makeTreeRecord(Array.from(input.entries())))
+  return transform((input) => makeTreeRecord(Array.from(input.entries())));
 }
 
-const collectURLSearchParamsEntries = collectBracketPathEntries(Predicate.isString)
+const collectURLSearchParamsEntries = collectBracketPathEntries(Predicate.isString);
 
 /**
  * Encodes a nested object into a `URLSearchParams` instance using bracket-path notation.
@@ -2005,26 +1997,26 @@ const collectURLSearchParamsEntries = collectBracketPathEntries(Predicate.isStri
 export function encodeURLSearchParams(): Getter<URLSearchParams, unknown> {
   return transform((input) => {
     if (typeof input === "object" && input !== null) {
-      return new URLSearchParams(collectURLSearchParamsEntries(input))
+      return new URLSearchParams(collectURLSearchParamsEntries(input));
     }
-    return new URLSearchParams()
-  })
+    return new URLSearchParams();
+  });
 }
 
 function bracketPathToTokens(bracketPath: string): Array<string | number> {
   // real empty path (from append("", value))
   if (bracketPath === "") {
-    return [""]
+    return [""];
   }
 
-  const replaced = bracketPath.replace(/\[(.*?)\]/g, ".$1")
-  const parts = replaced.split(".")
+  const replaced = bracketPath.replace(/\[(.*?)\]/g, ".$1");
+  const parts = replaced.split(".");
   // if bracket path started with "[...]" we get ".foo" => ["", "foo"]; drop the synthetic first ""
-  const start = replaced.startsWith(".") ? 1 : 0
+  const start = replaced.startsWith(".") ? 1 : 0;
 
   return parts
     .slice(start)
-    .map((part) => (Arr.isCanonicalArrayIndex(part) ? globalThis.Number(part) : part))
+    .map((part) => (Arr.isCanonicalArrayIndex(part) ? globalThis.Number(part) : part));
 }
 
 /**
@@ -2076,62 +2068,66 @@ function bracketPathToTokens(bracketPath: string): Array<string | number> {
  * @since 4.0.0
  */
 export function makeTreeRecord<A>(
-  bracketPathEntries: ReadonlyArray<readonly [bracketPath: string, value: A]>
+  bracketPathEntries: ReadonlyArray<readonly [bracketPath: string, value: A]>,
 ): Schema.TreeRecord<A> {
-  const out: any = {}
-  const containers = new WeakSet<object>()
-  const duplicates = new WeakSet<object>()
+  const out: any = {};
+  const containers = new WeakSet<object>();
+  const duplicates = new WeakSet<object>();
 
   function getOrCreateContainer(self: any, key: PropertyKey, shouldBeArray: boolean): any {
-    const current = Object.hasOwn(self, key) ? self[key] : undefined
+    const current = Object.hasOwn(self, key) ? self[key] : undefined;
     if (containers.has(current) && Array.isArray(current) === shouldBeArray) {
-      return current
+      return current;
     }
-    const container = shouldBeArray ? [] : {}
-    containers.add(container)
-    InternalRecord.assignProperty(self, key, container)
-    return container
+    const container = shouldBeArray ? [] : {};
+    containers.add(container);
+    InternalRecord.assignProperty(self, key, container);
+    return container;
   }
 
   bracketPathEntries.forEach(([key, value]) => {
-    const tokens = bracketPathToTokens(key)
-    let cur: any = out
+    const tokens = bracketPathToTokens(key);
+    let cur: any = out;
     tokens.forEach((token, i) => {
-      const isLast = i === tokens.length - 1
+      const isLast = i === tokens.length - 1;
 
       // We are inside an array and see "[]" (empty token) => append
       if (Array.isArray(cur) && token === "") {
         if (isLast) {
-          cur.push(value)
+          cur.push(value);
         } else {
           // bracket path: "foo[][bar]" => push a new element and descend into it
-          const next = tokens[i + 1]
-          const shouldBeArray = typeof next === "number" || next === ""
-          const index = cur.length
-          cur = getOrCreateContainer(cur, index, shouldBeArray)
+          const next = tokens[i + 1];
+          const shouldBeArray = typeof next === "number" || next === "";
+          const index = cur.length;
+          cur = getOrCreateContainer(cur, index, shouldBeArray);
         }
       } else if (isLast) {
         // If we're setting a value at a path that already exists
         // convert it to an array to support multiple values for the same key
-        const hasOwn = Object.hasOwn(cur, token)
-        if (hasOwn && Array.isArray(cur[token]) && (containers.has(cur[token]) || duplicates.has(cur[token]))) {
-          cur[token].push(value)
+        const hasOwn = Object.hasOwn(cur, token);
+        if (
+          hasOwn &&
+          Array.isArray(cur[token]) &&
+          (containers.has(cur[token]) || duplicates.has(cur[token]))
+        ) {
+          cur[token].push(value);
         } else if (hasOwn) {
-          const values = [cur[token], value]
-          duplicates.add(values)
-          InternalRecord.assignProperty(cur, token, values)
+          const values = [cur[token], value];
+          duplicates.add(values);
+          InternalRecord.assignProperty(cur, token, values);
         } else {
-          InternalRecord.assignProperty(cur, token, value)
+          InternalRecord.assignProperty(cur, token, value);
         }
       } else {
-        const next = tokens[i + 1]
+        const next = tokens[i + 1];
         // if next is a number OR "" (from []), we are building an array
-        const shouldBeArray = typeof next === "number" || next === ""
-        cur = getOrCreateContainer(cur, token, shouldBeArray)
+        const shouldBeArray = typeof next === "number" || next === "";
+        cur = getOrCreateContainer(cur, token, shouldBeArray);
       }
-    })
-  })
-  return out
+    });
+  });
+  return out;
 }
 
 /**
@@ -2175,34 +2171,34 @@ export function makeTreeRecord<A>(
  */
 export function collectBracketPathEntries<A>(isLeaf: (value: unknown) => value is A) {
   return (input: object): Array<[bracketPath: string, value: A]> => {
-    const bracketPathEntries: Array<[string, A]> = []
+    const bracketPathEntries: Array<[string, A]> = [];
 
     function append(key: string, value: unknown): void {
       if (isLeaf(value)) {
-        bracketPathEntries.push([key, value])
+        bracketPathEntries.push([key, value]);
       } else if (Array.isArray(value)) {
         // If all values are leaves, encode as multiple entries with the same key
-        const allLeaves = value.every(isLeaf)
+        const allLeaves = value.every(isLeaf);
         if (allLeaves) {
           value.forEach((v) => {
-            bracketPathEntries.push([key, v])
-          })
+            bracketPathEntries.push([key, v]);
+          });
         } else {
           value.forEach((v, i) => {
-            append(`${key}[${i}]`, v)
-          })
+            append(`${key}[${i}]`, v);
+          });
         }
       } else if (typeof value === "object" && value !== null) {
         for (const [k, v] of Object.entries(value)) {
-          append(`${key}[${k}]`, v)
+          append(`${key}[${k}]`, v);
         }
       }
     }
 
     for (const [key, value] of Object.entries(input)) {
-      append(key, value)
+      append(key, value);
     }
 
-    return bracketPathEntries
-  }
+    return bracketPathEntries;
+  };
 }

@@ -6,7 +6,7 @@
   note: "Format error.issue with the Standard Schema formatter."
   example: "SchemaIssue.makeFormatterStandardSchemaV1()(error.issue).issues"
 "effect/ParseResult#ArrayFormatterIssue":
-  replacement: "StandardSchemaV1.FailureResult[\"issues\"][number]"
+  replacement: 'StandardSchemaV1.FailureResult["issues"][number]'
   note: "Use the Standard Schema issue shape returned by makeFormatterStandardSchemaV1."
 "effect/ParseResult#Composite":
   replacement: "SchemaIssue.Composite"

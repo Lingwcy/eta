@@ -7,9 +7,9 @@
  *
  * @since 2.0.0
  */
-import type { LazyArg } from "./Function.ts"
-import { dual } from "./Function.ts"
-import * as Reducer_ from "./Reducer.ts"
+import type { LazyArg } from "./Function.ts";
+import { dual } from "./Function.ts";
+import * as Reducer_ from "./Reducer.ts";
 
 /**
  * Represents the result of comparing two values.
@@ -50,7 +50,7 @@ import * as Reducer_ from "./Reducer.ts"
  * @category models
  * @since 2.0.0
  */
-export type Ordering = -1 | 0 | 1
+export type Ordering = -1 | 0 | 1;
 
 /**
  * Reverses the ordering of the input Ordering.
@@ -92,7 +92,7 @@ export type Ordering = -1 | 0 | 1
  * @category transforming
  * @since 2.0.0
  */
-export const reverse = (o: Ordering): Ordering => (o === -1 ? 1 : o === 1 ? -1 : 0)
+export const reverse = (o: Ordering): Ordering => (o === -1 ? 1 : o === 1 ? -1 : 0);
 
 /**
  * Matches an `Ordering` value and returns the branch selected by that ordering.
@@ -121,29 +121,34 @@ export const reverse = (o: Ordering): Ordering => (o === -1 ? 1 : o === 1 ? -1 :
  * @since 2.0.0
  */
 export const match: {
-  <A, B, C = B>(
-    options: {
-      readonly onLessThan: LazyArg<A>
-      readonly onEqual: LazyArg<B>
-      readonly onGreaterThan: LazyArg<C>
-    }
-  ): (self: Ordering) => A | B | C
+  <A, B, C = B>(options: {
+    readonly onLessThan: LazyArg<A>;
+    readonly onEqual: LazyArg<B>;
+    readonly onGreaterThan: LazyArg<C>;
+  }): (self: Ordering) => A | B | C;
   <A, B, C = B>(
     o: Ordering,
     options: {
-      readonly onLessThan: LazyArg<A>
-      readonly onEqual: LazyArg<B>
-      readonly onGreaterThan: LazyArg<C>
-    }
-  ): A | B | C
-} = dual(2, <A, B, C = B>(
-  self: Ordering,
-  { onEqual, onGreaterThan, onLessThan }: {
-    readonly onLessThan: LazyArg<A>
-    readonly onEqual: LazyArg<B>
-    readonly onGreaterThan: LazyArg<C>
-  }
-): A | B | C => self === -1 ? onLessThan() : self === 0 ? onEqual() : onGreaterThan())
+      readonly onLessThan: LazyArg<A>;
+      readonly onEqual: LazyArg<B>;
+      readonly onGreaterThan: LazyArg<C>;
+    },
+  ): A | B | C;
+} = dual(
+  2,
+  <A, B, C = B>(
+    self: Ordering,
+    {
+      onEqual,
+      onGreaterThan,
+      onLessThan,
+    }: {
+      readonly onLessThan: LazyArg<A>;
+      readonly onEqual: LazyArg<B>;
+      readonly onGreaterThan: LazyArg<C>;
+    },
+  ): A | B | C => (self === -1 ? onLessThan() : self === 0 ? onEqual() : onGreaterThan()),
+);
 
 /**
  * Reducer for combining `Ordering`s.
@@ -167,15 +172,15 @@ export const match: {
  * @since 4.0.0
  */
 export const Reducer: Reducer_.Reducer<Ordering> = Reducer_.make<Ordering>(
-  (self, that) => self !== 0 ? self : that,
+  (self, that) => (self !== 0 ? self : that),
   0,
   (collection) => {
-    let ordering: Ordering = 0
+    let ordering: Ordering = 0;
     for (ordering of collection) {
       if (ordering !== 0) {
-        return ordering
+        return ordering;
       }
     }
-    return ordering
-  }
-)
+    return ordering;
+  },
+);

@@ -5,10 +5,10 @@ export function assignProperty(self: object, key: PropertyKey, value: unknown): 
       value,
       writable: true,
       enumerable: true,
-      configurable: true
-    })
+      configurable: true,
+    });
   } else {
-    ;(self as any)[key] = value
+    (self as any)[key] = value;
   }
 }
 
@@ -16,7 +16,7 @@ export function assignProperty(self: object, key: PropertyKey, value: unknown): 
 export function assignProperties(self: object, source: object): void {
   for (const key of Reflect.ownKeys(source)) {
     if (Object.prototype.propertyIsEnumerable.call(source, key)) {
-      assignProperty(self, key, (source as any)[key])
+      assignProperty(self, key, (source as any)[key]);
     }
   }
 }

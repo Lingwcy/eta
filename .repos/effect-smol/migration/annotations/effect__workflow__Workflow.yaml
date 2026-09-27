@@ -41,11 +41,11 @@
   replacement: "effect/unstable/workflow/Workflow#Workflow"
   note: "Name and name became Tag and _tag, schemas use directional services, definitions are constructable, and poll returns Option."
 "@effect/workflow/Workflow#Workflow.Error":
-  replacement: "W[\"errorSchema\"][\"Type\"]"
+  replacement: 'W["errorSchema"]["Type"]'
   note: "The namespace alias was removed. Extract the decoded error type from the public errorSchema property."
 "@effect/workflow/Workflow#Workflow.Payload":
   replacement: "Schema.Schema.Type<Workflow.PayloadSchema<W>>"
   note: "The namespace alias was removed. Extract the decoded payload from the exported PayloadSchema helper."
 "@effect/workflow/Workflow#Workflow.Success":
-  replacement: "W[\"successSchema\"][\"Type\"]"
+  replacement: 'W["successSchema"]["Type"]'
   note: "The namespace alias was removed. Extract the decoded success type from the public successSchema property."

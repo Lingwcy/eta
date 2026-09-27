@@ -5,65 +5,69 @@
  *
  * @since 4.0.0
  */
-import { type DecoderOperation, generate, shouldCompileParser } from "../../internal/schema/codegen.ts"
-import * as Registry from "../../internal/schema/compilerRegistry.ts"
-import type * as SchemaAST from "../../SchemaAST.ts"
-import type { CompiledDecoder } from "./SchemaCompiler.ts"
-import { runtime } from "./SchemaCompiler/runtime.ts"
+import {
+  type DecoderOperation,
+  generate,
+  shouldCompileParser,
+} from "../../internal/schema/codegen.ts";
+import * as Registry from "../../internal/schema/compilerRegistry.ts";
+import type * as SchemaAST from "../../SchemaAST.ts";
+import type { CompiledDecoder } from "./SchemaCompiler.ts";
+import { runtime } from "./SchemaCompiler/runtime.ts";
 
-let checked: FunctionConstructor | undefined
-let supported = false
+let checked: FunctionConstructor | undefined;
+let supported = false;
 
 /** @internal */
 export const compiler: Registry.CompileSource = (ast, resolve) => {
-  if (!shouldCompileParser(ast)) return undefined
+  if (!shouldCompileParser(ast)) return undefined;
   if (checked !== globalThis.Function) {
-    checked = globalThis.Function
+    checked = globalThis.Function;
     try {
-      checked("return true")
-      supported = true
+      checked("return true");
+      supported = true;
     } catch {
-      supported = false
+      supported = false;
     }
   }
-  if (!supported) return undefined
-  let decodeFailed = false
+  if (!supported) return undefined;
+  let decodeFailed = false;
   const operation = (key: DecoderOperation) => {
-    const isConstruction = key === "make" || key === "makeEffect"
+    const isConstruction = key === "make" || key === "makeEffect";
     if (isConstruction || !decodeFailed) {
       try {
-        const source = generate(ast, key)
-        if (source === undefined) return undefined
-        return globalThis.Function("ast", "R", "resolve", source)(ast, runtime, resolve)
+        const source = generate(ast, key);
+        if (source === undefined) return undefined;
+        return globalThis.Function("ast", "R", "resolve", source)(ast, runtime, resolve);
       } catch {
         // Only code generation and initialization are inside this catch.
-        if (!isConstruction) decodeFailed = true
+        if (!isConstruction) decodeFailed = true;
       }
     }
     return key === "decodeEffect"
       ? runtime.decode(ast, resolve)
       : key === "makeEffect"
-      ? runtime.make(ast, resolve)
-      : undefined
-  }
+        ? runtime.make(ast, resolve)
+        : undefined;
+  };
   return {
     get is() {
-      return operation("is")
+      return operation("is");
     },
     get decode() {
-      return operation("decode")
+      return operation("decode");
     },
     get make() {
-      return operation("make")
+      return operation("make");
     },
     get decodeEffect() {
-      return operation("decodeEffect")
+      return operation("decodeEffect");
     },
     get makeEffect() {
-      return operation("makeEffect")
-    }
-  } satisfies CompiledDecoder
-}
+      return operation("makeEffect");
+    },
+  } satisfies CompiledDecoder;
+};
 
 /**
  * Enables lazy JIT compilation for an AST and its parsing dependencies.
@@ -85,5 +89,5 @@ export const compiler: Registry.CompileSource = (ast, resolve) => {
  * @since 4.0.0
  */
 export function enable(ast: SchemaAST.AST): void {
-  Registry.enable(ast, compiler)
+  Registry.enable(ast, compiler);
 }

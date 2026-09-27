@@ -11,30 +11,37 @@ The performance of the two array paths can be reproduced by saving the following
 root:
 
 ```ts
-import { Schema } from "effect"
-import { performance } from "node:perf_hooks"
+import { Schema } from "effect";
+import { performance } from "node:perf_hooks";
 
 class Row extends Schema.Class<Row>("Row")({ value: Schema.String }) {}
 class DirectTable extends Schema.Class<DirectTable>("DirectTable")({ rows: Schema.Array(Row) }) {}
-class UnionTable extends Schema.Class<UnionTable>("UnionTable")({ rows: Schema.Array(Schema.Union([Row])) }) {}
+class UnionTable extends Schema.Class<UnionTable>("UnionTable")({
+  rows: Schema.Array(Schema.Union([Row])),
+}) {}
 
-const rows = Array.from({ length: 30_000 }, (_, value) => Row.make({ value: String(value) }))
+const rows = Array.from({ length: 30_000 }, (_, value) => Row.make({ value: String(value) }));
 
 function benchmark(label: string, make: () => { readonly rows: ReadonlyArray<Row> }) {
-  const samples: Array<number> = []
+  const samples: Array<number> = [];
   for (let i = 0; i < 6; i++) {
-    const start = performance.now()
-    const result = make()
-    samples.push(performance.now() - start)
+    const start = performance.now();
+    const result = make();
+    samples.push(performance.now() - start);
     if (result.rows[0] !== rows[0] || result.rows.at(-1) !== rows.at(-1)) {
-      throw new Error(`${label} did not preserve Row identity`)
+      throw new Error(`${label} did not preserve Row identity`);
     }
   }
-  console.log(`${label}: ${samples.slice(1).map((n) => n.toFixed(3)).join(", ")} ms`)
+  console.log(
+    `${label}: ${samples
+      .slice(1)
+      .map((n) => n.toFixed(3))
+      .join(", ")} ms`,
+  );
 }
 
-benchmark("Array(Class)", () => DirectTable.make({ rows }))
-benchmark("Array(Union([Class]))", () => UnionTable.make({ rows }))
+benchmark("Array(Class)", () => DirectTable.make({ rows }));
+benchmark("Array(Union([Class]))", () => UnionTable.make({ rows }));
 ```
 
 Representative local results on Node 24.12.0 (six runs, with the first discarded):

@@ -9,14 +9,14 @@
  *
  * @since 4.0.0
  */
-import * as Context from "./Context.ts"
-import * as Effect from "./Effect.ts"
-import * as random from "./internal/random.ts"
-import * as Ulid from "./internal/ulid.ts"
-import * as Uuid from "./internal/uuid.ts"
-import * as PlatformError from "./PlatformError.ts"
+import * as Context from "./Context.ts";
+import * as Effect from "./Effect.ts";
+import * as random from "./internal/random.ts";
+import * as Ulid from "./internal/ulid.ts";
+import * as Uuid from "./internal/uuid.ts";
+import * as PlatformError from "./PlatformError.ts";
 
-const TypeId = "~effect/Crypto"
+const TypeId = "~effect/Crypto";
 
 /**
  * Digest algorithms supported by the platform `Crypto` service.
@@ -37,7 +37,7 @@ const TypeId = "~effect/Crypto"
  * @category models
  * @since 4.0.0
  */
-export type DigestAlgorithm = "SHA-1" | "SHA-256" | "SHA-384" | "SHA-512"
+export type DigestAlgorithm = "SHA-1" | "SHA-256" | "SHA-384" | "SHA-512";
 
 /**
  * Platform-agnostic cryptographic operations.
@@ -76,54 +76,54 @@ export type DigestAlgorithm = "SHA-1" | "SHA-256" | "SHA-384" | "SHA-512"
  * @since 4.0.0
  */
 export interface Crypto {
-  readonly [TypeId]: typeof TypeId
+  readonly [TypeId]: typeof TypeId;
 
   /**
    * Generates a random integer in the range Number.MIN_SAFE_INTEGER to
    * Number.MAX_SAFE_INTEGER (both inclusive).
    */
-  nextIntUnsafe(): number
+  nextIntUnsafe(): number;
 
   /**
    * Generates a random number in the range 0 (inclusive) to 1 (exclusive).
    */
-  nextDoubleUnsafe(): number
+  nextDoubleUnsafe(): number;
 
   /**
    * Generates cryptographically secure random bytes.
    */
-  randomBytes(size: number): Effect.Effect<Uint8Array, PlatformError.PlatformError>
+  randomBytes(size: number): Effect.Effect<Uint8Array, PlatformError.PlatformError>;
 
   /**
    * Computes a cryptographic digest for the supplied data.
    */
   digest(
     algorithm: DigestAlgorithm,
-    data: Uint8Array
-  ): Effect.Effect<Uint8Array, PlatformError.PlatformError>
+    data: Uint8Array,
+  ): Effect.Effect<Uint8Array, PlatformError.PlatformError>;
 
   /**
    * Generates a cryptographically secure random number between 0 (inclusive)
    * and 1 (exclusive).
    */
-  readonly random: Effect.Effect<number>
+  readonly random: Effect.Effect<number>;
 
   /**
    * Generates a cryptographically secure random boolean.
    */
-  readonly randomBoolean: Effect.Effect<boolean>
+  readonly randomBoolean: Effect.Effect<boolean>;
 
   /**
    * Generates a cryptographically secure random integer between
    * `Number.MIN_SAFE_INTEGER` and `Number.MAX_SAFE_INTEGER` (both inclusive).
    */
-  readonly randomInt: Effect.Effect<number>
+  readonly randomInt: Effect.Effect<number>;
 
   /**
    * Generates a cryptographically secure random number between `min`
    * (inclusive) and `max` (exclusive).
    */
-  randomBetween(min: number, max: number): Effect.Effect<number>
+  randomBetween(min: number, max: number): Effect.Effect<number>;
 
   /**
    * Generates a cryptographically secure random integer between `min` and `max`.
@@ -134,25 +134,29 @@ export interface Crypto {
    * rounded down with `Math.floor`. By default the range is inclusive; set
    * `options.halfOpen: true` to exclude the upper bound.
    */
-  randomIntBetween(min: number, max: number, options?: {
-    readonly halfOpen?: boolean | undefined
-  }): Effect.Effect<number>
+  randomIntBetween(
+    min: number,
+    max: number,
+    options?: {
+      readonly halfOpen?: boolean | undefined;
+    },
+  ): Effect.Effect<number>;
 
   /**
    * Uses the cryptographically secure random generator to shuffle the supplied
    * iterable.
    */
-  randomShuffle<A>(elements: Iterable<A>): Effect.Effect<Array<A>>
+  randomShuffle<A>(elements: Iterable<A>): Effect.Effect<Array<A>>;
 
   /**
    * Generates a cryptographically secure UUIDv4 string.
    */
-  readonly randomUUIDv4: Effect.Effect<string, PlatformError.PlatformError>
+  readonly randomUUIDv4: Effect.Effect<string, PlatformError.PlatformError>;
 
   /**
    * Generates a cryptographically secure UUIDv7 string.
    */
-  readonly randomUUIDv7: Effect.Effect<string, PlatformError.PlatformError>
+  readonly randomUUIDv7: Effect.Effect<string, PlatformError.PlatformError>;
 
   /**
    * Generates a cryptographically secure ULID string.
@@ -167,7 +171,7 @@ export interface Crypto {
    * Timestamp normalization matches UUIDv7: fractions are truncated, values are
    * clamped to the 48-bit range, and `NaN` encodes as zero.
    */
-  readonly randomULID: Effect.Effect<string, PlatformError.PlatformError>
+  readonly randomULID: Effect.Effect<string, PlatformError.PlatformError>;
 }
 
 /**
@@ -188,7 +192,7 @@ export interface Crypto {
  * @category services
  * @since 4.0.0
  */
-export const Crypto: Context.Service<Crypto, Crypto> = Context.Service("effect/Crypto")
+export const Crypto: Context.Service<Crypto, Crypto> = Context.Service("effect/Crypto");
 
 /**
  * Creates a `Crypto` service from the primitive implementation, deriving the
@@ -227,37 +231,41 @@ export const Crypto: Context.Service<Crypto, Crypto> = Context.Service("effect/C
  * @category constructors
  * @since 4.0.0
  */
-export const make = (
-  impl: {
-    readonly randomBytes: (size: number) => Uint8Array
-    readonly digest: (
-      algorithm: DigestAlgorithm,
-      data: Uint8Array
-    ) => Effect.Effect<Uint8Array, PlatformError.PlatformError>
-  }
-): Crypto => {
-  const randomBytesUnsafe = impl.randomBytes
+export const make = (impl: {
+  readonly randomBytes: (size: number) => Uint8Array;
+  readonly digest: (
+    algorithm: DigestAlgorithm,
+    data: Uint8Array,
+  ) => Effect.Effect<Uint8Array, PlatformError.PlatformError>;
+}): Crypto => {
+  const randomBytesUnsafe = impl.randomBytes;
 
-  const randomBytes: Crypto["randomBytes"] = (size) => Effect.map(validateSize("randomBytes", size), randomBytesUnsafe)
+  const randomBytes: Crypto["randomBytes"] = (size) =>
+    Effect.map(validateSize("randomBytes", size), randomBytesUnsafe);
 
   const readUint53 = (bytes: Uint8Array): number =>
-    ((bytes[0] & 0x1f) * 2 ** 48) + (bytes[1] * 2 ** 40) + (bytes[2] * 2 ** 32) +
-    (bytes[3] * 2 ** 24) + (bytes[4] * 2 ** 16) + (bytes[5] * 2 ** 8) + bytes[6]
+    (bytes[0] & 0x1f) * 2 ** 48 +
+    bytes[1] * 2 ** 40 +
+    bytes[2] * 2 ** 32 +
+    bytes[3] * 2 ** 24 +
+    bytes[4] * 2 ** 16 +
+    bytes[5] * 2 ** 8 +
+    bytes[6];
 
-  const nextDoubleUnsafe = (): number => readUint53(randomBytesUnsafe(7)) / 2 ** 53
+  const nextDoubleUnsafe = (): number => readUint53(randomBytesUnsafe(7)) / 2 ** 53;
 
   const nextIntUnsafe = (): number => {
     while (true) {
-      const bytes = randomBytesUnsafe(7)
-      const value = readUint53(bytes)
+      const bytes = randomBytesUnsafe(7);
+      const value = readUint53(bytes);
       if ((bytes[0] & 0x20) === 0) {
-        return value + Number.MIN_SAFE_INTEGER
+        return value + Number.MIN_SAFE_INTEGER;
       }
       if (value < Number.MAX_SAFE_INTEGER) {
-        return value + 1
+        return value + 1;
       }
     }
-  }
+  };
 
   return Crypto.of({
     [TypeId]: TypeId,
@@ -268,41 +276,47 @@ export const make = (
     random: Effect.sync(() => nextDoubleUnsafe()),
     randomBoolean: Effect.sync(() => nextDoubleUnsafe() > 0.5),
     randomInt: Effect.sync(() => nextIntUnsafe()),
-    randomBetween: (min, max) => Effect.sync(() => random.nextBetween(min, max, nextDoubleUnsafe())),
+    randomBetween: (min, max) =>
+      Effect.sync(() => random.nextBetween(min, max, nextDoubleUnsafe())),
     randomIntBetween(min, max, options) {
-      const extra = options?.halfOpen === true ? 0 : 1
+      const extra = options?.halfOpen === true ? 0 : 1;
       return Effect.sync(() => {
-        const minInt = Math.ceil(min)
-        const maxInt = Math.floor(max)
-        return Math.floor(nextDoubleUnsafe() * (maxInt - minInt + extra)) + minInt
-      })
+        const minInt = Math.ceil(min);
+        const maxInt = Math.floor(max);
+        return Math.floor(nextDoubleUnsafe() * (maxInt - minInt + extra)) + minInt;
+      });
     },
     randomShuffle: (elements) =>
       Effect.sync(() => {
-        const buffer = Array.from(elements)
+        const buffer = Array.from(elements);
         for (let i = buffer.length - 1; i >= 1; i = i - 1) {
-          const index = Math.min(i, Math.floor(nextDoubleUnsafe() * (i + 1)))
-          const value = buffer[i]!
-          buffer[i] = buffer[index]!
-          buffer[index] = value
+          const index = Math.min(i, Math.floor(nextDoubleUnsafe() * (i + 1)));
+          const value = buffer[i]!;
+          buffer[i] = buffer[index]!;
+          buffer[index] = value;
         }
-        return buffer
+        return buffer;
       }),
     randomUUIDv4: Effect.sync(() => Uuid.v4String(randomBytesUnsafe(16))),
     randomUUIDv7: Effect.clockWith((clock) =>
-      Effect.succeed(Uuid.v7String(clock.currentTimeMillisUnsafe(), randomBytesUnsafe(16)))
+      Effect.succeed(Uuid.v7String(clock.currentTimeMillisUnsafe(), randomBytesUnsafe(16))),
     ),
     randomULID: Effect.clockWith((clock) =>
-      Effect.succeed(Ulid.ulidString(clock.currentTimeMillisUnsafe(), randomBytesUnsafe(10)))
-    )
-  })
-}
+      Effect.succeed(Ulid.ulidString(clock.currentTimeMillisUnsafe(), randomBytesUnsafe(10))),
+    ),
+  });
+};
 
-const validateSize = (method: string, size: number): Effect.Effect<number, PlatformError.PlatformError> =>
+const validateSize = (
+  method: string,
+  size: number,
+): Effect.Effect<number, PlatformError.PlatformError> =>
   Number.isSafeInteger(size) && size >= 0
     ? Effect.succeed(size)
-    : Effect.fail(PlatformError.badArgument({
-      module: "Crypto",
-      method,
-      description: "size must be a non-negative safe integer"
-    }))
+    : Effect.fail(
+        PlatformError.badArgument({
+          module: "Crypto",
+          method,
+          description: "size must be a non-negative safe integer",
+        }),
+      );

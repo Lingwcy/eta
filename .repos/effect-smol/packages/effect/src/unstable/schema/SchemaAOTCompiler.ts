@@ -5,27 +5,29 @@
  *
  * @since 4.0.0
  */
-import * as Codegen from "../../internal/schema/codegen.ts"
-import * as SchemaAST from "../../SchemaAST.ts"
-import type { runtime } from "./SchemaCompiler/runtime.ts"
+import * as Codegen from "../../internal/schema/codegen.ts";
+import * as SchemaAST from "../../SchemaAST.ts";
+import type { runtime } from "./SchemaCompiler/runtime.ts";
 
-const helper = (name: keyof typeof runtime): string => `runtime.${name}`
+const helper = (name: keyof typeof runtime): string => `runtime.${name}`;
 const decoderOperationOrder: ReadonlyArray<Codegen.DecoderOperation> = [
   "is",
   "decode",
   "make",
   "decodeEffect",
-  "makeEffect"
-]
-const operationOrder: ReadonlyArray<Operation> = ["decode", "is", "make"]
+  "makeEffect",
+];
+const operationOrder: ReadonlyArray<Operation> = ["decode", "is", "make"];
 
 const compiler = (sources: ReadonlyMap<Codegen.DecoderOperation, string>): string | undefined => {
-  const cases = decoderOperationOrder.flatMap((key) => {
-    const source = sources.get(key)
-    return source === undefined ? [] : [`case ${JSON.stringify(key)}:{${source}}`]
-  }).join("")
-  return cases.length === 0 ? undefined : `switch(operation){${cases}}`
-}
+  const cases = decoderOperationOrder
+    .flatMap((key) => {
+      const source = sources.get(key);
+      return source === undefined ? [] : [`case ${JSON.stringify(key)}:{${source}}`];
+    })
+    .join("");
+  return cases.length === 0 ? undefined : `switch(operation){${cases}}`;
+};
 
 /**
  * A parser operation prepared by {@link compile}.
@@ -33,9 +35,9 @@ const compiler = (sources: ReadonlyMap<Codegen.DecoderOperation, string>): strin
  * @category models
  * @since 4.0.0
  */
-export type Operation = "decode" | "is" | "make"
+export type Operation = "decode" | "is" | "make";
 
-type PlannedOperation = Operation | "decodeEffect"
+type PlannedOperation = Operation | "decodeEffect";
 
 /**
  * An exact AST and the parser operations to prepare for it.
@@ -45,9 +47,9 @@ type PlannedOperation = Operation | "decodeEffect"
  */
 export interface Target {
   /** The registry key installed by the generated module. */
-  readonly ast: SchemaAST.AST
+  readonly ast: SchemaAST.AST;
   /** The operations that should be compiled for this AST. */
-  readonly operations: ReadonlyArray<Operation>
+  readonly operations: ReadonlyArray<Operation>;
 }
 
 /**
@@ -109,73 +111,91 @@ export interface Target {
  */
 export const compile = (targets: ReadonlyArray<Target>): string => {
   interface PlannedNode {
-    readonly index: number
-    readonly name: string
-    readonly reference: string
-    readonly requested: Set<PlannedOperation>
-    readonly sources: Map<Codegen.DecoderOperation, string>
-    readonly attempted: Set<Codegen.DecoderOperation>
-    readonly compilable: boolean
+    readonly index: number;
+    readonly name: string;
+    readonly reference: string;
+    readonly requested: Set<PlannedOperation>;
+    readonly sources: Map<Codegen.DecoderOperation, string>;
+    readonly attempted: Set<Codegen.DecoderOperation>;
+    readonly compilable: boolean;
   }
 
-  const seen = new Map<SchemaAST.AST, PlannedNode>()
-  const bindings: Array<string> = []
-  const factories: Array<string> = []
-  const factoryNames = new Map<string, string>()
-  const installations: Array<string> = []
+  const seen = new Map<SchemaAST.AST, PlannedNode>();
+  const bindings: Array<string> = [];
+  const factories: Array<string> = [];
+  const factoryNames = new Map<string, string>();
+  const installations: Array<string> = [];
 
-  const addSource = (node: SchemaAST.AST, plan: PlannedNode, operation: Codegen.DecoderOperation): boolean => {
-    if (plan.attempted.has(operation)) return plan.sources.has(operation)
-    plan.attempted.add(operation)
-    if (!plan.compilable) return false
-    const source = Codegen.generate(node, operation)
-    if (source === undefined) return false
-    plan.sources.set(operation, source)
-    return true
-  }
+  const addSource = (
+    node: SchemaAST.AST,
+    plan: PlannedNode,
+    operation: Codegen.DecoderOperation,
+  ): boolean => {
+    if (plan.attempted.has(operation)) return plan.sources.has(operation);
+    plan.attempted.add(operation);
+    if (!plan.compilable) return false;
+    const source = Codegen.generate(node, operation);
+    if (source === undefined) return false;
+    plan.sources.set(operation, source);
+    return true;
+  };
 
-  const visitDependencies = (node: SchemaAST.AST, name: string, operation: PlannedOperation): void => {
+  const visitDependencies = (
+    node: SchemaAST.AST,
+    name: string,
+    operation: PlannedOperation,
+  ): void => {
     switch (node._tag) {
       case "Declaration":
-        node.typeParameters.forEach((child, index) => visit(child, `${name}.typeParameters[${index}]`, operation))
-        break
+        node.typeParameters.forEach((child, index) =>
+          visit(child, `${name}.typeParameters[${index}]`, operation),
+        );
+        break;
       case "TemplateLiteral":
-        node.parts.forEach((child, index) => visit(child, `${name}.parts[${index}]`, operation))
-        break
+        node.parts.forEach((child, index) => visit(child, `${name}.parts[${index}]`, operation));
+        break;
       case "Arrays":
-        node.elements.forEach((child, index) => visit(child, `${name}.elements[${index}]`, operation))
-        node.rest.forEach((child, index) => visit(child, `${name}.rest[${index}]`, operation))
-        break
+        node.elements.forEach((child, index) =>
+          visit(child, `${name}.elements[${index}]`, operation),
+        );
+        node.rest.forEach((child, index) => visit(child, `${name}.rest[${index}]`, operation));
+        break;
       case "Objects":
         node.propertySignatures.forEach((property, index) =>
-          visit(property.type, `${name}.propertySignatures[${index}].type`, operation)
-        )
+          visit(property.type, `${name}.propertySignatures[${index}].type`, operation),
+        );
         node.indexSignatures.forEach((signature, index) => {
           visit(
             SchemaAST.parameterFromPropertyKey(signature.parameter),
             `${helper("parameterFromPropertyKey")}(${name}.indexSignatures[${index}].parameter)`,
-            operation
-          )
-          visit(signature.type, `${name}.indexSignatures[${index}].type`, operation)
-        })
-        break
+            operation,
+          );
+          visit(signature.type, `${name}.indexSignatures[${index}].type`, operation);
+        });
+        break;
       case "Union":
-        node.types.forEach((child, index) => visit(child, `${name}.types[${index}]`, operation))
-        break
+        node.types.forEach((child, index) => visit(child, `${name}.types[${index}]`, operation));
+        break;
     }
-    node.encoding?.forEach((link, index) => visit(link.to, `${name}.encoding[${index}].to`, operation))
+    node.encoding?.forEach((link, index) =>
+      visit(link.to, `${name}.encoding[${index}].to`, operation),
+    );
     if (operation === "make") {
-      const descriptor = SchemaAST.getConstructorDescriptor(node)
+      const descriptor = SchemaAST.getConstructorDescriptor(node);
       if (descriptor !== undefined) {
-        visit(descriptor.link.to, `${helper("getConstructorDescriptor")}(${name}).link.to`, operation)
+        visit(
+          descriptor.link.to,
+          `${helper("getConstructorDescriptor")}(${name}).link.to`,
+          operation,
+        );
       }
     }
-  }
+  };
 
   function visit(node: SchemaAST.AST, reference: string, operation: PlannedOperation): void {
-    let plan = seen.get(node)
+    let plan = seen.get(node);
     if (plan === undefined) {
-      const index = seen.size
+      const index = seen.size;
       plan = {
         index,
         name: `a${index}`,
@@ -183,60 +203,60 @@ export const compile = (targets: ReadonlyArray<Target>): string => {
         requested: new Set(),
         sources: new Map(),
         attempted: new Set(),
-        compilable: Codegen.shouldCompileParser(node)
-      }
-      seen.set(node, plan)
+        compilable: Codegen.shouldCompileParser(node),
+      };
+      seen.set(node, plan);
     }
-    if (plan.requested.has(operation)) return
-    plan.requested.add(operation)
+    if (plan.requested.has(operation)) return;
+    plan.requested.add(operation);
 
     switch (operation) {
       case "decode":
-        addSource(node, plan, "decode")
-        visit(node, reference, "decodeEffect")
-        break
+        addSource(node, plan, "decode");
+        visit(node, reference, "decodeEffect");
+        break;
       case "decodeEffect":
-        addSource(node, plan, "decodeEffect")
-        visitDependencies(node, plan.name, operation)
-        break
+        addSource(node, plan, "decodeEffect");
+        visitDependencies(node, plan.name, operation);
+        break;
       case "is":
-        if (!addSource(node, plan, "is")) visit(node, reference, "decode")
-        break
+        if (!addSource(node, plan, "is")) visit(node, reference, "decode");
+        break;
       case "make":
-        addSource(node, plan, "make")
-        addSource(node, plan, "makeEffect")
-        visitDependencies(node, plan.name, operation)
-        break
+        addSource(node, plan, "make");
+        addSource(node, plan, "makeEffect");
+        visitDependencies(node, plan.name, operation);
+        break;
     }
   }
 
   targets.forEach((target, index) => {
     for (const operation of operationOrder) {
-      if (target.operations.includes(operation)) visit(target.ast, `asts[${index}]`, operation)
+      if (target.operations.includes(operation)) visit(target.ast, `asts[${index}]`, operation);
     }
-  })
+  });
   for (const plan of seen.values()) {
-    bindings.push(`const ${plan.name}=${plan.reference};`)
-    const source = compiler(plan.sources)
+    bindings.push(`const ${plan.name}=${plan.reference};`);
+    const source = compiler(plan.sources);
     if (source !== undefined) {
-      let factory = factoryNames.get(source)
+      let factory = factoryNames.get(source);
       if (factory === undefined) {
-        factory = `d${factoryNames.size}`
-        factoryNames.set(source, factory)
-        factories.push(`function ${factory}(ast,resolve,operation){const R=runtime;${source}}`)
+        factory = `d${factoryNames.size}`;
+        factoryNames.set(source, factory);
+        factories.push(`function ${factory}(ast,resolve,operation){const R=runtime;${source}}`);
       }
-      installations.push(`${helper("setCompiler")}(${plan.name},${factory});`)
+      installations.push(`${helper("setCompiler")}(${plan.name},${factory});`);
     }
   }
   return [
     "// Generated by SchemaAOTCompiler. Regenerate after schema or Effect changes.",
-    "import { runtime } from \"effect/unstable/schema/SchemaCompiler/runtime\";",
+    'import { runtime } from "effect/unstable/schema/SchemaCompiler/runtime";',
     ...factories,
-    "/** @param {ReadonlyArray<import(\"effect/SchemaAST\").AST>} asts */",
+    '/** @param {ReadonlyArray<import("effect/SchemaAST").AST>} asts */',
     "export function install(asts){",
     ...bindings,
     ...installations,
     "}",
-    ""
-  ].join("\n")
-}
+    "",
+  ].join("\n");
+};

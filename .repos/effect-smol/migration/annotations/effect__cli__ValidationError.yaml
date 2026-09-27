@@ -17,7 +17,7 @@
   replacement: "CliError.ShowHelp"
   note: "Renamed and redesigned as ShowHelp."
 "@effect/cli/ValidationError#invalidArgument":
-  replacement: "new CliError.InvalidValue({ option, value, expected, kind: \"argument\" })"
+  replacement: 'new CliError.InvalidValue({ option, value, expected, kind: "argument" })'
   note: "Use InvalidValue for undecodable arguments and UnexpectedArgument for leftover operands."
 "@effect/cli/ValidationError#InvalidArgument":
   replacement: "CliError.InvalidValue | CliError.UnexpectedArgument"
@@ -32,25 +32,25 @@
   replacement: "none"
   note: "The root-command mismatch error was removed."
 "@effect/cli/ValidationError#isCorrectedFlag":
-  replacement: "error._tag === \"UnrecognizedOption\" && error.suggestions.length > 0"
+  replacement: 'error._tag === "UnrecognizedOption" && error.suggestions.length > 0'
   note: "Check the v4 tag and suggestions array."
 "@effect/cli/ValidationError#isHelpRequested":
-  replacement: "error._tag === \"ShowHelp\""
+  replacement: 'error._tag === "ShowHelp"'
   note: "Narrow the CliError union by its tag."
 "@effect/cli/ValidationError#isInvalidArgument":
-  replacement: "(error._tag === \"InvalidValue\" && error.kind === \"argument\") || error._tag === \"UnexpectedArgument\""
+  replacement: '(error._tag === "InvalidValue" && error.kind === "argument") || error._tag === "UnexpectedArgument"'
   note: "Check both v4 argument error forms."
 "@effect/cli/ValidationError#isInvalidValue":
-  replacement: "error._tag === \"InvalidValue\""
+  replacement: 'error._tag === "InvalidValue"'
   note: "Narrow the CliError union by its tag."
 "@effect/cli/ValidationError#isMissingFlag":
-  replacement: "error._tag === \"MissingOption\""
+  replacement: 'error._tag === "MissingOption"'
   note: "MissingFlag was renamed to MissingOption."
 "@effect/cli/ValidationError#isMissingSubcommand":
   replacement: "none"
   note: "Missing subcommands now cause ShowHelp rather than a dedicated error."
 "@effect/cli/ValidationError#isMissingValue":
-  replacement: "error._tag === \"InvalidValue\" && error.value === \"\""
+  replacement: 'error._tag === "InvalidValue" && error.value === ""'
   note: "Missing values are represented as InvalidValue with an empty value."
 "@effect/cli/ValidationError#isMultipleValuesDetected":
   replacement: "none"
@@ -65,7 +65,7 @@
   replacement: "CliError.isCliError"
   note: "Use the renamed union guard."
 "@effect/cli/ValidationError#keyValuesDetected":
-  replacement: "new CliError.InvalidValue({ option, value, expected, kind: \"flag\" })"
+  replacement: 'new CliError.InvalidValue({ option, value, expected, kind: "flag" })'
   note: "Represent count violations with structured InvalidValue fields."
 "@effect/cli/ValidationError#missingFlag":
   replacement: "new CliError.MissingOption({ option })"
@@ -80,7 +80,7 @@
   replacement: "none"
   note: "The dedicated missing-subcommand error was removed."
 "@effect/cli/ValidationError#missingValue":
-  replacement: "new CliError.InvalidValue({ option, value: \"\", expected, kind })"
+  replacement: 'new CliError.InvalidValue({ option, value: "", expected, kind })'
   note: "Missing values are represented as InvalidValue with an empty value."
 "@effect/cli/ValidationError#MissingValue":
   replacement: "CliError.InvalidValue"

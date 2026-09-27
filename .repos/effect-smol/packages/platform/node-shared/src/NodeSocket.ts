@@ -8,30 +8,30 @@
  *
  * @since 4.0.0
  */
-import * as Arr from "effect/Array"
-import * as Channel from "effect/Channel"
-import * as Context from "effect/Context"
-import type * as Duration from "effect/Duration"
-import * as Effect from "effect/Effect"
-import * as Function from "effect/Function"
-import { identity } from "effect/Function"
-import * as Latch from "effect/Latch"
-import * as Layer from "effect/Layer"
-import * as Redacted from "effect/Redacted"
-import * as Scope from "effect/Scope"
-import * as Socket from "effect/unstable/socket/Socket"
-import { Buffer } from "node:buffer"
-import * as Net from "node:net"
-import type { Duplex } from "node:stream"
-import * as Tls from "node:tls"
+import * as Arr from "effect/Array";
+import * as Channel from "effect/Channel";
+import * as Context from "effect/Context";
+import type * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Function from "effect/Function";
+import { identity } from "effect/Function";
+import * as Latch from "effect/Latch";
+import * as Layer from "effect/Layer";
+import * as Redacted from "effect/Redacted";
+import * as Scope from "effect/Scope";
+import * as Socket from "effect/unstable/socket/Socket";
+import { Buffer } from "node:buffer";
+import * as Net from "node:net";
+import type { Duplex } from "node:stream";
+import * as Tls from "node:tls";
 
-const isDeno = "Deno" in globalThis
+const isDeno = "Deno" in globalThis;
 
 /**
  * @category re-exports
  * @since 4.0.0
  */
-export * as NodeWS from "ws"
+export * as NodeWS from "ws";
 
 /**
  * Service tag for the underlying Node `net.Socket` associated with the current
@@ -41,35 +41,34 @@ export * as NodeWS from "ws"
  * @since 4.0.0
  */
 export class NetSocket extends Context.Service<NetSocket, Net.Socket>()(
-  "@effect/platform-node/NodeSocket/NetSocket"
+  "@effect/platform-node/NodeSocket/NetSocket",
 ) {}
 
-const readAvailable = (
-  conn: Duplex
-): Arr.NonEmptyReadonlyArray<Uint8Array | string> | null => {
-  const first = conn.read() as Uint8Array | string | null
-  if (first === null) return null
-  const second = conn.read() as Uint8Array | string | null
-  if (second === null) return [first]
-  const out: [Uint8Array | string, ...Array<Uint8Array | string>] = [first, second]
-  let chunk: Uint8Array | string | null
+const readAvailable = (conn: Duplex): Arr.NonEmptyReadonlyArray<Uint8Array | string> | null => {
+  const first = conn.read() as Uint8Array | string | null;
+  if (first === null) return null;
+  const second = conn.read() as Uint8Array | string | null;
+  if (second === null) return [first];
+  const out: [Uint8Array | string, ...Array<Uint8Array | string>] = [first, second];
+  let chunk: Uint8Array | string | null;
   while ((chunk = conn.read() as Uint8Array | string | null) !== null) {
-    out.push(chunk)
+    out.push(chunk);
   }
-  return out
-}
+  return out;
+};
 
-const toBuffers = (input: string | Uint8Array | ReadonlyArray<string | Uint8Array>): Array<Buffer> =>
-  Arr.map(Arr.ensure(input), (value) => Buffer.from(value))
+const toBuffers = (
+  input: string | Uint8Array | ReadonlyArray<string | Uint8Array>,
+): Array<Buffer> => Arr.map(Arr.ensure(input), (value) => Buffer.from(value));
 
 const closeSocket = (conn: Net.Socket, isOpen: boolean) => {
-  if (conn.closed !== false) return
+  if (conn.closed !== false) return;
   if (!isOpen || !("destroySoon" in conn)) {
-    conn.destroy()
+    conn.destroy();
   } else {
-    conn.destroySoon()
+    conn.destroySoon();
   }
-}
+};
 
 /**
  * Opens a Node TCP connection as an Effect socket.
@@ -89,40 +88,42 @@ const closeSocket = (conn: Net.Socket, isOpen: boolean) => {
  */
 export const makeNet = (
   options: Net.NetConnectOpts & {
-    readonly openTimeout?: Duration.Input | undefined
-  }
+    readonly openTimeout?: Duration.Input | undefined;
+  },
 ): Effect.Effect<Socket.Socket> =>
   fromDuplex(
     Effect.contextWith((context: Context.Context<Scope.Scope>) => {
-      let conn: Net.Socket | undefined
-      let isOpen = false
+      let conn: Net.Socket | undefined;
+      let isOpen = false;
       return Effect.flatMap(
         Scope.addFinalizer(
           Context.get(context, Scope.Scope),
           Effect.sync(() => {
-            if (!conn) return
-            closeSocket(conn, isOpen)
-          })
+            if (!conn) return;
+            closeSocket(conn, isOpen);
+          }),
         ),
         () =>
           Effect.callback<Net.Socket, Socket.SocketError, never>((resume) => {
-            conn = Net.createConnection(options)
+            conn = Net.createConnection(options);
             conn.once("connect", () => {
-              isOpen = true
-              resume(Effect.succeed(conn!))
-            })
+              isOpen = true;
+              resume(Effect.succeed(conn!));
+            });
             conn.on("error", (cause: Error) => {
-              resume(Effect.fail(
-                new Socket.SocketError({
-                  reason: new Socket.SocketOpenError({ kind: "Unknown", cause })
-                })
-              ))
-            })
-          })
-      )
+              resume(
+                Effect.fail(
+                  new Socket.SocketError({
+                    reason: new Socket.SocketOpenError({ kind: "Unknown", cause }),
+                  }),
+                ),
+              );
+            });
+          }),
+      );
     }),
-    options
-  )
+    options,
+  );
 
 /**
  * Adapts a Node `Duplex` into a `Socket.Socket`.
@@ -147,123 +148,128 @@ export const makeNet = (
 export const fromDuplex = <RO>(
   open: Effect.Effect<Duplex, Socket.SocketError, RO>,
   options?: {
-    readonly openTimeout?: Duration.Input | undefined
-    readonly tlsServer?: boolean | undefined
-  }
+    readonly openTimeout?: Duration.Input | undefined;
+    readonly tlsServer?: boolean | undefined;
+  },
 ): Effect.Effect<Socket.Socket, never, Exclude<RO, Scope.Scope>> =>
   Effect.withFiber<Socket.Socket, never, Exclude<RO, Scope.Scope>>((fiber) => {
-    let currentSocket: Duplex | undefined
-    const latch = Latch.makeUnsafe(false)
-    const openServices = fiber.context as Context.Context<RO>
-    const isServer = options?.tlsServer === true
-    const secureEvent = isServer ? "secure" : "secureConnect"
+    let currentSocket: Duplex | undefined;
+    const latch = Latch.makeUnsafe(false);
+    const openServices = fiber.context as Context.Context<RO>;
+    const isServer = options?.tlsServer === true;
+    const secureEvent = isServer ? "secure" : "secureConnect";
 
-    const reader: Socket.Socket["reader"] = Effect.gen(function*() {
-      const scope = yield* Effect.scope
+    const reader: Socket.Socket["reader"] = Effect.gen(function* () {
+      const scope = yield* Effect.scope;
       let conn = yield* Scope.provide(open, scope).pipe(
-        options?.openTimeout !== undefined ?
-          Effect.timeoutOrElse({
-            duration: options.openTimeout,
-            orElse: () =>
-              Effect.fail(
-                new Socket.SocketError({
-                  reason: new Socket.SocketOpenError({ kind: "Timeout", cause: new Error("Connection timed out") })
-                })
-              )
-          }) :
-          identity
-      )
+        options?.openTimeout !== undefined
+          ? Effect.timeoutOrElse({
+              duration: options.openTimeout,
+              orElse: () =>
+                Effect.fail(
+                  new Socket.SocketError({
+                    reason: new Socket.SocketOpenError({
+                      kind: "Timeout",
+                      cause: new Error("Connection timed out"),
+                    }),
+                  }),
+                ),
+            })
+          : identity,
+      );
 
       type ReadResume = (
-        effect: Effect.Effect<Arr.NonEmptyReadonlyArray<Uint8Array | string>, Socket.SocketError>
-      ) => void
+        effect: Effect.Effect<Arr.NonEmptyReadonlyArray<Uint8Array | string>, Socket.SocketError>,
+      ) => void;
 
-      let error: Socket.SocketError | undefined
-      let waiter: ReadResume | undefined
-      let upgradeAvailable = true
+      let error: Socket.SocketError | undefined;
+      let waiter: ReadResume | undefined;
+      let upgradeAvailable = true;
 
       function fail(err: Socket.SocketError) {
-        if (error === undefined) error = err
+        if (error === undefined) error = err;
         if (waiter !== undefined) {
-          const resume = waiter
-          waiter = undefined
-          resume(Effect.fail(error!))
+          const resume = waiter;
+          waiter = undefined;
+          resume(Effect.fail(error!));
         }
       }
       function onReadable() {
-        if (waiter === undefined) return
-        const chunk = readAvailable(conn)
-        if (chunk === null) return
-        const resume = waiter
-        waiter = undefined
-        resume(Effect.succeed(chunk))
+        if (waiter === undefined) return;
+        const chunk = readAvailable(conn);
+        if (chunk === null) return;
+        const resume = waiter;
+        waiter = undefined;
+        resume(Effect.succeed(chunk));
       }
       function onEnd() {
-        fail(new Socket.SocketError({ reason: new Socket.SocketCloseError({ code: 1000 }) }))
+        fail(new Socket.SocketError({ reason: new Socket.SocketCloseError({ code: 1000 }) }));
       }
       function onError(cause: Error) {
         fail(
           new Socket.SocketError({
-            reason: new Socket.SocketReadError({ cause })
-          })
-        )
+            reason: new Socket.SocketReadError({ cause }),
+          }),
+        );
       }
       function onClose(hadError: boolean) {
         fail(
           new Socket.SocketError({
-            reason: new Socket.SocketCloseError({ code: hadError ? 1006 : 1000 })
-          })
-        )
+            reason: new Socket.SocketCloseError({ code: hadError ? 1006 : 1000 }),
+          }),
+        );
       }
 
       function attachReadListeners(conn: Duplex) {
-        conn.on("readable", onReadable)
-        conn.on("end", onEnd)
-        conn.on("error", onError)
-        conn.on("close", onClose)
+        conn.on("readable", onReadable);
+        conn.on("end", onEnd);
+        conn.on("error", onError);
+        conn.on("close", onClose);
       }
 
       function detachReadListeners(conn: Duplex) {
-        conn.off("readable", onReadable)
-        conn.off("end", onEnd)
-        conn.off("error", onError)
-        conn.off("close", onClose)
+        conn.off("readable", onReadable);
+        conn.off("end", onEnd);
+        conn.off("error", onError);
+        conn.off("close", onClose);
       }
 
       // Deno's node:net compatibility layer stops emitting `readable` after
       // an explicit pause. The stream is already non-flowing without one.
-      if (!isDeno) conn.pause()
-      attachReadListeners(conn)
+      if (!isDeno) conn.pause();
+      attachReadListeners(conn);
       yield* Scope.addFinalizer(
         scope,
         Effect.sync(() => {
           // resume a pull blocked in another fiber before detaching
           fail(
             new Socket.SocketError({
-              reason: new Socket.SocketCloseError({ code: 1006 })
-            })
-          )
-          detachReadListeners(conn)
-          latch.closeUnsafe()
-          currentSocket = undefined
-          upgradeAvailable = false
-        })
-      )
+              reason: new Socket.SocketCloseError({ code: 1006 }),
+            }),
+          );
+          detachReadListeners(conn);
+          latch.closeUnsafe();
+          currentSocket = undefined;
+          upgradeAvailable = false;
+        }),
+      );
 
-      currentSocket = conn
-      latch.openUnsafe()
+      currentSocket = conn;
+      latch.openUnsafe();
 
       const pull = Effect.suspend(() => {
-        const chunk = readAvailable(conn)
-        if (chunk !== null) return Effect.succeed(chunk)
-        if (error !== undefined) return Effect.fail(error)
-        return Effect.callback<Arr.NonEmptyReadonlyArray<Uint8Array | string>, Socket.SocketError>((resume) => {
-          waiter = resume
-          return Effect.sync(() => {
-            if (waiter === resume) waiter = undefined
-          })
-        })
-      })
+        const chunk = readAvailable(conn);
+        if (chunk !== null) return Effect.succeed(chunk);
+        if (error !== undefined) return Effect.fail(error);
+        return Effect.callback<Arr.NonEmptyReadonlyArray<Uint8Array | string>, Socket.SocketError>(
+          (resume) => {
+            waiter = resume;
+            return Effect.sync(() => {
+              if (waiter === resume) waiter = undefined;
+            });
+          },
+        );
+      });
 
       const upgrade: Socket.Reader["upgrade"] = (upgradeOptions = {}) =>
         Effect.suspend(() => {
@@ -271,13 +277,13 @@ export const fromDuplex = <RO>(
             return Effect.fail(
               new Socket.SocketError({
                 reason: new Socket.SocketUpgradeError({
-                  cause: new Error("socket is already upgraded or closed")
-                })
-              })
-            )
+                  cause: new Error("socket is already upgraded or closed"),
+                }),
+              }),
+            );
           }
-          const hasKey = upgradeOptions.key !== undefined
-          const hasCert = upgradeOptions.cert !== undefined
+          const hasKey = upgradeOptions.key !== undefined;
+          const hasCert = upgradeOptions.cert !== undefined;
           if ((isServer && (!hasKey || !hasCert)) || hasKey !== hasCert) {
             return Effect.fail(
               new Socket.SocketError({
@@ -285,195 +291,206 @@ export const fromDuplex = <RO>(
                   cause: new Error(
                     isServer
                       ? "server TLS upgrade requires both key and cert"
-                      : "TLS upgrade credentials must include both key and cert"
-                  )
-                })
-              })
-            )
+                      : "TLS upgrade credentials must include both key and cert",
+                  ),
+                }),
+              }),
+            );
           }
           return Effect.callback<void, Socket.SocketError>((resume) => {
-            const raw = conn
-            detachReadListeners(raw)
+            const raw = conn;
+            detachReadListeners(raw);
 
-            let tls: Tls.TLSSocket
+            let tls: Tls.TLSSocket;
             try {
               const secureContext = Tls.createSecureContext({
-                key: upgradeOptions.key === undefined
-                  ? undefined
-                  : Arr.map(
-                    Arr.ensure(upgradeOptions.key),
-                    (value) => Buffer.from(Redacted.value(value))
-                  ),
-                cert: upgradeOptions.cert === undefined ? undefined : toBuffers(upgradeOptions.cert),
+                key:
+                  upgradeOptions.key === undefined
+                    ? undefined
+                    : Arr.map(Arr.ensure(upgradeOptions.key), (value) =>
+                        Buffer.from(Redacted.value(value)),
+                      ),
+                cert:
+                  upgradeOptions.cert === undefined ? undefined : toBuffers(upgradeOptions.cert),
                 ca: upgradeOptions.ca === undefined ? undefined : toBuffers(upgradeOptions.ca),
-                passphrase: upgradeOptions.passphrase === undefined
-                  ? undefined
-                  : Redacted.value(upgradeOptions.passphrase)
-              })
+                passphrase:
+                  upgradeOptions.passphrase === undefined
+                    ? undefined
+                    : Redacted.value(upgradeOptions.passphrase),
+              });
               const tlsOptions = {
                 secureContext,
-                ALPNProtocols: upgradeOptions.alpnProtocols === undefined
-                  ? undefined
-                  : [...upgradeOptions.alpnProtocols],
+                ALPNProtocols:
+                  upgradeOptions.alpnProtocols === undefined
+                    ? undefined
+                    : [...upgradeOptions.alpnProtocols],
                 requestCert: upgradeOptions.requestCert,
-                rejectUnauthorized: upgradeOptions.rejectUnauthorized
-              }
+                rejectUnauthorized: upgradeOptions.rejectUnauthorized,
+              };
               tls = isServer
                 ? new Tls.TLSSocket(raw as Net.Socket, { ...tlsOptions, isServer: true })
-                : Tls.connect({ ...tlsOptions, socket: raw as Net.Socket })
+                : Tls.connect({ ...tlsOptions, socket: raw as Net.Socket });
             } catch (cause) {
-              attachReadListeners(raw)
-              resume(Effect.fail(
-                new Socket.SocketError({
-                  reason: new Socket.SocketUpgradeError({ cause })
-                })
-              ))
-              return
+              attachReadListeners(raw);
+              resume(
+                Effect.fail(
+                  new Socket.SocketError({
+                    reason: new Socket.SocketUpgradeError({ cause }),
+                  }),
+                ),
+              );
+              return;
             }
 
-            conn = tls
-            currentSocket = tls
-            tls.pause()
+            conn = tls;
+            currentSocket = tls;
+            tls.pause();
 
             function cleanup() {
-              tls.off(secureEvent, succeed)
-              tls.off("error", failUpgrade)
-              tls.off("close", onUpgradeClose)
+              tls.off(secureEvent, succeed);
+              tls.off("error", failUpgrade);
+              tls.off("close", onUpgradeClose);
             }
             function succeed() {
-              cleanup()
-              upgradeAvailable = false
-              attachReadListeners(tls)
-              resume(Effect.void)
+              cleanup();
+              upgradeAvailable = false;
+              attachReadListeners(tls);
+              resume(Effect.void);
             }
             function failUpgrade(cause: unknown) {
-              cleanup()
+              cleanup();
               const upgradeError = new Socket.SocketError({
-                reason: new Socket.SocketUpgradeError({ cause })
-              })
-              fail(upgradeError)
-              resume(Effect.fail(upgradeError))
+                reason: new Socket.SocketUpgradeError({ cause }),
+              });
+              fail(upgradeError);
+              resume(Effect.fail(upgradeError));
             }
             function onUpgradeClose() {
-              failUpgrade(new Error("socket closed during TLS upgrade"))
+              failUpgrade(new Error("socket closed during TLS upgrade"));
             }
 
-            tls.once(secureEvent, succeed)
-            tls.once("error", failUpgrade)
-            tls.once("close", onUpgradeClose)
+            tls.once(secureEvent, succeed);
+            tls.once("error", failUpgrade);
+            tls.once("close", onUpgradeClose);
 
             return Effect.sync(() => {
-              cleanup()
+              cleanup();
               fail(
                 new Socket.SocketError({
-                  reason: new Socket.SocketCloseError({ code: 1006 })
-                })
-              )
-              tls.destroy()
-            })
-          })
-        })
+                  reason: new Socket.SocketCloseError({ code: 1006 }),
+                }),
+              );
+              tls.destroy();
+            });
+          });
+        });
 
-      return { pull, upgrade }
+      return { pull, upgrade };
     }).pipe(
-      Effect.updateContext((input: Context.Context<Scope.Scope>) => Context.merge(openServices, input))
-    ) as Socket.Socket["reader"]
+      Effect.updateContext((input: Context.Context<Scope.Scope>) =>
+        Context.merge(openServices, input),
+      ),
+    ) as Socket.Socket["reader"];
 
     const awaitDrain = (conn: Duplex) =>
       Effect.callback<void, Socket.SocketError>((resume) => {
         function cleanup() {
-          conn.off("drain", onDrain)
-          conn.off("error", onError)
-          conn.off("close", onClose)
+          conn.off("drain", onDrain);
+          conn.off("error", onError);
+          conn.off("close", onClose);
         }
         function onDrain() {
-          cleanup()
-          resume(Effect.void)
+          cleanup();
+          resume(Effect.void);
         }
         function onError(cause: Error) {
-          cleanup()
-          resume(Effect.fail(
-            new Socket.SocketError({
-              reason: new Socket.SocketWriteError({ cause })
-            })
-          ))
+          cleanup();
+          resume(
+            Effect.fail(
+              new Socket.SocketError({
+                reason: new Socket.SocketWriteError({ cause }),
+              }),
+            ),
+          );
         }
         function onClose() {
-          cleanup()
-          resume(Effect.fail(
-            new Socket.SocketError({
-              reason: new Socket.SocketWriteError({ cause: new Error("socket closed") })
-            })
-          ))
+          cleanup();
+          resume(
+            Effect.fail(
+              new Socket.SocketError({
+                reason: new Socket.SocketWriteError({ cause: new Error("socket closed") }),
+              }),
+            ),
+          );
         }
-        conn.on("drain", onDrain)
-        conn.on("error", onError)
-        conn.on("close", onClose)
-        return Effect.sync(cleanup)
-      })
+        conn.on("drain", onDrain);
+        conn.on("error", onError);
+        conn.on("close", onClose);
+        return Effect.sync(cleanup);
+      });
 
     const write = (
-      chunk: Uint8Array | string | Socket.CloseEvent
+      chunk: Uint8Array | string | Socket.CloseEvent,
     ): Effect.Effect<void, Socket.SocketError> =>
       Effect.suspend(() => {
-        const conn = currentSocket
-        if (conn === undefined) return latch.whenOpen(write(chunk))
+        const conn = currentSocket;
+        if (conn === undefined) return latch.whenOpen(write(chunk));
         if (Socket.isCloseEvent(chunk)) {
-          conn.destroy(chunk.code > 1000 ? new Error(`closed with code ${chunk.code}`) : undefined)
-          return Effect.void
+          conn.destroy(chunk.code > 1000 ? new Error(`closed with code ${chunk.code}`) : undefined);
+          return Effect.void;
         }
         try {
-          return conn.write(chunk) ? Effect.void : awaitDrain(conn)
+          return conn.write(chunk) ? Effect.void : awaitDrain(conn);
         } catch (cause) {
           return Effect.fail(
             new Socket.SocketError({
-              reason: new Socket.SocketWriteError({ cause })
-            })
-          )
+              reason: new Socket.SocketWriteError({ cause }),
+            }),
+          );
         }
-      })
+      });
 
     const writeAll = (
-      chunks: Arr.NonEmptyReadonlyArray<Uint8Array | string>
+      chunks: Arr.NonEmptyReadonlyArray<Uint8Array | string>,
     ): Effect.Effect<void, Socket.SocketError> =>
       Effect.suspend(() => {
-        const conn = currentSocket
-        if (conn === undefined) return latch.whenOpen(writeAll(chunks))
-        let needsDrain = false
+        const conn = currentSocket;
+        if (conn === undefined) return latch.whenOpen(writeAll(chunks));
+        let needsDrain = false;
         try {
           if (chunks.length === 1) {
-            needsDrain = !conn.write(chunks[0])
+            needsDrain = !conn.write(chunks[0]);
           } else {
-            conn.cork()
+            conn.cork();
             try {
               for (let i = 0; i < chunks.length; i++) {
-                needsDrain = !conn.write(chunks[i]) || needsDrain
+                needsDrain = !conn.write(chunks[i]) || needsDrain;
               }
             } finally {
-              conn.uncork()
+              conn.uncork();
             }
           }
         } catch (cause) {
           return Effect.fail(
             new Socket.SocketError({
-              reason: new Socket.SocketWriteError({ cause })
-            })
-          )
+              reason: new Socket.SocketWriteError({ cause }),
+            }),
+          );
         }
-        return needsDrain ? awaitDrain(conn) : Effect.void
-      })
+        return needsDrain ? awaitDrain(conn) : Effect.void;
+      });
 
     const writer: Socket.Socket["writer"] = Effect.acquireRelease(
       Effect.succeed({ write, writeAll }),
       () =>
         Effect.sync(() => {
-          if (!currentSocket || currentSocket.writableEnded) return
-          currentSocket.end()
-        })
-    )
+          if (!currentSocket || currentSocket.writableEnded) return;
+          currentSocket.end();
+        }),
+    );
 
-    return Effect.succeed(Socket.make({ reader, writer }))
-  })
+    return Effect.succeed(Socket.make({ reader, writer }));
+  });
 
 /**
  * Creates a `Channel` over a TCP socket, reading arrays of `Uint8Array`
@@ -483,17 +500,14 @@ export const fromDuplex = <RO>(
  * @since 4.0.0
  */
 export const makeNetChannel = <IE = never>(
-  options: Net.NetConnectOpts
+  options: Net.NetConnectOpts,
 ): Channel.Channel<
   Arr.NonEmptyReadonlyArray<Uint8Array>,
   Socket.SocketError | IE,
   void,
   Arr.NonEmptyReadonlyArray<Uint8Array | string | Socket.CloseEvent>,
   IE
-> =>
-  Channel.unwrap(
-    Effect.map(makeNet(options), Socket.toChannelWith<IE>())
-  )
+> => Channel.unwrap(Effect.map(makeNet(options), Socket.toChannelWith<IE>()));
 
 /**
  * Provides a `Socket.Socket` by opening a TCP connection with the supplied
@@ -502,10 +516,12 @@ export const makeNetChannel = <IE = never>(
  * @category layers
  * @since 4.0.0
  */
-export const layerNet: (options: Net.NetConnectOpts) => Layer.Layer<
-  Socket.Socket,
-  Socket.SocketError
-> = Function.flow(makeNet, Layer.effect(Socket.Socket))
+export const layerNet: (
+  options: Net.NetConnectOpts,
+) => Layer.Layer<Socket.Socket, Socket.SocketError> = Function.flow(
+  makeNet,
+  Layer.effect(Socket.Socket),
+);
 
 /**
  * Opens a Node TLS connection as an Effect socket.
@@ -528,40 +544,42 @@ export const layerNet: (options: Net.NetConnectOpts) => Layer.Layer<
  */
 export const makeTls = (
   options: Tls.ConnectionOptions & {
-    readonly openTimeout?: Duration.Input | undefined
-  }
+    readonly openTimeout?: Duration.Input | undefined;
+  },
 ): Effect.Effect<Socket.Socket> =>
   fromDuplex(
     Effect.contextWith((context: Context.Context<Scope.Scope>) => {
-      let conn: Tls.TLSSocket | undefined
-      let isOpen = false
+      let conn: Tls.TLSSocket | undefined;
+      let isOpen = false;
       return Effect.flatMap(
         Scope.addFinalizer(
           Context.get(context, Scope.Scope),
           Effect.sync(() => {
-            if (!conn) return
-            closeSocket(conn, isOpen)
-          })
+            if (!conn) return;
+            closeSocket(conn, isOpen);
+          }),
         ),
         () =>
           Effect.callback<Tls.TLSSocket, Socket.SocketError, never>((resume) => {
-            conn = Tls.connect(options)
+            conn = Tls.connect(options);
             conn.once("secureConnect", () => {
-              isOpen = true
-              resume(Effect.succeed(conn!))
-            })
+              isOpen = true;
+              resume(Effect.succeed(conn!));
+            });
             conn.on("error", (cause: Error) => {
-              resume(Effect.fail(
-                new Socket.SocketError({
-                  reason: new Socket.SocketOpenError({ kind: "Unknown", cause })
-                })
-              ))
-            })
-          })
-      )
+              resume(
+                Effect.fail(
+                  new Socket.SocketError({
+                    reason: new Socket.SocketOpenError({ kind: "Unknown", cause }),
+                  }),
+                ),
+              );
+            });
+          }),
+      );
     }),
-    options
-  )
+    options,
+  );
 
 /**
  * Creates a `Channel` over a TLS socket, reading arrays of `Uint8Array`
@@ -571,17 +589,14 @@ export const makeTls = (
  * @since 4.0.0
  */
 export const makeTlsChannel = <IE = never>(
-  options: Tls.ConnectionOptions
+  options: Tls.ConnectionOptions,
 ): Channel.Channel<
   Arr.NonEmptyReadonlyArray<Uint8Array>,
   Socket.SocketError | IE,
   void,
   Arr.NonEmptyReadonlyArray<Uint8Array | string | Socket.CloseEvent>,
   IE
-> =>
-  Channel.unwrap(
-    Effect.map(makeTls(options), Socket.toChannelWith<IE>())
-  )
+> => Channel.unwrap(Effect.map(makeTls(options), Socket.toChannelWith<IE>()));
 
 /**
  * Provides a `Socket.Socket` by opening a TLS connection with the supplied
@@ -590,7 +605,9 @@ export const makeTlsChannel = <IE = never>(
  * @category layers
  * @since 4.0.0
  */
-export const layerTls: (options: Tls.ConnectionOptions) => Layer.Layer<
-  Socket.Socket,
-  Socket.SocketError
-> = Function.flow(makeTls, Layer.effect(Socket.Socket))
+export const layerTls: (
+  options: Tls.ConnectionOptions,
+) => Layer.Layer<Socket.Socket, Socket.SocketError> = Function.flow(
+  makeTls,
+  Layer.effect(Socket.Socket),
+);

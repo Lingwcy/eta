@@ -1,141 +1,146 @@
-import * as Context from "effect/Context"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as Ref from "effect/Ref"
-import { CurrentLogLevel } from "effect/References"
-import * as Schema from "effect/Schema"
-import type * as McpProtocol from "effect/unstable/ai/McpProtocol"
-import * as McpSchema from "effect/unstable/ai/McpSchema"
-import * as McpServer from "effect/unstable/ai/McpServer"
-import * as Tool from "effect/unstable/ai/Tool"
-import * as Toolkit from "effect/unstable/ai/Toolkit"
-import { makeServerLayer } from "../TestUtils/McpServerLayer.ts"
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Ref from "effect/Ref";
+import { CurrentLogLevel } from "effect/References";
+import * as Schema from "effect/Schema";
+import type * as McpProtocol from "effect/unstable/ai/McpProtocol";
+import * as McpSchema from "effect/unstable/ai/McpSchema";
+import * as McpServer from "effect/unstable/ai/McpServer";
+import * as Tool from "effect/unstable/ai/Tool";
+import * as Toolkit from "effect/unstable/ai/Toolkit";
+import { makeServerLayer } from "../TestUtils/McpServerLayer.ts";
 
 export interface Observations {
-  readonly toolInvocations: number
-  readonly promptInvocations: number
-  readonly resourceTemplateInvocations: number
+  readonly toolInvocations: number;
+  readonly promptInvocations: number;
+  readonly resourceTemplateInvocations: number;
 }
 
-export const MrtrToolName = "MrtrTool"
-export const MrtrStateOnlyToolName = "MrtrStateOnlyTool"
-export const MrtrInvalidStateToolName = "MrtrInvalidStateTool"
-export const MrtrPromptName = "MrtrPrompt"
-export const MrtrSamplingToolsToolName = "MrtrSamplingToolsTool"
-export const MrtrSamplingToolChoiceToolName = "MrtrSamplingToolChoiceTool"
-export const mrtrRequestState = "opaque:+/=\u0000é"
+export const MrtrToolName = "MrtrTool";
+export const MrtrStateOnlyToolName = "MrtrStateOnlyTool";
+export const MrtrInvalidStateToolName = "MrtrInvalidStateTool";
+export const MrtrPromptName = "MrtrPrompt";
+export const MrtrSamplingToolsToolName = "MrtrSamplingToolsTool";
+export const MrtrSamplingToolChoiceToolName = "MrtrSamplingToolChoiceTool";
+export const mrtrRequestState = "opaque:+/=\u0000é";
 
 const TestTool = Tool.make("TestTool", {
   description: "A test tool",
   parameters: Schema.Struct({
-    value: Schema.String
+    value: Schema.String,
   }),
-  success: Schema.String
-})
+  success: Schema.String,
+});
 
 const makeStructuredTool = (protocolVersion: string) =>
   Tool.make("StructuredTool", {
     parameters: Tool.EmptyParams,
     success: Schema.Struct({
-      value: Schema.String
-    })
-  }).annotate(
-    McpSchema.EnabledWhen,
-    (client) => client.protocolVersion === protocolVersion
-  )
+      value: Schema.String,
+    }),
+  }).annotate(McpSchema.EnabledWhen, (client) => client.protocolVersion === protocolVersion);
 
 const LogLevelTool = Tool.make("LogLevelTool", {
   parameters: Tool.EmptyParams,
   success: Schema.String,
-  dependencies: [CurrentLogLevel]
-})
+  dependencies: [CurrentLogLevel],
+});
 
 const RequestMetadataTool = Tool.make("RequestMetadataTool", {
   parameters: Tool.EmptyParams,
   success: Schema.String,
-  dependencies: [McpSchema.McpRequestContext]
-})
+  dependencies: [McpSchema.McpRequestContext],
+});
 
 const makeTestToolkitLayer = (observations: Ref.Ref<Observations>, protocolVersion: string) => {
-  const TestToolkit = Toolkit.make(TestTool, makeStructuredTool(protocolVersion), LogLevelTool, RequestMetadataTool)
+  const TestToolkit = Toolkit.make(
+    TestTool,
+    makeStructuredTool(protocolVersion),
+    LogLevelTool,
+    RequestMetadataTool,
+  );
   return McpServer.toolkit(TestToolkit).pipe(
-    Layer.provide(TestToolkit.toLayer({
-      TestTool: ({ value }) =>
-        Ref.update(observations, (current) => ({
-          ...current,
-          toolInvocations: current.toolInvocations + 1
-        })).pipe(Effect.as(value)),
-      StructuredTool: () => Effect.succeed({ value: "structured" }),
-      LogLevelTool: () => CurrentLogLevel,
-      RequestMetadataTool: () =>
-        McpSchema.McpRequestContext.useSync((context) => JSON.stringify(context.requestMetadata))
-    }))
-  )
-}
+    Layer.provide(
+      TestToolkit.toLayer({
+        TestTool: ({ value }) =>
+          Ref.update(observations, (current) => ({
+            ...current,
+            toolInvocations: current.toolInvocations + 1,
+          })).pipe(Effect.as(value)),
+        StructuredTool: () => Effect.succeed({ value: "structured" }),
+        LogLevelTool: () => CurrentLogLevel,
+        RequestMetadataTool: () =>
+          McpSchema.McpRequestContext.useSync((context) => JSON.stringify(context.requestMetadata)),
+      }),
+    ),
+  );
+};
 
 const makeContentToolsLayer = Layer.effectDiscard(
-  Effect.gen(function*() {
-    const server = yield* McpServer.McpServer
-    const add = (
-      name: string,
-      result: McpSchema.CallToolResult
-    ) =>
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const add = (name: string, result: McpSchema.CallToolResult) =>
       server.addTool({
         tool: new McpSchema.Tool({
           name,
-          inputSchema: { type: "object", properties: {} }
+          inputSchema: { type: "object", properties: {} },
         }),
         annotations: Context.empty(),
-        handle: () => Effect.succeed(result)
-      })
+        handle: () => Effect.succeed(result),
+      });
 
     yield* add(
       "ImageTool",
       new McpSchema.CallToolResult({
-        content: [{
-          type: "image",
-          data: new Uint8Array([1, 2, 3]),
-          mimeType: "image/png"
-        }]
-      })
-    )
+        content: [
+          {
+            type: "image",
+            data: new Uint8Array([1, 2, 3]),
+            mimeType: "image/png",
+          },
+        ],
+      }),
+    );
     yield* add(
       "EmbeddedResourceTool",
       new McpSchema.CallToolResult({
-        content: [{
-          type: "resource",
-          resource: {
-            uri: "file:///embedded",
-            mimeType: "text/plain",
-            text: "embedded"
-          }
-        }]
-      })
-    )
+        content: [
+          {
+            type: "resource",
+            resource: {
+              uri: "file:///embedded",
+              mimeType: "text/plain",
+              text: "embedded",
+            },
+          },
+        ],
+      }),
+    );
     yield* add(
       "MultipleContentTool",
       new McpSchema.CallToolResult({
         content: [
           { type: "text", text: "first" },
-          { type: "text", text: "second" }
-        ]
-      })
-    )
+          { type: "text", text: "second" },
+        ],
+      }),
+    );
     yield* add(
       "ErrorTool",
       new McpSchema.CallToolResult({
         content: [{ type: "text", text: "expected failure" }],
-        isError: true
-      })
-    )
+        isError: true,
+      }),
+    );
     yield* server.addTool({
       tool: new McpSchema.Tool({
         name: "DefectTool",
-        inputSchema: { type: "object", properties: {} }
+        inputSchema: { type: "object", properties: {} },
       }),
       annotations: Context.empty(),
-      handle: () => Effect.die("private defect details")
-    })
+      handle: () => Effect.die("private defect details"),
+    });
 
     yield* server.addTool({
       tool: new McpSchema.Tool({
@@ -146,44 +151,48 @@ const makeContentToolsLayer = Layer.effectDiscard(
           $defs: { identifier: { type: "string" } },
           properties: { value: { $ref: "#/$defs/identifier" } },
           allOf: [{ required: ["value"] }],
-          unevaluatedProperties: false
-        }
+          unevaluatedProperties: false,
+        },
       }),
       annotations: Context.make(
         McpSchema.EnabledWhen,
-        (client) => client.protocolVersion === "2026-07-28"
+        (client) => client.protocolVersion === "2026-07-28",
       ),
-      handle: () => Effect.succeed(new McpSchema.CallToolResult({ content: [] }))
-    })
+      handle: () => Effect.succeed(new McpSchema.CallToolResult({ content: [] })),
+    });
 
     yield* add(
       "AudioTool",
       new McpSchema.CallToolResult({
-        content: [{
-          type: "audio",
-          data: new Uint8Array([4, 5, 6]),
-          mimeType: "audio/wav"
-        }]
-      })
-    )
+        content: [
+          {
+            type: "audio",
+            data: new Uint8Array([4, 5, 6]),
+            mimeType: "audio/wav",
+          },
+        ],
+      }),
+    );
     yield* add(
       "ResourceLinkTool",
       new McpSchema.CallToolResult({
-        content: [{
-          type: "resource_link",
-          uri: "file:///test",
-          name: "TestResource",
-          mimeType: "text/plain"
-        }]
-      })
-    )
-  })
-)
+        content: [
+          {
+            type: "resource_link",
+            uri: "file:///test",
+            name: "TestResource",
+            mimeType: "text/plain",
+          },
+        ],
+      }),
+    );
+  }),
+);
 
 const makeHeaderToolLayer = (observations: Ref.Ref<Observations>) =>
   Layer.effectDiscard(
-    Effect.gen(function*() {
-      const server = yield* McpServer.McpServer
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
       yield* server.addTool({
         tool: new McpSchema.Tool({
           name: "HeaderTool",
@@ -192,65 +201,69 @@ const makeHeaderToolLayer = (observations: Ref.Ref<Observations>) =>
             properties: {
               region: {
                 type: "string",
-                "x-mcp-header": "Region"
+                "x-mcp-header": "Region",
               },
               shard: {
                 type: "integer",
-                "x-mcp-header": "Shard"
+                "x-mcp-header": "Shard",
               },
               routing: {
                 type: "object",
-                properties: { region: { type: "string", "x-mcp-header": "Nested-Region" } }
+                properties: { region: { type: "string", "x-mcp-header": "Nested-Region" } },
               },
               dryRun: {
                 type: "boolean",
-                "x-mcp-header": "Dry-Run"
-              }
+                "x-mcp-header": "Dry-Run",
+              },
             },
-            required: ["region"]
-          }
+            required: ["region"],
+          },
         }),
         annotations: Context.make(
           McpSchema.EnabledWhen,
-          (client) => client.protocolVersion === "2026-07-28"
+          (client) => client.protocolVersion === "2026-07-28",
         ),
         handle: () =>
           Ref.update(observations, (current) => ({
             ...current,
-            toolInvocations: current.toolInvocations + 1
-          })).pipe(Effect.as(new McpSchema.CallToolResult({ content: [] })))
-      })
-    })
-  )
+            toolInvocations: current.toolInvocations + 1,
+          })).pipe(Effect.as(new McpSchema.CallToolResult({ content: [] }))),
+      });
+    }),
+  );
 
 const mrtrToolLayer = Layer.effectDiscard(
-  Effect.gen(function*() {
-    const server = yield* McpServer.McpServer
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
     yield* server.addTool({
       tool: new McpSchema.Tool({
         name: MrtrToolName,
         description: "Requests confirmation before completing",
-        inputSchema: { type: "object" }
+        inputSchema: { type: "object" },
       }),
       annotations: Context.make(
         McpSchema.EnabledWhen,
-        (client) => client.protocolVersion === "2026-07-28"
+        (client) => client.protocolVersion === "2026-07-28",
       ),
       handle: () =>
         McpSchema.McpRequestContext.useSync((context) => {
-          const approval = context.inputResponses?.approval
-          const sample = context.inputResponses?.sample
-          const roots = context.inputResponses?.roots
+          const approval = context.inputResponses?.approval;
+          const sample = context.inputResponses?.sample;
+          const roots = context.inputResponses?.roots;
           if (
-            context.requestState === mrtrRequestState && approval?.action === "accept" &&
-            sample !== undefined && roots !== undefined
+            context.requestState === mrtrRequestState &&
+            approval?.action === "accept" &&
+            sample !== undefined &&
+            roots !== undefined
           ) {
             return new McpSchema.CallToolResult({
-              content: [{
-                type: "text",
-                text: JSON.stringify({ approval: approval.content, sample, roots })
-              }]
-            })
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({ approval: approval.content, sample, roots }),
+                },
+              ],
+            });
           }
           return new McpSchema.InputRequired({
             inputRequests: {
@@ -265,204 +278,218 @@ const mrtrToolLayer = Layer.effectDiscard(
                       color: { type: "string", enum: ["red", "blue"] },
                       titled: {
                         type: "string",
-                        oneOf: [{ const: "red", title: "Red" }, { const: "blue", title: "Blue" }]
+                        oneOf: [
+                          { const: "red", title: "Red" },
+                          { const: "blue", title: "Blue" },
+                        ],
                       },
-                      legacy: { type: "string", enum: ["red", "blue"], enumNames: ["Red", "Blue"] }
+                      legacy: { type: "string", enum: ["red", "blue"], enumNames: ["Red", "Blue"] },
                     },
-                    required: ["approved"]
-                  }
-                }
+                    required: ["approved"],
+                  },
+                },
               },
               sample: {
                 method: "sampling/createMessage",
                 params: {
                   messages: [{ role: "user", content: { type: "text", text: "Suggest a title" } }],
-                  maxTokens: 20
-                }
+                  maxTokens: 20,
+                },
               },
               roots: {
-                method: "roots/list"
-              }
+                method: "roots/list",
+              },
             },
-            requestState: mrtrRequestState
-          })
-        })
-    })
+            requestState: mrtrRequestState,
+          });
+        }),
+    });
     yield* server.addTool({
       tool: new McpSchema.Tool({
         name: MrtrStateOnlyToolName,
         description: "Requests a retry without client input",
-        inputSchema: { type: "object" }
+        inputSchema: { type: "object" },
       }),
       annotations: Context.make(
         McpSchema.EnabledWhen,
-        (client) => client.protocolVersion === "2026-07-28"
+        (client) => client.protocolVersion === "2026-07-28",
       ),
-      handle: () => Effect.succeed(new McpSchema.InputRequired({ requestState: mrtrRequestState }))
-    })
+      handle: () => Effect.succeed(new McpSchema.InputRequired({ requestState: mrtrRequestState })),
+    });
     yield* server.addTool({
       tool: new McpSchema.Tool({
         name: MrtrInvalidStateToolName,
         description: "Rejects an invalid continuation state",
-        inputSchema: { type: "object" }
+        inputSchema: { type: "object" },
       }),
       annotations: Context.make(
         McpSchema.EnabledWhen,
-        (client) => client.protocolVersion === "2026-07-28"
+        (client) => client.protocolVersion === "2026-07-28",
       ),
-      handle: () => Effect.fail(new McpSchema.InvalidParams({ message: "requestState integrity check failed" }))
-    })
+      handle: () =>
+        Effect.fail(
+          new McpSchema.InvalidParams({ message: "requestState integrity check failed" }),
+        ),
+    });
     const samplingToolRequests = [
       [
         MrtrSamplingToolsToolName,
         {
           messages: [{ role: "user", content: { type: "text", text: "Check the weather" } }],
           maxTokens: 20,
-          tools: [{ name: "weather", inputSchema: { type: "object" } }]
-        }
+          tools: [{ name: "weather", inputSchema: { type: "object" } }],
+        },
       ],
       [
         MrtrSamplingToolChoiceToolName,
         {
           messages: [{ role: "user", content: { type: "text", text: "Check the weather" } }],
           maxTokens: 20,
-          toolChoice: { mode: "required" }
-        }
-      ]
-    ] as const
+          toolChoice: { mode: "required" },
+        },
+      ],
+    ] as const;
     for (const [name, params] of samplingToolRequests) {
       yield* server.addTool({
         tool: new McpSchema.Tool({
           name,
           description: "Requests tool-enabled sampling before completing",
-          inputSchema: { type: "object" }
+          inputSchema: { type: "object" },
         }),
         annotations: Context.make(
           McpSchema.EnabledWhen,
-          (client) => client.protocolVersion === "2026-07-28"
+          (client) => client.protocolVersion === "2026-07-28",
         ),
         handle: () =>
           Effect.succeed(
             new McpSchema.InputRequired({
               inputRequests: {
-                sample: { method: "sampling/createMessage", params }
-              }
-            })
-          )
-      })
+                sample: { method: "sampling/createMessage", params },
+              },
+            }),
+          ),
+      });
     }
     yield* server.addPrompt({
       prompt: new McpSchema.Prompt({
         name: MrtrPromptName,
-        description: "Requests client input before returning a prompt"
+        description: "Requests client input before returning a prompt",
       }),
       annotations: Context.make(
         McpSchema.EnabledWhen,
-        (client) => client.protocolVersion === "2026-07-28"
+        (client) => client.protocolVersion === "2026-07-28",
       ),
       completions: {},
       handle: () =>
         McpSchema.McpRequestContext.useSync((context) =>
           context.inputResponses?.userContext === undefined
             ? new McpSchema.InputRequired({
-              inputRequests: {
-                userContext: {
-                  method: "elicitation/create",
-                  params: {
-                    message: "What context should the prompt use?",
-                    requestedSchema: {
-                      type: "object",
-                      properties: { context: { type: "string" } },
-                      required: ["context"]
-                    }
-                  }
-                }
-              }
-            })
+                inputRequests: {
+                  userContext: {
+                    method: "elicitation/create",
+                    params: {
+                      message: "What context should the prompt use?",
+                      requestedSchema: {
+                        type: "object",
+                        properties: { context: { type: "string" } },
+                        required: ["context"],
+                      },
+                    },
+                  },
+                },
+              })
             : new McpSchema.GetPromptResult({
-              messages: [{ role: "user", content: { type: "text", text: "Prompt completed" } }]
-            })
-        )
-    })
-  })
-)
+                messages: [{ role: "user", content: { type: "text", text: "Prompt completed" } }],
+              }),
+        ),
+    });
+  }),
+);
 
-const templatePath = McpSchema.param("path", Schema.String)
+const templatePath = McpSchema.param("path", Schema.String);
 const TestResourceTemplate = McpServer.resource`file:///template/${templatePath}`({
   name: "TestResourceTemplate",
   description: "A test resource template",
   mimeType: "text/plain",
   completion: {
-    path: (value) => Effect.succeed(value === "" ? ["beta", "alpha"] : ["alpha", "beta"])
+    path: (value) => Effect.succeed(value === "" ? ["beta", "alpha"] : ["alpha", "beta"]),
   },
-  content: (uri, path) => Effect.succeed(`${uri}:${path}`)
-})
+  content: (uri, path) => Effect.succeed(`${uri}:${path}`),
+});
 
-const numericId = McpSchema.param("id", Schema.FiniteFromString)
+const numericId = McpSchema.param("id", Schema.FiniteFromString);
 const makeNumericResourceTemplate = (observations: Ref.Ref<Observations>) =>
   McpServer.resource`file:///numeric/${numericId}`({
     name: "NumericResourceTemplate",
     content: (uri) =>
       Ref.update(observations, (current) => ({
         ...current,
-        resourceTemplateInvocations: current.resourceTemplateInvocations + 1
-      })).pipe(Effect.as(uri))
-  })
+        resourceTemplateInvocations: current.resourceTemplateInvocations + 1,
+      })).pipe(Effect.as(uri)),
+  });
 
 const ImagePrompt = McpServer.prompt({
   name: "ImagePrompt",
   content: () =>
-    Effect.succeed([{
-      role: "user",
-      content: McpSchema.ImageContent.make({
-        data: new Uint8Array([1, 2, 3]),
-        mimeType: "image/png"
-      })
-    }])
-})
+    Effect.succeed([
+      {
+        role: "user",
+        content: McpSchema.ImageContent.make({
+          data: new Uint8Array([1, 2, 3]),
+          mimeType: "image/png",
+        }),
+      },
+    ]),
+});
 
 const AudioPrompt = McpServer.prompt({
   name: "AudioPrompt",
   content: () =>
-    Effect.succeed([{
-      role: "user",
-      content: McpSchema.AudioContent.make({
-        data: new Uint8Array([4, 5, 6]),
-        mimeType: "audio/wav"
-      })
-    }])
-})
+    Effect.succeed([
+      {
+        role: "user",
+        content: McpSchema.AudioContent.make({
+          data: new Uint8Array([4, 5, 6]),
+          mimeType: "audio/wav",
+        }),
+      },
+    ]),
+});
 
 const EmbeddedResourcePrompt = McpServer.prompt({
   name: "EmbeddedResourcePrompt",
   content: () =>
-    Effect.succeed([{
-      role: "user",
-      content: McpSchema.EmbeddedResource.make({
-        resource: {
-          uri: "file:///embedded",
-          mimeType: "text/plain",
-          text: "embedded"
-        }
-      })
-    }])
-})
+    Effect.succeed([
+      {
+        role: "user",
+        content: McpSchema.EmbeddedResource.make({
+          resource: {
+            uri: "file:///embedded",
+            mimeType: "text/plain",
+            text: "embedded",
+          },
+        }),
+      },
+    ]),
+});
 
 const ContextCompletionPrompt = McpServer.prompt({
   name: "ContextCompletionPrompt",
   parameters: {
-    value: Schema.String
+    value: Schema.String,
   },
   completion: {
     value: (_input, context) =>
-      Effect.succeed(context?.arguments?.locale === "en" ? ["context received"] : ["context missing"])
+      Effect.succeed(
+        context?.arguments?.locale === "en" ? ["context received"] : ["context missing"],
+      ),
   },
-  content: ({ value }) => Effect.succeed(value)
-})
+  content: ({ value }) => Effect.succeed(value),
+});
 
 export const makeFeaturesServerLayer = (
   protocol: McpProtocol.ProtocolAdapter,
-  observations: Ref.Ref<Observations>
+  observations: Ref.Ref<Observations>,
 ) =>
   Layer.mergeAll(
     makeTestToolkitLayer(observations, protocol.protocolVersion),
@@ -474,43 +501,53 @@ export const makeFeaturesServerLayer = (
       name: "TestResource",
       description: "A test resource",
       mimeType: "text/plain",
-      content: Effect.succeed(McpSchema.ReadResourceResult.make({
-        contents: [{
-          uri: "file:///test",
-          mimeType: "text/plain",
-          text: "test"
-        }]
-      }))
+      content: Effect.succeed(
+        McpSchema.ReadResourceResult.make({
+          contents: [
+            {
+              uri: "file:///test",
+              mimeType: "text/plain",
+              text: "test",
+            },
+          ],
+        }),
+      ),
     }),
     McpServer.resource({
       uri: "file:///binary",
       name: "BinaryResource",
       mimeType: "application/octet-stream",
-      content: Effect.succeed(McpSchema.ReadResourceResult.make({
-        contents: [{
-          uri: "file:///binary",
-          mimeType: "application/octet-stream",
-          blob: new Uint8Array([1, 2, 3])
-        }]
-      }))
+      content: Effect.succeed(
+        McpSchema.ReadResourceResult.make({
+          contents: [
+            {
+              uri: "file:///binary",
+              mimeType: "application/octet-stream",
+              blob: new Uint8Array([1, 2, 3]),
+            },
+          ],
+        }),
+      ),
     }),
     McpServer.resource({
       uri: "file:///multiple",
       name: "MultipleResource",
-      content: Effect.succeed(McpSchema.ReadResourceResult.make({
-        contents: [
-          {
-            uri: "file:///multiple#first",
-            mimeType: "text/plain",
-            text: "first"
-          },
-          {
-            uri: "file:///multiple#second",
-            mimeType: "text/plain",
-            text: "second"
-          }
-        ]
-      }))
+      content: Effect.succeed(
+        McpSchema.ReadResourceResult.make({
+          contents: [
+            {
+              uri: "file:///multiple#first",
+              mimeType: "text/plain",
+              text: "first",
+            },
+            {
+              uri: "file:///multiple#second",
+              mimeType: "text/plain",
+              text: "second",
+            },
+          ],
+        }),
+      ),
     }),
     TestResourceTemplate,
     makeNumericResourceTemplate(observations),
@@ -520,35 +557,37 @@ export const makeFeaturesServerLayer = (
       description: "A test prompt",
       parameters: {
         required: Schema.String,
-        optional: Schema.optional(Schema.String)
+        optional: Schema.optional(Schema.String),
       },
       completion: {
         required: (value) =>
           Effect.succeed(
             value === "limit"
               ? Array.from({ length: 101 }, (_, index) => `value-${index}`)
-              : ["first", "second"]
-          )
+              : ["first", "second"],
+          ),
       },
       content: ({ optional, required }) =>
         Ref.update(observations, (current) => ({
           ...current,
-          promptInvocations: current.promptInvocations + 1
-        })).pipe(Effect.as(`${required}:${optional ?? "omitted"}`))
+          promptInvocations: current.promptInvocations + 1,
+        })).pipe(Effect.as(`${required}:${optional ?? "omitted"}`)),
     }),
     McpServer.prompt({
       name: "NoArgumentPrompt",
-      content: () => Effect.succeed("no arguments")
+      content: () => Effect.succeed("no arguments"),
     }),
     ImagePrompt,
     EmbeddedResourcePrompt,
     AudioPrompt,
-    ContextCompletionPrompt
+    ContextCompletionPrompt,
   ).pipe(
-    Layer.provide(makeServerLayer({
-      name: "McpConformance",
-      instructions: "Follow the test server instructions.",
-      protocols: [protocol],
-      extensions: { "example/lifecycle": { enabled: true } }
-    }))
-  )
+    Layer.provide(
+      makeServerLayer({
+        name: "McpConformance",
+        instructions: "Follow the test server instructions.",
+        protocols: [protocol],
+        extensions: { "example/lifecycle": { enabled: true } },
+      }),
+    ),
+  );

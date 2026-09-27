@@ -8,12 +8,12 @@
  *
  * @since 4.0.0
  */
-import * as Cause from "../../Cause.ts"
-import * as Data from "../../Data.ts"
-import { dual } from "../../Function.ts"
-import * as Redacted from "../../Redacted.ts"
-import * as Result from "../../Result.ts"
-import * as UrlParams from "./UrlParams.ts"
+import * as Cause from "../../Cause.ts";
+import * as Data from "../../Data.ts";
+import { dual } from "../../Function.ts";
+import * as Redacted from "../../Redacted.ts";
+import * as Result from "../../Result.ts";
+import * as UrlParams from "./UrlParams.ts";
 
 /**
  * Error returned when constructing a `URL` fails.
@@ -22,7 +22,7 @@ import * as UrlParams from "./UrlParams.ts"
  * @since 4.0.0
  */
 export class UrlError extends Data.TaggedError("UrlError")<{
-  readonly cause: unknown
+  readonly cause: unknown;
 }> {}
 
 /**
@@ -38,24 +38,24 @@ export class UrlError extends Data.TaggedError("UrlError")<{
 export const make = (
   url: string,
   params: UrlParams.UrlParams,
-  hash: string | undefined
+  hash: string | undefined,
 ): Result.Result<URL, UrlError> =>
   Result.try({
     try: () => {
-      const urlInstance = new URL(url, baseUrl())
+      const urlInstance = new URL(url, baseUrl());
       for (let i = 0; i < params.params.length; i++) {
-        const [key, value] = params.params[i]
+        const [key, value] = params.params[i];
         if (value !== undefined) {
-          urlInstance.searchParams.append(key, value)
+          urlInstance.searchParams.append(key, value);
         }
       }
       if (hash !== undefined) {
-        urlInstance.hash = hash
+        urlInstance.hash = hash;
       }
-      return urlInstance
+      return urlInstance;
     },
-    catch: (cause) => new UrlError({ cause })
-  })
+    catch: (cause) => new UrlError({ cause }),
+  });
 
 const baseUrl = (): string | undefined => {
   if (
@@ -64,10 +64,10 @@ const baseUrl = (): string | undefined => {
     globalThis.location.origin !== undefined &&
     globalThis.location.pathname !== undefined
   ) {
-    return location.origin + location.pathname
+    return location.origin + location.pathname;
   }
-  return undefined
-}
+  return undefined;
+};
 
 /**
  * Parses a URL string safely into a `URL` object, returning a `Result` type for
@@ -110,13 +110,15 @@ const baseUrl = (): string | undefined => {
  * @since 4.0.0
  */
 export const fromString: {
-  (url: string, base?: string | URL | undefined): Result.Result<URL, Cause.IllegalArgumentError>
+  (url: string, base?: string | URL | undefined): Result.Result<URL, Cause.IllegalArgumentError>;
 } = (url, base) =>
   Result.try({
     try: () => new URL(url, base),
     catch: () =>
-      new Cause.IllegalArgumentError(`Invalid URL: "${url}"${base !== undefined ? ` with base "${base}"` : ""}`)
-  })
+      new Cause.IllegalArgumentError(
+        `Invalid URL: "${url}"${base !== undefined ? ` with base "${base}"` : ""}`,
+      ),
+  });
 
 /**
  * Updates a cloned `URL` with a callback, allowing multiple changes at once.
@@ -140,23 +142,26 @@ export const fromString: {
  * @since 4.0.0
  */
 export const mutate: {
-  (f: (url: URL) => void): (self: URL) => URL
-  (self: URL, f: (url: URL) => void): URL
+  (f: (url: URL) => void): (self: URL) => URL;
+  (self: URL, f: (url: URL) => void): URL;
 } = dual(2, (self: URL, f: (url: URL) => void) => {
-  const copy = new URL(self)
-  f(copy)
-  return copy
-})
+  const copy = new URL(self);
+  f(copy);
+  return copy;
+});
 
 /** @internal */
-const immutableURLSetter = <P extends keyof URL, A = never>(property: P): {
-  (value: URL[P] | A): (url: URL) => URL
-  (url: URL, value: URL[P] | A): URL
+const immutableURLSetter = <P extends keyof URL, A = never>(
+  property: P,
+): {
+  (value: URL[P] | A): (url: URL) => URL;
+  (url: URL, value: URL[P] | A): URL;
 } =>
   dual(2, (url: URL, value: URL[P]) =>
     mutate(url, (url) => {
-      url[property] = value
-    }))
+      url[property] = value;
+    }),
+  );
 
 /**
  * Updates the hash fragment of the URL.
@@ -165,9 +170,9 @@ const immutableURLSetter = <P extends keyof URL, A = never>(property: P): {
  * @since 4.0.0
  */
 export const setHash: {
-  (hash: string): (url: URL) => URL
-  (url: URL, hash: string): URL
-} = immutableURLSetter("hash")
+  (hash: string): (url: URL) => URL;
+  (url: URL, hash: string): URL;
+} = immutableURLSetter("hash");
 
 /**
  * Updates the host (domain and port) of the URL.
@@ -176,9 +181,9 @@ export const setHash: {
  * @since 4.0.0
  */
 export const setHost: {
-  (host: string): (url: URL) => URL
-  (url: URL, host: string): URL
-} = immutableURLSetter("host")
+  (host: string): (url: URL) => URL;
+  (url: URL, host: string): URL;
+} = immutableURLSetter("host");
 
 /**
  * Updates the domain of the URL without modifying the port.
@@ -187,9 +192,9 @@ export const setHost: {
  * @since 4.0.0
  */
 export const setHostname: {
-  (hostname: string): (url: URL) => URL
-  (url: URL, hostname: string): URL
-} = immutableURLSetter("hostname")
+  (hostname: string): (url: URL) => URL;
+  (url: URL, hostname: string): URL;
+} = immutableURLSetter("hostname");
 
 /**
  * Replaces the entire URL string.
@@ -198,9 +203,9 @@ export const setHostname: {
  * @since 4.0.0
  */
 export const setHref: {
-  (href: string): (url: URL) => URL
-  (url: URL, href: string): URL
-} = immutableURLSetter("href")
+  (href: string): (url: URL) => URL;
+  (url: URL, href: string): URL;
+} = immutableURLSetter("href");
 
 /**
  * Updates the password used for authentication.
@@ -209,14 +214,13 @@ export const setHref: {
  * @since 4.0.0
  */
 export const setPassword: {
-  (password: string | Redacted.Redacted): (url: URL) => URL
-  (url: URL, password: string | Redacted.Redacted): URL
+  (password: string | Redacted.Redacted): (url: URL) => URL;
+  (url: URL, password: string | Redacted.Redacted): URL;
 } = dual(2, (url: URL, password: string | Redacted.Redacted) =>
   mutate(url, (url) => {
-    url.password = typeof password === "string"
-      ? password :
-      Redacted.value(password)
-  }))
+    url.password = typeof password === "string" ? password : Redacted.value(password);
+  }),
+);
 
 /**
  * Updates the path of the URL.
@@ -225,9 +229,9 @@ export const setPassword: {
  * @since 4.0.0
  */
 export const setPathname: {
-  (pathname: string): (url: URL) => URL
-  (url: URL, pathname: string): URL
-} = immutableURLSetter("pathname")
+  (pathname: string): (url: URL) => URL;
+  (url: URL, pathname: string): URL;
+} = immutableURLSetter("pathname");
 
 /**
  * Updates the port of the URL.
@@ -236,9 +240,9 @@ export const setPathname: {
  * @since 4.0.0
  */
 export const setPort: {
-  (port: string | number): (url: URL) => URL
-  (url: URL, port: string | number): URL
-} = immutableURLSetter("port")
+  (port: string | number): (url: URL) => URL;
+  (url: URL, port: string | number): URL;
+} = immutableURLSetter("port");
 
 /**
  * Updates the protocol (e.g., `http`, `https`).
@@ -247,9 +251,9 @@ export const setPort: {
  * @since 4.0.0
  */
 export const setProtocol: {
-  (protocol: string): (url: URL) => URL
-  (url: URL, protocol: string): URL
-} = immutableURLSetter("protocol")
+  (protocol: string): (url: URL) => URL;
+  (url: URL, protocol: string): URL;
+} = immutableURLSetter("protocol");
 
 /**
  * Updates the query string of the URL.
@@ -258,9 +262,9 @@ export const setProtocol: {
  * @since 4.0.0
  */
 export const setSearch: {
-  (search: string): (url: URL) => URL
-  (url: URL, search: string): URL
-} = immutableURLSetter("search")
+  (search: string): (url: URL) => URL;
+  (url: URL, search: string): URL;
+} = immutableURLSetter("search");
 
 /**
  * Updates the username used for authentication.
@@ -269,9 +273,9 @@ export const setSearch: {
  * @since 4.0.0
  */
 export const setUsername: {
-  (username: string): (url: URL) => URL
-  (url: URL, username: string): URL
-} = immutableURLSetter("username")
+  (username: string): (url: URL) => URL;
+  (url: URL, username: string): URL;
+} = immutableURLSetter("username");
 
 /**
  * Updates the query parameters of a URL.
@@ -302,12 +306,13 @@ export const setUsername: {
  * @since 4.0.0
  */
 export const setUrlParams: {
-  (urlParams: UrlParams.Input): (url: URL) => URL
-  (url: URL, urlParams: UrlParams.Input): URL
+  (urlParams: UrlParams.Input): (url: URL) => URL;
+  (url: URL, urlParams: UrlParams.Input): URL;
 } = dual(2, (url: URL, urlParams: UrlParams.Input) =>
   mutate(url, (url) => {
-    url.search = UrlParams.toString(UrlParams.fromInput(urlParams))
-  }))
+    url.search = UrlParams.toString(UrlParams.fromInput(urlParams));
+  }),
+);
 
 /**
  * Retrieves the query parameters from a URL.
@@ -334,7 +339,7 @@ export const setUrlParams: {
  * @category getters
  * @since 4.0.0
  */
-export const urlParams = (url: URL): UrlParams.UrlParams => UrlParams.fromInput(url.searchParams)
+export const urlParams = (url: URL): UrlParams.UrlParams => UrlParams.fromInput(url.searchParams);
 
 /**
  * Reads the query parameters of a URL, modifies them, and updates the URL.
@@ -362,10 +367,11 @@ export const urlParams = (url: URL): UrlParams.UrlParams => UrlParams.fromInput(
  * @since 4.0.0
  */
 export const modifyUrlParams: {
-  (f: (urlParams: UrlParams.UrlParams) => UrlParams.Input): (url: URL) => URL
-  (url: URL, f: (urlParams: UrlParams.UrlParams) => UrlParams.Input): URL
+  (f: (urlParams: UrlParams.UrlParams) => UrlParams.Input): (url: URL) => URL;
+  (url: URL, f: (urlParams: UrlParams.UrlParams) => UrlParams.Input): URL;
 } = dual(2, (url: URL, f: (urlParams: UrlParams.UrlParams) => UrlParams.Input) =>
   mutate(url, (url) => {
-    const params = f(UrlParams.fromInput(url.searchParams))
-    url.search = UrlParams.toString(params)
-  }))
+    const params = f(UrlParams.fromInput(url.searchParams));
+    url.search = UrlParams.toString(params);
+  }),
+);

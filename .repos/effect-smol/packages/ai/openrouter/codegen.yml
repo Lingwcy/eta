@@ -28,7 +28,7 @@ replacements:
   # Help TypeScript serialize oversized generated schema values
   - from: "export const StreamEvents = Schema.Union(["
     to: "export const StreamEvents: Schema.Schema<StreamEvents> = Schema.Union(["
-  - from: "export const ResponsesStreamingResponse = Schema.Struct({ \"data\": StreamEvents })"
-    to: "export const ResponsesStreamingResponse: Schema.Schema<ResponsesStreamingResponse> = Schema.Struct({ \"data\": StreamEvents })"
+  - from: 'export const ResponsesStreamingResponse = Schema.Struct({ "data": StreamEvents })'
+    to: 'export const ResponsesStreamingResponse: Schema.Schema<ResponsesStreamingResponse> = Schema.Struct({ "data": StreamEvents })'
   - from: "export const CreateResponses200Sse = ResponsesStreamingResponse"
     to: "export const CreateResponses200Sse: Schema.Schema<CreateResponses200Sse> = ResponsesStreamingResponse"

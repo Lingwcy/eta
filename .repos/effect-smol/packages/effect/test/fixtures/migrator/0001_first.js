@@ -1,1 +1,1 @@
-export const marker = "loaded"
+export const marker = "loaded";

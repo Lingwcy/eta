@@ -18,15 +18,15 @@
  *
  * @since 4.0.0
  */
-import * as Effect from "../../Effect.ts"
-import * as Layer from "../../Layer.ts"
-import * as Schedule from "../../Schedule.ts"
-import * as Schema from "../../Schema.ts"
-import * as Tracer from "../../Tracer.ts"
-import * as PersistedQueue from "../persistence/PersistedQueue.ts"
-import * as Activity from "./Activity.ts"
-import * as DurableDeferred from "./DurableDeferred.ts"
-import type { WorkflowEngine, WorkflowInstance } from "./WorkflowEngine.ts"
+import * as Effect from "../../Effect.ts";
+import * as Layer from "../../Layer.ts";
+import * as Schedule from "../../Schedule.ts";
+import * as Schema from "../../Schema.ts";
+import * as Tracer from "../../Tracer.ts";
+import * as PersistedQueue from "../persistence/PersistedQueue.ts";
+import * as Activity from "./Activity.ts";
+import * as DurableDeferred from "./DurableDeferred.ts";
+import type { WorkflowEngine, WorkflowInstance } from "./WorkflowEngine.ts";
 
 /**
  * Type-level identifier used to recognize `DurableQueue` values.
@@ -34,7 +34,7 @@ import type { WorkflowEngine, WorkflowInstance } from "./WorkflowEngine.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~effect/workflow/DurableQueue"
+export type TypeId = "~effect/workflow/DurableQueue";
 
 /**
  * Runtime identifier attached to `DurableQueue` values.
@@ -42,7 +42,7 @@ export type TypeId = "~effect/workflow/DurableQueue"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~effect/workflow/DurableQueue"
+export const TypeId: TypeId = "~effect/workflow/DurableQueue";
 
 /**
  * Durable workflow queue definition containing a payload schema, idempotency
@@ -54,13 +54,13 @@ export const TypeId: TypeId = "~effect/workflow/DurableQueue"
 export interface DurableQueue<
   Payload extends Schema.Top,
   Success extends Schema.Top = Schema.Void,
-  Error extends Schema.Top = Schema.Never
+  Error extends Schema.Top = Schema.Never,
 > {
-  readonly [TypeId]: TypeId
-  readonly name: string
-  readonly payloadSchema: Payload
-  readonly idempotencyKey: (payload: Payload["Type"]) => string
-  readonly deferred: DurableDeferred.DurableDeferred<Success, Error>
+  readonly [TypeId]: TypeId;
+  readonly name: string;
+  readonly payloadSchema: Payload;
+  readonly idempotencyKey: (payload: Payload["Type"]) => string;
+  readonly deferred: DurableDeferred.DurableDeferred<Success, Error>;
 }
 
 /**
@@ -125,16 +125,15 @@ export interface DurableQueue<
 export const make = <
   Payload extends Schema.Top | Schema.Struct.Fields,
   Success extends Schema.Top = Schema.Void,
-  Error extends Schema.Top = Schema.Never
+  Error extends Schema.Top = Schema.Never,
 >(options: {
-  readonly name: string
-  readonly payload: Payload
+  readonly name: string;
+  readonly payload: Payload;
   readonly idempotencyKey: (
-    payload: Payload extends Schema.Struct.Fields ? Schema.Struct.Type<Payload>
-      : Payload["Type"]
-  ) => string
-  readonly success?: Success | undefined
-  readonly error?: Error | undefined
+    payload: Payload extends Schema.Struct.Fields ? Schema.Struct.Type<Payload> : Payload["Type"],
+  ) => string;
+  readonly success?: Success | undefined;
+  readonly error?: Error | undefined;
 }): DurableQueue<
   Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
   Success,
@@ -144,38 +143,38 @@ export const make = <
   name: options.name,
   payloadSchema: Schema.isSchema(options.payload)
     ? options.payload
-    : Schema.Struct(options.payload as any) as any,
+    : (Schema.Struct(options.payload as any) as any),
   idempotencyKey: options.idempotencyKey as any,
   deferred: DurableDeferred.make(`DurableQueue/${options.name}`, {
     success: options.success,
-    error: options.error
-  })
-})
+    error: options.error,
+  }),
+});
 
-const queueSchemas = new WeakMap<Schema.Top, Schema.Top>()
+const queueSchemas = new WeakMap<Schema.Top, Schema.Top>();
 
 const getQueueSchema = <Payload extends Schema.Top>(
-  payload: Payload
+  payload: Payload,
 ): Schema.Struct<{
-  token: typeof DurableDeferred.Token
-  payload: Payload
-  traceId: typeof Schema.String
-  spanId: typeof Schema.String
-  sampled: typeof Schema.Boolean
+  token: typeof DurableDeferred.Token;
+  payload: Payload;
+  traceId: typeof Schema.String;
+  spanId: typeof Schema.String;
+  sampled: typeof Schema.Boolean;
 }> => {
-  let schema = queueSchemas.get(payload)
+  let schema = queueSchemas.get(payload);
   if (!schema) {
     schema = Schema.Struct({
       token: DurableDeferred.Token,
       traceId: Schema.String,
       spanId: Schema.String,
       sampled: Schema.Boolean,
-      payload
-    })
-    queueSchemas.set(payload, schema)
+      payload,
+    });
+    queueSchemas.set(payload, schema);
   }
-  return schema as any
-}
+  return schema as any;
+};
 
 /**
  * Adds an item to the queue and wait for a worker to process it.
@@ -186,13 +185,13 @@ const getQueueSchema = <Payload extends Schema.Top>(
 export const process: <
   Payload extends Schema.Top,
   Success extends Schema.Top,
-  Error extends Schema.Top
+  Error extends Schema.Top,
 >(
   self: DurableQueue<Payload, Success, Error>,
   payload: Payload["~type.make.in"],
   options?: {
-    readonly retrySchedule?: Schedule.Schedule<any, PersistedQueue.PersistedQueueError> | undefined
-  }
+    readonly retrySchedule?: Schedule.Schedule<any, PersistedQueue.PersistedQueueError> | undefined;
+  },
 ) => Effect.Effect<
   Success["Type"],
   Error["Type"],
@@ -203,56 +202,69 @@ export const process: <
   | Payload["DecodingServices"]
   | Success["DecodingServices"]
   | Error["DecodingServices"]
-> = Effect.fnUntraced(function*<
+> = Effect.fnUntraced(function* <
   Payload extends Schema.Top,
   Success extends Schema.Top,
-  Error extends Schema.Top
->(self: DurableQueue<Payload, Success, Error>, fields: Payload["~type.make.in"], options?: {
-  readonly retrySchedule?: Schedule.Schedule<any, PersistedQueue.PersistedQueueError> | undefined
-}) {
-  const payload = self.payloadSchema.make(fields)
-  const queueName = `DurableQueue/${self.name}`
+  Error extends Schema.Top,
+>(
+  self: DurableQueue<Payload, Success, Error>,
+  fields: Payload["~type.make.in"],
+  options?: {
+    readonly retrySchedule?: Schedule.Schedule<any, PersistedQueue.PersistedQueueError> | undefined;
+  },
+) {
+  const payload = self.payloadSchema.make(fields);
+  const queueName = `DurableQueue/${self.name}`;
   const queue = yield* PersistedQueue.make({
     name: queueName,
-    schema: getQueueSchema(self.payloadSchema)
-  })
-  const id = yield* Activity.idempotencyKey(`${queueName}/${self.idempotencyKey(payload)}`)
+    schema: getQueueSchema(self.payloadSchema),
+  });
+  const id = yield* Activity.idempotencyKey(`${queueName}/${self.idempotencyKey(payload)}`);
 
   const deferred = DurableDeferred.make(`${self.deferred.name}/${id}`, {
     success: self.deferred.successSchema,
-    error: self.deferred.errorSchema
-  })
-  const token = yield* DurableDeferred.token(deferred)
+    error: self.deferred.errorSchema,
+  });
+  const token = yield* DurableDeferred.token(deferred);
 
-  yield* Effect.useSpan(`DurableQueue/${self.name}/process`, {
-    attributes: { id }
-  }, (span) =>
-    queue.offer({
-      token,
-      payload,
-      traceId: span.traceId,
-      spanId: span.spanId,
-      sampled: span.sampled
-    } as any, { id }).pipe(
-      Effect.tapCause(Effect.logWarning),
-      Effect.catchTag("SchemaError", Effect.die),
-      Effect.retry(options?.retrySchedule ?? defaultRetrySchedule),
-      Effect.orDie,
-      Effect.annotateLogs({
-        package: "effect",
-        module: "DurableQueue",
-        fiber: "process",
-        queueName: self.name
-      })
-    ))
+  yield* Effect.useSpan(
+    `DurableQueue/${self.name}/process`,
+    {
+      attributes: { id },
+    },
+    (span) =>
+      queue
+        .offer(
+          {
+            token,
+            payload,
+            traceId: span.traceId,
+            spanId: span.spanId,
+            sampled: span.sampled,
+          } as any,
+          { id },
+        )
+        .pipe(
+          Effect.tapCause(Effect.logWarning),
+          Effect.catchTag("SchemaError", Effect.die),
+          Effect.retry(options?.retrySchedule ?? defaultRetrySchedule),
+          Effect.orDie,
+          Effect.annotateLogs({
+            package: "effect",
+            module: "DurableQueue",
+            fiber: "process",
+            queueName: self.name,
+          }),
+        ),
+  );
 
-  return yield* DurableDeferred.await(deferred)
-})
+  return yield* DurableDeferred.await(deferred);
+});
 
 const defaultRetrySchedule = Schedule.min([
   Schedule.exponential(500, 1.5),
-  Schedule.spaced("1 minute")
-])
+  Schedule.spaced("1 minute"),
+]);
 
 /**
  * Create a worker effect that processes items from the durable queue.
@@ -264,11 +276,11 @@ export const makeWorker: <
   Payload extends Schema.Top,
   Success extends Schema.Top,
   Error extends Schema.Top,
-  R
+  R,
 >(
   self: DurableQueue<Payload, Success, Error>,
   f: (payload: Payload["Type"]) => Effect.Effect<Success["Type"], Error["Type"], R>,
-  options?: { readonly concurrency?: number | undefined } | undefined
+  options?: { readonly concurrency?: number | undefined } | undefined,
 ) => Effect.Effect<
   never,
   never,
@@ -279,67 +291,69 @@ export const makeWorker: <
   | Payload["DecodingServices"]
   | Success["EncodingServices"]
   | Error["EncodingServices"]
-> = Effect.fnUntraced(function*<
+> = Effect.fnUntraced(function* <
   Payload extends Schema.Top,
   Success extends Schema.Top,
   Error extends Schema.Top,
-  R
+  R,
 >(
   self: DurableQueue<Payload, Success, Error>,
   f: (payload: Payload["Type"]) => Effect.Effect<Success["Type"], Error["Type"], R>,
   options?: {
-    readonly concurrency?: number | undefined
-  }
+    readonly concurrency?: number | undefined;
+  },
 ) {
   const queue = yield* PersistedQueue.make({
     name: `DurableQueue/${self.name}`,
-    schema: getQueueSchema(self.payloadSchema)
-  })
-  const concurrency = options?.concurrency ?? 1
+    schema: getQueueSchema(self.payloadSchema),
+  });
+  const concurrency = options?.concurrency ?? 1;
 
-  const worker = queue.take((item_) => {
-    const item = item_ as {
-      readonly token: DurableDeferred.Token
-      readonly payload: Payload["Type"]
-      readonly traceId: string
-      readonly spanId: string
-      readonly sampled: boolean
-    }
-    return Effect.withSpan(
-      f(item.payload).pipe(
-        Effect.exit,
-        Effect.flatMap((exit) =>
-          DurableDeferred.done(self.deferred, {
-            token: item.token,
-            exit
-          })
+  const worker = queue
+    .take((item_) => {
+      const item = item_ as {
+        readonly token: DurableDeferred.Token;
+        readonly payload: Payload["Type"];
+        readonly traceId: string;
+        readonly spanId: string;
+        readonly sampled: boolean;
+      };
+      return Effect.withSpan(
+        f(item.payload).pipe(
+          Effect.exit,
+          Effect.flatMap((exit) =>
+            DurableDeferred.done(self.deferred, {
+              token: item.token,
+              exit,
+            }),
+          ),
+          Effect.asVoid,
         ),
-        Effect.asVoid
-      ),
-      `DurableQueue/${self.name}/worker`,
-      {
-        captureStackTrace: false,
-        parent: Tracer.externalSpan({
-          traceId: item.traceId,
-          spanId: item.spanId,
-          sampled: item.sampled
-        })
-      }
-    )
-  }).pipe(
-    Effect.catchCause(Effect.logWarning),
-    Effect.forever,
-    Effect.annotateLogs({
-      package: "effect",
-      module: "DurableQueue",
-      fiber: "worker",
-      queueName: self.name
+        `DurableQueue/${self.name}/worker`,
+        {
+          captureStackTrace: false,
+          parent: Tracer.externalSpan({
+            traceId: item.traceId,
+            spanId: item.spanId,
+            sampled: item.sampled,
+          }),
+        },
+      );
     })
-  )
+    .pipe(
+      Effect.catchCause(Effect.logWarning),
+      Effect.forever,
+      Effect.annotateLogs({
+        package: "effect",
+        module: "DurableQueue",
+        fiber: "worker",
+        queueName: self.name,
+      }),
+    );
 
-  yield* Effect.replicateEffect(worker, concurrency, { concurrency, discard: true })
-  return yield* Effect.never
-})
+  yield* Effect.replicateEffect(worker, concurrency, { concurrency, discard: true });
+  return yield* Effect.never;
+});
 
 /**
  * Create a layer that runs workers for the durable queue.
@@ -351,13 +365,15 @@ export const worker: <
   Payload extends Schema.Top,
   Success extends Schema.Top,
   Error extends Schema.Top,
-  R
+  R,
 >(
   self: DurableQueue<Payload, Success, Error>,
   f: (payload: Payload["Type"]) => Effect.Effect<Success["Type"], Error["Type"], R>,
-  options?: {
-    readonly concurrency?: number | undefined
-  } | undefined
+  options?:
+    | {
+        readonly concurrency?: number | undefined;
+      }
+    | undefined,
 ) => Layer.Layer<
   never,
   never,
@@ -368,4 +384,4 @@ export const worker: <
   | Payload["DecodingServices"]
   | Success["EncodingServices"]
   | Error["EncodingServices"]
-> = (self, f, options) => Layer.effectDiscard(Effect.forkScoped(makeWorker(self, f, options)))
+> = (self, f, options) => Layer.effectDiscard(Effect.forkScoped(makeWorker(self, f, options)));

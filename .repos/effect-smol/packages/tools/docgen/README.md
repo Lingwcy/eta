@@ -101,19 +101,19 @@ The `docgen.json` configuration file adheres to the following interface:
 
 ```ts
 interface Config {
-  readonly projectHomepage?: string
-  readonly srcLink?: string
-  readonly srcDir?: string
-  readonly outDir?: string
-  readonly theme?: string
-  readonly enableSearch?: boolean
-  readonly enforceDescriptions?: boolean
-  readonly enforceExamples?: boolean
-  readonly enforceVersion?: boolean
-  readonly tscExecutable?: string
-  readonly exclude?: ReadonlyArray<string>
-  readonly parseCompilerOptions?: string | Record<string, unknown>
-  readonly examplesCompilerOptions?: string | Record<string, unknown>
+  readonly projectHomepage?: string;
+  readonly srcLink?: string;
+  readonly srcDir?: string;
+  readonly outDir?: string;
+  readonly theme?: string;
+  readonly enableSearch?: boolean;
+  readonly enforceDescriptions?: boolean;
+  readonly enforceExamples?: boolean;
+  readonly enforceVersion?: boolean;
+  readonly tscExecutable?: string;
+  readonly exclude?: ReadonlyArray<string>;
+  readonly parseCompilerOptions?: string | Record<string, unknown>;
+  readonly examplesCompilerOptions?: string | Record<string, unknown>;
 }
 ```
 

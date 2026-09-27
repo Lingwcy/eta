@@ -7,7 +7,7 @@ add support for merging external events into `Prompt.custom` render loops via an
 The prompt races user input against events from the dequeue, allowing background events to trigger re-renders without waiting for a keypress:
 
 ```ts
-const eventQueue = yield * Queue.make<number>()
+const eventQueue = yield * Queue.make<number>();
 
 const prompt = Prompt.custom(
   { count: 0 },
@@ -20,11 +20,13 @@ const prompt = Prompt.custom(
           // handle user input
           Match.tag("Input", () => Action.Submit({ value: state.count })),
           // handle external events from the queue
-          Match.tag("Event", (input) => Action.NextFrame({ state: { count: state.count + input.value } })),
-          Match.exhaustive
-        )
+          Match.tag("Event", (input) =>
+            Action.NextFrame({ state: { count: state.count + input.value } }),
+          ),
+          Match.exhaustive,
+        ),
       ),
-    clear: () => Effect.succeed("")
-  }
-)
+    clear: () => Effect.succeed(""),
+  },
+);
 ```

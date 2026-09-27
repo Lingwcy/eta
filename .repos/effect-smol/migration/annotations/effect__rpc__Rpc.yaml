@@ -20,10 +20,10 @@
   replacement: "effect/unstable/rpc/Rpc#Error"
   note: "Retained; it includes decoded errors contributed by attached middleware."
 "@effect/rpc/Rpc#ErrorEncoded":
-  replacement: "Rpc.ErrorSchema<R>[\"Encoded\"]"
+  replacement: 'Rpc.ErrorSchema<R>["Encoded"]'
   note: "The alias was removed; index the v4 error schema's Encoded member directly."
 "@effect/rpc/Rpc#ErrorExitEncoded":
-  replacement: "Rpc.ErrorExitSchema<R>[\"Encoded\"]"
+  replacement: 'Rpc.ErrorExitSchema<R>["Encoded"]'
   note: "Use the new exit error schema, which includes stream and middleware errors, then select its Encoded member."
 "@effect/rpc/Rpc#ErrorSchema":
   replacement: "effect/unstable/rpc/Rpc#ErrorSchema"
@@ -50,10 +50,10 @@
   replacement: "effect/unstable/rpc/Rpc#Success"
   note: "Retained as the decoded success type."
 "@effect/rpc/Rpc#SuccessChunkEncoded":
-  replacement: "Rpc.SuccessExitSchema<R>[\"Encoded\"]"
+  replacement: 'Rpc.SuccessExitSchema<R>["Encoded"]'
   note: "The alias was removed; for a streaming RPC the exit success schema is the stream element schema."
 "@effect/rpc/Rpc#SuccessExitEncoded":
-  replacement: "Rpc.SuccessExitSchema<R>[\"Encoded\"]"
+  replacement: 'Rpc.SuccessExitSchema<R>["Encoded"]'
   note: "Use the new exit success schema and select its Encoded member; streaming RPC exits use the element schema separately from the terminal void exit."
 "@effect/rpc/Rpc#SuccessSchema":
   replacement: "effect/unstable/rpc/Rpc#SuccessSchema"

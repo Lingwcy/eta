@@ -1,11 +1,11 @@
-import { assert, describe, it } from "@effect/vitest"
-import { Effect, Schema } from "effect"
-import * as K8sHttpClient from "effect/unstable/cluster/K8sHttpClient"
+import { assert, describe, it } from "@effect/vitest";
+import { Effect, Schema } from "effect";
+import * as K8sHttpClient from "effect/unstable/cluster/K8sHttpClient";
 
 describe.concurrent("K8sHttpClient", () => {
   describe("Pod", () => {
     it.effect("decodes null condition lastTransitionTime values", () =>
-      Effect.gen(function*() {
+      Effect.gen(function* () {
         const pod = yield* Schema.decodeUnknownEffect(K8sHttpClient.Pod)({
           status: {
             phase: "Running",
@@ -15,20 +15,21 @@ describe.concurrent("K8sHttpClient", () => {
               {
                 type: "Initialized",
                 status: "True",
-                lastTransitionTime: null
+                lastTransitionTime: null,
               },
               {
                 type: "Ready",
                 status: "False",
-                lastTransitionTime: null
-              }
-            ]
-          }
-        })
+                lastTransitionTime: null,
+              },
+            ],
+          },
+        });
 
-        assert.strictEqual(pod.status.conditions[0].lastTransitionTime, null)
-        assert.strictEqual(pod.isReady, false)
-        assert.strictEqual(pod.isReadyOrInitializing, true)
-      }))
-  })
-})
+        assert.strictEqual(pod.status.conditions[0].lastTransitionTime, null);
+        assert.strictEqual(pod.isReady, false);
+        assert.strictEqual(pod.isReadyOrInitializing, true);
+      }),
+    );
+  });
+});

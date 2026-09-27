@@ -7,58 +7,58 @@
  *
  * @internal
  */
-import * as Schema from "../../../../Schema.ts"
-import * as Rpc from "../../../rpc/Rpc.ts"
-import * as RpcGroup from "../../../rpc/RpcGroup.ts"
-import * as Previous from "./v2024_11_05.ts"
+import * as Schema from "../../../../Schema.ts";
+import * as Rpc from "../../../rpc/Rpc.ts";
+import * as RpcGroup from "../../../rpc/RpcGroup.ts";
+import * as Previous from "./v2024_11_05.ts";
 
-export * from "./v2024_11_05.ts"
+export * from "./v2024_11_05.ts";
 
 /** @internal */
-export const protocolVersion = "2025-03-26"
+export const protocolVersion = "2025-03-26";
 
-const optional = Previous.optional
+const optional = Previous.optional;
 
 /** @internal */
 export const ServerCapabilities = Schema.Struct({
   ...Previous.ServerCapabilities.fields,
-  completions: optional(Schema.Struct({}))
-})
+  completions: optional(Schema.Struct({})),
+});
 
 /** @internal */
 export const AudioContent = Schema.Struct({
   type: Schema.Literal("audio"),
   data: Schema.String,
   mimeType: Schema.String,
-  annotations: optional(Previous.Annotation)
-})
+  annotations: optional(Previous.Annotation),
+});
 
 /** @internal */
 export const PromptOrToolContent = Schema.Union([
   Previous.TextContent,
   Previous.ImageContent,
   AudioContent,
-  Previous.EmbeddedResource
-])
+  Previous.EmbeddedResource,
+]);
 
 /** @internal */
 export const SamplingContent = Schema.Union([
   Previous.TextContent,
   Previous.ImageContent,
-  AudioContent
-])
+  AudioContent,
+]);
 
 /** @internal */
 export const PromptMessage = Schema.Struct({
   role: Previous.Role,
-  content: PromptOrToolContent
-})
+  content: PromptOrToolContent,
+});
 
 /** @internal */
 export const SamplingMessage = Schema.Struct({
   role: Previous.Role,
-  content: SamplingContent
-})
+  content: SamplingContent,
+});
 
 /** @internal */
 export const ToolAnnotations = Schema.Struct({
@@ -66,14 +66,14 @@ export const ToolAnnotations = Schema.Struct({
   readOnlyHint: optional(Schema.Boolean),
   destructiveHint: optional(Schema.Boolean),
   idempotentHint: optional(Schema.Boolean),
-  openWorldHint: optional(Schema.Boolean)
-})
+  openWorldHint: optional(Schema.Boolean),
+});
 
 /** @internal */
 export const Tool = Schema.Struct({
   ...Previous.Tool.fields,
-  annotations: optional(ToolAnnotations)
-})
+  annotations: optional(ToolAnnotations),
+});
 
 /** @internal */
 export const InitializeResult = Schema.Struct({
@@ -81,28 +81,28 @@ export const InitializeResult = Schema.Struct({
   protocolVersion: Schema.String,
   capabilities: ServerCapabilities,
   serverInfo: Previous.Implementation,
-  instructions: optional(Schema.String)
-})
+  instructions: optional(Schema.String),
+});
 
 /** @internal */
 export const GetPromptResult = Schema.Struct({
   ...Previous.ResultMeta.fields,
   description: optional(Schema.String),
-  messages: Schema.Array(PromptMessage)
-})
+  messages: Schema.Array(PromptMessage),
+});
 
 /** @internal */
 export const ListToolsResult = Schema.Struct({
   ...Previous.PaginatedResult.fields,
-  tools: Schema.Array(Tool)
-})
+  tools: Schema.Array(Tool),
+});
 
 /** @internal */
 export const CallToolResult = Schema.Struct({
   ...Previous.ResultMeta.fields,
   content: Schema.Array(PromptOrToolContent),
-  isError: optional(Schema.Boolean)
-})
+  isError: optional(Schema.Boolean),
+});
 
 /** @internal */
 export const CreateMessageResult = Schema.Struct({
@@ -110,8 +110,8 @@ export const CreateMessageResult = Schema.Struct({
   role: Previous.Role,
   content: SamplingContent,
   model: Schema.String,
-  stopReason: optional(Schema.String)
-})
+  stopReason: optional(Schema.String),
+});
 
 /** @internal */
 export class Initialize extends Rpc.make("initialize", {
@@ -121,8 +121,8 @@ export class Initialize extends Rpc.make("initialize", {
     ...Previous.RequestMeta.fields,
     protocolVersion: Schema.String,
     capabilities: Previous.ClientCapabilities,
-    clientInfo: Previous.Implementation
-  }
+    clientInfo: Previous.Implementation,
+  },
 }) {}
 
 /** @internal */
@@ -132,15 +132,15 @@ export class GetPrompt extends Rpc.make("prompts/get", {
   payload: {
     ...Previous.RequestMeta.fields,
     name: Schema.String,
-    arguments: optional(Schema.Record(Schema.String, Schema.String))
-  }
+    arguments: optional(Schema.Record(Schema.String, Schema.String)),
+  },
 }) {}
 
 /** @internal */
 export class ListTools extends Rpc.make("tools/list", {
   success: ListToolsResult,
   error: Previous.McpError,
-  payload: Schema.UndefinedOr(Previous.PaginatedRequest)
+  payload: Schema.UndefinedOr(Previous.PaginatedRequest),
 }) {}
 
 /** @internal */
@@ -150,8 +150,8 @@ export class CallTool extends Rpc.make("tools/call", {
   payload: {
     ...Previous.RequestMeta.fields,
     name: Schema.String,
-    arguments: optional(Schema.JsonObject)
-  }
+    arguments: optional(Schema.JsonObject),
+  },
 }) {}
 
 /** @internal */
@@ -167,8 +167,8 @@ export class CreateMessage extends Rpc.make("sampling/createMessage", {
     temperature: optional(Schema.Finite),
     maxTokens: Schema.Finite,
     stopSequences: optional(Schema.Array(Schema.String)),
-    metadata: optional(Schema.JsonObject)
-  }
+    metadata: optional(Schema.JsonObject),
+  },
 }) {}
 
 /** @internal */
@@ -178,8 +178,8 @@ export class ProgressNotification extends Rpc.make("notifications/progress", {
     progressToken: Previous.ProgressToken,
     progress: Schema.Finite,
     total: optional(Schema.Finite),
-    message: optional(Schema.String)
-  }
+    message: optional(Schema.String),
+  },
 }) {}
 
 /** @internal */
@@ -196,7 +196,7 @@ export class ClientRequestRpcs extends RpcGroup.make(
   Previous.Subscribe,
   Previous.Unsubscribe,
   CallTool,
-  ListTools
+  ListTools,
 ) {}
 
 /** @internal */
@@ -204,14 +204,14 @@ export class ClientNotificationRpcs extends RpcGroup.make(
   Previous.CancelledNotification,
   ProgressNotification,
   Previous.InitializedNotification,
-  Previous.RootsListChangedNotification
+  Previous.RootsListChangedNotification,
 ) {}
 
 /** @internal */
 export class ServerRequestRpcs extends RpcGroup.make(
   Previous.Ping,
   CreateMessage,
-  Previous.ListRoots
+  Previous.ListRoots,
 ) {}
 
 /** @internal */
@@ -222,5 +222,5 @@ export class ServerNotificationRpcs extends RpcGroup.make(
   Previous.ResourceUpdatedNotification,
   Previous.ResourceListChangedNotification,
   Previous.ToolListChangedNotification,
-  Previous.PromptListChangedNotification
+  Previous.PromptListChangedNotification,
 ) {}

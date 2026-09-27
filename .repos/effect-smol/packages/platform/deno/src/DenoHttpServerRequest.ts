@@ -7,7 +7,7 @@
  *
  * @since 4.0.0
  */
-import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest"
+import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 
 /**
  * Returns the underlying web-standard `Request` from an Effect `HttpServerRequest`.
@@ -15,4 +15,4 @@ import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest"
  * @category accessors
  * @since 4.0.0
  */
-export const toDenoServerRequest = (self: HttpServerRequest): Request => (self as any).source
+export const toDenoServerRequest = (self: HttpServerRequest): Request => (self as any).source;

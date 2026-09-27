@@ -8,12 +8,12 @@
  *
  * @since 4.0.0
  */
-import * as Context from "../../Context.ts"
-import * as Effect from "../../Effect.ts"
-import type * as FileSystem from "../../FileSystem.ts"
-import * as Layer from "../../Layer.ts"
-import * as Option from "../../Option.ts"
-import type * as Body from "./HttpBody.ts"
+import * as Context from "../../Context.ts";
+import * as Effect from "../../Effect.ts";
+import type * as FileSystem from "../../FileSystem.ts";
+import * as Layer from "../../Layer.ts";
+import * as Option from "../../Option.ts";
+import type * as Body from "./HttpBody.ts";
 
 /**
  * Represents an HTTP entity tag, either weak or strong.
@@ -21,7 +21,7 @@ import type * as Body from "./HttpBody.ts"
  * @category models
  * @since 4.0.0
  */
-export type Etag = Weak | Strong
+export type Etag = Weak | Strong;
 
 /**
  * Weak HTTP entity tag.
@@ -34,8 +34,8 @@ export type Etag = Weak | Strong
  * @since 4.0.0
  */
 export interface Weak {
-  readonly _tag: "Weak"
-  readonly value: string
+  readonly _tag: "Weak";
+  readonly value: string;
 }
 
 /**
@@ -49,8 +49,8 @@ export interface Weak {
  * @since 4.0.0
  */
 export interface Strong {
-  readonly _tag: "Strong"
-  readonly value: string
+  readonly _tag: "Strong";
+  readonly value: string;
 }
 
 /**
@@ -62,11 +62,11 @@ export interface Strong {
 export const toString = (self: Etag): string => {
   switch (self._tag) {
     case "Weak":
-      return `W/"${self.value}"`
+      return `W/"${self.value}"`;
     case "Strong":
-      return `"${self.value}"`
+      return `"${self.value}"`;
   }
-}
+};
 
 /**
  * Service for generating ETags from filesystem file information or Web `File`-like metadata.
@@ -74,22 +74,25 @@ export const toString = (self: Etag): string => {
  * @category services
  * @since 4.0.0
  */
-export class Generator extends Context.Service<Generator, {
-  readonly fromFileInfo: (info: FileSystem.File.Info) => Effect.Effect<Etag>
-  readonly fromFileWeb: (file: Body.HttpBody.FileLike) => Effect.Effect<Etag>
-}>()("effect/http/Etag/Generator") {}
+export class Generator extends Context.Service<
+  Generator,
+  {
+    readonly fromFileInfo: (info: FileSystem.File.Info) => Effect.Effect<Etag>;
+    readonly fromFileWeb: (file: Body.HttpBody.FileLike) => Effect.Effect<Etag>;
+  }
+>()("effect/http/Etag/Generator") {}
 
 const fromFileInfo = (info: FileSystem.File.Info) => {
   const mtime = Option.match(info.mtime, {
     onNone: () => "0",
-    onSome: (mtime) => mtime.getTime().toString(16)
-  })
-  return `${info.size.toString(16)}-${mtime}`
-}
+    onSome: (mtime) => mtime.getTime().toString(16),
+  });
+  return `${info.size.toString(16)}-${mtime}`;
+};
 
 const fromFileWeb = (file: Body.HttpBody.FileLike) => {
-  return `${file.size.toString(16)}-${file.lastModified.toString(16)}`
-}
+  return `${file.size.toString(16)}-${file.lastModified.toString(16)}`;
+};
 
 /**
  * Layer that provides a `Generator` which produces strong ETags from file size
@@ -112,16 +115,14 @@ const fromFileWeb = (file: Body.HttpBody.FileLike) => {
  * @category layers
  * @since 4.0.0
  */
-export const layer: Layer.Layer<Generator> = Layer.succeed(
-  Generator
-)({
+export const layer: Layer.Layer<Generator> = Layer.succeed(Generator)({
   fromFileInfo(info) {
-    return Effect.sync(() => ({ _tag: "Strong", value: fromFileInfo(info) }))
+    return Effect.sync(() => ({ _tag: "Strong", value: fromFileInfo(info) }));
   },
   fromFileWeb(file) {
-    return Effect.sync(() => ({ _tag: "Strong", value: fromFileWeb(file) }))
-  }
-})
+    return Effect.sync(() => ({ _tag: "Strong", value: fromFileWeb(file) }));
+  },
+});
 
 /**
  * Layer that provides a `Generator` which produces weak ETags from file size and modification time metadata.
@@ -129,13 +130,11 @@ export const layer: Layer.Layer<Generator> = Layer.succeed(
  * @category layers
  * @since 4.0.0
  */
-export const layerWeak: Layer.Layer<Generator> = Layer.succeed(
-  Generator
-)({
+export const layerWeak: Layer.Layer<Generator> = Layer.succeed(Generator)({
   fromFileInfo(info) {
-    return Effect.sync(() => ({ _tag: "Weak", value: fromFileInfo(info) }))
+    return Effect.sync(() => ({ _tag: "Weak", value: fromFileInfo(info) }));
   },
   fromFileWeb(file) {
-    return Effect.sync(() => ({ _tag: "Weak", value: fromFileWeb(file) }))
-  }
-})
+    return Effect.sync(() => ({ _tag: "Weak", value: fromFileWeb(file) }));
+  },
+});

@@ -7,8 +7,8 @@
  *
  * @since 4.0.0
  */
-import type * as Effect from "effect/Effect"
-import { makeRunMain, type Teardown } from "effect/Runtime"
+import type * as Effect from "effect/Effect";
+import { makeRunMain, type Teardown } from "effect/Runtime";
 
 /**
  * Runs an effect as the browser main program and interrupts its fiber when the document is discarded.
@@ -34,29 +34,27 @@ import { makeRunMain, type Teardown } from "effect/Runtime"
  * @since 4.0.0
  */
 export const runMain: {
-  (
-    options?: {
-      readonly disableErrorReporting?: boolean | undefined
-      readonly teardown?: Teardown | undefined
-    }
-  ): <E, A>(effect: Effect.Effect<A, E>) => void
+  (options?: {
+    readonly disableErrorReporting?: boolean | undefined;
+    readonly teardown?: Teardown | undefined;
+  }): <E, A>(effect: Effect.Effect<A, E>) => void;
   <E, A>(
     effect: Effect.Effect<A, E>,
     options?: {
-      readonly disableErrorReporting?: boolean | undefined
-      readonly teardown?: Teardown | undefined
-    }
-  ): void
+      readonly disableErrorReporting?: boolean | undefined;
+      readonly teardown?: Teardown | undefined;
+    },
+  ): void;
 } = makeRunMain(({ fiber, teardown }) => {
   function onPageHide(event: PageTransitionEvent) {
     if (!event.persisted) {
-      fiber.interruptUnsafe(fiber.id)
+      fiber.interruptUnsafe(fiber.id);
     }
   }
 
-  globalThis.addEventListener("pagehide", onPageHide)
+  globalThis.addEventListener("pagehide", onPageHide);
   fiber.addObserver((exit) => {
-    globalThis.removeEventListener("pagehide", onPageHide)
-    teardown(exit, () => {})
-  })
-})
+    globalThis.removeEventListener("pagehide", onPageHide);
+    teardown(exit, () => {});
+  });
+});

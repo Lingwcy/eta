@@ -7,27 +7,29 @@
  *
  * @since 4.0.0
  */
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as Sink from "effect/Sink"
-import * as Stdio from "effect/Stdio"
-import * as Stream from "effect/Stream"
-import { handleError } from "./internal/error.ts"
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Sink from "effect/Sink";
+import * as Stdio from "effect/Stdio";
+import * as Stream from "effect/Stream";
+import { handleError } from "./internal/error.ts";
 
-const encoder = new TextEncoder()
+const encoder = new TextEncoder();
 
 const output = (
   evaluate: () => WritableStream<Uint8Array>,
   method: "stdout" | "stderr",
-  options?: { readonly endOnDone?: boolean | undefined }
+  options?: { readonly endOnDone?: boolean | undefined },
 ) =>
   Sink.fromWritableStream({
     evaluate,
     onError: handleError("Stdio", method),
-    closeOnDone: options?.endOnDone ?? false
+    closeOnDone: options?.endOnDone ?? false,
   }).pipe(
-    Sink.mapInput((input: string | Uint8Array) => typeof input === "string" ? encoder.encode(input) : input)
-  )
+    Sink.mapInput((input: string | Uint8Array) =>
+      typeof input === "string" ? encoder.encode(input) : input,
+    ),
+  );
 
 /**
  * Provides the `Stdio` service backed by `Deno.args`, `Deno.stdin`,
@@ -47,7 +49,7 @@ export const layer: Layer.Layer<Stdio.Stdio> = Layer.succeed(
     stdin: Stream.fromReadableStream({
       evaluate: () => Deno.stdin.readable,
       onError: handleError("Stdio", "stdin"),
-      releaseLockOnEnd: true
-    })
-  })
-)
+      releaseLockOnEnd: true,
+    }),
+  }),
+);

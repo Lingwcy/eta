@@ -17,16 +17,16 @@ export type OpenRouterErrorMetadata = {
   /**
    * The error code returned by the API.
    */
-  readonly errorCode: string | number | null
+  readonly errorCode: string | number | null;
   /**
    * The error type returned by the API.
    */
-  readonly errorType: string | null
+  readonly errorType: string | null;
   /**
    * The unique request ID for debugging.
    */
-  readonly requestId: string | null
-}
+  readonly requestId: string | null;
+};
 
 /**
  * OpenRouter-specific rate limit metadata fields.
@@ -35,11 +35,11 @@ export type OpenRouterErrorMetadata = {
  * @since 4.0.0
  */
 export type OpenRouterRateLimitMetadata = OpenRouterErrorMetadata & {
-  readonly limit: string | null
-  readonly remaining: number | null
-  readonly resetRequests: string | null
-  readonly resetTokens: string | null
-}
+  readonly limit: string | null;
+  readonly remaining: number | null;
+  readonly resetRequests: string | null;
+  readonly resetTokens: string | null;
+};
 
 declare module "effect/unstable/ai/AiError" {
   /**
@@ -58,7 +58,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the rate limit response.
      */
-    readonly openrouter?: OpenRouterRateLimitMetadata | null
+    readonly openrouter?: OpenRouterRateLimitMetadata | null;
   }
 
   /**
@@ -76,7 +76,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the quota exhaustion response.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 
   /**
@@ -94,7 +94,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the authentication failure.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 
   /**
@@ -112,7 +112,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the content policy response.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 
   /**
@@ -130,7 +130,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the invalid request response.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 
   /**
@@ -148,7 +148,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the internal provider response.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 
   /**
@@ -166,7 +166,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the invalid output response.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 
   /**
@@ -184,7 +184,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the structured output failure.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 
   /**
@@ -202,7 +202,7 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the unsupported schema failure.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 
   /**
@@ -220,6 +220,6 @@ declare module "effect/unstable/ai/AiError" {
     /**
      * OpenRouter-specific details for the unclassified provider failure.
      */
-    readonly openrouter?: OpenRouterErrorMetadata | null
+    readonly openrouter?: OpenRouterErrorMetadata | null;
   }
 }

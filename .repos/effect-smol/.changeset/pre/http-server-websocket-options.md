@@ -11,12 +11,12 @@ Both servers now accept a `websocket` option that is forwarded to the underlying
 // Node: forwarded to the `ws` WebSocketServer
 NodeHttpServer.layer(() => createServer(), {
   port: 3000,
-  websocket: { perMessageDeflate: true }
-})
+  websocket: { perMessageDeflate: true },
+});
 
 // Bun: merged into Bun.serve's websocket handler
 BunHttpServer.layer({
   port: 3000,
-  websocket: { perMessageDeflate: true }
-})
+  websocket: { perMessageDeflate: true },
+});
 ```

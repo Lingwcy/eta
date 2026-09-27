@@ -7,44 +7,44 @@
 /**
  * @since 4.0.0
  */
-export * as Migrator from "./Migrator.ts"
+export * as Migrator from "./Migrator.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SqlClient from "./SqlClient.ts"
+export * as SqlClient from "./SqlClient.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SqlConnection from "./SqlConnection.ts"
+export * as SqlConnection from "./SqlConnection.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SqlError from "./SqlError.ts"
+export * as SqlError from "./SqlError.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SqlModel from "./SqlModel.ts"
+export * as SqlModel from "./SqlModel.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SqlResolver from "./SqlResolver.ts"
+export * as SqlResolver from "./SqlResolver.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SqlSchema from "./SqlSchema.ts"
+export * as SqlSchema from "./SqlSchema.ts";
 
 /**
  * @since 4.0.0
  */
-export * as SqlStream from "./SqlStream.ts"
+export * as SqlStream from "./SqlStream.ts";
 
 /**
  * @since 4.0.0
  */
-export * as Statement from "./Statement.ts"
+export * as Statement from "./Statement.ts";

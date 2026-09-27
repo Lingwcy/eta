@@ -8,22 +8,22 @@
  *
  * @since 4.0.0
  */
-import type { NonEmptyReadonlyArray } from "../../Array.ts"
-import * as Arr from "../../Array.ts"
-import * as Cause from "../../Cause.ts"
-import * as Channel from "../../Channel.ts"
-import * as ChannelSchema from "../../ChannelSchema.ts"
-import * as Data from "../../Data.ts"
-import * as Duration from "../../Duration.ts"
-import * as Effect from "../../Effect.ts"
-import { hasProperty } from "../../Predicate.ts"
-import * as Pull from "../../Pull.ts"
-import * as Result from "../../Result.ts"
-import * as Schema from "../../Schema.ts"
-import type * as SchemaAST from "../../SchemaAST.ts"
-import * as SchemaTransformation from "../../SchemaTransformation.ts"
+import type { NonEmptyReadonlyArray } from "../../Array.ts";
+import * as Arr from "../../Array.ts";
+import * as Cause from "../../Cause.ts";
+import * as Channel from "../../Channel.ts";
+import * as ChannelSchema from "../../ChannelSchema.ts";
+import * as Data from "../../Data.ts";
+import * as Duration from "../../Duration.ts";
+import * as Effect from "../../Effect.ts";
+import { hasProperty } from "../../Predicate.ts";
+import * as Pull from "../../Pull.ts";
+import * as Result from "../../Result.ts";
+import * as Schema from "../../Schema.ts";
+import type * as SchemaAST from "../../SchemaAST.ts";
+import * as SchemaTransformation from "../../SchemaTransformation.ts";
 
-const SseErrorTypeId = "~effect/encoding/Sse/SseError"
+const SseErrorTypeId = "~effect/encoding/Sse/SseError";
 
 /**
  * Error reason raised when pending Server-Sent Events state exceeds the
@@ -33,10 +33,10 @@ const SseErrorTypeId = "~effect/encoding/Sse/SseError"
  * @since 4.0.0
  */
 export class EventTooLarge extends Data.TaggedError("EventTooLarge")<{
-  readonly maxEventSize: number
+  readonly maxEventSize: number;
 }> {
   override get message() {
-    return `Pending SSE event exceeded the maximum size of ${this.maxEventSize}`
+    return `Pending SSE event exceeded the maximum size of ${this.maxEventSize}`;
   }
 }
 
@@ -46,7 +46,7 @@ export class EventTooLarge extends Data.TaggedError("EventTooLarge")<{
  * @category errors
  * @since 4.0.0
  */
-export type SseErrorReason = EventTooLarge
+export type SseErrorReason = EventTooLarge;
 
 /**
  * Error raised when decoding a Server-Sent Events stream fails.
@@ -55,14 +55,14 @@ export type SseErrorReason = EventTooLarge
  * @since 4.0.0
  */
 export class SseError extends Data.TaggedError("SseError")<{
-  readonly reason: SseErrorReason
+  readonly reason: SseErrorReason;
 }> {
   /**
    * Marks this value as an SSE decoding error.
    *
    * @since 4.0.0
    */
-  readonly [SseErrorTypeId] = SseErrorTypeId
+  readonly [SseErrorTypeId] = SseErrorTypeId;
 
   /**
    * Delegates the public message to the underlying SSE error reason.
@@ -70,7 +70,7 @@ export class SseError extends Data.TaggedError("SseError")<{
    * @since 4.0.0
    */
   override get message() {
-    return this.reason.message
+    return this.reason.message;
   }
 }
 
@@ -84,10 +84,10 @@ export interface DecodeOptions {
   /**
    * Maximum number of string code units retained for a pending event. The default is 10 MiB.
    */
-  readonly maxEventSize?: number | undefined
+  readonly maxEventSize?: number | undefined;
 }
 
-const defaultMaxEventSize = 10 * 1024 * 1024
+const defaultMaxEventSize = 10 * 1024 * 1024;
 
 /**
  * Creates a channel that parses Server-Sent Events text chunks into `Event` values.
@@ -100,7 +100,9 @@ const defaultMaxEventSize = 10 * 1024 * 1024
  * @category decoding
  * @since 4.0.0
  */
-export const decode = <IE, Done>(options?: DecodeOptions): Channel.Channel<
+export const decode = <IE, Done>(
+  options?: DecodeOptions,
+): Channel.Channel<
   NonEmptyReadonlyArray<Event>,
   IE | Retry | SseError,
   Done,
@@ -110,38 +112,42 @@ export const decode = <IE, Done>(options?: DecodeOptions): Channel.Channel<
 > =>
   Channel.fromTransform((upstream, _scope) =>
     Effect.sync(() => {
-      let buffer: Array<Event> = []
-      let retry: Retry | undefined
+      let buffer: Array<Event> = [];
+      let retry: Retry | undefined;
       const parser = makeParser((event) => {
         if (event._tag === "Retry") {
-          retry = event
+          retry = event;
         } else {
-          buffer.push(event)
+          buffer.push(event);
         }
-      }, options)
+      }, options);
 
       const pump = Effect.flatMap(upstream, (arr) => {
         for (let i = 0; i < arr.length; i++) {
-          const error = parser.feed(arr[i])
+          const error = parser.feed(arr[i]);
           if (error !== undefined) {
-            return Effect.fail(error)
+            return Effect.fail(error);
           }
         }
-        return Effect.void
-      })
+        return Effect.void;
+      });
 
-      return Effect.suspend(function loop(): Pull.Pull<NonEmptyReadonlyArray<Event>, IE | Retry | SseError, Done> {
+      return Effect.suspend(function loop(): Pull.Pull<
+        NonEmptyReadonlyArray<Event>,
+        IE | Retry | SseError,
+        Done
+      > {
         if (Arr.isArrayNonEmpty(buffer)) {
-          const out = buffer
-          buffer = []
-          return Effect.succeed(out)
+          const out = buffer;
+          buffer = [];
+          return Effect.succeed(out);
         } else if (retry) {
-          return Effect.fail(retry)
+          return Effect.fail(retry);
         }
-        return Effect.flatMap(pump, loop)
-      })
-    })
-  )
+        return Effect.flatMap(pump, loop);
+      });
+    }),
+  );
 
 /**
  * A constraint for schemas that can decode SSE events.
@@ -149,18 +155,16 @@ export const decode = <IE, Done>(options?: DecodeOptions): Channel.Channel<
  * @category decoding
  * @since 4.0.0
  */
-export interface EventCodec extends
-  Schema.ConstraintCodec<
-    any,
-    {
-      readonly id?: string | undefined
-      readonly event?: string | undefined
-      readonly data: string
-    },
-    unknown,
-    unknown
-  >
-{}
+export interface EventCodec extends Schema.ConstraintCodec<
+  any,
+  {
+    readonly id?: string | undefined;
+    readonly event?: string | undefined;
+    readonly data: string;
+  },
+  unknown,
+  unknown
+> {}
 
 /**
  * Creates an SSE decoder channel that decodes each parsed event with a schema.
@@ -177,14 +181,10 @@ export interface EventCodec extends
  * @category decoding
  * @since 4.0.0
  */
-export const decodeSchema = <
-  S extends EventCodec,
-  IE,
-  Done
->(
+export const decodeSchema = <S extends EventCodec, IE, Done>(
   schema: S,
   options?: DecodeOptions,
-  parseOptions?: SchemaAST.ParseOptions
+  parseOptions?: SchemaAST.ParseOptions,
 ): Channel.Channel<
   NonEmptyReadonlyArray<S["Type"]>,
   IE | Retry | SseError | Schema.SchemaError,
@@ -196,13 +196,8 @@ export const decodeSchema = <
 > =>
   Channel.pipeTo(
     decode<IE, Done>(options),
-    ChannelSchema.decode(
-      Event.pipe(
-        Schema.decodeTo(schema, transformEvent)
-      ),
-      parseOptions
-    )()
-  )
+    ChannelSchema.decode(Event.pipe(Schema.decodeTo(schema, transformEvent)), parseOptions)(),
+  );
 
 /**
  * Creates an SSE decoder channel that JSON-decodes each event `data` field with a schema.
@@ -217,12 +212,12 @@ export const decodeSchema = <
  */
 export const decodeDataSchema = <Type, DecodingServices, IE, Done>(
   schema: Schema.ConstraintDecoder<Type, DecodingServices>,
-  options?: DecodeOptions
+  options?: DecodeOptions,
 ): Channel.Channel<
   NonEmptyReadonlyArray<{
-    readonly event: string
-    readonly id: string | undefined
-    readonly data: Type
+    readonly event: string;
+    readonly id: string | undefined;
+    readonly data: Type;
   }>,
   IE | Retry | SseError | Schema.SchemaError,
   Done,
@@ -233,16 +228,16 @@ export const decodeDataSchema = <Type, DecodingServices, IE, Done>(
 > => {
   const eventSchema = Schema.Struct({
     ...EventEncoded.fields,
-    data: Schema.fromJsonString(schema)
-  })
+    data: Schema.fromJsonString(schema),
+  });
   return Channel.pipeTo(
     decode<IE, Done>(options),
     Channel.map(
       ChannelSchema.decode(eventSchema)(),
-      Arr.map((event) => ({ ...event, id: event.id }))
-    )
-  )
-}
+      Arr.map((event) => ({ ...event, id: event.id })),
+    ),
+  );
+};
 
 /**
  * Creates a stateful Server-Sent Events parser.
@@ -257,50 +252,50 @@ export const decodeDataSchema = <Type, DecodingServices, IE, Done>(
  * @since 4.0.0
  */
 export function makeParser(onParse: (event: AnyEvent) => void, options?: DecodeOptions): Parser {
-  const maxEventSize = options?.maxEventSize ?? defaultMaxEventSize
+  const maxEventSize = options?.maxEventSize ?? defaultMaxEventSize;
 
   // Processing state
-  let isFirstChunk: boolean
-  let buffer: string
-  let startingPosition: number
-  let startingFieldLength: number
-  let discardTrailingNewline: boolean
+  let isFirstChunk: boolean;
+  let buffer: string;
+  let startingPosition: number;
+  let startingFieldLength: number;
+  let discardTrailingNewline: boolean;
 
   // Event state
-  let lastEventId: string | undefined
-  let eventName: string | undefined
-  let data: string
+  let lastEventId: string | undefined;
+  let eventName: string | undefined;
+  let data: string;
 
-  reset()
-  return { feed, reset }
+  reset();
+  return { feed, reset };
 
   function reset(): void {
-    isFirstChunk = true
-    buffer = ""
-    startingPosition = 0
-    startingFieldLength = -1
-    discardTrailingNewline = false
+    isFirstChunk = true;
+    buffer = "";
+    startingPosition = 0;
+    startingFieldLength = -1;
+    discardTrailingNewline = false;
 
-    lastEventId = undefined
-    eventName = undefined
-    data = ""
+    lastEventId = undefined;
+    eventName = undefined;
+    data = "";
   }
 
   function feed(chunk: string): SseError | undefined {
-    buffer = buffer ? buffer + chunk : chunk
+    buffer = buffer ? buffer + chunk : chunk;
 
     // Strip any UTF-8 byte order mark (BOM) at the start of the stream.
     // Note that we do not strip any non - UTF8 BOM, as eventsource streams are
     // always decoded as UTF8 as per the specification.
     if (isFirstChunk && buffer.startsWith(BOM)) {
-      buffer = buffer.slice(BOM.length)
+      buffer = buffer.slice(BOM.length);
     }
 
-    isFirstChunk = false
+    isFirstChunk = false;
 
     // Set up chunk-specific processing state
-    const length = buffer.length
-    let position = 0
+    const length = buffer.length;
+    let position = 0;
 
     // Read the current buffer byte by byte
     while (position < length) {
@@ -311,54 +306,54 @@ export function makeParser(onParse: (event: AnyEvent) => void, options?: DecodeO
       // @todo but consider multiple chunks etc
       if (discardTrailingNewline) {
         if (buffer[position] === "\n") {
-          ++position
+          ++position;
         }
-        discardTrailingNewline = false
+        discardTrailingNewline = false;
       }
 
-      let lineLength = -1
-      let fieldLength = startingFieldLength
-      let character: string
+      let lineLength = -1;
+      let fieldLength = startingFieldLength;
+      let character: string;
 
       for (let index = position + startingPosition; lineLength < 0 && index < length; ++index) {
-        character = buffer[index]
+        character = buffer[index];
         if (character === ":" && fieldLength < 0) {
-          fieldLength = index - position
+          fieldLength = index - position;
         } else if (character === "\r") {
-          discardTrailingNewline = true
-          lineLength = index - position
+          discardTrailingNewline = true;
+          lineLength = index - position;
         } else if (character === "\n") {
-          lineLength = index - position
+          lineLength = index - position;
         }
       }
 
       if (lineLength < 0) {
-        startingPosition = length - position
-        startingFieldLength = fieldLength
-        break
+        startingPosition = length - position;
+        startingFieldLength = fieldLength;
+        break;
       } else {
-        startingPosition = 0
-        startingFieldLength = -1
+        startingPosition = 0;
+        startingFieldLength = -1;
       }
 
-      parseEventStreamLine(buffer, position, fieldLength, lineLength)
+      parseEventStreamLine(buffer, position, fieldLength, lineLength);
 
-      position += lineLength + 1
+      position += lineLength + 1;
     }
 
     if (position === length) {
       // If we consumed the entire buffer to read the event, reset the buffer
-      buffer = ""
+      buffer = "";
     } else if (position > 0) {
       // If there are bytes left to process, set the buffer to the unprocessed
       // portion of the buffer only
-      buffer = buffer.slice(position)
+      buffer = buffer.slice(position);
     }
 
     if (buffer.length + data.length > maxEventSize) {
-      const error = new SseError({ reason: new EventTooLarge({ maxEventSize }) })
-      reset()
-      return error
+      const error = new SseError({ reason: new EventTooLarge({ maxEventSize }) });
+      reset();
+      return error;
     }
   }
 
@@ -366,7 +361,7 @@ export function makeParser(onParse: (event: AnyEvent) => void, options?: DecodeO
     lineBuffer: string,
     index: number,
     fieldLength: number,
-    lineLength: number
+    lineLength: number,
   ) {
     if (lineLength === 0) {
       // We reached the last line of this event
@@ -375,44 +370,44 @@ export function makeParser(onParse: (event: AnyEvent) => void, options?: DecodeO
           _tag: "Event",
           id: lastEventId,
           event: eventName || "message",
-          data: data.slice(0, -1) // remove trailing newline
-        })
-        data = ""
+          data: data.slice(0, -1), // remove trailing newline
+        });
+        data = "";
       }
-      eventName = undefined
-      return
+      eventName = undefined;
+      return;
     }
 
-    const noValue = fieldLength < 0
-    const field = lineBuffer.slice(index, index + (noValue ? lineLength : fieldLength))
-    let step = 0
+    const noValue = fieldLength < 0;
+    const field = lineBuffer.slice(index, index + (noValue ? lineLength : fieldLength));
+    let step = 0;
 
     if (noValue) {
-      step = lineLength
+      step = lineLength;
     } else if (lineBuffer[index + fieldLength + 1] === " ") {
-      step = fieldLength + 2
+      step = fieldLength + 2;
     } else {
-      step = fieldLength + 1
+      step = fieldLength + 1;
     }
 
-    const position = index + step
-    const valueLength = lineLength - step
-    const value = lineBuffer.slice(position, position + valueLength).toString()
+    const position = index + step;
+    const valueLength = lineLength - step;
+    const value = lineBuffer.slice(position, position + valueLength).toString();
 
     if (field === "data") {
-      data += value ? `${value}\n` : "\n"
+      data += value ? `${value}\n` : "\n";
     } else if (field === "event") {
-      eventName = value
+      eventName = value;
     } else if (field === "id" && !value.includes("\u0000")) {
-      lastEventId = value
+      lastEventId = value;
     } else if (field === "retry" && /^\d+$/.test(value)) {
-      const retry = parseInt(value, 10)
-      onParse(new Retry({ duration: Duration.millis(retry), lastEventId }))
+      const retry = parseInt(value, 10);
+      onParse(new Retry({ duration: Duration.millis(retry), lastEventId }));
     }
   }
 }
 
-const BOM = "\uFEFF"
+const BOM = "\uFEFF";
 
 /**
  * Stateful Server-Sent Events parser returned by `makeParser`.
@@ -427,8 +422,8 @@ const BOM = "\uFEFF"
  * @since 4.0.0
  */
 export interface Parser {
-  feed(chunk: string): SseError | undefined
-  reset(): void
+  feed(chunk: string): SseError | undefined;
+  reset(): void;
 }
 
 /**
@@ -452,18 +447,18 @@ export const encode = <IE, Done>(): Channel.Channel<
 > =>
   Channel.fromTransform((upstream, _scope) =>
     Effect.sync(() => {
-      let done = false
+      let done = false;
       const pull = upstream.pipe(
         Effect.map(Arr.map(encoder.write)),
         Effect.catchFilter(Retry.filter as any, (retry: any) => {
-          done = true
-          return Effect.succeed(Arr.of(encoder.write(retry)))
+          done = true;
+          return Effect.succeed(Arr.of(encoder.write(retry)));
         }),
-        Pull.catchDone(() => Cause.done())
-      ) as Pull.Pull<Arr.NonEmptyReadonlyArray<string>, IE>
-      return Effect.suspend(() => done ? Cause.done() : pull)
-    })
-  )
+        Pull.catchDone(() => Cause.done()),
+      ) as Pull.Pull<Arr.NonEmptyReadonlyArray<string>, IE>;
+      return Effect.suspend(() => (done ? Cause.done() : pull));
+    }),
+  );
 
 /**
  * Creates an SSE encoder channel for values accepted by a schema.
@@ -476,11 +471,9 @@ export const encode = <IE, Done>(): Channel.Channel<
  * @category encoding
  * @since 4.0.0
  */
-export const encodeSchema = <
-  S extends EventCodec,
-  IE,
-  Done
->(schema: S): Channel.Channel<
+export const encodeSchema = <S extends EventCodec, IE, Done>(
+  schema: S,
+): Channel.Channel<
   NonEmptyReadonlyArray<string>,
   IE | Schema.SchemaError,
   void,
@@ -489,11 +482,10 @@ export const encodeSchema = <
   Done,
   S["EncodingServices"]
 > =>
-  ChannelSchema.encode(Event.pipe(
-    Schema.decodeTo(schema, transformEvent)
-  ))<IE | Retry, Done>().pipe(
-    Channel.pipeTo(encode())
-  )
+  ChannelSchema.encode(Event.pipe(Schema.decodeTo(schema, transformEvent)))<
+    IE | Retry,
+    Done
+  >().pipe(Channel.pipeTo(encode()));
 
 /**
  * Encoder capable of rendering an `Event` or `Retry` value as Server-Sent
@@ -503,7 +495,7 @@ export const encodeSchema = <
  * @since 4.0.0
  */
 export interface Encoder {
-  write(event: AnyEvent): string
+  write(event: AnyEvent): string;
 }
 
 /**
@@ -513,10 +505,10 @@ export interface Encoder {
  * @since 4.0.0
  */
 export interface Event {
-  readonly _tag: "Event"
-  readonly event: string
-  readonly id: string | undefined
-  readonly data: string
+  readonly _tag: "Event";
+  readonly event: string;
+  readonly id: string | undefined;
+  readonly data: string;
 }
 
 /**
@@ -526,14 +518,14 @@ export interface Event {
  * @since 4.0.0
  */
 export const EventEncoded: Schema.Struct<{
-  readonly id: Schema.optional<Schema.String>
-  readonly event: Schema.String
-  readonly data: Schema.String
+  readonly id: Schema.optional<Schema.String>;
+  readonly event: Schema.String;
+  readonly data: Schema.String;
 }> = Schema.Struct({
   id: Schema.optional(Schema.String),
   event: Schema.String,
-  data: Schema.String
-})
+  data: Schema.String,
+});
 
 /**
  * Schema for the tagged Server-Sent Events message model that adds `_tag: "Event"` to the event name, optional event ID, and string data payload.
@@ -542,16 +534,16 @@ export const EventEncoded: Schema.Struct<{
  * @since 4.0.0
  */
 export const Event: Schema.Struct<{
-  readonly _tag: Schema.tag<"Event">
-  readonly id: Schema.UndefinedOr<Schema.String>
-  readonly event: Schema.String
-  readonly data: Schema.String
+  readonly _tag: Schema.tag<"Event">;
+  readonly id: Schema.UndefinedOr<Schema.String>;
+  readonly event: Schema.String;
+  readonly data: Schema.String;
 }> = Schema.Struct({
   _tag: Schema.tag("Event"),
   id: Schema.UndefinedOr(Schema.String),
   event: Schema.String,
-  data: Schema.String
-})
+  data: Schema.String,
+});
 
 /**
  * Schema for transforming untagged SSE event payloads into tagged `Event`
@@ -560,16 +552,19 @@ export const Event: Schema.Struct<{
  * @category models
  * @since 4.0.0
  */
-export const transformEvent = SchemaTransformation.transform<{
-  readonly id?: string | undefined
-  readonly event?: string | undefined
-  readonly data: string
-}, {
-  readonly _tag: "Event"
-  readonly id: string | undefined
-  readonly event: string
-  readonly data: string
-}>({
+export const transformEvent = SchemaTransformation.transform<
+  {
+    readonly id?: string | undefined;
+    readonly event?: string | undefined;
+    readonly data: string;
+  },
+  {
+    readonly _tag: "Event";
+    readonly id: string | undefined;
+    readonly event: string;
+    readonly data: string;
+  }
+>({
   decode: (event) =>
     event.id === undefined
       ? { event: event.event, data: event.data }
@@ -578,9 +573,9 @@ export const transformEvent = SchemaTransformation.transform<{
     _tag: "Event",
     id: event.id,
     event: event.event ?? "message",
-    data: event.data
-  })
-})
+    data: event.data,
+  }),
+});
 
 /**
  * Untagged Server-Sent Events payload shape containing the event name, optional event ID, and string data payload.
@@ -589,12 +584,12 @@ export const transformEvent = SchemaTransformation.transform<{
  * @since 4.0.0
  */
 export interface EventEncoded {
-  readonly event: string
-  readonly id?: string | undefined
-  readonly data: string
+  readonly event: string;
+  readonly id?: string | undefined;
+  readonly data: string;
 }
 
-const RetryTypeId = "~effect/encoding/Sse/Retry" as const
+const RetryTypeId = "~effect/encoding/Sse/Retry" as const;
 
 /**
  * Represents a Server-Sent Events retry directive.
@@ -608,22 +603,22 @@ const RetryTypeId = "~effect/encoding/Sse/Retry" as const
  * @since 4.0.0
  */
 export class Retry extends Data.TaggedClass("Retry")<{
-  readonly duration: Duration.Duration
-  readonly lastEventId: string | undefined
+  readonly duration: Duration.Duration;
+  readonly lastEventId: string | undefined;
 }> {
   /**
    * Marks this value as an SSE retry directive for runtime guards.
    *
    * @since 4.0.0
    */
-  readonly [RetryTypeId]: typeof RetryTypeId = RetryTypeId
+  readonly [RetryTypeId]: typeof RetryTypeId = RetryTypeId;
   /**
    * Returns `true` when the value is an SSE retry directive.
    *
    * @since 4.0.0
    */
   static is(u: unknown): u is Retry {
-    return hasProperty(u, RetryTypeId)
+    return hasProperty(u, RetryTypeId);
   }
   /**
    * Separates SSE retry directives from regular event values.
@@ -631,7 +626,7 @@ export class Retry extends Data.TaggedClass("Retry")<{
    * @since 4.0.0
    */
   static filter<A>(u: A): Result.Result<Retry, Exclude<A, Retry>> {
-    return Retry.is(u) ? Result.succeed(u) : Result.fail(u as any)
+    return Retry.is(u) ? Result.succeed(u) : Result.fail(u as any);
   }
 }
 
@@ -642,7 +637,7 @@ export class Retry extends Data.TaggedClass("Retry")<{
  * @category models
  * @since 4.0.0
  */
-export type AnyEvent = Event | Retry
+export type AnyEvent = Event | Retry;
 
 /**
  * Default Server-Sent Events encoder.
@@ -659,19 +654,19 @@ export const encoder: Encoder = {
   write(event: AnyEvent): string {
     switch (event._tag) {
       case "Event": {
-        let data = ""
+        let data = "";
         if (event.id !== undefined) {
-          data += `id: ${event.id}\n`
+          data += `id: ${event.id}\n`;
         }
         if (event.event !== "message") {
-          data += `event: ${event.event}\n`
+          data += `event: ${event.event}\n`;
         }
-        data += `data: ${event.data.replace(/\n/g, "\ndata: ")}\n`
-        return data + "\n"
+        data += `data: ${event.data.replace(/\n/g, "\ndata: ")}\n`;
+        return data + "\n";
       }
       case "Retry": {
-        return `retry: ${Duration.toMillis(event.duration)}\n\n`
+        return `retry: ${Duration.toMillis(event.duration)}\n\n`;
       }
     }
-  }
-}
+  },
+};

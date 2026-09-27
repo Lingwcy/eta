@@ -1,6 +1,6 @@
 effect/TRef#TRef:
   replacement: "TxRef.TxRef"
-  note: "Rename the type and import from \"effect/TxRef\". V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Rename the type and import from "effect/TxRef". V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TRef#TRef.Variance:
   replacement: "none"
   note: "TxRef exposes no public variance marker."
@@ -9,13 +9,13 @@ effect/TRef#TRefTypeId:
   note: "The type id is internal in v4; use the public runtime guard."
 effect/TRef#get:
   replacement: "TxRef.get"
-  note: "Import TxRef from \"effect/TxRef\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxRef from "effect/TxRef"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TRef#getAndUpdateSome:
   replacement: "TxRef.modify"
   note: "Use one atomic modify and keep the old value when the partial update returns None."
 effect/TRef#make:
   replacement: "TxRef.make"
-  note: "Import TxRef from \"effect/TxRef\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxRef from "effect/TxRef"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TRef#modifySome:
   replacement: "TxRef.modify"
   note: "Use one atomic modify and return the fallback result when the partial function returns None."

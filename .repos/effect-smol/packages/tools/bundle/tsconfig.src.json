@@ -6,8 +6,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "references": [
-    { "path": "../../effect" },
-    { "path": "../../platform/node" }
-  ]
+  "references": [{ "path": "../../effect" }, { "path": "../../platform/node" }]
 }

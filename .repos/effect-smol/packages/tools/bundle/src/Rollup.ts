@@ -16,18 +16,18 @@
  *
  * @since 4.0.0
  */
-import * as NodeStream from "@effect/platform-node/NodeStream"
-import * as Context from "effect/Context"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
-import * as FileSystem from "effect/FileSystem"
-import * as Layer from "effect/Layer"
-import * as Path from "effect/Path"
-import * as Stream from "effect/Stream"
-import { createGzip } from "node:zlib"
-import type { RollupOptions } from "rollup"
-import { rollup } from "rollup"
-import { createPlugins, type VisualizationOutput } from "./Plugins.ts"
+import * as NodeStream from "@effect/platform-node/NodeStream";
+import * as Context from "effect/Context";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
+import * as Stream from "effect/Stream";
+import { createGzip } from "node:zlib";
+import type { RollupOptions } from "rollup";
+import { rollup } from "rollup";
+import { createPlugins, type VisualizationOutput } from "./Plugins.ts";
 
 /**
  * Error raised when Rollup bundling, output generation, or bundle size measurement fails.
@@ -36,7 +36,7 @@ import { createPlugins, type VisualizationOutput } from "./Plugins.ts"
  * @since 4.0.0
  */
 export class RollupError extends Data.TaggedError("RollupError")<{
-  readonly cause: unknown
+  readonly cause: unknown;
 }> {}
 
 /**
@@ -46,8 +46,8 @@ export class RollupError extends Data.TaggedError("RollupError")<{
  * @since 4.0.0
  */
 export class BundleStats extends Data.TaggedClass("BundleStats")<{
-  readonly path: string
-  readonly sizeInBytes: number
+  readonly path: string;
+  readonly sizeInBytes: number;
 }> {}
 
 /**
@@ -57,9 +57,9 @@ export class BundleStats extends Data.TaggedClass("BundleStats")<{
  * @since 4.0.0
  */
 export interface BundleOptions {
-  readonly path: string
-  readonly visualize?: boolean | undefined
-  readonly outputDirectory?: string | undefined
+  readonly path: string;
+  readonly visualize?: boolean | undefined;
+  readonly outputDirectory?: string | undefined;
 }
 
 /**
@@ -69,9 +69,9 @@ export interface BundleOptions {
  * @since 4.0.0
  */
 export interface BundleAllOptions {
-  readonly paths: ReadonlyArray<string>
-  readonly visualize?: boolean | undefined
-  readonly outputDirectory?: string | undefined
+  readonly paths: ReadonlyArray<string>;
+  readonly visualize?: boolean | undefined;
+  readonly outputDirectory?: string | undefined;
 }
 
 /**
@@ -80,119 +80,121 @@ export interface BundleAllOptions {
  * @category services
  * @since 4.0.0
  */
-export class Rollup extends Context.Service<Rollup>()(
-  "@effect/bundle/Rollup",
-  {
-    make: Effect.gen(function*() {
-      const pathService = yield* Path.Path
-      const fs = yield* FileSystem.FileSystem
+export class Rollup extends Context.Service<Rollup>()("@effect/bundle/Rollup", {
+  make: Effect.gen(function* () {
+    const pathService = yield* Path.Path;
+    const fs = yield* FileSystem.FileSystem;
 
-      const createVisualizationOutputs = (options: BundleOptions): ReadonlyArray<VisualizationOutput> => {
-        if (!options.visualize || !options.outputDirectory) {
-          return []
-        }
-        const name = pathService.parse(options.path).name
-        return [
-          {
-            filename: pathService.join(options.outputDirectory, `${name}.treemap.html`),
-            template: "treemap",
-            title: `${name} bundle treemap`
-          },
-          {
-            filename: pathService.join(options.outputDirectory, `${name}.raw-data.json`),
-            template: "raw-data",
-            title: `${name} bundle raw data`
-          }
-        ]
+    const createVisualizationOutputs = (
+      options: BundleOptions,
+    ): ReadonlyArray<VisualizationOutput> => {
+      if (!options.visualize || !options.outputDirectory) {
+        return [];
       }
-
-      const getRollupOptions = (options: BundleOptions): RollupOptions => ({
-        input: options.path,
-        output: {
-          format: "esm"
+      const name = pathService.parse(options.path).name;
+      return [
+        {
+          filename: pathService.join(options.outputDirectory, `${name}.treemap.html`),
+          template: "treemap",
+          title: `${name} bundle treemap`,
         },
-        plugins: createPlugins(pathService, {
-          visualize: options.visualize,
-          visualizations: createVisualizationOutputs(options)
+        {
+          filename: pathService.join(options.outputDirectory, `${name}.raw-data.json`),
+          template: "raw-data",
+          title: `${name} bundle raw data`,
+        },
+      ];
+    };
+
+    const getRollupOptions = (options: BundleOptions): RollupOptions => ({
+      input: options.path,
+      output: {
+        format: "esm",
+      },
+      plugins: createPlugins(pathService, {
+        visualize: options.visualize,
+        visualizations: createVisualizationOutputs(options),
+      }),
+      onwarn: (warning, next) => {
+        if (warning.code === "THIS_IS_UNDEFINED") return;
+        next(warning);
+      },
+    });
+
+    const bundle = Effect.fn("Rollup.bundle")(function* (options: BundleOptions) {
+      const bundle = yield* Effect.acquireRelease(
+        Effect.tryPromise({
+          try: () => rollup(getRollupOptions(options)),
+          catch: (cause) => new RollupError({ cause }),
         }),
-        onwarn: (warning, next) => {
-          if (warning.code === "THIS_IS_UNDEFINED") return
-          next(warning)
-        }
-      })
+        (bundle) => Effect.promise(() => bundle.close()),
+      );
+      const { output } = yield* Effect.tryPromise({
+        try: () => bundle.generate({ format: "esm" }),
+        catch: (cause) => new RollupError({ cause }),
+      });
 
-      const bundle = Effect.fn("Rollup.bundle")(
-        function*(options: BundleOptions) {
-          const bundle = yield* Effect.acquireRelease(
-            Effect.tryPromise({
-              try: () => rollup(getRollupOptions(options)),
-              catch: (cause) => new RollupError({ cause })
+      const stream = yield* Stream.fromIterable(output).pipe(
+        Stream.filter((output) => output.type === "chunk"),
+        Stream.map((chunk) => chunk.code),
+        Stream.encodeText,
+        Stream.broadcast({ capacity: 8, replay: 8 }),
+      );
+
+      const writeOutput = options.outputDirectory
+        ? stream.pipe(
+            Stream.run(
+              fs.sink(
+                pathService.join(
+                  options.outputDirectory,
+                  `${pathService.parse(options.path).name}.min.js`,
+                ),
+              ),
+            ),
+            Effect.mapError((cause) => new RollupError({ cause })),
+          )
+        : Effect.void;
+
+      const [, sizeInBytes] = yield* Effect.all(
+        [
+          writeOutput,
+          stream.pipe(
+            NodeStream.pipeThroughDuplex({
+              evaluate: () => createGzip({ level: 9 }),
+              onError: (cause) => new RollupError({ cause }),
             }),
-            (bundle) => Effect.promise(() => bundle.close())
-          )
-          const { output } = yield* Effect.tryPromise({
-            try: () => bundle.generate({ format: "esm" }),
-            catch: (cause) => new RollupError({ cause })
-          })
+            Stream.runFold(
+              () => 0,
+              (totalBytes, chunkBytes) => chunkBytes.length + totalBytes,
+            ),
+          ),
+        ],
+        { concurrency: 2 },
+      );
 
-          const stream = yield* Stream.fromIterable(output).pipe(
-            Stream.filter((output) => output.type === "chunk"),
-            Stream.map((chunk) => chunk.code),
-            Stream.encodeText,
-            Stream.broadcast({ capacity: 8, replay: 8 })
-          )
+      yield* Effect.log(`Bundled ${options.path}`).pipe(
+        Effect.annotateLogs({ size: `${(sizeInBytes / 1000).toFixed(2)} kB` }),
+      );
 
-          const writeOutput = options.outputDirectory
-            ? stream.pipe(
-              Stream.run(fs.sink(pathService.join(
-                options.outputDirectory,
-                `${pathService.parse(options.path).name}.min.js`
-              ))),
-              Effect.mapError((cause) => new RollupError({ cause }))
-            )
-            : Effect.void
+      return new BundleStats({ path: options.path, sizeInBytes });
+    }, Effect.scoped);
 
-          const [, sizeInBytes] = yield* Effect.all([
-            writeOutput,
-            stream.pipe(
-              NodeStream.pipeThroughDuplex({
-                evaluate: () => createGzip({ level: 9 }),
-                onError: (cause) => new RollupError({ cause })
-              }),
-              Stream.runFold(
-                () => 0,
-                (totalBytes, chunkBytes) => chunkBytes.length + totalBytes
-              )
-            )
-          ], { concurrency: 2 })
+    const bundleAll = Effect.fn("Rollup.bundleAll")(function* (options: BundleAllOptions) {
+      return yield* Effect.forEach(
+        options.paths,
+        (path) =>
+          bundle({ path, visualize: options.visualize, outputDirectory: options.outputDirectory }),
+        // Rollup retains a module graph for each active bundle, so unbounded
+        // concurrency can exhaust the Node.js heap on CI runners.
+        { concurrency: 4 },
+      );
+    });
 
-          yield* Effect.log(`Bundled ${options.path}`).pipe(
-            Effect.annotateLogs({ size: `${(sizeInBytes / 1000).toFixed(2)} kB` })
-          )
-
-          return new BundleStats({ path: options.path, sizeInBytes })
-        },
-        Effect.scoped
-      )
-
-      const bundleAll = Effect.fn("Rollup.bundleAll")(
-        function*(options: BundleAllOptions) {
-          return yield* Effect.forEach(
-            options.paths,
-            (path) => bundle({ path, visualize: options.visualize, outputDirectory: options.outputDirectory }),
-            // Rollup retains a module graph for each active bundle, so unbounded
-            // concurrency can exhaust the Node.js heap on CI runners.
-            { concurrency: 4 }
-          )
-        }
-      )
-
-      return {
-        bundle,
-        bundleAll
-      } as const
-    })
-  }
-) {
-  static readonly layer = Layer.effect(this, this.make)
+    return {
+      bundle,
+      bundleAll,
+    } as const;
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make);
 }

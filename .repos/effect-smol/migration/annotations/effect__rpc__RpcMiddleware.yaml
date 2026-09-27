@@ -32,7 +32,7 @@
   replacement: "effect/unstable/rpc/RpcMiddleware#Provides"
   note: "Moved to the module level and applied to the middleware ID metadata."
 "@effect/rpc/RpcMiddleware#TagClass.RequiredForClient":
-  replacement: "RpcMiddleware.ServiceClass[\"requiredForClient\"]"
+  replacement: 'RpcMiddleware.ServiceClass["requiredForClient"]'
   note: "The standalone options extractor was removed; the boolean is exposed directly by the resulting service class."
 "@effect/rpc/RpcMiddleware#TagClassAny":
   replacement: "effect/unstable/rpc/RpcMiddleware#AnyService"

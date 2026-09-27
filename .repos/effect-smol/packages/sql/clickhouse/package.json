@@ -1,36 +1,21 @@
 {
   "name": "@effect/sql-clickhouse",
   "version": "4.0.0-rc.117",
-  "type": "module",
-  "license": "MIT",
   "description": "A Clickhouse toolkit for Effect",
+  "keywords": [
+    "database",
+    "sql",
+    "typescript"
+  ],
   "homepage": "https://effect.website",
+  "bugs": {
+    "url": "https://github.com/Effect-TS/effect/issues"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/sql/clickhouse"
-  },
-  "bugs": {
-    "url": "https://github.com/Effect-TS/effect/issues"
-  },
-  "tags": [
-    "typescript",
-    "sql",
-    "database"
-  ],
-  "keywords": [
-    "typescript",
-    "sql",
-    "database"
-  ],
-  "sideEffects": [],
-  "exports": {
-    "./package.json": "./package.json",
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./internal/*": null,
-    "./index": null,
-    "./*/index": null
   },
   "files": [
     "src/**/*.ts",
@@ -42,9 +27,17 @@
     "CLAUDE.md",
     "ai-docs/**/*"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts",
+    "./internal/*": null,
+    "./index": null,
+    "./*/index": null
+  },
   "publishConfig": {
-    "access": "public",
-    "provenance": true,
     "exports": {
       "./package.json": "./package.json",
       ".": "./dist/index.js",
@@ -52,13 +45,18 @@
       "./internal/*": null,
       "./index": null,
       "./*/index": null
-    }
+    },
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "codegen": "effect-utils codegen",
     "build": "tsc -b tsconfig.json && pnpm babel",
     "babel": "babel dist --plugins annotate-pure-calls --out-dir dist --source-maps",
     "check": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@clickhouse/client": "^1.23.1"
   },
   "devDependencies": {
     "@effect/platform-node": "workspace:^",
@@ -68,7 +66,9 @@
     "@effect/platform-node": "workspace:^",
     "effect": "workspace:^"
   },
-  "dependencies": {
-    "@clickhouse/client": "^1.23.1"
-  }
+  "tags": [
+    "typescript",
+    "sql",
+    "database"
+  ]
 }

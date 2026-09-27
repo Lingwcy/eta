@@ -9,21 +9,21 @@
  * @since 4.0.0
  */
 
-import * as Arr from "./Array.ts"
-import * as Context from "./Context.ts"
-import * as Data from "./Data.ts"
-import * as Effect from "./Effect.ts"
-import * as FileSystem from "./FileSystem.ts"
-import { format } from "./Formatter.ts"
-import { dual, flow } from "./Function.ts"
-import { PipeInspectableProto } from "./internal/core.ts"
-import * as Layer from "./Layer.ts"
-import * as Path_ from "./Path.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import type { PlatformError } from "./PlatformError.ts"
-import * as Predicate from "./Predicate.ts"
-import type { Scope } from "./Scope.ts"
-import * as Str from "./String.ts"
+import * as Arr from "./Array.ts";
+import * as Context from "./Context.ts";
+import * as Data from "./Data.ts";
+import * as Effect from "./Effect.ts";
+import * as FileSystem from "./FileSystem.ts";
+import { format } from "./Formatter.ts";
+import { dual, flow } from "./Function.ts";
+import { PipeInspectableProto } from "./internal/core.ts";
+import * as Layer from "./Layer.ts";
+import * as Path_ from "./Path.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import type { PlatformError } from "./PlatformError.ts";
+import * as Predicate from "./Predicate.ts";
+import type { Scope } from "./Scope.ts";
+import * as Str from "./String.ts";
 
 /**
  * A discriminated union describing the shape of a configuration value at a
@@ -56,21 +56,21 @@ import * as Str from "./String.ts"
 export type Node =
   /** A terminal string value */
   | {
-    readonly _tag: "Value"
-    readonly value: string
-  }
+      readonly _tag: "Value";
+      readonly value: string;
+    }
   /** An object; keys are unordered */
   | {
-    readonly _tag: "Record"
-    readonly keys: ReadonlySet<string>
-    readonly value: string | undefined
-  }
+      readonly _tag: "Record";
+      readonly keys: ReadonlySet<string>;
+      readonly value: string | undefined;
+    }
   /** An array-like container; length is the number of elements */
   | {
-    readonly _tag: "Array"
-    readonly length: number
-    readonly value: string | undefined
-  }
+      readonly _tag: "Array";
+      readonly length: number;
+      readonly value: string | undefined;
+    };
 
 /**
  * Creates a `Value` node representing a terminal string leaf.
@@ -99,7 +99,7 @@ export type Node =
  * @since 4.0.0
  */
 export function makeValue(value: string): Node {
-  return { _tag: "Value", value }
+  return { _tag: "Value", value };
 }
 
 /**
@@ -137,7 +137,7 @@ export function makeValue(value: string): Node {
  * @since 4.0.0
  */
 export function makeRecord(keys: ReadonlySet<string>, value?: string): Node {
-  return { _tag: "Record", keys, value }
+  return { _tag: "Record", keys, value };
 }
 
 /**
@@ -169,7 +169,7 @@ export function makeRecord(keys: ReadonlySet<string>, value?: string): Node {
  * @since 4.0.0
  */
 export function makeArray(length: number, value?: string): Node {
-  return { _tag: "Array", length, value }
+  return { _tag: "Array", length, value };
 }
 
 /**
@@ -206,8 +206,8 @@ export function makeArray(length: number, value?: string): Node {
  * @since 4.0.0
  */
 export class SourceError extends Data.TaggedError("SourceError")<{
-  readonly message: string
-  readonly cause?: unknown
+  readonly message: string;
+  readonly cause?: unknown;
 }> {}
 
 /**
@@ -232,7 +232,7 @@ export class SourceError extends Data.TaggedError("SourceError")<{
  * @category models
  * @since 4.0.0
  */
-export type Path = ReadonlyArray<string | number>
+export type Path = ReadonlyArray<string | number>;
 
 /**
  * The core interface for loading raw configuration data.
@@ -284,7 +284,7 @@ export interface ConfigProvider extends Pipeable {
    * `Record` or `Array` node remains `undefined` because it describes the shape
    * of that node rather than the outcome of the lookup.
    */
-  readonly load: (path: Path) => Effect.Effect<Node | undefined, SourceError>
+  readonly load: (path: Path) => Effect.Effect<Node | undefined, SourceError>;
 
   /**
    * Returns a provider that applies `f` to lookup paths after any existing path
@@ -302,7 +302,7 @@ export interface ConfigProvider extends Pipeable {
    * operand's behavior. Providers created with {@link make} implement it
    * automatically.
    */
-  readonly mapInput: (f: (path: Path) => Path) => ConfigProvider
+  readonly mapInput: (f: (path: Path) => Path) => ConfigProvider;
 }
 
 /**
@@ -341,49 +341,48 @@ export interface ConfigProvider extends Pipeable {
  */
 export const ConfigProvider: Context.Reference<ConfigProvider> = Context.Reference<ConfigProvider>(
   "effect/ConfigProvider",
-  { defaultValue: () => fromEnv() }
-)
+  { defaultValue: () => fromEnv() },
+);
 
 const Proto = {
   ...PipeInspectableProto,
   toJSON(this: ConfigProvider) {
     return {
-      _id: "ConfigProvider"
-    }
-  }
-}
+      _id: "ConfigProvider",
+    };
+  },
+};
 
-const identityPath = (path: Path): Path => path
+const identityPath = (path: Path): Path => path;
 
 function makeProvider(
   load: (path: Path) => Effect.Effect<Node | undefined, SourceError>,
-  mapInput: (f: (path: Path) => Path) => ConfigProvider
+  mapInput: (f: (path: Path) => Path) => ConfigProvider,
 ): ConfigProvider {
-  const self = Object.create(Proto)
-  self.load = load
-  self.mapInput = mapInput
-  return self
+  const self = Object.create(Proto);
+  self.load = load;
+  self.mapInput = mapInput;
+  return self;
 }
 
 function makeSource(
   get: (path: Path) => Effect.Effect<Node | undefined, SourceError>,
-  transform: (path: Path) => Path
+  transform: (path: Path) => Path,
 ): ConfigProvider {
   return makeProvider(
     (path) => get(transform(path)),
-    (f) => makeSource(get, flow(transform, f))
-  )
+    (f) => makeSource(get, flow(transform, f)),
+  );
 }
 
 function makeOrElse(first: ConfigProvider, second: ConfigProvider): ConfigProvider {
   return makeProvider(
     (path) =>
-      Effect.flatMap(
-        first.load(path),
-        (node) => node !== undefined ? Effect.succeed(node) : second.load(path)
+      Effect.flatMap(first.load(path), (node) =>
+        node !== undefined ? Effect.succeed(node) : second.load(path),
       ),
-    (f) => makeOrElse(first.mapInput(f), second.mapInput(f))
-  )
+    (f) => makeOrElse(first.mapInput(f), second.mapInput(f)),
+  );
 }
 
 /**
@@ -432,8 +431,10 @@ function makeOrElse(first: ConfigProvider, second: ConfigProvider): ConfigProvid
  * @category constructors
  * @since 4.0.0
  */
-export function make(get: (path: Path) => Effect.Effect<Node | undefined, SourceError>): ConfigProvider {
-  return makeSource(get, identityPath)
+export function make(
+  get: (path: Path) => Effect.Effect<Node | undefined, SourceError>,
+): ConfigProvider {
+  return makeSource(get, identityPath);
 }
 
 /**
@@ -479,12 +480,9 @@ export function make(get: (path: Path) => Effect.Effect<Node | undefined, Source
  * @since 2.0.0
  */
 export const orElse: {
-  (that: ConfigProvider): (self: ConfigProvider) => ConfigProvider
-  (self: ConfigProvider, that: ConfigProvider): ConfigProvider
-} = dual(
-  2,
-  (self: ConfigProvider, that: ConfigProvider): ConfigProvider => makeOrElse(self, that)
-)
+  (that: ConfigProvider): (self: ConfigProvider) => ConfigProvider;
+  (self: ConfigProvider, that: ConfigProvider): ConfigProvider;
+} = dual(2, (self: ConfigProvider, that: ConfigProvider): ConfigProvider => makeOrElse(self, that));
 
 /**
  * Transforms the path segments before they reach the underlying store.
@@ -532,12 +530,9 @@ export const orElse: {
  * @since 4.0.0
  */
 export const mapInput: {
-  (f: (path: Path) => Path): (self: ConfigProvider) => ConfigProvider
-  (self: ConfigProvider, f: (path: Path) => Path): ConfigProvider
-} = dual(
-  2,
-  (self: ConfigProvider, f: (path: Path) => Path): ConfigProvider => self.mapInput(f)
-)
+  (f: (path: Path) => Path): (self: ConfigProvider) => ConfigProvider;
+  (self: ConfigProvider, f: (path: Path) => Path): ConfigProvider;
+} = dual(2, (self: ConfigProvider, f: (path: Path) => Path): ConfigProvider => self.mapInput(f));
 
 /**
  * Converts all string path segments to `CONSTANT_CASE` before lookup.
@@ -573,8 +568,8 @@ export const mapInput: {
  * @since 2.0.0
  */
 export const constantCase: (self: ConfigProvider) => ConfigProvider = mapInput((path) =>
-  path.map((seg) => typeof seg === "number" ? seg : Str.configCase(seg))
-)
+  path.map((seg) => (typeof seg === "number" ? seg : Str.configCase(seg))),
+);
 
 /**
  * Scopes a provider so that all lookups are prefixed with the given path
@@ -619,15 +614,12 @@ export const constantCase: (self: ConfigProvider) => ConfigProvider = mapInput((
  * @since 2.0.0
  */
 export const nested: {
-  (prefix: string | Path): (self: ConfigProvider) => ConfigProvider
-  (self: ConfigProvider, prefix: string | Path): ConfigProvider
-} = dual(
-  2,
-  (self: ConfigProvider, prefix: string | Path): ConfigProvider => {
-    const path = typeof prefix === "string" ? [prefix] : prefix
-    return mapInput(self, (input) => [...path, ...input])
-  }
-)
+  (prefix: string | Path): (self: ConfigProvider) => ConfigProvider;
+  (self: ConfigProvider, prefix: string | Path): ConfigProvider;
+} = dual(2, (self: ConfigProvider, prefix: string | Path): ConfigProvider => {
+  const path = typeof prefix === "string" ? [prefix] : prefix;
+  return mapInput(self, (input) => [...path, ...input]);
+});
 
 /**
  * Provides a layer that installs a `ConfigProvider` as the active provider for
@@ -665,9 +657,9 @@ export const nested: {
  * @since 4.0.0
  */
 export const layer = <E = never, R = never>(
-  self: ConfigProvider | Effect.Effect<ConfigProvider, E, R>
+  self: ConfigProvider | Effect.Effect<ConfigProvider, E, R>,
 ): Layer.Layer<never, E, Exclude<R, Scope>> =>
-  Effect.isEffect(self) ? Layer.effect(ConfigProvider)(self) : Layer.succeed(ConfigProvider)(self)
+  Effect.isEffect(self) ? Layer.effect(ConfigProvider)(self) : Layer.succeed(ConfigProvider)(self);
 
 /**
  * Creates a Layer that composes a new `ConfigProvider` with the currently
@@ -712,17 +704,19 @@ export const layer = <E = never, R = never>(
  */
 export const layerAdd = <E = never, R = never>(
   self: ConfigProvider | Effect.Effect<ConfigProvider, E, R>,
-  options?: {
-    readonly asPrimary?: boolean | undefined
-  } | undefined
+  options?:
+    | {
+        readonly asPrimary?: boolean | undefined;
+      }
+    | undefined,
 ): Layer.Layer<never, E, Exclude<R, Scope>> =>
   Layer.effect(ConfigProvider)(
-    Effect.gen(function*() {
-      const current = yield* ConfigProvider
-      const configProvider = Effect.isEffect(self) ? yield* self : self
-      return options?.asPrimary ? orElse(configProvider, current) : orElse(current, configProvider)
-    })
-  )
+    Effect.gen(function* () {
+      const current = yield* ConfigProvider;
+      const configProvider = Effect.isEffect(self) ? yield* self : self;
+      return options?.asPrimary ? orElse(configProvider, current) : orElse(current, configProvider);
+    }),
+  );
 
 /**
  * Creates a `ConfigProvider` backed by an in-memory JavaScript value
@@ -777,60 +771,67 @@ export const layerAdd = <E = never, R = never>(
  * @category constructors
  * @since 4.0.0
  */
-export function fromUnknown(root: unknown, options?: {
-  readonly preserveEmptyStrings?: boolean | undefined
-}): ConfigProvider {
-  const preserveEmptyStrings = options?.preserveEmptyStrings === true
-  return make((path) => Effect.succeed(nodeAtJson(root, path, preserveEmptyStrings)))
+export function fromUnknown(
+  root: unknown,
+  options?: {
+    readonly preserveEmptyStrings?: boolean | undefined;
+  },
+): ConfigProvider {
+  const preserveEmptyStrings = options?.preserveEmptyStrings === true;
+  return make((path) => Effect.succeed(nodeAtJson(root, path, preserveEmptyStrings)));
 }
 
 function nodeAtJson(root: unknown, path: Path, preserveEmptyStrings: boolean): Node | undefined {
-  let cur: unknown = root
+  let cur: unknown = root;
 
   for (const seg of path) {
-    if (cur === null || cur === undefined) return undefined
+    if (cur === null || cur === undefined) return undefined;
 
     if (Array.isArray(cur)) {
-      if (typeof seg !== "number" || !Number.isInteger(seg) || seg < 0 || seg >= cur.length) return undefined
-      cur = cur[seg]
-      continue
+      if (typeof seg !== "number" || !Number.isInteger(seg) || seg < 0 || seg >= cur.length)
+        return undefined;
+      cur = cur[seg];
+      continue;
     }
 
     if (Predicate.isObject(cur)) {
-      if (typeof seg !== "string") return undefined
-      if (!Object.hasOwn(cur, seg)) return undefined
-      cur = cur[seg]
-      continue
+      if (typeof seg !== "string") return undefined;
+      if (!Object.hasOwn(cur, seg)) return undefined;
+      cur = cur[seg];
+      continue;
     }
 
     // cannot descend
-    return undefined
+    return undefined;
   }
 
-  return describeUnknown(cur, preserveEmptyStrings)
+  return describeUnknown(cur, preserveEmptyStrings);
 }
 
 function describeUnknown(u: unknown, preserveEmptyStrings: boolean): Node | undefined {
-  if (u === undefined || u === null) return undefined
-  if (typeof u === "string") return stringNode(u, preserveEmptyStrings)
+  if (u === undefined || u === null) return undefined;
+  if (typeof u === "string") return stringNode(u, preserveEmptyStrings);
   if (typeof u === "number" || typeof u === "boolean" || typeof u === "bigint") {
-    return makeValue(String(u))
+    return makeValue(String(u));
   }
-  if (Array.isArray(u)) return makeArray(u.length)
+  if (Array.isArray(u)) return makeArray(u.length);
   if (Predicate.isObject(u)) {
-    return makeRecord(new Set(Object.keys(u)))
+    return makeRecord(new Set(Object.keys(u)));
   }
   // unknown values
-  return makeValue(format(u))
+  return makeValue(format(u));
 }
 
 function stringNode(value: string, preserveEmptyStrings: boolean): Node | undefined {
-  const normalized = emptyStringAsMissing(value, preserveEmptyStrings)
-  return normalized === undefined ? undefined : makeValue(normalized)
+  const normalized = emptyStringAsMissing(value, preserveEmptyStrings);
+  return normalized === undefined ? undefined : makeValue(normalized);
 }
 
-function emptyStringAsMissing(value: string | undefined, preserveEmptyStrings: boolean): string | undefined {
-  return value === "" && !preserveEmptyStrings ? undefined : value
+function emptyStringAsMissing(
+  value: string | undefined,
+  preserveEmptyStrings: boolean,
+): string | undefined {
+  return value === "" && !preserveEmptyStrings ? undefined : value;
 }
 
 /**
@@ -863,11 +864,11 @@ function emptyStringAsMissing(value: string | undefined, preserveEmptyStrings: b
  */
 export function fromEnvRecord(
   env: Record<string, string | undefined>,
-  options?: { readonly preserveEmptyStrings?: boolean | undefined }
+  options?: { readonly preserveEmptyStrings?: boolean | undefined },
 ): ConfigProvider {
-  const preserveEmptyStrings = options?.preserveEmptyStrings === true
-  const trie = buildEnvTrie(env)
-  return make((path) => Effect.succeed(nodeAtEnv(trie, env, path, preserveEmptyStrings)))
+  const preserveEmptyStrings = options?.preserveEmptyStrings === true;
+  const trie = buildEnvTrie(env);
+  return make((path) => Effect.succeed(nodeAtEnv(trie, env, path, preserveEmptyStrings)));
 }
 
 /**
@@ -924,76 +925,81 @@ export function fromEnvRecord(
  * @since 2.0.0
  */
 export function fromEnv(options?: {
-  readonly env?: Record<string, string> | undefined
-  readonly preserveEmptyStrings?: boolean | undefined
+  readonly env?: Record<string, string> | undefined;
+  readonly preserveEmptyStrings?: boolean | undefined;
 }): ConfigProvider {
   const env: Record<string, string | undefined> = options?.env ?? {
-    ...(globalThis as {
-      readonly process?: { readonly env?: Record<string, string | undefined> }
-    }).process?.env,
-    ...(import.meta as any)?.env
-  }
-  return fromEnvRecord(env, { preserveEmptyStrings: options?.preserveEmptyStrings })
+    ...(
+      globalThis as {
+        readonly process?: { readonly env?: Record<string, string | undefined> };
+      }
+    ).process?.env,
+    ...(import.meta as any)?.env,
+  };
+  return fromEnvRecord(env, { preserveEmptyStrings: options?.preserveEmptyStrings });
 }
 
 type EnvTrieNode = {
-  children?: Record<string, EnvTrieNode>
-}
+  children?: Record<string, EnvTrieNode>;
+};
 
 function buildEnvTrie(env: Record<string, string | undefined>): EnvTrieNode {
-  const trie: EnvTrieNode = {}
+  const trie: EnvTrieNode = {};
 
   for (const [name, value] of Object.entries(env)) {
-    if (value === undefined) continue
+    if (value === undefined) continue;
 
     // Split on "_" and keep empty segments (no special handling for "__")
-    const segments = name.split("_")
+    const segments = name.split("_");
 
-    let node = trie
+    let node = trie;
     for (const seg of segments) {
-      const children = node.children ??= Object.create(null)
-      node = children[seg] ??= {}
+      const children = (node.children ??= Object.create(null));
+      node = children[seg] ??= {};
     }
   }
 
-  return trie
+  return trie;
 }
 
 function nodeAtEnv(
   trie: EnvTrieNode,
   env: Record<string, string | undefined>,
   path: Path,
-  preserveEmptyStrings: boolean
+  preserveEmptyStrings: boolean,
 ): Node | undefined {
-  const key = path.map(String).join("_")
-  const leafValue = emptyStringAsMissing(Object.hasOwn(env, key) ? env[key] : undefined, preserveEmptyStrings)
+  const key = path.map(String).join("_");
+  const leafValue = emptyStringAsMissing(
+    Object.hasOwn(env, key) ? env[key] : undefined,
+    preserveEmptyStrings,
+  );
 
-  const trieNode = trieNodeAt(trie, path)
-  const children = trieNode?.children ? Object.keys(trieNode.children) : []
+  const trieNode = trieNodeAt(trie, path);
+  const children = trieNode?.children ? Object.keys(trieNode.children) : [];
 
   if (children.length === 0) {
-    return leafValue === undefined ? undefined : makeValue(leafValue)
+    return leafValue === undefined ? undefined : makeValue(leafValue);
   }
 
-  const allNumeric = children.every(Arr.isCanonicalArrayIndex)
+  const allNumeric = children.every(Arr.isCanonicalArrayIndex);
   if (allNumeric) {
-    const length = Math.max(...children.map((k) => parseInt(k, 10))) + 1
-    return makeArray(length, leafValue)
+    const length = Math.max(...children.map((k) => parseInt(k, 10))) + 1;
+    return makeArray(length, leafValue);
   }
 
-  return makeRecord(new Set(children), leafValue)
+  return makeRecord(new Set(children), leafValue);
 }
 
 function trieNodeAt(root: EnvTrieNode, path: Path): EnvTrieNode | undefined {
-  if (path.length === 0) return root
+  if (path.length === 0) return root;
 
   // Convert path segments to strings and navigate through the trie
-  let node: EnvTrieNode | undefined = root
+  let node: EnvTrieNode | undefined = root;
   for (const seg of path) {
-    node = node?.children?.[String(seg)]
-    if (!node) return undefined
+    node = node?.children?.[String(seg)];
+    if (!node) return undefined;
   }
-  return node
+  return node;
 }
 
 /**
@@ -1042,77 +1048,80 @@ function trieNodeAt(root: EnvTrieNode, path: Path): EnvTrieNode | undefined {
  * @category constructors
  * @since 4.0.0
  */
-export function fromDotEnvContents(lines: string, options?: {
-  readonly expandVariables?: boolean | undefined
-  readonly preserveEmptyStrings?: boolean | undefined
-}): ConfigProvider {
-  let env = parseDotEnvContents(lines)
+export function fromDotEnvContents(
+  lines: string,
+  options?: {
+    readonly expandVariables?: boolean | undefined;
+    readonly preserveEmptyStrings?: boolean | undefined;
+  },
+): ConfigProvider {
+  let env = parseDotEnvContents(lines);
   if (options?.expandVariables) {
-    env = dotEnvExpand(env)
+    env = dotEnvExpand(env);
   }
-  return fromEnvRecord(env, { preserveEmptyStrings: options?.preserveEmptyStrings })
+  return fromEnvRecord(env, { preserveEmptyStrings: options?.preserveEmptyStrings });
 }
 
 const DOT_ENV_LINE =
-  /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg
+  /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/gm;
 
 function parseDotEnvContents(lines: string): Record<string, string> {
-  const obj: Record<string, string> = Object.create(null)
+  const obj: Record<string, string> = Object.create(null);
 
   // Convert line breaks to same format
-  lines = lines.replace(/\r\n?/gm, "\n")
+  lines = lines.replace(/\r\n?/gm, "\n");
 
-  let match: RegExpExecArray | null
+  let match: RegExpExecArray | null;
   while ((match = DOT_ENV_LINE.exec(lines)) != null) {
-    const key = match[1]
+    const key = match[1];
 
     // Default undefined or null to empty string
-    let value = match[2] || ""
+    let value = match[2] || "";
 
     // Remove whitespace
-    value = value.trim()
+    value = value.trim();
 
     // Check if double quoted
-    const maybeQuote = value[0]
+    const maybeQuote = value[0];
 
     // Remove surrounding quotes
-    value = value.replace(/^(['"`])([\s\S]*)\1$/gm, "$2")
+    value = value.replace(/^(['"`])([\s\S]*)\1$/gm, "$2");
 
     // Expand newlines if double quoted
-    if (maybeQuote === "\"") {
-      value = value.replace(/\\n/g, "\n")
-      value = value.replace(/\\r/g, "\r")
+    if (maybeQuote === '"') {
+      value = value.replace(/\\n/g, "\n");
+      value = value.replace(/\\r/g, "\r");
     }
 
     // Add to object
-    obj[key] = value
+    obj[key] = value;
   }
 
-  return obj
+  return obj;
 }
 
 function dotEnvExpand(parsed: Record<string, string>): Record<string, string> {
-  const newParsed: Record<string, string> = Object.create(null)
+  const newParsed: Record<string, string> = Object.create(null);
 
   for (const configKey of Object.keys(parsed)) {
     // resolve escape sequences
-    newParsed[configKey] = interpolate(parsed[configKey], parsed).replace(/\\\$/g, "$")
+    newParsed[configKey] = interpolate(parsed[configKey], parsed).replace(/\\\$/g, "$");
   }
 
-  return newParsed
+  return newParsed;
 }
 
 function interpolate(envValue: string, parsed: Record<string, string>): string {
   // find the last unescaped dollar sign in the
   // value so that we can evaluate it
-  const lastUnescapedDollarSignIndex = searchLast(envValue, /(?!(?<=\\))\$/g)
+  const lastUnescapedDollarSignIndex = searchLast(envValue, /(?!(?<=\\))\$/g);
 
   // If we couldn't match any unescaped dollar sign
   // let's return the string as is
-  if (lastUnescapedDollarSignIndex === -1) return envValue
+  if (lastUnescapedDollarSignIndex === -1) return envValue;
 
   // This is the right-most group of variables in the string
-  const rightMostGroup = envValue.slice(lastUnescapedDollarSignIndex)
+  const rightMostGroup = envValue.slice(lastUnescapedDollarSignIndex);
 
   /**
    * This finds the inner most variable/group divided
@@ -1125,27 +1134,28 @@ function interpolate(envValue: string, parsed: Record<string, string>): string {
    *   }?                   // optional closing curly brace
    * )
    */
-  const matchGroup = /((?!(?<=\\))\${?([\w]+)(?::-([^}\\]*))?}?)/
-  const match = rightMostGroup.match(matchGroup)
+  const matchGroup = /((?!(?<=\\))\${?([\w]+)(?::-([^}\\]*))?}?)/;
+  const match = rightMostGroup.match(matchGroup);
 
   if (match !== null) {
-    const [_, group, variableName, defaultValue] = match
-    const value = Object.hasOwn(parsed, variableName) && parsed[variableName] !== ""
-      ? parsed[variableName]
-      : defaultValue ?? ""
+    const [_, group, variableName, defaultValue] = match;
+    const value =
+      Object.hasOwn(parsed, variableName) && parsed[variableName] !== ""
+        ? parsed[variableName]
+        : (defaultValue ?? "");
 
     return interpolate(
       envValue.replace(group, () => value),
-      parsed
-    )
+      parsed,
+    );
   }
 
-  return envValue
+  return envValue;
 }
 
 function searchLast(str: string, rgx: RegExp): number {
-  const matches = Array.from(str.matchAll(rgx))
-  return matches.length > 0 ? matches.slice(-1)[0].index : -1
+  const matches = Array.from(str.matchAll(rgx));
+  return matches.length > 0 ? matches.slice(-1)[0].index : -1;
 }
 
 /**
@@ -1198,16 +1208,16 @@ function searchLast(str: string, rgx: RegExp): number {
  * @since 4.0.0
  */
 export const fromDotEnv: (options?: {
-  readonly path?: string | undefined
-  readonly expandVariables?: boolean | undefined
-  readonly preserveEmptyStrings?: boolean | undefined
+  readonly path?: string | undefined;
+  readonly expandVariables?: boolean | undefined;
+  readonly preserveEmptyStrings?: boolean | undefined;
 }) => Effect.Effect<ConfigProvider, PlatformError, FileSystem.FileSystem> = Effect.fnUntraced(
-  function*(options) {
-    const fs = yield* FileSystem.FileSystem
-    const content = yield* fs.readFileString(options?.path ?? ".env")
-    return fromDotEnvContents(content, options)
-  }
-)
+  function* (options) {
+    const fs = yield* FileSystem.FileSystem;
+    const content = yield* fs.readFileString(options?.path ?? ".env");
+    return fromDotEnvContents(content, options);
+  },
+);
 
 /**
  * Creates a `ConfigProvider` that reads configuration from a directory tree
@@ -1269,49 +1279,52 @@ export const fromDotEnv: (options?: {
  * @since 4.0.0
  */
 export const fromDir: (options?: {
-  readonly rootPath?: string | undefined
-  readonly preserveEmptyStrings?: boolean | undefined
-}) => Effect.Effect<
-  ConfigProvider,
-  never,
-  Path_.Path | FileSystem.FileSystem
-> = Effect.fnUntraced(function*(options) {
-  const platformPath = yield* Path_.Path
-  const fs = yield* FileSystem.FileSystem
-  const rootPath = options?.rootPath ?? "/"
-  const preserveEmptyStrings = options?.preserveEmptyStrings === true
+  readonly rootPath?: string | undefined;
+  readonly preserveEmptyStrings?: boolean | undefined;
+}) => Effect.Effect<ConfigProvider, never, Path_.Path | FileSystem.FileSystem> = Effect.fnUntraced(
+  function* (options) {
+    const platformPath = yield* Path_.Path;
+    const fs = yield* FileSystem.FileSystem;
+    const rootPath = options?.rootPath ?? "/";
+    const preserveEmptyStrings = options?.preserveEmptyStrings === true;
 
-  return make((path) => {
-    const fullPath = platformPath.join(rootPath, ...path.map(String))
+    return make((path) => {
+      const fullPath = platformPath.join(rootPath, ...path.map(String));
 
-    // Try reading as a *file*
-    const asFile = fs.readFileString(fullPath).pipe(
-      Effect.map((content) => stringNode(content.trim(), preserveEmptyStrings))
-    )
+      // Try reading as a *file*
+      const asFile = fs
+        .readFileString(fullPath)
+        .pipe(Effect.map((content) => stringNode(content.trim(), preserveEmptyStrings)));
 
-    // If not a file, try reading as a *directory*
-    const asDirectory = fs.readDirectory(fullPath).pipe(
-      Effect.map((entries) => makeRecord(new Set(entries.map((entry) => platformPath.basename(entry)))))
-    )
+      // If not a file, try reading as a *directory*
+      const asDirectory = fs
+        .readDirectory(fullPath)
+        .pipe(
+          Effect.map((entries) =>
+            makeRecord(new Set(entries.map((entry) => platformPath.basename(entry)))),
+          ),
+        );
 
-    return asFile.pipe(
-      Effect.catch((fileCause) =>
-        asDirectory.pipe(
-          Effect.catch((dirCause) =>
-            isNotFound(fileCause) && isNotFound(dirCause)
-              ? Effect.succeed(undefined)
-              : Effect.fail(isNotFound(fileCause) ? dirCause : fileCause)
-          )
-        )
-      ),
-      Effect.mapError((cause: PlatformError) =>
-        new SourceError({
-          message: `Failed to read file at ${platformPath.join(rootPath, ...path.map(String))}`,
-          cause
-        })
-      )
-    )
-  })
-})
+      return asFile.pipe(
+        Effect.catch((fileCause) =>
+          asDirectory.pipe(
+            Effect.catch((dirCause) =>
+              isNotFound(fileCause) && isNotFound(dirCause)
+                ? Effect.succeed(undefined)
+                : Effect.fail(isNotFound(fileCause) ? dirCause : fileCause),
+            ),
+          ),
+        ),
+        Effect.mapError(
+          (cause: PlatformError) =>
+            new SourceError({
+              message: `Failed to read file at ${platformPath.join(rootPath, ...path.map(String))}`,
+              cause,
+            }),
+        ),
+      );
+    });
+  },
+);
 
-const isNotFound = (cause: PlatformError) => cause.reason._tag === "NotFound"
+const isNotFound = (cause: PlatformError) => cause.reason._tag === "NotFound";

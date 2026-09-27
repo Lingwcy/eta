@@ -35,7 +35,7 @@
 ### Patch Changes
 
 - [#7882](https://github.com/Effect-TS/effect/pull/7882) [`22cd7fa`](https://github.com/Effect-TS/effect/commit/22cd7fa32ac539c3298d1b4afdbd2ecf190de948) Thanks @kitlangton! - Return the complete native `D1Result` from D1 statement `.raw`, preserving `success`, `meta`, and `results` instead of returning only the row array.
-  
+
   Callers that treated `.raw` as an array should read `.results` or use an ordinary or `.unprepared` statement when only rows are needed.
 
 - [#7534](https://github.com/Effect-TS/effect/pull/7534) [`c1693ff`](https://github.com/Effect-TS/effect/commit/c1693ffda83924ef2c71959cda643477ee42002d) Thanks @tim-smart! - Update production dependencies to their latest releases.

@@ -5,11 +5,11 @@
  *
  * @since 4.0.0
  */
-import * as Context from "effect/Context"
-import * as EffectCrypto from "effect/Crypto"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as PlatformError from "effect/PlatformError"
+import * as Context from "effect/Context";
+import * as EffectCrypto from "effect/Crypto";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as PlatformError from "effect/PlatformError";
 
 /**
  * Provides the Web Crypto API used by the Crypto service implementation.
@@ -18,8 +18,8 @@ import * as PlatformError from "effect/PlatformError"
  * @since 4.0.0
  */
 export const WebCrypto = Context.Reference<Crypto>("@effect/platform-deno/Crypto/WebCrypto", {
-  defaultValue: () => globalThis.crypto
-})
+  defaultValue: () => globalThis.crypto,
+});
 
 /**
  * A layer that provides Effect's Crypto service using Deno's Web Crypto API.
@@ -29,15 +29,15 @@ export const WebCrypto = Context.Reference<Crypto>("@effect/platform-deno/Crypto
  */
 export const layer: Layer.Layer<EffectCrypto.Crypto> = Layer.effect(
   EffectCrypto.Crypto,
-  Effect.gen(function*() {
-    const crypto = yield* WebCrypto
+  Effect.gen(function* () {
+    const crypto = yield* WebCrypto;
     const randomBytes = (size: number): Uint8Array => {
-      const bytes = new Uint8Array(size)
+      const bytes = new Uint8Array(size);
       for (let offset = 0; offset < bytes.length; offset += 65_536) {
-        crypto.getRandomValues(bytes.subarray(offset, offset + 65_536))
+        crypto.getRandomValues(bytes.subarray(offset, offset + 65_536));
       }
-      return bytes
-    }
+      return bytes;
+    };
 
     const digest: EffectCrypto.Crypto["digest"] = (algorithm, data) =>
       Effect.map(
@@ -49,15 +49,15 @@ export const layer: Layer.Layer<EffectCrypto.Crypto> = Layer.effect(
               method: "digest",
               _tag: "Unknown",
               description: "Could not compute digest",
-              cause
-            })
+              cause,
+            }),
         }),
-        (buffer) => new Uint8Array(buffer)
-      )
+        (buffer) => new Uint8Array(buffer),
+      );
 
     return EffectCrypto.make({
       randomBytes,
-      digest
-    })
-  })
-)
+      digest,
+    });
+  }),
+);

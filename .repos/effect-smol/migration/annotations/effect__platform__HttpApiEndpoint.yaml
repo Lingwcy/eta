@@ -54,10 +54,10 @@
   note: "Removed with tagged-template path extraction; declare endpoint params explicitly."
 "@effect/platform/HttpApiEndpoint#HttpApiEndpoint.PathParsed":
   replacement: "effect/unstable/httpapi/HttpApiEndpoint#Params"
-  note: "Path data became params; Params extracts the schema, so use Params<Endpoint>[\"Type\"] for decoded data."
+  note: 'Path data became params; Params extracts the schema, so use Params<Endpoint>["Type"] for decoded data.'
 "@effect/platform/HttpApiEndpoint#HttpApiEndpoint.Payload":
   replacement: "effect/unstable/httpapi/HttpApiEndpoint#Payload"
-  note: "The name remains but now extracts the schema; use Payload<Endpoint>[\"Type\"] for buffered decoded data."
+  note: 'The name remains but now extracts the schema; use Payload<Endpoint>["Type"] for buffered decoded data.'
 "@effect/platform/HttpApiEndpoint#HttpApiEndpoint.Success":
   replacement: "effect/unstable/httpapi/HttpApiEndpoint#SuccessWithIdentifier"
   note: "Use SuccessWithIdentifier for the decoded, stream-aware result; v4 Success extracts the schema."
@@ -66,7 +66,7 @@
   note: "Direct rename from name to identifier; the result remains decoded and stream-aware."
 "@effect/platform/HttpApiEndpoint#HttpApiEndpoint.UrlParams":
   replacement: "effect/unstable/httpapi/HttpApiEndpoint#Query"
-  note: "urlParams became query; Query extracts the schema, so use Query<Endpoint>[\"Type\"] for decoded data."
+  note: 'urlParams became query; Query extracts the schema, so use Query<Endpoint>["Type"] for decoded data.'
 "@effect/platform/HttpApiEndpoint#HttpApiEndpoint.ValidateHeaders":
   replacement: "effect/unstable/httpapi/HttpApiEndpoint#HeadersConstraint"
   note: "Validation moved from an intersection helper to a constructor generic constraint."

@@ -8,14 +8,14 @@
  *
  * @since 4.0.0
  */
-import type * as Arr from "./Array.ts"
-import * as Cause from "./Cause.ts"
-import type * as Context from "./Context.ts"
-import * as Effect from "./Effect.ts"
-import { dual } from "./Function.ts"
-import * as random from "./internal/random.ts"
-import type * as NonEmptyIterable from "./NonEmptyIterable.ts"
-import * as Predicate from "./Predicate.ts"
+import type * as Arr from "./Array.ts";
+import * as Cause from "./Cause.ts";
+import type * as Context from "./Context.ts";
+import * as Effect from "./Effect.ts";
+import { dual } from "./Function.ts";
+import * as random from "./internal/random.ts";
+import type * as NonEmptyIterable from "./NonEmptyIterable.ts";
+import * as Predicate from "./Predicate.ts";
 
 /**
  * The service used to generate pseudo-random numbers.
@@ -27,11 +27,11 @@ export interface Random {
   /**
    * Generates a random safe integer.
    */
-  nextIntUnsafe(): number
+  nextIntUnsafe(): number;
   /**
    * Generates a random number between 0 (inclusive) and 1 (exclusive).
    */
-  nextDoubleUnsafe(): number
+  nextDoubleUnsafe(): number;
 }
 
 /**
@@ -66,10 +66,10 @@ export interface Random {
  * @category services
  * @since 2.0.0
  */
-export const Random: Context.Reference<Random> = random.Random
+export const Random: Context.Reference<Random> = random.Random;
 
 const randomWith = <A>(f: (random: Random) => A): Effect.Effect<A> =>
-  Effect.withFiber((fiber) => Effect.succeed(f(fiber.getRef(Random))))
+  Effect.withFiber((fiber) => Effect.succeed(f(fiber.getRef(Random))));
 
 /**
  * Generates a random number between 0 (inclusive) and 1 (exclusive).
@@ -90,7 +90,7 @@ const randomWith = <A>(f: (random: Random) => A): Effect.Effect<A> =>
  * @category generators
  * @since 2.0.0
  */
-export const next: Effect.Effect<number> = randomWith((r) => r.nextDoubleUnsafe())
+export const next: Effect.Effect<number> = randomWith((r) => r.nextDoubleUnsafe());
 
 /**
  * Generates a random boolean value.
@@ -110,7 +110,7 @@ export const next: Effect.Effect<number> = randomWith((r) => r.nextDoubleUnsafe(
  * @category generators
  * @since 2.0.0
  */
-export const nextBoolean: Effect.Effect<boolean> = randomWith((r) => r.nextDoubleUnsafe() > 0.5)
+export const nextBoolean: Effect.Effect<boolean> = randomWith((r) => r.nextDoubleUnsafe() > 0.5);
 
 /**
  * Generates a random integer between `Number.MIN_SAFE_INTEGER` (inclusive)
@@ -132,7 +132,7 @@ export const nextBoolean: Effect.Effect<boolean> = randomWith((r) => r.nextDoubl
  * @category generators
  * @since 2.0.0
  */
-export const nextInt: Effect.Effect<number> = randomWith((r) => r.nextIntUnsafe())
+export const nextInt: Effect.Effect<number> = randomWith((r) => r.nextIntUnsafe());
 
 /**
  * Generates a random number between `min` (inclusive) and `max` (exclusive).
@@ -153,7 +153,7 @@ export const nextInt: Effect.Effect<number> = randomWith((r) => r.nextIntUnsafe(
  * @since 4.0.0
  */
 export const nextBetween = (min: number, max: number): Effect.Effect<number> =>
-  randomWith((r) => random.nextBetween(min, max, r.nextDoubleUnsafe()))
+  randomWith((r) => random.nextBetween(min, max, r.nextDoubleUnsafe()));
 
 /**
  * Generates a random integer between `min` and `max`.
@@ -188,16 +188,20 @@ export const nextBetween = (min: number, max: number): Effect.Effect<number> =>
  * @category generators
  * @since 2.0.0
  */
-export const nextIntBetween = (min: number, max: number, options?: {
-  readonly halfOpen?: boolean
-}): Effect.Effect<number> => {
-  const extra = options?.halfOpen === true ? 0 : 1
+export const nextIntBetween = (
+  min: number,
+  max: number,
+  options?: {
+    readonly halfOpen?: boolean;
+  },
+): Effect.Effect<number> => {
+  const extra = options?.halfOpen === true ? 0 : 1;
   return randomWith((r) => {
-    const minInt = Math.ceil(min)
-    const maxInt = Math.floor(max)
-    return Math.floor(r.nextDoubleUnsafe() * (maxInt - minInt + extra)) + minInt
-  })
-}
+    const minInt = Math.ceil(min);
+    const maxInt = Math.floor(max);
+    return Math.floor(r.nextDoubleUnsafe() * (maxInt - minInt + extra)) + minInt;
+  });
+};
 
 /**
  * Uses the pseudo-random number generator to shuffle the specified iterable.
@@ -219,15 +223,15 @@ export const nextIntBetween = (min: number, max: number, options?: {
  */
 export const shuffle = <A>(elements: Iterable<A>): Effect.Effect<Array<A>> =>
   randomWith((r) => {
-    const buffer = Array.from(elements)
+    const buffer = Array.from(elements);
     for (let i = buffer.length - 1; i >= 1; i = i - 1) {
-      const index = Math.min(i, Math.floor(r.nextDoubleUnsafe() * (i + 1)))
-      const value = buffer[i]!
-      buffer[i] = buffer[index]!
-      buffer[index] = value
+      const index = Math.min(i, Math.floor(r.nextDoubleUnsafe() * (i + 1)));
+      const value = buffer[i]!;
+      buffer[i] = buffer[index]!;
+      buffer[index] = value;
     }
-    return buffer
-  })
+    return buffer;
+  });
 
 /**
  * Gets a random element from an iterable.
@@ -254,16 +258,24 @@ export const shuffle = <A>(elements: Iterable<A>): Effect.Effect<Array<A>> =>
  * @since 3.6.0
  */
 export const choice: <Self extends Iterable<unknown>>(
-  elements: Self
-) => Self extends NonEmptyIterable.NonEmptyIterable<infer A> ? Effect.Effect<A>
-  : Self extends Arr.NonEmptyReadonlyArray<infer A> ? Effect.Effect<A>
-  : Self extends Iterable<infer A> ? Effect.Effect<A, Cause.NoSuchElementError>
-  : never = ((elements: Iterable<unknown>) => {
-    const buffer = Array.from(elements)
-    return buffer.length === 0
-      ? Effect.fail(new Cause.NoSuchElementError("Cannot select a random element from an empty array"))
-      : randomWith((r) => buffer[Math.min(buffer.length - 1, Math.floor(r.nextDoubleUnsafe() * buffer.length))]!)
-  }) as any
+  elements: Self,
+) => Self extends NonEmptyIterable.NonEmptyIterable<infer A>
+  ? Effect.Effect<A>
+  : Self extends Arr.NonEmptyReadonlyArray<infer A>
+    ? Effect.Effect<A>
+    : Self extends Iterable<infer A>
+      ? Effect.Effect<A, Cause.NoSuchElementError>
+      : never = ((elements: Iterable<unknown>) => {
+  const buffer = Array.from(elements);
+  return buffer.length === 0
+    ? Effect.fail(
+        new Cause.NoSuchElementError("Cannot select a random element from an empty array"),
+      )
+    : randomWith(
+        (r) =>
+          buffer[Math.min(buffer.length - 1, Math.floor(r.nextDoubleUnsafe() * buffer.length))]!,
+      );
+}) as any;
 
 /**
  * Seeds the pseudo-random number generator with the specified value.
@@ -302,12 +314,11 @@ export const choice: <Self extends Iterable<unknown>>(
  * @since 4.0.0
  */
 export const withSeed: {
-  (seed: string | number): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
-  <A, E, R>(self: Effect.Effect<A, E, R>, seed: string | number): Effect.Effect<A, E, R>
-} = dual(2, <A, E, R>(
-  self: Effect.Effect<A, E, R>,
-  seed: string | number
-) => Effect.provideService(self, Random, ISAAC_CSPRNG(seed)))
+  (seed: string | number): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
+  <A, E, R>(self: Effect.Effect<A, E, R>, seed: string | number): Effect.Effect<A, E, R>;
+} = dual(2, <A, E, R>(self: Effect.Effect<A, E, R>, seed: string | number) =>
+  Effect.provideService(self, Random, ISAAC_CSPRNG(seed)),
+);
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////
 This is a derivative work copyright (c) 2025 Effectful Technologies Inc, under MIT license.
@@ -322,192 +333,192 @@ https://github.com/rubycon/isaac.js
 ///////////////////////////////////////////////////////////////////////////////////////////////////*/
 function ISAAC_CSPRNG(userSeed?: string | number) {
   // Internal State
-  const memory = new Array(256)
-  const result = new Array(256)
-  let accumulator = 0
-  let lastResult = 0
-  let generation = 0
-  let counter = 0
+  const memory = new Array(256);
+  const result = new Array(256);
+  let accumulator = 0;
+  let lastResult = 0;
+  let generation = 0;
+  let counter = 0;
 
   // Initial Seed
-  const internalSeed = Predicate.isUndefined(userSeed) ? getInitialSeed() : userSeed
-  seed(internalSeed)
+  const internalSeed = Predicate.isUndefined(userSeed) ? getInitialSeed() : userSeed;
+  seed(internalSeed);
 
   function getInitialSeed() {
-    const uint32a = new Uint32Array(2)
-    crypto.getRandomValues(uint32a)
-    return uint32a[0] + uint32a[1]
+    const uint32a = new Uint32Array(2);
+    crypto.getRandomValues(uint32a);
+    return uint32a[0] + uint32a[1];
   }
 
   function reset() {
-    accumulator = 0
-    lastResult = 0
-    counter = 0
+    accumulator = 0;
+    lastResult = 0;
+    counter = 0;
     for (let i = 0; i < 256; ++i) {
-      memory[i] = 0
-      result[i] = 0
+      memory[i] = 0;
+      result[i] = 0;
     }
-    generation = 0
+    generation = 0;
   }
 
   function seed(userSeed: string | number): void {
     // The golden ratio ( 2654435769 )
     // See https://stackoverflow.com/questions/4948780/magic-number-in-boosthash-combine
-    const magicNumber = 0x9e3779b9
-    let a = magicNumber
-    let b = magicNumber
-    let c = magicNumber
-    let d = magicNumber
-    let e = magicNumber
-    let f = magicNumber
-    let g = magicNumber
-    let h = magicNumber
-    let i = 0
+    const magicNumber = 0x9e3779b9;
+    let a = magicNumber;
+    let b = magicNumber;
+    let c = magicNumber;
+    let d = magicNumber;
+    let e = magicNumber;
+    let f = magicNumber;
+    let g = magicNumber;
+    let h = magicNumber;
+    let i = 0;
 
-    let seed: Array<number>
+    let seed: Array<number>;
     if (Predicate.isString(userSeed)) {
-      seed = toIntArray(userSeed)
+      seed = toIntArray(userSeed);
     } else {
-      seed = [userSeed]
+      seed = [userSeed];
     }
 
-    reset()
+    reset();
 
     for (i = 0; i < seed.length; i++) {
-      result[i & 0xff] += seed[i]
+      result[i & 0xff] += seed[i];
     }
 
     function mix() {
-      a ^= b << 11
-      d = add32(d, a)
-      b = add32(b, c)
+      a ^= b << 11;
+      d = add32(d, a);
+      b = add32(b, c);
 
-      b ^= c >>> 2
-      e = add32(e, b)
-      c = add32(c, d)
+      b ^= c >>> 2;
+      e = add32(e, b);
+      c = add32(c, d);
 
-      c ^= d << 8
-      f = add32(f, c)
-      d = add32(d, e)
+      c ^= d << 8;
+      f = add32(f, c);
+      d = add32(d, e);
 
-      d ^= e >>> 16
-      g = add32(g, d)
-      e = add32(e, f)
+      d ^= e >>> 16;
+      g = add32(g, d);
+      e = add32(e, f);
 
-      e ^= f << 10
-      h = add32(h, e)
-      f = add32(f, g)
+      e ^= f << 10;
+      h = add32(h, e);
+      f = add32(f, g);
 
-      f ^= g >>> 4
-      a = add32(a, f)
-      g = add32(g, h)
+      f ^= g >>> 4;
+      a = add32(a, f);
+      g = add32(g, h);
 
-      g ^= h << 8
-      b = add32(b, g)
-      h = add32(h, a)
+      g ^= h << 8;
+      b = add32(b, g);
+      h = add32(h, a);
 
-      h ^= a >>> 9
-      c = add32(c, h)
-      a = add32(a, b)
+      h ^= a >>> 9;
+      c = add32(c, h);
+      a = add32(a, b);
     }
 
     // Scramble the seed
     for (i = 0; i < 4; i++) {
-      mix()
+      mix();
     }
 
     for (i = 0; i < 256; i += 8) {
       // Use all the information in the seed
-      a = add32(a, result[i])
-      b = add32(b, result[i + 1])
-      c = add32(c, result[i + 2])
-      d = add32(d, result[i + 3])
-      e = add32(e, result[i + 4])
-      f = add32(f, result[i + 5])
-      g = add32(g, result[i + 6])
-      h = add32(h, result[i + 7])
+      a = add32(a, result[i]);
+      b = add32(b, result[i + 1]);
+      c = add32(c, result[i + 2]);
+      d = add32(d, result[i + 3]);
+      e = add32(e, result[i + 4]);
+      f = add32(f, result[i + 5]);
+      g = add32(g, result[i + 6]);
+      h = add32(h, result[i + 7]);
 
-      mix()
+      mix();
 
       // Fill in the memory with messy stuff
-      memory[i] = a
-      memory[i + 1] = b
-      memory[i + 2] = c
-      memory[i + 3] = d
-      memory[i + 4] = e
-      memory[i + 5] = f
-      memory[i + 6] = g
-      memory[i + 7] = h
+      memory[i] = a;
+      memory[i + 1] = b;
+      memory[i + 2] = c;
+      memory[i + 3] = d;
+      memory[i + 4] = e;
+      memory[i + 5] = f;
+      memory[i + 6] = g;
+      memory[i + 7] = h;
     }
 
     // Second pass to make sure seed affects memory
     for (i = 0; i < 256; i += 8) {
-      a = add32(a, memory[i])
-      b = add32(b, memory[i + 1])
-      c = add32(c, memory[i + 2])
-      d = add32(d, memory[i + 3])
-      e = add32(e, memory[i + 4])
-      f = add32(f, memory[i + 5])
-      g = add32(g, memory[i + 6])
-      h = add32(h, memory[i + 7])
+      a = add32(a, memory[i]);
+      b = add32(b, memory[i + 1]);
+      c = add32(c, memory[i + 2]);
+      d = add32(d, memory[i + 3]);
+      e = add32(e, memory[i + 4]);
+      f = add32(f, memory[i + 5]);
+      g = add32(g, memory[i + 6]);
+      h = add32(h, memory[i + 7]);
 
-      mix()
+      mix();
 
       // Fill in the memory with messy stuff (again)
-      memory[i] = a
-      memory[i + 1] = b
-      memory[i + 2] = c
-      memory[i + 3] = d
-      memory[i + 4] = e
-      memory[i + 5] = f
-      memory[i + 6] = g
-      memory[i + 7] = h
+      memory[i] = a;
+      memory[i + 1] = b;
+      memory[i + 2] = c;
+      memory[i + 3] = d;
+      memory[i + 4] = e;
+      memory[i + 5] = f;
+      memory[i + 6] = g;
+      memory[i + 7] = h;
     }
 
-    pnrg()
+    pnrg();
 
-    generation = 256
+    generation = 256;
   }
 
   function pnrg(n?: number): void {
-    let i = 0
-    let x = 0
-    let y = 0
+    let i = 0;
+    let x = 0;
+    let y = 0;
 
-    n = Predicate.isUndefined(n) ? 1 : Math.abs(Math.floor(n))
+    n = Predicate.isUndefined(n) ? 1 : Math.abs(Math.floor(n));
 
     while (n--) {
-      counter = add32(counter, 1)
-      lastResult = add32(lastResult, counter)
+      counter = add32(counter, 1);
+      lastResult = add32(lastResult, counter);
 
       for (i = 0; i < 256; i++) {
         switch (i & 3) {
           case 0: {
-            accumulator ^= accumulator << 13
-            break
+            accumulator ^= accumulator << 13;
+            break;
           }
           case 1: {
-            accumulator ^= accumulator >>> 6
-            break
+            accumulator ^= accumulator >>> 6;
+            break;
           }
           case 2: {
-            accumulator ^= accumulator << 2
-            break
+            accumulator ^= accumulator << 2;
+            break;
           }
           case 3: {
-            accumulator ^= accumulator >>> 16
-            break
+            accumulator ^= accumulator >>> 16;
+            break;
           }
         }
 
-        accumulator = add32(memory[(i + 128) & 0xff], accumulator)
-        x = memory[i]
+        accumulator = add32(memory[(i + 128) & 0xff], accumulator);
+        x = memory[i];
 
-        memory[i] = add32(memory[(x >>> 2) & 0xff], add32(accumulator, lastResult))
-        y = memory[i]
+        memory[i] = add32(memory[(x >>> 2) & 0xff], add32(accumulator, lastResult));
+        y = memory[i];
 
-        result[i] = add32(memory[(y >>> 10) & 0xff], x)
-        lastResult = result[i]
+        result[i] = add32(memory[(y >>> 10) & 0xff], x);
+        lastResult = result[i];
       }
     }
   }
@@ -517,31 +528,33 @@ function ISAAC_CSPRNG(userSeed?: string | number) {
    */
   function nextInt32(): number {
     if (!generation--) {
-      pnrg()
-      generation = 255
+      pnrg();
+      generation = 255;
     }
-    return result[generation]
+    return result[generation];
   }
 
   function nextIntUnsafe(): number {
-    return Math.floor(nextDoubleUnsafe() * (Number.MAX_SAFE_INTEGER - Number.MIN_SAFE_INTEGER + 1)) +
+    return (
+      Math.floor(nextDoubleUnsafe() * (Number.MAX_SAFE_INTEGER - Number.MIN_SAFE_INTEGER + 1)) +
       Number.MIN_SAFE_INTEGER
+    );
   }
 
   /**
    * Returns a 53-bit fraction in the range [0, 1).
    */
   function nextDoubleUnsafe(): number {
-    const hi = (nextInt32() >>> 0) & 0x1FFFFF // take top 21 bits
-    const lo = nextInt32() >>> 0 // full 32 bits
+    const hi = (nextInt32() >>> 0) & 0x1fffff; // take top 21 bits
+    const lo = nextInt32() >>> 0; // full 32 bits
 
     // 53-bit integer
-    const combined = hi * 4294967296 + lo
+    const combined = hi * 4294967296 + lo;
 
-    return combined / 0x20000000000000 // [0, 1)
+    return combined / 0x20000000000000; // [0, 1)
   }
 
-  return { nextIntUnsafe, nextDoubleUnsafe }
+  return { nextIntUnsafe, nextDoubleUnsafe };
 }
 
 /**
@@ -553,34 +566,34 @@ function add32(x: number, y: number): number {
   // Add lower 16 bits separately to handle carry
   // Example: x=0x12345678, y=0xABCDEF01
   // lsb = (0x5678 + 0xEF01) = 0x14579
-  const lsb = (x & 0xffff) + (y & 0xffff)
+  const lsb = (x & 0xffff) + (y & 0xffff);
 
   // Add upper 16 bits + carry from lower addition
   // msb = (0x1234 + 0xABCD + (0x14579 >>> 16)) = (0x1234 + 0xABCD + 0x1) = 0xBE02
-  const msb = (x >>> 16) + (y >>> 16) + (lsb >>> 16)
+  const msb = (x >>> 16) + (y >>> 16) + (lsb >>> 16);
 
   // Combine: upper 16 bits | lower 16 bits (masked to prevent double carry)
   // return (0xBE02 << 16) | (0x14579 & 0xffff) = 0xBE024579
-  return (msb << 16) | (lsb & 0xffff)
+  return (msb << 16) | (lsb & 0xffff);
 }
 
-const seedEncoder = new TextEncoder()
+const seedEncoder = new TextEncoder();
 
 /**
  * Convert a string to UTF-8 encoded 32-bit integers (little-endian).
  */
 function toIntArray(seed: string): Array<number> {
-  const bytes = seedEncoder.encode(seed)
-  const result: Array<number> = []
+  const bytes = seedEncoder.encode(seed);
+  const result: Array<number> = [];
 
   for (let index = 0; index < bytes.length; index += 4) {
     result.push(
       ((bytes[index] ?? 0) << 0) |
         ((bytes[index + 1] ?? 0) << 8) |
         ((bytes[index + 2] ?? 0) << 16) |
-        ((bytes[index + 3] ?? 0) << 24)
-    )
+        ((bytes[index + 3] ?? 0) << 24),
+    );
   }
 
-  return result
+  return result;
 }

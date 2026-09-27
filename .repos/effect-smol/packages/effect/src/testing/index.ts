@@ -7,14 +7,14 @@
 /**
  * @since 2.0.0
  */
-export * as TestClock from "./TestClock.ts"
+export * as TestClock from "./TestClock.ts";
 
 /**
  * @since 4.0.0
  */
-export * as TestConsole from "./TestConsole.ts"
+export * as TestConsole from "./TestConsole.ts";
 
 /**
  * @since 4.0.0
  */
-export * as TestSchema from "./TestSchema.ts"
+export * as TestSchema from "./TestSchema.ts";

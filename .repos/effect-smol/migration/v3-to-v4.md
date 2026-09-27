@@ -8753,7 +8753,7 @@ Derive a native Arbitrary from a Schema. Effect no longer bridges to fast-check.
 **Example**
 
 ```ts
-Arbitrary.schema(schema)
+Arbitrary.schema(schema);
 ```
 
 #### `Arbitrary.makeLazy`
@@ -8765,7 +8765,7 @@ Lazy and eager Schema derivation are the same native Arbitrary.schema constructo
 **Example**
 
 ```ts
-Arbitrary.schema(schema)
+Arbitrary.schema(schema);
 ```
 
 ### `effect/Array`
@@ -10613,7 +10613,7 @@ Depend on fast-check and import it directly. fast-check v4 replaced character ar
 **Example**
 
 ```ts
-FastCheck.string({ unit: "binary-ascii", minLength: 1, maxLength: 1 })
+FastCheck.string({ unit: "binary-ascii", minLength: 1, maxLength: 1 });
 ```
 
 #### `FastCheck.asciiString`
@@ -10625,7 +10625,7 @@ Depend on fast-check and import it directly. Use the binary-ascii string unit.
 **Example**
 
 ```ts
-FastCheck.string({ ...constraints, unit: "binary-ascii" })
+FastCheck.string({ ...constraints, unit: "binary-ascii" });
 ```
 
 - `FastCheck.assert`: TODO: needs guidance
@@ -10649,7 +10649,7 @@ Depend on fast-check and import it directly. Generate one base64 alphabet charac
 **Example**
 
 ```ts
-FastCheck.constantFrom(..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/")
+FastCheck.constantFrom(..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/");
 ```
 
 - `FastCheck.base64String`: TODO: needs guidance
@@ -10669,7 +10669,7 @@ Depend on fast-check and import it directly. Use a minimum of 0n and the previou
 **Example**
 
 ```ts
-FastCheck.bigInt({ min: 0n, max })
+FastCheck.bigInt({ min: 0n, max });
 ```
 
 - `FastCheck.bigUint64Array`: TODO: needs guidance
@@ -10683,7 +10683,7 @@ Depend on fast-check and import it directly. Express the unsigned bit range with
 **Example**
 
 ```ts
-FastCheck.bigInt({ min: 0n, max: (1n << BigInt(n)) - 1n })
+FastCheck.bigInt({ min: 0n, max: (1n << BigInt(n)) - 1n });
 ```
 
 - `FastCheck.boolean`: TODO: needs guidance
@@ -10697,7 +10697,7 @@ Depend on fast-check and import it directly. Use a one-unit printable ASCII stri
 **Example**
 
 ```ts
-FastCheck.string({ unit: "grapheme-ascii", minLength: 1, maxLength: 1 })
+FastCheck.string({ unit: "grapheme-ascii", minLength: 1, maxLength: 1 });
 ```
 
 #### `FastCheck.char16bits`
@@ -10709,7 +10709,7 @@ Depend on fast-check and import it directly. Map a 16-bit natural number through
 **Example**
 
 ```ts
-FastCheck.nat({ max: 0xffff }).map(String.fromCharCode)
+FastCheck.nat({ max: 0xffff }).map(String.fromCharCode);
 ```
 
 - `FastCheck.check` -> `FastCheck.check`: Depend on fast-check and import it directly. The runner remains, but RunDetails.error was replaced by errorInstance in fast-check v4.
@@ -10765,7 +10765,7 @@ Depend on fast-check and import it directly. Use a one-unit binary Unicode strin
 **Example**
 
 ```ts
-FastCheck.string({ unit: "binary", minLength: 1, maxLength: 1 })
+FastCheck.string({ unit: "binary", minLength: 1, maxLength: 1 });
 ```
 
 #### `FastCheck.fullUnicodeString`
@@ -10777,7 +10777,7 @@ Depend on fast-check and import it directly. Use the binary string unit.
 **Example**
 
 ```ts
-FastCheck.string({ ...constraints, unit: "binary" })
+FastCheck.string({ ...constraints, unit: "binary" });
 ```
 
 - `FastCheck.func`: TODO: needs guidance
@@ -10889,7 +10889,7 @@ Depend on fast-check and import it directly. Pass the former character arbitrary
 **Example**
 
 ```ts
-FastCheck.string({ ...constraints, unit: arbitrary })
+FastCheck.string({ ...constraints, unit: arbitrary });
 ```
 
 - `FastCheck.subarray`: TODO: needs guidance
@@ -10919,7 +10919,7 @@ Depend on fast-check and import it directly. Select binary or grapheme strings w
 **Example**
 
 ```ts
-FastCheck.json({ stringUnit: "binary" })
+FastCheck.json({ stringUnit: "binary" });
 ```
 
 #### `FastCheck.unicodeJsonValue`
@@ -10931,7 +10931,7 @@ Depend on fast-check and import it directly. Select binary or grapheme strings w
 **Example**
 
 ```ts
-FastCheck.jsonValue({ stringUnit: "binary" })
+FastCheck.jsonValue({ stringUnit: "binary" });
 ```
 
 - `FastCheck.unicodeString` -> `FastCheck.string`: Depend on fast-check and import it directly. Pass a BMP-code-point arbitrary as the unit constraint; prefer unit: binary for full Unicode.
@@ -10949,7 +10949,7 @@ Depend on fast-check and import it directly. Specify the UUID version through co
 **Example**
 
 ```ts
-FastCheck.uuid({ version: 4 })
+FastCheck.uuid({ version: 4 });
 ```
 
 - `FastCheck.webAuthority`: TODO: needs guidance
@@ -11352,9 +11352,8 @@ Apply the per-group function over the [key, stream] pairs with Stream.flatMap (o
 // v3: stream.pipe(Stream.groupByKey(f), GroupBy.evaluate((key, s) => g(key, s)))
 stream.pipe(
   Stream.groupByKey(f),
-  Stream.flatMap(([key, s]) => g(key, s), { concurrency: "unbounded" })
-)
-
+  Stream.flatMap(([key, s]) => g(key, s), { concurrency: "unbounded" }),
+);
 ```
 
 - `GroupBy.filter` -> `Stream.filter`: Filter the groups by key with an ordinary Stream.filter on the pairs: Stream.filter(([key]) =\> predicate(key)).
@@ -11401,7 +11400,7 @@ stream.pipe(
 
 - `HashSet.toggle` -> `HashSet.has + HashSet.remove / HashSet.add`: Use HashSet.has(self, value) ? HashSet.remove(self, value) : HashSet.add(self, value).
 
-- `HashSet.values` -> `none`: The HashSet itself is iterable; iterate it directly or call self[Symbol.iterator]() when an iterator object is required.
+- `HashSet.values` -> `none`: The HashSet itself is iterable; iterate it directly or call self[Symbol.iterator](<>) when an iterator object is required.
 
 ### `effect/Inspectable`
 
@@ -11478,7 +11477,7 @@ Wrap a low-level AST with Schema.make, then generate a draft 2020-12 document. G
 **Example**
 
 ```ts
-Schema.toJsonSchemaDocument(Schema.make(ast))
+Schema.toJsonSchemaDocument(Schema.make(ast));
 ```
 
 #### `JSONSchema.make`
@@ -11490,7 +11489,7 @@ Generate draft 2020-12, then call JsonSchema.toDocumentDraft07 when draft-07 out
 **Example**
 
 ```ts
-JsonSchema.toDocumentDraft07(Schema.toJsonSchemaDocument(schema))
+JsonSchema.toDocumentDraft07(Schema.toJsonSchemaDocument(schema));
 ```
 
 ### `effect/KeyedPool`
@@ -12346,7 +12345,7 @@ Renamed: the async constructor is Effect.callback in v4. Same resume/AbortSignal
 **Example**
 
 ```ts
-Effect.callback<number>((resume) => resume(Effect.succeed(1)))
+Effect.callback<number>((resume) => resume(Effect.succeed(1)));
 ```
 
 - `Micro.bind` -> `Effect.bind`: Micro was removed in v4; the rewritten Effect runtime is itself lightweight and replaces it. Same-name equivalent on effect/Effect.
@@ -12444,7 +12443,7 @@ No direct equivalent; use Effect.filterOrElse and fail with a cause in the fallb
 **Example**
 
 ```ts
-Effect.filterOrElse(effect, predicate, { orElse: () => Effect.failCause(Cause.die("invalid")) })
+Effect.filterOrElse(effect, predicate, { orElse: () => Effect.failCause(Cause.die("invalid")) });
 ```
 
 - `Micro.flatten` -> `Effect.flatten`: Micro was removed in v4; the rewritten Effect runtime is itself lightweight and replaces it. Same-name equivalent on effect/Effect.
@@ -12472,7 +12471,10 @@ Removed; log explicitly before ignoring.
 **Example**
 
 ```ts
-effect.pipe(Effect.tapCause((cause) => Effect.logError(cause)), Effect.ignore)
+effect.pipe(
+  Effect.tapCause((cause) => Effect.logError(cause)),
+  Effect.ignore,
+);
 ```
 
 - `Micro.interrupt` -> `Effect.interrupt`: Micro was removed in v4; the rewritten Effect runtime is itself lightweight and replaces it. Same-name equivalent on effect/Effect.
@@ -12498,7 +12500,7 @@ No direct equivalent; transform the cause by catching it and re-failing.
 **Example**
 
 ```ts
-Effect.catchCause(effect, (cause) => Effect.failCause(Cause.map(cause, transformError)))
+Effect.catchCause(effect, (cause) => Effect.failCause(Cause.map(cause, transformError)));
 ```
 
 - `Micro.match` -> `Effect.match`: Micro was removed in v4; the rewritten Effect runtime is itself lightweight and replaces it. Same-name equivalent on effect/Effect.
@@ -12534,7 +12536,7 @@ Removed; use Effect.repeat with while/until/times/schedule options. To inspect f
 **Example**
 
 ```ts
-Effect.repeat(Effect.exit(effect), { while: (exit) => Exit.isFailure(exit), times: 3 })
+Effect.repeat(Effect.exit(effect), { while: (exit) => Exit.isFailure(exit), times: 3 });
 ```
 
 - `Micro.replicate` -> `Effect.replicate`: Micro was removed in v4; the rewritten Effect runtime is itself lightweight and replaces it. Same-name equivalent on effect/Effect.
@@ -12576,7 +12578,7 @@ No direct equivalent; clamp the delay with Schedule.modifyDelay.
 **Example**
 
 ```ts
-Schedule.modifyDelay(schedule, ({ delay }) => Duration.min(delay, "10 seconds"))
+Schedule.modifyDelay(schedule, ({ delay }) => Duration.min(delay, "10 seconds"));
 ```
 
 #### `Micro.scheduleWithMaxElapsed`
@@ -12588,7 +12590,7 @@ Renamed: cap total elapsed time with Schedule.upTo({ duration }).
 **Example**
 
 ```ts
-Schedule.upTo(schedule, { duration: "30 seconds" })
+Schedule.upTo(schedule, { duration: "30 seconds" });
 ```
 
 - `Micro.scopeMake` -> `Scope.make`: Moved to effect/Scope: Scope.make returns Effect\<Scope.Closeable\> and accepts an optional finalizer strategy.
@@ -12642,7 +12644,7 @@ Removed in v4 along with "inherit" concurrency; pass a { concurrency } option di
 **Example**
 
 ```ts
-Effect.forEach(items, handle, { concurrency: 10 })
+Effect.forEach(items, handle, { concurrency: 10 });
 ```
 
 - `Micro.withMicroFiber` -> `Effect.withFiber`: Renamed: withMicroFiber becomes Effect.withFiber, giving access to the current fiber.
@@ -12834,7 +12836,7 @@ Format error.issue with the Standard Schema formatter.
 **Example**
 
 ```ts
-SchemaIssue.makeFormatterStandardSchemaV1()(error.issue).issues
+SchemaIssue.makeFormatterStandardSchemaV1()(error.issue).issues;
 ```
 
 - `ParseResult.ArrayFormatterIssue` -> `StandardSchemaV1.FailureResult["issues"][number]`: Use the Standard Schema issue shape returned by makeFormatterStandardSchemaV1.
@@ -12874,7 +12876,7 @@ Use the default SchemaIssue string formatter.
 **Example**
 
 ```ts
-SchemaIssue.defaultFormatter(issue)
+SchemaIssue.defaultFormatter(issue);
 ```
 
 - `ParseResult.Type` -> `SchemaIssue.InvalidType`: Type mismatches use the v4 SchemaIssue class.
@@ -12928,7 +12930,7 @@ Construct a SchemaError from a SchemaIssue.Issue.
 **Example**
 
 ```ts
-new Schema.SchemaError(issue)
+new Schema.SchemaError(issue);
 ```
 
 - `ParseResult.succeed` -> `Effect.succeed`: Schema transformations now use Effect.
@@ -12944,7 +12946,7 @@ Validation-only parsers were removed; decode the type-side schema instead.
 **Example**
 
 ```ts
-Schema.decodeEffect(Schema.toType(schema))
+Schema.decodeEffect(Schema.toType(schema));
 ```
 
 #### `ParseResult.validateEither`
@@ -12956,7 +12958,7 @@ Validation-only parsers were removed; decode the type-side schema instead.
 **Example**
 
 ```ts
-Schema.decodeExit(Schema.toType(schema))
+Schema.decodeExit(Schema.toType(schema));
 ```
 
 #### `ParseResult.validateOption`
@@ -12968,7 +12970,7 @@ Validation-only parsers were removed; decode the type-side schema instead.
 **Example**
 
 ```ts
-Schema.decodeOption(Schema.toType(schema))
+Schema.decodeOption(Schema.toType(schema));
 ```
 
 #### `ParseResult.validatePromise`
@@ -12980,7 +12982,7 @@ Validation-only parsers were removed; decode the type-side schema instead.
 **Example**
 
 ```ts
-Schema.decodePromise(Schema.toType(schema))
+Schema.decodePromise(Schema.toType(schema));
 ```
 
 #### `ParseResult.validateSync`
@@ -12992,7 +12994,7 @@ Validation-only parsers were removed; decode the type-side schema instead.
 **Example**
 
 ```ts
-Schema.decodeSync(Schema.toType(schema))
+Schema.decodeSync(Schema.toType(schema));
 ```
 
 ### `effect/PartitionedSemaphore`
@@ -13108,7 +13110,7 @@ Formatter derivation moved onto Schema.
 **Example**
 
 ```ts
-Schema.toFormatter(schema)
+Schema.toFormatter(schema);
 ```
 
 - `Pretty.match` -> `Schema.toFormatter`: The compiler match table was removed; customize traversal with the toFormatter onBefore option.
@@ -15602,7 +15604,7 @@ Removed; the closest v4 primitive is Stream.peel(self, Sink.take(n)), a scoped E
 **Example**
 
 ```ts
-Stream.unwrap(Effect.map(Stream.peel(self, Sink.take(n)), ([head, rest]) => f(head)(rest)))
+Stream.unwrap(Effect.map(Stream.peel(self, Sink.take(n)), ([head, rest]) => f(head)(rest)));
 ```
 
 - `Stream.broadcastDynamic` -> `Stream.broadcast`: v4 Stream.broadcast({ capacity, strategy?, replay? }) is the dynamic-subscriber fan-out returning Effect\<Stream\<A, E\>, never, Scope | R\> (v3 fixed-arity broadcast(n) became Stream.broadcastN); Stream.share adds refcounted/idleTimeToLive semantics.
@@ -15730,7 +15732,10 @@ Struct-to-tagged-union merge removed. Recreate with Stream.mergeAll over the ent
 **Example**
 
 ```ts
-Stream.mergeAll(Object.entries(streams).map(([_tag, s]) => Stream.map(s, (value) => ({ _tag, value }))), { concurrency })
+Stream.mergeAll(
+  Object.entries(streams).map(([_tag, s]) => Stream.map(s, (value) => ({ _tag, value }))),
+  { concurrency },
+);
 ```
 
 - `Stream.onDone` -> `Stream.onEnd`: Renamed; v4 onEnd takes an Effect value (not a () =\> Effect thunk) run when the stream ends successfully, and its error type may add to the stream's.
@@ -15802,13 +15807,12 @@ v4 runFold has no early-exit predicate; emulate with Stream.runForEachWhile and 
 ```ts
 // v3: Stream.runFoldWhile(self, init, cont, f)
 Effect.suspend(() => {
-  let acc = init
+  let acc = init;
   return Stream.runForEachWhile(self, (a) => {
-    acc = f(acc, a)
-    return Effect.succeed(cont(acc))
-  }).pipe(Effect.map(() => acc))
-})
-
+    acc = f(acc, a);
+    return Effect.succeed(cont(acc));
+  }).pipe(Effect.map(() => acc));
+});
 ```
 
 - `Stream.runFoldWhileEffect` -> `none`: v4 runFoldEffect has no early-exit predicate; emulate with Stream.runForEachWhile and a mutable accumulator, mapping the effectful step to Effect\<boolean\> via cont(acc) (see runFoldWhile example).
@@ -15920,11 +15924,11 @@ The StreamEmit module is gone; v4 Stream.callback hands the callback a Queue\<A,
 ```ts
 // v3: Stream.async<number, Err>((emit) => { emit.single(1); emit.end() })
 Stream.callback<number, Err>((queue) =>
-  Effect.gen(function*() {
-    yield* Queue.offer(queue, 1)
-    yield* Queue.end(queue)
-  }))
-
+  Effect.gen(function* () {
+    yield* Queue.offer(queue, 1);
+    yield* Queue.end(queue);
+  }),
+);
 ```
 
 - `StreamEmit.EmitOps` -> `Queue.offer / Queue.offerAll / Queue.end / Queue.fail / Queue.failCause`: Method-by-method mapping onto the Queue passed to Stream.callback: single(a) -\> Queue.offer(queue, a); chunk(c) -\> Queue.offerAll(queue, c); end() -\> Queue.end(queue); fail(e) -\> Queue.fail(queue, e); halt(cause) -\> Queue.failCause(queue, cause); die(d)/dieMessage(m) -\> Queue.failCause(queue, Cause.die(d)); done(exit) -\> Queue.offer then Queue.end on success, Queue.failCause on failure; fromEffect(eff) -\> run eff and offer its value (Effect.flatMap(eff, (a) =\> Queue.offer(queue, a))).
@@ -15966,12 +15970,15 @@ Fold over the strategy with an ordinary switch (or ternary chain) on the string 
 ```ts
 // v3: HaltStrategy.match(s, { onLeft, onRight, onBoth, onEither })
 switch (strategy) {
-  case "left": return onLeft()
-  case "right": return onRight()
-  case "both": return onBoth()
-  case "either": return onEither()
+  case "left":
+    return onLeft();
+  case "right":
+    return onRight();
+  case "both":
+    return onBoth();
+  case "either":
+    return onEither();
 }
-
 ```
 
 ### `effect/Struct`
@@ -16517,7 +16524,7 @@ Run the effect with Effect.exit and convert the result: a successful exit value 
 **Example**
 
 ```ts
-Effect.map(Effect.exit(effect), (exit) => Exit.isSuccess(exit) ? [exit.value] as const : exit)
+Effect.map(Effect.exit(effect), (exit) => (Exit.isSuccess(exit) ? ([exit.value] as const) : exit));
 ```
 
 - `Take.fromExit` -> `Exit.isSuccess(exit) ? [exit.value] : exit`: A success exit becomes the single-element batch [a]; a failure exit is already a valid v4 Take and is used as-is.
@@ -16531,7 +16538,7 @@ Convert one v4 Pull step into a Take: the success batch is the Take itself, and 
 **Example**
 
 ```ts
-Effect.matchCause(pull, { onSuccess: (arr) => arr, onFailure: Pull.doneExitFromCause })
+Effect.matchCause(pull, { onSuccess: (arr) => arr, onFailure: Pull.doneExitFromCause });
 ```
 
 - `Take.isDone` -> `Exit.isExit(take) && Exit.isSuccess(take)`: End-of-stream is the successful-Exit branch of the union.
@@ -16556,8 +16563,7 @@ Branch on the union: the array branch is v3's onSuccess(chunk), and Exit.match s
 // v3: Take.match(take, { onEnd, onFailure, onSuccess })
 Exit.isExit(take)
   ? Exit.match(take, { onSuccess: () => onEnd(), onFailure: (cause) => onFailure(cause) })
-  : onSuccess(take)
-
+  : onSuccess(take);
 ```
 
 - `Take.matchEffect` -> `Pull.matchEffect(Take.toPull(take), { onSuccess, onFailure, onDone })`: Convert with Take.toPull and fold with Pull.matchEffect: onSuccess receives the batch (v3 onSuccess), onFailure the cause, onDone the completion value (v3 onEnd); alternatively branch manually with Exit.isExit as for match.

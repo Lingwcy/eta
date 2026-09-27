@@ -8,10 +8,10 @@
  *
  * @since 4.0.0
  */
-import * as Effect from "../../Effect.ts"
-import * as Exit from "../../Exit.ts"
-import * as Option from "../../Option.ts"
-import * as Stream from "../../Stream.ts"
+import * as Effect from "../../Effect.ts";
+import * as Exit from "../../Exit.ts";
+import * as Option from "../../Option.ts";
+import * as Stream from "../../Stream.ts";
 
 /**
  * Primitive value that can be interpolated into an HTTP template.
@@ -19,7 +19,7 @@ import * as Stream from "../../Stream.ts"
  * @category models
  * @since 4.0.0
  */
-export type PrimitiveValue = string | number | bigint | boolean | null | undefined
+export type PrimitiveValue = string | number | bigint | boolean | null | undefined;
 
 /**
  * Primitive template interpolation value.
@@ -32,7 +32,7 @@ export type PrimitiveValue = string | number | bigint | boolean | null | undefin
  * @category models
  * @since 4.0.0
  */
-export type Primitive = PrimitiveValue | ReadonlyArray<PrimitiveValue>
+export type Primitive = PrimitiveValue | ReadonlyArray<PrimitiveValue>;
 
 /**
  * Value accepted by the string template constructor.
@@ -48,7 +48,7 @@ export type Primitive = PrimitiveValue | ReadonlyArray<PrimitiveValue>
 export type Interpolated =
   | Primitive
   | Option.Option<Primitive>
-  | Effect.Effect<Primitive, any, any>
+  | Effect.Effect<Primitive, any, any>;
 
 /**
  * Value accepted by the streaming template constructor.
@@ -61,7 +61,7 @@ export type Interpolated =
  * @category models
  * @since 4.0.0
  */
-export type InterpolatedWithStream = Interpolated | Stream.Stream<Primitive, any, any>
+export type InterpolatedWithStream = Interpolated | Stream.Stream<Primitive, any, any>;
 
 /**
  * Namespace containing type-level helpers for template interpolations.
@@ -79,11 +79,15 @@ export declare namespace Interpolated {
    * @category models
    * @since 4.0.0
    */
-  export type Context<A> = A extends infer T ? T extends Option.Option<infer _> ? never
-    : T extends Effect.Effect<infer _A, infer _E, infer R> ? R
-    : T extends Stream.Stream<infer _A, infer _E, infer R> ? R
-    : never
-    : never
+  export type Context<A> = A extends infer T
+    ? T extends Option.Option<infer _>
+      ? never
+      : T extends Effect.Effect<infer _A, infer _E, infer R>
+        ? R
+        : T extends Stream.Stream<infer _A, infer _E, infer R>
+          ? R
+          : never
+    : never;
 
   /**
    * Extracts the error type from an effect or stream interpolation.
@@ -95,11 +99,15 @@ export declare namespace Interpolated {
    * @category models
    * @since 4.0.0
    */
-  export type Error<A> = A extends infer T ? T extends Option.Option<infer _> ? never
-    : T extends Stream.Stream<infer _A, infer E, infer _R> ? E
-    : T extends Effect.Effect<infer _A, infer E, infer _R> ? E
-    : never
-    : never
+  export type Error<A> = A extends infer T
+    ? T extends Option.Option<infer _>
+      ? never
+      : T extends Stream.Stream<infer _A, infer E, infer _R>
+        ? E
+        : T extends Effect.Effect<infer _A, infer E, infer _R>
+          ? E
+          : never
+    : never;
 }
 
 /**
@@ -116,33 +124,27 @@ export declare namespace Interpolated {
 export function make<A extends ReadonlyArray<Interpolated>>(
   strings: TemplateStringsArray,
   ...args: A
-): Effect.Effect<
-  string,
-  Interpolated.Error<A[number]>,
-  Interpolated.Context<A[number]>
-> {
-  const argsLength = args.length
-  const values = new Array<string>(argsLength)
-  const effects: Array<
-    [index: number, effect: Effect.Effect<Primitive, any, any>]
-  > = []
+): Effect.Effect<string, Interpolated.Error<A[number]>, Interpolated.Context<A[number]>> {
+  const argsLength = args.length;
+  const values = new Array<string>(argsLength);
+  const effects: Array<[index: number, effect: Effect.Effect<Primitive, any, any>]> = [];
 
   for (let i = 0; i < argsLength; i++) {
-    const arg = args[i]
+    const arg = args[i];
 
     if (Option.isOption(arg)) {
-      values[i] = arg._tag === "Some" ? primitiveToString(arg.value) : ""
+      values[i] = arg._tag === "Some" ? primitiveToString(arg.value) : "";
     } else if (isSuccess(arg)) {
-      values[i] = primitiveToString(arg.value)
+      values[i] = primitiveToString(arg.value);
     } else if (Effect.isEffect(arg)) {
-      effects.push([i, arg])
+      effects.push([i, arg]);
     } else {
-      values[i] = primitiveToString(arg)
+      values[i] = primitiveToString(arg);
     }
   }
 
   if (effects.length === 0) {
-    return Effect.succeed(consolidate(strings, values))
+    return Effect.succeed(consolidate(strings, values));
   }
 
   return Effect.map(
@@ -151,15 +153,16 @@ export function make<A extends ReadonlyArray<Interpolated>>(
       ([index, effect]) =>
         Effect.tap(effect, (value) =>
           Effect.sync(() => {
-            values[index] = primitiveToString(value)
-          })),
+            values[index] = primitiveToString(value);
+          }),
+        ),
       {
         concurrency: "unbounded",
-        discard: true
-      }
+        discard: true,
+      },
     ),
-    (_) => consolidate(strings, values)
-  )
+    (_) => consolidate(strings, values),
+  );
 }
 
 /**
@@ -177,87 +180,80 @@ export function make<A extends ReadonlyArray<Interpolated>>(
 export function stream<A extends ReadonlyArray<InterpolatedWithStream>>(
   strings: TemplateStringsArray,
   ...args: A
-): Stream.Stream<
-  string,
-  Interpolated.Error<A[number]>,
-  Interpolated.Context<A[number]>
-> {
-  const chunks: Array<string | Stream.Stream<string, any, any> | Effect.Effect<string, any, any>> = []
-  let buffer = ""
+): Stream.Stream<string, Interpolated.Error<A[number]>, Interpolated.Context<A[number]>> {
+  const chunks: Array<string | Stream.Stream<string, any, any> | Effect.Effect<string, any, any>> =
+    [];
+  let buffer = "";
 
   for (let i = 0, len = args.length; i < len; i++) {
-    buffer += strings[i]
-    const arg = args[i]
+    buffer += strings[i];
+    const arg = args[i];
     if (Option.isOption(arg)) {
-      buffer += arg._tag === "Some" ? primitiveToString(arg.value) : ""
+      buffer += arg._tag === "Some" ? primitiveToString(arg.value) : "";
     } else if (isSuccess(arg)) {
-      buffer += primitiveToString(arg.value)
+      buffer += primitiveToString(arg.value);
     } else if (Effect.isEffect(arg)) {
       if (buffer.length > 0) {
-        chunks.push(buffer)
-        buffer = ""
+        chunks.push(buffer);
+        buffer = "";
       }
-      chunks.push(Effect.map(arg, primitiveToString))
+      chunks.push(Effect.map(arg, primitiveToString));
     } else if (Stream.isStream(arg)) {
       if (buffer.length > 0) {
-        chunks.push(buffer)
-        buffer = ""
+        chunks.push(buffer);
+        buffer = "";
       }
-      chunks.push(Stream.map(arg, primitiveToString))
+      chunks.push(Stream.map(arg, primitiveToString));
     } else {
-      buffer += primitiveToString(arg)
+      buffer += primitiveToString(arg);
     }
   }
 
-  buffer += strings[strings.length - 1]
+  buffer += strings[strings.length - 1];
   if (buffer.length > 0) {
-    chunks.push(buffer)
-    buffer = ""
+    chunks.push(buffer);
+    buffer = "";
   }
 
   return Stream.fromIterable(chunks).pipe(
-    Stream.mapEffect(
-      (chunk) => Effect.isEffect(chunk) ? chunk : Effect.succeed(chunk),
-      { concurrency: "unbounded" }
-    ),
-    Stream.flatMap((chunk) => typeof chunk === "string" ? Stream.succeed(chunk) : chunk)
-  )
+    Stream.mapEffect((chunk) => (Effect.isEffect(chunk) ? chunk : Effect.succeed(chunk)), {
+      concurrency: "unbounded",
+    }),
+    Stream.flatMap((chunk) => (typeof chunk === "string" ? Stream.succeed(chunk) : chunk)),
+  );
 }
 
 function primitiveToString(value: Primitive): string {
   if (Array.isArray(value)) {
-    return value.map(primitiveToString).join("")
+    return value.map(primitiveToString).join("");
   }
 
   switch (typeof value) {
     case "string": {
-      return value
+      return value;
     }
     case "number":
     case "bigint": {
-      return value.toString()
+      return value.toString();
     }
     case "boolean": {
-      return value ? "true" : "false"
+      return value ? "true" : "false";
     }
     default: {
-      return ""
+      return "";
     }
   }
 }
 
-function consolidate(
-  strings: ReadonlyArray<string>,
-  values: ReadonlyArray<string>
-): string {
-  let out = ""
+function consolidate(strings: ReadonlyArray<string>, values: ReadonlyArray<string>): string {
+  let out = "";
   for (let i = 0, len = values.length; i < len; i++) {
-    out += strings[i]
-    out += values[i]
+    out += strings[i];
+    out += values[i];
   }
-  return out + strings[strings.length - 1]
+  return out + strings[strings.length - 1];
 }
 
 function isSuccess(u: unknown): u is Exit.Success<Primitive, never> {
-  return Exit.isExit(u) && u._tag === "Success"
+  return Exit.isExit(u) && u._tag === "Success";
 }

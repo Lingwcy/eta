@@ -15,10 +15,10 @@ The single-failure shapes (`undefined`, `true`, `false`, `string`, `SchemaIssue.
 
 ```ts
 // before
-Schema.makeFilter((o) => ({ path: ["a"], message: "bad" }))
+Schema.makeFilter((o) => ({ path: ["a"], message: "bad" }));
 
 // after
-Schema.makeFilter((o) => ({ path: ["a"], issue: "bad" }))
+Schema.makeFilter((o) => ({ path: ["a"], issue: "bad" }));
 ```
 
 Also renamed `{ path, message }` to `{ path, issue }` in the accepted return type of `SchemaGetter.checkEffect`.

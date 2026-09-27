@@ -6,10 +6,10 @@
  *
  * @since 4.0.0
  */
-"use client"
+"use client";
 
-import type * as Atom from "effect/unstable/reactivity/Atom"
-import * as React from "react"
+import type * as Atom from "effect/unstable/reactivity/Atom";
+import * as React from "react";
 
 /**
  * Literal type used as the `ScopedAtom` type identifier.
@@ -22,7 +22,7 @@ import * as React from "react"
  * @category type IDs
  * @since 4.0.0
  */
-export type TypeId = "~@effect/atom-react/ScopedAtom"
+export type TypeId = "~@effect/atom-react/ScopedAtom";
 
 /**
  * Type identifier for ScopedAtom.
@@ -35,7 +35,7 @@ export type TypeId = "~@effect/atom-react/ScopedAtom"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId: TypeId = "~@effect/atom-react/ScopedAtom"
+export const TypeId: TypeId = "~@effect/atom-react/ScopedAtom";
 
 /**
  * Scoped Atom interface with a provider-backed instance.
@@ -67,11 +67,12 @@ export const TypeId: TypeId = "~@effect/atom-react/ScopedAtom"
  * @since 4.0.0
  */
 export interface ScopedAtom<A extends Atom.Atom<any>, Input = never> {
-  readonly [TypeId]: TypeId
-  use(): A
-  Provider: [Input] extends [never] ? React.FC<{ readonly children?: React.ReactNode | undefined }>
-    : React.FC<{ readonly children?: React.ReactNode | undefined; readonly value: Input }>
-  Context: React.Context<A>
+  readonly [TypeId]: TypeId;
+  use(): A;
+  Provider: [Input] extends [never]
+    ? React.FC<{ readonly children?: React.ReactNode | undefined }>
+    : React.FC<{ readonly children?: React.ReactNode | undefined; readonly value: Input }>;
+  Context: React.Context<A>;
 }
 
 /**
@@ -124,34 +125,37 @@ export interface ScopedAtom<A extends Atom.Atom<any>, Input = never> {
  * @since 4.0.0
  */
 export const make = <A extends Atom.Atom<any>, Input = never>(
-  f: (() => A) | ((input: Input) => A)
+  f: (() => A) | ((input: Input) => A),
 ): ScopedAtom<A, Input> => {
-  const Context = React.createContext<A>(undefined as unknown as A)
+  const Context = React.createContext<A>(undefined as unknown as A);
 
   const use = (): A => {
-    const atom = React.useContext(Context)
+    const atom = React.useContext(Context);
     if (atom === undefined) {
-      throw new Error("ScopedAtom used outside of its Provider")
+      throw new Error("ScopedAtom used outside of its Provider");
     }
-    return atom
-  }
+    return atom;
+  };
 
-  const Provider: React.FC<{ readonly children?: React.ReactNode | undefined; readonly value?: Input }> = (props) => {
-    const atom = React.useRef<A | null>(null)
+  const Provider: React.FC<{
+    readonly children?: React.ReactNode | undefined;
+    readonly value?: Input;
+  }> = (props) => {
+    const atom = React.useRef<A | null>(null);
     if (atom.current === null) {
       if ("value" in props) {
-        atom.current = (f as (input: Input) => A)(props.value as Input)
+        atom.current = (f as (input: Input) => A)(props.value as Input);
       } else {
-        atom.current = (f as () => A)()
+        atom.current = (f as () => A)();
       }
     }
-    return React.createElement(Context.Provider, { value: atom.current }, props.children)
-  }
+    return React.createElement(Context.Provider, { value: atom.current }, props.children);
+  };
 
   return {
     [TypeId]: TypeId,
     use,
     Provider: Provider as any,
-    Context
-  }
-}
+    Context,
+  };
+};

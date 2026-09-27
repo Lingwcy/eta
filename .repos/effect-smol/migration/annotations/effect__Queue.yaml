@@ -8,7 +8,7 @@ effect/Queue#BackingQueueTypeId:
   replacement: "none"
   note: "BackingQueue and its public type id were removed."
 effect/Queue#backPressureStrategy:
-  replacement: "Queue.make({ strategy: \"suspend\" })"
+  replacement: 'Queue.make({ strategy: "suspend" })'
   note: "Strategies are now constructor options rather than public Strategy values; suspend is the default."
 effect/Queue#BaseQueue:
   replacement: "Queue.Enqueue | Queue.Dequeue"
@@ -29,7 +29,7 @@ effect/Queue#DequeueUnifyIgnore:
   replacement: "none"
   note: "Queue.Dequeue is no longer an Effect subtype, so its Effect unification ignore marker was removed."
 effect/Queue#droppingStrategy:
-  replacement: "Queue.make({ strategy: \"dropping\" })"
+  replacement: 'Queue.make({ strategy: "dropping" })'
   note: "Strategies are now constructor options rather than public Strategy values; Queue.dropping is the bounded convenience constructor."
 effect/Queue#Enqueue:
   replacement: "Queue.Enqueue"
@@ -65,10 +65,10 @@ effect/Queue#QueueUnifyIgnore:
   replacement: "none"
   note: "Queue is no longer an Effect subtype, so its Effect unification ignore marker was removed."
 effect/Queue#slidingStrategy:
-  replacement: "Queue.make({ strategy: \"sliding\" })"
+  replacement: 'Queue.make({ strategy: "sliding" })'
   note: "Strategies are now constructor options rather than public Strategy values; Queue.sliding is the bounded convenience constructor."
 effect/Queue#Strategy:
-  replacement: "\"suspend\" | \"dropping\" | \"sliding\""
+  replacement: '"suspend" | "dropping" | "sliding"'
   note: "The pluggable Strategy interface was removed; choose one of the built-in strategy strings in Queue.make."
 effect/Queue#takeUpTo:
   replacement: "Queue.poll"
@@ -77,5 +77,5 @@ effect/Queue#unsafeOffer:
   replacement: "Queue.offerUnsafe"
   note: "The unsafe suffix moved to the end."
 effect/Queue#isShutdown:
-  replacement: "queue.state._tag === \"Done\""
+  replacement: 'queue.state._tag === "Done"'
   note: "The dedicated helper was removed; inspect the public queue lifecycle state. Done includes normal completion and failure, not only explicit shutdown."

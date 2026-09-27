@@ -15,13 +15,13 @@ effect/TSubscriptionRef#changesScoped:
   note: "The scoped changes operation lost its Scoped suffix and returns a scoped TxQueue."
 effect/TSubscriptionRef#get:
   replacement: "TxSubscriptionRef.get"
-  note: "Import TxSubscriptionRef from \"effect/TxSubscriptionRef\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxSubscriptionRef from "effect/TxSubscriptionRef"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSubscriptionRef#getAndUpdateSome:
   replacement: "TxSubscriptionRef.modify"
   note: "Use one atomic modify so successful updates are still published; retain the old value for None."
 effect/TSubscriptionRef#make:
   replacement: "TxSubscriptionRef.make"
-  note: "Import TxSubscriptionRef from \"effect/TxSubscriptionRef\"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic."
+  note: 'Import TxSubscriptionRef from "effect/TxSubscriptionRef"; the operation keeps its name. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.'
 effect/TSubscriptionRef#modifySome:
   replacement: "TxSubscriptionRef.modify"
   note: "Use one atomic modify so successful updates are still published; use the fallback result for None."

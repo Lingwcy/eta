@@ -7,9 +7,9 @@
 /**
  * @since 4.0.0
  */
-export * as MysqlClient from "./MysqlClient.ts"
+export * as MysqlClient from "./MysqlClient.ts";
 
 /**
  * @since 4.0.0
  */
-export * as MysqlMigrator from "./MysqlMigrator.ts"
+export * as MysqlMigrator from "./MysqlMigrator.ts";

@@ -1,26 +1,28 @@
-import * as Cause from "../../Cause.ts"
-import * as SchemaIssue from "../../SchemaIssue.ts"
+import * as Cause from "../../Cause.ts";
+import * as SchemaIssue from "../../SchemaIssue.ts";
 
 /** @internal */
-export function getSchemaIssue(cause: Cause.Cause<SchemaIssue.Issue>): SchemaIssue.Issue | undefined {
-  let issue: SchemaIssue.Issue | undefined
+export function getSchemaIssue(
+  cause: Cause.Cause<SchemaIssue.Issue>,
+): SchemaIssue.Issue | undefined {
+  let issue: SchemaIssue.Issue | undefined;
   for (const reason of cause.reasons) {
     if (!Cause.isFailReason(reason) || !SchemaIssue.isIssue(reason.error)) {
-      return undefined
+      return undefined;
     }
-    issue ??= reason.error
+    issue ??= reason.error;
   }
-  return issue
+  return issue;
 }
 
 /** @internal */
 export function getSchemaIssueOrThrow(
   cause: Cause.Cause<SchemaIssue.Issue>,
-  message: string
+  message: string,
 ): SchemaIssue.Issue {
-  const issue = getSchemaIssue(cause)
+  const issue = getSchemaIssue(cause);
   if (issue === undefined) {
-    throw new Error(message, { cause })
+    throw new Error(message, { cause });
   }
-  return issue
+  return issue;
 }

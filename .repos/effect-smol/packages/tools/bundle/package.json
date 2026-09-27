@@ -1,23 +1,17 @@
 {
   "name": "@effect/bundle",
   "version": "0.0.0",
-  "type": "module",
   "private": true,
-  "license": "MIT",
   "description": "Bundle size testing infrastructure for Effect packages",
   "homepage": "https://effect.website",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/tools/bundle"
   },
-  "sideEffects": [],
   "bin": {
     "effect-bundle": "./src/bin.ts"
-  },
-  "exports": {
-    "./package.json": "./package.json",
-    "./*": "./src/*.ts"
   },
   "files": [
     "src/**/*.ts",
@@ -26,6 +20,12 @@
     "dist/**/*.d.ts",
     "dist/**/*.d.ts.map"
   ],
+  "type": "module",
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    "./*": "./src/*.ts"
+  },
   "scripts": {
     "build": "tsc -b tsconfig.src.json && pnpm babel",
     "babel": "babel dist --plugins annotate-pure-calls --out-dir dist --source-maps",
