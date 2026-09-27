@@ -6,10 +6,13 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@effect/platform-node": 4.0.0-rc.117
   "@types/node": ^24
+  effect: 4.0.0-rc.117
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0-rc.0
   vite-plus: 1.0.0-rc.0
+  yaml: ^2.9.1
 overrides:
   vite@*: "catalog:"
 peerDependencyRules:
@@ -17,3 +20,6 @@ peerDependencyRules:
     - vite
   allowedVersions:
     vite: "*"
+allowBuilds:
+  "@parcel/watcher": true
+  msgpackr-extract: true
