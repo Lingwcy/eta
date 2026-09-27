@@ -1,0 +1,104 @@
+{
+  "name": "@eta/agent",
+  "version": "0.0.1",
+  "description": "eta harness core",
+  "keywords": [
+    "agent",
+    "ai",
+    "llm",
+    "state-management",
+    "transport"
+  ],
+  "license": "MIT",
+  "author": "ling",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    },
+    "./context": {
+      "types": "./dist/context.d.ts",
+      "import": "./dist/context.js"
+    },
+    "./pico3": {
+      "types": "./dist/pico3/index.d.ts",
+      "import": "./dist/pico3/index.js"
+    },
+    "./experimental/pico3": {
+      "types": "./dist/pico3/index.d.ts",
+      "import": "./dist/pico3/index.js"
+    },
+    "./env/nodejs": {
+      "types": "./dist/env/nodejs.d.ts",
+      "import": "./dist/env/nodejs.js"
+    },
+    "./runtime/reducer": {
+      "types": "./dist/runtime/reducer.d.ts",
+      "import": "./dist/runtime/reducer.js"
+    },
+    "./session": {
+      "types": "./dist/session/index.d.ts",
+      "import": "./dist/session/index.js"
+    },
+    "./session/testing": {
+      "types": "./dist/session/testing/index.d.ts",
+      "import": "./dist/session/testing/index.js"
+    },
+    "./harness/context": {
+      "types": "./dist/context.d.ts",
+      "import": "./dist/context.js"
+    },
+    "./harness/env/nodejs": {
+      "types": "./dist/env/nodejs.d.ts",
+      "import": "./dist/env/nodejs.js"
+    },
+    "./harness/runtime/reducer": {
+      "types": "./dist/runtime/reducer.d.ts",
+      "import": "./dist/runtime/reducer.js"
+    },
+    "./harness/session": {
+      "types": "./dist/session/index.d.ts",
+      "import": "./dist/session/index.js"
+    },
+    "./harness/session/testing": {
+      "types": "./dist/session/testing/index.d.ts",
+      "import": "./dist/session/testing/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest --run --config vitest.config.ts",
+    "coverage": "vitest --run --config vitest.config.ts --coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "^0.87.1",
+    "@earendil-works/pi-ai": "^0.87.1",
+    "@earendil-works/pi-telemetry": "^0.87.1",
+    "diff": "8.0.4",
+    "ignore": "7.0.8",
+    "typebox": "1.3.27",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@vitest/coverage-v8": "4.1.9",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

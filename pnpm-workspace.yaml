@@ -21,5 +21,8 @@ peerDependencyRules:
   allowedVersions:
     vite: "*"
 allowBuilds:
+  "@google/genai": true
   "@parcel/watcher": true
+  esbuild: true
   msgpackr-extract: true
+  protobufjs: true
