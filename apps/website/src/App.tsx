@@ -1,83 +1,66 @@
-import { cn } from "@/lib/utils";
-import { Bot, CheckCircle2, Code2, Sparkles, Terminal } from "lucide-react";
 import { useState } from "react";
+import { CompositeInput } from "@/components/input";
+import type { ExecutionMode } from "@/components/input";
 
 export function App() {
-  const [count, setCount] = useState(0);
+  const [lastSubmission, setLastSubmission] = useState<{
+    text: string;
+    model: string;
+    mode: ExecutionMode;
+    timestamp: string;
+  } | null>(null);
+
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const showNotification = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => {
+      setNotification((curr) => (curr === msg ? null : curr));
+    }, 3000);
+  };
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6 selection:bg-purple-500 selection:text-white">
-      <div className="max-w-xl w-full flex flex-col items-center text-center gap-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-sm font-medium">
-          <Sparkles className="w-4 h-4 text-purple-400" />
-          <span>Eta React &amp; Tailwind v4</span>
-        </div>
+    <main className="min-h-screen bg-[#f7f7f7] text-neutral-900 flex flex-col items-center justify-center p-4 sm:p-8 font-sans antialiased">
+      <div className="w-full max-w-2xl flex flex-col gap-6">
+        {notification && (
+          <div className="self-center px-4 py-1.5 rounded-full bg-neutral-900 text-white text-xs font-medium shadow-lg animate-in fade-in slide-in-from-top-2">
+            {notification}
+          </div>
+        )}
 
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-gradient-to-br from-white via-neutral-200 to-neutral-500 bg-clip-text text-transparent">
-          Vite+ with React 19
-        </h1>
+        <CompositeInput
+          placeholder="Hi, what do you need today?"
+          tokenPercentage={57}
+          modelName="GPT-6 Sol"
+          reasoningLevel="中"
+          onContextClick={() => showNotification("上下文窗口: 57% tokens 已使用")}
+          onSubmit={(text, meta) => {
+            setLastSubmission({
+              text,
+              model: meta.model,
+              mode: meta.mode,
+              timestamp: new Date().toLocaleTimeString(),
+            });
+            showNotification(`消息已分发给 ${meta.model}（模式: ${meta.mode}）`);
+          }}
+          onPlusClick={() => showNotification("已触发附件菜单 (+)")}
+          onModelClick={() => showNotification("点击了模型选择按钮")}
+          onExecutionModeChange={(mode) => showNotification(`执行模式切换为: ${mode}`)}
+        />
 
-        <p className="text-neutral-400 text-base sm:text-lg max-w-md">
-          Successfully converted to a modern React 19 application with Tailwind CSS v4 and unified
-          Vite+ tooling.
-        </p>
-
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => setCount((c) => c + 1)}
-            className={cn(
-              "inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm transition-colors shadow-lg cursor-pointer",
-              count > 0
-                ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20 text-white"
-                : "bg-purple-600 hover:bg-purple-500 shadow-purple-600/20 text-white",
-            )}
-          >
-            Count: {count}
-          </button>
-
-          <a
-            href="https://viteplus.dev"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-800 text-neutral-200 border border-neutral-700/60 font-medium text-sm transition-colors"
-          >
-            <Code2 className="w-4 h-4 text-neutral-400" />
-            Vite+ Docs
-          </a>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mt-6 text-left">
-          <div className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-purple-400 font-semibold text-sm">
-              <Bot className="w-4 h-4" />
-              <span>@eta/agent</span>
+        {lastSubmission && (
+          <div className="bg-white rounded-2xl border border-neutral-200/80 p-4 shadow-sm text-sm space-y-2 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center justify-between text-xs text-neutral-500 font-medium">
+              <span>最后一条发送消息 ({lastSubmission.timestamp})</span>
+              <span className="bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-700">
+                {lastSubmission.model} • 模式: {lastSubmission.mode}
+              </span>
             </div>
-            <p className="text-xs text-neutral-400">
-              Harness v2 core ready for durable agent workflows.
+            <p className="text-neutral-800 whitespace-pre-wrap font-sans text-sm bg-neutral-50/70 p-3 rounded-xl border border-neutral-100">
+              {lastSubmission.text}
             </p>
           </div>
-
-          <div className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Tailwind v4</span>
-            </div>
-            <p className="text-xs text-neutral-400">
-              Native CSS @import &quot;tailwindcss&quot; with zero-config Vite plugin.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-sky-400 font-semibold text-sm">
-              <Terminal className="w-4 h-4" />
-              <span>Unified CLI</span>
-            </div>
-            <p className="text-xs text-neutral-400">
-              Integrated `vp dev`, `vp build`, and fast Rust-powered oxlint.
-            </p>
-          </div>
-        </div>
+        )}
       </div>
     </main>
   );

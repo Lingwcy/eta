@@ -19,7 +19,6 @@ catalog:
   "@types/react": ^19.3.0
   "@vitejs/plugin-react": ^6.1.1
   "@base-ui/react": ^1.8.0
-  add: ^2.0.9
 overrides:
   vite@*: "catalog:"
 peerDependencyRules:
