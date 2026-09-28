@@ -13,7 +13,6 @@ export { ActionToolbar } from "./action-toolbar";
 
 // 类型导出
 export type {
-  ExecutionMode,
   ContextIndicatorProps,
   PromptTextareaProps,
   ActionToolbarProps,

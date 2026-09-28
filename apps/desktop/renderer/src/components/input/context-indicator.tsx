@@ -6,7 +6,7 @@ import type { ContextIndicatorProps } from "./types";
  * 采用环形 SVG 进度圈配合百分比数值展示 Token 消耗量，放置在模型选择器的左侧。
  */
 export function ContextIndicator({
-  percentage = 57,
+  percentage = 0,
   hideText = false,
   className,
   onClick,

@@ -17,6 +17,12 @@ export {
   validateCommittedWrites,
 } from "./commit.ts";
 export { createForkSnapshot, type ForkSourceSnapshot } from "./fork.ts";
+export {
+  buildContextEntries,
+  buildSessionContext,
+  sessionEntryToContextMessages,
+  type SessionContextBuildOptions,
+} from "./context.ts";
 export { type ForkCurrentStatePlan, projectForkCurrentStateWrite } from "./fork-policy.ts";
 export {
   JSONL_STORAGE_VERSION,

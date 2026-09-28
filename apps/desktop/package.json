@@ -1,0 +1,39 @@
+{
+  "name": "@eta/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/electron/main.cjs",
+  "scripts": {
+    "build:renderer": "vp build --config renderer/vite.config.ts",
+    "build:electron": "tsc --noEmit && vp pack",
+    "build": "vp run build:renderer && vp run build:electron",
+    "dev": "node scripts/dev-runner.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run"
+  },
+  "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@earendil-works/pi-ai": "^0.87.1",
+    "@eta/agent": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "effect": "catalog:",
+    "lucide-react": "^0.564.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "react-markdown": "^10.1.0",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "~19.2.3",
+    "@vitejs/plugin-react": "catalog:",
+    "electron": "44.4.2",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

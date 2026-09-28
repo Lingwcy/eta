@@ -5,13 +5,10 @@
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r test && vp run -r build",
-    "dev": "vp run website#dev",
     "prepare": "vp config",
-    "sync:repos": "node scripts/sync-reference-repos.ts"
-  },
-  "dependencies": {
-    "@effect/platform-node": "catalog:",
-    "effect": "catalog:"
+    "sync:repos": "node scripts/sync-reference-repos.ts",
+    "build:desktop": "vp run --no-cache @eta/agent#build && vp run @eta/desktop#build",
+    "dev": "vp run --no-cache @eta/agent#build && vp run --no-cache @eta/desktop#build:electron && vp run @eta/desktop#dev"
   },
   "devDependencies": {
     "@types/node": "catalog:",
