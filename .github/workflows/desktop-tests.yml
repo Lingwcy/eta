@@ -25,5 +25,8 @@ jobs:
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
+      - name: Build agent package
+        run: vp run --no-cache @eta/agent#build
+
       - name: Run desktop tests
         run: vp run @eta/desktop#test
