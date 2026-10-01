@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
 import { afterEach, expect, test } from "vite-plus/test";
-import { AppPaths, makeAppPaths } from "./app-paths.ts";
+import { AppPathsService, makeAppPaths } from "./app-paths.ts";
 
 const directories: string[] = [];
 
@@ -34,8 +34,8 @@ test("provides the paths as an Effect service", async () => {
   const dataRoot = await temporaryDataRoot();
   const paths = await Effect.runPromise(
     Effect.gen(function* () {
-      return yield* AppPaths;
-    }).pipe(Effect.provide(AppPaths.layer(dataRoot))),
+      return yield* AppPathsService;
+    }).pipe(Effect.provide(AppPathsService.layer(dataRoot))),
   );
 
   expect(paths).toEqual(makeAppPaths(dataRoot));

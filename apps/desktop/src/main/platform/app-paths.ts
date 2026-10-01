@@ -18,9 +18,9 @@ export function makeAppPaths(dataRoot: string) {
   } satisfies AppPathValues;
 }
 
-export class AppPaths extends Context.Service<AppPaths, AppPathValues>()(
-  "eta/desktop/main/platform/AppPaths",
+export class AppPathsService extends Context.Service<AppPathsService, AppPathValues>()(
+  "eta/desktop/main/platform/AppPathsService",
 ) {
   static readonly layer = (dataRoot: string) =>
-    Layer.succeed(AppPaths, AppPaths.of(makeAppPaths(dataRoot)));
+    Layer.succeed(AppPathsService, AppPathsService.of(makeAppPaths(dataRoot)));
 }
