@@ -1,8 +1,8 @@
-import type { LaneSnapshotTool, LaneTranscriptSnapshot } from "@eta/agent";
+import type { SnapshotTool, AgentSnapshot } from "../../../src/agent/protocol.ts";
 
 /** Reconstructs tool observations from the transcript, with live results overriding settled history. */
-export function getTools(snapshot: LaneTranscriptSnapshot): LaneSnapshotTool[] {
-  const tools = new Map<string, LaneSnapshotTool>();
+export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {
+  const tools = new Map<string, SnapshotTool>();
   for (const entry of snapshot.transcript) {
     if (entry.type !== "message") continue;
     const message = entry.message;
@@ -32,7 +32,7 @@ export function getTools(snapshot: LaneTranscriptSnapshot): LaneSnapshotTool[] {
   return [...tools.values()];
 }
 
-export function getThinkingLabel(snapshot: LaneTranscriptSnapshot): string {
+export function getThinkingLabel(snapshot: AgentSnapshot): string {
   const operation = snapshot.operation;
   if (operation?.status === "aborting") return "正在停止";
   if (operation?.retry)

@@ -1,4 +1,4 @@
-import type { OperationAdmission } from "@eta/agent";
+import type { OperationAdmission } from "../../../src/agent/protocol.ts";
 import type { SessionResponse, SnapshotResponse } from "../../../src/agent/protocol.ts";
 import type { DesktopBridge } from "../../../src/bridge.ts";
 

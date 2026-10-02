@@ -4,9 +4,12 @@
     "jsx": "react-jsx",
     "module": "esnext",
     "moduleResolution": "bundler",
-    "lib": ["es2023", "dom", "dom.iterable"],
+    "lib": ["es2024", "dom", "dom.iterable"],
     "types": ["node", "vite/client"],
-    "paths": { "@/*": ["./renderer/src/*"] }
+    "paths": {
+      "@/*": ["./renderer/src/*"]
+    },
+    "customConditions": ["source"]
   },
   "include": ["src", "renderer/src", "vite.config.ts", "renderer/vite.config.ts"]
 }

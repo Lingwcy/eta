@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { createModels, fauxProvider } from "@earendil-works/pi-ai";
-import type { OperationAdmission } from "@eta/agent";
+import type { OperationAdmission } from "../../../src/agent/protocol.ts";
 import { MemoryHarnessService } from "../../../src/agent/memory-harness.ts";
 import type { SessionResponse, SnapshotResponse } from "../../../src/agent/protocol.ts";
 import type { AgentEvent, DesktopBridge } from "../../../src/bridge.ts";

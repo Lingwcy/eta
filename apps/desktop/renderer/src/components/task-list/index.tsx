@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { FileCode2, FilePenLine, Search, Terminal, Wrench } from "lucide-react";
-import type { LaneSnapshotTool } from "@eta/agent";
+import type { SnapshotTool } from "../../../../src/agent/protocol.ts";
 import { cn } from "@/lib/utils";
 import "./task-list.css";
 
@@ -11,7 +11,7 @@ const shimmerClassName =
   "text-transparent bg-[linear-gradient(100deg,var(--task-secondary)_16%,var(--task-secondary)_38%,var(--task-primary)_50%,var(--task-secondary)_62%,var(--task-secondary)_84%)] bg-size-[300%_100%] bg-position-[200%_0] bg-clip-text animate-[eta-task-shimmer_3.4s_linear_1] motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-(--task-secondary)";
 
 export interface TaskListProps {
-  tools: readonly LaneSnapshotTool[];
+  tools: readonly SnapshotTool[];
   collapseOnComplete?: boolean;
   className?: string;
 }
@@ -22,7 +22,7 @@ function ToolItem({
   tool,
   collapseOnComplete,
 }: {
-  tool: LaneSnapshotTool;
+  tool: SnapshotTool;
   collapseOnComplete: boolean;
 }) {
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);

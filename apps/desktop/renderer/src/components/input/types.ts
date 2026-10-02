@@ -1,9 +1,7 @@
-import type { AgentLane, ThinkingLevel } from "@eta/agent";
+import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
+import type { AgentModel } from "../../../../src/agent/protocol.ts";
 
-type InputModel = Pick<
-  NonNullable<Awaited<ReturnType<AgentLane["getModel"]>>>,
-  "id" | "provider" | "name"
->;
+type InputModel = Pick<AgentModel, "id" | "provider" | "name">;
 
 export interface ContextIndicatorProps {
   readonly percentage?: number;

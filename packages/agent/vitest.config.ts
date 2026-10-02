@@ -1,33 +1,19 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite-plus";
+import { defineConfig } from "vitest/config";
 
-const telemetrySrcIndex = fileURLToPath(new URL("../telemetry/src/index.ts", import.meta.url));
-const aiSrcIndex = fileURLToPath(new URL("../ai/src/index.ts", import.meta.url));
-const aiSrcCompat = fileURLToPath(new URL("../ai/src/compat.ts", import.meta.url));
-const agentSrcIndex = fileURLToPath(new URL("../agent/src/index.ts", import.meta.url));
+const durableSrcIndex = fileURLToPath(new URL("./src/index.ts", import.meta.url));
+const durableSrcTesting = fileURLToPath(new URL("./src/testing/index.ts", import.meta.url));
 
 export default defineConfig({
-  test: {
-    globals: true,
-    environment: "node",
-    testTimeout: 30000,
-    include: ["test/harness/**/*.test.ts"],
-    coverage: {
-      provider: "v8",
-      include: ["src/harness/**/*.ts", "src/agent.ts", "src/agent-loop.ts"],
-      exclude: ["src/**/*.d.ts"],
-      reporter: ["text", "html", "lcov"],
-      reportsDirectory: "coverage/harness",
-    },
-  },
-  resolve: {
-    conditions: ["source"],
-    alias: [
-      { find: /^@earendil-works\/pi-telemetry$/, replacement: telemetrySrcIndex },
-      { find: /^@earendil-works\/pi-agent-core$/, replacement: agentSrcIndex },
-      { find: /^@earendil-works\/pi-ai$/, replacement: aiSrcIndex },
-      { find: /^@earendil-works\/pi-ai\/compat$/, replacement: aiSrcCompat },
-    ],
-  },
-  ssr: { resolve: { conditions: ["source"] } },
+	test: {
+		environment: "node",
+	},
+	resolve: {
+		conditions: ["source"],
+		alias: [
+			{ find: /^@earendil-works\/pi-durable$/, replacement: durableSrcIndex },
+			{ find: /^@earendil-works\/pi-durable\/testing$/, replacement: durableSrcTesting },
+		],
+	},
+	ssr: { resolve: { conditions: ["source"] } },
 });

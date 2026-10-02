@@ -1,941 +1,1169 @@
-import type { Context } from "./context.ts";
-import type { TruncationResult } from "./utils/truncate.ts";
+import type { AttachedReplicatedState, Context, Draft, JsonValue } from "@earendil-works/chord";
+import type { Op } from "@earendil-works/chord/delta";
+import type { Message, Models } from "@earendil-works/pi-ai";
+import type { ExecutionEnv } from "./env/index.ts";
 import type {
-  Api,
-  AssistantMessage,
-  AssistantMessageEvent,
-  AssistantMessageEventStream,
-  ImageContent,
-  JsonValue,
-  Message,
-  Model,
-  SimpleStreamOptions,
-  TextContent,
-  Tool,
-  ToolResultMessage,
-  TranscriptContext,
-  Transport,
-  Usage,
-} from "@earendil-works/pi-ai";
-import type { Static, TSchema } from "typebox";
+  Agent,
+  ContextView,
+  ConversationHandle,
+  RegistrySnapshot,
+  Settings,
+  SettledTask,
+} from "./harness/types.ts";
 
-/** Result of a fallible operation. Expected failures are returned as `ok: false` instead of thrown. */
-export type Result<TValue, TError> = { ok: true; value: TValue } | { ok: false; error: TError };
+/** JSON object used as the root of every durable document. */
+export type JsonObject = { [key: string]: JsonValue };
 
-/** Create a successful {@link Result}. */
-export function ok<TValue, TError>(value: TValue): Result<TValue, TError> {
-  return { ok: true, value };
-}
+declare const idBrand: unique symbol;
 
-/** Create a failed {@link Result}. */
-export function err<TValue, TError>(error: TError): Result<TValue, TError> {
-  return { ok: false, error };
-}
-
-/** Return the success value or throw the failure error. Intended for tests and explicit adapter boundaries. */
-export function getOrThrow<TValue, TError>(result: Result<TValue, TError>): TValue {
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
-/** Return the success value or `undefined`. Only object values are allowed to avoid truthiness bugs with primitives. */
-export function getOrUndefined<TValue extends object, TError>(
-  result: Result<TValue, TError>,
-): TValue | undefined {
-  return result.ok ? result.value : undefined;
-}
-
-/** Normalize unknown thrown values into Error instances before using them as typed error causes. */
-export function toError(error: unknown): Error {
-  if (error instanceof Error) return error;
-  if (typeof error === "string") return new Error(error);
-  try {
-    return new Error(JSON.stringify(error));
-  } catch {
-    return new Error(String(error));
-  }
-}
-
-/**
- * Skill loaded from a `SKILL.md` file or provided by an application.
- *
- * `name`, `description`, and `filePath` are inserted into the system prompt in an XML-formatted block as suggested by agentskills.io.
- * Use {@link formatSkillsForSystemPrompt} to generate the spec-compatible system prompt block.
- */
-export interface Skill {
-  /** Stable skill name used for lookup and model-visible listings. */
-  name: string;
-  /** Short model-visible description of when to use the skill. */
-  description: string;
-  /** Full skill instructions. */
-  content: string;
-  /** Absolute path to the skill file. Used for model-visible location and resolving relative references. */
-  filePath: string;
-  /** Exclude this skill from model-visible skill lists while still allowing explicit application invocation. */
-  disableModelInvocation?: boolean;
-}
-
-/** Prompt template that can be formatted into a prompt for explicit invocation. */
-export interface PromptTemplate {
-  /** Stable template name used for lookup or application command routing. */
-  name: string;
-  /** Optional description for command lists or autocomplete. */
-  description?: string;
-  /** Template content. Argument placeholders are formatted by `formatPromptTemplateInvocation`. */
-  content: string;
-}
-
-/** Resources made available to explicit invocation methods and system-prompt callbacks. */
-export interface AgentHarnessResources<
-  TSkill extends Skill = Skill,
-  TPromptTemplate extends PromptTemplate = PromptTemplate,
-> {
-  /** Prompt templates available for explicit invocation. */
-  promptTemplates?: TPromptTemplate[];
-  /** Skills available to the model and explicit skill invocation. */
-  skills?: TSkill[];
-}
-
-/** Options for one live harness tool progress update. */
-export interface AgentHarnessToolUpdateOptions {
-  /** Request replacement of this invocation's durable recovery checkpoint. */
-  checkpoint?: true;
-}
-
-/** Synchronous full-snapshot progress callback supplied to harness-native tools. */
-export type AgentHarnessToolUpdateCallback<TDetails> = (
-  partialResult: AgentToolResult<TDetails>,
-  options?: AgentHarnessToolUpdateOptions,
-) => void;
-
-/** Stable harness identity for one logical tool call, unchanged during safe replay. */
-export interface AgentHarnessToolInvocation {
-  /** Opaque session-unique id equal to the call's reserved result-entry id. */
-  readonly invocationId: string;
-  readonly operationId: string;
-  readonly turnId: string;
-  /** Read one invocation-scoped durable replay memo. */
-  getMemo(name: string): Promise<JsonValue | undefined>;
-  /** Set or delete one invocation-scoped durable replay memo. */
-  setMemo(name: string, value: JsonValue | undefined): Promise<void>;
-}
-
-/** Tool definition executed by an {@link AgentHarness} with an application-defined context. */
-export type AgentHarnessTool<
-  TContext extends object | undefined,
-  TParameters extends TSchema = TSchema,
-  TDetails = unknown,
-> = Omit<AgentTool<TParameters, TDetails>, "execute"> & {
-  /** Execute the tool call with the context resolved for the current turn snapshot. */
-  execute(
-    toolCallId: string,
-    params: Static<TParameters>,
-    onUpdate: AgentHarnessToolUpdateCallback<TDetails>,
-    toolContext: TContext,
-    invocation: AgentHarnessToolInvocation,
-    context: Context,
-  ): Promise<AgentToolResult<TDetails>>;
+/** Erased nominal number identifying one durable record kind. */
+export type Id<Kind extends string, Type = unknown> = number & {
+  readonly [idBrand]: {
+    readonly kind: Kind;
+    readonly type: Type;
+  };
 };
 
-/** Static tool context or provider resolved for each turn snapshot. */
-export type AgentHarnessToolContextSource<TContext extends object | undefined> =
-  | TContext
-  | ((context: Context) => TContext | Promise<TContext>);
+export type ConversationId = Id<"conversation">;
+export type EntryId = Id<"entry">;
+export type TaskId<Result = unknown> = Id<"task", Result>;
+export type SubmissionId = Id<"submission">;
+export type DocumentId = Id<"document">;
 
-/** Curated provider request options owned by the harness and snapshotted per turn. */
-export interface AgentHarnessStreamOptions {
-  /** Preferred transport forwarded to the stream function. */
-  transport?: Transport;
-  /** Provider request timeout in milliseconds. */
-  timeoutMs?: number;
-  /** Maximum provider retry attempts. */
-  maxRetries?: number;
-  /** Optional cap for provider-requested retry delays. */
-  maxRetryDelayMs?: number;
-  /** Additional request headers merged with auth and lifecycle headers. */
-  headers?: Record<string, string>;
-  /** Provider metadata forwarded with requests. */
-  metadata?: SimpleStreamOptions["metadata"];
-  /** Provider cache retention hint. */
-  cacheRetention?: SimpleStreamOptions["cacheRetention"];
-  /** Ask a capable provider to continue generation asynchronously. */
-  deferred?: boolean | { window?: "15m" | "1h" | "24h" };
+declare const seqBrand: unique symbol;
+
+/** Strictly increasing sequence assigned to one atomic storage commit; gaps are permitted. */
+export type Seq = number & { readonly [seqBrand]: "sequence" };
+
+/** The root conversation always uses this reserved ID. */
+export const ROOT_CONVERSATION_ID = 1 as ConversationId;
+
+/** Conversation document that retains only its current state. */
+export type LatestConversationSemantics = {
+  readonly scope: "conversation";
+  readonly history: "latest";
+  readonly fork: "current" | "initial";
+};
+
+/** Conversation document whose history remains addressable for as-of reads. */
+export type RewindableConversationSemantics = {
+  readonly scope: "conversation";
+  readonly history: "rewindable";
+  readonly fork: "asOf" | "current" | "initial";
+};
+
+/** Ownership and lifetime of a document; only conversation documents declare history and fork behavior. */
+export type DocumentSemantics =
+  | { readonly scope: "session"; readonly history?: never; readonly fork?: never }
+  | LatestConversationSemantics
+  | RewindableConversationSemantics
+  | { readonly scope: "task"; readonly history?: never; readonly fork?: never };
+
+/** Stored replay state supplied to a document's checkpoint predicate. */
+export type CheckpointInfo = {
+  /** Deltas already stored after the newest base, excluding the change being evaluated. */
+  readonly deltasSinceBase: number;
+};
+
+/** Definition fields shared by singleton documents and document families. */
+export type CommonDocDefinition<T extends JsonObject> = {
+  /** Stable persisted kind; part of the public protocol. */
+  readonly kind: string;
+  /** Positive integer version of the stored value shape. */
+  readonly version: number;
+  initial(): T;
+  migrate?(value: JsonObject, fromVersion: number): T;
+  /** Return true to store this ordinary change as a complete base instead of a delta. */
+  checkpointWhen?(value: Readonly<T>, ops: readonly Op[], info: CheckpointInfo): boolean;
+};
+
+/** Singleton document definition. */
+export type DocDefinition<T extends JsonObject> = CommonDocDefinition<T> & DocumentSemantics;
+
+/** Keyed document family definition; `initial(seed)` runs only when a member is absent. */
+export type DocFamilyDefinition<T extends JsonObject, I extends JsonValue> = Omit<
+  CommonDocDefinition<T>,
+  "initial"
+> &
+  DocumentSemantics & {
+    readonly family: true;
+    initial(seed: I): T;
+  };
+
+declare const docType: unique symbol;
+
+/** Typed singleton document token passed explicitly to typed access. */
+export interface DocToken<T extends JsonObject, D extends DocDefinition<T>> {
+  readonly definition: D;
+  readonly [docType]?: T;
 }
 
-/** Per-request stream option patch returned by provider hooks. */
-export interface AgentHarnessStreamOptionsPatch extends Omit<
-  Partial<AgentHarnessStreamOptions>,
-  "headers" | "metadata"
+/** Typed document family token passed explicitly to typed access. */
+export interface DocFamilyToken<
+  T extends JsonObject,
+  I extends JsonValue,
+  D extends DocFamilyDefinition<T, I>,
 > {
-  /** Header patch. `undefined` values delete keys; explicit `headers: undefined` clears all headers. */
-  headers?: Record<string, string | undefined>;
-  /** Metadata patch. `undefined` values delete keys; explicit `metadata: undefined` clears all metadata. */
-  metadata?: Record<string, unknown | undefined>;
+  readonly definition: D;
+  readonly [docType]?: T;
 }
 
-/** Kind of filesystem object as addressed by a {@link FileSystem}. Symlinks are not followed automatically. */
-export type FileKind = "file" | "directory" | "symlink";
+export type SessionDocToken<T extends JsonObject> = DocToken<
+  T,
+  CommonDocDefinition<T> & { readonly scope: "session" }
+>;
+export type ConversationDocToken<T extends JsonObject> = DocToken<
+  T,
+  CommonDocDefinition<T> & (LatestConversationSemantics | RewindableConversationSemantics)
+>;
+export type RewindableConversationDocToken<T extends JsonObject> = DocToken<
+  T,
+  CommonDocDefinition<T> & RewindableConversationSemantics
+>;
+export type TaskDocToken<T extends JsonObject> = DocToken<
+  T,
+  CommonDocDefinition<T> & { readonly scope: "task" }
+>;
 
-/** Stable, backend-independent file error codes returned by {@link FileSystem} file operations. */
-export type FileErrorCode =
-  | "aborted"
-  | "not_found"
-  | "permission_denied"
-  | "not_directory"
-  | "is_directory"
-  | "invalid"
-  | "not_supported"
-  | "unknown";
+export type SessionDocFamilyToken<T extends JsonObject, I extends JsonValue> = DocFamilyToken<
+  T,
+  I,
+  DocFamilyDefinition<T, I> & { readonly scope: "session" }
+>;
+export type ConversationDocFamilyToken<T extends JsonObject, I extends JsonValue> = DocFamilyToken<
+  T,
+  I,
+  DocFamilyDefinition<T, I> & (LatestConversationSemantics | RewindableConversationSemantics)
+>;
+export type RewindableConversationDocFamilyToken<
+  T extends JsonObject,
+  I extends JsonValue,
+> = DocFamilyToken<T, I, DocFamilyDefinition<T, I> & RewindableConversationSemantics>;
+export type TaskDocFamilyToken<T extends JsonObject, I extends JsonValue> = DocFamilyToken<
+  T,
+  I,
+  DocFamilyDefinition<T, I> & { readonly scope: "task" }
+>;
 
-/** Error returned by {@link FileSystem} file operations. */
-export class FileError extends Error {
-  /** Backend-independent error code. */
-  public code: FileErrorCode;
-  /** Absolute addressed path associated with the failure, when available. */
-  public path?: string;
+/** Live task record reserved by one invocation. */
+export type RunningTask<I, S, R> = TaskRecord<I, S, R> & {
+  readonly state: Extract<TaskState<S, R>, { readonly status: "running" }>;
+};
 
-  constructor(code: FileErrorCode, message: string, path?: string, cause?: Error) {
-    super(message, cause === undefined ? undefined : { cause });
-    this.name = "FileError";
-    this.code = code;
-    this.path = path;
-  }
-}
+/**
+ * Next state a task commits for itself: a replacement checkpoint, a wait, or its outcome. A returned `terminal` state is
+ * stored as `completing` while ordinary owned work below the task is live (spec §5.5).
+ */
+export type NextTaskState<S, R> = Extract<
+  TaskState<S, R>,
+  { readonly status: "running" | "waiting" | "terminal" }
+>;
 
-/** Stable, backend-independent execution error codes returned by {@link ExecutionEnv.exec}. */
-export type ExecutionErrorCode =
-  | "aborted"
-  | "timeout"
-  | "shell_unavailable"
-  | "spawn_error"
-  | "callback_error"
-  | "unknown";
+/**
+ * Runs one checkpoint phase. It must commit a changed checkpoint or a terminal outcome through `runtime.commit()`;
+ * returning without durable progress faults the task.
+ */
+export type PhaseHandler<I, P, S, R, H extends object> = (
+  task: RunningTask<I, P, R>,
+  runtime: TaskRuntime<I, S, R, H>,
+  context: Context,
+) => Promise<void>;
 
-/** Error returned by {@link ExecutionEnv.exec}. */
-export class ExecutionError extends Error {
-  /** Backend-independent error code. */
-  public code: ExecutionErrorCode;
-
-  constructor(code: ExecutionErrorCode, message: string, cause?: Error) {
-    super(message, cause === undefined ? undefined : { cause });
-    this.name = "ExecutionError";
-    this.code = code;
-  }
-}
-
-/** Stable compaction error codes returned by compaction helpers. */
-export type CompactionErrorCode = "aborted" | "summarization_failed";
-
-/** Error returned by compaction helpers. */
-export class CompactionError extends Error {
-  /** Backend-independent error code. */
-  public code: CompactionErrorCode;
-
-  constructor(code: CompactionErrorCode, message: string, cause?: Error) {
-    super(message, cause === undefined ? undefined : { cause });
-    this.name = "CompactionError";
-    this.code = code;
-  }
-}
-
-/** Stable branch-summary error codes returned by branch summarization helpers. */
-export type BranchSummaryErrorCode = "aborted" | "summarization_failed";
-
-/** Error returned by branch summarization helpers. */
-export class BranchSummaryError extends Error {
-  /** Backend-independent error code. */
-  public code: BranchSummaryErrorCode;
-
-  constructor(code: BranchSummaryErrorCode, message: string, cause?: Error) {
-    super(message, cause === undefined ? undefined : { cause });
-    this.name = "BranchSummaryError";
-    this.code = code;
-  }
-}
-
-/** Metadata for one filesystem object in a {@link FileSystem}. */
-export interface FileInfo {
-  /** Basename of {@link path}. */
-  name: string;
-  /** Absolute, syntactically normalized addressed path in the execution environment. Symlinks are not followed. */
-  path: string;
-  /** Object kind. Symlink targets are not followed; use {@link FileSystem.canonicalPath} explicitly. */
-  kind: FileKind;
-  /** Size in bytes for the addressed filesystem object. */
-  size: number;
-  /** Modification time as milliseconds since Unix epoch. */
-  mtimeMs: number;
-}
-
-/** One UTF-8 line read from a text file. */
-export interface TextLine {
-  text: string;
-  /** Whether the line ended with `\n`; callers use this to discard a torn final record. */
-  terminated: boolean;
-}
-
-/** Pull-based UTF-8 line reader that preserves final-line termination. */
-export interface TextLineReader {
-  readLine(context: Context): Promise<Result<TextLine | undefined, FileError>>;
-  /** Release the open file. Must be best-effort and must not throw or reject. */
-  close(context: Context): Promise<void>;
+/** Dispatches one hook of a task to every matching registered handler, in registry order of the phase snapshot. */
+export interface HookRunner<H extends object> {
+  /**
+   * Call `invoke` with each matching handler named `name`. An ordinary throw from `invoke` is reported and the next
+   * handler runs; once the invocation is signalled, the error propagates. Composition happens inside `invoke`.
+   */
+  each<K extends keyof H>(
+    name: K,
+    invoke: (handler: NonNullable<H[K]>) => void | Promise<void>,
+  ): Promise<void>;
 }
 
 /**
- * Filesystem capability used by the harness.
- *
- * Paths passed to methods may be absolute or relative to {@link cwd}. Paths returned by file operations are addressed paths
- * in the filesystem namespace, but are not canonicalized through symlinks unless returned by {@link canonicalPath}.
- *
- * Operation methods must never throw or reject. All filesystem failures, including unexpected backend failures, must be
- * encoded in the returned {@link Result}. Implementations must preserve this invariant.
+ * Operations of one task invocation. Every operation rejects after the invocation ends; watches acquired through it
+ * stop at invocation end.
  */
-export interface FileSystem {
-  /** Current working directory for relative paths. */
-  cwd: string;
+export interface TaskRuntime<I, S, R, H extends object> extends DocumentObserver, DocumentReader {
+  readonly taskId: TaskId<R>;
+  readonly conversationId: ConversationId;
+  /**
+   * Aborted when the run is signalled by `abortTask()`, the Harness closes, or the invocation ends. Work still using it
+   * after the invocation ended, such as a detached wait, is cancelled; it could not write anything anyway.
+   */
+  readonly signal: AbortSignal;
+  /** Registry snapshot of the current phase; refreshed at every phase boundary. */
+  readonly registry: RegistrySnapshot;
+  /** The task's conversation's agent, resolved at most once per phase, at first use, and fixed for the phase. */
+  agent(context: Context): Promise<Agent>;
+  /** `HarnessOptions.settings`, resolved at each access. */
+  readonly settings: Settings;
+  readonly models: Models;
+  /** Calls `HarnessOptions.env` for the task's conversation; rejects with its error. */
+  env(context: Context): Promise<ExecutionEnv | undefined>;
+  /** Handlers of this task's name from the extensions its conversation selects, in extension order. */
+  readonly hooks: HookRunner<H>;
 
-  /** Return an absolute addressed path without requiring it to exist and without resolving symlinks. */
-  absolutePath(path: string, context: Context): Promise<Result<string, FileError>>;
-  /** Join path segments in the filesystem namespace without requiring the result to exist. */
-  joinPath(parts: string[], context: Context): Promise<Result<string, FileError>>;
-  /** Read a UTF-8 text file. */
-  readTextFile(path: string, context: Context): Promise<Result<string, FileError>>;
-  /** Open a UTF-8 text file for pull-based line reading. */
-  openTextLineReader(path: string, context: Context): Promise<Result<TextLineReader, FileError>>;
-  /** Read UTF-8 text lines. Implementations should stop once `maxLines` lines have been read. */
-  readTextLines(
-    path: string,
-    options: { maxLines?: number } | undefined,
+  /**
+   * Commit on the Session line after rereading the task. Rejects when the task is terminal, the invocation ended, the
+   * Harness is closing, or, in a run invocation, the task carries an abort mark. A returned state replaces the task's
+   * state in the same commit; returning nothing leaves it unchanged. `tx.createTask()` defaults to the task's
+   * conversation.
+   */
+  commit(
+    change: (
+      tx: Tx,
+      current: RunningTask<I, S, R>,
+    ) => NextTaskState<S, R> | undefined | Promise<NextTaskState<S, R> | undefined>,
     context: Context,
-  ): Promise<Result<string[], FileError>>;
-  /** Read a binary file. */
-  readBinaryFile(path: string, context: Context): Promise<Result<Uint8Array, FileError>>;
-  /** Create or overwrite a file, creating parent directories when supported. */
-  writeFile(
-    path: string,
-    content: string | Uint8Array,
+  ): Promise<void>;
+  /** Read a durable memo of this task. */
+  memo<T extends JsonValue>(name: string, context: Context): Promise<T | undefined>;
+  /** Store `candidate` unless a memo already exists; return the durable winner. */
+  memo<T extends JsonValue>(name: string, candidate: T, context: Context): Promise<T>;
+  /** Committed task record. */
+  getTask<T>(
+    id: TaskId<T>,
     context: Context,
-  ): Promise<Result<void, FileError>>;
-  /** Create or append to a file, creating parent directories when supported. */
-  appendFile(
-    path: string,
-    content: string | Uint8Array,
+  ): Promise<TaskRecord<JsonValue, JsonValue, T> | undefined>;
+  /** Resolve with the task's terminal receipt; rejects when the invocation ends. */
+  waitForTask<T>(id: TaskId<T>, context: Context): Promise<SettledTask<T>>;
+  /** Outcomes of terminal tasks, in order; rejects when one is missing or not terminal. Used after a wait. */
+  outcomes<T>(ids: readonly TaskId<T>[], context: Context): Promise<TaskOutcome<T>[]>;
+  /**
+   * Invocation-bound handle of an existing conversation, for example one this task owns; `undefined` when absent. Its
+   * operations and the submissions it returns reject after the invocation ends; admitted work stays durable.
+   */
+  conversation(id: ConversationId, context: Context): Promise<ConversationHandle | undefined>;
+  /** Committed entry visible from the task's conversation. */
+  entry(id: EntryId, context: Context): Promise<EntryRecord | undefined>;
+  /** Undefined when the entry is absent, not visible, or has another kind. */
+  entry<D extends JsonValue>(
+    token: Entry<D>,
+    id: EntryId,
     context: Context,
-  ): Promise<Result<void, FileError>>;
-  /** Atomically rename a file, replacing the destination when it exists. Does not copy across filesystems. */
-  renameFile(
-    sourcePath: string,
-    destinationPath: string,
+  ): Promise<TypedEntry<D> | undefined>;
+  /** Committed raw active transcript and model context, optionally cut off at the visible entry `at`. */
+  context(conversationId: ConversationId, context: Context, at?: EntryId): Promise<ContextView>;
+  /** The Harness clock. */
+  now(): number;
+  /** Forward a non-fatal failure to `HarnessOptions.onReport`. */
+  report(error: unknown): void;
+  /** Resolve once the Harness clock reaches `until`; rejects when the invocation or `context` is cancelled. */
+  sleep(until: number, context: Context): Promise<void>;
+}
+
+/** Executable durable state machine definition, registered in the registry by `name`. */
+export type TaskDefinition<I, S extends { phase: string }, R, H extends object> = {
+  /** Registered task kind persisted in `TaskRecord.kind`. */
+  readonly name: string;
+  /** Definition version persisted with live input and checkpoints. */
+  readonly version: number;
+  /** First durable checkpoint for a newly created task. */
+  initial(input: I): S;
+  /** Exhaustive phase map; each handler receives the task narrowed to its phase. */
+  readonly phases: {
+    readonly [P in S["phase"]]: PhaseHandler<I, Extract<S, { phase: P }>, S, R, H>;
+  };
+  /** Runs in a fresh invocation after an abort mark and must commit a terminal outcome. */
+  abort(
+    task: RunningTask<I, S, R>,
+    runtime: TaskRuntime<I, S, R, H>,
     context: Context,
-  ): Promise<Result<void, FileError>>;
-  /** Return metadata for the addressed path without following symlinks. */
-  fileInfo(path: string, context: Context): Promise<Result<FileInfo, FileError>>;
-  /** List direct children of a directory without following symlinks. */
-  listDir(path: string, context: Context): Promise<Result<FileInfo[], FileError>>;
-  /** Return the canonical path for an existing path, resolving symlinks where supported. */
-  canonicalPath(path: string, context: Context): Promise<Result<string, FileError>>;
-  /** Return false for missing paths. Other errors, such as permission failures, return a {@link FileError}. */
-  exists(path: string, context: Context): Promise<Result<boolean, FileError>>;
-  /** Create a directory. Defaults to `recursive: true`. */
-  createDir(
-    path: string,
-    options: { recursive?: boolean } | undefined,
-    context: Context,
-  ): Promise<Result<void, FileError>>;
-  /** Remove a file or directory. Defaults to `recursive: false` and `force: false`. */
-  remove(
-    path: string,
-    options: { recursive?: boolean; force?: boolean } | undefined,
-    context: Context,
-  ): Promise<Result<void, FileError>>;
-  /** Create a temporary directory and return its absolute path. Defaults to `prefix: "tmp-"`. */
-  createTempDir(prefix: string | undefined, context: Context): Promise<Result<string, FileError>>;
-  /** Create a temporary file and return its absolute path. Defaults to `prefix: ""` and `suffix: ""`. */
-  createTempFile(
-    options: { prefix?: string; suffix?: string } | undefined,
-    context: Context,
-  ): Promise<Result<string, FileError>>;
+  ): Promise<void>;
+  /** Convert a record stored by any older supported version; runs at reservation. */
+  migrate?(
+    input: JsonValue,
+    checkpoint: JsonValue,
+    fromVersion: number,
+  ): {
+    input: I;
+    checkpoint: S;
+  };
+  readonly hooks?: H;
+};
 
-  /** Release filesystem resources. Must be best-effort and must not throw or reject. */
-  cleanup(context: Context): Promise<void>;
+/** Typed executable task definition. */
+export interface Task<I, S extends { phase: string }, R, H extends object> {
+  readonly definition: TaskDefinition<I, S, R, H>;
 }
 
-/** Which portion of bounded output survives after the limit is crossed. */
-export type ShellOutputRetention = "head" | "tail";
+/** Who owns a task: its conversation (a top-level task) or another task of the same conversation (a child task). */
+export type TaskOwnership =
+  | { readonly kind: "conversation" }
+  | { readonly kind: "task"; readonly taskId: TaskId };
 
-/** Source-side limits for one combined shell output view. */
-export interface ShellOutputLimits {
-  maxBytes: number;
-  maxLines: number;
-  /** Defaults to `"tail"`. */
-  retain?: ShellOutputRetention;
-}
+/** How a waiting task treats the tasks it waits on (spec §5.5). */
+export type JoinPolicy = "failFast" | "allSettled";
 
-/** Bounded shell capture requested by the caller. */
-export interface ShellOutputCaptureOptions {
-  limits: ShellOutputLimits;
-  /** Preserve complete output in an execution-environment-local file after the limits are crossed. */
-  spill?: boolean;
-}
-
-/** Truncation metadata without a duplicate copy of the retained text. */
-export type ShellOutputTruncation = Omit<TruncationResult, "content">;
-
-/** Metadata accompanying a bounded shell output view. */
-export interface ShellOutputMetadata {
-  truncation: ShellOutputTruncation;
-  spillPath?: string;
-  lastLineBytes?: number;
-}
-
-/** Complete bounded shell output view. */
-export interface ShellOutputView extends ShellOutputMetadata {
-  text: string;
-}
-
-/** Incremental source-side change to one bounded shell output view. */
-export type ShellOutputUpdate =
-  | { kind: "replace"; output: ShellOutputView }
-  | { kind: "append"; text: string; metadata: ShellOutputMetadata }
-  | { kind: "slide"; drop: number; text: string; metadata: ShellOutputMetadata }
-  | { kind: "metadata"; metadata: ShellOutputMetadata };
-
-/** Bounded shell completion. Output text is delivered through {@link ShellExecOptions.onUpdate}. */
-export interface ShellExecResult extends ShellOutputMetadata {
-  exitCode: number;
-}
-
-/** Options for {@link Shell.exec}. */
-export interface ShellExecOptions {
-  /** Working directory for the command. Relative paths are resolved against {@link ExecutionEnv.cwd}. Defaults to {@link ExecutionEnv.cwd}. */
-  cwd?: string;
-  /** Environment variables for the command. Values override inherited defaults when `inheritEnv` is true. */
-  env?: Record<string, string>;
-  /** Whether to inherit the execution environment's default variables. Defaults to true. */
-  inheritEnv?: boolean;
-  /** Timeout in seconds. Implementations should return a timeout error when the command exceeds this duration. Defaults to no timeout. */
-  timeout?: number;
-  /** Source-side bounded capture. Output is discarded when this and `onUpdate` are both absent. */
-  capture?: ShellOutputCaptureOptions;
-  /** Called with bounded output changes. */
-  onUpdate?: (update: ShellOutputUpdate, context: Context) => void;
-}
-
-/** Shell execution capability used by the harness. */
-export interface Shell {
-  /** Execute a shell command in {@link FileSystem.cwd} unless `options.cwd` is provided. */
-  exec(
-    command: string,
-    options: ShellExecOptions | undefined,
-    context: Context,
-  ): Promise<Result<ShellExecResult, ExecutionError>>;
-  /** Release shell resources. Must be best-effort and must not throw or reject. */
-  cleanup(context: Context): Promise<void>;
-}
-
-/** Filesystem and process execution environment used by the harness. */
-export interface ExecutionEnv extends FileSystem, Shell {}
-
-/**
- * Stream function used by the agent loop. `Models.streamSimple` satisfies
- * this shape.
- *
- * The loop passes a normalized transcript: the system prompt and tool
- * declarations are carried by the transcript's system messages, never by
- * `context.systemPrompt` or `context.tools`.
- *
- * Contract:
- * - Must not throw or return a rejected promise for request/model/runtime failures.
- * - Must return an AssistantMessageEventStream.
- * - Failures must be encoded in the returned stream via protocol events and a
- *   final AssistantMessage with stopReason "error" or "aborted" and errorMessage.
- */
-export type StreamFn = (
-  model: Model<Api>,
-  context: TranscriptContext,
-  options?: SimpleStreamOptions,
-) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
-
-/**
- * Configuration for how tool calls from a single assistant message are executed.
- *
- * - "sequential": each tool call is prepared, executed, and finalized before the next one starts.
- * - "parallel": tool calls are prepared sequentially, then allowed tools execute concurrently.
- *   `tool_execution_end` is emitted in tool completion order after each tool is finalized,
- *   while tool-result message artifacts are emitted later in assistant source order.
- */
-export type ToolExecutionMode = "sequential" | "parallel";
-
-/**
- * Controls how many queued user messages are injected when the agent loop reaches a queue drain point.
- *
- * - "all": drain and inject every queued message at that point.
- * - "one-at-a-time": drain and inject only the oldest queued message, leaving the rest queued for later drain points.
- */
-export type QueueMode = "all" | "one-at-a-time";
-
-/** A single tool call content block emitted by an assistant message. */
-export type AgentToolCall = Extract<AssistantMessage["content"][number], { type: "toolCall" }>;
-
-/**
- * Result returned from `beforeToolCall`.
- *
- * Returning `{ block: true }` prevents the tool from executing. The loop emits an error tool result instead.
- * `reason` becomes the text shown in that error result. If omitted, a default blocked message is used.
- */
-export interface BeforeToolCallResult {
-  block?: boolean;
-  reason?: string;
+/** Creation options for a durable task. */
+export type TaskOptions = {
+  /** Required: a task always names its owner (spec §5.5). */
+  readonly ownership: TaskOwnership;
   /**
-   * Hint that the agent should stop after the current tool batch when this call is blocked.
-   * Early termination only happens when every finalized tool result in the batch sets this to true.
+   * Default: the owner task's conversation, or the transaction's bound conversation; required for conversation-owned
+   * tasks created by Session commits that are not bound to a conversation.
    */
-  terminate?: boolean;
-}
+  readonly conversationId?: ConversationId;
+  /** Conversation-owned tasks only: excluded from ordinary idle waits, conversation aborts, and cascades. */
+  readonly background?: boolean;
+};
 
-/**
- * Partial override returned from `afterToolCall`.
- *
- * Merge semantics are field-by-field:
- * - `content`: if provided, replaces the tool result content array in full
- * - `details`: if provided, replaces the tool result details value in full
- * - `isError`: if provided, replaces the tool result error flag
- * - `usage`: if provided, replaces the tool result usage
- * - `terminate`: if provided, replaces the early-termination hint
- *
- * Omitted fields keep the original executed tool result values.
- * There is no deep merge for `content`, `details`, or `usage`.
- */
-export interface AfterToolCallResult {
-  content?: (TextContent | ImageContent)[];
-  details?: unknown;
-  isError?: boolean;
-  /** Usage from the final tool execution itself, if available. Not used for main LLM context accounting. */
-  usage?: Usage;
-  /**
-   * Hint that the agent should stop after the current tool batch.
-   * Early termination only happens when every finalized tool result in the batch sets this to true.
-   */
-  terminate?: boolean;
-}
+/** Ownership selected explicitly whenever a conversation is created. */
+export type ConversationOwnership =
+  | { readonly kind: "ownerless" }
+  | { readonly kind: "task"; readonly taskId: TaskId };
 
-/** Context passed to `beforeToolCall`. */
-export interface BeforeToolCallContext {
-  /** The assistant message that requested the tool call. */
-  assistantMessage: AssistantMessage;
-  /** The raw tool call block from `assistantMessage.content`. */
-  toolCall: AgentToolCall;
-  /** Validated tool arguments for the target tool schema. */
-  args: unknown;
-  /** Current agent context at the time the tool call is prepared. */
-  context: AgentContext;
-}
+/** Immutable identity, history ancestry, and task ownership of a transcript scope. */
+export type ConversationRecord = {
+  readonly id: ConversationId;
+  /** Fork source and inclusive parent entry through which history is inherited. */
+  readonly parent?: {
+    readonly conversationId: ConversationId;
+    readonly at: EntryId;
+  };
+  /** Creator edge used for attribution, subtree abort, and subtree idle waits. */
+  readonly owner?: {
+    readonly conversationId: ConversationId;
+    readonly taskId: TaskId;
+  };
+};
 
-/** Context passed to `afterToolCall`. */
-export interface AfterToolCallContext {
-  /** The assistant message that requested the tool call. */
-  assistantMessage: AssistantMessage;
-  /** The raw tool call block from `assistantMessage.content`. */
-  toolCall: AgentToolCall;
-  /** Validated tool arguments for the target tool schema. */
-  args: unknown;
-  /** The executed tool result before any `afterToolCall` overrides are applied. */
-  result: AgentToolResult<any>;
-  /** Whether the executed tool result is currently treated as an error. */
-  isError: boolean;
-  /** Current agent context at the time the tool call is finalized. */
-  context: AgentContext;
-}
-
-/** Context passed to completed-turn callbacks. */
-export interface AgentTurnContext {
-  /** The assistant message that completed the turn. */
-  message: AssistantMessage;
-  /** Tool result messages emitted for the completed turn. */
-  toolResults: ToolResultMessage[];
-  /** Current agent context after the turn's assistant message and tool results have been appended. */
-  context: AgentContext;
-  /** Messages that this loop invocation will return if it exits at this point. Prompt runs include the initial prompt messages; continuation runs do not include pre-existing context messages. */
-  newMessages: AgentMessage[];
-}
-
-/** Decision returned by {@link FinishTurn}. Returning undefined preserves normal scheduling. */
-export type AgentTurnDecision = { action: "continue" } | { action: "end" };
-
-/**
- * Called after a completed assistant turn and all of its tool-result messages, but before `turn_end`.
- * On a normal turn, `{ action: "continue" }` ensures one next provider request. Tool-result, steering, or
- * follow-up scheduling can satisfy that request and adds no extra request; otherwise the loop continues once
- * with the current context. Error and aborted responses remain hard exits.
- */
-export type FinishTurn = (
-  turn: AgentTurnContext,
-  signal?: AbortSignal,
-) => AgentTurnDecision | void | Promise<AgentTurnDecision | undefined> | Promise<void>;
-
-/** Replacement runtime state used by the agent loop before starting another provider request. */
-export interface AgentLoopTurnUpdate {
-  /** Context for the next provider request. */
-  context?: AgentContext;
-  /** Messages to append before the next provider request, with normal lifecycle events. */
-  messages?: AgentMessage[];
-  /** Model for the next provider request. */
-  model?: Model<any>;
-  /** Thinking level for the next provider request. */
-  thinkingLevel?: ThinkingLevel;
-}
-
-/** Runtime state available immediately before a conversational provider request. */
-export interface PrepareRequestContext {
-  context: AgentContext;
-  model: Model<any>;
-  thinkingLevel: ThinkingLevel;
-}
-
-/** Replacement runtime state for the provider request being prepared. */
-export type AgentRequestUpdate = Omit<AgentLoopTurnUpdate, "messages">;
-
-/**
- * Called immediately before every conversational provider request, including the first.
- * Pending messages have already been appended and emitted when this callback runs.
- */
-export type PrepareRequest = (
-  request: PrepareRequestContext,
-  signal?: AbortSignal,
-) => AgentRequestUpdate | void | Promise<AgentRequestUpdate | undefined> | Promise<void>;
-
-export interface PrepareNextTurnContext extends AgentTurnContext {}
-
-export interface AgentLoopConfig extends SimpleStreamOptions {
-  model: Model<any>;
-
-  /**
-   * Converts AgentMessage[] to LLM-compatible Message[] before each LLM call.
-   *
-   * Each AgentMessage must be converted to a SystemMessage, UserMessage, AssistantMessage, or ToolResultMessage
-   * that the LLM can understand. AgentMessages that cannot be converted (e.g., UI-only notifications,
-   * status messages) should be filtered out.
-   *
-   * Contract: must not throw or reject. Return a safe fallback value instead.
-   * Throwing interrupts the low-level agent loop without producing a normal event sequence.
-   *
-   * @example
-   * ```typescript
-   * convertToLlm: (messages) => messages.flatMap(m => {
-   *   if (m.role === "custom") {
-   *     // Convert custom message to user message
-   *     return [{ role: "user", content: m.content, timestamp: m.timestamp }];
-   *   }
-   *   if (m.role === "notification") {
-   *     // Filter out UI-only messages
-   *     return [];
-   *   }
-   *   // Pass through standard LLM messages
-   *   return [m];
-   * })
-   * ```
-   */
-  convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
-
-  /**
-   * Optional transform applied to the context before `convertToLlm`.
-   *
-   * Use this for operations that work at the AgentMessage level:
-   * - Context window management (pruning old messages)
-   * - Injecting context from external sources
-   *
-   * Contract: must not throw or reject. Return the original messages or another
-   * safe fallback value instead.
-   *
-   * @example
-   * ```typescript
-   * transformContext: async (messages) => {
-   *   if (estimateTokens(messages) > MAX_TOKENS) {
-   *     return pruneOldMessages(messages);
-   *   }
-   *   return messages;
-   * }
-   * ```
-   */
-  transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
-
-  /**
-   * Resolves an API key dynamically for each LLM call.
-   *
-   * Useful for short-lived OAuth tokens (e.g., GitHub Copilot) that may expire
-   * during long-running tool execution phases.
-   *
-   * Contract: must not throw or reject. Return undefined when no key is available.
-   */
-  getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
-
-  /**
-   * Called after the assistant message and all tool-result messages have been emitted, immediately before `turn_end`.
-   * `{ action: "end" }` ends the run without polling queues or preparing another request.
-   * On a normal turn, `{ action: "continue" }` ensures one next provider request. Tool-result, steering, or
-   * follow-up scheduling can satisfy that request and adds no extra request; otherwise the loop continues once
-   * with the current context. Returning undefined preserves normal scheduling. Error and aborted responses remain
-   * hard exits.
-   */
-  finishTurn?: FinishTurn;
-
-  /**
-   * Called immediately before every conversational provider request, including the first.
-   * Pending messages have already been appended. The returned context, model, and thinking level
-   * replace the runtime values for this and later requests in the run. This hook does not poll queues.
-   */
-  prepareRequest?: PrepareRequest;
-
-  /**
-   * Called after `turn_end` when the loop will continue, immediately before the next turn starts.
-   * Return replacement context/model/thinking state or messages to append to affect that turn.
-   * Return undefined to keep using the current context/config.
-   */
-  prepareNextTurn?: (
-    context: PrepareNextTurnContext,
-  ) => AgentLoopTurnUpdate | undefined | Promise<AgentLoopTurnUpdate | undefined>;
-
-  /**
-   * Returns steering messages to inject into the conversation mid-run.
-   *
-   * Called after the current assistant turn finishes executing its tool calls, unless `finishTurn` ends the run.
-   * If messages are returned, they are added to the context before the next LLM call.
-   * Tool calls from the current assistant message are not skipped.
-   *
-   * Use this for "steering" the agent while it's working.
-   *
-   * Contract: must not throw or reject. Return [] when no steering messages are available.
-   */
-  getSteeringMessages?: () => Promise<AgentMessage[]>;
-
-  /**
-   * Returns follow-up messages to process after the agent would otherwise stop.
-   *
-   * Called when the agent has no more tool calls and no steering messages.
-   * If messages are returned, they're added to the context and the agent
-   * continues with another turn.
-   *
-   * Use this for follow-up messages that should wait until the agent finishes.
-   *
-   * Contract: must not throw or reject. Return [] when no follow-up messages are available.
-   */
-  getFollowUpMessages?: () => Promise<AgentMessage[]>;
-
-  /**
-   * Tool execution mode.
-   * - "sequential": execute tool calls one by one
-   * - "parallel": preflight tool calls sequentially, then execute allowed tools concurrently;
-   *   emit `tool_execution_end` in tool completion order after each tool is finalized,
-   *   then emit tool-result message artifacts later in assistant source order
-   *
-   * Default: "parallel"
-   */
-  toolExecution?: ToolExecutionMode;
-
-  /**
-   * Called before a tool is executed, after arguments have been validated.
-   *
-   * Return `{ block: true }` to prevent execution. The loop emits an error tool result instead.
-   * A blocked result can also set `terminate: true` to participate in the batch early-termination rule.
-   * The hook receives the agent abort signal and is responsible for honoring it.
-   */
-  beforeToolCall?: (
-    context: BeforeToolCallContext,
-    signal?: AbortSignal,
-  ) => Promise<BeforeToolCallResult | undefined>;
-
-  /**
-   * Called after a tool finishes executing, before `tool_execution_end` and tool-result message events are emitted.
-   *
-   * Return an `AfterToolCallResult` to override parts of the executed tool result:
-   * - `content` replaces the full content array
-   * - `details` replaces the full details payload
-   * - `isError` replaces the error flag
-   * - `usage` replaces the tool result usage
-   * - `terminate` replaces the early-termination hint
-   *
-   * Any omitted fields keep their original values. No deep merge is performed.
-   * The hook receives the agent abort signal and is responsible for honoring it.
-   */
-  afterToolCall?: (
-    context: AfterToolCallContext,
-    signal?: AbortSignal,
-  ) => Promise<AfterToolCallResult | undefined>;
-}
-
-/**
- * Thinking/reasoning level for models that support it.
- * Note: "xhigh" and "max" are only supported by selected model families. Use model
- * thinking-level metadata from @earendil-works/pi-ai to detect support for a concrete model.
- */
-export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-
-/**
- * Extensible interface for custom app messages.
- * Apps can extend via declaration merging:
- *
- * @example
- * ```typescript
- * declare module "@mariozechner/agent" {
- *   interface CustomAgentMessages {
- *     artifact: ArtifactMessage;
- *     notification: NotificationMessage;
- *   }
- * }
- * ```
- */
-export interface CustomAgentMessages {
-  // Empty by default - apps extend via declaration merging
-}
-
-/**
- * AgentMessage: Union of LLM messages + custom messages.
- * This abstraction allows apps to add custom message types while maintaining
- * type safety and compatibility with the base LLM messages.
- */
-export type AgentMessage = Message | CustomAgentMessages[keyof CustomAgentMessages];
-
-/**
- * Public agent state.
- *
- * `tools` and `messages` use accessor properties so implementations can copy
- * assigned arrays before storing them.
- */
-export interface AgentState {
-  /**
-   * Current system prompt, replayed from the transcript's system messages.
-   *
-   * Read-only: to change the prompt, append a system message with `content` or `sections`.
-   * In `initialState`, this seeds the leading system message.
-   */
-  readonly systemPrompt: string;
-  /** Active model used for future turns. */
-  model: Model<any>;
-  /** Requested reasoning level for future turns. */
-  thinkingLevel: ThinkingLevel;
-  /**
-   * Executable tools. Assigning a new array copies the top-level array.
-   *
-   * Differences from the tools declared in the transcript are announced to the model
-   * with a system message before the next request.
-   */
-  set tools(tools: AgentTool<any>[]);
-  get tools(): AgentTool<any>[];
-  /**
-   * Conversation transcript. Assigning a new array copies the top-level array.
-   *
-   * System messages in the transcript carry the prompt and tool declarations.
-   */
-  set messages(messages: AgentMessage[]);
-  get messages(): AgentMessage[];
-  /**
-   * True while the agent is processing a prompt or continuation.
-   *
-   * This remains true until awaited `agent_end` listeners settle.
-   */
-  readonly isStreaming: boolean;
-  /** Partial assistant message for the current streamed response, if any. */
-  readonly streamingMessage?: AgentMessage;
-  /** Tool call ids currently executing. */
-  readonly pendingToolCalls: ReadonlySet<string>;
-  /** Error message from the most recent failed or aborted assistant turn, if any. */
-  readonly errorMessage?: string;
-}
-
-/** Final or partial result produced by a tool. */
-export interface AgentToolResult<T = JsonValue | undefined> {
-  /** Text or image content returned to the model. */
-  content: (TextContent | ImageContent)[];
-  /** Arbitrary structured details for logs or UI rendering. */
-  details: T;
-  /** Usage from the final tool execution itself, if available. Not used for main LLM context accounting. */
-  usage?: Usage;
-  /**
-   * Hint that the agent should stop after the current tool batch.
-   * Early termination only happens when every finalized tool result in the batch sets this to true.
-   */
-  terminate?: boolean;
-}
-
-/**
- * Callback used by tools to stream partial execution updates.
- *
- * The callback is scoped to the current `execute()` invocation. Calls made after
- * the tool promise settles are ignored.
- */
-export type AgentToolUpdateCallback<T = any> = (partialResult: AgentToolResult<T>) => void;
-
-/** Tool definition used by the agent runtime. */
-export interface AgentTool<
-  TParameters extends TSchema = TSchema,
-  TDetails = any,
-> extends Tool<TParameters> {
-  /** Human-readable label for UI display. */
-  label: string;
-  /**
-   * Optional compatibility shim for raw tool-call arguments before schema validation.
-   * Must return an object that matches `TParameters`.
-   */
-  prepareArguments?: (args: unknown) => Static<TParameters>;
-  /** Execute the tool call. Throw on failure instead of encoding errors in `content`. */
-  execute: (
-    toolCallId: string,
-    params: Static<TParameters>,
-    signal?: AbortSignal,
-    onUpdate?: AgentToolUpdateCallback<TDetails>,
-  ) => Promise<AgentToolResult<TDetails>>;
-  /** Recovery policy for an effect whose durable intent exists but whose outcome is unknown. */
-  replay?: "never" | "safe";
-  /**
-   * Per-tool execution mode override.
-   * - "sequential": this tool must execute one at a time with other tool calls.
-   * - "parallel": this tool can execute concurrently with other tool calls.
-   *
-   * If omitted, the default execution mode applies.
-   */
-  executionMode?: ToolExecutionMode;
-}
-
-/** Context snapshot passed into the low-level agent loop. */
-export interface AgentContext {
-  /** Transcript visible to the model. */
-  messages: AgentMessage[];
-  /** Tools available for execution in this run. */
-  tools?: AgentTool<any>[];
-}
-
-/**
- * Events emitted by the Agent for UI updates.
- *
- * `agent_end` is the last event emitted for a run, but awaited `Agent.subscribe()`
- * listeners for that event are still part of run settlement. The agent becomes
- * idle only after those listeners finish.
- */
-export type AgentEvent =
-  // Agent lifecycle
-  | { type: "agent_start" }
-  | { type: "agent_end"; messages: AgentMessage[] }
-  // Turn lifecycle - a turn is one assistant response + any tool calls/results
-  | { type: "turn_start" }
-  | { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[] }
-  // Message lifecycle - emitted for system, user, assistant, and toolResult messages
-  | { type: "message_start"; message: AgentMessage }
-  // Only emitted for assistant messages during streaming
-  | { type: "message_update"; message: AgentMessage; assistantMessageEvent: AssistantMessageEvent }
-  | { type: "message_end"; message: AgentMessage }
-  // Tool execution lifecycle
-  | { type: "tool_execution_start"; toolCallId: string; toolName: string; args: any }
+/** An immutable override of one visible entry's contribution to model context. */
+export type ContextEdit = {
+  /** Entry whose model messages are omitted or replaced. */
+  readonly target: EntryId;
+} & (
   | {
-      type: "tool_execution_update";
-      toolCallId: string;
-      toolName: string;
-      args: any;
-      partialResult: any;
+      readonly action: "omit";
+      readonly messages?: never;
     }
   | {
-      type: "tool_execution_end";
-      toolCallId: string;
-      toolName: string;
-      result: any;
-      isError: boolean;
+      readonly action: "replace";
+      /** Messages contributed instead of the target entry's model messages. */
+      readonly messages: readonly Message[];
+    }
+);
+
+/** Immutable transcript event with separate model-facing and application-facing payloads. */
+export type EntryRecord = {
+  readonly id: EntryId;
+  readonly conversationId: ConversationId;
+  /** Application-defined entry discriminator. */
+  readonly kind: string;
+  /** Messages contributed to model context; absent for display or bookkeeping entries. */
+  readonly model?: readonly Message[];
+  /** JSON payload consumed by views, extensions, or bookkeeping logic. */
+  readonly data?: JsonValue;
+  /** First entry in the active context selected by this entry. */
+  readonly head?: EntryId;
+  /** Context-only overrides of earlier visible entries. */
+  readonly edits?: readonly ContextEdit[];
+  /** Task that appended this entry, when it was produced by durable work. */
+  readonly byTaskId?: TaskId;
+};
+
+/** Entry content supplied before the Session assigns identity and task attribution. */
+export type EntryDraft = Omit<EntryRecord, "id" | "conversationId" | "byTaskId" | "head"> & {
+  /** `"self"` starts active context at the newly assigned entry ID. */
+  readonly head?: EntryId | "self";
+};
+
+/** Entry whose `data` has type `D`; `never` means the kind carries no data. */
+export type TypedEntry<D extends JsonValue> = Omit<EntryRecord, "data"> &
+  ([D] extends [never] ? { readonly data?: never } : { readonly data: D });
+
+/** Entry content of a typed kind; the token supplies `kind`. */
+export type TypedEntryDraft<D extends JsonValue> = Omit<EntryDraft, "kind" | "data"> &
+  ([D] extends [never] ? { readonly data?: never } : { readonly data: D });
+
+/** Typed entry kind with a narrowing guard. */
+export interface Entry<D extends JsonValue = never> {
+  readonly kind: string;
+  is(entry: EntryRecord | undefined): entry is TypedEntry<D>;
+}
+
+/** Identity fields shared by every durable submission state. */
+type SubmissionRecordBase = {
+  readonly id: SubmissionId;
+  readonly conversationId: ConversationId;
+  /** Host-provided deduplication key, scoped to the conversation. */
+  readonly requestId?: string;
+};
+
+/** Durable lifecycle of one admitted user input or passive entry write. */
+export type SubmissionRecord =
+  | (SubmissionRecordBase & {
+      readonly type: "input";
+    } & (
+        | {
+            /** Admitted but not yet represented in the transcript. */
+            readonly status: "queued";
+            readonly entry?: never;
+            readonly answer?: never;
+            readonly reason?: never;
+            readonly detail?: never;
+          }
+        | {
+            /** Added to the transcript and owned by an active run. */
+            readonly status: "placed";
+            readonly entry: EntryId;
+            readonly answer?: never;
+            readonly reason?: never;
+            readonly detail?: never;
+          }
+        | {
+            /** Successfully answered user input. */
+            readonly status: "done";
+            readonly entry: EntryId;
+            readonly answer: EntryId;
+            readonly reason?: never;
+            readonly detail?: never;
+          }
+        | {
+            /** Terminal input that can no longer receive an answer. */
+            readonly status: "unanswered";
+            readonly entry?: EntryId;
+            readonly answer?: never;
+            readonly reason: string;
+            readonly detail?: JsonValue;
+          }
+      ))
+  | (SubmissionRecordBase & {
+      readonly type: "write";
+    } & (
+        | {
+            /** Admitted but not yet appended to the transcript. */
+            readonly status: "queued";
+            readonly entry?: never;
+            readonly answer?: never;
+            readonly reason?: never;
+            readonly detail?: never;
+          }
+        | {
+            /** Successfully appended passive entry. */
+            readonly status: "done";
+            readonly entry: EntryId;
+            readonly answer?: never;
+            readonly reason?: never;
+            readonly detail?: never;
+          }
+        | {
+            /** Terminal passive write that could not be placed. */
+            readonly status: "unanswered";
+            readonly entry?: never;
+            readonly answer?: never;
+            readonly reason: string;
+            readonly detail?: JsonValue;
+          }
+      ));
+
+/** Terminal status staged for a submission; identity, type, and entry come from its current record. */
+export type SubmissionSettlement =
+  | { readonly status: "done"; readonly answer: EntryId }
+  | { readonly status: "unanswered"; readonly reason: string; readonly detail?: JsonValue };
+
+/** Submission fields supplied before the Session assigns an ID. */
+export type SubmissionCreate = SubmissionRecord extends infer Record
+  ? Record extends SubmissionRecord
+    ? Omit<Record, "id">
+    : never
+  : never;
+
+/** JSON-safe error snapshot persisted instead of a runtime `Error` object. */
+export type TaskOutcomeError = {
+  readonly message: string;
+  /** Optional structured diagnostic data for inspection or recovery. */
+  readonly detail?: JsonValue;
+};
+
+/** Durable reason and optional result recorded when a task becomes terminal. */
+export type TaskOutcome<R> =
+  | {
+      readonly status: "completed";
+      readonly result: R;
+      readonly error?: never;
+      readonly reason?: never;
+    }
+  /** Expected task or domain failure explicitly committed by its implementation. */
+  | {
+      readonly status: "failed";
+      readonly error: TaskOutcomeError;
+      readonly result?: R;
+      readonly reason?: never;
+    }
+  /** Explicit cancellation handled by the task's abort protocol. */
+  | {
+      readonly status: "aborted";
+      readonly reason?: string;
+      readonly result?: R;
+      readonly error?: never;
+    }
+  /** Task that cannot resume because its definition or migration is unavailable. */
+  | {
+      readonly status: "orphaned";
+      readonly reason: string;
+      readonly result?: never;
+      readonly error?: never;
+    }
+  /** Runtime-detected contract failure, such as an uncaught throw or no durable progress. */
+  | {
+      readonly status: "faulted";
+      readonly error: TaskOutcomeError;
+      readonly result?: never;
+      readonly reason?: never;
     };
+
+/** Complete durable execution state of a task. */
+export type TaskState<S, R> =
+  | {
+      /** Eligible for scheduling. */
+      readonly status: "pending";
+      /** Complete durable state from which execution resumes. */
+      readonly checkpoint: S;
+      readonly outcome?: never;
+    }
+  | {
+      /** Reserved by one in-memory task invocation. */
+      readonly status: "running";
+      /** Complete durable state from which execution resumes. */
+      readonly checkpoint: S;
+      readonly outcome?: never;
+    }
+  | {
+      /** Parked without an invocation until every task in `on` is terminal; then resumes at `checkpoint`. */
+      readonly status: "waiting";
+      readonly checkpoint: S;
+      readonly on: readonly TaskId[];
+      readonly policy: JoinPolicy;
+      readonly outcome?: never;
+    }
+  | {
+      /** Outcome decided; becomes terminal once no ordinary owned work below is live. Runs no more code. */
+      readonly status: "completing";
+      readonly checkpoint?: never;
+      readonly outcome: TaskOutcome<R>;
+    }
+  | {
+      /** Permanently settled durable result receipt. */
+      readonly status: "terminal";
+      readonly checkpoint?: never;
+      readonly outcome: TaskOutcome<R>;
+    };
+
+/** Identity, definition, and scheduling fields shared by every task state. */
+type TaskRecordBase<I, R> = {
+  readonly id: TaskId<R>;
+  readonly conversationId: ConversationId;
+  /** Registered task definition name. */
+  readonly kind: string;
+  /** Definition version used to migrate live input and checkpoints. */
+  readonly version: number;
+  /** Original task input retained while the task is live or terminal. */
+  readonly input: I;
+  /** Owning task of a child task; absent for a task its conversation owns. Immutable. */
+  readonly owner?: TaskId;
+  /** Whether this conversation-owned task is excluded from ordinary idle waits, conversation aborts, and cascades. */
+  readonly background: boolean;
+  /** Durable abort mark checked before run-mode progress is committed. */
+  readonly abortRequested: boolean;
+};
+
+/** Complete replacement record for one durable task state machine. */
+export type TaskRecord<I, S, R> = TaskRecordBase<I, R> &
+  (
+    | {
+        readonly state: Extract<
+          TaskState<S, R>,
+          { readonly status: "pending" | "running" | "waiting" }
+        >;
+        /** Small first-writer-wins values retained while the task can run. */
+        readonly memos?: Readonly<Record<string, JsonValue>>;
+      }
+    | {
+        readonly state: Extract<TaskState<S, R>, { readonly status: "completing" | "terminal" }>;
+        readonly memos?: never;
+      }
+  );
+
+/** Persisted lifecycle record for one create-to-retire document incarnation. */
+export type DocumentRecord = {
+  /** Unique incarnation ID; never reused when the same logical document is recreated. */
+  readonly id: DocumentId;
+  /** Stable document definition kind. */
+  readonly kind: string;
+  /** Family member key; absent for singleton documents. */
+  readonly key?: string;
+  /** Commit that created the incarnation, stamped by storage. */
+  readonly createdAt: Seq;
+  /** Commit that retired the incarnation; absent while it is current. */
+  readonly retiredAt?: Seq;
+} & (
+  | {
+      readonly scope: { readonly kind: "session" };
+      readonly history?: never;
+      readonly fork?: never;
+    }
+  | ({
+      readonly scope: { readonly kind: "conversation"; readonly conversationId: ConversationId };
+    } & (
+      | {
+          /** Retain only current state. */
+          readonly history: "latest";
+          /** Initialize a fork from current source state or the definition's initial value. */
+          readonly fork: "current" | "initial";
+        }
+      | {
+          /** Retain history needed for as-of reads. */
+          readonly history: "rewindable";
+          /** Initialize a fork at its cutoff, from current state, or from the initial value. */
+          readonly fork: "asOf" | "current" | "initial";
+        }
+    ))
+  | {
+      readonly scope: { readonly kind: "task"; readonly taskId: TaskId };
+      readonly history?: never;
+      readonly fork?: never;
+    }
+);
+
+/** Fields supplied when storage creates and stamps a new `DocumentRecord`. */
+export type DocumentCreate = DocumentRecord extends infer Record
+  ? Record extends DocumentRecord
+    ? Omit<Record, "createdAt" | "retiredAt">
+    : never
+  : never;
+
+/** One ordered scan result and its optional continuation state. */
+export type Page<T, C> = {
+  readonly items: readonly T[];
+  readonly next?: C;
+};
+
+/** Backend-owned JSON continuation state that callers only round-trip to the same scan. */
+export type Cursor = Readonly<Record<string, JsonValue>>;
+
+/** Optional filters for an ordered conversation scan. */
+export type ConversationQuery = {
+  readonly ownerConversationId?: ConversationId;
+  readonly ownerTaskId?: TaskId;
+};
+
+/** Inclusive ID bounds for a newest-first scan of one conversation's fork-aware history. */
+export type EntryQuery = {
+  readonly conversationId: ConversationId;
+  /** Oldest entry ID that may be returned. */
+  readonly minEntryId?: EntryId;
+  /** Newest entry ID that may be returned. */
+  readonly maxEntryId?: EntryId;
+};
+
+/** Optional filters for an ordered scan of durable task records. */
+export type TaskQuery = {
+  readonly conversationId?: ConversationId;
+  readonly kind?: string;
+  readonly status?: TaskState<JsonValue, JsonValue>["status"];
+  readonly abortRequested?: boolean;
+  readonly background?: boolean;
+};
+
+/** Optional filters for an ordered scan of submission records. */
+export type SubmissionQuery = {
+  readonly conversationId?: ConversationId;
+  readonly status?: SubmissionRecord["status"];
+};
+
+/** Current state or one historical commit sequence used for document membership and content reads. */
+export type DocumentPoint = Seq | "current";
+
+/** Exact logical identity of a singleton or one keyed family member. */
+export type DocumentAddress = {
+  readonly kind: string;
+  readonly scope: DocumentRecord["scope"];
+  /** Absent selects the singleton; present selects one family member. */
+  readonly key?: string;
+};
+
+/** Ordered scan of document incarnations alive in one exact scope at one point. */
+export type DocumentQuery = {
+  readonly scope: DocumentRecord["scope"];
+  readonly at: DocumentPoint;
+  readonly kind?: string;
+};
+
+/** Complete checkpoint or Chord operation batch selected by the owning Session. */
+export type DocumentContent =
+  | {
+      readonly version: number;
+      readonly kind: "base";
+      readonly value: JsonObject;
+    }
+  | {
+      readonly version: number;
+      readonly kind: "delta";
+      readonly ops: readonly Op[];
+    };
+
+/** Exact persisted source selected for a definition-free document copy. */
+export type DocumentCopySource = {
+  readonly id: DocumentId;
+  readonly at: DocumentPoint;
+};
+
+/** Detached materialized value and stored definition version at a selected point. */
+export type StoredDocument = {
+  readonly record: DocumentRecord;
+  readonly version: number;
+  readonly value: JsonObject;
+  /** Deltas replayed after the selected base to materialize `value`. */
+  readonly deltasSinceBase: number;
+};
+
+/** One record or document mutation in an atomic storage commit. */
+export type StorageWrite =
+  | { readonly type: "conversation"; readonly value: ConversationRecord }
+  | { readonly type: "entry"; readonly value: EntryRecord }
+  | { readonly type: "task"; readonly value: TaskRecord<JsonValue, JsonValue, JsonValue> }
+  | { readonly type: "submission"; readonly value: SubmissionRecord }
+  | {
+      readonly type: "document.create";
+      readonly record: DocumentCreate;
+      readonly content: Extract<DocumentContent, { readonly kind: "base" }>;
+    }
+  | {
+      readonly type: "document.copy";
+      readonly record: DocumentCreate;
+      readonly source: DocumentCopySource;
+    }
+  | {
+      readonly type: "document.change";
+      readonly id: DocumentId;
+      readonly content: DocumentContent;
+    }
+  | { readonly type: "document.retire"; readonly id: DocumentId };
+
+/** Committed change of one document incarnation. */
+export type DocumentCommitChange =
+  | {
+      readonly type: "document";
+      readonly record: DocumentRecord;
+      /** Conversation owning the document; task documents derive it from their task record. Undefined only for Session documents. */
+      readonly conversationId: ConversationId | undefined;
+      /** Definition version of `value`; absent when this commit retired the incarnation. */
+      readonly version: number | undefined;
+      /** Exact adopted immutable revision, or `null` when this commit retired the incarnation. */
+      readonly value: JsonObject | null;
+      /** Exact adopted operations for an ordinary update; empty for creation and retirement. */
+      readonly ops: readonly Op[];
+    }
+  | {
+      /** Definition-free child initialization; consumers hydrate through state or watch acquisition. */
+      readonly type: "document.copy";
+      readonly record: DocumentRecord;
+      readonly conversationId: ConversationId;
+      readonly source: DocumentCopySource;
+    };
+
+/** Complete table record committed without another publication copy. */
+export type TableCommitChange = Extract<
+  StorageWrite,
+  { readonly type: "conversation" | "entry" | "task" | "submission" }
+>;
+
+export type CommitChange = TableCommitChange | DocumentCommitChange;
+
+/** Every immutable change from one successful Session commit. Change order is unspecified. */
+export type CommitPublication = {
+  readonly seq: Seq;
+  readonly changes: readonly CommitChange[];
+};
+
+/**
+ * Transaction surface of one Session commit callback.
+ * Table reads and creation results are trusted immutable values and may be shared with internal commit state.
+ */
+export interface Tx {
+  conversation(id: ConversationId): Promise<ConversationRecord | undefined>;
+  entry(id: EntryId): Promise<EntryRecord | undefined>;
+  /** Undefined when the entry is absent or has another kind. */
+  entry<D extends JsonValue>(token: Entry<D>, id: EntryId): Promise<TypedEntry<D> | undefined>;
+  task(id: TaskId): Promise<TaskRecord<JsonValue, JsonValue, JsonValue> | undefined>;
+  scanConversations(
+    query: ConversationQuery,
+    limit: number,
+    cursor?: Cursor,
+  ): Promise<Page<ConversationRecord, Cursor>>;
+  scanEntries(
+    query: EntryQuery,
+    limit: number,
+    cursor?: Cursor,
+  ): Promise<Page<EntryRecord, Cursor>>;
+  /** Newest visible entry of the conversation that carries a `head`. */
+  latestHeadMarker(
+    conversationId: ConversationId,
+  ): Promise<(EntryRecord & { readonly head: EntryId }) | undefined>;
+  scanTasks(
+    query: TaskQuery,
+    limit: number,
+    cursor?: Cursor,
+  ): Promise<Page<TaskRecord<JsonValue, JsonValue, JsonValue>, Cursor>>;
+  /** Committed submission with a conversation-scoped request ID. */
+  submissionByRequest(
+    conversationId: ConversationId,
+    requestId: string,
+  ): Promise<SubmissionRecord | undefined>;
+
+  /** Create a conversation with explicitly selected ownership. */
+  createConversation(options: {
+    readonly ownership: ConversationOwnership;
+  }): Promise<ConversationRecord>;
+  /** Create a history fork at one concrete visible entry with explicitly selected ownership. */
+  forkConversation(
+    parentConversationId: ConversationId,
+    at: EntryId,
+    options: { readonly ownership: ConversationOwnership },
+  ): Promise<ConversationRecord>;
+  /** Returned records are Session-owned immutable values and may be shared with commit listeners. */
+  appendEntry(conversationId: ConversationId, value: EntryDraft): Promise<EntryRecord>;
+  /** The token supplies `kind` and types `data`. */
+  appendEntry<D extends JsonValue>(
+    token: Entry<D>,
+    conversationId: ConversationId,
+    value: TypedEntryDraft<NoInfer<D>>,
+  ): Promise<TypedEntry<D>>;
+  createTask<I, S extends { phase: string }, R, H extends object>(
+    task: Task<I, S, R, H>,
+    input: I,
+    options: TaskOptions,
+  ): Promise<TaskId<R>>;
+  /**
+   * Create a raw submission record with a fresh ID. No admission rules apply: no busy check, no inbox queueing, no
+   * placement. Use `Conversation.submit()` or a conversation handle unless the caller implements admission itself.
+   */
+  createSubmission(create: SubmissionCreate): Promise<SubmissionRecord>;
+  /**
+   * Settle a queued or placed submission; only a placed input can be answered, and a settled submission stays
+   * unchanged. Resolved against this transaction's latest record of the submission, so it works after table writes.
+   * Run tasks settle the inputs they answer.
+   */
+  settleSubmission(id: SubmissionId, settlement: SubmissionSettlement): void;
+  /**
+   * Place a queued submission at `entry`: an input becomes `placed`, a write `done`. Resolved like
+   * `settleSubmission()`. Inbox boundaries place the submissions they select.
+   */
+  placeSubmission(id: SubmissionId, entry: EntryId): void;
+
+  doc<T extends JsonObject>(token: SessionDocToken<T>): Promise<Draft<T>>;
+  doc<T extends JsonObject>(
+    token: ConversationDocToken<T>,
+    conversationId: ConversationId,
+  ): Promise<Draft<T>>;
+  doc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<Draft<T>>;
+  doc<T extends JsonObject, I extends JsonValue>(
+    token: SessionDocFamilyToken<T, I>,
+    key: string,
+    seed: I,
+  ): Promise<Draft<T>>;
+  doc<T extends JsonObject, I extends JsonValue>(
+    token: ConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    seed: I,
+  ): Promise<Draft<T>>;
+  doc<T extends JsonObject, I extends JsonValue>(
+    token: TaskDocFamilyToken<T, I>,
+    taskId: TaskId,
+    key: string,
+    seed: I,
+  ): Promise<Draft<T>>;
+
+  retireDoc<T extends JsonObject>(token: SessionDocToken<T>): Promise<void>;
+  retireDoc<T extends JsonObject>(
+    token: ConversationDocToken<T>,
+    conversationId: ConversationId,
+  ): Promise<void>;
+  retireDoc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<void>;
+  retireDoc<T extends JsonObject, I extends JsonValue>(
+    token: SessionDocFamilyToken<T, I>,
+    key: string,
+  ): Promise<void>;
+  retireDoc<T extends JsonObject, I extends JsonValue>(
+    token: ConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+  ): Promise<void>;
+  retireDoc<T extends JsonObject, I extends JsonValue>(
+    token: TaskDocFamilyToken<T, I>,
+    taskId: TaskId,
+    key: string,
+  ): Promise<void>;
+}
+
+/** Disposable, read-only Chord state bound to one committed document incarnation. */
+export type DocumentState<T extends JsonObject> = AttachedReplicatedState<Readonly<T> | null>;
+
+/** Terminal result of one document watch. */
+export type WatchEnd =
+  | { readonly reason: "stopped" | "cancelled" | "session_closed" | "retired" }
+  | { readonly reason: "listener_error"; readonly error: Error };
+
+/** Serialized exact-frame observation of an immutable value with bounded pending delivery. */
+export interface WatchHandle<T> {
+  /** Acquisition revision before start; latest delivered immutable revision afterward. */
+  readonly value: T;
+  /** Install the sole asynchronous listener. Never invokes it inline. */
+  start(listener: (value: T, ops: readonly Op[], context: Context) => Promise<void>): void;
+  /** Idempotently stop future callbacks and return this watch's terminal result. */
+  stop(): Promise<WatchEnd>;
+  /** Settle when the watch terminates; an already-running callback remains caller-owned. */
+  readonly closed: Promise<WatchEnd>;
+}
+
+export type DocumentWatch<T extends JsonObject> = WatchHandle<Readonly<T> | null>;
+
+/** Committed document reads. */
+export type DocumentReader = Pick<Session, "snapshot" | "snapshotAsOf">;
+
+/** Non-creating document watch acquisition shared by Session and later invocation APIs. */
+export interface DocumentObserver {
+  watchDoc<T extends JsonObject>(
+    token: SessionDocToken<T>,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject>(
+    token: ConversationDocToken<T>,
+    conversationId: ConversationId,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject>(
+    token: TaskDocToken<T>,
+    taskId: TaskId,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(
+    token: SessionDocFamilyToken<T, I>,
+    key: string,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(
+    token: ConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(
+    token: TaskDocFamilyToken<T, I>,
+    taskId: TaskId,
+    key: string,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+}
+
+/** Owner of one mutation line, its records, and its tracked documents. */
+export interface Session extends DocumentObserver {
+  /** Run one atomic transaction on the Session mutation line. */
+  commit<T>(change: (tx: Tx) => T | Promise<T>, context: Context): Promise<T>;
+  /** Seal admission, settle admitted commits, then close storage. */
+  close(context: Context): Promise<void>;
+  /** Observe complete commits synchronously after adoption. The listener must not throw, block, or call Session APIs. */
+  subscribeCommits(
+    listener: (publication: CommitPublication, context: Context) => void,
+  ): () => void;
+  /** Observe close synchronously when it begins. The listener must not throw, block, or call Session APIs. */
+  subscribeClose(listener: () => void): () => void;
+
+  snapshot<T extends JsonObject>(
+    token: SessionDocToken<T>,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject>(
+    token: ConversationDocToken<T>,
+    conversationId: ConversationId,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject>(
+    token: TaskDocToken<T>,
+    taskId: TaskId,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(
+    token: SessionDocFamilyToken<T, I>,
+    key: string,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(
+    token: ConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(
+    token: TaskDocFamilyToken<T, I>,
+    taskId: TaskId,
+    key: string,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+
+  documentState<T extends JsonObject>(
+    token: SessionDocToken<T>,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject>(
+    token: ConversationDocToken<T>,
+    conversationId: ConversationId,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject>(
+    token: TaskDocToken<T>,
+    taskId: TaskId,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(
+    token: SessionDocFamilyToken<T, I>,
+    key: string,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(
+    token: ConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(
+    token: TaskDocFamilyToken<T, I>,
+    taskId: TaskId,
+    key: string,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+
+  snapshotAsOf<T extends JsonObject>(
+    token: RewindableConversationDocToken<T>,
+    conversationId: ConversationId,
+    at: EntryId,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshotAsOf<T extends JsonObject, I extends JsonValue>(
+    token: RewindableConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    at: EntryId,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+}
+
+/**
+ * Atomic persistence boundary for Session records.
+ *
+ * Storage trusts the owning Session to supply semantically valid records, references,
+ * ancestry, and transitions. Implementations enforce atomicity, global ID ownership,
+ * immutable conversation/entry creation, document record consistency, and detached values;
+ * Session serializes commits.
+ */
+export interface Storage {
+  /**
+   * Atomically persist one batch and return its sequence. Once resolved, later reads through this storage observe it.
+   */
+  commit(writes: readonly StorageWrite[], context: Context): Promise<Seq>;
+
+  /** Return a fresh branded candidate from the Session-global numeric ID namespace. */
+  mintId<I extends Id<string>>(): Promise<I>;
+
+  /** Look up one conversation by exact ID. */
+  conversation(id: ConversationId, context: Context): Promise<ConversationRecord | undefined>;
+
+  /** Scan conversations in ascending ID order. */
+  scanConversations(
+    query: ConversationQuery,
+    limit: number,
+    cursor: Cursor | undefined,
+    context: Context,
+  ): Promise<Page<ConversationRecord, Cursor>>;
+
+  /** Look up one global entry and the sequence of the commit that persisted it. */
+  entry(
+    id: EntryId,
+    context: Context,
+  ): Promise<{ readonly entry: EntryRecord; readonly commitSeq: Seq } | undefined>;
+  /** Look up one entry only when it is visible through the requested conversation's ancestry. */
+  entry(
+    conversationId: ConversationId,
+    id: EntryId,
+    context: Context,
+  ): Promise<{ readonly entry: EntryRecord; readonly commitSeq: Seq } | undefined>;
+
+  /**
+   * Return the newest visible entry with a `head` at or below the optional inclusive cutoff.
+   * The returned entry is the marker; its `head` value is the range's actual lower bound.
+   */
+  findLatestHeadMarker(
+    conversationId: ConversationId,
+    atOrBeforeEntryId: EntryId | undefined,
+    context: Context,
+  ): Promise<(EntryRecord & { readonly head: EntryId }) | undefined>;
+
+  /** Scan the inclusive visible range newest-first, returning at most `limit` entries. */
+  scanEntries(
+    query: EntryQuery,
+    limit: number,
+    cursor: Cursor | undefined,
+    context: Context,
+  ): Promise<Page<EntryRecord, Cursor>>;
+
+  /** Look up the latest complete record for one task. */
+  task(
+    id: TaskId,
+    context: Context,
+  ): Promise<TaskRecord<JsonValue, JsonValue, JsonValue> | undefined>;
+
+  /** Scan task records matching every supplied filter. */
+  scanTasks(
+    query: TaskQuery,
+    limit: number,
+    cursor: Cursor | undefined,
+    context: Context,
+  ): Promise<Page<TaskRecord<JsonValue, JsonValue, JsonValue>, Cursor>>;
+
+  /** Look up the latest complete record for one admitted submission. */
+  submission(id: SubmissionId, context: Context): Promise<SubmissionRecord | undefined>;
+
+  /** Scan submissions matching every supplied filter in ascending ID order. */
+  scanSubmissions(
+    query: SubmissionQuery,
+    limit: number,
+    cursor: Cursor | undefined,
+    context: Context,
+  ): Promise<Page<SubmissionRecord, Cursor>>;
+
+  /** Find a submission by its conversation-scoped host deduplication key. */
+  submissionByRequest(
+    conversationId: ConversationId,
+    requestId: string,
+    context: Context,
+  ): Promise<SubmissionRecord | undefined>;
+
+  /** Resolve the incarnation occupying one exact logical address at the selected point. */
+  findDocument(
+    address: DocumentAddress,
+    at: DocumentPoint,
+    context: Context,
+  ): Promise<DocumentRecord | undefined>;
+
+  /** Materialize one specific incarnation by ID at the selected point without following a replacement at its address. */
+  document(
+    id: DocumentId,
+    at: DocumentPoint,
+    context: Context,
+  ): Promise<StoredDocument | undefined>;
+
+  /** Scan incarnations alive in one exact scope at the selected point. */
+  scanDocuments(
+    query: DocumentQuery,
+    limit: number,
+    cursor: Cursor | undefined,
+    context: Context,
+  ): Promise<Page<DocumentRecord, Cursor>>;
+
+  /** Release backend resources; all later operations must reject. */
+  close(context: Context): Promise<void>;
+}

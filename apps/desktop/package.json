@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
-    "@earendil-works/pi-ai": "^0.87.1",
+    "@earendil-works/chord": "^1.0.0",
+    "@earendil-works/pi-ai": "^1.0.0",
     "@eta/agent": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "effect": "catalog:",

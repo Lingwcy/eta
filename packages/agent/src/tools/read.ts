@@ -1,18 +1,18 @@
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import { type Static, Type } from "typebox";
-import type { Context } from "../context.ts";
-import type { AgentHarnessTool } from "../types.ts";
-import { getOrThrow } from "../types.ts";
+import { getOrThrow } from "../env/index.ts";
+import { defineTool } from "../harness/define.ts";
+import { characterEnd } from "../harness/output.ts";
+import type { ToolDiagnostic, ToolRegistration } from "../harness/types.ts";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
   type TruncationResult,
   truncateHead,
-} from "../utils/truncate.ts";
-import { detectSupportedImageMimeType, encodeBase64 } from "./image.ts";
+} from "../truncate.ts";
+import { requireEnv } from "./env.ts";
+import { detectSupportedImageMimeType } from "./image.ts";
 import { resolveReadToolPath } from "./path-utils.ts";
-import type { ExecutionToolContext } from "./tool-context.ts";
 
 const readSchema = Type.Object({
   path: Type.String({ description: "Path to the file to read (relative or absolute)" }),
@@ -24,82 +24,35 @@ const readSchema = Type.Object({
 
 export type ReadToolInput = Static<typeof readSchema>;
 
-export interface ReadToolDetails {
-  truncation?: TruncationResult;
-}
+export type ReadToolDetails = {
+  /** How the shown text was cut; the text itself is the result content. */
+  truncation?: Omit<TruncationResult, "content">;
+};
 
-export type ReadImageProcessorResult =
-  | { ok: true; data: string; mimeType: string; hints: string[] }
-  | { ok: false; message: string };
-
-export type ReadImageProcessor = (
-  bytes: Uint8Array,
-  mimeType: string,
-  options: { autoResizeImages: boolean },
-  context: Context,
-) => Promise<ReadImageProcessorResult>;
-
-export interface ReadToolOptions {
-  /** Whether an injected image processor should resize images. Default: true. */
-  autoResizeImages?: boolean;
-  /** Optional image conversion/resizing implementation. */
-  imageProcessor?: ReadImageProcessor;
-}
-
-export function createReadTool<TContext extends ExecutionToolContext = ExecutionToolContext>(
-  options?: ReadToolOptions,
-): AgentHarnessTool<TContext, typeof readSchema, ReadToolDetails | undefined> {
-  return {
+/** Reads text files. Remarks about truncation and continuation are diagnostics; the content is only file text. */
+export function createReadTool(): ToolRegistration<typeof readSchema, ReadToolDetails> {
+  return defineTool({
     name: "read",
-    label: "read",
-    description: `Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
+    description: `Read the contents of a text file. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
     parameters: readSchema,
-    async execute(_toolCallId, { path, offset, limit }, _onUpdate, { env }, _invocation, context) {
+    async execute(args, api, context) {
+      const { path, offset, limit } = args;
+      const env = requireEnv(api);
       const absolutePath = await resolveReadToolPath(env, path, context);
       const bytes = getOrThrow(await env.readBinaryFile(absolutePath, context));
       const mimeType = detectSupportedImageMimeType(bytes);
       if (mimeType) {
-        if (options?.imageProcessor) {
-          const processed = await options.imageProcessor(
-            bytes,
-            mimeType,
-            { autoResizeImages: options.autoResizeImages ?? true },
-            context,
-          );
-          if (!processed.ok) {
-            return {
-              content: [
-                { type: "text", text: `Read image file [${mimeType}]\n${processed.message}` },
-              ],
-              details: undefined,
-            };
-          }
-          const hints = processed.hints.length > 0 ? `\n${processed.hints.join("\n")}` : "";
-          return {
-            content: [
-              { type: "text", text: `Read image file [${processed.mimeType}]${hints}` },
-              { type: "image", data: processed.data, mimeType: processed.mimeType },
-            ] satisfies Array<TextContent | ImageContent>,
-            details: undefined,
-          };
-        }
-        if (mimeType === "image/bmp") {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Read image file [image/bmp]\n[Image omitted: configure an imageProcessor to convert BMP images.]",
-              },
-            ],
-            details: undefined,
-          };
-        }
+        // Image content is not supported yet.
         return {
-          content: [
-            { type: "text", text: `Read image file [${mimeType}]` },
-            { type: "image", data: encodeBase64(bytes), mimeType },
-          ] satisfies Array<TextContent | ImageContent>,
-          details: undefined,
+          content: [],
+          isError: true,
+          diagnostics: [
+            {
+              severity: "error",
+              code: "unsupported_image",
+              message: `${path} is an image (${mimeType}); reading images is not supported`,
+            },
+          ],
         };
       }
 
@@ -122,32 +75,46 @@ export function createReadTool<TContext extends ExecutionToolContext = Execution
         selectedContent = allLines.slice(startLine).join("\n");
       }
 
-      const truncation = truncateHead(selectedContent);
-      let outputText: string;
+      const { content: headText, ...truncation } = truncateHead(selectedContent);
+      const diagnostics: ToolDiagnostic[] = [];
+      let outputText = headText;
       let details: ReadToolDetails | undefined;
       if (truncation.firstLineExceedsLimit) {
-        const firstLineSize = formatSize(new TextEncoder().encode(allLines[startLine]).byteLength);
-        outputText = `[Line ${startLineDisplay} is ${firstLineSize}, exceeds ${formatSize(DEFAULT_MAX_BYTES)} limit. Use bash: sed -n '${startLineDisplay}p' ${path} | head -c ${DEFAULT_MAX_BYTES}]`;
-        details = { truncation };
+        // Show the start of the line, cut at the byte limit on a character boundary.
+        const lineBytes = new TextEncoder().encode(allLines[startLine]);
+        const end = characterEnd(lineBytes, DEFAULT_MAX_BYTES);
+        outputText = new TextDecoder().decode(lineBytes.subarray(0, end));
+        diagnostics.push({
+          severity: "warn",
+          code: "truncated",
+          message: `Line ${startLineDisplay} is ${formatSize(lineBytes.byteLength)}, exceeds the ${formatSize(DEFAULT_MAX_BYTES)} limit; showing its first ${formatSize(end)}. Use bash: sed -n '${startLineDisplay}p' ${path} | tail -c +${end + 1}`,
+        });
+        details = { truncation: { ...truncation, outputBytes: end, outputLines: 1 } };
       } else if (truncation.truncated) {
         const endLineDisplay = startLineDisplay + truncation.outputLines - 1;
         const nextOffset = endLineDisplay + 1;
-        outputText = truncation.content;
-        if (truncation.truncatedBy === "lines") {
-          outputText += `\n\n[Showing lines ${startLineDisplay}-${endLineDisplay} of ${totalFileLines}. Use offset=${nextOffset} to continue.]`;
-        } else {
-          outputText += `\n\n[Showing lines ${startLineDisplay}-${endLineDisplay} of ${totalFileLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Use offset=${nextOffset} to continue.]`;
-        }
+        const limitText =
+          truncation.truncatedBy === "lines" ? "" : ` (${formatSize(DEFAULT_MAX_BYTES)} limit)`;
+        diagnostics.push({
+          severity: "info",
+          code: "truncated",
+          message: `Showing lines ${startLineDisplay}-${endLineDisplay} of ${totalFileLines}${limitText}. Use offset=${nextOffset} to continue.`,
+        });
         details = { truncation };
       } else if (userLimitedLines !== undefined && startLine + userLimitedLines < allLines.length) {
         const remaining = allLines.length - (startLine + userLimitedLines);
         const nextOffset = startLine + userLimitedLines + 1;
-        outputText = `${truncation.content}\n\n[${remaining} more lines in file. Use offset=${nextOffset} to continue.]`;
-      } else {
-        outputText = truncation.content;
+        diagnostics.push({
+          severity: "info",
+          message: `${remaining} more lines in file. Use offset=${nextOffset} to continue.`,
+        });
       }
 
-      return { content: [{ type: "text", text: outputText }], details };
+      return {
+        content: outputText === "" ? [] : [{ type: "text", text: outputText }],
+        ...(details === undefined ? {} : { details }),
+        diagnostics,
+      };
     },
-  };
+  });
 }

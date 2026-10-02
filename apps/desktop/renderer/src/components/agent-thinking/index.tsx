@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import type { LaneSnapshot } from "@eta/agent";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,7 +25,7 @@ export interface AgentThinkingProps {
   shimmer?: boolean;
   /** 是否展示从挂载开始计时的耗时秒数 */
   showTimer?: boolean;
-  startedAt?: NonNullable<LaneSnapshot["operation"]>["startedAt"];
+  startedAt?: number;
   className?: string;
 }
 

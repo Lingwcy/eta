@@ -5,3 +5,8 @@ export interface ProjectMetadata {
   readonly rootPath: string;
   readonly createdAt: number;
 }
+
+export interface RegisterProjectInput {
+  readonly rootPath: string;
+  readonly name?: string;
+}

@@ -11,21 +11,6 @@ export function detectSupportedImageMimeType(buffer: Uint8Array): string | undef
   return undefined;
 }
 
-export function encodeBase64(bytes: Uint8Array): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let output = "";
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index] ?? 0;
-    const second = bytes[index + 1];
-    const third = bytes[index + 2];
-    output += alphabet[first >> 2];
-    output += alphabet[((first & 0x03) << 4) | ((second ?? 0) >> 4)];
-    output += second === undefined ? "=" : alphabet[((second & 0x0f) << 2) | ((third ?? 0) >> 6)];
-    output += third === undefined ? "=" : alphabet[third & 0x3f];
-  }
-  return output;
-}
-
 function isPng(buffer: Uint8Array): boolean {
   return (
     buffer.length >= 16 &&

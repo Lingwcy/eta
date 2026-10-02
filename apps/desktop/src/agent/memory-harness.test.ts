@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
-import { BACKGROUND_CONTEXT } from "@eta/agent";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import {
   createModels,
   fauxAssistantMessage,
@@ -55,12 +55,16 @@ test("uses the first available model and creates isolated memory sessions", asyn
   expect(first.snapshot.transcript).toEqual([]);
   expect(first.contextTokens).toBe(0);
   expect(first.id).not.toBe(second.id);
-  await service
-    .get(first.id)
-    .lane.appendMessage(
-      { role: "user", content: "Only the first session", timestamp: Date.now() },
-      BACKGROUND_CONTEXT,
-    );
+  await service.get(first.id).conversation.submit(
+    {
+      type: "write",
+      entry: {
+        kind: "pi.user",
+        model: [{ role: "user", content: "Only the first session", timestamp: Date.now() }],
+      },
+    },
+    BACKGROUND_CONTEXT,
+  );
   expect((await service.snapshot(second.id)).snapshot.transcript).toEqual([]);
 });
 
@@ -144,7 +148,7 @@ test.each([
 });
 
 test("streams actual assistant progress and settles with one transcript message", async () => {
-  const { provider, service } = setup();
+  const { provider, service } = setup({ tokensPerSecond: 20 });
   provider.setResponses([fauxAssistantMessage("An actual streamed answer")]);
   const session = await service.create();
   const snapshots: SnapshotResponse[] = [];
@@ -156,7 +160,7 @@ test("streams actual assistant progress and settles with one transcript message"
     },
   );
   const admission = await service.submit(session.id, "Hello");
-  await service.get(session.id).lane.waitForIdle(BACKGROUND_CONTEXT);
+  await service.get(session.id).conversation.waitForIdle(BACKGROUND_CONTEXT);
   const final = await service.snapshot(session.id);
   expect(
     snapshots.some(({ snapshot }) =>
@@ -165,6 +169,14 @@ test("streams actual assistant progress and settles with one transcript message"
       ),
     ),
   ).toBe(true);
+  await expect
+    .poll(() =>
+      snapshots.some(
+        ({ snapshot }) =>
+          snapshot.operation === null && snapshot.lastResult?.operationId === admission.operationId,
+      ),
+    )
+    .toBe(true);
   expect(final.snapshot.operation).toBeNull();
   expect(final.snapshot.lastResult).toMatchObject({
     operationId: admission.operationId,
@@ -193,7 +205,7 @@ test("executes real tools and retains their results in the transcript", async ()
   ]);
   const session = await service.create();
   await service.submit(session.id, "Read the file");
-  await service.get(session.id).lane.waitForIdle(BACKGROUND_CONTEXT);
+  await service.get(session.id).conversation.waitForIdle(BACKGROUND_CONTEXT);
   const final = await service.snapshot(session.id);
   const tools = getTools(final.snapshot);
   expect(tools).toHaveLength(1);
@@ -218,7 +230,7 @@ test("reports real tool errors without claiming success", async () => {
   ]);
   const session = await service.create();
   await service.submit(session.id, "Read the missing file");
-  await service.get(session.id).lane.waitForIdle(BACKGROUND_CONTEXT);
+  await service.get(session.id).conversation.waitForIdle(BACKGROUND_CONTEXT);
   expect(getTools((await service.snapshot(session.id)).snapshot)[0]).toMatchObject({
     status: "settled",
     isError: true,
@@ -232,7 +244,7 @@ test("a provider failure is published as a failed operation", async () => {
   ]);
   const session = await service.create();
   await service.submit(session.id, "Fail this run");
-  await service.get(session.id).lane.waitForIdle(BACKGROUND_CONTEXT);
+  await service.get(session.id).conversation.waitForIdle(BACKGROUND_CONTEXT);
   const final = await service.snapshot(session.id);
   expect(final.snapshot.operation).toBeNull();
   expect(final.snapshot.lastResult).toMatchObject({
@@ -265,7 +277,7 @@ test("rejects a concurrent prompt and allows another prompt after stopping", asy
   await service.stop(session.id);
   expect((await service.snapshot(session.id)).snapshot.lastResult?.status).toBe("aborted");
   await service.submit(session.id, "Continue");
-  await service.get(session.id).lane.waitForIdle(BACKGROUND_CONTEXT);
+  await service.get(session.id).conversation.waitForIdle(BACKGROUND_CONTEXT);
   expect((await service.snapshot(session.id)).snapshot.lastResult?.status).toBe("completed");
   unsubscribe();
 });
@@ -275,7 +287,7 @@ test("a new subscription gets the current transcript and deletion closes the ses
   provider.setResponses([fauxAssistantMessage("Already completed")]);
   const session = await service.create();
   await service.submit(session.id, "Hello");
-  await service.get(session.id).lane.waitForIdle(BACKGROUND_CONTEXT);
+  await service.get(session.id).conversation.waitForIdle(BACKGROUND_CONTEXT);
   const snapshots: SnapshotResponse[] = [];
   const unsubscribe = await service.subscribe(
     session.id,
@@ -287,4 +299,31 @@ test("a new subscription gets the current transcript and deletion closes the ses
   await service.delete(session.id);
   await expect(service.snapshot(session.id)).rejects.toThrow("内存会话已不存在");
   await service.delete(session.id);
+});
+
+test("deleting a running session releases watches and permits a new session", async () => {
+  const { provider, service } = setup({ tokensPerSecond: 20 });
+  provider.setResponses([
+    fauxAssistantMessage("An answer that remains running for a while".repeat(10)),
+  ]);
+  const session = await service.create();
+  const errors: string[] = [];
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const unsubscribe = await service.subscribe(
+    session.id,
+    ({ snapshot }) => {
+      if (snapshot.operation?.streamingMessage) markStarted();
+    },
+    (error) => errors.push(error),
+  );
+  await service.submit(session.id, "Start");
+  await started;
+  await service.delete(session.id);
+  unsubscribe();
+  await expect(service.snapshot(session.id)).rejects.toThrow("内存会话已不存在");
+  expect(errors).toEqual([]);
+  expect((await service.create()).snapshot.operation).toBeNull();
 });

@@ -1,503 +1,602 @@
-import { uuidv7 } from "@earendil-works/pi-ai/utils/uuid";
-import type { AgentMessage } from "../types.ts";
-import type { Context } from "../context.ts";
-import { insertEntry } from "./commit.ts";
-import { MutationLine } from "./mutation-line.ts";
-import type {
-  Branch,
-  BranchScan,
-  CommitResult,
-  Entry,
-  EntryQuery,
-  IdGenerator,
-  JsonValue,
-  Session,
-  SessionMetadata,
-  SessionMutation,
-  SessionMutationCallback,
-  SessionStats,
-  Storage,
-  StorageBranchScan,
-  Write,
-} from "./types.ts";
+import { type Context, type JsonValue, replicatedState } from "@earendil-works/chord";
+import { awaitWithContext, withoutAbortSignal } from "@earendil-works/chord/context";
+import { type Op, track } from "@earendil-works/chord/delta";
 import {
-  appendList as appendListWrite,
-  branchTip,
-  deleteList as deleteListWrite,
-  deleteValue as deleteValueWrite,
-  entryLabel,
-  type ListElement,
-  type ListReadOptions,
-  type StoredValue,
-  sessionName,
-  setValue as setValueWrite,
-  type Value,
-  type ValueList,
-} from "./values.ts";
+  type AnyDocToken,
+  checkRecordScope,
+  checkRecordVersion,
+  materializeDocument,
+  resolveAddress,
+} from "../documents.ts";
+import { StorageRejected } from "../errors.ts";
+import { idFromNumber } from "../ids.ts";
+import type {
+  CommitChange,
+  CommitPublication,
+  ConversationDocFamilyToken,
+  ConversationDocToken,
+  ConversationId,
+  ConversationRecord,
+  DocumentAddress,
+  DocumentCommitChange,
+  DocumentRecord,
+  DocumentState,
+  DocumentWatch,
+  EntryId,
+  JsonObject,
+  RewindableConversationDocFamilyToken,
+  RewindableConversationDocToken,
+  Seq,
+  Session,
+  SessionDocFamilyToken,
+  SessionDocToken,
+  Storage,
+  StorageWrite,
+  TaskDocFamilyToken,
+  TaskDocToken,
+  TaskId,
+  Tx,
+} from "../types.ts";
+import {
+  CommittedStateSource,
+  CommittedWatch,
+  type ObservedDocumentValue,
+  RETIREMENT_OPERATIONS,
+} from "./observation.ts";
+import {
+  type LoadedDocument,
+  Transaction,
+  type TransactionHost,
+  type TransactionScope,
+} from "./transaction.ts";
 
-export interface StorageBackedSessionOptions {
-  mutationLine?: MutationLine;
-  idGenerator?: IdGenerator;
-  onClose?: () => void;
+/** Open a Session kernel over one storage backend. */
+export function createSession(storage: Storage): Session {
+  return new SessionImpl(storage);
 }
 
-/** Durable session state is internally inconsistent and cannot be safely advanced. */
-export class SessionInvariantError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SessionInvariantError";
-  }
-}
+/**
+ * Session kernel: one mutation line, the loaded document tracker cache, and committed publication.
+ *
+ * Only committed state is observable. Every commit callback, preparation, Storage settlement, adoption, and
+ * publication enqueue runs while the line is held; listeners run later.
+ */
+export class SessionImpl implements Session {
+  readonly #storage: Storage;
+  readonly #documents = new Map<string, LoadedDocument>();
+  readonly #commitListeners = new Set<(publication: CommitPublication, context: Context) => void>();
+  readonly #closeListeners = new Set<() => void>();
+  readonly #host: TransactionHost;
+  #tail: Promise<void> = Promise.resolve();
+  #closing: Promise<void> | undefined;
+  #poison: { readonly error: unknown } | undefined;
 
-/** A requested Branch name is invalid. */
-export class SessionInvalidBranchError extends Error {
-  readonly branch: string;
-  readonly reason: string;
-
-  constructor(branch: string, reason: string) {
-    super(`Invalid branch ${JSON.stringify(branch)}: ${reason}`);
-    this.name = "SessionInvalidBranchError";
-    this.branch = branch;
-    this.reason = reason;
-  }
-}
-
-/** A requested branch already exists. */
-export class SessionBranchExistsError extends Error {
-  readonly branch: string;
-
-  constructor(branch: string) {
-    super(`Branch already exists: ${branch}`);
-    this.name = "SessionBranchExistsError";
-    this.branch = branch;
-  }
-}
-
-/** A pending assistant message cannot be persisted as a session entry. */
-export class SessionPendingAssistantMessageError extends Error {
-  constructor() {
-    super("Cannot persist a pending assistant message");
-    this.name = "SessionPendingAssistantMessageError";
-  }
-}
-
-/** A requested session entry target does not exist. */
-export class SessionUnknownTargetError extends Error {
-  readonly targetId: string;
-
-  constructor(targetId: string) {
-    super(`Unknown target: ${targetId}`);
-    this.name = "SessionUnknownTargetError";
-    this.targetId = targetId;
-  }
-}
-
-class StorageBackedSessionMutation implements SessionMutation {
-  private readonly storage: Storage;
-  private readonly release: () => void;
-  private active = true;
-  private commitResult: Promise<CommitResult> | undefined;
-  private endPromise: Promise<void> | undefined;
-
-  constructor(storage: Storage, release: () => void) {
-    this.storage = storage;
-    this.release = release;
-  }
-
-  commit(writes: Write[], context: Context): Promise<CommitResult> {
-    this.assertActive();
-    if (this.commitResult !== undefined)
-      return Promise.reject(new Error("SessionMutator commit already attempted"));
-    try {
-      for (const write of writes) {
-        if (
-          write.kind === "entry" &&
-          write.entry.type === "message" &&
-          write.entry.message.role === "assistant" &&
-          write.entry.message.stopReason === "pending"
-        ) {
-          throw new SessionPendingAssistantMessageError();
-        }
-      }
-      this.commitResult = this.storage.commit(writes, context);
-    } catch (error) {
-      this.commitResult = Promise.reject(error);
-    }
-    return this.commitResult;
-  }
-
-  end(_context: Context): Promise<void> {
-    if (this.endPromise !== undefined) return this.endPromise;
-    this.active = false;
-    this.endPromise = this.settle().finally(this.release);
-    return this.endPromise;
-  }
-
-  getEntries(ids: string[], context: Context): Promise<Map<string, Entry>> {
-    this.assertActive();
-    return this.storage.getEntries(ids, context);
-  }
-
-  getStats(context: Context): Promise<SessionStats> {
-    this.assertActive();
-    return this.storage.getStats(context);
-  }
-
-  getValue<T>(address: Value<T>, context: Context): Promise<StoredValue<T> | undefined> {
-    this.assertActive();
-    return this.storage.getValue(address, context);
-  }
-
-  scanValues<T>(prefix: Value<T>, context: Context): Promise<StoredValue<T>[]> {
-    this.assertActive();
-    return this.storage.scanValues(prefix, context);
-  }
-
-  readList<T>(
-    address: ValueList<T>,
-    options: ListReadOptions | undefined,
-    context: Context,
-  ): Promise<ListElement<T>[]> {
-    this.assertActive();
-    return this.storage.readList(address, options, context);
-  }
-
-  scanBranch(query: StorageBranchScan, context: Context): Promise<Entry[]> {
-    this.assertActive();
-    return this.storage.scanBranch(query, context);
-  }
-
-  private settle(): Promise<void> {
-    return (
-      this.commitResult?.then(
-        () => undefined,
-        () => undefined,
-      ) ?? Promise.resolve()
-    );
-  }
-
-  private assertActive(): void {
-    if (!this.active)
-      throw new Error("SessionMutator cannot be used outside its mutation callback");
-  }
-}
-
-class StorageBackedBranch implements Branch {
-  readonly name: string;
-  private readonly session: StorageBackedSession;
-
-  constructor(name: string, session: StorageBackedSession) {
-    this.name = name;
-    this.session = session;
-  }
-
-  getTipId(context: Context): Promise<string | null> {
-    return this.session.getBranchTip(this.name, context);
-  }
-
-  async findEntries(query: BranchScan | undefined, context: Context): Promise<Entry[]> {
-    query ??= {};
-    const start = query.start ?? (await this.getTipId(context));
-    if (start === null) return [];
-    return this.session.scanBranch(
-      { ...query, start, order: query.order ?? "newestFirst" },
-      context,
-    );
-  }
-
-  async findEntry(query: BranchScan | undefined, context: Context): Promise<Entry | undefined> {
-    query ??= {};
-    return (
-      await this.findEntries(
-        { ...query, limit: query.limit === undefined ? 1 : Math.min(query.limit, 1) },
-        context,
-      )
-    )[0];
-  }
-
-  appendMessage(message: AgentMessage, context: Context): Promise<string> {
-    return this.session.appendToBranch(this.name, { type: "message", message }, context);
-  }
-
-  appendCustomEntry(
-    customType: string,
-    data: JsonValue | undefined,
-    context: Context,
-  ): Promise<string> {
-    return this.session.appendToBranch(
-      this.name,
-      { type: "custom", customType, ...(data === undefined ? {} : { data }) },
-      context,
-    );
-  }
-}
-
-/** Package-internal typed boundary shared by concrete session repositories. */
-export class StorageBackedSession<
-  TMetadata extends SessionMetadata = SessionMetadata,
-> implements Session<TMetadata> {
-  readonly metadata: TMetadata;
-  readonly idGenerator: IdGenerator;
-  private readonly storage: Storage;
-  private readonly mutationLine: MutationLine;
-  private readonly onClose: (() => void) | undefined;
-  private readonly branches = new Map<string, StorageBackedBranch>();
-  private readonly closedError = new Error("Session is closed");
-  private state: "open" | "closing" | "closed" = "open";
-  private closePromise: Promise<void> | undefined;
-
-  constructor(metadata: TMetadata, storage: Storage, options: StorageBackedSessionOptions = {}) {
-    this.metadata = metadata;
-    this.idGenerator = options.idGenerator ?? { next: uuidv7 };
-    this.storage = storage;
-    this.mutationLine = options.mutationLine ?? new MutationLine();
-    this.onClose = options.onClose;
-  }
-
-  async beginMutation(_context: Context): Promise<SessionMutation> {
-    this.assertOpen();
-    let grant!: (mutation: SessionMutation) => void;
-    let rejectGrant!: (error: unknown) => void;
-    const granted = new Promise<SessionMutation>((resolve, reject) => {
-      grant = resolve;
-      rejectGrant = reject;
-    });
-    let release!: () => void;
-    const finished = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const line = this.mutationLine.run(async () => {
-      grant(new StorageBackedSessionMutation(this.storage, release));
-      await finished;
-    });
-    void line.catch(rejectGrant);
-    return granted;
-  }
-
-  async mutate<T>(mutation: SessionMutationCallback<T>, context: Context): Promise<T> {
-    const mutator = await this.beginMutation(context);
-    try {
-      return await mutation(mutator, context);
-    } finally {
-      await mutator.end(context);
-    }
-  }
-
-  async getEntries(ids: string[], context: Context): Promise<Map<string, Entry>> {
-    this.assertOpen();
-    return this.storage.getEntries(ids, context);
-  }
-
-  async getEntry(id: string, context: Context): Promise<Entry | undefined> {
-    return (await this.getEntries([id], context)).get(id);
-  }
-
-  async getValue<T>(address: Value<T>, context: Context): Promise<StoredValue<T> | undefined> {
-    this.assertOpen();
-    return this.storage.getValue(address, context);
-  }
-
-  async scanValues<T>(prefix: Value<T>, context: Context): Promise<StoredValue<T>[]> {
-    this.assertOpen();
-    return this.storage.scanValues(prefix, context);
-  }
-
-  async readList<T>(
-    address: ValueList<T>,
-    options: ListReadOptions | undefined,
-    context: Context,
-  ): Promise<ListElement<T>[]> {
-    this.assertOpen();
-    return this.storage.readList(address, options, context);
-  }
-
-  async scanBranch(query: StorageBranchScan, context: Context): Promise<Entry[]> {
-    this.assertOpen();
-    return this.storage.scanBranch(query, context);
-  }
-
-  async getStats(context: Context): Promise<SessionStats> {
-    this.assertOpen();
-    return this.storage.getStats(context);
-  }
-
-  async getName(context: Context): Promise<string | undefined> {
-    return (await this.getValue(sessionName, context))?.value;
-  }
-
-  async getLabel(targetId: string, context: Context): Promise<string | undefined> {
-    return (await this.getValue(entryLabel(targetId), context))?.value;
-  }
-
-  async findEntries(query: EntryQuery | undefined, context: Context): Promise<Entry[]> {
-    query ??= {};
-    this.assertOpen();
-    const order = query.order ?? "desc";
-    if (query.cursor !== undefined) {
-      if (order === "asc" && query.cursor.seq === Number.MAX_SAFE_INTEGER) return [];
-      if (order === "desc" && query.cursor.seq <= 1) return [];
-    }
-    return this.storage.scanEntries(
-      {
-        type: query.type,
-        customType: query.customType,
-        order,
-        limit: query.limit,
-        ...(query.cursor === undefined
-          ? {}
-          : order === "asc"
-            ? { fromSeq: query.cursor.seq + 1 }
-            : { toSeq: query.cursor.seq - 1 }),
+  constructor(storage: Storage) {
+    this.#storage = storage;
+    this.#host = {
+      storage,
+      cached: (id) => this.#documents.get(id),
+      load: (definition, addressId, address, context) =>
+        this.#loadDocument(definition, addressId, address, context),
+      install: (document) => {
+        this.#documents.set(document.addressId, document);
       },
-      context,
-    );
+      evict: (id, recordId) => {
+        if (this.#documents.get(id)?.record.id === recordId) this.#documents.delete(id);
+      },
+      conversationCreated: (tx, record) => this.conversationCreated(tx, record),
+    };
   }
 
-  async findEntry(query: EntryQuery | undefined, context: Context): Promise<Entry | undefined> {
-    query ??= {};
-    return (
-      await this.findEntries(
-        { ...query, limit: query.limit === undefined ? 1 : Math.min(query.limit, 1) },
-        context,
-      )
-    )[0];
+  commit<T>(change: (tx: Tx) => T | Promise<T>, context: Context): Promise<T> {
+    return this.commitWith(change, context);
   }
 
-  async branch(name: string, context: Context): Promise<Branch | undefined> {
-    this.assertValidBranchName(name);
-    if ((await this.getValue(branchTip(name), context)) === undefined) return undefined;
-    return this.getOrCreateBranchObject(name);
+  /**
+   * Internal commit exposing the concrete transaction and its internal operations, such as the reserved-ID root
+   * bootstrap and task replacement. `scope` sets the default `tx.createTask()` conversation and the task attributed to
+   * appended entries.
+   */
+  commitWith<T>(
+    change: (tx: Transaction) => T | Promise<T>,
+    context: Context,
+    scope?: TransactionScope,
+  ): Promise<T> {
+    try {
+      this.#assertUsable();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    return this.#enqueue(() => this.#runCommit(change, context, scope));
   }
 
-  async createBranch(name: string, at: string | null, context: Context): Promise<Branch> {
-    this.assertOpen();
-    this.assertValidBranchName(name);
-    await this.mutate(async (mutator) => {
-      if ((await mutator.getValue(branchTip(name), context)) !== undefined) {
-        throw new SessionBranchExistsError(name);
+  /** Internal: run a read-only job on the mutation line so multi-read derivations observe one committed state. */
+  readOnLine<T>(job: () => Promise<T>): Promise<T> {
+    try {
+      this.#assertUsable();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    return this.#enqueue(async () => {
+      this.#assertHealthy();
+      return job();
+    });
+  }
+
+  /**
+   * Internal: a conversation document's current incarnation and value, for a job already running on the line (see
+   * `readOnLine()`). Absent documents are `undefined`.
+   */
+  async conversationDocumentOnLine(
+    token: ConversationDocToken<JsonObject>,
+    conversationId: ConversationId,
+    context: Context,
+  ): Promise<
+    | { readonly record: DocumentRecord; readonly version: number; readonly value: JsonObject }
+    | undefined
+  > {
+    const definition = token.definition;
+    const resolved = resolveAddress(definition, [conversationId, context]);
+    const loaded = await this.#loadDocument(definition, resolved.id, resolved.address, context);
+    if (loaded === undefined) return undefined;
+    checkRecordScope(definition, loaded.record);
+    checkRecordVersion(definition, loaded.record, loaded.storedVersion);
+    return { record: loaded.record, version: loaded.valueVersion, value: loaded.tracker.value };
+  }
+
+  snapshot<T extends JsonObject>(
+    token: SessionDocToken<T>,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject>(
+    token: ConversationDocToken<T>,
+    conversationId: ConversationId,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject>(
+    token: TaskDocToken<T>,
+    taskId: TaskId,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(
+    token: SessionDocFamilyToken<T, I>,
+    key: string,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(
+    token: ConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(
+    token: TaskDocFamilyToken<T, I>,
+    taskId: TaskId,
+    key: string,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  async snapshot(token: AnyDocToken, ...args: readonly unknown[]): Promise<JsonObject | undefined> {
+    this.#assertUsable();
+    const definition = token.definition;
+    const resolved = resolveAddress(definition, args);
+    const context = args[resolved.nextArgument] as Context;
+    const cached = this.#documents.get(resolved.id);
+    const loaded =
+      cached?.valueVersion === definition.version
+        ? cached
+        : await this.#enqueue(async () => {
+            this.#assertHealthy();
+            return this.#loadDocument(definition, resolved.id, resolved.address, context);
+          });
+    if (loaded === undefined) return undefined;
+    checkRecordScope(definition, loaded.record);
+    checkRecordVersion(definition, loaded.record, loaded.storedVersion);
+    return loaded.tracker.value;
+  }
+
+  documentState<T extends JsonObject>(
+    token: SessionDocToken<T>,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject>(
+    token: ConversationDocToken<T>,
+    conversationId: ConversationId,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject>(
+    token: TaskDocToken<T>,
+    taskId: TaskId,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(
+    token: SessionDocFamilyToken<T, I>,
+    key: string,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(
+    token: ConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(
+    token: TaskDocFamilyToken<T, I>,
+    taskId: TaskId,
+    key: string,
+    context: Context,
+  ): Promise<DocumentState<T> | undefined>;
+  documentState(
+    token: AnyDocToken,
+    ...args: readonly unknown[]
+  ): Promise<DocumentState<JsonObject> | undefined> {
+    try {
+      this.#assertUsable();
+      const definition = token.definition;
+      const resolved = resolveAddress(definition, args);
+      const context = args[resolved.nextArgument] as Context;
+      return this.#enqueue(async () => {
+        this.#assertHealthy();
+        const loaded = await this.#loadDocument(definition, resolved.id, resolved.address, context);
+        if (loaded === undefined) return undefined;
+        const { observer: source, detach } = this.#attachDocument(
+          definition,
+          loaded,
+          (value, release) => new CommittedStateSource<ObservedDocumentValue>(value, release),
+        );
+        try {
+          return replicatedState(source) as DocumentState<JsonObject>;
+        } catch (error) {
+          detach();
+          throw error;
+        }
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  watchDoc<T extends JsonObject>(
+    token: SessionDocToken<T>,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject>(
+    token: ConversationDocToken<T>,
+    conversationId: ConversationId,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject>(
+    token: TaskDocToken<T>,
+    taskId: TaskId,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(
+    token: SessionDocFamilyToken<T, I>,
+    key: string,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(
+    token: ConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(
+    token: TaskDocFamilyToken<T, I>,
+    taskId: TaskId,
+    key: string,
+    context: Context,
+  ): Promise<DocumentWatch<T> | undefined>;
+  async watchDoc(
+    token: AnyDocToken,
+    ...args: readonly unknown[]
+  ): Promise<DocumentWatch<JsonObject> | undefined> {
+    this.#assertUsable();
+    const definition = token.definition;
+    const resolved = resolveAddress(definition, args);
+    const context = args[resolved.nextArgument] as Context;
+    const signal = context.abortSignal;
+    let cancelled = signal?.aborted ?? false;
+    const markCancelled = (): void => {
+      cancelled = true;
+    };
+    signal?.addEventListener("abort", markCancelled, { once: true });
+    try {
+      const watch = await this.#enqueue(async () => {
+        this.#assertHealthy();
+        if (cancelled) throw cancellationError(signal!);
+        const loaded = await this.#loadDocument(definition, resolved.id, resolved.address, context);
+        if (cancelled) throw cancellationError(signal!);
+        if (loaded === undefined) return undefined;
+        return this.#attachDocument(
+          definition,
+          loaded,
+          (value, release) => new CommittedWatch<ObservedDocumentValue>(value, release),
+        ).observer;
+      });
+      if (watch === undefined) return undefined;
+      if (cancelled) {
+        watch.cancel();
+        throw cancellationError(signal!);
       }
-      if (at !== null && !(await mutator.getEntries([at], context)).has(at)) {
-        throw new SessionUnknownTargetError(at);
+      if (signal !== undefined) watch.observeCancellation(signal);
+      return watch as DocumentWatch<JsonObject>;
+    } finally {
+      signal?.removeEventListener("abort", markCancelled);
+    }
+  }
+
+  snapshotAsOf<T extends JsonObject>(
+    token: RewindableConversationDocToken<T>,
+    conversationId: ConversationId,
+    at: EntryId,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  snapshotAsOf<T extends JsonObject, I extends JsonValue>(
+    token: RewindableConversationDocFamilyToken<T, I>,
+    conversationId: ConversationId,
+    key: string,
+    at: EntryId,
+    context: Context,
+  ): Promise<Readonly<T> | undefined>;
+  async snapshotAsOf(
+    token: AnyDocToken,
+    ...args: readonly unknown[]
+  ): Promise<JsonObject | undefined> {
+    this.#assertUsable();
+    const definition = token.definition;
+    const resolved = resolveAddress(definition, args);
+    if (resolved.address.scope.kind !== "conversation") {
+      throw new TypeError("Session.snapshotAsOf() requires a conversation document");
+    }
+    const conversationId = resolved.address.scope.conversationId;
+    const atValue = args[resolved.nextArgument];
+    if (typeof atValue !== "number" || !Number.isSafeInteger(atValue)) {
+      throw new TypeError("Session.snapshotAsOf() requires an entry ID");
+    }
+    const at = idFromNumber<EntryId>(atValue);
+    const context = args[resolved.nextArgument + 1] as Context;
+    return this.#enqueue(async () => {
+      this.#assertHealthy();
+      const storedEntry = await this.#storage.entry(conversationId, at, context);
+      if (storedEntry === undefined) {
+        throw new Error(`Entry ${at} is not visible from conversation ${conversationId}`);
       }
-      await mutator.commit([setValueWrite(branchTip(name), at)], context);
-    }, context);
-    return this.getOrCreateBranchObject(name);
-  }
-
-  setValue<T>(address: Value<T>, next: NoInfer<T>, context: Context): Promise<void> {
-    return this.mutate(async (mutator) => {
-      await mutator.commit([setValueWrite(address, next)], context);
-    }, context);
-  }
-
-  deleteValue<T>(address: Value<T>, context: Context): Promise<void> {
-    return this.mutate(async (mutator) => {
-      await mutator.commit([deleteValueWrite(address)], context);
-    }, context);
-  }
-
-  appendList<T>(address: ValueList<T>, element: NoInfer<T>, context: Context): Promise<void> {
-    return this.mutate(async (mutator) => {
-      await mutator.commit([appendListWrite(address, element)], context);
-    }, context);
-  }
-
-  deleteList<T>(address: ValueList<T>, context: Context): Promise<void> {
-    return this.mutate(async (mutator) => {
-      await mutator.commit([deleteListWrite(address)], context);
-    }, context);
-  }
-
-  setName(name: string | undefined, context: Context): Promise<void> {
-    return name === undefined
-      ? this.deleteValue(sessionName, context)
-      : this.setValue(sessionName, name, context);
-  }
-
-  setLabel(targetId: string, label: string | undefined, context: Context): Promise<void> {
-    const address = entryLabel(targetId);
-    return label === undefined
-      ? this.deleteValue(address, context)
-      : this.setValue(address, label, context);
+      const address: DocumentAddress = {
+        ...resolved.address,
+        scope: { kind: "conversation", conversationId: storedEntry.entry.conversationId },
+      };
+      const record = await this.#storage.findDocument(address, storedEntry.commitSeq, context);
+      if (record === undefined) return undefined;
+      const stored = await this.#storage.document(record.id, storedEntry.commitSeq, context);
+      if (stored === undefined) {
+        throw new Error(`Historical document ${record.id} (${record.kind}) cannot be read`);
+      }
+      return materializeDocument(definition, stored);
+    });
   }
 
   close(context: Context): Promise<void> {
-    if (this.closePromise !== undefined) return this.closePromise;
-    this.state = "closing";
-    this.closePromise = this.mutationLine
-      .seal(this.closedError)
-      .then(() => this.storage.close(context))
-      .finally(() => {
-        this.state = "closed";
-        this.onClose?.();
-      });
-    return this.closePromise;
+    if (this.#closing === undefined) {
+      const cleanup = withoutAbortSignal(context);
+      // Seal admission before anything else runs, then stop observers; admitted work settles before Storage closes.
+      this.#closing = Promise.resolve()
+        .then(() => this.beforeClose())
+        .then(() =>
+          this.#enqueue(async () => {
+            this.#commitListeners.clear();
+            this.#documents.clear();
+            await this.#storage.close(cleanup);
+          }),
+        );
+      const listeners = [...this.#closeListeners];
+      this.#closeListeners.clear();
+      for (const listener of listeners) listener();
+    }
+    return awaitWithContext(this.#closing, context);
   }
 
-  async getBranchTip(name: string, context: Context): Promise<string | null> {
-    const stored = await this.getValue(branchTip(name), context);
-    if (stored === undefined) throw new SessionInvariantError(`Unknown branch: ${name}`);
-    return stored.value;
+  /**
+   * Runs inside every transaction that creates or forks a conversation, after the conversation record is staged. A
+   * plain Session stages nothing; a Harness stages its built-in documents.
+   */
+  protected conversationCreated(_tx: Transaction, _record: ConversationRecord): Promise<void> {
+    return Promise.resolve();
   }
 
-  async appendToBranch(
-    name: string,
-    entry:
-      | { type: "message"; message: AgentMessage }
-      | { type: "custom"; customType: string; data?: JsonValue },
+  /** Runs after close seals admission and before the line closes Storage; must not reject. */
+  protected beforeClose(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  /** Register a synchronous post-adoption listener. It must not throw, block, or call Session operations. */
+  subscribeCommits(
+    listener: (publication: CommitPublication, context: Context) => void,
+  ): () => void {
+    this.#assertUsable();
+    this.#commitListeners.add(listener);
+    return () => this.#commitListeners.delete(listener);
+  }
+
+  /** Register a listener called synchronously when close begins. It must not throw, block, or call Session operations. */
+  subscribeClose(listener: () => void): () => void {
+    this.#assertUsable();
+    this.#closeListeners.add(listener);
+    return () => this.#closeListeners.delete(listener);
+  }
+
+  /** Drop every loaded tracker on the mutation line; later access cold-loads from Storage. */
+  unloadDocuments(): Promise<void> {
+    return this.#enqueue(async () => {
+      this.#documents.clear();
+    });
+  }
+
+  async #runCommit<T>(
+    change: (tx: Transaction) => T | Promise<T>,
     context: Context,
-  ): Promise<string> {
-    this.assertOpen();
-    if (
-      entry.type === "message" &&
-      entry.message.role === "assistant" &&
-      entry.message.stopReason === "pending"
-    ) {
-      throw new SessionPendingAssistantMessageError();
+    scope?: TransactionScope,
+  ): Promise<T> {
+    this.#assertHealthy();
+    context.abortSignal?.throwIfAborted();
+    const tx = new Transaction(this.#host, context, scope);
+    let result: T;
+    try {
+      result = await change(tx);
+    } catch (error) {
+      await tx.settleFailure();
+      throw error;
     }
-    const id = this.idGenerator.next();
-    await this.mutate(async (mutator) => {
-      const tip = await mutator.getValue(branchTip(name), context);
-      if (tip === undefined) throw new SessionInvariantError(`Unknown branch: ${name}`);
-      await mutator.commit(
-        [
-          insertEntry(
-            entry.type === "message"
-              ? { id, parentId: tip.value, type: "message", message: entry.message }
-              : {
-                  id,
-                  parentId: tip.value,
-                  type: "custom",
-                  customType: entry.customType,
-                  ...(entry.data === undefined ? {} : { data: entry.data }),
-                },
-          ),
-          setValueWrite(branchTip(name), id),
-        ],
-        context,
-      );
-    }, context);
-    return id;
+    const writes = await tx.settleSuccess();
+    if (writes.length === 0) {
+      tx.discard();
+      return result;
+    }
+    let seq: Seq;
+    try {
+      // Once admitted, caller cancellation does not interrupt Storage settlement.
+      seq = await this.#storage.commit(writes, withoutAbortSignal(context));
+    } catch (error) {
+      tx.discard();
+      // Callback errors never reach this branch; StorageRejected alone guarantees that no batch effect committed.
+      if (!(error instanceof StorageRejected)) this.#poison = { error };
+      throw error;
+    }
+    let documents: DocumentCommitChange[];
+    try {
+      documents = tx.adopt(seq);
+    } catch (error) {
+      // Storage already committed; a failed adoption leaves memory behind durable state.
+      this.#poison = { error };
+      throw error;
+    }
+    this.#publish(seq, writes, documents, context);
+    return result;
   }
 
-  private getOrCreateBranchObject(name: string): Branch {
-    let branch = this.branches.get(name);
-    if (branch === undefined) {
-      branch = new StorageBackedBranch(name, this);
-      this.branches.set(name, branch);
+  #publish(
+    seq: Seq,
+    writes: readonly StorageWrite[],
+    documents: readonly DocumentCommitChange[],
+    context: Context,
+  ): void {
+    if (this.#commitListeners.size === 0) return;
+    const changes: CommitChange[] = [];
+    for (const write of writes) {
+      switch (write.type) {
+        case "conversation":
+        case "entry":
+        case "task":
+        case "submission":
+          changes.push(write);
+      }
     }
-    return branch;
+    for (const document of documents) changes.push(document);
+    const publication: CommitPublication = { seq, changes };
+    for (const listener of [...this.#commitListeners]) listener(publication, context);
   }
 
-  private assertValidBranchName(name: string): void {
-    if (name.length === 0)
-      throw new SessionInvalidBranchError(name, "branch name must not be empty");
-    if (name.includes("\u0000")) {
-      throw new SessionInvalidBranchError(name, "branch name must not contain \\u0000");
-    }
+  /**
+   * Attach an observer to one committed incarnation: check the definition, then forward this incarnation's committed
+   * changes and close. `detach` removes both subscriptions.
+   */
+  #attachDocument<O extends CommittedStateSource | CommittedWatch>(
+    definition: AnyDocToken["definition"],
+    loaded: LoadedDocument,
+    create: (value: JsonObject, detach: () => void) => O,
+  ): { observer: O; detach: () => void } {
+    checkRecordScope(definition, loaded.record);
+    checkRecordVersion(definition, loaded.record, loaded.storedVersion);
+    let unsubscribeCommit = (): void => {};
+    let unsubscribeClose = (): void => {};
+    const detach = (): void => {
+      unsubscribeCommit();
+      unsubscribeClose();
+    };
+    const observer = create(loaded.tracker.value, detach);
+    const observed = { version: loaded.valueVersion };
+    unsubscribeCommit = this.subscribeCommits((publication, context) => {
+      for (const change of publication.changes) {
+        if (change.type !== "document" || change.record.id !== loaded.record.id) continue;
+        // A document state's frames carry no caller cancellation; a watch observes its own cancellation.
+        const frameContext =
+          observer instanceof CommittedStateSource ? withoutAbortSignal(context) : context;
+        const ops = observedOperations(observed, change);
+        // A migration-only base changes nothing for an observer of the new version.
+        if (ops.length === 0) continue;
+        observer.advance(change.value, ops, frameContext);
+      }
+    });
+    unsubscribeClose = this.subscribeClose(() => observer.closeSession());
+    return { observer, detach };
   }
 
-  private assertOpen(): void {
-    if (this.state !== "open") throw this.closedError;
+  async #loadDocument(
+    definition: AnyDocToken["definition"],
+    addressId: string,
+    address: DocumentAddress,
+    context: Context,
+  ): Promise<LoadedDocument | undefined> {
+    const cached = this.#documents.get(addressId);
+    // A tracker serves only tokens of the version its value was materialized for; others reload from Storage.
+    if (cached?.valueVersion === definition.version) return cached;
+    if (cached !== undefined) this.#documents.delete(addressId);
+    const record = await this.#storage.findDocument(address, "current", context);
+    if (record === undefined) return undefined;
+    const stored = await this.#storage.document(record.id, "current", context);
+    if (stored === undefined)
+      throw new Error(`Current document ${record.id} (${record.kind}) cannot be read`);
+    const value = materializeDocument(definition, stored);
+    const loaded: LoadedDocument = {
+      addressId,
+      record: stored.record,
+      storedVersion: stored.version,
+      valueVersion: definition.version,
+      deltasSinceBase: stored.deltasSinceBase,
+      tracker: track(value),
+    };
+    this.#documents.set(addressId, loaded);
+    return loaded;
   }
+
+  #enqueue<T>(job: () => Promise<T>): Promise<T> {
+    const run = this.#tail.then(job);
+    this.#tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  #assertUsable(): void {
+    if (this.#closing !== undefined) throw new Error("Session is closed");
+    this.#assertHealthy();
+  }
+
+  #assertHealthy(): void {
+    if (this.#poison !== undefined) {
+      throw new Error("Session is poisoned by a failed commit after storage admission; reopen it", {
+        cause: this.#poison.error,
+      });
+    }
+  }
+}
+
+/**
+ * Operations an observer applies for one committed change. An observer hydrated under another definition version holds
+ * a differently shaped value, so it receives the new value as a root replacement instead of operations for that shape.
+ */
+function observedOperations(
+  observed: { version: number },
+  change: Extract<DocumentCommitChange, { readonly type: "document" }>,
+): readonly Op[] {
+  if (change.value === null) return RETIREMENT_OPERATIONS;
+  if (change.version === observed.version) return change.ops;
+  observed.version = change.version!;
+  return [["r", change.value]];
+}
+
+function cancellationError(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException("The operation was aborted", "AbortError");
 }

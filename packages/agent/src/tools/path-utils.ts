@@ -1,6 +1,5 @@
-import type { Context } from "../context.ts";
-import type { ExecutionEnv } from "../types.ts";
-import { getOrThrow } from "../types.ts";
+import type { Context } from "@earendil-works/chord";
+import { type ExecutionEnv, getOrThrow } from "../env/index.ts";
 
 const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 const NARROW_NO_BREAK_SPACE = "\u202F";

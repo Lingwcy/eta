@@ -1,5 +1,7 @@
 import { type Static, Type } from "typebox";
-import type { AgentHarnessTool, FileError } from "../types.ts";
+import type { FileError } from "../env/index.ts";
+import { defineTool } from "../harness/define.ts";
+import type { ToolRegistration } from "../harness/types.ts";
 import {
   applyEditsToNormalizedContent,
   detectLineEnding,
@@ -10,31 +12,25 @@ import {
   restoreLineEndings,
   stripBom,
 } from "./edit-diff.ts";
+import { requireEnv } from "./env.ts";
 import { withFileMutationQueue } from "./file-mutation-queue.ts";
 import { resolveToolPath } from "./path-utils.ts";
-import type { ExecutionToolContext } from "./tool-context.ts";
 
-const replaceEditSchema = Type.Object(
-  {
-    oldText: Type.String({
-      description:
-        "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.",
-    }),
-    newText: Type.String({ description: "Replacement text for this targeted edit." }),
-  },
-  {},
-);
+const replaceEditSchema = Type.Object({
+  oldText: Type.String({
+    description:
+      "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.",
+  }),
+  newText: Type.String({ description: "Replacement text for this targeted edit." }),
+});
 
-const editSchema = Type.Object(
-  {
-    path: Type.String({ description: "Path to the file to edit (relative or absolute)" }),
-    edits: Type.Array(replaceEditSchema, {
-      description:
-        "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
-    }),
-  },
-  {},
-);
+const editSchema = Type.Object({
+  path: Type.String({ description: "Path to the file to edit (relative or absolute)" }),
+  edits: Type.Array(replaceEditSchema, {
+    description:
+      "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
+  }),
+});
 
 export type EditToolInput = Static<typeof editSchema>;
 type LegacyEditToolInput = EditToolInput & { oldText?: unknown; newText?: unknown };
@@ -46,15 +42,13 @@ function isSingleEditInput(value: unknown): value is SingleEditInput {
   return typeof edit.oldText === "string" && typeof edit.newText === "string";
 }
 
-export interface EditToolDetails {
-  diff: string;
-  patch: string;
-  firstChangedLine?: number;
-}
-
+/**
+ * Repair shapes models commonly send: `edits` as a JSON string or as a single edit object, and a top-level
+ * `oldText`/`newText` pair. Works on a copy; the call's arguments stay unchanged.
+ */
 function prepareEditArguments(input: unknown): EditToolInput {
-  if (!input || typeof input !== "object") return input as EditToolInput;
-  const args = input as Record<string, unknown>;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input as EditToolInput;
+  const args: Record<string, unknown> = { ...input };
   if (typeof args.edits === "string") {
     try {
       const parsed: unknown = JSON.parse(args.edits);
@@ -69,13 +63,18 @@ function prepareEditArguments(input: unknown): EditToolInput {
   }
 
   const legacy = args as LegacyEditToolInput;
-  if (typeof legacy.oldText !== "string" || typeof legacy.newText !== "string")
-    return args as EditToolInput;
+  if (typeof legacy.oldText !== "string" || typeof legacy.newText !== "string") return legacy;
   const edits = Array.isArray(legacy.edits) ? [...legacy.edits] : [];
   edits.push({ oldText: legacy.oldText, newText: legacy.newText });
   const { oldText: _oldText, newText: _newText, ...rest } = legacy;
-  return { ...rest, edits } as EditToolInput;
+  return { ...rest, edits };
 }
+
+export type EditToolDetails = {
+  diff: string;
+  patch: string;
+  firstChangedLine?: number;
+};
 
 function validateEditInput(input: EditToolInput): { path: string; edits: Edit[] } {
   if (!Array.isArray(input.edits) || input.edits.length === 0) {
@@ -88,18 +87,16 @@ function editAccessError(path: string, error: FileError): Error {
   return new Error(`Could not edit file: ${path}. Error code: ${error.code}.`, { cause: error });
 }
 
-export function createEditTool<
-  TContext extends ExecutionToolContext = ExecutionToolContext,
->(): AgentHarnessTool<TContext, typeof editSchema, EditToolDetails | undefined> {
-  return {
+export function createEditTool(): ToolRegistration<typeof editSchema, EditToolDetails> {
+  return defineTool({
     name: "edit",
-    label: "edit",
     description:
       "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
     parameters: editSchema,
     prepareArguments: prepareEditArguments,
-    async execute(_toolCallId, input, _onUpdate, { env }, _invocation, context) {
-      const { path, edits } = validateEditInput(input);
+    async execute(args, api, context) {
+      const { path, edits } = validateEditInput(args);
+      const env = requireEnv(api);
       const absolutePath = await resolveToolPath(env, path, context);
       return withFileMutationQueue(
         env,
@@ -132,19 +129,22 @@ export function createEditTool<
           if (context.abortSignal?.aborted) throw new Error("Operation aborted");
 
           const diffResult = generateDiffString(baseContent, newContent);
+          const details: EditToolDetails = {
+            diff: diffResult.diff,
+            patch: generateUnifiedPatch(path, baseContent, newContent),
+            ...(diffResult.firstChangedLine === undefined
+              ? {}
+              : { firstChangedLine: diffResult.firstChangedLine }),
+          };
           return {
             content: [
               { type: "text", text: `Successfully replaced ${edits.length} block(s) in ${path}.` },
             ],
-            details: {
-              diff: diffResult.diff,
-              patch: generateUnifiedPatch(path, baseContent, newContent),
-              firstChangedLine: diffResult.firstChangedLine,
-            },
+            details,
           };
         },
         context,
       );
     },
-  };
+  });
 }

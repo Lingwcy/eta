@@ -1,4 +1,4 @@
-import type { OperationAdmission } from "@eta/agent";
+import type { OperationAdmission } from "./agent/protocol.ts";
 import type { SessionResponse, SnapshotResponse } from "./agent/protocol.ts";
 
 export type AgentEvent =
