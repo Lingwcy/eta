@@ -25,5 +25,8 @@ export default defineConfig({
   },
   run: {
     cache: true,
+    tasks: {
+      "sync:agent": { command: "node scripts/sync-agent.ts", cache: false },
+    },
   },
 });
