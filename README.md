@@ -1,37 +1,40 @@
-# Eta
+<p align="center">
+  <img src="apps/desktop/renderer/public/eta-icon.png" width="96" height="96" alt="Eta logo" />
+</p>
+<h1 align="center">Eta</h1>
+<p align="center">A general-purpose agent for your desktop.</p>
+<p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
 
-Eta is a desktop application. Electron's main process owns agent execution, credentials and in-memory sessions; the React renderer reaches it through a narrow preload bridge.
+Eta is a desktop agent for working with files, understanding images, and turning natural-language instructions into actions. Our goal is to make one agent useful across everyday tasks, from exploring a codebase to organizing a workspace.
 
-Start the desktop application with renderer hot reload:
+## What you can do
 
-```sh
-vp run dev
-```
+- **Choose your model.** Connect an AI account or bring your own API key.
+- **Give it context.** Work in a local project and attach images for vision-capable models.
+- **Let it act.** Read, write, and edit files or run commands. Enable only the tools you want.
+- **Keep your work.** Return to saved conversations and continue where you left off.
 
-Build and launch the desktop client from compiled files:
+## Get started
 
-```sh
-vp run build:desktop
-node apps/desktop/scripts/start.mjs
-```
+1. Connect a model in Settings.
+2. Start a new chat and select a project folder.
+3. Describe your task. Attach pictures through `@image-path`, or paste and drag them in.
 
-The app reads model defaults from `~/.pi/agent/settings.json` and credentials from `~/.pi/agent/auth.json`. Provider environment variables can be configured in the repository's `.env` or `apps/desktop/.env`. Model defaults apply to new sessions.
+Use **Settings → Permissions** to control image reading and **Settings → Tools** to enable or disable built-in tools. External tools are not available yet.
 
-Projects, threads, settings and refreshed OAuth credentials are saved in Electron's application data directory. Packaged builds do not load the repository's `.env` files.
+## Run locally
 
-Attach pictures with the paperclip button, paste a screenshot, drag an image into the composer, or include `@./screenshot.png` in your message. Quote image paths containing spaces, for example `@"./my screenshot.png"`. Select a project before sending a new chat; attaching pictures alone does not create a thread. Pictures stay in the saved conversation. Text-only models receive a placeholder instead of image content; switching to a vision model lets it read pictures still in the active context. Settings → Permissions → Image reading can disable image reading without removing attachments.
-
-Settings → Tools lets you enable or disable each built-in tool for all projects. Changes apply when starting or resuming a run; work already in progress is not interrupted. External tools are not available yet.
-
-Build a macOS installer on a Mac:
+Install [Vite+](https://viteplus.dev/guide/), then run:
 
 ```sh
 vp install
+vp run dev
+```
+
+To build a macOS installer:
+
+```sh
 vp run package:mac
 ```
 
-The DMG is written to `apps/desktop/dist/release/`. Open it and drag Eta into Applications. The default build uses an ad-hoc signature for local testing; macOS may require approval under System Settings → Privacy & Security when installing a downloaded copy. Build a specific architecture with `vp run package:mac --arm64` or `vp run package:mac --x64`. The manual **macOS installer** GitHub Actions workflow builds both architectures and uploads DMGs as workflow artifacts. Enable its `signed` option after configuring the Apple secrets below to build signed, notarized installers.
-
-For public distribution, set `ETA_SIGNED_RELEASE=1` and provide a Developer ID Application certificate via `CSC_LINK` and `CSC_KEY_PASSWORD`, plus notarization credentials via `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`. Then run the same packaging command. Signed release builds require a valid signing identity and Apple notarization; they fail instead of silently producing an unsigned release. Keep these credentials in the environment or CI secrets, never in the repository.
-
-Agent source lives in `packages/agent` and tracks upstream Pi durable through Git subtree. See [upstream synchronization](scripts/agent-upstream.md) for updates and conflict recovery.
+The `.dmg` is saved to `apps/desktop/dist/release/`.
