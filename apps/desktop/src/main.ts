@@ -191,7 +191,7 @@ if (!app.requestSingleInstanceLock()) {
     .whenReady()
     .then(async () => {
       app.dock?.setIcon(applicationIconPath());
-      const root = resolve(app.getAppPath(), "../..");
+      const root = app.isPackaged ? app.getAppPath() : resolve(app.getAppPath(), "../..");
       const cwd = process.env.ETA_WORKSPACE ?? (app.isPackaged ? app.getPath("home") : root);
       agentService = await createDesktopApplication(root, cwd, app.getPath("userData"), (url) =>
         shell.openExternal(url),

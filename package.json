@@ -9,6 +9,7 @@
     "sync:repos": "node scripts/sync-reference-repos.ts",
     "sync:agent": "node scripts/sync-agent.ts",
     "build:desktop": "vp run @eta/desktop#build",
+    "package:mac": "vp run --no-cache @eta/desktop#package:mac",
     "dev": "vp run --no-cache @eta/desktop#build:electron && vp run @eta/desktop#dev"
   },
   "devDependencies": {
