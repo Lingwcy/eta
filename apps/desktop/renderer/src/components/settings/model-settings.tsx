@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { SettingsRow, SettingsSection } from "./settings-section";
 import { Select } from "@/components/ui/select";
 
 interface Props {
@@ -30,9 +30,11 @@ export function ModelSettings(props: Props) {
   );
   const model = props.library.models.find((model) => `${model.provider}/${model.id}` === modelKey);
   return (
-    <div className="flex flex-col gap-4">
-      <Field label="可用模型">
+    <SettingsSection title="模型与会话">
+      <SettingsRow title="可用模型" description="选择 Agent 使用的模型">
         <Select
+          size="compact"
+          label="可用模型"
           value={modelKey}
           onValueChange={setModelKey}
           disabled={props.busy}
@@ -42,16 +44,21 @@ export function ModelSettings(props: Props) {
             label: `${model.provider} / ${model.name}`,
           }))}
         />
-      </Field>
-      <Field label="思考级别">
+      </SettingsRow>
+      <SettingsRow title="思考级别" description="模型思考时使用的推理级别">
         <Select
+          size="compact"
+          label="思考级别"
           value={thinking}
           onValueChange={setThinking}
           disabled={props.busy}
           options={thinkingOptions}
         />
-      </Field>
-      <div className="flex flex-wrap gap-2">
+      </SettingsRow>
+      <SettingsRow
+        title="应用设置"
+        description="默认设置只影响新会话。当前会话运行或等待恢复时不能修改模型。"
+      >
         <Button
           size="sm"
           disabled={props.busy || !model}
@@ -88,10 +95,7 @@ export function ModelSettings(props: Props) {
         >
           应用到当前会话
         </Button>
-      </div>
-      <p className="text-xs/5 text-neutral-500">
-        默认设置只影响新会话。当前会话运行或等待恢复时不能修改模型。
-      </p>
-    </div>
+      </SettingsRow>
+    </SettingsSection>
   );
 }

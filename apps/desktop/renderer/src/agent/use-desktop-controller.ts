@@ -34,7 +34,9 @@ export function useDesktopController() {
     snapshot?.blockedReason ??
     (!operation ? snapshot?.lastResult?.error?.message : undefined) ??
     (snapshot?.faulted ? "Agent 已发生错误，请新建会话。" : undefined);
-  const openSettings = () => setSettingsOpen(true);
+  const openSettings = () => {
+    setSettingsOpen(true);
+  };
   const newThread = () => void desktop.newThread();
   const chooseProject = () => void desktop.chooseProject();
   const threadId = desktop.threadId;
@@ -186,6 +188,7 @@ export function useDesktopController() {
       settingsOpen && desktop.library
         ? {
             library: desktop.library,
+            onChooseProject: chooseProject,
             threadId,
             busy: desktop.busy,
             act: desktop.act,

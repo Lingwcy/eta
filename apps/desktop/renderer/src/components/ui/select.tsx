@@ -1,5 +1,6 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { Check, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SelectProps<T extends string> {
   value: T;
@@ -7,6 +8,8 @@ interface SelectProps<T extends string> {
   onValueChange: (value: T) => void;
   placeholder?: string;
   disabled?: boolean;
+  size?: "default" | "compact";
+  label?: string;
 }
 
 export function Select<T extends string>({
@@ -15,6 +18,8 @@ export function Select<T extends string>({
   onValueChange,
   placeholder,
   disabled,
+  size = "default",
+  label,
 }: SelectProps<T>) {
   return (
     <BaseSelect.Root
@@ -25,7 +30,13 @@ export function Select<T extends string>({
       }}
       disabled={disabled}
     >
-      <BaseSelect.Trigger className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm text-neutral-800 outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-50">
+      <BaseSelect.Trigger
+        aria-label={label}
+        className={cn(
+          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm text-neutral-800 outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-50",
+          size === "compact" && "w-auto rounded-[10px] px-3 py-1 text-[13px]",
+        )}
+      >
         <BaseSelect.Value placeholder={placeholder} className="truncate" />
         <BaseSelect.Icon>
           <ChevronDown size={15} />

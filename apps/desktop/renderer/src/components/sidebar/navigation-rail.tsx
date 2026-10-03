@@ -6,20 +6,29 @@ interface Props {
   archived: boolean;
   busy: boolean;
   onHome: () => void;
-  onArchive: () => void;
+  onArchive?: () => void;
+  settingsActive?: boolean;
   onChoose: () => void;
   onSettings: () => void;
 }
-export function NavigationRail({ archived, busy, onHome, onArchive, onChoose, onSettings }: Props) {
+export function NavigationRail({
+  archived,
+  busy,
+  onHome,
+  onArchive,
+  onChoose,
+  onSettings,
+  settingsActive = false,
+}: Props) {
   return (
     <nav className="flex w-[50px] shrink-0 flex-col items-center gap-3 py-2" aria-label="主导航">
       <Button
         variant="ghost-muted"
         size="icon"
-        selected={!archived}
+        selected={!archived && !settingsActive}
         title="项目与会话"
         aria-label="项目与会话"
-        aria-pressed={!archived}
+        aria-pressed={!archived && !settingsActive}
         onClick={onHome}
       >
         <Home size={21} aria-hidden="true" />
@@ -27,10 +36,11 @@ export function NavigationRail({ archived, busy, onHome, onArchive, onChoose, on
       <Button
         variant="ghost-muted"
         size="icon"
-        selected={archived}
+        selected={archived && !settingsActive}
         title="已归档会话"
         aria-label="已归档会话"
-        aria-pressed={archived}
+        aria-pressed={archived && !settingsActive}
+        disabled={!onArchive}
         onClick={onArchive}
       >
         <Archive size={20} aria-hidden="true" />
@@ -51,6 +61,8 @@ export function NavigationRail({ archived, busy, onHome, onArchive, onChoose, on
         size="icon"
         title="设置 / 模型与认证"
         aria-label="设置 / 模型与认证"
+        selected={settingsActive}
+        aria-pressed={settingsActive}
         onClick={onSettings}
       >
         <Settings2 size={21} aria-hidden="true" />

@@ -20,28 +20,30 @@ export function App() {
   const view = useDesktopController();
   return (
     <>
-      <DesktopLayout
-        collapsed={view.collapsed}
-        toolbar={<WindowToolbar {...view.toolbar} />}
-        sidebar={<DesktopSidebar {...view.sidebar} />}
-      >
-        {view.threadHeader && <ThreadHeader {...view.threadHeader} />}
-        <ChatTranscript key={view.transcriptKey} {...view.transcript}>
-          {view.welcome && <ChatWelcome {...view.welcome} />}
-          {view.failure && <Alert>{view.failure}</Alert>}
-          {view.recovery && <RecoveryNotice {...view.recovery} />}
-          {view.stopped && <output className="text-xs text-neutral-500">已停止生成</output>}
-        </ChatTranscript>
-        <div className="mx-auto w-full max-w-[780px] shrink-0 px-4 pb-4 min-[901px]:px-6 min-[1600px]:max-w-[880px]">
-          {view.thinking && (
-            <div className="px-3 py-1">
-              <AgentThinking {...view.thinking} />
-            </div>
-          )}
-          <ComposerContext {...view.composerContext} />
-          <CompositeInput key={view.composerKey} {...view.composer} />
-        </div>
-      </DesktopLayout>
+      <div hidden={!!view.settings}>
+        <DesktopLayout
+          collapsed={view.collapsed}
+          toolbar={<WindowToolbar {...view.toolbar} />}
+          sidebar={<DesktopSidebar {...view.sidebar} />}
+        >
+          {view.threadHeader && <ThreadHeader {...view.threadHeader} />}
+          <ChatTranscript key={view.transcriptKey} {...view.transcript}>
+            {view.welcome && <ChatWelcome {...view.welcome} />}
+            {view.failure && <Alert>{view.failure}</Alert>}
+            {view.recovery && <RecoveryNotice {...view.recovery} />}
+            {view.stopped && <output className="text-xs text-neutral-500">已停止生成</output>}
+          </ChatTranscript>
+          <div className="mx-auto w-full max-w-[780px] shrink-0 px-4 pb-4 min-[901px]:px-6 min-[1600px]:max-w-[880px]">
+            {view.thinking && (
+              <div className="px-3 py-1">
+                <AgentThinking {...view.thinking} />
+              </div>
+            )}
+            <ComposerContext {...view.composerContext} />
+            <CompositeInput key={view.composerKey} {...view.composer} />
+          </div>
+        </DesktopLayout>
+      </div>
       <Suspense fallback={null}>{view.settings && <DesktopSettings {...view.settings} />}</Suspense>
     </>
   );
