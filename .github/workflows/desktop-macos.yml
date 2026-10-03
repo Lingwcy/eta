@@ -26,10 +26,18 @@ jobs:
           cache: true
       - name: Install dependencies
         run: vp install --frozen-lockfile
-      - name: Build installer
+      - name: Verify signing configuration
+        run: vp run @eta/desktop#test:packaging
+      - name: Build local test installer
+        if: ${{ !inputs.signed }}
         run: vp run --no-cache @eta/desktop#package:mac --${{ matrix.arch }}
         env:
-          ETA_SIGNED_RELEASE: ${{ inputs.signed && '1' || '0' }}
+          ETA_SIGNED_RELEASE: "0"
+      - name: Build signed and notarized installer
+        if: ${{ inputs.signed }}
+        run: vp run --no-cache @eta/desktop#package:mac --${{ matrix.arch }}
+        env:
+          ETA_SIGNED_RELEASE: "1"
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}

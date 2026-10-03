@@ -1,4 +1,14 @@
 const signedRelease = process.env.ETA_SIGNED_RELEASE === "1";
+// GitHub Actions supplies missing secrets as empty strings, which builder treats as file paths.
+for (const name of [
+  "CSC_LINK",
+  "CSC_KEY_PASSWORD",
+  "APPLE_ID",
+  "APPLE_APP_SPECIFIC_PASSWORD",
+  "APPLE_TEAM_ID",
+]) {
+  if (!signedRelease || !process.env[name]?.trim()) delete process.env[name];
+}
 if (signedRelease) {
   for (const name of ["APPLE_ID", "APPLE_APP_SPECIFIC_PASSWORD", "APPLE_TEAM_ID"]) {
     if (!process.env[name]) throw new Error(`Signed releases require ${name} for notarization.`);
