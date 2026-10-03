@@ -1,3 +1,4 @@
+import { ToolSettings } from "./settings/tool-settings";
 import { PermissionSettings } from "./settings/permission-settings";
 import { useEffect, useState } from "react";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
@@ -85,6 +86,17 @@ export function DesktopSettings(props: Props) {
                       onAllowImagesChange={(allowed) =>
                         void props.act(async () => {
                           await window.eta.updateSettings({ blockImages: !allowed });
+                          await props.refresh();
+                        })
+                      }
+                    />
+                  ) : item.id === "tools" ? (
+                    <ToolSettings
+                      disabledTools={props.library.settings.disabledTools ?? []}
+                      busy={props.busy}
+                      onChange={(disabledTools) =>
+                        void props.act(async () => {
+                          await window.eta.updateSettings({ disabledTools });
                           await props.refresh();
                         })
                       }

@@ -140,6 +140,7 @@ export class RunSupervisorService extends Context.Service<
               message: "请先恢复或停止未完成任务",
             });
           yield* ready(runtime);
+          yield* adapter("无法更新工具配置", runtime.refreshTools);
           const agent = yield* adapter("无法读取图片模型限制", () =>
             runtime.conversation.agent(BACKGROUND_CONTEXT),
           );
@@ -198,6 +199,7 @@ export class RunSupervisorService extends Context.Service<
         }, Effect.uninterruptible),
         resume: Effect.fn("RunSupervisorService.resume")(function* (runtime: ThreadRuntime) {
           yield* ready(runtime);
+          yield* adapter("无法更新工具配置", runtime.refreshTools);
           yield* adapter("无法恢复任务", async () => {
             claim(runtime);
             runtime.recoveryRequired = false;
@@ -225,6 +227,7 @@ export class RunSupervisorService extends Context.Service<
               message: "请先处理未完成任务",
             });
           yield* ready(runtime);
+          yield* adapter("无法更新工具配置", runtime.refreshTools);
           yield* adapter("无法压缩上下文", async () => {
             claim(runtime);
             try {

@@ -15,6 +15,11 @@ test.each([
   { type: "login-answer", id: "id", promptId: "prompt", value: { key: "do-not-echo-this-secret" } },
   { type: "logout", provider: "openai", method: "wrong" },
   { type: "login-cancel", id: "" },
+  { type: "settings", patch: { disabledTools: ["unknown-tool"] } },
+  { type: "settings", patch: { disabledTools: "bash" } },
+  { type: "submit", id: "thread", prompt: "Hello", requestId: "id", images: null },
+  { type: "submit", id: "thread", prompt: "Hello", requestId: "id", images: "not-an-array" },
+  { type: "prepare-image", source: { path: "shot.png" }, provider: 123 },
   { type: "not-a-command" },
 ])(
   "untrusted command payloads fail before reaching application services: $type",
@@ -35,4 +40,25 @@ test("domain error codes and retryability survive Electron's JSON boundary", asy
     ok: false,
     error: { code: "Busy", message: "工作区正在运行", retryable: true },
   });
+});
+
+test("image preparation accepts Electron's undefined optional fields and returns a real image block", async () => {
+  const { processImage } = await import("./platform/images.ts");
+  const data =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==";
+  const application = {
+    prepareImage: async (source: { data: string; name: string }) =>
+      processImage(Buffer.from(source.data, "base64"), source.name),
+  } as DesktopApplication;
+  const image = await dispatchCommand(
+    application,
+    structuredClone({
+      type: "prepare-image",
+      source: { data, name: "clipboard.png" },
+      cwd: undefined,
+      provider: undefined,
+      modelId: undefined,
+    }),
+  );
+  expect(image).toMatchObject({ type: "image", mimeType: "image/png", data });
 });

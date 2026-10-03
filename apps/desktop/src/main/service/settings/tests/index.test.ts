@@ -81,3 +81,22 @@ test.each(["{", '{"version":2,"settings":{}}'])(
     expect(await readFile(path, "utf8")).toBe(content);
   },
 );
+
+test("tool toggles persist across restart and can be restored without losing other settings", async () => {
+  const { runtime, settings, open } = await setup();
+  await runtime.runPromise(
+    settings.update({ disabledTools: ["bash", "write"], blockImages: true }),
+  );
+  await runtime.dispose();
+  const next = open();
+  const reopened = await next.runPromise(DesktopSettingsService);
+  expect(await next.runPromise(reopened.read)).toMatchObject({
+    disabledTools: ["bash", "write"],
+    blockImages: true,
+  });
+  await next.runPromise(reopened.update({ disabledTools: [] }));
+  expect(await next.runPromise(reopened.read)).toMatchObject({
+    disabledTools: [],
+    blockImages: true,
+  });
+});

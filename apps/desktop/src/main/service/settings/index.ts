@@ -1,3 +1,4 @@
+import { builtinToolNames } from "../../../tools.ts";
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
 import { AppPathsService } from "../../platform/app-paths.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
@@ -15,6 +16,7 @@ export const SettingsSchema = Schema.Struct({
     "xhigh",
     "max",
   ]),
+  disabledTools: Schema.optionalKey(Schema.Array(Schema.Literals(builtinToolNames))),
   blockImages: Schema.optionalKey(Schema.Boolean),
   activeThreadId: Schema.optionalKey(Schema.NonEmptyString),
 });

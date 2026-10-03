@@ -21,6 +21,8 @@ Projects, threads, settings and refreshed OAuth credentials are saved in Electro
 
 Attach pictures with the paperclip button, paste a screenshot, drag an image into the composer, or include `@./screenshot.png` in your message. Quote image paths containing spaces, for example `@"./my screenshot.png"`. Select a project before sending a new chat; attaching pictures alone does not create a thread. Pictures stay in the saved conversation. Text-only models receive a placeholder instead of image content; switching to a vision model lets it read pictures still in the active context. Settings → Permissions → Image reading can disable image reading without removing attachments.
 
+Settings → Tools lets you enable or disable each built-in tool for all projects. Changes apply when starting or resuming a run; work already in progress is not interrupted. External tools are not available yet.
+
 Build a macOS installer on a Mac:
 
 ```sh

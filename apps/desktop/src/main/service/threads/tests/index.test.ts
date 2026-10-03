@@ -1,3 +1,6 @@
+import { dispatchCommand } from "../../../ipc.ts";
+import type { DesktopApplication } from "../../../bootstrap.ts";
+import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { processImage } from "../../../platform/images.ts";
 import { mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { fork } from "node:child_process";
@@ -617,4 +620,136 @@ test("image admission enforces the selected model's attachment count before star
   ).toMatchObject({ code: "InvalidInput" });
   expect(provider.state.callCount).toBe(0);
   expect((await runtime.runPromise(threads.open(created.id))).snapshot.transcript).toHaveLength(0);
+});
+
+test("tool toggles change the model catalog for an existing thread and reenabled tools execute", async () => {
+  const { runtime, threads, registry, provider, cwd, workspace } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await writeFile(join(cwd, "available.txt"), "Reenabled read content");
+  await runtime.runPromise(settings.update({ disabledTools: ["read", "bash"] }));
+  provider.setResponses([
+    (context) => {
+      expect(
+        getCurrentTools(context.messages)
+          .map((tool) => tool.name)
+          .sort(),
+      ).toEqual(["edit", "write"]);
+      return fauxAssistantMessage("No file read");
+    },
+  ]);
+  await runtime.runPromise(threads.submit(created.id, "First"));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect((await runtime.runPromise(threads.open(created.id))).snapshot.lastResult?.status).toBe(
+    "completed",
+  );
+  await runtime.runPromise(settings.update({ disabledTools: [] }));
+  provider.setResponses([
+    (context) => {
+      expect(
+        getCurrentTools(context.messages)
+          .map((tool) => tool.name)
+          .sort(),
+      ).toEqual(["bash", "edit", "read", "write"]);
+      return fauxAssistantMessage(
+        fauxToolCall("read", { path: "available.txt" }, { id: "reenabled" }),
+        { stopReason: "toolUse" },
+      );
+    },
+    fauxAssistantMessage("Read succeeded"),
+  ]);
+  await runtime.runPromise(threads.submit(created.id, "Second"));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect(
+    JSON.stringify((await runtime.runPromise(threads.open(created.id))).snapshot.transcript),
+  ).toContain("Reenabled read content");
+  await runtime.runPromise(settings.update({ disabledTools: ["read", "write", "edit", "bash"] }));
+  provider.setResponses([
+    (context) => {
+      expect(getCurrentTools(context.messages)).toEqual([]);
+      return fauxAssistantMessage("All tools disabled");
+    },
+  ]);
+  await runtime.runPromise(threads.submit(created.id, "Third"));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect((await runtime.runPromise(threads.open(created.id))).snapshot.lastResult?.status).toBe(
+    "completed",
+  );
+});
+
+test("a disabled tool cannot execute even if a model emits its call", async () => {
+  const { runtime, threads, registry, provider, cwd, workspace } = await setup();
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await runtime.runPromise(settings.update({ disabledTools: ["write"] }));
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall(
+        "write",
+        { path: "forbidden.txt", content: "Should not exist" },
+        { id: "disabled-write" },
+      ),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Tool unavailable"),
+  ]);
+  await runtime.runPromise(threads.submit(created.id, "Attempt write"));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await expect(readFile(join(cwd, "forbidden.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  const result = (await runtime.runPromise(threads.open(created.id))).snapshot.transcript.find(
+    ({ message }) => message.role === "toolResult",
+  );
+  expect(result?.message).toMatchObject({ isError: true });
+});
+
+test("Electron submissions accept absent optional image fields and persist text and images", async () => {
+  const { runtime, threads, registry, provider, workspace } = await setup(true);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const application = {
+    submit: (
+      id: string,
+      prompt: string,
+      requestId?: string,
+      images?: Parameters<typeof threads.submit>[3],
+    ) => runtime.runPromise(threads.submit(id, prompt, requestId, images)),
+  } as DesktopApplication;
+  provider.setResponses([
+    fauxAssistantMessage("First response"),
+    fauxAssistantMessage("Image response"),
+  ]);
+  await dispatchCommand(
+    application,
+    structuredClone({
+      type: "submit",
+      id: created.id,
+      prompt: "Plain text",
+      requestId: "ipc-text",
+      images: undefined,
+    }),
+  );
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect(
+    (await runtime.runPromise(threads.open(created.id))).snapshot.transcript[0]?.message.content,
+  ).toBe("Plain text");
+  const data =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==";
+  await dispatchCommand(
+    application,
+    structuredClone({
+      type: "submit",
+      id: created.id,
+      prompt: "",
+      requestId: "ipc-image",
+      images: [{ type: "image", mimeType: "image/png", data, name: undefined, note: undefined }],
+    }),
+  );
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  const users = (await runtime.runPromise(threads.open(created.id))).snapshot.transcript.filter(
+    ({ message }) => message.role === "user",
+  );
+  expect(users).toHaveLength(2);
+  expect(users[1]?.message.content).toEqual([{ type: "image", mimeType: "image/png", data }]);
 });

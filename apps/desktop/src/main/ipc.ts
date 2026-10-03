@@ -1,3 +1,4 @@
+import { builtinToolNames } from "../tools.ts";
 import { Schema } from "effect";
 import type { DesktopApplication } from "./bootstrap.ts";
 import type { CommandReply } from "../bridge.ts";
@@ -20,14 +21,14 @@ const Command = Schema.Union([
     id: Id,
     prompt: Schema.String,
     requestId: Id,
-    images: Schema.optionalKey(
+    images: Schema.optional(
       Schema.Array(
         Schema.Struct({
           type: Schema.Literal("image"),
           data: Id,
           mimeType: Id,
-          name: Schema.optionalKey(Id),
-          note: Schema.optionalKey(Schema.String),
+          name: Schema.optional(Id),
+          note: Schema.optional(Schema.String),
         }),
       ),
     ),
@@ -35,9 +36,9 @@ const Command = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("prepare-image"),
     source: Schema.Union([Schema.Struct({ path: Id }), Schema.Struct({ data: Id, name: Id })]),
-    cwd: Schema.optionalKey(Id),
-    provider: Schema.optionalKey(Id),
-    modelId: Schema.optionalKey(Id),
+    cwd: Schema.optional(Id),
+    provider: Schema.optional(Id),
+    modelId: Schema.optional(Id),
   }),
   Schema.Struct({ type: Schema.Literal("stop"), id: Id }),
   Schema.Struct({ type: Schema.Literal("resume"), id: Id }),
@@ -58,6 +59,7 @@ const Command = Schema.Union([
         Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
       ),
       activeThreadId: Schema.optionalKey(Id),
+      disabledTools: Schema.optionalKey(Schema.Array(Schema.Literals(builtinToolNames))),
       blockImages: Schema.optionalKey(Schema.Boolean),
     }),
   }),

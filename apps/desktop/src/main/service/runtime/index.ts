@@ -12,6 +12,7 @@ import { SessionRepositoryService } from "../sessions/index.ts";
 import type { EtaSessionMetadata } from "../sessions/type.ts";
 
 export interface ThreadRuntime {
+  readonly refreshTools: () => Promise<void>;
   readonly harness: Harness;
   readonly storage: Storage;
   readonly conversation: Conversation;
@@ -57,6 +58,17 @@ export class RuntimeRegistryService extends Context.Service<
         let harness: Harness | undefined;
         try {
           const registry = resources.registry(models);
+          const codingTools = registry.snapshot().extension("coding-tools")!;
+          const refreshTools = async () => {
+            const disabled = new Set<string>(
+              (await Effect.runPromise(preferences.read)).disabledTools ?? [],
+            );
+            registry.install({
+              ...codingTools,
+              tools: codingTools.tools?.filter((tool) => !disabled.has(tool.name)),
+            });
+          };
+          await refreshTools();
           registry.install({
             name: "desktop-image-settings",
             hooks: [
@@ -101,6 +113,7 @@ export class RuntimeRegistryService extends Context.Service<
           const inspection = await harness.inspect(BACKGROUND_CONTEXT);
           const record: ThreadRuntime = {
             harness,
+            refreshTools,
             conversation,
             storage,
             ref,

@@ -9,7 +9,13 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 
 const bridge: DesktopBridge = {
   prepareImage: (source, cwd, provider, modelId) =>
-    invoke("eta:command", { type: "prepare-image", source, cwd, provider, modelId }),
+    invoke("eta:command", {
+      type: "prepare-image",
+      source,
+      ...(cwd === undefined ? {} : { cwd }),
+      ...(provider === undefined ? {} : { provider }),
+      ...(modelId === undefined ? {} : { modelId }),
+    }),
   library: () => invoke("eta:command", { type: "library" }),
   chooseProject: () => invoke("eta:choose-project"),
   chooseDirectory: () => invoke("eta:choose-directory"),
@@ -27,7 +33,7 @@ const bridge: DesktopBridge = {
       type: "submit",
       id,
       prompt,
-      images,
+      ...(images === undefined ? {} : { images }),
       requestId: globalThis.crypto.randomUUID(),
     }),
   stop: (id) => invoke("eta:command", { type: "stop", id }),
