@@ -35,6 +35,13 @@ function stopWatching(contentsId: number, id: string) {
   if (sessions?.size === 0) watchers.delete(contentsId);
 }
 
+function applicationIconPath() {
+  return resolve(
+    app.getAppPath(),
+    process.env.ETA_WEB_URL ? "renderer/public/eta-icon.png" : "dist/ui/eta-icon.png",
+  );
+}
+
 function openWindow() {
   if (window && !window.isDestroyed()) {
     window.show();
@@ -50,6 +57,7 @@ function openWindow() {
     minWidth: 640,
     minHeight: 480,
     title: "Eta",
+    icon: applicationIconPath(),
     backgroundColor: "#e9e9e9",
     ...(process.platform === "darwin"
       ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 16, y: 17 } }
@@ -182,6 +190,7 @@ if (!app.requestSingleInstanceLock()) {
   startup = app
     .whenReady()
     .then(async () => {
+      app.dock?.setIcon(applicationIconPath());
       const root = resolve(app.getAppPath(), "../..");
       const cwd = process.env.ETA_WORKSPACE ?? (app.isPackaged ? app.getPath("home") : root);
       agentService = await createDesktopApplication(root, cwd, app.getPath("userData"), (url) =>

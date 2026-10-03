@@ -56,7 +56,7 @@ export function NavigationRail({
         <FolderPlus size={21} aria-hidden="true" />
       </Button>
       <div className="flex-1" />
-      <Avatar label="Eta" fallback="e" />
+      <Avatar label="Eta" fallback="η" src="./favicon.svg" />
       <Button
         variant="ghost-muted"
         size="icon"
