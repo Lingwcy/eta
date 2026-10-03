@@ -11,6 +11,7 @@
     "package:mac": "vp run build && node scripts/prepare-package.mjs && node scripts/verify-package.mjs && electron-builder --config electron-builder.config.cjs --mac dmg --publish never",
     "dev": "node scripts/dev-runner.ts",
     "typecheck": "tsc --noEmit",
+    "test:packaging": "node --test scripts/signing-config.test.cjs",
     "test": "vp test run"
   },
   "dependencies": {
