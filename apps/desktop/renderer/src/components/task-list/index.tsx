@@ -2,13 +2,9 @@ import { useId, useState } from "react";
 import { FileCode2, FilePenLine, Search, Terminal, Wrench } from "lucide-react";
 import type { SnapshotTool } from "../../../../src/agent/protocol.ts";
 import { cn } from "@/lib/utils";
-import "./task-list.css";
+import { Button } from "@/components/ui/button";
 
-const revealClassName =
-  "grid grid-rows-[1fr] animate-[eta-task-reveal_440ms_cubic-bezier(0.22,1,0.36,1)_both] motion-reduce:animate-none";
 const contentClassName = "min-h-0 min-w-0 overflow-hidden";
-const shimmerClassName =
-  "text-transparent bg-[linear-gradient(100deg,var(--task-secondary)_16%,var(--task-secondary)_38%,var(--task-primary)_50%,var(--task-secondary)_62%,var(--task-secondary)_84%)] bg-size-[300%_100%] bg-position-[200%_0] bg-clip-text animate-[eta-task-shimmer_3.4s_linear_1] motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-(--task-secondary)";
 
 export interface TaskListProps {
   tools: readonly SnapshotTool[];
@@ -51,25 +47,19 @@ function ToolItem({
   const hasOutput = Boolean(output || images.length);
 
   return (
-    <section className={revealClassName}>
+    <section>
       <div className={contentClassName}>
-        <button
+        <Button
           type="button"
-          className="group flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent py-0.5 text-left text-sm/5 font-medium text-inherit focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--task-focus)"
+          variant="ghost-muted"
+          size="row-sm"
           onClick={() => setOpenOverride(!open)}
           aria-expanded={open}
           aria-controls={detailsId}
         >
           <Icon className="block size-4 shrink-0 text-(--task-icon)" aria-hidden="true" />
           <span className="min-w-0 flex-1 overflow-hidden">
-            <span
-              key={label}
-              className={cn(
-                "block truncate",
-                !settled && shimmerClassName,
-                failed && "text-red-600",
-              )}
-            >
+            <span key={label} className={cn("block truncate", failed && "text-red-600")}>
               {label}
             </span>
           </span>
@@ -82,7 +72,7 @@ function ToolItem({
           >
             <path d="m12 13.17 4.95-4.95 1.41 1.42L12 16 5.64 9.64l1.41-1.42Z" />
           </svg>
-        </button>
+        </Button>
         <div
           className="grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[open=true]:grid-rows-[1fr] data-[open=true]:opacity-100 motion-reduce:transition-none"
           data-open={open}
@@ -129,7 +119,7 @@ function ToolItem({
                 </pre>
               </li>
               {hasOutput && (
-                <li className={cn(revealClassName, "relative py-1 pl-4")}>
+                <li className="relative py-1 pl-4">
                   <div className={contentClassName}>
                     <svg
                       className="pointer-events-none absolute top-0 left-0 text-(--task-guide)"

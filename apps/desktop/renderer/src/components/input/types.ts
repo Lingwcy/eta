@@ -27,6 +27,7 @@ export interface ActionToolbarProps {
   readonly contextWindow?: number;
   readonly onSubmit: () => void;
   readonly onStop?: () => void;
+  readonly onSettings?: () => void;
   readonly canSubmit: boolean;
   readonly isRunning?: boolean;
   readonly isStopping?: boolean;

@@ -50,6 +50,10 @@ function openWindow() {
     minWidth: 640,
     minHeight: 480,
     title: "Eta",
+    backgroundColor: "#e9e9e9",
+    ...(process.platform === "darwin"
+      ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 16, y: 17 } }
+      : {}),
     webPreferences: {
       preload: resolve(app.getAppPath(), "dist/electron/preload.cjs"),
       contextIsolation: true,

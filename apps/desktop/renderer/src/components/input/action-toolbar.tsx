@@ -1,7 +1,18 @@
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, ChevronDown, Settings2, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ContextIndicator } from "./context-indicator";
 import type { ActionToolbarProps } from "./types";
+
+const thinkingLabels = {
+  off: "",
+  minimal: "最小",
+  low: "低",
+  medium: "中",
+  high: "高",
+  xhigh: "极高",
+  max: "最大",
+};
 
 export function ActionToolbar({
   model,
@@ -10,6 +21,7 @@ export function ActionToolbar({
   contextWindow,
   onSubmit,
   onStop,
+  onSettings,
   canSubmit,
   isRunning = false,
   isStopping = false,
@@ -21,42 +33,66 @@ export function ActionToolbar({
     : 0;
   return (
     <footer
-      className={cn("flex items-center justify-between gap-2 pt-1 select-none", className)}
-      aria-label="Prompt 动作操作栏"
+      className={cn("flex items-center justify-between gap-2 select-none", className)}
+      aria-label="消息操作栏"
     >
-      <div
-        className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-neutral-700"
-        title={model ? `${model.provider}/${model.id}` : undefined}
+      <Button
+        type="button"
+        variant="accent"
+        size="compact"
+        onClick={onSettings}
+        disabled={!onSettings}
+        title="模型与认证设置"
+        aria-label="模型与认证设置"
       >
-        <span className="truncate">{model?.name ?? "模型准备中"}</span>
-        {thinkingLevel && thinkingLevel !== "off" && (
-          <span className="text-xs font-normal text-neutral-400">{thinkingLevel}</span>
+        <Settings2 size={18} aria-hidden="true" />
+        <span className="hidden min-[701px]:inline">配置</span>
+      </Button>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          disabled={!onSettings}
+          onClick={onSettings}
+          title={model ? `${model.provider}/${model.id}` : "选择模型"}
+          aria-label="模型与思考级别设置"
+        >
+          <span className="max-w-[105px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
+            {model?.name ?? "选择模型"}
+          </span>
+          {thinkingLevel && thinkingLevel !== "off" && (
+            <span className="text-neutral-400">{thinkingLabels[thinkingLevel]}</span>
+          )}
+          <ChevronDown size={13} aria-hidden="true" />
+        </Button>
+        {contextWindow && contextTokens > 0 && (
+          <ContextIndicator percentage={percentage} hideText />
         )}
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        {contextWindow && <ContextIndicator percentage={percentage} />}
         {isRunning ? (
-          <button
+          <Button
             type="button"
             disabled={!onStop || isStopping}
             onClick={onStop}
-            className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+            variant="default"
+            size="icon-round"
             aria-label="停止生成"
             title="停止生成"
           >
-            <Square className="size-3.5" fill="currentColor" aria-hidden="true" />
-          </button>
+            <Square size={14} fill="currentColor" aria-hidden="true" />
+          </Button>
         ) : (
-          <button
+          <Button
             type="button"
             disabled={disabled || !canSubmit}
             onClick={onSubmit}
-            className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-[#E52222] text-white shadow-xs transition-colors hover:bg-[#d41c1c] disabled:cursor-not-allowed disabled:opacity-40"
+            variant="default"
+            size="icon-round"
             aria-label="发送消息"
             title="发送消息"
           >
-            <ArrowUp className="size-4.5 stroke-[2.5]" aria-hidden="true" />
-          </button>
+            <ArrowUp size={20} strokeWidth={2} aria-hidden="true" />
+          </Button>
         )}
       </div>
     </footer>

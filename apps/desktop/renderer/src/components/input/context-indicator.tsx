@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { ContextIndicatorProps } from "./types";
 
 /**
@@ -18,13 +18,12 @@ export function ContextIndicator({
   const strokeDashoffset = circumference - (clampedPercentage / 100) * circumference;
 
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1.5 text-neutral-500 hover:text-neutral-800 text-xs sm:text-sm font-medium px-2 py-1.5 rounded-xl hover:bg-neutral-100 select-none transition-colors cursor-pointer",
-        className,
-      )}
+      variant="ghost-muted"
+      size="compact"
+      className={className}
       title={`上下文窗口用量: ${clampedPercentage}%`}
       aria-label={`上下文窗口用量: ${clampedPercentage}%`}
     >
@@ -55,6 +54,6 @@ export function ContextIndicator({
         />
       </svg>
       {!hideText && <span className="tabular-nums font-medium">{clampedPercentage}%</span>}
-    </button>
+    </Button>
   );
 }

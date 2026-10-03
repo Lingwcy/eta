@@ -37,7 +37,7 @@ export function CompositeInput({
   return (
     <div
       className={cn(
-        "mx-auto flex w-full max-w-2xl flex-col gap-3 rounded-[26px] border border-neutral-200/80 bg-white p-4 shadow-md shadow-black/5 transition-shadow focus-within:border-neutral-300 focus-within:shadow-lg focus-within:shadow-black/10 sm:rounded-[28px] sm:px-5 sm:pt-4 sm:pb-3.5",
+        "relative flex w-full flex-col gap-5 rounded-[20px] border border-neutral-200/80 bg-white p-3 shadow-[0_2px_6px_#00000003,0_9px_35px_#00000004] focus-within:border-neutral-300 min-[701px]:rounded-[24px] min-[701px]:px-4 min-[701px]:pt-4 min-[701px]:pb-3",
         className,
       )}
     >
