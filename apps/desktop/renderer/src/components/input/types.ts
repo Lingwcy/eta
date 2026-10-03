@@ -1,7 +1,9 @@
+import type { ImageAttachment } from "../../../../src/images/types.ts";
 import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
 import type { AgentModel } from "../../../../src/agent/protocol.ts";
 
-export type InputModel = Pick<AgentModel, "id" | "provider" | "name">;
+export type InputModel = Pick<AgentModel, "id" | "provider" | "name"> &
+  Pick<AgentModel, "input" | "inputLimits">;
 
 export interface ContextIndicatorProps {
   readonly percentage?: number;
@@ -29,6 +31,7 @@ export interface ActionToolbarProps {
   readonly contextWindow?: number;
   readonly onSubmit: () => void;
   readonly onStop?: () => void;
+  readonly onAttach?: () => void;
   readonly onSettings?: () => void;
   readonly canSubmit: boolean;
   readonly isRunning?: boolean;
@@ -42,7 +45,8 @@ export interface CompositeInputProps extends Omit<ActionToolbarProps, "onSubmit"
   readonly defaultValue?: string;
   readonly onChange?: (value: string) => void;
   /** Resolves when the harness admits the prompt. Rejection preserves the draft. */
-  readonly onSubmit?: (text: string) => void | Promise<void>;
+  readonly cwd?: string;
+  readonly onSubmit?: (text: string, images?: readonly ImageAttachment[]) => void | Promise<void>;
   readonly submitDisabled?: boolean;
   readonly placeholder?: string;
 }

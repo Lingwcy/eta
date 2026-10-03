@@ -1,3 +1,6 @@
+import { AgentResourcesService } from "../resources/index.ts";
+import { imageInput } from "../../../images/content.ts";
+import type { ImageAttachment } from "../../../images/types.ts";
 import { realpath, stat } from "node:fs/promises";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { Context, DateTime, Effect, Layer } from "effect";
@@ -13,6 +16,7 @@ export class RunSupervisorService extends Context.Service<
       runtime: ThreadRuntime,
       prompt: string,
       requestId?: string,
+      images?: readonly ImageAttachment[],
     ): Effect.Effect<OperationAdmission, DesktopServiceError>;
     resume(runtime: ThreadRuntime): Effect.Effect<void, DesktopServiceError>;
     stop(runtime: ThreadRuntime): Effect.Effect<void, DesktopServiceError>;
@@ -24,6 +28,7 @@ export class RunSupervisorService extends Context.Service<
     RunSupervisorService,
     Effect.gen(function* () {
       const models = yield* ModelCatalogService;
+      const resources = yield* AgentResourcesService;
       const leases = new Map<string, ThreadRuntime>();
       const executions = new Map<ThreadRuntime, Promise<unknown>>();
       const changed = (runtime: ThreadRuntime) => {
@@ -100,12 +105,13 @@ export class RunSupervisorService extends Context.Service<
           runtime: ThreadRuntime,
           prompt: string,
           requestId?: string,
+          images?: readonly ImageAttachment[],
         ) {
-          if (!prompt.trim())
-            return yield* new DesktopServiceError({
-              code: "InvalidInput",
-              message: "消息不能为空",
-            });
+          const content = yield* adapter(
+            "图片或消息无效",
+            async () => imageInput(prompt, images, (32 * 1024 * 1024 * 4) / 3),
+            "InvalidInput",
+          );
           if (requestId) {
             const existing = yield* adapter("无法查询已提交请求", () =>
               runtime.storage.submissionByRequest(
@@ -134,6 +140,41 @@ export class RunSupervisorService extends Context.Service<
               message: "请先恢复或停止未完成任务",
             });
           yield* ready(runtime);
+          const agent = yield* adapter("无法读取图片模型限制", () =>
+            runtime.conversation.agent(BACKGROUND_CONTEXT),
+          );
+          const model =
+            agent.model && models.models.getModel(agent.model.provider, agent.model.modelId);
+          const maximum = model?.inputLimits?.images?.maxPerMessage;
+          if (maximum && images && images.length > maximum)
+            return yield* new DesktopServiceError({
+              code: "InvalidInput",
+              message: `当前模型每条消息最多支持 ${maximum} 张图片`,
+            });
+          const prepared =
+            images?.length && resources.processImage
+              ? yield* adapter(
+                  "无法处理图片",
+                  () =>
+                    Promise.all(
+                      images.map(async (image) => {
+                        const next = await resources.processImage!(
+                          Buffer.from(image.data, "base64"),
+                          image.name ?? "image.png",
+                          model?.inputLimits?.images?.resize,
+                        );
+                        return {
+                          ...next,
+                          note:
+                            [...new Set([image.note, next.note].filter(Boolean))].join("\n") ||
+                            undefined,
+                        };
+                      }),
+                    ),
+                  "InvalidInput",
+                )
+              : images;
+          const input = prepared?.length ? imageInput(prompt, prepared) : content;
           const startedAt = DateTime.toEpochMillis(yield* DateTime.now);
           return yield* adapter("无法提交消息", async () => {
             claim(runtime);
@@ -141,7 +182,7 @@ export class RunSupervisorService extends Context.Service<
               const handle = await runtime.conversation.submit(
                 {
                   type: "input",
-                  content: prompt,
+                  content: input,
                   whenBusy: "reject",
                   ...(requestId ? { requestId } : {}),
                 },

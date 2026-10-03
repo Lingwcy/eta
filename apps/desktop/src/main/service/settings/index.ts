@@ -15,6 +15,7 @@ export const SettingsSchema = Schema.Struct({
     "xhigh",
     "max",
   ]),
+  blockImages: Schema.optionalKey(Schema.Boolean),
   activeThreadId: Schema.optionalKey(Schema.NonEmptyString),
 });
 export type DesktopSettings = typeof SettingsSchema.Type;

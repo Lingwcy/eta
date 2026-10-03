@@ -1,3 +1,4 @@
+import { PermissionSettings } from "./settings/permission-settings";
 import { useEffect, useState } from "react";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 import { Alert } from "@/components/ui/alert";
@@ -77,14 +78,27 @@ export function DesktopSettings(props: Props) {
                       <Alert>{props.error}</Alert>
                     </div>
                   )}
-                  <AuthenticationSettings
-                    library={props.library}
-                    method={item.id === "accounts" ? "oauth" : "api_key"}
-                    busy={props.busy}
-                    act={props.act}
-                    reconnect={props.reconnect}
-                    refresh={props.refresh}
-                  />
+                  {item.id === "permissions" ? (
+                    <PermissionSettings
+                      blockImages={Boolean(props.library.settings.blockImages)}
+                      busy={props.busy}
+                      onAllowImagesChange={(allowed) =>
+                        void props.act(async () => {
+                          await window.eta.updateSettings({ blockImages: !allowed });
+                          await props.refresh();
+                        })
+                      }
+                    />
+                  ) : (
+                    <AuthenticationSettings
+                      library={props.library}
+                      method={item.id === "accounts" ? "oauth" : "api_key"}
+                      busy={props.busy}
+                      act={props.act}
+                      reconnect={props.reconnect}
+                      refresh={props.refresh}
+                    />
+                  )}
                 </SettingsPage>
               </TabsPanel>
             ))}

@@ -14,7 +14,7 @@ export function PromptTextarea({
     // 拦截非输入法合成状态下的纯 Enter 按键进行提交
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      if (value.trim() && !disabled) {
+      if (!disabled) {
         onSubmit();
       }
     }

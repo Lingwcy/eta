@@ -20,6 +20,7 @@ catalog:
   "@vitejs/plugin-react": ^6.1.1
   "@base-ui/react": ^1.8.0
   electron-builder: ^26.15.3
+  "@cf-wasm/photon": ^0.4.0
 overrides:
   vite@*: "catalog:"
 peerDependencyRules:

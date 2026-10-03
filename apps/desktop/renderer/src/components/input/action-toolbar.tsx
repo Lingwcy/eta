@@ -1,4 +1,4 @@
-import { ArrowUp, Settings2, Square } from "lucide-react";
+import { ArrowUp, Settings2, Square, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ContextIndicator } from "./context-indicator";
@@ -15,6 +15,7 @@ export function ActionToolbar({
   onSubmit,
   onStop,
   onSettings,
+  onAttach,
   canSubmit,
   isRunning = false,
   isStopping = false,
@@ -29,18 +30,32 @@ export function ActionToolbar({
       className={cn("flex items-center justify-between gap-2 select-none", className)}
       aria-label="消息操作栏"
     >
-      <Button
-        type="button"
-        variant="accent"
-        size="compact"
-        onClick={onSettings}
-        disabled={!onSettings}
-        title="模型与认证设置"
-        aria-label="模型与认证设置"
-      >
-        <Settings2 size={18} aria-hidden="true" />
-        <span className="hidden min-[701px]:inline">配置</span>
-      </Button>
+      <div className="flex items-center gap-1">
+        {onAttach && (
+          <Button
+            variant="ghost-muted"
+            size="icon-xs"
+            onClick={onAttach}
+            disabled={disabled || isRunning}
+            aria-label="添加图片"
+            title="添加图片"
+          >
+            <Paperclip size={17} aria-hidden="true" />
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="accent"
+          size="compact"
+          onClick={onSettings}
+          disabled={!onSettings}
+          title="模型与认证设置"
+          aria-label="模型与认证设置"
+        >
+          <Settings2 size={18} aria-hidden="true" />
+          <span className="hidden min-[701px]:inline">配置</span>
+        </Button>
+      </div>
       <div className="flex min-w-0 items-center gap-2.5">
         <ModelPicker
           model={model}

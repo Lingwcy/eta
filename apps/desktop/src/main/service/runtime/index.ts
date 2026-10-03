@@ -1,5 +1,7 @@
+import { omitImages } from "../../../images/content.ts";
+import { DesktopSettingsService } from "../settings/index.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { Harness, ROOT_CONVERSATION_ID } from "@eta/agent";
+import { Harness, ROOT_CONVERSATION_ID, GenerationTask, hook } from "@eta/agent";
 import type { AgentChange, Conversation, ConversationWatch, Storage } from "@eta/agent";
 import { NodeExecutionEnv } from "@eta/agent/env/node";
 import { Context, Effect, Layer } from "effect";
@@ -40,6 +42,7 @@ export class RuntimeRegistryService extends Context.Service<
     Effect.gen(function* () {
       const repository = yield* SessionRepositoryService;
       const { models } = yield* ModelCatalogService;
+      const preferences = yield* DesktopSettingsService;
       const resources = yield* AgentResourcesService;
       const opening = new Map<string, Promise<ThreadRuntime>>();
       const releasing = new Map<string, Promise<void>>();
@@ -53,6 +56,18 @@ export class RuntimeRegistryService extends Context.Service<
         const environments = new Set<NodeExecutionEnv>();
         let harness: Harness | undefined;
         try {
+          const registry = resources.registry(models);
+          registry.install({
+            name: "desktop-image-settings",
+            hooks: [
+              hook(GenerationTask, {
+                beforeRequest: async ({ messages }) =>
+                  (await Effect.runPromise(preferences.read)).blockImages
+                    ? { messages: omitImages(messages) }
+                    : undefined,
+              }),
+            ],
+          });
           harness = await Harness.open(
             storage,
             {
@@ -66,7 +81,7 @@ export class RuntimeRegistryService extends Context.Service<
                   },
                 },
               },
-              registry: resources.registry(),
+              registry,
               env: ({ cwd }) => {
                 const env = new NodeExecutionEnv({ cwd: cwd ?? ref.metadata.cwd });
                 environments.add(env);

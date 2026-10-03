@@ -1,3 +1,6 @@
+import { readFile, stat } from "node:fs/promises";
+import { resolve, basename } from "node:path";
+import type { ImageAttachment, ImageSource, ImageProcessor } from "../images/types.ts";
 import { randomUUID } from "node:crypto";
 import { registerBunOAuthFlows as registerBundledOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { Schema } from "effect";
@@ -28,11 +31,12 @@ export async function createDesktopApplication(
   openExternal: (url: string) => Promise<void> = async () => {
     throw new Error("浏览器不可用");
   },
+  processImage?: ImageProcessor,
 ) {
   // Despite its name, pi-ai's registration is runtime-independent and embeds OAuth in CJS bundles.
   registerBundledOAuthFlows();
   await loadProjectEnvironment(root);
-  const runtime = ManagedRuntime.make(desktopServices(dataRoot));
+  const runtime = ManagedRuntime.make(desktopServices(dataRoot, undefined, processImage));
   try {
     const projects = await runtime.runPromise(ProjectService);
     const threads = await runtime.runPromise(ThreadService);
@@ -63,8 +67,36 @@ export async function createDesktopApplication(
     }
     if (!(await runtime.runPromise(projects.list())).length)
       await runtime.runPromise(projects.register({ rootPath: cwd }));
+    const cwdDefault = cwd;
     const run = <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect);
     return {
+      prepareImage: async (
+        source: ImageSource,
+        cwd?: string,
+        provider?: string,
+        modelId?: string,
+      ) => {
+        if (!processImage) throw new Error("图片处理不可用");
+        let bytes: Uint8Array;
+        let name: string;
+        if ("path" in source) {
+          const path = resolve(
+            cwd ?? cwdDefault,
+            source.path.startsWith("~/")
+              ? join(process.env.HOME ?? "", source.path.slice(2))
+              : source.path,
+          );
+          if ((await stat(path)).size > 32 * 1024 * 1024) throw new Error("图片文件超过 32 MiB");
+          bytes = await readFile(path);
+          name = basename(path);
+        } else {
+          bytes = Buffer.from(source.data, "base64");
+          name = source.name;
+        }
+        if (bytes.length > 32 * 1024 * 1024) throw new Error("图片文件超过 32 MiB");
+        const model = provider && modelId ? models.models.getModel(provider, modelId) : undefined;
+        return processImage(bytes, name, model?.inputLimits?.images?.resize);
+      },
       library: async (): Promise<DesktopLibrary> => {
         const state = await run(catalog.read);
         return {
@@ -84,8 +116,12 @@ export async function createDesktopApplication(
       archiveThread: (id: string, archived: boolean) => run(threads.archive(id, archived)),
       configureThread: (id: string, provider: string, modelId: string, level: ThinkingLevel) =>
         run(threads.configure(id, provider, modelId, level)),
-      submit: (id: string, prompt: string, requestId?: string) =>
-        run(threads.submit(id, prompt, requestId)),
+      submit: (
+        id: string,
+        prompt: string,
+        requestId?: string,
+        images?: readonly ImageAttachment[],
+      ) => run(threads.submit(id, prompt, requestId, images)),
       stop: (id: string) => run(threads.stop(id)),
       resume: (id: string) => run(threads.resume(id)),
       compact: (id: string) => run(threads.compact(id)),

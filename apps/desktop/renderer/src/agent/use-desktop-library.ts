@@ -1,3 +1,4 @@
+import type { ImageAttachment } from "../../../src/images/types.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 import { DraftThread } from "./draft-thread";
@@ -82,7 +83,7 @@ export function useDesktopLibrary() {
     setError(null);
   }, [library]);
   const submitDraft = useCallback(
-    async (prompt: string) => {
+    async (prompt: string, images?: readonly ImageAttachment[]) => {
       if (busyRef.current) throw new Error("请等待当前操作完成");
       busyRef.current = true;
       setBusy(true);
@@ -90,7 +91,7 @@ export function useDesktopLibrary() {
       const current = draft.current ?? new DraftThread(crypto.randomUUID(), window.eta);
       draft.current = current;
       try {
-        const id = await current.submit(workspaceId, prompt);
+        const id = await current.submit(workspaceId, prompt, images);
         if (mounted.current) setThreadId(id);
       } catch (error) {
         if (mounted.current) {

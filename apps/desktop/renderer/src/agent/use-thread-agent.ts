@@ -1,3 +1,4 @@
+import type { ImageAttachment } from "../../../src/images/types.ts";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { initialAgentState, ThreadAgentClient } from "./client";
 
@@ -28,10 +29,10 @@ export function useThreadAgent(threadId: string | null, version = 0) {
   );
   const state = current;
   const submit = useCallback(
-    async (text: string) => {
+    async (text: string, images?: readonly ImageAttachment[]) => {
       if (!client || client.getSnapshot().session?.id !== threadId)
         throw new Error("请先创建或选择会话");
-      await client.submit(text);
+      await client.submit(text, images);
     },
     [client, threadId],
   );

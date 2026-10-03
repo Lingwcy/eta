@@ -1,3 +1,4 @@
+import type { ImageAttachment } from "../../../images/types.ts";
 import { randomUUID } from "node:crypto";
 import { Context, DateTime, Effect, Layer, SynchronizedRef } from "effect";
 import type {
@@ -40,6 +41,7 @@ export class ThreadService extends Context.Service<
       id: string,
       prompt: string,
       requestId?: string,
+      images?: readonly ImageAttachment[],
     ): Effect.Effect<OperationAdmission, ThreadError>;
     stop(id: string): Effect.Effect<void, ThreadError>;
     resume(id: string): Effect.Effect<void, ThreadError>;
@@ -214,14 +216,17 @@ export class ThreadService extends Context.Service<
               return thread;
             }),
           ),
-        submit: (id, prompt, requestId) =>
+        submit: (id, prompt, requestId, images) =>
           locked(
             Effect.gen(function* () {
               const runtime = yield* runtimeFor(id, true);
-              const admission = yield* runs.submit(runtime, prompt, requestId);
+              const admission = yield* runs.submit(runtime, prompt, requestId, images);
               yield* change(id, (thread) => ({
                 ...thread,
-                title: thread.title === "新会话" ? prompt.trim().slice(0, 80) : thread.title,
+                title:
+                  thread.title === "新会话"
+                    ? (prompt.trim() || images?.[0]?.name || "图片会话").slice(0, 80)
+                    : thread.title,
                 sessionRef: {
                   ...thread.sessionRef,
                   metadata: { ...thread.sessionRef.metadata, modifiedAt: admission.startedAt },

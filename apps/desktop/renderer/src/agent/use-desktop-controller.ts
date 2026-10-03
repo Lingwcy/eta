@@ -1,3 +1,4 @@
+import type { ImageAttachment } from "../../../src/images/types.ts";
 import { useCallback, useEffect, useState } from "react";
 import { useThinkingStatus } from "./use-thinking-status";
 import { useThreadActivity } from "./use-thread-activity";
@@ -161,11 +162,12 @@ export function useDesktopController() {
         snapshot?.configuration.thinkingLevel ?? desktop.library?.settings.defaultThinkingLevel,
       contextTokens: agent.observation?.contextTokens,
       contextWindow: agent.session?.model.contextWindow,
-      onSubmit: async (prompt: string) => {
-        if (!threadId) await desktop.submitDraft(prompt);
+      cwd: workspace?.cwd,
+      onSubmit: async (prompt: string, images?: readonly ImageAttachment[]) => {
+        if (!threadId) await desktop.submitDraft(prompt, images);
         else {
           desktop.clearError();
-          await agent.submit(prompt);
+          await agent.submit(prompt, images);
           void desktop.refresh().catch(() => {});
         }
       },

@@ -1,3 +1,4 @@
+import type { ImageAttachment } from "../../../src/images/types.ts";
 import type { OperationAdmission } from "../../../src/agent/protocol.ts";
 import type { SessionResponse, SnapshotResponse } from "../../../src/agent/protocol.ts";
 import type { AgentBridge } from "../../../src/bridge.ts";
@@ -60,7 +61,7 @@ export class ThreadAgentClient {
     }
   }
 
-  async submit(prompt: string) {
+  async submit(prompt: string, images?: readonly ImageAttachment[]) {
     if (
       this.state.connection !== "connected" ||
       this.state.submitting ||
@@ -75,7 +76,7 @@ export class ThreadAgentClient {
     if (!sessionId) throw new Error("会话尚未打开");
     this.update({ submitting: true, error: null });
     try {
-      const admission = await this.bridge.submit(sessionId, prompt);
+      const admission = await this.bridge.submit(sessionId, prompt, ...(images ? [images] : []));
       const snapshot = this.state.observation?.snapshot;
       this.update({
         admission:

@@ -69,3 +69,14 @@ test("creation failures preserve the idempotency key for retry", async () => {
     ["project", "draft-request"],
   ]);
 });
+
+test("an image-only draft still requires a project and forwards the image on first admission", async () => {
+  const { draft, submit, createThread } = setup();
+  const images = [
+    { type: "image" as const, data: "aGVsbG8=", mimeType: "image/png", name: "shot.png" },
+  ];
+  await expect(draft.submit(null, "", images)).rejects.toThrow("选择项目");
+  expect(createThread).not.toHaveBeenCalled();
+  await draft.submit("project", "", images);
+  expect(submit).toHaveBeenCalledWith("persisted", "", images);
+});

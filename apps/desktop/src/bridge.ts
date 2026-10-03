@@ -1,3 +1,4 @@
+import type { ImageAttachment, ImageSource } from "./images/types.ts";
 import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
 import type { OperationAdmission } from "./agent/protocol.ts";
 import type { SessionResponse, SnapshotResponse } from "./agent/protocol.ts";
@@ -20,7 +21,11 @@ export type CommandReply<A> = { ok: true; value: A } | { ok: false; error: Comma
 
 export interface AgentBridge {
   openThread(id: string): Promise<SessionResponse>;
-  submit(sessionId: string, prompt: string): Promise<OperationAdmission>;
+  submit(
+    sessionId: string,
+    prompt: string,
+    images?: readonly ImageAttachment[],
+  ): Promise<OperationAdmission>;
   stop(sessionId: string): Promise<void>;
   subscribe(sessionId: string, listener: (event: AgentEvent) => void): () => void;
 }
@@ -37,6 +42,12 @@ export interface DesktopLibrary {
 
 export interface DesktopBridge extends AgentBridge {
   library(): Promise<DesktopLibrary>;
+  prepareImage(
+    source: ImageSource,
+    cwd?: string,
+    provider?: string,
+    modelId?: string,
+  ): Promise<ImageAttachment>;
   chooseProject(): Promise<ProjectMetadata | null>;
   chooseDirectory(): Promise<string | null>;
   registerProject(rootPath: string, name: string): Promise<ProjectMetadata>;

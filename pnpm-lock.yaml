@@ -167,6 +167,9 @@ catalogs:
     '@base-ui/react':
       specifier: ^1.8.0
       version: 1.8.0
+    '@cf-wasm/photon':
+      specifier: ^0.4.0
+      version: 0.4.0
     '@tailwindcss/vite':
       specifier: ^4.3.3
       version: 4.3.3
@@ -223,6 +226,9 @@ importers:
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.8.0(@types/react@19.3.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@cf-wasm/photon':
+        specifier: 'catalog:'
+        version: 0.4.0
       '@earendil-works/chord':
         specifier: ^1.0.0
         version: 1.0.0
@@ -477,6 +483,12 @@ packages:
 
   '@blazediff/core@1.10.0':
     resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+
+  '@cf-wasm/internals@0.2.0':
+    resolution: {integrity: sha512-QwMNETkTCtrx0uCzjJPRCTyok0OZNvOry9alfG8a8TpHo7oPJ17htPMDG4ptudpwe9F0VtJHy9+nOzJmupteiQ==}
+
+  '@cf-wasm/photon@0.4.0':
+    resolution: {integrity: sha512-PQcN6sThZAR/V6SH2MQmeFndDDhGfOxvra6UStyaBbkDHrgTPKvB+WapAhh0/TA9LsRAUaX/rEEw6hvY9uphbQ==}
 
   '@earendil-works/chord@1.0.0':
     resolution: {integrity: sha512-BIfWfrByM0pKq6tfKYXuwx0ed2CvaqIM3EDA7Dps+fP+d3CiPWdlHi1cDsJC05llqKJoRz5//G0hz0yQwwjISQ==}
@@ -3967,6 +3979,12 @@ snapshots:
     optional: true
 
   '@blazediff/core@1.10.0': {}
+
+  '@cf-wasm/internals@0.2.0': {}
+
+  '@cf-wasm/photon@0.4.0':
+    dependencies:
+      '@cf-wasm/internals': 0.2.0
 
   '@earendil-works/chord@1.0.0':
     dependencies:

@@ -1,3 +1,4 @@
+import type { ImageProcessor } from "../../images/types.ts";
 import { Layer } from "effect";
 import { AppPathsService } from "../platform/app-paths.ts";
 import { DesktopCatalogService } from "./catalog/index.ts";
@@ -16,7 +17,11 @@ import { ThreadService } from "./threads/index.ts";
 import { WorkspaceService } from "./workspaces/index.ts";
 
 /** One memoized service graph per application; no Electron imports below bootstrap. */
-export function desktopServices(dataRoot: string, modelLayer = ModelCatalogService.layer) {
+export function desktopServices(
+  dataRoot: string,
+  modelLayer = ModelCatalogService.layer,
+  processImage?: ImageProcessor,
+) {
   const paths = AppPathsService.layer(dataRoot);
   const catalog = DesktopCatalogService.layer.pipe(Layer.provide(CatalogStoreService.layer));
   const foundation = Layer.mergeAll(
@@ -24,7 +29,7 @@ export function desktopServices(dataRoot: string, modelLayer = ModelCatalogServi
     CredentialService.layer,
     DesktopSettingsService.layer,
     SessionRepositoryService.layer,
-    AgentResourcesService.layer,
+    AgentResourcesService.layerWith(processImage),
   ).pipe(Layer.provideMerge(paths));
   const models = modelLayer.pipe(Layer.provideMerge(foundation));
   const domain = Layer.mergeAll(

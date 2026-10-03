@@ -33,6 +33,7 @@ export default defineConfig({
     deps: {
       // The Electron main entry is CJS, while Agent and pi-ai expose ESM-only exports.
       alwaysBundle: [
+        "@cf-wasm/photon/**",
         "effect",
         "effect/**",
         "@earendil-works/pi-ai",

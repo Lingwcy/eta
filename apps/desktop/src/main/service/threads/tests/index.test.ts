@@ -1,3 +1,4 @@
+import { processImage } from "../../../platform/images.ts";
 import { mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -31,7 +32,7 @@ afterEach(async () => {
     directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
-async function setup() {
+async function setup(withImages = false) {
   const directory = await mkdtemp(join(tmpdir(), "eta-durable-"));
   directories.push(directory);
   const cwd = join(directory, "project");
@@ -45,7 +46,11 @@ async function setup() {
   models.setProvider(provider.provider);
   const reopen = () => {
     const runtime = ManagedRuntime.make(
-      desktopServices(join(directory, "data"), ModelCatalogService.layerWith(models)),
+      desktopServices(
+        join(directory, "data"),
+        ModelCatalogService.layerWith(models),
+        withImages ? processImage : undefined,
+      ),
     );
     runtimes.push(runtime);
     return runtime;
@@ -527,4 +532,89 @@ test("normal shutdown settles a running tool, cleans its child process and prese
   expect(restored.snapshot.recoveryRequired).toBe(false);
   expect(restored.snapshot.lastResult?.status).toBe("aborted");
   void registry;
+});
+
+test("image attachments and read images survive restart; disabling reading only changes provider input", async () => {
+  const { runtime, threads, registry, provider, cwd, workspace, reopen } = await setup(true);
+  const bytes = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await writeFile(join(cwd, "shot.png"), bytes);
+  const attachment = await processImage(bytes, "shot.png");
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await runtime.runPromise(settings.update({ blockImages: true }));
+  const requests: string[] = [];
+  provider.setResponses([
+    (context) => {
+      requests.push(JSON.stringify(context.messages));
+      return fauxAssistantMessage(
+        fauxToolCall("read", { path: "shot.png" }, { id: "read-image" }),
+        { stopReason: "toolUse" },
+      );
+    },
+    (context) => {
+      requests.push(JSON.stringify(context.messages));
+      return fauxAssistantMessage("Done");
+    },
+  ]);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "", "image-submit", [attachment]));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  const before = await runtime.runPromise(threads.open(created.id));
+  const user = before.snapshot.transcript.find((entry) => entry.message.role === "user");
+  expect(user?.message.content).toEqual([
+    { type: "image", data: attachment.data, mimeType: attachment.mimeType },
+  ]);
+  const result = before.snapshot.transcript.find((entry) => entry.message.role === "toolResult");
+  expect(result?.message.content).toContainEqual({
+    type: "image",
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  });
+  expect(requests).toHaveLength(2);
+  expect(requests.every((request) => !request.includes(attachment.data))).toBe(true);
+  expect(requests[1]).toContain("Image reading is disabled.");
+  await runtime.dispose();
+  const next = reopen();
+  const other = await next.runPromise(ThreadService);
+  expect((await next.runPromise(other.open(created.id))).snapshot.transcript).toEqual(
+    before.snapshot.transcript,
+  );
+  const nextSettings = await next.runPromise(DesktopSettingsService);
+  await next.runPromise(nextSettings.update({ blockImages: false }));
+  provider.setResponses([
+    (context) => {
+      expect(JSON.stringify(context.messages)).toContain(attachment.data);
+      return fauxAssistantMessage("Images restored");
+    },
+  ]);
+  await next.runPromise(other.submit(created.id, "Read again"));
+  const nextRegistry = await next.runPromise(RuntimeRegistryService);
+  await (
+    await next.runPromise(nextRegistry.acquire(created.thread.sessionRef))
+  ).conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect((await next.runPromise(other.open(created.id))).snapshot.lastResult?.status).toBe(
+    "completed",
+  );
+});
+
+test("image admission enforces the selected model's attachment count before starting a run", async () => {
+  const { runtime, threads, provider, workspace } = await setup(true);
+  provider.getModel().inputLimits = { images: { maxPerMessage: 1 } };
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const image = {
+    type: "image" as const,
+    name: "shot.png",
+    mimeType: "image/png",
+    data: "aGVsbG8=",
+  };
+  expect(
+    await runtime.runPromise(
+      Effect.flip(threads.submit(created.id, "Describe", "too-many", [image, image])),
+    ),
+  ).toMatchObject({ code: "InvalidInput" });
+  expect(provider.state.callCount).toBe(0);
+  expect((await runtime.runPromise(threads.open(created.id))).snapshot.transcript).toHaveLength(0);
 });

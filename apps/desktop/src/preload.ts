@@ -8,6 +8,8 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 }
 
 const bridge: DesktopBridge = {
+  prepareImage: (source, cwd, provider, modelId) =>
+    invoke("eta:command", { type: "prepare-image", source, cwd, provider, modelId }),
   library: () => invoke("eta:command", { type: "library" }),
   chooseProject: () => invoke("eta:choose-project"),
   chooseDirectory: () => invoke("eta:choose-directory"),
@@ -20,11 +22,12 @@ const bridge: DesktopBridge = {
   archiveThread: (id, archived) => invoke("eta:command", { type: "archive", id, archived }),
   configureThread: (id, provider, modelId, thinkingLevel) =>
     invoke("eta:command", { type: "configure", id, provider, modelId, thinkingLevel }),
-  submit: (id, prompt) =>
+  submit: (id, prompt, images) =>
     invoke("eta:command", {
       type: "submit",
       id,
       prompt,
+      images,
       requestId: globalThis.crypto.randomUUID(),
     }),
   stop: (id) => invoke("eta:command", { type: "stop", id }),

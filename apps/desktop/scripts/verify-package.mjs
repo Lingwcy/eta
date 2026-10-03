@@ -27,9 +27,16 @@ try {
   const require = compiled.require.bind(compiled);
   compiled.require = (id) => (id === "electron" ? electron : require(id));
   compiled._compile(
-    (await readFile(entry, "utf8")) + "\nmodule.exports = { createDesktopApplication };\n",
+    (await readFile(entry, "utf8")) +
+      "\nmodule.exports = { createDesktopApplication, processImage };\n",
     entry,
   );
+  const image = await compiled.exports.processImage(
+    Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"),
+    "test.gif",
+  );
+  assert.equal(image.mimeType, "image/png", "Bundled codec must convert image attachments");
+  assert.ok(image.data.length > 0);
   const data = join(temporary, "data");
   const workspace = join(temporary, "workspace");
   await mkdir(data);
@@ -45,18 +52,38 @@ try {
     join(data, "settings.json"),
     JSON.stringify({ version: 1, settings: { defaultThinkingLevel: "off" } }),
   );
-  application = await compiled.exports.createDesktopApplication(isolated, workspace, data);
+  application = await compiled.exports.createDesktopApplication(
+    isolated,
+    workspace,
+    data,
+    undefined,
+    compiled.exports.processImage,
+  );
+  await writeFile(
+    join(workspace, "image.gif"),
+    Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"),
+  );
+  assert.equal(
+    (await application.prepareImage({ path: "image.gif" }, workspace)).mimeType,
+    "image/png",
+  );
   const library = await application.library();
   assert.equal(library.projects.length, 1);
   assert.ok(library.models.length > 0, "Bundled model catalog must be available");
   assert.ok(library.providers.length > 0, "Bundled authentication providers must be available");
   await application.updateSettings({ defaultThinkingLevel: "low" });
   await application.close();
-  application = await compiled.exports.createDesktopApplication(isolated, workspace, data);
+  application = await compiled.exports.createDesktopApplication(
+    isolated,
+    workspace,
+    data,
+    undefined,
+    compiled.exports.processImage,
+  );
   assert.equal((await application.library()).settings.defaultThinkingLevel, "low");
   assert.equal((await application.library()).projects[0].id, library.projects[0].id);
   console.log(
-    "Packaged runtime verified: isolated startup, model catalog, authentication, persistence.",
+    "Packaged runtime verified: isolated startup, model catalog, authentication, image decoding, persistence.",
   );
 } finally {
   await application?.close();

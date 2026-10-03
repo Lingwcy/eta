@@ -15,7 +15,30 @@ const Command = Schema.Union([
   Schema.Struct({ type: Schema.Literal("open"), id: Id }),
   Schema.Struct({ type: Schema.Literal("rename"), id: Id, title: Id }),
   Schema.Struct({ type: Schema.Literal("archive"), id: Id, archived: Schema.Boolean }),
-  Schema.Struct({ type: Schema.Literal("submit"), id: Id, prompt: Id, requestId: Id }),
+  Schema.Struct({
+    type: Schema.Literal("submit"),
+    id: Id,
+    prompt: Schema.String,
+    requestId: Id,
+    images: Schema.optionalKey(
+      Schema.Array(
+        Schema.Struct({
+          type: Schema.Literal("image"),
+          data: Id,
+          mimeType: Id,
+          name: Schema.optionalKey(Id),
+          note: Schema.optionalKey(Schema.String),
+        }),
+      ),
+    ),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("prepare-image"),
+    source: Schema.Union([Schema.Struct({ path: Id }), Schema.Struct({ data: Id, name: Id })]),
+    cwd: Schema.optionalKey(Id),
+    provider: Schema.optionalKey(Id),
+    modelId: Schema.optionalKey(Id),
+  }),
   Schema.Struct({ type: Schema.Literal("stop"), id: Id }),
   Schema.Struct({ type: Schema.Literal("resume"), id: Id }),
   Schema.Struct({ type: Schema.Literal("compact"), id: Id }),
@@ -35,6 +58,7 @@ const Command = Schema.Union([
         Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
       ),
       activeThreadId: Schema.optionalKey(Id),
+      blockImages: Schema.optionalKey(Schema.Boolean),
     }),
   }),
   Schema.Struct({ type: Schema.Literal("login-start"), provider: Id, method: Method }),
@@ -60,6 +84,13 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     throw new DesktopServiceError({ code: "InvalidInput", message: "请求参数无效" });
   }
   switch (command.type) {
+    case "prepare-image":
+      return application.prepareImage(
+        command.source,
+        command.cwd,
+        command.provider,
+        command.modelId,
+      );
     case "library":
       return application.library();
     case "register-project":
@@ -73,7 +104,7 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     case "archive":
       return application.archiveThread(command.id, command.archived);
     case "submit":
-      return application.submit(command.id, command.prompt, command.requestId);
+      return application.submit(command.id, command.prompt, command.requestId, command.images);
     case "stop":
       return application.stop(command.id);
     case "resume":

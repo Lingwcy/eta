@@ -1,3 +1,4 @@
+import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import { type Static, Type } from "typebox";
 import { getOrThrow } from "../env/index.ts";
 import { defineTool } from "../harness/define.ts";
@@ -29,11 +30,18 @@ export type ReadToolDetails = {
   truncation?: Omit<TruncationResult, "content">;
 };
 
-/** Reads text files. Remarks about truncation and continuation are diagnostics; the content is only file text. */
-export function createReadTool(): ToolRegistration<typeof readSchema, ReadToolDetails> {
+/** Reads files; hosts can supply image decoding. Text truncation and continuation are diagnostics. */
+export function createReadTool(options?: {
+  readImage: (
+    bytes: Uint8Array,
+    mimeType: string,
+    api: Parameters<ToolRegistration["execute"]>[1],
+    context: Parameters<ToolRegistration["execute"]>[2],
+  ) => Promise<ToolResultMessage["content"]>;
+}): ToolRegistration<typeof readSchema, ReadToolDetails> {
   return defineTool({
     name: "read",
-    description: `Read the contents of a text file. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
+    description: `Read the contents of a ${options ? "text or image" : "text"} file. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
     parameters: readSchema,
     async execute(args, api, context) {
       const { path, offset, limit } = args;
@@ -42,7 +50,8 @@ export function createReadTool(): ToolRegistration<typeof readSchema, ReadToolDe
       const bytes = getOrThrow(await env.readBinaryFile(absolutePath, context));
       const mimeType = detectSupportedImageMimeType(bytes);
       if (mimeType) {
-        // Image content is not supported yet.
+        if (options) return { content: await options.readImage(bytes, mimeType, api, context) };
+        // Text-only hosts do not decode images.
         return {
           content: [],
           isError: true,

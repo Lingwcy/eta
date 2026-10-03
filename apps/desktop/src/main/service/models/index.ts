@@ -34,11 +34,13 @@ function make(models: Models) {
         models.getProviders().map((provider) => models.getAvailable(provider.id).catch(() => [])),
       )
     ).flat();
-    return available.map(({ id, provider, name, contextWindow }) => ({
+    return available.map(({ id, provider, name, contextWindow, input, inputLimits }) => ({
       id,
       provider,
       name,
       contextWindow,
+      input,
+      inputLimits,
     }));
   });
   return ModelCatalogService.of({

@@ -1,3 +1,4 @@
+import type { ImageAttachment } from "../../../src/images/types.ts";
 import type { DesktopBridge } from "../../../src/bridge.ts";
 
 type DraftBridge = Pick<DesktopBridge, "submit"> & {
@@ -15,25 +16,25 @@ export class DraftThread {
     private readonly bridge: DraftBridge,
   ) {}
 
-  submit(workspaceId: string | null, prompt: string) {
+  submit(workspaceId: string | null, prompt: string, images?: readonly ImageAttachment[]) {
     if (this.pending) return this.pending;
-    if (!prompt.trim()) return Promise.reject(new Error("请输入消息"));
+    if (!prompt.trim() && !images?.length) return Promise.reject(new Error("请输入消息"));
     if (!workspaceId) return Promise.reject(new Error("请先选择项目"));
     if (this.workspaceId && this.workspaceId !== workspaceId)
       return Promise.reject(new Error("已创建的会话不能切换项目"));
-    this.pending = this.send(workspaceId, prompt.trim()).finally(() => {
+    this.pending = this.send(workspaceId, prompt.trim(), images).finally(() => {
       this.pending = undefined;
     });
     return this.pending;
   }
 
-  private async send(workspaceId: string, prompt: string) {
+  private async send(workspaceId: string, prompt: string, images?: readonly ImageAttachment[]) {
     if (!this.threadId) {
       const created = await this.bridge.createThread(workspaceId, this.requestId);
       this.threadId = created.id;
       this.workspaceId = workspaceId;
     }
-    await this.bridge.submit(this.threadId, prompt);
+    await this.bridge.submit(this.threadId, prompt, ...(images ? [images] : []));
     return this.threadId;
   }
 

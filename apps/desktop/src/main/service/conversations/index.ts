@@ -35,6 +35,8 @@ export class ConversationService extends Context.Service<
                 provider: model.provider,
                 name: model.name,
                 contextWindow: model.contextWindow,
+                input: model.input,
+                inputLimits: model.inputLimits,
               }
             : {
                 id: agent.model?.modelId ?? "unknown",

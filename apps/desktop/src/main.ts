@@ -1,3 +1,4 @@
+import { processImage } from "./main/platform/images.ts";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
@@ -193,8 +194,12 @@ if (!app.requestSingleInstanceLock()) {
       app.dock?.setIcon(applicationIconPath());
       const root = app.isPackaged ? app.getAppPath() : resolve(app.getAppPath(), "../..");
       const cwd = process.env.ETA_WORKSPACE ?? (app.isPackaged ? app.getPath("home") : root);
-      agentService = await createDesktopApplication(root, cwd, app.getPath("userData"), (url) =>
-        shell.openExternal(url),
+      agentService = await createDesktopApplication(
+        root,
+        cwd,
+        app.getPath("userData"),
+        (url) => shell.openExternal(url),
+        processImage,
       );
       ready = true;
       if (!quitting) openWindow();
