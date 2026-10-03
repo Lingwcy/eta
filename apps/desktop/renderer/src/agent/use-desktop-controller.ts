@@ -3,6 +3,8 @@ import { useThinkingStatus } from "./use-thinking-status";
 import { useThreadActivity } from "./use-thread-activity";
 import { useThreadAgent } from "./use-thread-agent";
 import { useDesktopLibrary } from "./use-desktop-library";
+import type { InputModel } from "@/components/input/types";
+import type { ThinkingLevel } from "../../../src/agent/protocol";
 
 /** Connects desktop commands to presentation props; UI components never manage sessions. */
 export function useDesktopController() {
@@ -137,7 +139,24 @@ export function useDesktopController() {
           (model) =>
             model.provider === desktop.library?.settings.defaultProvider &&
             model.id === desktop.library?.settings.defaultModel,
-        ),
+        ) ??
+        desktop.library?.models[0],
+      models: desktop.library?.models ?? [],
+      onModelChange: (model: InputModel, level: ThinkingLevel) => {
+        if (running) return;
+        void desktop.act(async () => {
+          if (threadId) {
+            await window.eta.configureThread(threadId, model.provider, model.id, level);
+            reconnect();
+          } else {
+            await window.eta.updateSettings({
+              defaultProvider: model.provider,
+              defaultModel: model.id,
+              defaultThinkingLevel: level,
+            });
+          }
+        });
+      },
       thinkingLevel:
         snapshot?.configuration.thinkingLevel ?? desktop.library?.settings.defaultThinkingLevel,
       contextTokens: agent.observation?.contextTokens,
@@ -170,7 +189,6 @@ export function useDesktopController() {
         ? {
             library: desktop.library,
             onChooseProject: chooseProject,
-            threadId,
             busy: desktop.busy,
             act: desktop.act,
             error: desktop.error,

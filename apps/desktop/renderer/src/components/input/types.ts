@@ -1,7 +1,7 @@
 import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
 import type { AgentModel } from "../../../../src/agent/protocol.ts";
 
-type InputModel = Pick<AgentModel, "id" | "provider" | "name">;
+export type InputModel = Pick<AgentModel, "id" | "provider" | "name">;
 
 export interface ContextIndicatorProps {
   readonly percentage?: number;
@@ -22,6 +22,8 @@ export interface PromptTextareaProps {
 
 export interface ActionToolbarProps {
   readonly model?: InputModel;
+  readonly models?: readonly InputModel[];
+  readonly onModelChange?: (model: InputModel, thinkingLevel: ThinkingLevel) => void;
   readonly thinkingLevel?: ThinkingLevel;
   readonly contextTokens?: number;
   readonly contextWindow?: number;

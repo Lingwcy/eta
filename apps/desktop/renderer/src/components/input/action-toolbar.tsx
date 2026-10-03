@@ -1,21 +1,14 @@
-import { ArrowUp, ChevronDown, Settings2, Square } from "lucide-react";
+import { ArrowUp, Settings2, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ContextIndicator } from "./context-indicator";
 import type { ActionToolbarProps } from "./types";
-
-const thinkingLabels = {
-  off: "",
-  minimal: "最小",
-  low: "低",
-  medium: "中",
-  high: "高",
-  xhigh: "极高",
-  max: "最大",
-};
+import { ModelPicker } from "./model-picker";
 
 export function ActionToolbar({
   model,
+  models = [],
+  onModelChange,
   thinkingLevel,
   contextTokens = 0,
   contextWindow,
@@ -49,23 +42,14 @@ export function ActionToolbar({
         <span className="hidden min-[701px]:inline">配置</span>
       </Button>
       <div className="flex min-w-0 items-center gap-2.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          disabled={!onSettings}
-          onClick={onSettings}
-          title={model ? `${model.provider}/${model.id}` : "选择模型"}
-          aria-label="模型与思考级别设置"
-        >
-          <span className="max-w-[105px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
-            {model?.name ?? "选择模型"}
-          </span>
-          {thinkingLevel && thinkingLevel !== "off" && (
-            <span className="text-neutral-400">{thinkingLabels[thinkingLevel]}</span>
-          )}
-          <ChevronDown size={13} aria-hidden="true" />
-        </Button>
+        <ModelPicker
+          model={model}
+          models={models}
+          thinkingLevel={thinkingLevel}
+          disabled={disabled || isRunning}
+          onChange={onModelChange}
+          onSettings={onSettings}
+        />
         {contextWindow && contextTokens > 0 && (
           <ContextIndicator percentage={percentage} hideText />
         )}

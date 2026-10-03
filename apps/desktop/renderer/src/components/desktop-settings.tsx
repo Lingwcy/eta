@@ -15,7 +15,6 @@ interface Props {
   library: DesktopLibrary;
   initialCategory?: string;
   onChooseProject: () => void;
-  threadId: string | null;
   busy: boolean;
   error: string | null;
   act: (action: () => Promise<void>) => Promise<void>;
@@ -81,7 +80,6 @@ export function DesktopSettings(props: Props) {
                   <AuthenticationSettings
                     library={props.library}
                     method={item.id === "accounts" ? "oauth" : "api_key"}
-                    threadId={props.threadId}
                     busy={props.busy}
                     act={props.act}
                     reconnect={props.reconnect}
