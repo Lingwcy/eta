@@ -3,12 +3,11 @@ import { useDesktopController } from "@/agent/use-desktop-controller";
 import { DesktopLayout } from "@/components/desktop-layout";
 import { WindowToolbar } from "@/components/window-toolbar";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
-import { AgentThinking } from "@/components/agent-thinking";
+import { ThinkingSlot } from "@/components/agent-thinking/thinking-slot";
 import { CompositeInput } from "@/components/input";
 import { ComposerContext } from "@/components/input/composer-context";
 import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { ChatWelcome } from "@/components/chat/chat-welcome";
-import { ThreadHeader } from "@/components/chat/thread-header";
 import { RecoveryNotice } from "@/components/chat/recovery-notice";
 import { Alert } from "@/components/ui/alert";
 
@@ -26,21 +25,20 @@ export function App() {
           toolbar={<WindowToolbar {...view.toolbar} />}
           sidebar={<DesktopSidebar {...view.sidebar} />}
         >
-          {view.threadHeader && <ThreadHeader {...view.threadHeader} />}
           <ChatTranscript key={view.transcriptKey} {...view.transcript}>
             {view.welcome && <ChatWelcome {...view.welcome} />}
             {view.failure && <Alert>{view.failure}</Alert>}
             {view.recovery && <RecoveryNotice {...view.recovery} />}
             {view.stopped && <output className="text-xs text-neutral-500">已停止生成</output>}
+            <ThinkingSlot thinking={view.thinking} />
           </ChatTranscript>
-          <div className="mx-auto w-full max-w-[780px] shrink-0 px-4 pb-4 min-[901px]:px-6 min-[1600px]:max-w-[880px]">
-            {view.thinking && (
-              <div className="px-3 py-1">
-                <AgentThinking {...view.thinking} />
-              </div>
-            )}
-            <ComposerContext {...view.composerContext} />
-            <CompositeInput key={view.composerKey} {...view.composer} />
+          <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
+            <div className="mx-auto w-full max-w-[960px]">
+              {view.composerContext && (
+                <ComposerContext key={`context:${view.composerKey}`} {...view.composerContext} />
+              )}
+              <CompositeInput key={`input:${view.composerKey}`} {...view.composer} />
+            </div>
           </div>
         </DesktopLayout>
       </div>

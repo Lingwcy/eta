@@ -41,5 +41,6 @@ export interface CompositeInputProps extends Omit<ActionToolbarProps, "onSubmit"
   readonly onChange?: (value: string) => void;
   /** Resolves when the harness admits the prompt. Rejection preserves the draft. */
   readonly onSubmit?: (text: string) => void | Promise<void>;
+  readonly submitDisabled?: boolean;
   readonly placeholder?: string;
 }

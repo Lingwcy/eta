@@ -10,6 +10,9 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 const bridge: DesktopBridge = {
   library: () => invoke("eta:command", { type: "library" }),
   chooseProject: () => invoke("eta:choose-project"),
+  chooseDirectory: () => invoke("eta:choose-directory"),
+  registerProject: (rootPath, name) =>
+    invoke("eta:command", { type: "register-project", rootPath, name }),
   createThread: (workspaceId, requestId) =>
     invoke("eta:command", { type: "create", workspaceId, requestId }),
   openThread: (id) => invoke("eta:command", { type: "open", id }),

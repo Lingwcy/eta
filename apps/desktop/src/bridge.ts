@@ -36,6 +36,8 @@ export interface DesktopLibrary {
 export interface DesktopBridge extends AgentBridge {
   library(): Promise<DesktopLibrary>;
   chooseProject(): Promise<ProjectMetadata | null>;
+  chooseDirectory(): Promise<string | null>;
+  registerProject(rootPath: string, name: string): Promise<ProjectMetadata>;
   createThread(workspaceId: string, requestId: string): Promise<SessionResponse>;
   renameThread(id: string, title: string): Promise<ThreadMetadata>;
   archiveThread(id: string, archived: boolean): Promise<ThreadMetadata>;

@@ -1,4 +1,4 @@
-import { Archive, FolderPlus, Home, Settings2 } from "lucide-react";
+import { Archive, FolderPlus, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -56,6 +56,7 @@ export function NavigationRail({
         <FolderPlus size={21} aria-hidden="true" />
       </Button>
       <div className="flex-1" />
+      <Avatar label="Eta" fallback="e" />
       <Button
         variant="ghost-muted"
         size="icon"
@@ -65,9 +66,8 @@ export function NavigationRail({
         aria-pressed={settingsActive}
         onClick={onSettings}
       >
-        <Settings2 size={21} aria-hidden="true" />
+        <Settings size={21} aria-hidden="true" />
       </Button>
-      <Avatar label="Eta" fallback="e" />
     </nav>
   );
 }

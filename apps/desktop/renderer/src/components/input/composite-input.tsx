@@ -11,6 +11,7 @@ export function CompositeInput({
   onSubmit,
   placeholder = "Hi, what do you need today?",
   disabled = false,
+  submitDisabled = false,
   isRunning = false,
   className,
   ...toolbar
@@ -23,7 +24,7 @@ export function CompositeInput({
     onChange?.(next);
   };
   const handleSubmit = async () => {
-    if (!text.trim() || disabled || isRunning || submitting || !onSubmit) return;
+    if (!text.trim() || disabled || submitDisabled || isRunning || submitting || !onSubmit) return;
     setSubmitting(true);
     try {
       await onSubmit(text.trim());
@@ -57,7 +58,7 @@ export function CompositeInput({
         onSubmit={() => {
           void handleSubmit();
         }}
-        canSubmit={Boolean(onSubmit) && Boolean(text.trim())}
+        canSubmit={!submitDisabled && Boolean(onSubmit) && Boolean(text.trim())}
       />
     </div>
   );

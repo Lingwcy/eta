@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { getThinkingLabel } from "./selectors";
+import { useCallback, useEffect, useState } from "react";
+import { useThinkingStatus } from "./use-thinking-status";
+import { useThreadActivity } from "./use-thread-activity";
 import { useThreadAgent } from "./use-thread-agent";
 import { useDesktopLibrary } from "./use-desktop-library";
 
@@ -9,21 +10,21 @@ export function useDesktopController() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [version, setVersion] = useState(0);
-  const [editingTitle, setEditingTitle] = useState<{ id: string; title: string } | null>(null);
   const reconnect = () => setVersion((current) => current + 1);
   const agent = useThreadAgent(desktop.threadId, version);
-  const thread = desktop.library?.threads.find((thread) => thread.id === desktop.threadId);
   const workspace = desktop.library?.workspaces.find(
     (workspace) => workspace.id === desktop.workspaceId,
   );
   const project = desktop.library?.projects.find((project) => project.id === workspace?.projectId);
   const snapshot = agent.observation?.snapshot;
   const operation = snapshot?.operation;
+  const thinking = useThinkingStatus(desktop.threadId, snapshot);
   const running = Boolean(
     ((operation || snapshot?.compacting) && !snapshot?.recoveryRequired) ||
     agent.admission ||
     agent.submitting,
   );
+  const runningThreadIds = useThreadActivity(desktop.threadId, snapshot, running);
   const hasMessages =
     snapshot?.transcript.some(
       (entry) => entry.message.role === "user" || entry.message.role === "assistant",
@@ -37,16 +38,20 @@ export function useDesktopController() {
   const openSettings = () => {
     setSettingsOpen(true);
   };
-  const newThread = () => void desktop.newThread();
+  const newThread = useCallback(() => {
+    if (desktop.busy || !desktop.library) return;
+    desktop.newThread();
+    setSettingsOpen(false);
+  }, [desktop.busy, desktop.library, desktop.newThread]);
   const chooseProject = () => void desktop.chooseProject();
   const threadId = desktop.threadId;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.defaultPrevented || event.isComposing || !(event.metaKey || event.ctrlKey)) return;
       if (event.key.toLowerCase() === "n") {
         event.preventDefault();
-        void desktop.newThread();
+        newThread();
       }
       if (event.key.toLowerCase() === "b") {
         event.preventDefault();
@@ -59,58 +64,29 @@ export function useDesktopController() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [desktop.newThread]);
+  }, [newThread]);
 
   return {
     collapsed,
     toolbar: {
       collapsed,
-      canCreate: !desktop.busy && !!desktop.workspaceId,
+      canCreate: !desktop.busy && !!desktop.library,
       onToggle: () => setCollapsed((current) => !current),
       onNew: newThread,
     },
     sidebar: {
       library: desktop.library,
+      runningThreadIds,
       workspaceId: desktop.workspaceId,
       threadId,
       busy: desktop.busy,
       collapsed,
       onExpand: () => setCollapsed(false),
-      onWorkspace: desktop.selectWorkspace,
       onSelect: desktop.select,
       onNew: newThread,
       onChoose: chooseProject,
       onSettings: openSettings,
     },
-    threadHeader: thread
-      ? {
-          title: thread.title,
-          archived: thread.archivedAt !== undefined,
-          busy: desktop.busy,
-          canArchive: !desktop.busy && !running && !snapshot?.recoveryRequired,
-          canCompact:
-            !desktop.busy && !running && !snapshot?.recoveryRequired && !snapshot?.blockedReason,
-          editingTitle: editingTitle?.id === thread.id ? editingTitle.title : null,
-          onEditingTitle: (title: string | null) =>
-            setEditingTitle(title === null ? null : { id: thread.id, title }),
-          onRename: () =>
-            void desktop.act(async () => {
-              if (editingTitle?.id === thread.id) {
-                await window.eta.renameThread(thread.id, editingTitle.title);
-                setEditingTitle(null);
-              }
-            }),
-          onArchive: () =>
-            void desktop.act(async () => {
-              await window.eta.archiveThread(thread.id, thread.archivedAt === undefined);
-              reconnect();
-            }),
-          onCompact: () =>
-            void desktop.act(async () => {
-              await window.eta.compact(thread.id);
-            }),
-        }
-      : null,
     transcript: { snapshot, running },
     transcriptKey: threadId ?? "empty",
     welcome:
@@ -118,11 +94,6 @@ export function useDesktopController() {
         ? {
             projectName: project?.name,
             connecting: !!threadId && agent.connection === "connecting",
-            canStart: !threadId,
-            busy: desktop.busy,
-            hasWorkspace: !!desktop.workspaceId,
-            onStart: () =>
-              void (desktop.workspaceId ? desktop.newThread() : desktop.chooseProject()),
           }
         : null,
     failure,
@@ -144,18 +115,21 @@ export function useDesktopController() {
           }
         : null,
     stopped: snapshot?.lastResult?.status === "aborted" && !running,
-    thinking:
-      operation && !snapshot?.recoveryRequired
-        ? { label: getThinkingLabel(snapshot!), startedAt: operation.startedAt }
+    thinking,
+    composerContext:
+      !hasMessages && (!threadId || snapshot)
+        ? {
+            projectName: project?.name,
+            cwd: workspace?.cwd,
+            worktree: workspace?.kind === "worktree",
+            busy: desktop.busy || !!threadId,
+            library: desktop.library,
+            workspaceId: desktop.workspaceId,
+            onProject: desktop.selectWorkspace,
+            onCreateProject: desktop.registerProject,
+          }
         : null,
-    composerContext: {
-      projectName: project?.name,
-      cwd: workspace?.cwd,
-      worktree: workspace?.kind === "worktree",
-      busy: desktop.busy,
-      onProject: () => setCollapsed(false),
-    },
-    composerKey: agent.session?.id ?? "initial",
+    composerKey: desktop.viewKey,
     composer: {
       model:
         agent.session?.model ??
@@ -169,18 +143,25 @@ export function useDesktopController() {
       contextTokens: agent.observation?.contextTokens,
       contextWindow: agent.session?.model.contextWindow,
       onSubmit: async (prompt: string) => {
-        await agent.submit(prompt);
-        void desktop.refresh().catch(() => {});
+        if (!threadId) await desktop.submitDraft(prompt);
+        else {
+          desktop.clearError();
+          await agent.submit(prompt);
+          void desktop.refresh().catch(() => {});
+        }
       },
       onStop: () => void agent.stop(),
       isRunning: running,
       isStopping: agent.stopping || operation?.status === "aborting",
+      submitDisabled: !threadId && !desktop.workspaceId,
       disabled:
-        !threadId ||
-        agent.connection !== "connected" ||
-        snapshot?.faulted ||
-        !!snapshot?.blockedReason ||
-        !!snapshot?.recoveryRequired,
+        desktop.busy ||
+        !desktop.library ||
+        (!!threadId &&
+          (agent.connection !== "connected" ||
+            snapshot?.faulted ||
+            !!snapshot?.blockedReason ||
+            !!snapshot?.recoveryRequired)),
       onSettings: openSettings,
       placeholder: "随心输入",
     },

@@ -31,13 +31,3 @@ export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {
   for (const tool of snapshot.operation?.runningTools ?? []) tools.set(tool.toolCallId, tool);
   return [...tools.values()];
 }
-
-export function getThinkingLabel(snapshot: AgentSnapshot): string {
-  const operation = snapshot.operation;
-  if (operation?.status === "aborting") return "正在停止";
-  if (operation?.retry)
-    return `正在重试 (${operation.retry.attempt}/${operation.retry.maxAttempts})`;
-  if (operation?.deferred) return "等待模型返回结果";
-  if (operation?.runningTools.some((tool) => tool.status === "running")) return "正在执行工具";
-  return "正在思考";
-}

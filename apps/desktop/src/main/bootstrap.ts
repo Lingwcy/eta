@@ -47,7 +47,8 @@ export async function createDesktopApplication(root: string, cwd: string, dataRo
           credentials: await run(credentials.list),
         };
       },
-      registerProject: (rootPath: string) => run(projects.register({ rootPath })),
+      registerProject: (rootPath: string, name?: string) =>
+        run(projects.register({ rootPath, name })),
       createThread: (workspaceId: string, requestId?: string) =>
         run(threads.create(workspaceId, requestId)),
       openThread: (id: string) => run(threads.open(id)),

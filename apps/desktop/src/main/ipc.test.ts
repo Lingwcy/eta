@@ -5,6 +5,8 @@ import { DesktopServiceError } from "./service/errors.ts";
 
 test.each([
   { type: "create", workspaceId: "", requestId: "request" },
+  { type: "register-project", rootPath: "", name: "Project" },
+  { type: "register-project", rootPath: "/project", name: 42 },
   { type: "archive", id: "thread", archived: "yes" },
   { type: "credential", provider: 1, key: "do-not-echo-this-secret" },
   { type: "settings", patch: { defaultThinkingLevel: "not-a-level" } },

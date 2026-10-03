@@ -9,6 +9,7 @@ import { CatalogValidationError } from "./service/catalog/schema.ts";
 const Id = Schema.NonEmptyString;
 const Command = Schema.Union([
   Schema.Struct({ type: Schema.Literal("library") }),
+  Schema.Struct({ type: Schema.Literal("register-project"), rootPath: Id, name: Id }),
   Schema.Struct({ type: Schema.Literal("create"), workspaceId: Id, requestId: Id }),
   Schema.Struct({ type: Schema.Literal("open"), id: Id }),
   Schema.Struct({ type: Schema.Literal("rename"), id: Id, title: Id }),
@@ -51,6 +52,8 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
   switch (command.type) {
     case "library":
       return application.library();
+    case "register-project":
+      return application.registerProject(command.rootPath, command.name);
     case "create":
       return application.createThread(command.workspaceId, command.requestId);
     case "open":

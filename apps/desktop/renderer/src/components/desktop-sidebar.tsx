@@ -3,15 +3,16 @@ import type { DesktopLibrary } from "../../../src/bridge.ts";
 import { NavigationRail } from "./sidebar/navigation-rail";
 import { ProjectSidebar } from "./sidebar/project-sidebar";
 import { ProjectGroup } from "./sidebar/project-group";
+import { ThreadSearchDialog } from "./sidebar/thread-search-dialog";
 
 interface Props {
   library: DesktopLibrary | null;
+  runningThreadIds: ReadonlySet<string>;
   workspaceId: string | null;
   threadId: string | null;
   busy: boolean;
   collapsed: boolean;
   onExpand: () => void;
-  onWorkspace: (id: string) => void;
   onSelect: (id: string) => void;
   onNew: () => void;
   onChoose: () => void;
@@ -20,34 +21,25 @@ interface Props {
 
 export function DesktopSidebar(props: Props) {
   const [archived, setArchived] = useState(false);
-  const [query, setQuery] = useState("");
-  const search = query.trim().toLocaleLowerCase();
   const groups =
-    props.library?.workspaces
-      .map((workspace) => {
-        const project = props.library?.projects.find(
-          (project) => project.id === workspace.projectId,
-        );
-        const name = `${project?.name ?? "项目"}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split("/").at(-1)}` : ""}`;
-        const threads =
-          props.library?.threads
-            .filter(
-              (thread) =>
-                thread.workspaceId === workspace.id &&
-                (thread.archivedAt !== undefined) === archived &&
-                (!search ||
-                  name.toLocaleLowerCase().includes(search) ||
-                  thread.title.toLocaleLowerCase().includes(search)),
-            )
-            .toSorted(
-              (a, b) => b.sessionRef.metadata.modifiedAt - a.sessionRef.metadata.modifiedAt,
-            ) ?? [];
-        return { workspace, name, threads };
-      })
-      .filter(
-        (group) =>
-          !search || group.threads.length || group.name.toLocaleLowerCase().includes(search),
-      ) ?? [];
+    props.library?.workspaces.map((workspace) => {
+      const project = props.library?.projects.find((project) => project.id === workspace.projectId);
+      const name = `${project?.name ?? "项目"}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split("/").at(-1)}` : ""}`;
+      const threads =
+        props.library?.threads
+          .filter(
+            (thread) =>
+              thread.workspaceId === workspace.id && (thread.archivedAt !== undefined) === archived,
+          )
+          .toSorted(
+            (a, b) => b.sessionRef.metadata.modifiedAt - a.sessionRef.metadata.modifiedAt,
+          ) ?? [];
+      const running =
+        props.library?.threads.some(
+          (thread) => thread.workspaceId === workspace.id && props.runningThreadIds.has(thread.id),
+        ) ?? false;
+      return { workspace, name, threads, running };
+    }) ?? [];
   return (
     <>
       <NavigationRail
@@ -67,12 +59,20 @@ export function DesktopSidebar(props: Props) {
       {!props.collapsed && (
         <ProjectSidebar
           archived={archived}
-          busy={props.busy}
-          canCreate={!props.busy && !!props.workspaceId}
-          query={query}
-          onQuery={setQuery}
+          canCreate={!props.busy && !!props.library}
+          search={
+            <ThreadSearchDialog
+              library={props.library}
+              archived={archived}
+              busy={props.busy}
+              canCreate={!props.busy && !!props.library}
+              runningThreadIds={props.runningThreadIds}
+              onSelect={props.onSelect}
+              onNew={props.onNew}
+              onChoose={props.onChoose}
+            />
+          }
           onNew={props.onNew}
-          onChoose={props.onChoose}
         >
           {groups.map((group) => (
             <ProjectGroup
@@ -80,17 +80,14 @@ export function DesktopSidebar(props: Props) {
               {...group}
               selected={props.workspaceId === group.workspace.id}
               threadId={props.threadId}
+              runningThreadIds={props.runningThreadIds}
               busy={props.busy}
-              searching={!!search}
               archived={archived}
-              onWorkspace={props.onWorkspace}
               onSelect={props.onSelect}
             />
           ))}
           {!groups.length && (
-            <p className="px-3 py-2 text-xs text-neutral-400">
-              {search ? "没有找到匹配的项目或会话" : "打开项目，开始协作"}
-            </p>
+            <p className="px-3 py-2 text-xs text-neutral-400">打开项目，开始协作</p>
           )}
         </ProjectSidebar>
       )}

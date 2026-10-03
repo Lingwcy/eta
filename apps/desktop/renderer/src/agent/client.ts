@@ -50,7 +50,6 @@ export class ThreadAgentClient {
       this.unsubscribeEvents = this.bridge.subscribe(session.id, (event) => {
         if (event.type === "snapshot") {
           this.observe(event.value);
-          this.update({ connection: "connected", error: null });
         } else {
           this.update({ connection: "error", error: event.message });
         }
@@ -119,7 +118,12 @@ export class ThreadAgentClient {
       id &&
       (observation.snapshot.operation?.id === id ||
         observation.snapshot.lastResult?.operationId === id);
-    this.update({ observation, ...(acknowledged ? { admission: null } : {}) });
+    this.update({
+      observation,
+      connection: "connected",
+      error: null,
+      ...(acknowledged ? { admission: null } : {}),
+    });
   }
 
   private update(patch: Partial<AgentClientState>) {

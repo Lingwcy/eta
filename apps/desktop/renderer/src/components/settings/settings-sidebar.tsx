@@ -1,3 +1,4 @@
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ export function SettingsSidebar({
           onValueChange={onQuery}
         />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
+      <ScrollArea className="-mr-2 flex-1">
         <TabsList aria-label="设置分类" activateOnFocus={false} className="flex flex-col">
           {settingsGroups.map((group) => {
             const items = group.items.filter(
@@ -50,7 +51,7 @@ export function SettingsSidebar({
           !settingsGroups.some((group) =>
             group.items.some((item) => item.label.toLocaleLowerCase().includes(search)),
           ) && <p className="px-2 py-4 text-xs text-neutral-400">没有匹配的设置分类</p>}
-      </div>
+      </ScrollArea>
       <Button variant="ghost-muted" size="row-sm" onClick={onClose}>
         返回聊天
       </Button>

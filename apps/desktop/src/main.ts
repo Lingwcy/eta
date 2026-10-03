@@ -99,6 +99,12 @@ ipcMain.handle("eta:choose-project", () =>
     return application.registerProject(result.filePaths[0]);
   }),
 );
+ipcMain.handle("eta:choose-directory", () =>
+  commandReply(async () => {
+    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  }),
+);
 
 ipcMain.on("agent:watch", (event, rawId: unknown, rawSubscriptionId: unknown) => {
   let id: string;

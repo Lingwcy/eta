@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { FolderClosed } from "lucide-react";
+import { FolderClosed, FolderOpen } from "lucide-react";
+import { RunningIndicator } from "@/components/ui/running-indicator";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 
 interface Props {
@@ -9,10 +11,10 @@ interface Props {
   threads: DesktopLibrary["threads"];
   selected: boolean;
   threadId: string | null;
+  running: boolean;
+  runningThreadIds: ReadonlySet<string>;
   busy: boolean;
-  searching: boolean;
   archived: boolean;
-  onWorkspace: (id: string) => void;
   onSelect: (id: string) => void;
 }
 export function ProjectGroup({
@@ -21,58 +23,78 @@ export function ProjectGroup({
   threads,
   selected,
   threadId,
+  running,
+  runningThreadIds,
   busy,
-  searching,
   archived,
-  onWorkspace,
   onSelect,
 }: Props) {
+  const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const showAll = expanded || searching;
+  const showAll = expanded;
+  const projectSelected = selected && !threadId;
+  const visibleThreads = showAll ? threads : threads.slice(0, 5);
+  const showProjectActivity =
+    running && (!open || !visibleThreads.some((thread) => runningThreadIds.has(thread.id)));
   return (
-    <section className="mb-4">
-      <Button
+    <Collapsible open={open} onOpenChange={setOpen} className="mb-4 flex flex-col gap-1">
+      <CollapsibleTrigger
         variant="ghost"
         size="row"
-        selected={selected}
-        aria-current={selected ? "true" : undefined}
-        disabled={busy}
+        selected={projectSelected}
+        aria-current={projectSelected ? "page" : undefined}
         title={workspace.cwd}
-        onClick={() => onWorkspace(workspace.id)}
       >
-        <FolderClosed size={18} aria-hidden="true" />
+        {open ? (
+          <FolderOpen size={18} aria-hidden="true" />
+        ) : (
+          <FolderClosed size={18} aria-hidden="true" />
+        )}
         <span className="truncate">{name}</span>
-      </Button>
-      {(showAll ? threads : threads.slice(0, 5)).map((thread) => (
-        <Button
-          key={thread.id}
-          variant="ghost"
-          size="row-sm"
-          indent
-          selected={threadId === thread.id}
-          aria-current={threadId === thread.id ? "page" : undefined}
-          title={thread.title}
-          onClick={() => onSelect(thread.id)}
-        >
-          <span className="truncate">{thread.title || "新聊天"}</span>
-        </Button>
-      ))}
-      {threads.length > 5 && !searching && (
-        <Button
-          variant="ghost-muted"
-          size="row-sm"
-          indent
-          aria-expanded={showAll}
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {showAll ? "收起显示" : "展开显示"}
-        </Button>
-      )}
-      {selected && !threads.length && (
-        <p className="py-2 pr-2 pl-8 text-xs/6 text-neutral-400">
-          {archived ? "没有归档会话" : "开始你的第一个聊天"}
-        </p>
-      )}
-    </section>
+        {showProjectActivity && (
+          <span className="ml-auto">
+            <RunningIndicator />
+          </span>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-1">
+        {visibleThreads.map((thread) => (
+          <Button
+            key={thread.id}
+            variant="ghost"
+            size="row-sm"
+            indent
+            selected={threadId === thread.id}
+            aria-current={threadId === thread.id ? "page" : undefined}
+            title={thread.title}
+            disabled={busy}
+            onClick={() => onSelect(thread.id)}
+          >
+            <span className="truncate">{thread.title || "新聊天"}</span>
+            {runningThreadIds.has(thread.id) && (
+              <span className="ml-auto">
+                <RunningIndicator />
+              </span>
+            )}
+          </Button>
+        ))}
+        {threads.length > 5 && (
+          <Button
+            variant="ghost-muted"
+            size="row-sm"
+            indent
+            aria-expanded={showAll}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {showAll ? "收起显示" : "展开显示"}
+          </Button>
+        )}
+        {selected && !threads.length && (
+          <p className="py-2 pr-2 pl-8 text-xs/6 text-neutral-400">
+            {archived ? "没有归档会话" : "开始你的第一个聊天"}
+          </p>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
