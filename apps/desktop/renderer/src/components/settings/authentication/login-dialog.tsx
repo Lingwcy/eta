@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
+import { ProviderLogo } from "./provider-logo";
 
 function LoginPromptForm({
   prompt,
@@ -80,13 +81,16 @@ export function LoginDialog({
     >
       <DialogContent variant="form">
         <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <DialogTitle className="text-xl font-semibold text-neutral-900">
-              连接 {name}
-            </DialogTitle>
-            <p className="mt-1 text-sm text-neutral-500">
-              {login?.method === "oauth" ? "使用你的账户继续" : "配置 API Key 与服务访问参数"}
-            </p>
+          <div className="flex min-w-0 items-center gap-3">
+            {login && <ProviderLogo id={login.provider} name={name} />}
+            <div>
+              <DialogTitle className="text-xl font-semibold text-neutral-900">
+                连接 {name}
+              </DialogTitle>
+              <p className="mt-1 text-sm text-neutral-500">
+                {login?.method === "oauth" ? "使用你的账户继续" : "配置 API Key 与服务访问参数"}
+              </p>
+            </div>
           </div>
           <Button
             variant="ghost-muted"

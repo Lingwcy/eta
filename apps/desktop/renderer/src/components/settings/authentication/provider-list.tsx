@@ -2,6 +2,7 @@ import { Check, LogOut } from "lucide-react";
 import type { AuthProvider, LoginMethod } from "../../../../../src/authentication.ts";
 import type { DesktopLibrary } from "../../../../../src/bridge.ts";
 import { Button } from "@/components/ui/button";
+import { ProviderLogo } from "./provider-logo";
 
 export function ProviderList({
   providers,
@@ -32,15 +33,7 @@ export function ProviderList({
             key={provider.id}
             className="flex flex-wrap items-center gap-3 px-4 py-4 min-[901px]:gap-4 min-[901px]:px-5"
           >
-            <span
-              aria-hidden="true"
-              className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200/60 bg-neutral-50 text-sm font-semibold text-neutral-600"
-            >
-              {provider.name
-                .replace(/[^a-zA-Z]/g, "")
-                .slice(0, 2)
-                .toUpperCase()}
-            </span>
+            <ProviderLogo id={provider.id} name={provider.name} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <h3 className="text-sm font-medium text-neutral-900">{provider.name}</h3>
