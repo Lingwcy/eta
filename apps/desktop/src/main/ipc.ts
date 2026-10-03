@@ -7,6 +7,7 @@ import { CatalogStorageError } from "./service/catalog/json-store.ts";
 import { CatalogValidationError } from "./service/catalog/schema.ts";
 
 const Id = Schema.NonEmptyString;
+const Method = Schema.Literals(["oauth", "api_key"]);
 const Command = Schema.Union([
   Schema.Struct({ type: Schema.Literal("library") }),
   Schema.Struct({ type: Schema.Literal("register-project"), rootPath: Id, name: Id }),
@@ -36,8 +37,17 @@ const Command = Schema.Union([
       activeThreadId: Schema.optionalKey(Id),
     }),
   }),
-  Schema.Struct({ type: Schema.Literal("credential"), provider: Id, key: Id }),
-  Schema.Struct({ type: Schema.Literal("logout"), provider: Id }),
+  Schema.Struct({ type: Schema.Literal("login-start"), provider: Id, method: Method }),
+  Schema.Struct({ type: Schema.Literal("login-state"), id: Id }),
+  Schema.Struct({
+    type: Schema.Literal("login-answer"),
+    id: Id,
+    promptId: Id,
+    value: Schema.String,
+  }),
+  Schema.Struct({ type: Schema.Literal("login-cancel"), id: Id }),
+  Schema.Struct({ type: Schema.Literal("login-open"), id: Id, url: Id }),
+  Schema.Struct({ type: Schema.Literal("logout"), provider: Id, method: Method }),
 ]);
 const decode = Schema.decodeUnknownSync(Command, { onExcessProperty: "error" });
 
@@ -79,10 +89,18 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       );
     case "settings":
       return application.updateSettings(command.patch);
-    case "credential":
-      return application.setApiKey(command.provider, command.key);
+    case "login-start":
+      return application.startLogin(command.provider, command.method);
+    case "login-state":
+      return application.loginState(command.id);
+    case "login-answer":
+      return application.answerLogin(command.id, command.promptId, command.value);
+    case "login-cancel":
+      return application.cancelLogin(command.id);
+    case "login-open":
+      return application.openLoginLink(command.id, command.url);
     case "logout":
-      return application.removeCredential(command.provider);
+      return application.removeCredential(command.provider, command.method);
   }
 }
 

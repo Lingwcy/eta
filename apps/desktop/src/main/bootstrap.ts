@@ -1,3 +1,8 @@
+import { randomUUID } from "node:crypto";
+import { registerBunOAuthFlows as registerBundledOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+import { Schema } from "effect";
+import { DesktopAuthentication } from "./authentication/index.ts";
+import type { LoginMethod } from "../authentication.ts";
 import { join } from "node:path";
 import { Effect, ManagedRuntime } from "effect";
 import { loadProjectEnvironment } from "./environment.ts";
@@ -7,7 +12,7 @@ import type { ThinkingLevel } from "../agent/protocol.ts";
 import type { DesktopLibrary } from "../bridge.ts";
 import { CredentialService } from "./service/credentials/index.ts";
 import { DesktopCatalogService } from "./service/catalog/index.ts";
-import { readJson } from "./service/json-file.ts";
+import { readJson, writeJson } from "./service/json-file.ts";
 import { desktopServices } from "./service/layer.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
 import { ProjectService } from "./service/projects/index.ts";
@@ -16,7 +21,16 @@ import type { DesktopSettings } from "./service/settings/index.ts";
 import { ThreadService } from "./service/threads/index.ts";
 
 /** Electron supplies directories here; the services never call app.getPath themselves. */
-export async function createDesktopApplication(root: string, cwd: string, dataRoot: string) {
+export async function createDesktopApplication(
+  root: string,
+  cwd: string,
+  dataRoot: string,
+  openExternal: (url: string) => Promise<void> = async () => {
+    throw new Error("浏览器不可用");
+  },
+) {
+  // Despite its name, pi-ai's registration is runtime-independent and embeds OAuth in CJS bundles.
+  registerBundledOAuthFlows();
   await loadProjectEnvironment(root);
   const runtime = ManagedRuntime.make(desktopServices(dataRoot));
   try {
@@ -26,6 +40,19 @@ export async function createDesktopApplication(root: string, cwd: string, dataRo
     const credentials = await runtime.runPromise(CredentialService);
     const models = await runtime.runPromise(ModelCatalogService);
     const catalog = await runtime.runPromise(DesktopCatalogService);
+    const installationPath = join(dataRoot, "installation.json");
+    const installation = await readJson(installationPath);
+    const deviceId =
+      installation === undefined
+        ? randomUUID()
+        : Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString }))(installation).id;
+    if (installation === undefined) await writeJson(installationPath, { id: deviceId });
+    const authentication = new DesktopAuthentication(
+      models.models,
+      credentials.store,
+      openExternal,
+      deviceId,
+    );
     if ((await readJson(join(dataRoot, "credentials.json"))) === undefined)
       await runtime.runPromise(credentials.importOnce(await readAgentCredentials()));
     if ((await readJson(join(dataRoot, "settings.json"))) === undefined) {
@@ -45,6 +72,7 @@ export async function createDesktopApplication(root: string, cwd: string, dataRo
           settings: await run(settings.read),
           models: await run(models.list),
           credentials: await run(credentials.list),
+          providers: authentication.providers(),
         };
       },
       registerProject: (rootPath: string, name?: string) =>
@@ -62,14 +90,23 @@ export async function createDesktopApplication(root: string, cwd: string, dataRo
       resume: (id: string) => run(threads.resume(id)),
       compact: (id: string) => run(threads.compact(id)),
       updateSettings: (patch: Partial<DesktopSettings>) => run(settings.update(patch)),
-      setApiKey: (provider: string, key: string) => run(credentials.setApiKey(provider, key)),
-      removeCredential: (provider: string) => run(credentials.remove(provider)),
+      startLogin: (provider: string, method: LoginMethod) => authentication.start(provider, method),
+      loginState: (id: string) => authentication.read(id),
+      answerLogin: (id: string, promptId: string, value: string) =>
+        authentication.answer(id, promptId, value),
+      cancelLogin: (id: string) => authentication.cancel(id),
+      openLoginLink: (id: string, url: string) => authentication.openLink(id, url),
+      removeCredential: (provider: string, method: LoginMethod) =>
+        authentication.remove(provider, method),
       subscribe: (
         id: string,
         onSnapshot: Parameters<ThreadService["Service"]["subscribe"]>[1],
         onError: (message: string) => void,
       ) => run(threads.subscribe(id, onSnapshot, onError)),
-      close: () => runtime.dispose(),
+      close: async () => {
+        await authentication.close();
+        await runtime.dispose();
+      },
     };
   } catch (error) {
     await runtime.dispose();

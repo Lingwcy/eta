@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { createDesktopApplication } from "./main/bootstrap.ts";
 import type { DesktopApplication } from "./main/bootstrap.ts";
 import { commandReply, dispatchCommand } from "./main/ipc.ts";
@@ -184,7 +184,9 @@ if (!app.requestSingleInstanceLock()) {
     .then(async () => {
       const root = resolve(app.getAppPath(), "../..");
       const cwd = process.env.ETA_WORKSPACE ?? (app.isPackaged ? app.getPath("home") : root);
-      agentService = await createDesktopApplication(root, cwd, app.getPath("userData"));
+      agentService = await createDesktopApplication(root, cwd, app.getPath("userData"), (url) =>
+        shell.openExternal(url),
+      );
       ready = true;
       if (!quitting) openWindow();
     })

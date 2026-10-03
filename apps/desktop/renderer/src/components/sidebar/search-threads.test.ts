@@ -47,6 +47,7 @@ const library: DesktopLibrary = {
   settings: { defaultThinkingLevel: "off" },
   models: [],
   credentials: [],
+  providers: [],
 };
 
 test("empty search lists recent active conversations across projects without changing the catalog", () => {

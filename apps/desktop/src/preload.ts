@@ -31,8 +31,15 @@ const bridge: DesktopBridge = {
   resume: (id) => invoke("eta:command", { type: "resume", id }),
   compact: (id) => invoke("eta:command", { type: "compact", id }),
   updateSettings: (patch) => invoke("eta:command", { type: "settings", patch }),
-  setApiKey: (provider, key) => invoke("eta:command", { type: "credential", provider, key }),
-  removeCredential: (provider) => invoke("eta:command", { type: "logout", provider }),
+  startLogin: (provider, method) =>
+    invoke("eta:command", { type: "login-start", provider, method }),
+  loginState: (id) => invoke("eta:command", { type: "login-state", id }),
+  answerLogin: (id, promptId, value) =>
+    invoke("eta:command", { type: "login-answer", id, promptId, value }),
+  cancelLogin: (id) => invoke("eta:command", { type: "login-cancel", id }),
+  openLoginLink: (id, url) => invoke("eta:command", { type: "login-open", id, url }),
+  removeCredential: (provider, method) =>
+    invoke("eta:command", { type: "logout", provider, method }),
   subscribe(sessionId, listener) {
     const subscriptionId = globalThis.crypto.randomUUID();
     const onEvent = (

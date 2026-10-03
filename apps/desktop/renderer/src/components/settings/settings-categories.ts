@@ -1,11 +1,10 @@
-import { KeyRound, TerminalSquare } from "lucide-react";
-
+import { KeyRound, UserRound } from "lucide-react";
 export const settingsGroups = [
   {
-    label: "设置",
+    label: "模型连接",
     items: [
-      { id: "configuration", label: "模型", icon: TerminalSquare },
-      { id: "credentials", label: "认证", icon: KeyRound },
+      { id: "accounts", label: "账户登录", title: "Sign in with an account", icon: UserRound },
+      { id: "api-keys", label: "API Key 登录", title: "Sign in with an API key", icon: KeyRound },
     ],
   },
 ];

@@ -8,8 +8,8 @@ import { SettingsToolbar } from "./settings/settings-toolbar";
 import { SettingsSidebar } from "./settings/settings-sidebar";
 import { SettingsPage } from "./settings/settings-page";
 import { settingsGroups } from "./settings/settings-categories";
-import { ModelSettings } from "./settings/model-settings";
-import { CredentialSettings } from "./settings/credential-settings";
+import { AuthenticationSettings } from "./settings/authentication/authentication-settings";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Props {
   library: DesktopLibrary;
@@ -20,10 +20,18 @@ interface Props {
   error: string | null;
   act: (action: () => Promise<void>) => Promise<void>;
   reconnect: () => void;
+  refresh: () => Promise<void>;
   onClose: () => void;
 }
 export function DesktopSettings(props: Props) {
-  const [category, setCategory] = useState(props.initialCategory ?? "configuration");
+  const [category, setCategory] = useState(
+    props.initialCategory ??
+      (props.library.credentials.find(
+        (credential) => credential.providerId === props.library.settings.defaultProvider,
+      )?.type === "api_key"
+        ? "api-keys"
+        : "accounts"),
+  );
   const [query, setQuery] = useState("");
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -53,43 +61,36 @@ export function DesktopSettings(props: Props) {
                 props.onClose();
                 props.onChooseProject();
               }}
-              onSettings={() => setCategory("configuration")}
+              onSettings={() => setCategory("accounts")}
             />
             <SettingsSidebar query={query} onQuery={setQuery} onClose={props.onClose} />
           </>
         }
       >
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <ScrollArea className="flex-1">
           {settingsGroups
             .flatMap((group) => group.items)
             .map((item) => (
               <TabsPanel key={item.id} value={item.id}>
-                <SettingsPage title={item.label}>
+                <SettingsPage title={item.title}>
                   {props.error && (
                     <div className="mb-4">
                       <Alert>{props.error}</Alert>
                     </div>
                   )}
-                  {item.id === "configuration" ? (
-                    <ModelSettings
-                      library={props.library}
-                      threadId={props.threadId}
-                      busy={props.busy}
-                      act={props.act}
-                      reconnect={props.reconnect}
-                    />
-                  ) : (
-                    <CredentialSettings
-                      library={props.library}
-                      busy={props.busy}
-                      act={props.act}
-                      reconnect={props.reconnect}
-                    />
-                  )}
+                  <AuthenticationSettings
+                    library={props.library}
+                    method={item.id === "accounts" ? "oauth" : "api_key"}
+                    threadId={props.threadId}
+                    busy={props.busy}
+                    act={props.act}
+                    reconnect={props.reconnect}
+                    refresh={props.refresh}
+                  />
                 </SettingsPage>
               </TabsPanel>
             ))}
-        </div>
+        </ScrollArea>
       </DesktopLayout>
     </Tabs>
   );

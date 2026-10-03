@@ -175,6 +175,10 @@ export function useDesktopController() {
             act: desktop.act,
             error: desktop.error,
             reconnect,
+            refresh: async () => {
+              await desktop.refresh();
+              reconnect();
+            },
             onClose: () => setSettingsOpen(false),
           }
         : null,

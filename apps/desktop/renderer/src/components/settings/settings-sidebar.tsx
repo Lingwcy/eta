@@ -29,7 +29,8 @@ export function SettingsSidebar({
         <TabsList aria-label="设置分类" activateOnFocus={false} className="flex flex-col">
           {settingsGroups.map((group) => {
             const items = group.items.filter(
-              (item) => !search || item.label.toLocaleLowerCase().includes(search),
+              (item) =>
+                !search || `${item.label} ${item.title}`.toLocaleLowerCase().includes(search),
             );
             if (!items.length) return null;
             return (
@@ -49,7 +50,9 @@ export function SettingsSidebar({
         </TabsList>
         {search &&
           !settingsGroups.some((group) =>
-            group.items.some((item) => item.label.toLocaleLowerCase().includes(search)),
+            group.items.some((item) =>
+              `${item.label} ${item.title}`.toLocaleLowerCase().includes(search),
+            ),
           ) && <p className="px-2 py-4 text-xs text-neutral-400">没有匹配的设置分类</p>}
       </ScrollArea>
       <Button variant="ghost-muted" size="row-sm" onClick={onClose}>

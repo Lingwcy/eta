@@ -1,3 +1,4 @@
+import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
 import type { OperationAdmission } from "./agent/protocol.ts";
 import type { SessionResponse, SnapshotResponse } from "./agent/protocol.ts";
 import type { AgentModel, ThinkingLevel } from "./agent/protocol.ts";
@@ -30,6 +31,7 @@ export interface DesktopLibrary {
   threads: ReadonlyArray<ThreadMetadata>;
   settings: DesktopSettings;
   models: ReadonlyArray<AgentModel>;
+  providers: ReadonlyArray<AuthProvider>;
   credentials: ReadonlyArray<{ providerId: string; type: "api_key" | "oauth" }>;
 }
 
@@ -50,8 +52,12 @@ export interface DesktopBridge extends AgentBridge {
   resume(id: string): Promise<void>;
   compact(id: string): Promise<void>;
   updateSettings(patch: Partial<DesktopSettings>): Promise<DesktopSettings>;
-  setApiKey(provider: string, key: string): Promise<void>;
-  removeCredential(provider: string): Promise<void>;
+  startLogin(provider: string, method: LoginMethod): Promise<LoginState>;
+  loginState(id: string): Promise<LoginState>;
+  answerLogin(id: string, promptId: string, value: string): Promise<void>;
+  cancelLogin(id: string): Promise<void>;
+  openLoginLink(id: string, url: string): Promise<void>;
+  removeCredential(provider: string, method: LoginMethod): Promise<void>;
 }
 
 declare global {

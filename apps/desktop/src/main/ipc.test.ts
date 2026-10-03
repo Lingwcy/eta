@@ -11,6 +11,10 @@ test.each([
   { type: "credential", provider: 1, key: "do-not-echo-this-secret" },
   { type: "settings", patch: { defaultThinkingLevel: "not-a-level" } },
   { type: "settings", patch: { credentialsPath: "/arbitrary-path" } },
+  { type: "login-start", provider: "openai", method: "password" },
+  { type: "login-answer", id: "id", promptId: "prompt", value: { key: "do-not-echo-this-secret" } },
+  { type: "logout", provider: "openai", method: "wrong" },
+  { type: "login-cancel", id: "" },
   { type: "not-a-command" },
 ])(
   "untrusted command payloads fail before reaching application services: $type",
