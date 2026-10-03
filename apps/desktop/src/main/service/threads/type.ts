@@ -1,6 +1,7 @@
 import type { SessionRef } from "../sessions/type";
 
 export interface ThreadMetadata {
+  readonly requestId?: string;
   readonly id: string;
   readonly workspaceId: string;
   readonly sessionRef: SessionRef;

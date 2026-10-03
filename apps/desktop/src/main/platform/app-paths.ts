@@ -3,7 +3,7 @@ import { Context, Layer } from "effect";
 
 interface AppPathValues {
   readonly dataRoot: string; // 持久化数据的根目录
-  readonly sessionsRoot: string; // JsonlSessionRepo 存储根目录
+  readonly sessionsRoot: string; // JSONL 会话目录的存储根目录
   readonly catalogPath: string; // 保存 project、workspace、thread 之间的产品关系
   readonly settingsPath: string; // 全局设置
 }

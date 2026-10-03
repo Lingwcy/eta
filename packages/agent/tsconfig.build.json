@@ -1,6 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "rewriteRelativeImportExtensions": true,
     "outDir": "./dist",
     "paths": {
       "@earendil-works/chord": ["../chord/dist/index.d.ts"],

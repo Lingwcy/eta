@@ -1,6 +1,6 @@
 import type { OperationAdmission } from "../../../src/agent/protocol.ts";
 import type { SessionResponse, SnapshotResponse } from "../../../src/agent/protocol.ts";
-import type { DesktopBridge } from "../../../src/bridge.ts";
+import type { AgentBridge } from "../../../src/bridge.ts";
 
 export interface AgentClientState {
   session: Pick<SessionResponse, "id" | "model"> | null;
@@ -22,14 +22,14 @@ export const initialAgentState: AgentClientState = {
   error: null,
 };
 
-/** Keeps transport status separate from agent snapshots and releases its session on disposal. */
-export class MemoryAgentClient {
+/** Disposing a view only unsubscribes; durable execution and history belong to main. */
+export class ThreadAgentClient {
   private state = initialAgentState;
   private readonly listeners = new Set<() => void>();
   private unsubscribeEvents?: () => void;
   private disposed = false;
 
-  constructor(private readonly bridge: DesktopBridge = window.eta) {}
+  constructor(private readonly bridge: AgentBridge = window.eta) {}
 
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => {
@@ -37,11 +37,10 @@ export class MemoryAgentClient {
     return () => this.listeners.delete(listener);
   };
 
-  async connect() {
+  async connect(threadId: string) {
     try {
-      const session = await this.bridge.createSession();
+      const session = await this.bridge.openThread(threadId);
       if (this.disposed) {
-        void this.bridge.deleteSession(session.id).catch(() => {});
         return;
       }
       this.update({
@@ -67,11 +66,14 @@ export class MemoryAgentClient {
       this.state.connection !== "connected" ||
       this.state.submitting ||
       this.state.observation?.snapshot.operation ||
-      this.state.admission
+      this.state.observation?.snapshot.compacting ||
+      this.state.admission ||
+      this.state.observation?.snapshot.recoveryRequired ||
+      this.state.observation?.snapshot.blockedReason
     )
       throw new Error("Agent 尚未就绪");
     const sessionId = this.state.session?.id;
-    if (!sessionId) throw new Error("内存会话尚未创建");
+    if (!sessionId) throw new Error("会话尚未打开");
     this.update({ submitting: true, error: null });
     try {
       const admission = await this.bridge.submit(sessionId, prompt);
@@ -108,8 +110,6 @@ export class MemoryAgentClient {
     if (this.disposed) return;
     this.disposed = true;
     this.unsubscribeEvents?.();
-    const sessionId = this.state.session?.id;
-    if (sessionId) void this.bridge.deleteSession(sessionId).catch(() => {});
     this.listeners.clear();
   }
 

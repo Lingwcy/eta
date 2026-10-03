@@ -27,6 +27,7 @@ const WorkspaceSchema = Schema.Struct({
 });
 
 const ThreadSchema = Schema.Struct({
+  requestId: Schema.optionalKey(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   workspaceId: Schema.NonEmptyString,
   sessionRef: Schema.Struct({

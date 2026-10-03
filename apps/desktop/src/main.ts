@@ -1,19 +1,22 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
-import { createAgentService } from "./agent/create-service.ts";
-import type { MemoryHarnessService } from "./agent/memory-harness.ts";
+import { createDesktopApplication } from "./main/bootstrap.ts";
+import type { DesktopApplication } from "./main/bootstrap.ts";
+import { commandReply, dispatchCommand } from "./main/ipc.ts";
 import type { AgentEvent } from "./bridge.ts";
 
 let window: BrowserWindow | undefined;
-let agentService: MemoryHarnessService | undefined;
+let agentService: DesktopApplication | undefined;
 let quitting = false;
 let ready = false;
+let startup: Promise<void> | undefined;
 
 type Watch = { token: symbol; unsubscribe?: () => void };
 const watchers = new Map<number, Map<string, Watch>>();
 
 function service() {
+  if (quitting) throw new Error("RuntimeClosing: Eta 正在退出");
   if (!agentService) throw new Error("Agent 尚未就绪");
   return agentService;
 }
@@ -81,27 +84,28 @@ function openWindow() {
   });
 }
 
-ipcMain.handle("agent:create-session", () => service().create());
+ipcMain.handle("eta:command", (_event, command: unknown) =>
+  commandReply(() => dispatchCommand(service(), command)),
+);
+ipcMain.handle("eta:choose-project", () =>
+  commandReply(async () => {
+    const application = service();
+    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return application.registerProject(result.filePaths[0]);
+  }),
+);
 
-ipcMain.handle("agent:submit", (_event, rawId: unknown, rawPrompt: unknown) => {
-  if (typeof rawPrompt !== "string" || !rawPrompt.trim()) throw new Error("请输入有效消息");
-  return service().submit(sessionId(rawId), rawPrompt.trim());
-});
-
-ipcMain.handle("agent:stop", (_event, rawId: unknown) => service().stop(sessionId(rawId)));
-ipcMain.handle("agent:delete-session", async (_event, rawId: unknown) => {
-  const id = sessionId(rawId);
-  for (const contentsId of watchers.keys()) stopWatching(contentsId, id);
-  await service().delete(id);
-});
-
-ipcMain.on("agent:watch", (event, rawId: unknown) => {
+ipcMain.on("agent:watch", (event, rawId: unknown, rawSubscriptionId: unknown) => {
   let id: string;
+  let subscriptionId: string;
   try {
     id = sessionId(rawId);
+    subscriptionId = sessionId(rawSubscriptionId);
   } catch (error) {
     event.sender.send("agent:event", {
       sessionId: typeof rawId === "string" ? rawId : "",
+      subscriptionId: typeof rawSubscriptionId === "string" ? rawSubscriptionId : "",
       event: { type: "error", message: error instanceof Error ? error.message : String(error) },
     });
     return;
@@ -109,25 +113,29 @@ ipcMain.on("agent:watch", (event, rawId: unknown) => {
   const contents = event.sender;
   let sessions = watchers.get(contents.id);
   if (!sessions) watchers.set(contents.id, (sessions = new Map()));
-  if (sessions.has(id)) return;
+  if (sessions.has(subscriptionId)) return;
   const watch: Watch = { token: Symbol() };
-  sessions.set(id, watch);
+  sessions.set(subscriptionId, watch);
   const send = (agentEvent: AgentEvent) => {
-    if (!contents.isDestroyed()) contents.send("agent:event", { sessionId: id, event: agentEvent });
+    if (!contents.isDestroyed() && sessions?.get(subscriptionId)?.token === watch.token)
+      contents.send("agent:event", { sessionId: id, subscriptionId, event: agentEvent });
   };
-  void service()
-    .subscribe(
-      id,
-      (value) => send({ type: "snapshot", value }),
-      (message) => send({ type: "error", message }),
+  void Promise.resolve()
+    .then(() =>
+      service().subscribe(
+        id,
+        (value) => send({ type: "snapshot", value }),
+        (message) => send({ type: "error", message }),
+      ),
     )
     .then((unsubscribe) => {
-      if (contents.isDestroyed() || sessions?.get(id)?.token !== watch.token) unsubscribe();
+      if (contents.isDestroyed() || sessions?.get(subscriptionId)?.token !== watch.token)
+        unsubscribe();
       else watch.unsubscribe = unsubscribe;
     })
     .catch((error: unknown) => {
-      stopWatching(contents.id, id);
       send({ type: "error", message: error instanceof Error ? error.message : String(error) });
+      stopWatching(contents.id, subscriptionId);
     });
 });
 
@@ -151,15 +159,22 @@ if (!app.requestSingleInstanceLock()) {
     if (quitting) return;
     event.preventDefault();
     quitting = true;
-    void (agentService?.close() ?? Promise.resolve()).finally(() => app.quit());
+    for (const [contentsId, subscriptions] of watchers)
+      for (const id of subscriptions.keys()) stopWatching(contentsId, id);
+    void (startup ?? Promise.resolve())
+      .then(() => agentService?.close())
+      .catch((error: unknown) => {
+        console.error("Eta shutdown failed", error);
+      })
+      .finally(() => app.quit());
   });
 
-  void app
+  startup = app
     .whenReady()
     .then(async () => {
       const root = resolve(app.getAppPath(), "../..");
       const cwd = process.env.ETA_WORKSPACE ?? (app.isPackaged ? app.getPath("home") : root);
-      agentService = await createAgentService(root, cwd);
+      agentService = await createDesktopApplication(root, cwd, app.getPath("userData"));
       ready = true;
       if (!quitting) openWindow();
     })

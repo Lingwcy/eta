@@ -19,6 +19,9 @@ export default defineConfig({
           "@eta/agent/tools$": fileURLToPath(
             new URL("../../packages/agent/src/tools/index.ts", import.meta.url),
           ),
+          "@eta/agent/storage/jsonl/node$": fileURLToPath(
+            new URL("../../packages/agent/src/storage/jsonl/node.ts", import.meta.url),
+          ),
         },
       },
     },

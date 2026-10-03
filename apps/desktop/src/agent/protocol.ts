@@ -51,6 +51,10 @@ export interface AgentSnapshot {
       })
     | null;
   faulted: boolean;
+  /** Opening history never resumes unfinished work implicitly. */
+  recoveryRequired?: boolean;
+  blockedReason?: string;
+  compacting?: boolean;
 }
 
 export interface SnapshotResponse {

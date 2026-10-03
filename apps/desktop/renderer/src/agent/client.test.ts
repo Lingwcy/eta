@@ -3,15 +3,15 @@ import { createModels, fauxProvider } from "@earendil-works/pi-ai";
 import type { OperationAdmission } from "../../../src/agent/protocol.ts";
 import { MemoryHarnessService } from "../../../src/agent/memory-harness.ts";
 import type { SessionResponse, SnapshotResponse } from "../../../src/agent/protocol.ts";
-import type { AgentEvent, DesktopBridge } from "../../../src/bridge.ts";
-import { MemoryAgentClient } from "./client.ts";
+import type { AgentEvent, AgentBridge } from "../../../src/bridge.ts";
+import { ThreadAgentClient } from "./client.ts";
 
-class TestBridge implements DesktopBridge {
+class TestBridge implements AgentBridge {
   session!: SessionResponse;
   listener?: (event: AgentEvent) => void;
   deleted: string[] = [];
   unsubscribed = 0;
-  createSession = async () => this.session;
+  openThread = async (_id: string) => this.session;
   submit = async (_sessionId: string, _prompt: string) => admission;
   stop = async (_sessionId: string) => {};
   deleteSession = async (sessionId: string) => {
@@ -32,7 +32,7 @@ class TestBridge implements DesktopBridge {
 let service: MemoryHarnessService;
 let session: SessionResponse;
 let bridge: TestBridge;
-const clients: MemoryAgentClient[] = [];
+const clients: ThreadAgentClient[] = [];
 const admission: OperationAdmission = { operationId: "admitted-run", kind: "run", startedAt: 1000 };
 
 beforeEach(async () => {
@@ -50,9 +50,9 @@ afterEach(async () => {
 });
 
 async function connectedClient() {
-  const client = new MemoryAgentClient(bridge);
+  const client = new ThreadAgentClient(bridge);
   clients.push(client);
-  await client.connect();
+  await client.connect(session.id);
   return client;
 }
 
@@ -109,25 +109,26 @@ test("does not leave stale admission state when completion arrives before the in
   expect(client.getSnapshot().submitting).toBe(false);
 });
 
-test("releases a session created after the client has already been disposed", async () => {
+test("a late open after disposal neither deletes history nor installs a subscription", async () => {
   let finish!: (response: SessionResponse) => void;
-  bridge.createSession = () => new Promise((resolve) => (finish = resolve));
-  const client = new MemoryAgentClient(bridge);
+  bridge.openThread = () => new Promise((resolve) => (finish = resolve));
+  const client = new ThreadAgentClient(bridge);
   clients.push(client);
-  const connecting = client.connect();
+  const connecting = client.connect(session.id);
   client.dispose();
   finish(session);
   await connecting;
-  expect(bridge.deleted).toEqual([session.id]);
+  expect(bridge.deleted).toEqual([]);
+  expect(bridge.listener).toBeUndefined();
   expect(client.getSnapshot().session).toBeNull();
 });
 
-test("unsubscribes and deletes its session only once on disposal", async () => {
+test("disposal unsubscribes only once and never deletes persistent history", async () => {
   const client = await connectedClient();
   client.dispose();
   client.dispose();
   expect(bridge.unsubscribed).toBe(1);
-  expect(bridge.deleted).toEqual([session.id]);
+  expect(bridge.deleted).toEqual([]);
 });
 
 test("reports a missing memory session and asks for a new one", async () => {
