@@ -25,6 +25,7 @@ const buttonVariants = cva(
         pill: "h-8 gap-1.5 rounded-full px-2.5 text-[13px] font-normal",
         row: "h-auto w-full justify-start px-2 py-1.5 text-left font-normal",
         "row-sm": "h-auto w-full justify-start px-2 py-1.5 text-left text-[13px] font-normal",
+        "row-compact": "h-7 w-full justify-start px-2 text-left text-[13px] font-normal",
         icon: "size-9 rounded-xl",
         "icon-sm": "size-[30px] rounded-lg",
         "icon-xs": "size-7 rounded-md",

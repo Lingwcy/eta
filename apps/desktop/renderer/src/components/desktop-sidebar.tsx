@@ -4,6 +4,7 @@ import { NavigationRail } from "./sidebar/navigation-rail";
 import { ProjectSidebar } from "./sidebar/project-sidebar";
 import { ProjectGroup } from "./sidebar/project-group";
 import { ThreadSearchDialog } from "./sidebar/thread-search-dialog";
+import { cn } from "@/lib/utils";
 
 interface Props {
   library: DesktopLibrary | null;
@@ -56,7 +57,14 @@ export function DesktopSidebar(props: Props) {
         onChoose={props.onChoose}
         onSettings={props.onSettings}
       />
-      {!props.collapsed && (
+      <div
+        inert={props.collapsed}
+        aria-hidden={props.collapsed}
+        className={cn(
+          "flex shrink-0 overflow-hidden transition-[width] duration-180 ease-out motion-reduce:transition-none",
+          props.collapsed ? "w-0" : "w-[var(--sidebar-width)]",
+        )}
+      >
         <ProjectSidebar
           archived={archived}
           canCreate={!props.busy && !!props.library}
@@ -90,7 +98,7 @@ export function DesktopSidebar(props: Props) {
             <p className="px-3 py-2 text-xs text-neutral-400">打开项目，开始协作</p>
           )}
         </ProjectSidebar>
-      )}
+      </div>
     </>
   );
 }

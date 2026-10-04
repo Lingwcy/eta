@@ -4,6 +4,7 @@ import { RunningIndicator } from "@/components/ui/running-indicator";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
+import { SlidingLabel } from "./sliding-label";
 
 interface Props {
   name: string;
@@ -37,10 +38,10 @@ export function ProjectGroup({
   const showProjectActivity =
     running && (!open || !visibleThreads.some((thread) => runningThreadIds.has(thread.id)));
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="mb-4 flex flex-col gap-1">
+    <Collapsible open={open} onOpenChange={setOpen} className="mb-2 flex flex-col gap-0.5">
       <CollapsibleTrigger
         variant="ghost"
-        size="row"
+        size="row-compact"
         selected={projectSelected}
         aria-current={projectSelected ? "page" : undefined}
         title={workspace.cwd}
@@ -50,19 +51,19 @@ export function ProjectGroup({
         ) : (
           <FolderClosed size={18} aria-hidden="true" />
         )}
-        <span className="truncate">{name}</span>
+        <SlidingLabel text={name} />
         {showProjectActivity && (
           <span className="ml-auto">
             <RunningIndicator />
           </span>
         )}
       </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-1">
+      <CollapsibleContent className="flex flex-col gap-0.5">
         {visibleThreads.map((thread) => (
           <Button
             key={thread.id}
             variant="ghost"
-            size="row-sm"
+            size="row-compact"
             indent
             selected={threadId === thread.id}
             aria-current={threadId === thread.id ? "page" : undefined}
@@ -70,7 +71,7 @@ export function ProjectGroup({
             disabled={busy}
             onClick={() => onSelect(thread.id)}
           >
-            <span className="truncate">{thread.title || "新聊天"}</span>
+            <SlidingLabel text={thread.title || "新聊天"} />
             {runningThreadIds.has(thread.id) && (
               <span className="ml-auto">
                 <RunningIndicator />
@@ -81,7 +82,7 @@ export function ProjectGroup({
         {threads.length > 5 && (
           <Button
             variant="ghost-muted"
-            size="row-sm"
+            size="row-compact"
             indent
             aria-expanded={showAll}
             onClick={() => setExpanded((value) => !value)}

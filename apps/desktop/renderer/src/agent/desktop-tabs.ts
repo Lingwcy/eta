@@ -77,8 +77,18 @@ export class DesktopTabs {
     return { id: this.makeId(), kind: "conversation", workspaceId, draft: "" };
   }
 
-  newConversation(workspaceId: string | null = null) {
-    return this.add(this.conversation(workspaceId));
+  newConversation(workspaceId?: string | null) {
+    const matches = (tab: DesktopTab) =>
+      tab.kind === "conversation" &&
+      !tab.threadId &&
+      (workspaceId === undefined || tab.workspaceId === workspaceId);
+    const active = this.activeTab;
+    const existing = matches(active) ? active : this.state.tabs.find(matches);
+    if (existing) {
+      this.select(existing.id);
+      return existing.id;
+    }
+    return this.add(this.conversation(workspaceId ?? null));
   }
 
   openThread(threadId: string, workspaceId: string) {

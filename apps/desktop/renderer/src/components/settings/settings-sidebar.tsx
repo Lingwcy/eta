@@ -15,7 +15,7 @@ export function SettingsSidebar({
 }) {
   const search = query.trim().toLocaleLowerCase();
   return (
-    <aside className="flex w-[180px] shrink-0 flex-col rounded-l-[14px] border-r border-neutral-100 bg-[#fafafa] px-2 pt-3 pb-2 min-[701px]:w-[210px] min-[901px]:w-[236px] min-[1600px]:w-[270px]">
+    <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-neutral-100 bg-[#fafafa] px-2 pt-3 pb-2">
       <h1 className="px-2 pb-4 text-lg font-semibold">设置</h1>
       <div className="mb-3">
         <SearchInput

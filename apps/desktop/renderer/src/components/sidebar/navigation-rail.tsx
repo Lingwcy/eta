@@ -21,7 +21,10 @@ export function NavigationRail({
   settingsActive = false,
 }: Props) {
   return (
-    <nav className="flex w-[50px] shrink-0 flex-col items-center gap-3 py-2" aria-label="主导航">
+    <nav
+      className="flex w-[var(--rail-width)] shrink-0 flex-col items-center gap-3 py-2"
+      aria-label="主导航"
+    >
       <Button
         variant="ghost-muted"
         size="icon"

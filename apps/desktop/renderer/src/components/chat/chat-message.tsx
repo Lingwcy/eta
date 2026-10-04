@@ -3,6 +3,7 @@ import { Reveal } from "@/components/ui/reveal";
 import ReactMarkdown from "react-markdown";
 import type { AgentSnapshot, SnapshotTool } from "../../../../src/agent/protocol.ts";
 import { TaskList } from "@/components/task-list";
+import { MessageUsage } from "./message-usage";
 
 export function ChatMessage({
   message,
@@ -50,7 +51,12 @@ export function ChatMessage({
               {text}
             </article>
           ) : (
-            <MarkdownMessage text={text} />
+            <div className="flex flex-col gap-1">
+              <MarkdownMessage text={text} />
+              {(message.stopReason === "stop" || message.stopReason === "length") && (
+                <MessageUsage usage={message.usage} />
+              )}
+            </div>
           ))}
         {messageTools.length > 0 && <TaskList tools={messageTools} />}
       </div>
@@ -60,7 +66,7 @@ export function ChatMessage({
 
 export const MarkdownMessage = memo(function MarkdownMessage({ text }: { text: string }) {
   return (
-    <article className="text-sm/7 break-words [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-auto [&_pre]:rounded-xl [&_pre]:bg-neutral-900 [&_pre]:p-4 [&_pre]:text-neutral-100 [&_ul]:list-disc [&_ul]:pl-5">
+    <article className="text-sm/7 break-words [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-auto [&_pre]:rounded-xl [&_pre]:bg-neutral-900 [&_pre]:p-4 [&_pre]:text-neutral-100 [&_ul]:list-disc [&_ul]:pl-5 [&>*:last-child]:mb-0">
       <ReactMarkdown>{text}</ReactMarkdown>
     </article>
   );

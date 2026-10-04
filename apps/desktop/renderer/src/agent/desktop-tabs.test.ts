@@ -6,6 +6,58 @@ function setup() {
   return new DesktopTabs(() => `tab-${++id}`);
 }
 
+test("new chat reuses the active draft without changing its state", () => {
+  const tabs = setup();
+  const id = tabs.activeTab.id;
+  tabs.updateConversation(id, { workspaceId: "workspace", draft: "Keep this draft" });
+  const before = tabs.getSnapshot();
+  expect(tabs.newConversation()).toBe(id);
+  expect(tabs.getSnapshot()).toBe(before);
+});
+
+test.each(["browser", "settings", "thread"] as const)(
+  "new chat from %s focuses the existing draft and preserves its content",
+  (kind) => {
+    const tabs = setup();
+    const draft = tabs.activeTab.id;
+    tabs.updateConversation(draft, { workspaceId: "workspace", draft: "Unsent work" });
+    if (kind === "browser") tabs.newBrowser();
+    else if (kind === "settings") tabs.openSettings();
+    else tabs.openThread("saved", "workspace");
+    const count = tabs.getSnapshot().tabs.length;
+    expect(tabs.newConversation()).toBe(draft);
+    expect(tabs.activeTab).toMatchObject({ draft: "Unsent work", workspaceId: "workspace" });
+    expect(tabs.getSnapshot().tabs).toHaveLength(count);
+    const selected = tabs.getSnapshot();
+    tabs.newConversation();
+    expect(tabs.getSnapshot()).toBe(selected);
+  },
+);
+
+test("a submitted draft allows one new chat, and closing it allows another", () => {
+  const tabs = setup();
+  const submitted = tabs.activeTab.id;
+  tabs.updateConversation(submitted, { threadId: "admitted", workspaceId: "workspace" });
+  const fresh = tabs.newConversation();
+  expect(fresh).not.toBe(submitted);
+  expect(tabs.newConversation()).toBe(fresh);
+  tabs.close(fresh);
+  const replacement = tabs.newConversation();
+  expect(replacement).not.toBe(fresh);
+  expect(tabs.getSnapshot().tabs).toHaveLength(2);
+});
+
+test("choosing a project reuses its draft without replacing another project's work", () => {
+  const tabs = setup();
+  const first = tabs.newConversation("one");
+  tabs.updateConversation(first, { draft: "First project" });
+  const second = tabs.newConversation("two");
+  expect(tabs.newConversation("one")).toBe(first);
+  expect(tabs.activeTab).toMatchObject({ workspaceId: "one", draft: "First project" });
+  tabs.select(second);
+  expect(tabs.newConversation()).toBe(second);
+});
+
 test("conversation drafts and project selection survive switching, closing and reopening", () => {
   const tabs = setup();
   const first = tabs.getSnapshot().activeId;

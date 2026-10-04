@@ -22,7 +22,7 @@ Eta is a desktop agent for working with files, understanding images, and turning
 
 Use **Settings → Permissions** to control image reading and **Settings → Tools** to enable or disable built-in tools. External tools are not available yet.
 
-Keep chats, settings, and web pages open in the top tab bar. The **+** opens a web tab; enter an address or search in its address bar. Closing a chat tab keeps its saved history and lets an admitted task continue. Use **Cmd/Ctrl+W** to close a tab and **Cmd/Ctrl+Shift+T** to reopen it. Switching tabs preserves each chat's draft and project selection.
+Keep chats, settings, and web pages open in the top tab bar. The **+** opens a web tab; enter an address or search in its address bar. **New chat** returns to an existing unsent chat, preserving its draft and project selection. After submitting it, you can start another chat. Closing a chat tab keeps its saved history and lets an admitted task continue. Use **Cmd/Ctrl+W** to close a tab and **Cmd/Ctrl+Shift+T** to reopen it. Switching tabs preserves each chat's draft and project selection.
 
 ## Run locally
 
