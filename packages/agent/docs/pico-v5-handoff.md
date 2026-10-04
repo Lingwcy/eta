@@ -350,7 +350,6 @@ every normal phase boundary, and hand over when the task definition object chang
 and the new definition can reserve the task.
 
 Deferred to later packages; do not stub them in Package 14:
-
 - Orphaning writes the terminal `orphaned` record and retires task documents.
   Unanswered input submissions and clearing run control are added in Package
   15, when submissions and run control exist.
@@ -638,7 +637,7 @@ No backward compatibility.
   is live, so orphans never hold. Cascade (spec §5.4): only live owners cascade (abort mark or held
   non-`completed` outcome); terminal owners never do; ordinary traversal and
   idle follow task→task edges too. `Conversation.abort(context, { background:
-true })` snapshot semantics.
+  true })` snapshot semantics.
 - Built-ins: generation owns its tool tasks and waits `allSettled` in a new
   `tools` phase that runs the old post-tools body (§8.5); sequential rounds
   create one tool at a time from `pending`; the next generation is
@@ -801,7 +800,7 @@ updates):
   at `postTools` makes the successor's estimate ignore the pre-compaction usage,
   so no blocking compaction starts (also with a fixed Harness clock); an
   assistant finishing while a summary is queued; raw order `assistant(call),
-user, toolResult, assistant` never cuts at that user; edits carried by an
+  user, toolResult, assistant` never cuts at that user; edits carried by an
   older in-range marker and a kept entry replacing a summarized one are reflected
   in the summarized messages and the hook's `messages`; kept `pi.system` deltas
   get omit edits in the next single baseline; compaction in a fork whose cut
@@ -854,7 +853,6 @@ Package 21 of the previous plan was audited (three reviewers); these findings
 remain and apply to the new surface.
 
 Bugs:
-
 - `runtime.now()` and `runtime.report()` stay usable after the invocation ends
   (`scheduler.ts` runtime); §5.4 says every runtime operation rejects.
 - A commit that only migrates a document through a newer token (version base, no

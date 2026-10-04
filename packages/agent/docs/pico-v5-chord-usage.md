@@ -33,26 +33,13 @@ conversation object and `Entry`/`Task` are typed definitions. The imports:
 
 ```ts
 import {
-  createFacetHost,
-  createRemoteServiceBinding,
-  defineFacet,
-  defineService,
-  type Context,
-  type Facet,
-  type FacetHost,
-  type RemoteServiceTransport,
-  type ReplicatedState,
+  createFacetHost, createRemoteServiceBinding, defineFacet, defineService,
+  type Context, type Facet, type FacetHost, type RemoteServiceTransport, type ReplicatedState,
 } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import {
-  type ConversationId,
-  defineDoc,
-  defineDocFamily,
-  type DocumentObserver,
-  type Harness,
-  type Session,
-  type TaskId,
-  type TaskRuntime,
+  type ConversationId, defineDoc, defineDocFamily, type DocumentObserver,
+  type Harness, type Session, type TaskId, type TaskRuntime,
 } from "@earendil-works/pi-durable";
 ```
 
@@ -74,9 +61,7 @@ type Stroke = { color: string; points: { x: number; y: number }[] };
 type CanvasState = { strokes: Stroke[] };
 
 const CanvasDoc = defineDoc<CanvasState>({
-  kind: "app.canvas",
-  version: 1,
-  scope: "session",
+  kind: "app.canvas", version: 1, scope: "session",
   initial: () => ({ strokes: [] }),
   // Store a complete base after at most 99 replayed deltas.
   checkpointWhen: (_value, _ops, info) => info.deltasSinceBase >= 99,
@@ -90,7 +75,7 @@ const Canvas = defineService<CanvasService>("app.canvas");
 
 async function createCanvasFacet(session: Session, context: Context): Promise<Facet> {
   // Creation is explicit; observation never writes.
-  await session.commit(async (tx) => {
+  await session.commit(async tx => {
     await tx.doc(CanvasDoc);
   }, context);
   const state = await session.documentState(CanvasDoc, context);
@@ -102,7 +87,7 @@ async function createCanvasFacet(session: Session, context: Context): Promise<Fa
       env.provide(Canvas, {
         state,
         async addStroke(stroke, context) {
-          await session.commit(async (tx) => {
+          await session.commit(async tx => {
             const draft = await tx.doc(CanvasDoc);
             draft.strokes.push(stroke); // Chord copies the assigned stroke by value.
           }, context);
@@ -117,11 +102,9 @@ const CanvasConsumer = defineFacet({
   setup(env) {
     const canvas = env.use(Canvas); // Declare now; access only after activation.
     env.onActivate(() => {
-      env.own(
-        canvas.state.subscribe((value, _context, delivery) => {
-          console.log(delivery.kind, delivery.sequence, value?.strokes.length ?? "retired");
-        }),
-      ); // subscribe delivers the current hydrated value, then updates.
+      env.own(canvas.state.subscribe((value, _context, delivery) => {
+        console.log(delivery.kind, delivery.sequence, value?.strokes.length ?? "retired");
+      })); // subscribe delivers the current hydrated value, then updates.
     });
   },
 });
@@ -131,16 +114,9 @@ async function runCanvasExample(session: Session): Promise<void> {
   const provider = await createCanvasFacet(session, context);
   const host = await createFacetHost({ facets: [provider, CanvasConsumer] });
   try {
-    await host.services.use(Canvas).addStroke(
-      {
-        color: "black",
-        points: [
-          { x: 10, y: 20 },
-          { x: 30, y: 40 },
-        ],
-      },
-      context,
-    );
+    await host.services.use(Canvas).addStroke({
+      color: "black", points: [{ x: 10, y: 20 }, { x: 30, y: 40 }],
+    }, context);
   } finally {
     await host.dispose(); // Unsubscribes; does not delete the canvas or close Session.
   }
@@ -199,12 +175,7 @@ Closing the Harness first would end the states under still-connected clients:
 they keep the last value and never update again.
 
 ```ts
-async function shutdown(
-  host: FacetHost,
-  detachClients: () => Promise<void>,
-  harness: Harness,
-  context: Context,
-) {
+async function shutdown(host: FacetHost, detachClients: () => Promise<void>, harness: Harness, context: Context) {
   await detachClients();
   await host.dispose();
   await harness.close(context);
@@ -222,13 +193,9 @@ type ReviewInput = { path: string; patch: string };
 type ReviewComment = { id: string; line: number; text: string };
 type ReviewState = ReviewInput & { comments: ReviewComment[] };
 const ReviewDoc = defineDocFamily<ReviewState, ReviewInput>({
-  kind: "app.diff-review",
-  version: 1,
-  family: true,
-  scope: "conversation",
-  history: "latest",
-  fork: "current",
-  initial: (seed) => ({ path: seed.path, patch: seed.patch, comments: [] }),
+  kind: "app.diff-review", version: 1, family: true, scope: "conversation",
+  history: "latest", fork: "current",
+  initial: seed => ({ path: seed.path, patch: seed.patch, comments: [] }),
   checkpointWhen: (_value, _ops, info) => info.deltasSinceBase >= 49,
 });
 interface DiffReviewService {
@@ -239,10 +206,8 @@ interface DiffReviewService {
 const DiffReviews = defineService<DiffReviewService>("app.diff-reviews");
 
 function reviewFacet(
-  session: Session,
-  conversationId: ConversationId,
-  reviews: readonly { key: string; seed: ReviewInput }[],
-  context: Context,
+  session: Session, conversationId: ConversationId,
+  reviews: readonly { key: string; seed: ReviewInput }[], context: Context,
 ): Facet {
   return defineFacet({
     id: "app.diff-reviews/session",
@@ -250,7 +215,7 @@ function reviewFacet(
       const instances = env.provideMany(DiffReviews);
       env.onActivate(async () => {
         for (const review of reviews) {
-          await session.commit(async (tx) => {
+          await session.commit(async tx => {
             await tx.doc(ReviewDoc, conversationId, review.key, review.seed);
           }, context);
           const state = await session.documentState(ReviewDoc, conversationId, review.key, context);
@@ -259,11 +224,9 @@ function reviewFacet(
           // Chord instance keys route services; they are not numeric document incarnation IDs.
           instances.spawn(JSON.stringify([conversationId, review.key]), {
             state,
-            async identity() {
-              return { conversationId, key: review.key };
-            },
+            async identity() { return { conversationId, key: review.key }; },
             async addComment(comment, context) {
-              await session.commit(async (tx) => {
+              await session.commit(async tx => {
                 const draft = await tx.doc(ReviewDoc, conversationId, review.key, review.seed);
                 draft.comments.push(comment); // Chord copies the assigned comment by value.
               }, context);
@@ -307,29 +270,24 @@ it task lifetime; no history, fork, owner, or conversation setting is needed.
 type JobInput = { command: string };
 type JobOutput = { stdout: string; chunks: number };
 const JobOutputDoc = defineDoc<JobOutput>({
-  kind: "app.job-output",
-  version: 1,
-  scope: "task",
+  kind: "app.job-output", version: 1, scope: "task",
   initial: () => ({ stdout: "", chunks: 0 }),
   checkpointWhen: (_value, _ops, info) => info.deltasSinceBase >= 99,
 });
 async function appendJobOutput(
   runtime: TaskRuntime<JobInput, { phase: "running" }, null, object>,
-  chunk: string,
-  context: Context,
+  chunk: string, context: Context,
 ): Promise<void> {
   // Read process output outside this callback. The runtime gates the live task.
-  await runtime.commit(async (tx) => {
+  await runtime.commit(async tx => {
     const draft = await tx.doc(JobOutputDoc, runtime.taskId);
     draft.stdout = (draft.stdout + chunk).slice(-50_000);
     draft.chunks += 1;
   }, context);
 }
 async function observeJob(
-  api: DocumentObserver,
-  producerTaskId: TaskId,
-  finished: Promise<void>,
-  context: Context,
+  api: DocumentObserver, producerTaskId: TaskId,
+  finished: Promise<void>, context: Context,
 ): Promise<void> {
   const watch = await api.watchDoc(JobOutputDoc, producerTaskId, context);
   if (watch === undefined) return;

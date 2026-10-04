@@ -70,14 +70,14 @@ helper, not the later spread-first helper.
 
 Mutation plus flush, milliseconds:
 
-| Workload                            | Original baseline | Matched-clone baseline | Operation log |
-| ----------------------------------- | ----------------: | ---------------------: | ------------: |
-| One stroke swap                     |             0.114 |                  0.086 |         0.085 |
-| Swap 1,000-stroke layers            |            89.940 |                 47.924 |        21.048 |
-| Swap 10,000-stroke layers           |           906.390 |                483.264 |       214.425 |
-| Ten 1,000-stroke swaps before flush |            90.598 |                 49.455 |       209.346 |
-| Sixty selections before flush       |             0.121 |                  0.101 |         2.346 |
-| Swap dissimilar 100-stroke layers   |            12.097 |                  7.515 |       168.273 |
+| Workload | Original baseline | Matched-clone baseline | Operation log |
+| --- | ---: | ---: | ---: |
+| One stroke swap | 0.114 | 0.086 | 0.085 |
+| Swap 1,000-stroke layers | 89.940 | 47.924 | 21.048 |
+| Swap 10,000-stroke layers | 906.390 | 483.264 | 214.425 |
+| Ten 1,000-stroke swaps before flush | 90.598 | 49.455 | 209.346 |
+| Sixty selections before flush | 0.121 | 0.101 | 2.346 |
+| Swap dissimilar 100-stroke layers | 12.097 | 7.515 | 168.273 |
 
 Batching favors the baseline because it compares the final dirty region once;
 the operation log pays assignment-time comparison repeatedly. Ten swaps restore
@@ -149,16 +149,16 @@ held-identity checks for graph swaps. The initial full-traversal comparison adde
 Historical sibling delta before the weak-cache change versus graph, mutation
 plus flush:
 
-| Workload                                 | Tree delta ms | Graph ms | Tree bytes | Graph bytes |
-| ---------------------------------------- | ------------: | -------: | ---------: | ----------: |
-| 100 scattered edits                      |         0.265 |    0.158 |      5,243 |       2,235 |
-| Swap 1,000-stroke layers                 |        21.523 | 0.002334 |         73 |         111 |
-| Swap 10,000-stroke layers                |       221.373 | 0.002584 |         73 |         109 |
-| Ten 1,000-stroke swaps before flush      |       211.370 | 0.015083 |          2 |         471 |
-| Sixty selections before flush            |         0.768 | 0.046125 |         66 |         102 |
-| Append one new 100-point stroke          |         0.011 |    0.095 |      3,357 |       7,567 |
-| Fresh equal-geometry 1,000-stroke layer  |        12.311 |   78.716 |         37 |   7,440,956 |
-| Append ten characters to a 200 KB string |         0.010 | 0.000958 |         29 |     200,299 |
+| Workload | Tree delta ms | Graph ms | Tree bytes | Graph bytes |
+| --- | ---: | ---: | ---: | ---: |
+| 100 scattered edits | 0.265 | 0.158 | 5,243 | 2,235 |
+| Swap 1,000-stroke layers | 21.523 | 0.002334 | 73 | 111 |
+| Swap 10,000-stroke layers | 221.373 | 0.002584 | 73 | 109 |
+| Ten 1,000-stroke swaps before flush | 211.370 | 0.015083 | 2 | 471 |
+| Sixty selections before flush | 0.768 | 0.046125 | 66 | 102 |
+| Append one new 100-point stroke | 0.011 | 0.095 | 3,357 | 7,567 |
+| Fresh equal-geometry 1,000-stroke layer | 12.311 | 78.716 | 37 | 7,440,956 |
+| Append ten characters to a 200 KB string | 0.010 | 0.000958 | 29 | 200,299 |
 
 Graph bytes include its envelope; tree bytes are decoded operation arrays, not
 path-dictionary encoding. The formats provide different identity guarantees.
@@ -179,17 +179,17 @@ small working set touched only 1,000 points and missed exhaustive-read allocatio
 
 Representative scalar-workload measurements:
 
-| Metric                       |       Tree delta |             Graph |
-| ---------------------------- | ---------------: | ----------------: |
-| Ready producer heap          |        139.5 MiB |         430.4 MiB |
-| Ready producer plus replica  |        279.3 MiB |         719.3 MiB |
-| Initial import               |         0.020 ms |      1,118.907 ms |
-| Snapshot flush               |       169.218 ms |        594.904 ms |
-| Snapshot wire size           | 66,364,338 bytes | 147,487,101 bytes |
-| Snapshot JSON encode         |       176.961 ms |        366.942 ms |
-| Snapshot JSON decode         |       159.388 ms |      1,179.166 ms |
-| Snapshot apply               |         0.027 ms |      1,417.161 ms |
-| Pipeline-process maximum RSS |        852.8 MiB |       4,978.0 MiB |
+| Metric | Tree delta | Graph |
+| --- | ---: | ---: |
+| Ready producer heap | 139.5 MiB | 430.4 MiB |
+| Ready producer plus replica | 279.3 MiB | 719.3 MiB |
+| Initial import | 0.020 ms | 1,118.907 ms |
+| Snapshot flush | 169.218 ms | 594.904 ms |
+| Snapshot wire size | 66,364,338 bytes | 147,487,101 bytes |
+| Snapshot JSON encode | 176.961 ms | 366.942 ms |
+| Snapshot JSON decode | 159.388 ms | 1,179.166 ms |
+| Snapshot apply | 0.027 ms | 1,417.161 ms |
+| Pipeline-process maximum RSS | 852.8 MiB | 4,978.0 MiB |
 
 Snapshot phase timings came from a separately requested rebase. Tree application
 adopts the already decoded snapshot; graph application validates and materializes
@@ -210,13 +210,13 @@ transport limits, and service integration were not implemented.
 Reading every point through producer proxies allocated wrappers for nearly every
 container. Historical retained-heap results, after traversal and GC:
 
-| Variant                           | Ready MiB | After full read MiB | Cold read ms | Warm read ms |
-| --------------------------------- | --------: | ------------------: | -----------: | -----------: |
-| Raw document                      |    139.47 |              139.49 |         8.00 |         2.95 |
-| Minimal cached read-only proxy    |    139.47 |              452.50 |       705.10 |       550.35 |
-| Tree delta before weak caches     |    139.26 |            3,525.93 |     2,720.98 |       470.89 |
-| Graph prototype                   |    430.39 |            2,159.75 |     1,437.65 |       388.74 |
-| Historical matched-clone baseline |    294.22 |            2,228.71 |       827.13 |       360.95 |
+| Variant | Ready MiB | After full read MiB | Cold read ms | Warm read ms |
+| --- | ---: | ---: | ---: | ---: |
+| Raw document | 139.47 | 139.49 | 8.00 | 2.95 |
+| Minimal cached read-only proxy | 139.47 | 452.50 | 705.10 | 550.35 |
+| Tree delta before weak caches | 139.26 | 3,525.93 | 2,720.98 | 470.89 |
+| Graph prototype | 430.39 | 2,159.75 | 1,437.65 | 388.74 |
+| Historical matched-clone baseline | 294.22 | 2,228.71 | 827.13 | 360.95 |
 
 The baseline row was measured in a later three-process run using asynchronous GC
 boundaries, not extrapolated from its ready heap. Its immediately sampled heap
@@ -227,14 +227,14 @@ read-only traversal. All three historical trackers strongly cached wrappers.
 
 A separate matched before/after run measured the weak-cache patch:
 
-| Metric                                           |       Before |        After |
-| ------------------------------------------------ | -----------: | -----------: |
-| Ready producer heap                              |   139.50 MiB |   139.50 MiB |
-| Retained after traversal, job boundaries, and GC | 3,526.17 MiB |   203.54 MiB |
-| Immediately sampled heap after cold read         | 3,531.93 MiB | 2,491.78 MiB |
-| Maximum RSS                                      | 3,858.11 MiB | 3,391.06 MiB |
-| Cold traversal                                   |  2,397.40 ms |  6,298.76 ms |
-| Warm same-job traversal                          |    466.43 ms |    844.13 ms |
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Ready producer heap | 139.50 MiB | 139.50 MiB |
+| Retained after traversal, job boundaries, and GC | 3,526.17 MiB | 203.54 MiB |
+| Immediately sampled heap after cold read | 3,531.93 MiB | 2,491.78 MiB |
+| Maximum RSS | 3,858.11 MiB | 3,391.06 MiB |
+| Cold traversal | 2,397.40 ms | 6,298.76 ms |
+| Warm same-job traversal | 466.43 ms | 844.13 ms |
 
 These are separate runs from the preceding table. Warm time is the median of
 three traversals per process after collection: the first reconstructs collected
@@ -288,10 +288,10 @@ kept the compact layout. Arrays retain their recursive array branch; null-protot
 objects retain a null prototype. Full-fixture clone-only measurements, three fresh
 processes per method:
 
-| Clone construction          | Additional retained heap | Median clone time |
-| --------------------------- | -----------------------: | ----------------: |
-| Dynamic property assignment |              154.725 MiB |        162.338 ms |
-| Spread first, then recurse  |              139.466 MiB |         93.924 ms |
+| Clone construction | Additional retained heap | Median clone time |
+| --- | ---: | ---: |
+| Dynamic property assignment | 154.725 MiB | 162.338 ms |
+| Spread first, then recurse | 139.466 MiB | 93.924 ms |
 
 This helper was adopted in existing delta. Regression tests cover detached nested
 values, null prototypes, inherited-name collisions, independent expansion of

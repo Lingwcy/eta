@@ -141,3 +141,50 @@ test("an ordinary clone can recreate the cache and merge a pinned older revision
   assert.match(readFileSync(join(clone, "packages/agent/package.json"), "utf8"), /@eta\/agent/);
   assert.equal(git(clone, "status", "--porcelain"), "");
 });
+
+test("upstream manifest updates preserve Eta's package name and local dependencies without recurring conflicts", () => {
+  const { root, upstream, baseline, options } = setup();
+  syncAgent({ ...options, initialize: true, ref: baseline });
+  file(
+    root,
+    "packages/agent/package.json",
+    JSON.stringify({ name: "@eta/agent", devDependencies: { typescript: "catalog:" } }, null, 2) +
+      "\n",
+  );
+  commit(root, "Eta build integration");
+  for (const version of ["1.0.1", "1.0.2"]) {
+    file(
+      upstream,
+      "packages/durable/package.json",
+      JSON.stringify(
+        { name: "@earendil-works/pi-durable", version, dependencies: { runtime: version } },
+        null,
+        "\t",
+      ) + "\n",
+    );
+    commit(upstream, `upstream ${version}`);
+    syncAgent(options);
+    const manifest = JSON.parse(readFileSync(join(root, "packages/agent/package.json"), "utf8"));
+    assert.equal(manifest.name, "@eta/agent");
+    assert.equal(manifest.version, version);
+    assert.equal(manifest.devDependencies.typescript, "catalog:");
+    assert.equal(manifest.dependencies.runtime, version);
+    assert.equal(git(root, "status", "--porcelain"), "");
+  }
+  assert.equal(syncAgent(options).changed, false);
+});
+
+test("conflicting edits to the same manifest field remain available for manual resolution", () => {
+  const { root, upstream, baseline, options } = setup();
+  syncAgent({ ...options, initialize: true, ref: baseline });
+  file(root, "packages/agent/package.json", '{"name":"@eta/agent","version":"local"}\n');
+  commit(root, "local version");
+  file(
+    upstream,
+    "packages/durable/package.json",
+    '{"name":"@earendil-works/pi-durable","version":"remote"}\n',
+  );
+  commit(upstream, "remote version");
+  assert.throws(() => syncAgent(options), /sync stopped/);
+  assert.match(git(root, "status", "--porcelain"), /UU packages\/agent\/package.json/);
+});

@@ -102,7 +102,8 @@ type Seq = number & { readonly [seqBrand]: "sequence" };
 const ROOT_CONVERSATION_ID = 1 as ConversationId;
 
 type ConversationOwnership =
-  { readonly kind: "ownerless" } | { readonly kind: "task"; readonly taskId: TaskId };
+  | { readonly kind: "ownerless" }
+  | { readonly kind: "task"; readonly taskId: TaskId };
 
 type ConversationRecord = {
   readonly id: ConversationId;
@@ -172,60 +173,60 @@ type SubmissionRecord =
   | (SubmissionRecordBase & {
       readonly type: "input";
     } & (
-        | {
-            readonly status: "queued";
-            readonly entry?: never;
-            readonly answer?: never;
-            readonly reason?: never;
-            readonly detail?: never;
-          }
-        | {
-            readonly status: "placed";
-            readonly entry: EntryId;
-            readonly answer?: never;
-            readonly reason?: never;
-            readonly detail?: never;
-          }
-        | {
-            readonly status: "done";
-            readonly entry: EntryId;
-            readonly answer: EntryId;
-            readonly reason?: never;
-            readonly detail?: never;
-          }
-        | {
-            readonly status: "unanswered";
-            readonly entry?: EntryId;
-            readonly answer?: never;
-            readonly reason: string;
-            readonly detail?: JsonValue;
-          }
-      ))
+      | {
+          readonly status: "queued";
+          readonly entry?: never;
+          readonly answer?: never;
+          readonly reason?: never;
+          readonly detail?: never;
+        }
+      | {
+          readonly status: "placed";
+          readonly entry: EntryId;
+          readonly answer?: never;
+          readonly reason?: never;
+          readonly detail?: never;
+        }
+      | {
+          readonly status: "done";
+          readonly entry: EntryId;
+          readonly answer: EntryId;
+          readonly reason?: never;
+          readonly detail?: never;
+        }
+      | {
+          readonly status: "unanswered";
+          readonly entry?: EntryId;
+          readonly answer?: never;
+          readonly reason: string;
+          readonly detail?: JsonValue;
+        }
+    ))
   | (SubmissionRecordBase & {
       readonly type: "write";
     } & (
-        | {
-            readonly status: "queued";
-            readonly entry?: never;
-            readonly answer?: never;
-            readonly reason?: never;
-            readonly detail?: never;
-          }
-        | {
-            readonly status: "done";
-            readonly entry: EntryId;
-            readonly answer?: never;
-            readonly reason?: never;
-            readonly detail?: never;
-          }
-        | {
-            readonly status: "unanswered";
-            readonly entry?: never;
-            readonly answer?: never;
-            readonly reason: string;
-            readonly detail?: JsonValue;
-          }
-      ));
+      | {
+          readonly status: "queued";
+          readonly entry?: never;
+          readonly answer?: never;
+          readonly reason?: never;
+          readonly detail?: never;
+        }
+      | {
+          readonly status: "done";
+          readonly entry: EntryId;
+          readonly answer?: never;
+          readonly reason?: never;
+          readonly detail?: never;
+        }
+      | {
+          readonly status: "unanswered";
+          readonly entry?: never;
+          readonly answer?: never;
+          readonly reason: string;
+          readonly detail?: JsonValue;
+        }
+    ));
 
 type SubmissionSettlement =
   | { readonly status: "done"; readonly answer: EntryId }
@@ -288,7 +289,8 @@ separate consumers. Older stored history is available through the owning
 ### 2.2 Public Harness surface
 
 This is the v1 host-facing API. Pico5 is not implemented yet, but implementations
-must expose this shape rather than inventing a different facade during package 24.
+must expose this shape rather than inventing a different facade during package
+24.
 
 ```ts
 type ModelRef = {
@@ -345,11 +347,7 @@ type HarnessOptions<Tool extends ToolRegistration = ToolRegistration> = {
   readonly settings?: HarnessSettings;
   /** Builds a conversation's environment. Never called on the Session line; may be async. */
   readonly env?: (
-    target: {
-      readonly conversationId: ConversationId;
-      readonly cwd?: string;
-      readonly read: DocumentReader;
-    },
+    target: { readonly conversationId: ConversationId; readonly cwd?: string; readonly read: DocumentReader },
     context: Context,
   ) => ExecutionEnv | undefined | Promise<ExecutionEnv | undefined>;
   /** Runs in every commit that creates or forks a conversation, after the built-in creation hook (below). */
@@ -444,8 +442,7 @@ type AgentChange = {
     | readonly Extension[]
     | { readonly add?: readonly Extension[]; readonly remove?: readonly Extension[] }
     | null;
-  readonly tools?:
-    readonly ToolRegistration[] | { readonly remove: readonly ToolRegistration[] } | null;
+  readonly tools?: readonly ToolRegistration[] | { readonly remove: readonly ToolRegistration[] } | null;
   readonly instructions?: string | null;
   readonly cwd?: string | null;
 };
@@ -526,7 +523,9 @@ type HarnessInspection = {
 
 type ConversationWatch = WatchHandle<ConversationView>;
 
-type HooksOf<K> = K extends Task<infer _I, infer _S, infer _R, infer H> ? H : never;
+type HooksOf<K> = K extends Task<infer _I, infer _S, infer _R, infer H>
+  ? H
+  : never;
 
 interface Conversation {
   readonly id: ConversationId;
@@ -536,7 +535,10 @@ interface Conversation {
   /** `configure()` in its own commit. */
   configure(change: AgentChange, context: Context): Promise<void>;
 
-  commit<T>(change: (tx: Tx) => T | Promise<T>, context: Context): Promise<T>;
+  commit<T>(
+    change: (tx: Tx) => T | Promise<T>,
+    context: Context,
+  ): Promise<T>;
   context(context: Context): Promise<ContextView>;
   entries(
     query: Omit<EntryQuery, "conversationId">,
@@ -544,7 +546,11 @@ interface Conversation {
     cursor: Cursor | undefined,
     context: Context,
   ): Promise<Page<EntryRecord, Cursor>>;
-  fork(at: EntryId, options: ConversationCreateOptions, context: Context): Promise<Conversation>;
+  fork(
+    at: EntryId,
+    options: ConversationCreateOptions,
+    context: Context,
+  ): Promise<Conversation>;
   compact(instructions: string | undefined, context: Context): Promise<TaskId<CompactionResult>>;
   reset(handoff: string | undefined, context: Context): Promise<void>;
   /** `{ background: true }` also aborts background work under the conversation (section 5.4). */
@@ -564,10 +570,7 @@ interface Harness extends Session {
   conversation(id: ConversationId, context: Context): Promise<Conversation | undefined>;
   createConversation(options: ConversationCreateOptions, context: Context): Promise<Conversation>;
 
-  getTask<R>(
-    id: TaskId<R>,
-    context: Context,
-  ): Promise<TaskRecord<JsonValue, JsonValue, R> | undefined>;
+  getTask<R>(id: TaskId<R>, context: Context): Promise<TaskRecord<JsonValue, JsonValue, R> | undefined>;
   inspect(context: Context): Promise<HarnessInspection>;
   submission(id: SubmissionId, context: Context): Promise<Submission | undefined>;
   abortSubmission(
@@ -651,7 +654,8 @@ raw `tx.createConversation()` and `tx.forkConversation()`, for example inside a
 tool commit. It runs inside `tx.createConversation()` and
 `tx.forkConversation()`, before they return, so a `configure()` later in the
 same callback overrides its copy. It creates empty `pi.live`, `pi.inbox`, and
-`pi.usage`, and handles `pi.agent`:
+`pi.usage`, creates `pi.provider` with a fresh provider-facing UUIDv7, and handles
+`pi.agent`:
 
 - A fork keeps the `asOf` copy of its parent's `pi.agent` (section 3.7),
   whatever its ownership.
@@ -684,15 +688,15 @@ available.
 
 The built-in agent document is final at version 1:
 
-| field              | value                              |
-| ------------------ | ---------------------------------- |
-| kind               | `pi.agent`                         |
-| version            | `1` (no migration)                 |
+| field | value |
+|---|---|
+| kind | `pi.agent` |
+| version | `1` (no migration) |
 | scope/history/fork | conversation, `rewindable`, `asOf` |
-| schema             | `AgentState`                       |
-| `initial()`        | `{}`                               |
-| checkpoint         | complete base on every change      |
-| view mount         | `docs["pi.agent"]`                 |
+| schema | `AgentState` |
+| `initial()` | `{}` |
+| checkpoint | complete base on every change |
+| view mount | `docs["pi.agent"]` |
 
 It stores only what someone chose for the conversation: extension and tool
 names, never code, and no prompt text other than `instructions`. Code comes
@@ -729,6 +733,29 @@ registry movement, and the name takes effect again when it is installed again.
 A change neither starts generation nor appends a system entry. Request
 preparation later compares the desired prompt and tools with transcript history
 and appends the required positional system baseline or delta (section 7.4).
+
+The built-in provider document is final at version 1:
+
+| field | value |
+|---|---|
+| kind | `pi.provider` |
+| version | `1` (no migration) |
+| scope/history/fork | conversation, `latest`, `initial` |
+| schema | `{ sessionId: string }` |
+| `initial()` | `{ sessionId: uuidv7() }` |
+| checkpoint | complete base on every change |
+| view mount | `docs["pi.provider"]` |
+
+The UUID is a provider-facing conversation identity, not the numeric Durable
+`ConversationId` and not an enclosing application's Session ID. Every new,
+task-owned, raw-created, and forked conversation receives its own UUID in its
+creating commit; a fork never copies its parent's UUID. Generation requests and
+compaction summarization pass it to pi-ai as `options.sessionId`. Reset,
+compaction, model changes, and reopen do not change it. A legacy conversation without the document creates and persists it
+on the Session line before its first generation or compaction provider request.
+Concurrent callers therefore observe one winner. Provider behavior still
+applies: for example, Codex suppresses cache/session identity when
+`cacheRetention` is `"none"`.
 
 A missing tool implementation never fails a request. Request preparation offers
 only the agent's resolved tools. If the replayed tool state still offers a tool
@@ -791,27 +818,19 @@ keeps that in its own document and reads it through `target.read`:
 // Absent: the conversation runs locally. Only conversations with this document run in a container.
 // Subagents do not copy it: their creator writes it too when they should run in the container.
 const ContainerDoc = defineDoc<{ image: string }>({
-  kind: "app.container",
-  version: 1,
-  scope: "conversation",
-  history: "latest",
-  fork: "current",
+  kind: "app.container", version: 1, scope: "conversation", history: "latest", fork: "current",
   initial: () => ({ image: "node:22" }),
 });
-const harness = await Harness.open(
-  storage,
-  {
-    models,
-    registry,
-    env: async ({ conversationId, cwd, read }, context) => {
-      const container = await read.snapshot(ContainerDoc, conversationId, context);
-      return container !== undefined
-        ? containers.env(container.image, cwd ?? "/work", context)
-        : localEnv(cwd ?? process.cwd()); // cached NodeExecutionEnv per directory
-    },
+const harness = await Harness.open(storage, {
+  models,
+  registry,
+  env: async ({ conversationId, cwd, read }, context) => {
+    const container = await read.snapshot(ContainerDoc, conversationId, context);
+    return container !== undefined
+      ? containers.env(container.image, cwd ?? "/work", context)
+      : localEnv(cwd ?? process.cwd()); // cached NodeExecutionEnv per directory
   },
-  context,
-);
+}, context);
 ```
 
 Agent and settings changes take effect when their readers resolve them (section
@@ -960,13 +979,11 @@ type CommonDocDefinition<T extends JsonObject> = {
   checkpointWhen?(value: Readonly<T>, ops: readonly Op[], info: CheckpointInfo): boolean;
 };
 
-type DocDefinition<T extends JsonObject> = CommonDocDefinition<T> & DocumentSemantics;
+type DocDefinition<T extends JsonObject> =
+  CommonDocDefinition<T> & DocumentSemantics;
 
-type DocFamilyDefinition<T extends JsonObject, I extends JsonValue> = Omit<
-  CommonDocDefinition<T>,
-  "initial"
-> &
-  DocumentSemantics & {
+type DocFamilyDefinition<T extends JsonObject, I extends JsonValue> =
+  Omit<CommonDocDefinition<T>, "initial"> & DocumentSemantics & {
     readonly family: true;
     initial(seed: I): T;
   };
@@ -1012,10 +1029,11 @@ type ConversationDocFamilyToken<T extends JsonObject, I extends JsonValue> = Doc
   I,
   DocFamilyDefinition<T, I> & (LatestConversationSemantics | RewindableConversationSemantics)
 >;
-type RewindableConversationDocFamilyToken<
-  T extends JsonObject,
-  I extends JsonValue,
-> = DocFamilyToken<T, I, DocFamilyDefinition<T, I> & RewindableConversationSemantics>;
+type RewindableConversationDocFamilyToken<T extends JsonObject, I extends JsonValue> = DocFamilyToken<
+  T,
+  I,
+  DocFamilyDefinition<T, I> & RewindableConversationSemantics
+>;
 type TaskDocFamilyToken<T extends JsonObject, I extends JsonValue> = DocFamilyToken<
   T,
   I,
@@ -1043,18 +1061,16 @@ function defineDocFamily<T extends JsonObject, I extends JsonValue>(
   },
 ): SessionDocFamilyToken<T, I>;
 function defineDocFamily<T extends JsonObject, I extends JsonValue>(
-  definition: Omit<CommonDocDefinition<T>, "initial"> &
-    LatestConversationSemantics & {
-      readonly family: true;
-      initial(seed: I): T;
-    },
+  definition: Omit<CommonDocDefinition<T>, "initial"> & LatestConversationSemantics & {
+    readonly family: true;
+    initial(seed: I): T;
+  },
 ): ConversationDocFamilyToken<T, I>;
 function defineDocFamily<T extends JsonObject, I extends JsonValue>(
-  definition: Omit<CommonDocDefinition<T>, "initial"> &
-    RewindableConversationSemantics & {
-      readonly family: true;
-      initial(seed: I): T;
-    },
+  definition: Omit<CommonDocDefinition<T>, "initial"> & RewindableConversationSemantics & {
+    readonly family: true;
+    initial(seed: I): T;
+  },
 ): RewindableConversationDocFamilyToken<T, I>;
 function defineDocFamily<T extends JsonObject, I extends JsonValue>(
   definition: Omit<CommonDocDefinition<T>, "initial"> & {
@@ -1092,16 +1108,14 @@ A persisted document instance has one `DocumentRecord`:
 
 ```ts
 type DocumentRecord = {
-  readonly id: DocumentId; // unique incarnation
-  readonly kind: string; // stable definition kind
-  readonly key?: string; // families only
-  readonly createdAt: Seq; // stamped by the committing storage
+  readonly id: DocumentId;      // unique incarnation
+  readonly kind: string;        // stable definition kind
+  readonly key?: string;        // families only
+  readonly createdAt: Seq;      // stamped by the committing storage
   readonly retiredAt?: Seq;
 } & (
   | { readonly scope: { readonly kind: "session" } }
-  | ({
-      readonly scope: { readonly kind: "conversation"; readonly conversationId: ConversationId };
-    } & (
+  | ({ readonly scope: { readonly kind: "conversation"; readonly conversationId: ConversationId } } & (
       | { readonly history: "latest"; readonly fork: "current" | "initial" }
       | {
           readonly history: "rewindable";
@@ -1139,88 +1153,25 @@ There is no mutable `session.document()` API.
 interface Session extends DocumentObserver {
   commit<T>(change: (tx: Tx) => T | Promise<T>, context: Context): Promise<T>;
   close(context: Context): Promise<void>;
-  subscribeCommits(
-    listener: (publication: CommitPublication, context: Context) => void,
-  ): () => void;
+  subscribeCommits(listener: (publication: CommitPublication, context: Context) => void): () => void;
   subscribeClose(listener: () => void): () => void;
 
-  snapshot<T extends JsonObject>(
-    token: SessionDocToken<T>,
-    context: Context,
-  ): Promise<Readonly<T> | undefined>;
-  snapshot<T extends JsonObject>(
-    token: ConversationDocToken<T>,
-    conversationId: ConversationId,
-    context: Context,
-  ): Promise<Readonly<T> | undefined>;
-  snapshot<T extends JsonObject>(
-    token: TaskDocToken<T>,
-    taskId: TaskId,
-    context: Context,
-  ): Promise<Readonly<T> | undefined>;
-  snapshot<T extends JsonObject, I extends JsonValue>(
-    token: SessionDocFamilyToken<T, I>,
-    key: string,
-    context: Context,
-  ): Promise<Readonly<T> | undefined>;
-  snapshot<T extends JsonObject, I extends JsonValue>(
-    token: ConversationDocFamilyToken<T, I>,
-    conversationId: ConversationId,
-    key: string,
-    context: Context,
-  ): Promise<Readonly<T> | undefined>;
-  snapshot<T extends JsonObject, I extends JsonValue>(
-    token: TaskDocFamilyToken<T, I>,
-    taskId: TaskId,
-    key: string,
-    context: Context,
-  ): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject>(token: SessionDocToken<T>, context: Context): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId, context: Context): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId, context: Context): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(token: SessionDocFamilyToken<T, I>, key: string, context: Context): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(token: ConversationDocFamilyToken<T, I>, conversationId: ConversationId, key: string, context: Context): Promise<Readonly<T> | undefined>;
+  snapshot<T extends JsonObject, I extends JsonValue>(token: TaskDocFamilyToken<T, I>, taskId: TaskId, key: string, context: Context): Promise<Readonly<T> | undefined>;
 
-  snapshotAsOf<T extends JsonObject>(
-    token: RewindableConversationDocToken<T>,
-    conversationId: ConversationId,
-    at: EntryId,
-    context: Context,
-  ): Promise<Readonly<T> | undefined>;
-  snapshotAsOf<T extends JsonObject, I extends JsonValue>(
-    token: RewindableConversationDocFamilyToken<T, I>,
-    conversationId: ConversationId,
-    key: string,
-    at: EntryId,
-    context: Context,
-  ): Promise<Readonly<T> | undefined>;
+  snapshotAsOf<T extends JsonObject>(token: RewindableConversationDocToken<T>, conversationId: ConversationId, at: EntryId, context: Context): Promise<Readonly<T> | undefined>;
+  snapshotAsOf<T extends JsonObject, I extends JsonValue>(token: RewindableConversationDocFamilyToken<T, I>, conversationId: ConversationId, key: string, at: EntryId, context: Context): Promise<Readonly<T> | undefined>;
 
-  documentState<T extends JsonObject>(
-    token: SessionDocToken<T>,
-    context: Context,
-  ): Promise<DocumentState<T> | undefined>;
-  documentState<T extends JsonObject>(
-    token: ConversationDocToken<T>,
-    conversationId: ConversationId,
-    context: Context,
-  ): Promise<DocumentState<T> | undefined>;
-  documentState<T extends JsonObject>(
-    token: TaskDocToken<T>,
-    taskId: TaskId,
-    context: Context,
-  ): Promise<DocumentState<T> | undefined>;
-  documentState<T extends JsonObject, I extends JsonValue>(
-    token: SessionDocFamilyToken<T, I>,
-    key: string,
-    context: Context,
-  ): Promise<DocumentState<T> | undefined>;
-  documentState<T extends JsonObject, I extends JsonValue>(
-    token: ConversationDocFamilyToken<T, I>,
-    conversationId: ConversationId,
-    key: string,
-    context: Context,
-  ): Promise<DocumentState<T> | undefined>;
-  documentState<T extends JsonObject, I extends JsonValue>(
-    token: TaskDocFamilyToken<T, I>,
-    taskId: TaskId,
-    key: string,
-    context: Context,
-  ): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject>(token: SessionDocToken<T>, context: Context): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId, context: Context): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId, context: Context): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(token: SessionDocFamilyToken<T, I>, key: string, context: Context): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(token: ConversationDocFamilyToken<T, I>, conversationId: ConversationId, key: string, context: Context): Promise<DocumentState<T> | undefined>;
+  documentState<T extends JsonObject, I extends JsonValue>(token: TaskDocFamilyToken<T, I>, taskId: TaskId, key: string, context: Context): Promise<DocumentState<T> | undefined>;
 }
 
 interface Tx {
@@ -1229,29 +1180,12 @@ interface Tx {
   /** Undefined when the entry is absent or has another kind. */
   entry<D extends JsonValue>(token: Entry<D>, id: EntryId): Promise<TypedEntry<D> | undefined>;
   task(id: TaskId): Promise<TaskRecord<JsonValue, JsonValue, JsonValue> | undefined>;
-  scanConversations(
-    query: ConversationQuery,
-    limit: number,
-    cursor?: Cursor,
-  ): Promise<Page<ConversationRecord, Cursor>>;
-  scanEntries(
-    query: EntryQuery,
-    limit: number,
-    cursor?: Cursor,
-  ): Promise<Page<EntryRecord, Cursor>>;
-  scanTasks(
-    query: TaskQuery,
-    limit: number,
-    cursor?: Cursor,
-  ): Promise<Page<TaskRecord<JsonValue, JsonValue, JsonValue>, Cursor>>;
-  submissionByRequest(
-    conversationId: ConversationId,
-    requestId: string,
-  ): Promise<SubmissionRecord | undefined>;
+  scanConversations(query: ConversationQuery, limit: number, cursor?: Cursor): Promise<Page<ConversationRecord, Cursor>>;
+  scanEntries(query: EntryQuery, limit: number, cursor?: Cursor): Promise<Page<EntryRecord, Cursor>>;
+  scanTasks(query: TaskQuery, limit: number, cursor?: Cursor): Promise<Page<TaskRecord<JsonValue, JsonValue, JsonValue>, Cursor>>;
+  submissionByRequest(conversationId: ConversationId, requestId: string): Promise<SubmissionRecord | undefined>;
 
-  createConversation(options: {
-    readonly ownership: ConversationOwnership;
-  }): Promise<ConversationRecord>;
+  createConversation(options: { readonly ownership: ConversationOwnership }): Promise<ConversationRecord>;
   forkConversation(
     parentConversationId: ConversationId,
     at: EntryId,
@@ -1260,70 +1194,33 @@ interface Tx {
   appendEntry(conversationId: ConversationId, value: EntryDraft): Promise<EntryRecord>;
   /** The token supplies `kind` and types `data`. */
   appendEntry<D extends JsonValue>(
-    token: Entry<D>,
-    conversationId: ConversationId,
-    value: TypedEntryDraft<D>,
+    token: Entry<D>, conversationId: ConversationId, value: TypedEntryDraft<D>,
   ): Promise<TypedEntry<D>>;
   createTask<I, S extends { phase: string }, R, H extends object>(
-    task: Task<I, S, R, H>,
-    input: I,
-    options: TaskOptions,
+    task: Task<I, S, R, H>, input: I, options: TaskOptions,
   ): Promise<TaskId<R>>;
   /** Raw submission record; no admission rules (busy check, inbox, placement). Hosts use `Conversation.submit()`. */
   createSubmission(create: SubmissionCreate): Promise<SubmissionRecord>;
   /** Settle a queued or placed submission; only a placed input can be answered. A settled one stays unchanged. */
   settleSubmission(id: SubmissionId, settlement: SubmissionSettlement): void;
   /** Newest visible entry of the conversation that carries a `head`. */
-  latestHeadMarker(
-    conversationId: ConversationId,
-  ): Promise<(EntryRecord & { readonly head: EntryId }) | undefined>;
+  latestHeadMarker(conversationId: ConversationId): Promise<(EntryRecord & { readonly head: EntryId }) | undefined>;
   /** Record a queued submission's placement at `entry`: an input becomes `placed`, a write `done` (section 6). The caller appends the entry and edits `pi.inbox` and `pi.live`. */
   placeSubmission(id: SubmissionId, entry: EntryId): void;
 
   doc<T extends JsonObject>(token: SessionDocToken<T>): Promise<Draft<T>>;
-  doc<T extends JsonObject>(
-    token: ConversationDocToken<T>,
-    conversationId: ConversationId,
-  ): Promise<Draft<T>>;
+  doc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId): Promise<Draft<T>>;
   doc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<Draft<T>>;
-  doc<T extends JsonObject, I extends JsonValue>(
-    token: SessionDocFamilyToken<T, I>,
-    key: string,
-    seed: I,
-  ): Promise<Draft<T>>;
-  doc<T extends JsonObject, I extends JsonValue>(
-    token: ConversationDocFamilyToken<T, I>,
-    conversationId: ConversationId,
-    key: string,
-    seed: I,
-  ): Promise<Draft<T>>;
-  doc<T extends JsonObject, I extends JsonValue>(
-    token: TaskDocFamilyToken<T, I>,
-    taskId: TaskId,
-    key: string,
-    seed: I,
-  ): Promise<Draft<T>>;
+  doc<T extends JsonObject, I extends JsonValue>(token: SessionDocFamilyToken<T, I>, key: string, seed: I): Promise<Draft<T>>;
+  doc<T extends JsonObject, I extends JsonValue>(token: ConversationDocFamilyToken<T, I>, conversationId: ConversationId, key: string, seed: I): Promise<Draft<T>>;
+  doc<T extends JsonObject, I extends JsonValue>(token: TaskDocFamilyToken<T, I>, taskId: TaskId, key: string, seed: I): Promise<Draft<T>>;
 
   retireDoc<T extends JsonObject>(token: SessionDocToken<T>): Promise<void>;
-  retireDoc<T extends JsonObject>(
-    token: ConversationDocToken<T>,
-    conversationId: ConversationId,
-  ): Promise<void>;
+  retireDoc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId): Promise<void>;
   retireDoc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<void>;
-  retireDoc<T extends JsonObject, I extends JsonValue>(
-    token: SessionDocFamilyToken<T, I>,
-    key: string,
-  ): Promise<void>;
-  retireDoc<T extends JsonObject, I extends JsonValue>(
-    token: ConversationDocFamilyToken<T, I>,
-    conversationId: ConversationId,
-    key: string,
-  ): Promise<void>;
-  retireDoc<T extends JsonObject, I extends JsonValue>(
-    token: TaskDocFamilyToken<T, I>,
-    taskId: TaskId,
-    key: string,
-  ): Promise<void>;
+  retireDoc<T extends JsonObject, I extends JsonValue>(token: SessionDocFamilyToken<T, I>, key: string): Promise<void>;
+  retireDoc<T extends JsonObject, I extends JsonValue>(token: ConversationDocFamilyToken<T, I>, conversationId: ConversationId, key: string): Promise<void>;
+  retireDoc<T extends JsonObject, I extends JsonValue>(token: TaskDocFamilyToken<T, I>, taskId: TaskId, key: string): Promise<void>;
 }
 ```
 
@@ -1499,7 +1396,7 @@ by Session-owned checkpoint and Storage preparation.
 
 ```ts
 let escaped: Draft<LiveState> | undefined;
-await session.commit(async (tx) => {
+await session.commit(async tx => {
   escaped = await tx.doc(LiveDoc, conversationId);
 }, context);
 escaped!.generation = undefined; // throws: the draft was revoked
@@ -1549,13 +1446,15 @@ code and never receives an unused complete candidate with a selected delta.
 A definition can bound replay directly:
 
 ```ts
-checkpointWhen: (_value, _ops, info) => info.deltasSinceBase >= 31;
+checkpointWhen: (_value, _ops, info) => info.deltasSinceBase >= 31
 ```
 
 A high-churn live document can checkpoint when it becomes empty:
 
 ```ts
-checkpointWhen: (value, _ops) => value.generation === undefined && value.tools === undefined;
+checkpointWhen: (value, _ops) =>
+  value.generation === undefined &&
+  value.tools === undefined
 ```
 
 ### 3.6 Versions and migrations
@@ -1604,11 +1503,11 @@ containing `E`. Different document states require separate commits.
 Each conversation document follows the history/fork policy persisted in its
 `DocumentRecord`:
 
-| conversation setting | child value                                               |
-| -------------------- | --------------------------------------------------------- |
-| `fork: "asOf"`       | parent value at `E`'s commit                              |
-| `fork: "current"`    | committed parent value selected when the fork commit runs |
-| `fork: "initial"`    | no copied instance; initializer on first child access     |
+| conversation setting | child value |
+|---|---|
+| `fork: "asOf"` | parent value at `E`'s commit |
+| `fork: "current"` | committed parent value selected when the fork commit runs |
+| `fork: "initial"` | no copied instance; initializer on first child access |
 
 `current` and `asOf` copy logically present conversation singleton and family
 instances, preserving unknown definitions and their stored versions. Copied
@@ -1658,12 +1557,12 @@ throw, block, or call Session APIs. Document-state subscribers and watch
 listeners still run later, off the line.
 
 ```ts
-await session.commit(async (tx) => {
+await session.commit(async tx => {
   const conversation = await tx.conversation(conversationId); // table read
   const live = await tx.doc(LiveDoc, conversationId);
 
-  await tx.appendEntry(conversationId, message); // first table write
-  delete live.generation; // document mutation remains valid
+  await tx.appendEntry(conversationId, message);     // first table write
+  delete live.generation;                            // document mutation remains valid
   await tx.createTask(Follow, {}, { ownership: { kind: "conversation" }, conversationId }); // further table writes are fine
 }, context);
 ```
@@ -1719,8 +1618,7 @@ type TaskState<S, R> =
   | { readonly status: "terminal"; readonly outcome: TaskOutcome<R> };
 
 /** Who owns a task: its conversation (a top-level task) or another task of the same conversation. */
-type TaskOwnership =
-  { readonly kind: "conversation" } | { readonly kind: "task"; readonly taskId: TaskId };
+type TaskOwnership = { readonly kind: "conversation" } | { readonly kind: "task"; readonly taskId: TaskId };
 
 type TaskRecord<I, S, R> = {
   readonly id: TaskId<R>;
@@ -1754,10 +1652,7 @@ type RunningTask<I, S, R> = TaskRecord<I, S, R> & {
 type NextTaskState<S, R> = Extract<TaskState<S, R>, { status: "running" | "waiting" | "terminal" }>;
 
 interface HookRunner<H extends object> {
-  each<K extends keyof H>(
-    name: K,
-    invoke: (handler: NonNullable<H[K]>) => void | Promise<void>,
-  ): Promise<void>;
+  each<K extends keyof H>(name: K, invoke: (handler: NonNullable<H[K]>) => void | Promise<void>): Promise<void>;
 }
 
 type PhaseHandler<I, P, S, R, H extends object> = (
@@ -1793,21 +1688,14 @@ interface TaskRuntime<I, S, R, H extends object> extends DocumentObserver, Docum
   memo<T extends JsonValue>(name: string, candidate: T, context: Context): Promise<T>;
   conversation(id: ConversationId, context: Context): Promise<ConversationHandle | undefined>;
   /** Committed task record. */
-  getTask<T>(
-    id: TaskId<T>,
-    context: Context,
-  ): Promise<TaskRecord<JsonValue, JsonValue, T> | undefined>;
+  getTask<T>(id: TaskId<T>, context: Context): Promise<TaskRecord<JsonValue, JsonValue, T> | undefined>;
   /** Terminal receipt; rejects when the invocation ends. */
   waitForTask<T>(id: TaskId<T>, context: Context): Promise<SettledTask<T>>;
   /** Outcomes of terminal tasks, in order; rejects when one is not terminal. Used after a wait (section 5.5). */
   outcomes<T>(ids: readonly TaskId<T>[], context: Context): Promise<TaskOutcome<T>[]>;
   /** Committed entry visible from the task's conversation. */
   entry(id: EntryId, context: Context): Promise<EntryRecord | undefined>;
-  entry<D extends JsonValue>(
-    token: Entry<D>,
-    id: EntryId,
-    context: Context,
-  ): Promise<TypedEntry<D> | undefined>;
+  entry<D extends JsonValue>(token: Entry<D>, id: EntryId, context: Context): Promise<TypedEntry<D> | undefined>;
   /** Committed raw active transcript and model context, optionally cut off at `at`. */
   context(conversationId: ConversationId, context: Context, at?: EntryId): Promise<ContextView>;
   /** The Harness clock. */
@@ -1824,16 +1712,8 @@ type TaskDefinition<I, S extends { phase: string }, R, H extends object> = {
   readonly phases: {
     [P in S["phase"]]: PhaseHandler<I, Extract<S, { phase: P }>, S, R, H>;
   };
-  abort(
-    task: RunningTask<I, S, R>,
-    runtime: TaskRuntime<I, S, R, H>,
-    context: Context,
-  ): Promise<void>;
-  migrate?(
-    input: JsonValue,
-    checkpoint: JsonValue,
-    fromVersion: number,
-  ): {
+  abort(task: RunningTask<I, S, R>, runtime: TaskRuntime<I, S, R, H>, context: Context): Promise<void>;
+  migrate?(input: JsonValue, checkpoint: JsonValue, fromVersion: number): {
     input: I;
     checkpoint: S;
   };
@@ -1905,7 +1785,6 @@ abort: async (task, runtime, context) => {
   await runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted", reason: "user" } }), context);
 },
 ```
-
 `memo(name, candidate)` is one gated commit; `memo(name)` reads the committed
 record. `sleep(until)` compares against the Harness `now` clock and rejects when
 the invocation is signalled or its context is cancelled. Watches acquired through
@@ -2278,15 +2157,15 @@ type InboxItem =
 type InboxState = { items: InboxItem[] };
 ```
 
-| field              | value                                         |
-| ------------------ | --------------------------------------------- |
-| kind               | `pi.inbox`                                    |
-| version            | `1`                                           |
-| scope/history/fork | conversation, `latest`, `initial`             |
-| `initial()`        | `{ items: [] }`                               |
-| checkpoint         | complete base whenever `items` is empty       |
-| view mount         | `docs["pi.inbox"]`                            |
-| created            | with every Harness conversation (section 2.2) |
+| field | value |
+|---|---|
+| kind | `pi.inbox` |
+| version | `1` |
+| scope/history/fork | conversation, `latest`, `initial` |
+| `initial()` | `{ items: [] }` |
+| checkpoint | complete base whenever `items` is empty |
+| view mount | `docs["pi.inbox"]` |
+| created | with every Harness conversation (section 2.2) |
 
 Items are in ID order. A queued input stores its content; its `pi.user` entry
 gets the Harness clock's timestamp at placement. Queued submissions belong to
@@ -2305,17 +2184,17 @@ settles exactly the listed inputs.
 
 Admission and terminal transitions:
 
-| action                                  | submission state                         | other writes                            |
-| --------------------------------------- | ---------------------------------------- | --------------------------------------- |
-| input, idle with empty inbox            | `placed`, with user entry                | create run and generation               |
-| write, idle with empty inbox            | `done`, with entry                       | append entry; no run                    |
-| input or write, busy or non-empty inbox | `queued`                                 | append inbox item                       |
-| boundary places user item               | `placed`, with entry                     | add ID to current or successor run      |
-| boundary places write                   | `done`, with entry                       | append entry                            |
-| run answers                             | input `done`, with required answer entry | remove `run`, or hand it to a successor |
-| run fails or its task aborts            | input `unanswered`, with reason          | remove `run`; inbox unchanged           |
-| withdraw queued item                    | `unanswered`, reason `aborted`           | remove inbox item                       |
-| stale head write                        | `unanswered`, reason `stale`             | remove inbox item                       |
+| action | submission state | other writes |
+|---|---|---|
+| input, idle with empty inbox | `placed`, with user entry | create run and generation |
+| write, idle with empty inbox | `done`, with entry | append entry; no run |
+| input or write, busy or non-empty inbox | `queued` | append inbox item |
+| boundary places user item | `placed`, with entry | add ID to current or successor run |
+| boundary places write | `done`, with entry | append entry |
+| run answers | input `done`, with required answer entry | remove `run`, or hand it to a successor |
+| run fails or its task aborts | input `unanswered`, with reason | remove `run`; inbox unchanged |
+| withdraw queued item | `unanswered`, reason `aborted` | remove inbox item |
+| stale head write | `unanswered`, reason `stale` | remove inbox item |
 
 `requestId` deduplicates within one conversation before any write; reusing one
 for the other submission type rejects. A busy input with `whenBusy: "reject"`
@@ -2337,10 +2216,10 @@ Boundary selection is deterministic by item ID, with the settings'
 Session line: `one-at-a-time` selects the first item of that mode, `all` every
 item of that mode.
 
-| boundary    | write | steer             | follow-up         |
-| ----------- | ----- | ----------------- | ----------------- |
-| `postTools` | all   | first/all by mode | none              |
-| `final`     | all   | first/all by mode | first/all by mode |
+| boundary | write | steer | follow-up |
+|---|---|---|---|
+| `postTools` | all | first/all by mode | none |
+| `final` | all | first/all by mode | first/all by mode |
 
 A boundary places its selected writes first, in ID order, and then its selected
 user items, in ID order. A user item queued before a reset or compaction summary
@@ -2421,10 +2300,7 @@ type PromptInput<Tool extends ToolRegistration = ToolRegistration> = {
 
 type PromptSection<Tool extends ToolRegistration = ToolRegistration> = {
   readonly key: string;
-  render(
-    input: PromptInput<Tool>,
-    context: Context,
-  ): string | undefined | Promise<string | undefined>;
+  render(input: PromptInput<Tool>, context: Context): string | undefined | Promise<string | undefined>;
   /** Default true: wrap the text as `<key>\n...\n</key>`. */
   readonly tag?: boolean;
 };
@@ -2448,19 +2324,14 @@ interface Extension<Tool extends ToolRegistration = ToolRegistration> {
   readonly tasks?: readonly AnyTask[];
 }
 
-function defineExtension<Tool extends ToolRegistration = ToolRegistration>(
-  extension: Extension<Tool>,
-): Extension<Tool>;
+function defineExtension<Tool extends ToolRegistration = ToolRegistration>(extension: Extension<Tool>): Extension<Tool>;
 function section<Tool extends ToolRegistration = ToolRegistration>(
   key: string,
   render: PromptSection<Tool>["render"],
   options?: { readonly tag?: boolean },
 ): PromptSection<Tool>;
 function hook<K extends AnyTask>(task: K, handlers: Partial<HooksOf<K>>): HookRegistration;
-function wrapTool<Tool extends ToolRegistration>(
-  tool: Tool,
-  wrapper: (tool: Tool) => Tool,
-): Wrap<Tool>;
+function wrapTool<Tool extends ToolRegistration>(tool: Tool, wrapper: (tool: Tool) => Tool): Wrap<Tool>;
 function wrapSection<Tool extends ToolRegistration = ToolRegistration>(
   key: string,
   wrapper: (section: PromptSection<Tool>) => PromptSection<Tool>,
@@ -2478,10 +2349,7 @@ interface RegistrySnapshot<Tool extends ToolRegistration = ToolRegistration> {
   extension(name: string): Extension<Tool> | undefined;
   /** Every installed tool with its extension, in install order. Names may repeat across extensions. */
   tools(): readonly { readonly extension: Extension<Tool>; readonly tool: Tool }[];
-  sections(): readonly {
-    readonly extension: Extension<Tool>;
-    readonly section: PromptSection<Tool>;
-  }[];
+  sections(): readonly { readonly extension: Extension<Tool>; readonly section: PromptSection<Tool> }[];
   /** Built-in and installed task definitions. */
   tasks(): readonly AnyTask[];
   task(name: string): AnyTask | undefined;
@@ -2510,15 +2378,7 @@ type CodingAgentTool = ToolRegistration & { readonly promptSnippet?: string };
 // The renderer sees CodingAgentTool: no cast needed to read promptSnippet.
 export const ToolList = defineExtension<CodingAgentTool>({
   name: "tool-list",
-  sections: [
-    section(
-      "tools",
-      ({ agent }) =>
-        agent.tools
-          .map((tool) => `- ${tool.name}: ${tool.promptSnippet ?? tool.description}`)
-          .join("\n") || undefined,
-    ),
-  ],
+  sections: [section("tools", ({ agent }) => agent.tools.map((tool) => `- ${tool.name}: ${tool.promptSnippet ?? tool.description}`).join("\n") || undefined)],
 });
 const registry = createRegistry<CodingAgentTool>();
 ```
@@ -2555,14 +2415,8 @@ requires one run to see a single registry state across its generation and tool
 tasks.
 
 ```ts
-export const ContextFiles = defineExtension({
-  name: "context-files",
-  sections: [section("agents-md", renderAgentsMd)],
-});
-export const Skills = defineExtension({
-  name: "skills",
-  sections: [section("skills", renderSkills)],
-});
+export const ContextFiles = defineExtension({ name: "context-files", sections: [section("agents-md", renderAgentsMd)] });
+export const Skills = defineExtension({ name: "skills", sections: [section("skills", renderSkills)] });
 export const Coding = defineExtension({
   name: "coding",
   sections: [
@@ -2573,35 +2427,24 @@ export const Coding = defineExtension({
 });
 export const Permissions = defineExtension({
   name: "permissions",
-  hooks: [
-    hook(ToolTask, {
-      beforeTool: async (call) => (isDangerous(call) ? { block: "Needs approval" } : undefined),
-    }),
-  ],
+  hooks: [hook(ToolTask, { beforeTool: async (call) => (isDangerous(call) ? { block: "Needs approval" } : undefined) })],
 });
 // A role and a review loop, for conversations that select it.
 export const Reviewer = defineExtension({
   name: "reviewer",
-  sections: [
-    section("role", () => "You review diffs. Report problems as a list. Never edit files."),
-  ],
+  sections: [section("role", () => "You review diffs. Report problems as a list. Never edit files.")],
   hooks: [hook(GenerationTask, { onYield: requestSecondPass })],
 });
 
 const registry = createRegistry();
-for (const extension of [CodingTools, Coding, ContextFiles, Skills, Permissions, Reviewer])
-  registry.install(extension);
-const harness = await Harness.open(
-  storage,
-  {
-    models,
-    registry,
-    // Reviewer is installed but not selected by default: only conversations that select it get its role and hooks.
-    settings: { extensions: [CodingTools, Coding, ContextFiles, Skills, Permissions] },
-    env: ({ cwd }) => localEnv(cwd ?? process.cwd()), // cached NodeExecutionEnv per directory
-  },
-  context,
-);
+for (const extension of [CodingTools, Coding, ContextFiles, Skills, Permissions, Reviewer]) registry.install(extension);
+const harness = await Harness.open(storage, {
+  models,
+  registry,
+  // Reviewer is installed but not selected by default: only conversations that select it get its role and hooks.
+  settings: { extensions: [CodingTools, Coding, ContextFiles, Skills, Permissions] },
+  env: ({ cwd }) => localEnv(cwd ?? process.cwd()), // cached NodeExecutionEnv per directory
+}, context);
 // The conversation remembers its model and directory; a restart elsewhere keeps both.
 const root = await harness.root(context, { agent: { model: sonnet, cwd: process.cwd() } });
 ```
@@ -2646,19 +2489,17 @@ conversations that select both, and wrappers apply to whichever tool won:
 ```ts
 export const Timing = defineExtension({
   name: "timing",
-  wraps: [
-    wrapTool(bashTool, (tool) => ({
-      ...tool,
-      execute: async (args, api, context) => {
-        const start = Date.now();
-        try {
-          return await tool.execute(args, api, context);
-        } finally {
-          metrics.record("bash", Date.now() - start);
-        }
-      },
-    })),
-  ],
+  wraps: [wrapTool(bashTool, (tool) => ({
+    ...tool,
+    execute: async (args, api, context) => {
+      const start = Date.now();
+      try {
+        return await tool.execute(args, api, context);
+      } finally {
+        metrics.record("bash", Date.now() - start);
+      }
+    },
+  }))],
 });
 // A bash inside a Python virtualenv for one conversation: it replaces CodingTools' bash in place,
 // and Timing, if selected, wraps it.
@@ -2672,16 +2513,16 @@ await conversation.configure({ extensions: { add: [Venv] } }, context);
 
 **Who resolves what, and when.** Each reader resolves once per decision:
 
-| reader                                             | resolves                                                                              | when                                                                                                                                                                                                                                                     |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| generation `prepare`                               | agent (tools, sections, model, thinking level), stream options, compaction thresholds | once per request; model, stream options, and offered tools are fixed in the request checkpoint (section 8.3)                                                                                                                                             |
-| every task phase                                   | extension selection for hooks; `runtime.agent()`                                      | at most once per phase handler, at its first hook dispatch or `agent()` call, from that phase's snapshot and the committed `pi.agent`, off the Session line, with the invocation's context; fixed for the rest of the phase                              |
-| tool task                                          | the implementation of an accepted call                                                | at `call` and `execute`: the name among the phase agent's `tools`, the current selection after the tools filter; no such tool, for example one removed after preparation: `tool_unavailable`. Replay policy on reopen uses the same lookup (section 7.3) |
-| generation, when a tool round starts               | tool execution mode                                                                   | once per round (section 8.3)                                                                                                                                                                                                                             |
-| generation, compaction                             | retry policy                                                                          | at each attempt's classification                                                                                                                                                                                                                         |
-| compaction `select`                                | model, thinking level, stream options, compaction thresholds                          | once; the summary request stays pinned across its retries (section 8.7)                                                                                                                                                                                  |
-| boundaries and idle admission, on the Session line | queue modes                                                                           | per boundary (section 6)                                                                                                                                                                                                                                 |
-| tool task, `prepare`, `runtime.env()`              | environment                                                                           | at each call (section 2.2)                                                                                                                                                                                                                               |
+| reader | resolves | when |
+|---|---|---|
+| generation `prepare` | agent (tools, sections, model, thinking level), stream options, compaction thresholds | once per request; model, stream options, and offered tools are fixed in the request checkpoint (section 8.3) |
+| every task phase | extension selection for hooks; `runtime.agent()` | at most once per phase handler, at its first hook dispatch or `agent()` call, from that phase's snapshot and the committed `pi.agent`, off the Session line, with the invocation's context; fixed for the rest of the phase |
+| tool task | the implementation of an accepted call | at `call` and `execute`: the name among the phase agent's `tools`, the current selection after the tools filter; no such tool, for example one removed after preparation: `tool_unavailable`. Replay policy on reopen uses the same lookup (section 7.3) |
+| generation, when a tool round starts | tool execution mode | once per round (section 8.3) |
+| generation, compaction | retry policy | at each attempt's classification |
+| compaction `select` | model, thinking level, stream options, compaction thresholds | once; the summary request stays pinned across its retries (section 8.7) |
+| boundaries and idle admission, on the Session line | queue modes | per boundary (section 6) |
+| tool task, `prepare`, `runtime.env()` | environment | at each call (section 2.2) |
 
 Registry installs and settings changes make no commit, so they emit nothing
 (section 9.4). A conversation on the default selection changes when the
@@ -2700,15 +2541,15 @@ signatures compatible across task versions is the task author's
 responsibility. Hooks run in extension order off the line; a crash before the
 consuming commit may rerun them. Abort errors always propagate.
 
-| hook            | composition                                  | ordinary throw             |
-| --------------- | -------------------------------------------- | -------------------------- |
-| `beforeRequest` | replacement chain                            | report, continue           |
-| `afterResponse` | all observers                                | report, continue           |
-| `onYield`       | first continuation wins                      | report, continue           |
-| `beforeTool`    | argument replacement chain; first block wins | block tool with error text |
-| `afterTool`     | result replacement chain                     | report, continue           |
-| `afterTools`    | all observers                                | report, continue           |
-| `beforeCompact` | first decision wins                          | report, continue           |
+| hook | composition | ordinary throw |
+|---|---|---|
+| `beforeRequest` | replacement chain | report, continue |
+| `afterResponse` | all observers | report, continue |
+| `onYield` | first continuation wins | report, continue |
+| `beforeTool` | argument replacement chain; first block wins | block tool with error text |
+| `afterTool` | result replacement chain | report, continue |
+| `afterTools` | all observers | report, continue |
+| `beforeCompact` | first decision wins | report, continue |
 
 Hooks use task memos for durable first-writer-wins decisions. There is no public
 semantic event channel; current UI status is document state.
@@ -2734,18 +2575,9 @@ interface GenerationHooks {
   /** Every terminal provider message, before classification. */
   afterResponse(message: AssistantMessage, api: HookApi, context: Context): void | Promise<void>;
   /** A final answer; `continue` appends a user message and continues the run. */
-  onYield(
-    answer: AssistantMessage,
-    api: HookApi,
-    context: Context,
-  ): HookResult<{ readonly continue: UserInput }>;
+  onYield(answer: AssistantMessage, api: HookApi, context: Context): HookResult<{ readonly continue: UserInput }>;
   /** After every tool of the round is terminal; `results` are the round's result entries in call order. */
-  afterTools(
-    assistant: EntryId,
-    results: readonly EntryId[],
-    api: HookApi,
-    context: Context,
-  ): void | Promise<void>;
+  afterTools(assistant: EntryId, results: readonly EntryId[], api: HookApi, context: Context): void | Promise<void>;
 }
 
 interface ToolHooks {
@@ -2801,24 +2633,18 @@ document holds that behavior's state:
 
 ```ts
 const PlanModeDoc = defineDoc<{ enabled: boolean }>({
-  kind: "app.plan-mode",
-  version: 1,
-  scope: "conversation",
-  history: "latest",
-  fork: "current",
+  kind: "app.plan-mode", version: 1, scope: "conversation", history: "latest", fork: "current",
   initial: () => ({ enabled: false }),
 });
 export const PlanMode = defineExtension({
   name: "plan-mode",
-  hooks: [
-    hook(ToolTask, {
-      // An absent document means plan mode is off.
-      beforeTool: async (call, api, context) =>
-        (await api.snapshot(PlanModeDoc, api.conversationId, context))?.enabled && writes(call)
-          ? { block: "Plan mode: read-only" }
-          : undefined,
-    }),
-  ],
+  hooks: [hook(ToolTask, {
+    // An absent document means plan mode is off.
+    beforeTool: async (call, api, context) =>
+      (await api.snapshot(PlanModeDoc, api.conversationId, context))?.enabled && writes(call)
+        ? { block: "Plan mode: read-only" }
+        : undefined,
+  })],
 });
 // PlanMode is in the default selection; /plan toggles this conversation's state.
 await root.commit(async (tx) => {
@@ -2859,8 +2685,7 @@ interface ConversationHandle {
   waitForIdle(context: Context): Promise<void>;
 }
 
-interface ToolExecutionApi<TDetails extends JsonValue = JsonValue>
-  extends DocumentObserver, DocumentReader {
+interface ToolExecutionApi<TDetails extends JsonValue = JsonValue> extends DocumentObserver, DocumentReader {
   readonly taskId: TaskId;
   readonly conversationId: ConversationId;
   readonly callId: string;
@@ -2882,18 +2707,13 @@ interface ToolExecutionApi<TDetails extends JsonValue = JsonValue>
     options: Omit<TaskOptions, "conversationId">,
     context: Context,
   ): Promise<TaskId<R>>;
-  getTask<R>(
-    id: TaskId<R>,
-    context: Context,
-  ): Promise<TaskRecord<JsonValue, JsonValue, R> | undefined>;
+  getTask<R>(id: TaskId<R>, context: Context): Promise<TaskRecord<JsonValue, JsonValue, R> | undefined>;
   waitForTask<R>(id: TaskId<R>, context: Context): Promise<SettledTask<R>>;
   conversation(id: ConversationId, context: Context): Promise<ConversationHandle | undefined>;
 }
 
-type ToolRegistration<
-  TParameters extends TSchema = TSchema,
-  TDetails extends JsonValue = JsonValue,
-> = Tool<TParameters> & {
+type ToolRegistration<TParameters extends TSchema = TSchema, TDetails extends JsonValue = JsonValue> =
+  Tool<TParameters> & {
   readonly replay?: "safe" | "unsafe";
   readonly executionMode?: ToolExecutionMode;
   /** Pure repair of commonly malformed arguments; runs before validation, which still checks its result. */
@@ -3089,41 +2909,30 @@ so a UI that sees the call can attach to the child's view or events.
 ```ts
 export const Subagent = defineExtension({
   name: "subagent",
-  tools: [
-    defineTool({
-      name: "subagent",
-      description: "Delegate a self-contained task to a subagent and get its answer back.",
-      parameters: Type.Object({ task: Type.String() }),
-      replay: "safe",
-      execute: async (args, api, context) => {
-        const { task } = args;
-        const child = await api.commit(async (tx) => {
-          const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items[0];
-          if (existing !== undefined) return existing.id;
-          // Starts as a copy of this conversation's agent: model, thinking level, cwd, extensions, tools.
-          const created = await tx.createConversation({
-            ownership: { kind: "task", taskId: api.taskId },
-          });
-          // Without this extension, the child is not offered this tool.
-          await configure(tx, created.id, { extensions: { remove: [Subagent] } });
-          return created.id;
-        }, context);
-        await api.details({ conversationId: child }, context);
-        const handle = (await api.conversation(child, context))!;
-        const request = {
-          type: "input",
-          content: task,
-          requestId: `subagent:${api.taskId}`,
-        } as const;
-        const settled = await (await handle.submit(request, context)).wait(context);
-        if (settled.status !== "done" || settled.type !== "input")
-          throw new Error(`Subagent failed: ${settled.status}`);
-        return {
-          content: [{ type: "text", text: await answerText(api, settled.answer, context) }],
-        };
-      },
-    }),
-  ],
+  tools: [defineTool({
+    name: "subagent",
+    description: "Delegate a self-contained task to a subagent and get its answer back.",
+    parameters: Type.Object({ task: Type.String() }),
+    replay: "safe",
+    execute: async (args, api, context) => {
+      const { task } = args;
+      const child = await api.commit(async (tx) => {
+        const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items[0];
+        if (existing !== undefined) return existing.id;
+        // Starts as a copy of this conversation's agent: model, thinking level, cwd, extensions, tools.
+        const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
+        // Without this extension, the child is not offered this tool.
+        await configure(tx, created.id, { extensions: { remove: [Subagent] } });
+        return created.id;
+      }, context);
+      await api.details({ conversationId: child }, context);
+      const handle = (await api.conversation(child, context))!;
+      const request = { type: "input", content: task, requestId: `subagent:${api.taskId}` } as const;
+      const settled = await (await handle.submit(request, context)).wait(context);
+      if (settled.status !== "done" || settled.type !== "input") throw new Error(`Subagent failed: ${settled.status}`);
+      return { content: [{ type: "text", text: await answerText(api, settled.answer, context) }] };
+    },
+  })],
 });
 ```
 
@@ -3163,17 +2972,10 @@ task definitions come with the subagent extension, so pending reporters resume
 after a restart once the host installs it again:
 
 ```ts
-export const SubagentTools = defineExtension({
-  name: "subagent-tools",
-  tasks: [Anchor, Reporter],
-  tools: [subagentTool],
-});
+export const SubagentTools = defineExtension({ name: "subagent-tools", tasks: [Anchor, Reporter], tools: [subagentTool] });
 
 // In subagentTool's spawn commit, after the name checks:
-const anchor = await tx.createTask(Anchor, null, {
-  ownership: { kind: "conversation" },
-  background: true,
-});
+const anchor = await tx.createTask(Anchor, null, { ownership: { kind: "conversation" }, background: true });
 // Owned by a task of the parent: starts as a copy of the parent's agent.
 const child = await tx.createConversation({ ownership: { kind: "task", taskId: anchor } });
 await configure(tx, child.id, {
@@ -3391,11 +3193,11 @@ any more (section 2.2).
 
 The initial implementation provides:
 
-| kind            | responsibility                                                                   |
-| --------------- | -------------------------------------------------------------------------------- |
+| kind | responsibility |
+|---|---|
 | `pi.generation` | prepare system prompt and tools, request or poll model, retry, classify response |
-| `pi.tool`       | validate, hook, execute, persist output and details, append result               |
-| `pi.compaction` | select a transcript range, summarize, place a headed summary                     |
+| `pi.tool` | validate, hook, execute, persist output and details, append result |
+| `pi.compaction` | select a transcript range, summarize, place a headed summary |
 
 Generation uses `HarnessOptions.models` without a Pico-specific model adapter. It
 resolves `models.getModel(ref.provider, ref.modelId)`, builds a pi-ai `Context`
@@ -3425,14 +3227,14 @@ with an empty list when it has no diagnostics (section 7.3), and
 `pi.compaction`, whose token is `Entry<{ reason: CompactionReason }>`. Each kind
 is exported as an `Entry` token.
 
-| kind             | `model`                                                                     | written by                                                          |
-| ---------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `pi.user`        | `[UserMessage]`, timestamp from the Harness clock at admission or placement | submissions, `onYield` continuations                                |
-| `pi.assistant`   | `[AssistantMessage]` with any stop reason                                   | generation                                                          |
-| `pi.system`      | `[SystemMessage]` with `content: ""` (section 7.4)                          | generation preparation                                              |
-| `pi.tool-result` | `[ToolResultMessage]`                                                       | tool tasks; generation for calls to tools its request did not offer |
-| `pi.reset`       | absent, or `[UserMessage]` with the handoff text; always `head: "self"`     | `reset()`, generation `tools` phase for `handoff`                   |
-| `pi.compaction`  | `[UserMessage]` with the wrapped summary; `head` is the first kept entry    | compaction tasks (section 8.7)                                      |
+| kind | `model` | written by |
+|---|---|---|
+| `pi.user` | `[UserMessage]`, timestamp from the Harness clock at admission or placement | submissions, `onYield` continuations |
+| `pi.assistant` | `[AssistantMessage]` with any stop reason | generation |
+| `pi.system` | `[SystemMessage]` with `content: ""` (section 7.4) | generation preparation |
+| `pi.tool-result` | `[ToolResultMessage]` | tool tasks; generation for calls to tools its request did not offer |
+| `pi.reset` | absent, or `[UserMessage]` with the handoff text; always `head: "self"` | `reset()`, generation `tools` phase for `handoff` |
+| `pi.compaction` | `[UserMessage]` with the wrapped summary; `head` is the first kept entry | compaction tasks (section 8.7) |
 
 Every generation response becomes a `pi.assistant` entry: answers, failed attempts
 with their error text and usage, and converted partials with stop reason
@@ -3491,15 +3293,15 @@ type CompactionStatus = {
 };
 ```
 
-| field              | value                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| kind               | `pi.live`                                                                           |
-| version            | `1`                                                                                 |
-| scope/history/fork | conversation, `latest`, `initial`                                                   |
-| `initial()`        | `{}`                                                                                |
-| checkpoint         | complete base whenever nothing runs: `generation` absent and no `running` tool slot |
-| view mount         | `docs["pi.live"]`                                                                   |
-| created            | with every Harness conversation (section 2.2)                                       |
+| field | value |
+|---|---|
+| kind | `pi.live` |
+| version | `1` |
+| scope/history/fork | conversation, `latest`, `initial` |
+| `initial()` | `{}` |
+| checkpoint | complete base whenever nothing runs: `generation` absent and no `running` tool slot |
+| view mount | `docs["pi.live"]` |
+| created | with every Harness conversation (section 2.2) |
 
 Nothing runs while idle, at a final boundary, in the commit where generation
 hands over to its tool round (every slot is still `pending` or `done`), between
@@ -3610,8 +3412,8 @@ The run's inputs live in `pi.live.run`, not in the task input.
     moves to `request` also creates a background compaction, owned by the
     conversation, with reason `threshold`, and adds its status. The generation
     does not wait for it. The settings' retry policy is read when the
-    attempt's result is classified, because it governs the next attempt (section
-    7.1).
+  attempt's result is classified, because it governs the next attempt (section
+  7.1).
 - `request` and `poll` resolve the checkpoint's model through
   `models.getModel()`; an unknown model fails the task with `no_model`, like
   `prepare`. `request` converts a leftover partial (below) before it resolves
@@ -3619,8 +3421,9 @@ The run's inputs live in `pi.live.run`, not in the task input.
 - `request` first converts a committed partial left in `pi.live` by an
   interrupted attempt into an aborted `pi.assistant` entry. It then streams the
   model context through `cutoff` with the invocation signal, the thinking level
-  as `reasoning` (omitted for `off`), and the pinned `streamOptions`,
-  committing throttled partials. Before streaming, the `beforeRequest` chain may
+  as `reasoning` (omitted for `off`), the conversation's persisted provider
+  `sessionId`, and the pinned `streamOptions`, committing throttled partials.
+  Before streaming, the `beforeRequest` chain may
   replace the messages for this request only. Recovery resends the same
   committed messages with the same pinned model, thinking level, and stream
   options, and reruns `beforeRequest`.
@@ -3646,7 +3449,7 @@ The run's inputs live in `pi.live.run`, not in the task input.
     the commit appends the error entry, removes `generation`, creates a
     compaction owned by the generation with reason `overflow`, adds its status,
     and commits `waiting` on it with `allSettled` and checkpoint `{ phase:
-"prepare", attempt, compacted, overflow }`; the recovery request does not
+    "prepare", attempt, compacted, overflow }`; the recovery request does not
     count against the retry policy. Any other overflow,
     including a second one, is never retried and fails like the non-retryable
     errors below. A `stop` or `length` response is never classified as overflow;
@@ -3699,7 +3502,8 @@ like the abort handler.
 ```ts
 type ToolTaskInput = { assistant: EntryId; callId: string };
 type ToolTaskCheckpoint =
-  { phase: "call" } | { phase: "execute"; arguments: JsonObject; replay: "safe" | "unsafe" };
+  | { phase: "call" }
+  | { phase: "execute"; arguments: JsonObject; replay: "safe" | "unsafe" };
 type ToolTaskResult = { entryId: EntryId; control?: ToolControl };
 ```
 
@@ -3723,7 +3527,7 @@ because the terminal record keeps it; the call is read from the assistant entry.
   diagnostics, and ends `failed` with `{ entryId }`.
 - The result commit bounds the content, appends the diagnostics block (section
   7.3), appends one `pi.tool-result` entry with `model: [{ role: "toolResult",
-toolCallId, toolName, content, details, isError, timestamp }]` and
+  toolCallId, toolName, content, details, isError, timestamp }]` and
   `data: { diagnostics }`, marks the slot `done`, and
   completes with `{ entryId, control }`. An `isError` result still completes.
 - A throw from `execute()`, or from `HarnessOptions.env` building its
@@ -3782,15 +3586,15 @@ type UsageState = {
 };
 ```
 
-| field              | value                                         |
-| ------------------ | --------------------------------------------- |
-| kind               | `pi.usage`                                    |
-| version            | `1`                                           |
-| scope/history/fork | conversation, `latest`, `initial`             |
-| `initial()`        | `{ models: {}, tools: {} }`                   |
-| checkpoint         | complete base on every change                 |
-| view mount         | `docs["pi.usage"]`                            |
-| created            | with every Harness conversation (section 2.2) |
+| field | value |
+|---|---|
+| kind | `pi.usage` |
+| version | `1` |
+| scope/history/fork | conversation, `latest`, `initial` |
+| `initial()` | `{ models: {}, tools: {} }` |
+| checkpoint | complete base on every change |
+| view mount | `docs["pi.usage"]` |
+| created | with every Harness conversation (section 2.2) |
 
 `pi.usage` is the ledger of the conversation's own spend. Every built-in writer
 of a `pi.assistant` entry adds its message's `usage` to `models` under the
@@ -3837,11 +3641,11 @@ replaces an old prefix of the model context with a summary entry whose `head` is
 the first kept entry (section 2.1). Raw history stays in storage. There are three
 ways to start one; the task is the same, only ownership and placement differ:
 
-| started by                                              | owner          | background | generation waits | placement        |
-| ------------------------------------------------------- | -------------- | ---------- | ---------------- | ---------------- |
-| `Conversation.compact()`                                | conversation   | no         | no               | write submission |
-| generation above the background threshold               | conversation   | yes        | no               | write submission |
-| generation above the blocking threshold, or on overflow | the generation | no         | yes              | direct append    |
+| started by | owner | background | generation waits | placement |
+|---|---|---|---|---|
+| `Conversation.compact()` | conversation | no | no | write submission |
+| generation above the background threshold | conversation | yes | no | write submission |
+| generation above the blocking threshold, or on overflow | the generation | no | yes | direct append |
 
 Only a blocking compaction runs while the conversation's run waits for it. The
 others never take run control: the conversation keeps working while they
@@ -3890,7 +3694,7 @@ Phases:
   with `{}`, and `{ summary }` is placed as below in the same commit. Without a
   decision, one commit moves to `summarize` with attempt 1, the agent's model
   and thinking level, the settings' stream options, `maxTokens` = `min(floor(0.8 *
-reserveTokens), model.maxTokens)` (the model's value only when positive), the
+  reserveTokens), model.maxTokens)` (the model's value only when positive), the
   captured tail, and the cut as `firstKept`.
 - `summarize` derives the summarized messages again from the context at `tail`,
   which is immutable, and serializes them to text: `[User]: ...`,
@@ -3901,15 +3705,17 @@ reserveTokens), model.maxTokens)` (the model's value only when positive), the
   system prompt, and a user message with the serialized text in
   `<conversation>` tags followed by the built-in summarization prompt, and
   `Additional focus: <instructions>` when the input has instructions. It uses the
-  pinned thinking level as `reasoning`, and the pinned stream options without
-  `deferred`, with `cacheRetention: "none"` and the pinned `maxTokens`.
-  Recovery resends the same request. The response is classified in one commit
+  pinned thinking level as `reasoning`, the conversation's persisted provider
+  `sessionId`, and the pinned stream options without `deferred`, with
+  `cacheRetention: "none"` and the pinned `maxTokens`. Providers such as Codex
+  may suppress that identity when caching is disabled. Recovery resends the same
+  request. The response is classified in one commit
   that adds its usage to `pi.usage` (section 8.6):
   - `stop` with non-empty text and no tool call: the text is the summary, placed
     as below.
   - `error` that `isRetryableAssistantError()` accepts while the settings'
     retry policy, read at classification, allows another attempt: move to `retry` with `until = now +
-retryDelayMs(policy, attempt)`, and set the status's `attempt` and `retry`.
+    retryDelayMs(policy, attempt)`, and set the status's `attempt` and `retry`.
   - anything else, including a `length` stop, which leaves the summary
     incomplete: fail with `model_error`.
 - `retry` sleeps until `until`, then returns to `summarize` with the next attempt
@@ -3964,6 +3770,7 @@ to compact, was declined, failed, faulted, or was aborted directly, a threshold
 generation sends its request anyway and an overflow generation fails with
 `model_error` (section 8.3).
 
+
 ## 9. Document observation and Chord
 
 ### 9.1 Document state
@@ -4005,7 +3812,8 @@ function replicatedState<T>(
   options?: ReplicatedStateSourceOptions,
 ): AttachedReplicatedState<T>;
 
-type DocumentState<T extends JsonObject> = AttachedReplicatedState<Readonly<T> | null>;
+type DocumentState<T extends JsonObject> =
+  AttachedReplicatedState<Readonly<T> | null>;
 
 type WatchEnd =
   | { readonly reason: "stopped" | "cancelled" | "session_closed" | "retired" }
@@ -4025,37 +3833,12 @@ interface WatchHandle<T> {
 type DocumentWatch<T extends JsonObject> = WatchHandle<Readonly<T> | null>;
 
 interface DocumentObserver {
-  watchDoc<T extends JsonObject>(
-    token: SessionDocToken<T>,
-    context: Context,
-  ): Promise<DocumentWatch<T> | undefined>;
-  watchDoc<T extends JsonObject>(
-    token: ConversationDocToken<T>,
-    conversationId: ConversationId,
-    context: Context,
-  ): Promise<DocumentWatch<T> | undefined>;
-  watchDoc<T extends JsonObject>(
-    token: TaskDocToken<T>,
-    taskId: TaskId,
-    context: Context,
-  ): Promise<DocumentWatch<T> | undefined>;
-  watchDoc<T extends JsonObject, I extends JsonValue>(
-    token: SessionDocFamilyToken<T, I>,
-    key: string,
-    context: Context,
-  ): Promise<DocumentWatch<T> | undefined>;
-  watchDoc<T extends JsonObject, I extends JsonValue>(
-    token: ConversationDocFamilyToken<T, I>,
-    conversationId: ConversationId,
-    key: string,
-    context: Context,
-  ): Promise<DocumentWatch<T> | undefined>;
-  watchDoc<T extends JsonObject, I extends JsonValue>(
-    token: TaskDocFamilyToken<T, I>,
-    taskId: TaskId,
-    key: string,
-    context: Context,
-  ): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject>(token: SessionDocToken<T>, context: Context): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId, context: Context): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId, context: Context): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(token: SessionDocFamilyToken<T, I>, key: string, context: Context): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(token: ConversationDocFamilyToken<T, I>, conversationId: ConversationId, key: string, context: Context): Promise<DocumentWatch<T> | undefined>;
+  watchDoc<T extends JsonObject, I extends JsonValue>(token: TaskDocFamilyToken<T, I>, taskId: TaskId, key: string, context: Context): Promise<DocumentWatch<T> | undefined>;
 }
 ```
 
@@ -4155,7 +3938,7 @@ type ConversationView = {
   readonly conversation: ConversationRecord;
   /** Raw active entries, as `ContextView.entries` (section 2.1): the head marker, then the non-head entries from its head. */
   readonly entries: readonly EntryRecord[];
-  /** `pi.agent`, `pi.live`, `pi.inbox`, and `pi.usage`, keyed by kind; absent documents are absent. */
+  /** `pi.agent`, `pi.live`, `pi.inbox`, `pi.provider`, and `pi.usage`, keyed by kind; absent documents are absent. */
   readonly docs: Readonly<Record<string, JsonObject>>;
 };
 ```
@@ -4212,12 +3995,7 @@ type AgentEvent =
       entries: readonly EntryRecord[];
       run?: { inputs: readonly SubmissionId[] };
       /** Current generation attempt: its in-flight partial, retry backoff, or deferred poll. */
-      generation?: {
-        attempt: number;
-        message?: AssistantMessage;
-        retry?: { at: number; error: string };
-        deferred?: { pollAt: number };
-      };
+      generation?: { attempt: number; message?: AssistantMessage; retry?: { at: number; error: string }; deferred?: { pollAt: number } };
       tools: readonly ToolSlot[];
       /** `pi.live.compactions` (section 8.2). */
       compactions: readonly CompactionStatus[];
@@ -4260,18 +4038,9 @@ type AgentEvent =
 
 /** One change to the in-flight assistant message, relative to that message. */
 type MessageChange =
-  | {
-      type: "text_start" | "thinking_start" | "toolcall_start";
-      contentIndex: number;
-      block: AssistantMessage["content"][number];
-    }
+  | { type: "text_start" | "thinking_start" | "toolcall_start"; contentIndex: number; block: AssistantMessage["content"][number] }
   | { type: "text_delta" | "thinking_delta"; contentIndex: number; delta: string }
-  | {
-      type: "toolcall_delta";
-      contentIndex: number;
-      path: readonly (string | number)[];
-      delta: string;
-    }
+  | { type: "toolcall_delta"; contentIndex: number; path: readonly (string | number)[]; delta: string }
   | { type: "block"; contentIndex: number; block: AssistantMessage["content"][number] }
   | { type: "message"; message: AssistantMessage };
 
@@ -4437,8 +4206,7 @@ seal like every other state and watch (section 2.2).
 const graph = await harness.taskGraph(context);
 graph.subscribe((value) => {
   for (const node of Object.values(value.tasks)) {
-    const where =
-      node.owner === undefined ? `conversation ${node.conversationId}` : `task ${node.owner}`;
+    const where = node.owner === undefined ? `conversation ${node.conversationId}` : `task ${node.owner}`;
     render(`${node.id} ${node.kind} ${node.state.status} under ${where}`);
   }
 });
@@ -4541,74 +4309,23 @@ interface Storage {
   mintId<I extends Id<string>>(): Promise<I>;
 
   conversation(id: ConversationId, context: Context): Promise<ConversationRecord | undefined>;
-  scanConversations(
-    query: ConversationQuery,
-    limit: number,
-    cursor: Cursor | undefined,
-    context: Context,
-  ): Promise<Page<ConversationRecord, Cursor>>;
+  scanConversations(query: ConversationQuery, limit: number, cursor: Cursor | undefined, context: Context): Promise<Page<ConversationRecord, Cursor>>;
 
-  entry(
-    id: EntryId,
-    context: Context,
-  ): Promise<{ readonly entry: EntryRecord; readonly commitSeq: Seq } | undefined>;
-  entry(
-    conversationId: ConversationId,
-    id: EntryId,
-    context: Context,
-  ): Promise<{ readonly entry: EntryRecord; readonly commitSeq: Seq } | undefined>;
-  findLatestHeadMarker(
-    conversationId: ConversationId,
-    atOrBeforeEntryId: EntryId | undefined,
-    context: Context,
-  ): Promise<(EntryRecord & { readonly head: EntryId }) | undefined>;
-  scanEntries(
-    query: EntryQuery,
-    limit: number,
-    cursor: Cursor | undefined,
-    context: Context,
-  ): Promise<Page<EntryRecord, Cursor>>;
+  entry(id: EntryId, context: Context): Promise<{ readonly entry: EntryRecord; readonly commitSeq: Seq } | undefined>;
+  entry(conversationId: ConversationId, id: EntryId, context: Context): Promise<{ readonly entry: EntryRecord; readonly commitSeq: Seq } | undefined>;
+  findLatestHeadMarker(conversationId: ConversationId, atOrBeforeEntryId: EntryId | undefined, context: Context): Promise<(EntryRecord & { readonly head: EntryId }) | undefined>;
+  scanEntries(query: EntryQuery, limit: number, cursor: Cursor | undefined, context: Context): Promise<Page<EntryRecord, Cursor>>;
 
-  task(
-    id: TaskId,
-    context: Context,
-  ): Promise<TaskRecord<JsonValue, JsonValue, JsonValue> | undefined>;
-  scanTasks(
-    query: TaskQuery,
-    limit: number,
-    cursor: Cursor | undefined,
-    context: Context,
-  ): Promise<Page<TaskRecord<JsonValue, JsonValue, JsonValue>, Cursor>>;
+  task(id: TaskId, context: Context): Promise<TaskRecord<JsonValue, JsonValue, JsonValue> | undefined>;
+  scanTasks(query: TaskQuery, limit: number, cursor: Cursor | undefined, context: Context): Promise<Page<TaskRecord<JsonValue, JsonValue, JsonValue>, Cursor>>;
 
   submission(id: SubmissionId, context: Context): Promise<SubmissionRecord | undefined>;
-  scanSubmissions(
-    query: SubmissionQuery,
-    limit: number,
-    cursor: Cursor | undefined,
-    context: Context,
-  ): Promise<Page<SubmissionRecord, Cursor>>;
-  submissionByRequest(
-    conversationId: ConversationId,
-    requestId: string,
-    context: Context,
-  ): Promise<SubmissionRecord | undefined>;
+  scanSubmissions(query: SubmissionQuery, limit: number, cursor: Cursor | undefined, context: Context): Promise<Page<SubmissionRecord, Cursor>>;
+  submissionByRequest(conversationId: ConversationId, requestId: string, context: Context): Promise<SubmissionRecord | undefined>;
 
-  findDocument(
-    address: DocumentAddress,
-    at: DocumentPoint,
-    context: Context,
-  ): Promise<DocumentRecord | undefined>;
-  document(
-    id: DocumentId,
-    at: DocumentPoint,
-    context: Context,
-  ): Promise<StoredDocument | undefined>;
-  scanDocuments(
-    query: DocumentQuery,
-    limit: number,
-    cursor: Cursor | undefined,
-    context: Context,
-  ): Promise<Page<DocumentRecord, Cursor>>;
+  findDocument(address: DocumentAddress, at: DocumentPoint, context: Context): Promise<DocumentRecord | undefined>;
+  document(id: DocumentId, at: DocumentPoint, context: Context): Promise<StoredDocument | undefined>;
+  scanDocuments(query: DocumentQuery, limit: number, cursor: Cursor | undefined, context: Context): Promise<Page<DocumentRecord, Cursor>>;
 
   close(context: Context): Promise<void>;
 }

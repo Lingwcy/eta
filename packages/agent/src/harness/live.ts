@@ -2,85 +2,77 @@ import type { Draft, JsonRepresentation, JsonValue } from "@earendil-works/chord
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { defineDoc } from "../documents.ts";
 import type { Transaction } from "../session/transaction.ts";
-import type {
-  EntryId,
-  SubmissionId,
-  SubmissionSettlement,
-  TaskId,
-  TaskRecord,
-  Tx,
-} from "../types.ts";
+import type { EntryId, SubmissionId, SubmissionSettlement, TaskId, TaskRecord, Tx } from "../types.ts";
 import { convertPartial } from "./generation.ts";
 import type { SchedulerOutcome } from "./scheduler.ts";
 import type { CompactionReason, CompactionResult, ToolDiagnostic } from "./types.ts";
 
 /** Presentation of one tool call of the current round. */
 export type ToolSlot = {
-  callId: string;
-  name: string;
-  /**
-   * Absent for a call not started yet (sequential round) and for a call its request did not offer, which starts `done`
-   * with the `entry` generation wrote.
-   */
-  taskId?: TaskId;
-  status: "pending" | "running" | "done";
-  /** Retained running output and what the bounds dropped. */
-  output?: string;
-  droppedBytes?: number;
-  droppedLines?: number;
-  /** Last `details()` value. */
-  details?: JsonValue;
-  /** Diagnostics recorded through `api.diagnostic()`. */
-  diagnostics?: ToolDiagnostic[];
-  /** Result entry once done; absent when the tool task faulted or was orphaned. */
-  entry?: EntryId;
+	callId: string;
+	name: string;
+	/**
+	 * Absent for a call not started yet (sequential round) and for a call its request did not offer, which starts `done`
+	 * with the `entry` generation wrote.
+	 */
+	taskId?: TaskId;
+	status: "pending" | "running" | "done";
+	/** Retained running output and what the bounds dropped. */
+	output?: string;
+	droppedBytes?: number;
+	droppedLines?: number;
+	/** Last `details()` value. */
+	details?: JsonValue;
+	/** Diagnostics recorded through `api.diagnostic()`. */
+	diagnostics?: ToolDiagnostic[];
+	/** Result entry once done; absent when the tool task faulted or was orphaned. */
+	entry?: EntryId;
 };
 
 /** Presentation of one live compaction task (spec §8.7). */
 export type CompactionStatus = {
-  taskId: TaskId<CompactionResult>;
-  reason: CompactionReason;
-  /** Whether a generation waits for it: a compaction the generation owns. */
-  blocking: boolean;
-  attempt: number;
-  /** Durable backoff before the next summarization attempt. */
-  retry?: { at: number; error: string };
+	taskId: TaskId<CompactionResult>;
+	reason: CompactionReason;
+	/** Whether a generation waits for it: a compaction the generation owns. */
+	blocking: boolean;
+	attempt: number;
+	/** Durable backoff before the next summarization attempt. */
+	retry?: { at: number; error: string };
 };
 
 /** Built-in live conversation state: run control and presentation of the current generation and tool round. */
 export type LiveState = {
-  /** Run control: the task that settles the run's inputs, and those inputs; present exactly while busy. */
-  run?: { taskId: TaskId; inputs: SubmissionId[] };
-  /** Presentation of the current generation attempt. */
-  generation?: {
-    attempt: number;
-    /** Committed throttled partial of the in-flight response. */
-    message?: JsonRepresentation<AssistantMessage>;
-    /** Durable backoff before the next attempt. */
-    retry?: { at: number; error: string };
-    /** Provider-side deferred response being polled. */
-    deferred?: { pollAt: number };
-  };
-  /** The current tool round in call order, from the tool-calling answer until the generation's `tools` phase ends it. */
-  tools?: ToolSlot[];
-  /** Live compaction tasks in task ID order; absent when none. */
-  compactions?: CompactionStatus[];
+	/** Run control: the task that settles the run's inputs, and those inputs; present exactly while busy. */
+	run?: { taskId: TaskId; inputs: SubmissionId[] };
+	/** Presentation of the current generation attempt. */
+	generation?: {
+		attempt: number;
+		/** Committed throttled partial of the in-flight response. */
+		message?: JsonRepresentation<AssistantMessage>;
+		/** Durable backoff before the next attempt. */
+		retry?: { at: number; error: string };
+		/** Provider-side deferred response being polled. */
+		deferred?: { pollAt: number };
+	};
+	/** The current tool round in call order, from the tool-calling answer until the generation's `tools` phase ends it. */
+	tools?: ToolSlot[];
+	/** Live compaction tasks in task ID order; absent when none. */
+	compactions?: CompactionStatus[];
 };
 
 export const LiveDoc = defineDoc<LiveState>({
-  kind: "pi.live",
-  version: 1,
-  scope: "conversation",
-  history: "latest",
-  fork: "initial",
-  initial: () => ({}),
-  // REMINDER: a complete base whenever nothing runs (spec §8.2): no generation and no running tool slot. That holds
-  // while idle, in the commit handing a generation over to its tool round, and between tools, so the delta chain
-  // spans at most one generation or the overlapping execution of one round's tools. A slot holds output only while
-  // running, so every base is small. Do not add a delta-count bound; the tool output benchmark checks this rule.
-  checkpointWhen: (value) =>
-    value.generation === undefined &&
-    !(value.tools ?? []).some((slot) => slot.status === "running"),
+	kind: "pi.live",
+	version: 1,
+	scope: "conversation",
+	history: "latest",
+	fork: "initial",
+	initial: () => ({}),
+	// REMINDER: a complete base whenever nothing runs (spec §8.2): no generation and no running tool slot. That holds
+	// while idle, in the commit handing a generation over to its tool round, and between tools, so the delta chain
+	// spans at most one generation or the overlapping execution of one round's tools. A slot holds output only while
+	// running, so every base is small. Do not add a delta-count bound; the tool output benchmark checks this rule.
+	checkpointWhen: (value) =>
+		value.generation === undefined && !(value.tools ?? []).some((slot) => slot.status === "running"),
 });
 
 /** Built-in task kinds that can own `pi.live.run`. */
@@ -92,62 +84,54 @@ const COMPACTION_TASK_KIND = "pi.compaction";
  * End the run owned by `taskId`: settle each of its inputs and remove `run`. Always removes `generation` and `tools`,
  * whose presentation belongs to the ending run.
  */
-export function endRun(
-  tx: Tx,
-  live: Draft<LiveState>,
-  taskId: TaskId,
-  settlement: SubmissionSettlement,
-): void {
-  if (live.run?.taskId === taskId) {
-    for (const id of live.run.inputs) tx.settleSubmission(id, settlement);
-    delete live.run;
-  }
-  delete live.generation;
-  delete live.tools;
+export function endRun(tx: Tx, live: Draft<LiveState>, taskId: TaskId, settlement: SubmissionSettlement): void {
+	if (live.run?.taskId === taskId) {
+		for (const id of live.run.inputs) tx.settleSubmission(id, settlement);
+		delete live.run;
+	}
+	delete live.generation;
+	delete live.tools;
 }
 
 /** Add the status of a compaction task created in this commit; statuses stay in task ID order. */
 export function addCompactionStatus(live: Draft<LiveState>, status: CompactionStatus): void {
-  live.compactions ??= [];
-  live.compactions.push(status);
+	live.compactions ??= [];
+	live.compactions.push(status);
 }
 
 /** The status of compaction task `taskId`, if listed. */
-export function compactionStatus(
-  live: Draft<LiveState>,
-  taskId: TaskId,
-): Draft<CompactionStatus> | undefined {
-  return live.compactions?.find((status) => status.taskId === taskId);
+export function compactionStatus(live: Draft<LiveState>, taskId: TaskId): Draft<CompactionStatus> | undefined {
+	return live.compactions?.find((status) => status.taskId === taskId);
 }
 
 /** Remove the status of compaction task `taskId`, and the list once empty. */
 export function removeCompactionStatus(live: Draft<LiveState>, taskId: TaskId): void {
-  const statuses = live.compactions;
-  if (statuses === undefined) return;
-  const index = statuses.findIndex((status) => status.taskId === taskId);
-  if (index >= 0) statuses.splice(index, 1);
-  if (statuses.length === 0) delete live.compactions;
+	const statuses = live.compactions;
+	if (statuses === undefined) return;
+	const index = statuses.findIndex((status) => status.taskId === taskId);
+	if (index >= 0) statuses.splice(index, 1);
+	if (statuses.length === 0) delete live.compactions;
 }
 
 /** The slot of tool task `taskId` in the current round, if the round still lists it. */
 export function toolSlot(live: Draft<LiveState>, taskId: TaskId): Draft<ToolSlot> | undefined {
-  return live.tools?.find((slot) => slot.taskId === taskId);
+	return live.tools?.find((slot) => slot.taskId === taskId);
 }
 
 /** Mark a slot done: the result entry, if any, now carries its running output, details, and diagnostics. */
 export function finishSlot(slot: Draft<ToolSlot>, entry: EntryId | undefined): void {
-  slot.status = "done";
-  if (entry !== undefined) slot.entry = entry;
-  clearProgress(slot);
+	slot.status = "done";
+	if (entry !== undefined) slot.entry = entry;
+	clearProgress(slot);
 }
 
 /** Remove what a tool published while running; its result entry or a rerun replaces it. */
 export function clearProgress(slot: Draft<ToolSlot>): void {
-  delete slot.output;
-  delete slot.droppedBytes;
-  delete slot.droppedLines;
-  delete slot.details;
-  delete slot.diagnostics;
+	delete slot.output;
+	delete slot.droppedBytes;
+	delete slot.droppedLines;
+	delete slot.details;
+	delete slot.diagnostics;
 }
 
 /**
@@ -163,29 +147,29 @@ export function clearProgress(slot: Draft<ToolSlot>): void {
  * uncertain storage failure poisons the Session instead and writes no outcome.
  */
 export async function settleSchedulerOutcome(
-  tx: Transaction,
-  record: TaskRecord<JsonValue, JsonValue, JsonValue>,
-  outcome: SchedulerOutcome,
+	tx: Transaction,
+	record: TaskRecord<JsonValue, JsonValue, JsonValue>,
+	outcome: SchedulerOutcome,
 ): Promise<void> {
-  if (record.kind === TOOL_TASK_KIND) {
-    const slot = toolSlot(await tx.doc(LiveDoc, record.conversationId), record.id);
-    if (slot !== undefined) finishSlot(slot, undefined);
-    return;
-  }
-  if (record.kind === COMPACTION_TASK_KIND) {
-    removeCompactionStatus(await tx.doc(LiveDoc, record.conversationId), record.id);
-    return;
-  }
-  if (!RUN_TASK_KINDS.has(record.kind)) return;
-  const live = await tx.doc(LiveDoc, record.conversationId);
-  if (live.run?.taskId !== record.id) return;
-  await convertPartial(tx, live, record.conversationId);
-  endRun(
-    tx,
-    live,
-    record.id,
-    outcome.status === "faulted"
-      ? { status: "unanswered", reason: "faulted", detail: outcome.error.message }
-      : { status: "unanswered", reason: outcome.reason },
-  );
+	if (record.kind === TOOL_TASK_KIND) {
+		const slot = toolSlot(await tx.doc(LiveDoc, record.conversationId), record.id);
+		if (slot !== undefined) finishSlot(slot, undefined);
+		return;
+	}
+	if (record.kind === COMPACTION_TASK_KIND) {
+		removeCompactionStatus(await tx.doc(LiveDoc, record.conversationId), record.id);
+		return;
+	}
+	if (!RUN_TASK_KINDS.has(record.kind)) return;
+	const live = await tx.doc(LiveDoc, record.conversationId);
+	if (live.run?.taskId !== record.id) return;
+	await convertPartial(tx, live, record.conversationId);
+	endRun(
+		tx,
+		live,
+		record.id,
+		outcome.status === "faulted"
+			? { status: "unanswered", reason: "faulted", detail: outcome.error.message }
+			: { status: "unanswered", reason: outcome.reason },
+	);
 }

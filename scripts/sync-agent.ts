@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
+import { mergeAgentManifest } from "./merge-agent-manifest.ts";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -177,6 +178,28 @@ export function syncAgent(options: SyncOptions) {
           `git-subtree-dir: ${agentUpstream.prefix}\ngit-subtree-mainline: ${git(root, ["rev-parse", "HEAD"])}\ngit-subtree-split: ${split}\n`,
       ]);
     } catch (error) {
+      const manifest = `${agentUpstream.prefix}/package.json`;
+      if (
+        optionalRevision(root, "MERGE_HEAD") &&
+        git(root, ["ls-files", "--unmerged", "--", manifest])
+      ) {
+        try {
+          const versions = [1, 2, 3].map(
+            (stage) => JSON.parse(git(root, ["show", `:${stage}:${manifest}`])) as unknown,
+          );
+          const merged = mergeAgentManifest(versions[0], versions[1], versions[2]);
+          writeFileSync(resolve(root, manifest), `${JSON.stringify(merged, null, "\t")}\n`);
+          git(root, ["add", "--", manifest]);
+          log("Merged independent agent manifest fields, preserving Eta integration settings.");
+        } catch (manifestError) {
+          log(manifestError instanceof Error ? manifestError.message : String(manifestError));
+        }
+        if (!git(root, ["ls-files", "--unmerged"])) {
+          git(root, ["commit", "--no-edit"]);
+          log("Upstream merged. Run vp install and validate desktop before using the update.");
+          return { upstream, split, changed: true };
+        }
+      }
       throw new Error(
         "Agent sync stopped. If Git reports conflicts, resolve them and run git commit, or run git merge --abort. Your local changes were not discarded.",
         { cause: error },

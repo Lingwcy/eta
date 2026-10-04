@@ -17,8 +17,8 @@
   "dependencies": {
     "@base-ui/react": "catalog:",
     "@cf-wasm/photon": "catalog:",
-    "@earendil-works/chord": "^1.0.0",
-    "@earendil-works/pi-ai": "^1.0.0",
+    "@earendil-works/chord": "^1.0.2",
+    "@earendil-works/pi-ai": "^1.0.2",
     "@eta/agent": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "effect": "catalog:",
