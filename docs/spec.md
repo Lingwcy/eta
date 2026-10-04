@@ -654,7 +654,8 @@ raw `tx.createConversation()` and `tx.forkConversation()`, for example inside a
 tool commit. It runs inside `tx.createConversation()` and
 `tx.forkConversation()`, before they return, so a `configure()` later in the
 same callback overrides its copy. It creates empty `pi.live`, `pi.inbox`, and
-`pi.usage`, and handles `pi.agent`:
+`pi.usage`, creates `pi.provider` with a fresh provider-facing UUIDv7, and handles
+`pi.agent`:
 
 - A fork keeps the `asOf` copy of its parent's `pi.agent` (section 3.7),
   whatever its ownership.
@@ -732,6 +733,29 @@ registry movement, and the name takes effect again when it is installed again.
 A change neither starts generation nor appends a system entry. Request
 preparation later compares the desired prompt and tools with transcript history
 and appends the required positional system baseline or delta (section 7.4).
+
+The built-in provider document is final at version 1:
+
+| field | value |
+|---|---|
+| kind | `pi.provider` |
+| version | `1` (no migration) |
+| scope/history/fork | conversation, `latest`, `initial` |
+| schema | `{ sessionId: string }` |
+| `initial()` | `{ sessionId: uuidv7() }` |
+| checkpoint | complete base on every change |
+| view mount | `docs["pi.provider"]` |
+
+The UUID is a provider-facing conversation identity, not the numeric Durable
+`ConversationId` and not an enclosing application's Session ID. Every new,
+task-owned, raw-created, and forked conversation receives its own UUID in its
+creating commit; a fork never copies its parent's UUID. Generation requests and
+compaction summarization pass it to pi-ai as `options.sessionId`. Reset,
+compaction, model changes, and reopen do not change it. A legacy conversation without the document creates and persists it
+on the Session line before its first generation or compaction provider request.
+Concurrent callers therefore observe one winner. Provider behavior still
+applies: for example, Codex suppresses cache/session identity when
+`cacheRetention` is `"none"`.
 
 A missing tool implementation never fails a request. Request preparation offers
 only the agent's resolved tools. If the replayed tool state still offers a tool
@@ -3397,8 +3421,9 @@ The run's inputs live in `pi.live.run`, not in the task input.
 - `request` first converts a committed partial left in `pi.live` by an
   interrupted attempt into an aborted `pi.assistant` entry. It then streams the
   model context through `cutoff` with the invocation signal, the thinking level
-  as `reasoning` (omitted for `off`), and the pinned `streamOptions`,
-  committing throttled partials. Before streaming, the `beforeRequest` chain may
+  as `reasoning` (omitted for `off`), the conversation's persisted provider
+  `sessionId`, and the pinned `streamOptions`, committing throttled partials.
+  Before streaming, the `beforeRequest` chain may
   replace the messages for this request only. Recovery resends the same
   committed messages with the same pinned model, thinking level, and stream
   options, and reruns `beforeRequest`.
@@ -3680,9 +3705,11 @@ Phases:
   system prompt, and a user message with the serialized text in
   `<conversation>` tags followed by the built-in summarization prompt, and
   `Additional focus: <instructions>` when the input has instructions. It uses the
-  pinned thinking level as `reasoning`, and the pinned stream options without
-  `deferred`, with `cacheRetention: "none"` and the pinned `maxTokens`.
-  Recovery resends the same request. The response is classified in one commit
+  pinned thinking level as `reasoning`, the conversation's persisted provider
+  `sessionId`, and the pinned stream options without `deferred`, with
+  `cacheRetention: "none"` and the pinned `maxTokens`. Providers such as Codex
+  may suppress that identity when caching is disabled. Recovery resends the same
+  request. The response is classified in one commit
   that adds its usage to `pi.usage` (section 8.6):
   - `stop` with non-empty text and no tool call: the text is the summary, placed
     as below.
@@ -3911,7 +3938,7 @@ type ConversationView = {
   readonly conversation: ConversationRecord;
   /** Raw active entries, as `ContextView.entries` (section 2.1): the head marker, then the non-head entries from its head. */
   readonly entries: readonly EntryRecord[];
-  /** `pi.agent`, `pi.live`, `pi.inbox`, and `pi.usage`, keyed by kind; absent documents are absent. */
+  /** `pi.agent`, `pi.live`, `pi.inbox`, `pi.provider`, and `pi.usage`, keyed by kind; absent documents are absent. */
   readonly docs: Readonly<Record<string, JsonObject>>;
 };
 ```
