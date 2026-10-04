@@ -1,3 +1,4 @@
+import { openWithApplication } from "./main/platform/thread-file.ts";
 import { processImage } from "./main/platform/images.ts";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -14,7 +15,7 @@ let agentService: DesktopApplication | undefined;
 let quitting = false;
 let ready = false;
 let startup: Promise<void> | undefined;
-let browser: BrowserManager | undefined;
+const browsers = new Map<number, BrowserManager>();
 
 type Watch = { token: symbol; unsubscribe?: () => void };
 const watchers = new Map<number, Map<string, Watch>>();
@@ -46,8 +47,8 @@ function applicationIconPath() {
   );
 }
 
-function openWindow() {
-  if (window && !window.isDestroyed()) {
+function openWindow(threadId?: string) {
+  if (!threadId && window && !window.isDestroyed()) {
     window.show();
     window.focus();
     return;
@@ -73,12 +74,13 @@ function openWindow() {
       sandbox: true,
     },
   });
-  window = currentWindow;
-  browser = createWindowBrowser(currentWindow);
+  window ??= currentWindow;
+  const contentsId = currentWindow.webContents.id;
+  browsers.set(contentsId, createWindowBrowser(currentWindow));
   currentWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => {
-    if (!isMainFrame || window !== currentWindow) return;
-    browser?.dispose();
-    browser = undefined;
+    if (!isMainFrame) return;
+    browsers.get(contentsId)?.dispose();
+    browsers.delete(contentsId);
   });
   currentWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   currentWindow.webContents.on("will-navigate", (event, url) => {
@@ -97,26 +99,93 @@ function openWindow() {
     watchers.delete(currentWindow.webContents.id);
   });
   currentWindow.on("closed", () => {
-    if (window !== currentWindow) return;
-    browser?.dispose();
-    browser = undefined;
-    window = undefined;
+    browsers.get(contentsId)?.dispose();
+    browsers.delete(contentsId);
+    if (window === currentWindow)
+      window = BrowserWindow.getAllWindows().find(
+        (value) => value !== currentWindow && !value.isDestroyed(),
+      );
   });
-  const loaded = devUrl ? currentWindow.loadURL(target) : currentWindow.loadFile(rendererPath);
+  const url = new URL(target);
+  if (threadId) url.searchParams.set("thread", threadId);
+  const loaded = currentWindow.loadURL(url.href);
   void loaded.catch((error: unknown) => {
     dialog.showErrorBox("Eta 页面加载失败", error instanceof Error ? error.message : String(error));
-    app.quit();
+    currentWindow.close();
   });
 }
 
+function notifyLibrary() {
+  for (const window of BrowserWindow.getAllWindows())
+    window.webContents.send("eta:library-changed");
+}
+
 ipcMain.handle("eta:command", (_event, command: unknown) =>
-  commandReply(() => dispatchCommand(service(), command)),
+  commandReply(async () => {
+    const value = await dispatchCommand(service(), command);
+    if (
+      typeof command === "object" &&
+      command !== null &&
+      "type" in command &&
+      [
+        "register-project",
+        "create",
+        "submit",
+        "rename",
+        "archive",
+        "move-thread",
+        "delete-thread",
+        "settings",
+      ].includes(String(command.type))
+    ) {
+      notifyLibrary();
+    }
+    return value;
+  }),
+);
+ipcMain.handle("eta:thread-window", (_event, rawId: unknown) =>
+  commandReply(async () => {
+    const id = sessionId(rawId);
+    await service().threadFile(id);
+    openWindow(id);
+  }),
+);
+ipcMain.handle("eta:thread-file", (_event, rawId: unknown, mode: unknown) =>
+  commandReply(async () => {
+    const file = await service().threadFile(sessionId(rawId));
+    if (mode === "reveal") {
+      shell.showItemInFolder(file);
+      return;
+    }
+    if (mode === "default") {
+      const error = await shell.openPath(file);
+      if (error) throw new Error(error);
+      return;
+    }
+    if (mode !== "choose") throw new Error("打开方式无效");
+    const result = await dialog.showOpenDialog({
+      title: "选择打开会话记录的应用",
+      ...(process.platform === "darwin"
+        ? { defaultPath: "/Applications", filters: [{ name: "应用", extensions: ["app"] }] }
+        : process.platform === "win32"
+          ? { filters: [{ name: "应用", extensions: ["exe"] }] }
+          : {}),
+      properties: ["openFile"],
+    });
+    if (!result.canceled && result.filePaths[0])
+      await openWithApplication(file, result.filePaths[0]);
+  }),
 );
 ipcMain.handle("browser:command", (event, raw: unknown) =>
   commandReply(() => {
-    if (quitting || !window || window.isDestroyed() || event.sender.id !== window.webContents.id)
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (quitting || !senderWindow || senderWindow.isDestroyed())
       throw new Error("浏览器窗口不可用");
-    browser ??= createWindowBrowser(window);
+    let browser = browsers.get(event.sender.id);
+    if (!browser) {
+      browser = createWindowBrowser(senderWindow);
+      browsers.set(event.sender.id, browser);
+    }
     return browser.command(decodeBrowserCommand(raw));
   }),
 );
@@ -125,7 +194,9 @@ ipcMain.handle("eta:choose-project", () =>
     const application = service();
     const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
     if (result.canceled || !result.filePaths[0]) return null;
-    return application.registerProject(result.filePaths[0]);
+    const project = await application.registerProject(result.filePaths[0]);
+    notifyLibrary();
+    return project;
   }),
 );
 ipcMain.handle("eta:choose-directory", () =>
@@ -198,8 +269,8 @@ if (!app.requestSingleInstanceLock()) {
     if (quitting) return;
     event.preventDefault();
     quitting = true;
-    browser?.dispose();
-    browser = undefined;
+    for (const browser of browsers.values()) browser.dispose();
+    browsers.clear();
     for (const [contentsId, subscriptions] of watchers)
       for (const id of subscriptions.keys()) stopWatching(contentsId, id);
     void (startup ?? Promise.resolve())
@@ -222,6 +293,7 @@ if (!app.requestSingleInstanceLock()) {
         app.getPath("userData"),
         (url) => shell.openExternal(url),
         processImage,
+        (path) => shell.showItemInFolder(path),
       );
       ready = true;
       if (!quitting) openWindow();

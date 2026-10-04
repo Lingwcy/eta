@@ -191,3 +191,18 @@ test("reopening a closed thread does not duplicate a thread already opened from 
       .tabs.filter((tab) => tab.kind === "conversation" && tab.threadId === "thread"),
   ).toHaveLength(1);
 });
+
+test("catalog removal clears open and closed tabs so a deleted thread cannot be reopened", () => {
+  const tabs = setup();
+  const gone = tabs.openThread("gone", "workspace");
+  tabs.updateConversation(gone, { draft: "old draft" });
+  const kept = tabs.openThread("kept", "workspace");
+  tabs.close(gone);
+  tabs.reconcileThreads([{ id: "kept", workspaceId: "workspace" }]);
+  tabs.reopen();
+  expect(tabs.getSnapshot().activeId).toBe(kept);
+  tabs.reconcileThreads([]);
+  expect(tabs.getSnapshot().closed).toEqual([]);
+  expect(tabs.getSnapshot().tabs).toHaveLength(1);
+  expect(tabs.activeTab).toMatchObject({ kind: "conversation", workspaceId: null, draft: "" });
+});

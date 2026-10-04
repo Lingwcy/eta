@@ -1,3 +1,4 @@
+import { ThreadContextMenu } from "../threads/thread-actions";
 import { lazy, Suspense, useEffect, useId, useState } from "react";
 import { PreviewCard } from "@base-ui/react/preview-card";
 import { ArrowLeft, ArrowRight, ChevronDown, PanelLeft, Plus, X } from "lucide-react";
@@ -107,9 +108,13 @@ export function DesktopTabBar({
       {single ? (
         <div className="flex min-w-0 flex-1 select-none items-center gap-2 pl-3 text-[13px] font-medium text-neutral-800">
           <TabIcon item={items[0]!} />
-          <span id={`tab-${state.activeId}`} className="truncate">
-            {items[0]!.title}
-          </span>
+          <ThreadContextMenu
+            id={state.tabs[0]?.kind === "conversation" ? state.tabs[0].threadId : undefined}
+          >
+            <span id={`tab-${state.activeId}`} className="truncate [-webkit-app-region:no-drag]">
+              {items[0]!.title}
+            </span>
+          </ThreadContextMenu>
         </div>
       ) : (
         <div
@@ -140,83 +145,88 @@ export function DesktopTabBar({
         >
           {items.map((item) => {
             const active = item.id === state.activeId;
+            const tab = state.tabs.find((tab) => tab.id === item.id);
             return (
-              <div
+              <ThreadContextMenu
                 key={item.id}
-                className={cn(
-                  "group/tab relative flex h-8 min-w-[120px] max-w-[280px] flex-[1_0_180px] items-center rounded-lg transition-colors [-webkit-app-region:no-drag]",
-                  active
-                    ? "bg-white text-neutral-800 shadow-[0_1px_3px_#00000008]"
-                    : "text-neutral-500 hover:bg-neutral-200/60",
-                  !active &&
-                    "after:absolute after:right-0 after:top-2 after:h-4 after:w-px after:bg-neutral-300/70 after:content-[''] hover:after:opacity-0",
-                )}
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.setData("application/x-eta-tab", item.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  setPreviewOpen(false);
-                }}
-                onDragOver={(event) => {
-                  if (event.dataTransfer.types.includes("application/x-eta-tab")) {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                  }
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  tabs.move(event.dataTransfer.getData("application/x-eta-tab"), item.id);
-                }}
-                onAuxClick={(event) => {
-                  if (event.button === 1) {
-                    event.preventDefault();
-                    tabs.close(item.id);
-                  }
-                }}
+                id={tab?.kind === "conversation" ? tab.threadId : undefined}
               >
-                <PreviewCard.Trigger
-                  id={`tab-${item.id}`}
-                  handle={handle}
-                  payload={item}
-                  delay={500}
-                  closeDelay={100}
-                  render={
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      aria-controls={`panel-${item.id}`}
-                      tabIndex={active ? 0 : -1}
-                      onClick={() => select(item.id)}
-                      className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg pr-8 pl-3 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400"
-                    />
-                  }
-                >
-                  <TabIcon item={item} />
-                  <span className={cn("truncate", active && "font-medium")}>{item.title}</span>
-                </PreviewCard.Trigger>
                 <div
                   className={cn(
-                    "absolute right-1.5 [-webkit-app-region:no-drag]",
+                    "group/tab relative flex h-8 min-w-[120px] max-w-[280px] flex-[1_0_180px] items-center rounded-lg transition-colors [-webkit-app-region:no-drag]",
+                    active
+                      ? "bg-white text-neutral-800 shadow-[0_1px_3px_#00000008]"
+                      : "text-neutral-500 hover:bg-neutral-200/60",
                     !active &&
-                      "opacity-0 group-hover/tab:opacity-100 group-focus-within/tab:opacity-100",
+                      "after:absolute after:right-0 after:top-2 after:h-4 after:w-px after:bg-neutral-300/70 after:content-[''] hover:after:opacity-0",
                   )}
-                >
-                  <button
-                    type="button"
-                    aria-label={`关闭 ${item.title}`}
-                    title="关闭标签 (⌘W)"
-                    tabIndex={-1}
-                    onClick={() => {
-                      setPreviewOpen(false);
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData("application/x-eta-tab", item.id);
+                    event.dataTransfer.effectAllowed = "move";
+                    setPreviewOpen(false);
+                  }}
+                  onDragOver={(event) => {
+                    if (event.dataTransfer.types.includes("application/x-eta-tab")) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    tabs.move(event.dataTransfer.getData("application/x-eta-tab"), item.id);
+                  }}
+                  onAuxClick={(event) => {
+                    if (event.button === 1) {
+                      event.preventDefault();
                       tabs.close(item.id);
-                    }}
-                    className="flex size-6 cursor-pointer items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-300/50 hover:text-neutral-700"
+                    }
+                  }}
+                >
+                  <PreviewCard.Trigger
+                    id={`tab-${item.id}`}
+                    handle={handle}
+                    payload={item}
+                    delay={500}
+                    closeDelay={100}
+                    render={
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        aria-controls={`panel-${item.id}`}
+                        tabIndex={active ? 0 : -1}
+                        onClick={() => select(item.id)}
+                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg pr-8 pl-3 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400"
+                      />
+                    }
                   >
-                    <X size={14} />
-                  </button>
+                    <TabIcon item={item} />
+                    <span className={cn("truncate", active && "font-medium")}>{item.title}</span>
+                  </PreviewCard.Trigger>
+                  <div
+                    className={cn(
+                      "absolute right-1.5 [-webkit-app-region:no-drag]",
+                      !active &&
+                        "opacity-0 group-hover/tab:opacity-100 group-focus-within/tab:opacity-100",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      aria-label={`关闭 ${item.title}`}
+                      title="关闭标签 (⌘W)"
+                      tabIndex={-1}
+                      onClick={() => {
+                        setPreviewOpen(false);
+                        tabs.close(item.id);
+                      }}
+                      className="flex size-6 cursor-pointer items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-300/50 hover:text-neutral-700"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </ThreadContextMenu>
             );
           })}
         </div>

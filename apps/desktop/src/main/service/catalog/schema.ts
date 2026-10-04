@@ -27,6 +27,7 @@ const WorkspaceSchema = Schema.Struct({
 });
 
 const ThreadSchema = Schema.Struct({
+  projectId: Schema.optionalKey(Schema.NullOr(Schema.NonEmptyString)),
   requestId: Schema.optionalKey(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   workspaceId: Schema.NonEmptyString,

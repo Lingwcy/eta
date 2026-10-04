@@ -1,3 +1,4 @@
+import { threadProjectId } from "../../../../src/main/service/threads/project.ts";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 
 /** Searches titles and project names without opening any history runtimes. */
@@ -10,9 +11,11 @@ export function searchThreads(library: DesktopLibrary | null, query: string, arc
     .filter((thread) => (thread.archivedAt !== undefined) === archived)
     .map((thread) => {
       const workspace = workspaces.get(thread.workspaceId);
-      const name = projects.get(workspace?.projectId ?? "") ?? "项目";
+      const name = projects.get(threadProjectId(thread, library) ?? "") ?? "未分组";
       const project =
-        workspace?.kind === "worktree" ? `${name} · ${workspace.cwd.split("/").at(-1)}` : name;
+        thread.projectId === undefined && workspace?.kind === "worktree"
+          ? `${name} · ${workspace.cwd.split("/").at(-1)}`
+          : name;
       return { thread, project };
     })
     .filter(

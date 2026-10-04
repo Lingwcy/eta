@@ -1,3 +1,7 @@
+import { threadProjectId } from "../../../src/main/service/threads/project.ts";
+import { ThreadContextMenu } from "./threads/thread-actions";
+import { Button } from "./ui/button";
+import { SlidingLabel } from "./sidebar/sliding-label";
 import { useState } from "react";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 import { NavigationRail } from "./sidebar/navigation-rail";
@@ -22,6 +26,18 @@ interface Props {
 
 export function DesktopSidebar(props: Props) {
   const [archived, setArchived] = useState(false);
+  const sidebarWorkspace = (thread: DesktopLibrary["threads"][number]) => {
+    if (thread.projectId === undefined) return thread.workspaceId;
+    return props.library?.workspaces.find(
+      (workspace) => workspace.projectId === thread.projectId && workspace.kind === "project-root",
+    )?.id;
+  };
+  const ungrouped =
+    props.library?.threads.filter(
+      (thread) =>
+        threadProjectId(thread, props.library!) === null &&
+        (thread.archivedAt !== undefined) === archived,
+    ) ?? [];
   const groups =
     props.library?.workspaces.map((workspace) => {
       const project = props.library?.projects.find((project) => project.id === workspace.projectId);
@@ -30,14 +46,16 @@ export function DesktopSidebar(props: Props) {
         props.library?.threads
           .filter(
             (thread) =>
-              thread.workspaceId === workspace.id && (thread.archivedAt !== undefined) === archived,
+              sidebarWorkspace(thread) === workspace.id &&
+              (thread.archivedAt !== undefined) === archived,
           )
           .toSorted(
             (a, b) => b.sessionRef.metadata.modifiedAt - a.sessionRef.metadata.modifiedAt,
           ) ?? [];
       const running =
         props.library?.threads.some(
-          (thread) => thread.workspaceId === workspace.id && props.runningThreadIds.has(thread.id),
+          (thread) =>
+            sidebarWorkspace(thread) === workspace.id && props.runningThreadIds.has(thread.id),
         ) ?? false;
       return { workspace, name, threads, running };
     }) ?? [];
@@ -94,6 +112,24 @@ export function DesktopSidebar(props: Props) {
               onSelect={props.onSelect}
             />
           ))}
+          {ungrouped.length > 0 && (
+            <>
+              <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">未分组</p>
+              {ungrouped.map((thread) => (
+                <ThreadContextMenu key={thread.id} id={thread.id}>
+                  <Button
+                    variant="ghost"
+                    size="row-compact"
+                    selected={props.threadId === thread.id}
+                    disabled={props.busy}
+                    onClick={() => props.onSelect(thread.id)}
+                  >
+                    <SlidingLabel text={thread.title || "新聊天"} />
+                  </Button>
+                </ThreadContextMenu>
+              ))}
+            </>
+          )}
           {!groups.length && (
             <p className="px-3 py-2 text-xs text-neutral-400">打开项目，开始协作</p>
           )}

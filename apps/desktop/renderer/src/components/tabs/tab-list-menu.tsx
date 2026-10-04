@@ -1,3 +1,4 @@
+import { ThreadContextMenu } from "../threads/thread-actions";
 import type { ComponentProps } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { ChevronDown, Globe2, MessageCircle, RotateCcw, Settings2 } from "lucide-react";
@@ -60,15 +61,23 @@ export function TabListMenu({
             </MenuItem>
             <Menu.Separator className="my-2 border-t border-neutral-100" />
             <div className="max-h-[45vh] overflow-y-auto">
-              {items.map((item) => (
-                <MenuItem key={item.id} label={item.title} onClick={() => onSelect(item.id)}>
-                  <TabIcon item={item} />
-                  <span className="truncate">{item.title}</span>
-                  {item.id === state.activeId && (
-                    <span className="ml-auto text-xs text-neutral-400">当前</span>
-                  )}
-                </MenuItem>
-              ))}
+              {items.map((item) => {
+                const tab = state.tabs.find((tab) => tab.id === item.id);
+                return (
+                  <ThreadContextMenu
+                    key={item.id}
+                    id={tab?.kind === "conversation" ? tab.threadId : undefined}
+                  >
+                    <MenuItem label={item.title} onClick={() => onSelect(item.id)}>
+                      <TabIcon item={item} />
+                      <span className="truncate">{item.title}</span>
+                      {item.id === state.activeId && (
+                        <span className="ml-auto text-xs text-neutral-400">当前</span>
+                      )}
+                    </MenuItem>
+                  </ThreadContextMenu>
+                );
+              })}
             </div>
           </Menu.Popup>
         </Menu.Positioner>

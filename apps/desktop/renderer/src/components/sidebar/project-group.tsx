@@ -1,3 +1,4 @@
+import { ThreadContextMenu } from "../threads/thread-actions";
 import { useState } from "react";
 import { FolderClosed, FolderOpen } from "lucide-react";
 import { RunningIndicator } from "@/components/ui/running-indicator";
@@ -60,24 +61,25 @@ export function ProjectGroup({
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-0.5">
         {visibleThreads.map((thread) => (
-          <Button
-            key={thread.id}
-            variant="ghost"
-            size="row-compact"
-            indent
-            selected={threadId === thread.id}
-            aria-current={threadId === thread.id ? "page" : undefined}
-            title={thread.title}
-            disabled={busy}
-            onClick={() => onSelect(thread.id)}
-          >
-            <SlidingLabel text={thread.title || "新聊天"} />
-            {runningThreadIds.has(thread.id) && (
-              <span className="ml-auto">
-                <RunningIndicator />
-              </span>
-            )}
-          </Button>
+          <ThreadContextMenu key={thread.id} id={thread.id}>
+            <Button
+              variant="ghost"
+              size="row-compact"
+              indent
+              selected={threadId === thread.id}
+              aria-current={threadId === thread.id ? "page" : undefined}
+              title={thread.title}
+              disabled={busy}
+              onClick={() => onSelect(thread.id)}
+            >
+              <SlidingLabel text={thread.title || "新聊天"} />
+              {runningThreadIds.has(thread.id) && (
+                <span className="ml-auto">
+                  <RunningIndicator />
+                </span>
+              )}
+            </Button>
+          </ThreadContextMenu>
         ))}
         {threads.length > 5 && (
           <Button

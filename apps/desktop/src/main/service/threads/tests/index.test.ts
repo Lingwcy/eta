@@ -868,3 +868,98 @@ test("Electron submissions accept absent optional image fields and persist text 
   expect(users).toHaveLength(2);
   expect(users[1]?.message.content).toEqual([{ type: "image", mimeType: "image/png", data }]);
 });
+
+test("project classification can move, ungroup and survive restart without changing execution identity", async () => {
+  const { runtime, threads, workspace, directory, reopen } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const projects = await runtime.runPromise(ProjectService);
+  const otherRoot = join(directory, "other-project");
+  await mkdir(otherRoot);
+  const project = await runtime.runPromise(projects.register({ rootPath: otherRoot }));
+  const moved = await runtime.runPromise(threads.move(created.id, project.id));
+  expect(moved.projectId).toBe(project.id);
+  expect(moved.workspaceId).toBe(created.thread.workspaceId);
+  expect(moved.sessionRef).toEqual(created.thread.sessionRef);
+  await expect(Effect.runPromiseExit(threads.move(created.id, "missing"))).resolves.toMatchObject({
+    _tag: "Failure",
+  });
+  await runtime.runPromise(threads.move(created.id, null));
+  await runtime.dispose();
+  const next = reopen();
+  const restored = await next.runPromise(ThreadService);
+  const opened = await next.runPromise(restored.open(created.id));
+  expect(opened.thread.projectId).toBeNull();
+  expect(opened.thread.sessionRef.metadata.cwd).toBe(created.thread.sessionRef.metadata.cwd);
+  const identity = JSON.parse(
+    await readFile(join(opened.thread.sessionRef.metadata.path, "identity.json"), "utf8"),
+  );
+  expect(identity.cwd).toBe(created.thread.sessionRef.metadata.cwd);
+});
+
+test("permanent removal closes the runtime and deletes only the selected session across restart", async () => {
+  const { runtime, threads, registry, workspace, reopen } = await setup();
+  const removed = await runtime.runPromise(threads.create(workspace.id));
+  const kept = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(removed.thread.sessionRef));
+  await runtime.runPromise(threads.remove(removed.id));
+  expect(record.disposed).toBe(true);
+  expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
+  await expect(
+    readFile(join(removed.thread.sessionRef.metadata.path, "identity.json")),
+  ).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await runtime.runPromise(threads.open(kept.id))).id).toBe(kept.id);
+  await runtime.dispose();
+  const next = reopen();
+  const restored = await next.runPromise(ThreadService);
+  expect(
+    (await next.runPromise(restored.list(undefined, true))).map((thread) => thread.id),
+  ).toEqual([kept.id]);
+});
+
+test("failed deletion publication restores the session directory and leaves it openable", async () => {
+  const { directory, runtime, threads, workspace } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const path = join(directory, "data", "catalog.json");
+  await rename(path, `${path}.original`);
+  await mkdir(path);
+  await expect(Effect.runPromiseExit(threads.remove(created.id))).resolves.toMatchObject({
+    _tag: "Failure",
+  });
+  await expect(
+    readFile(join(created.thread.sessionRef.metadata.path, "identity.json"), "utf8"),
+  ).resolves.toContain(created.thread.sessionRef.metadata.id);
+  await rm(path, { recursive: true });
+  await rename(`${path}.original`, path);
+  expect((await runtime.runPromise(threads.open(created.id))).id).toBe(created.id);
+});
+
+test("running and recovery-required threads cannot be permanently removed", async () => {
+  const { runtime, threads, registry, workspace } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  record.running = true;
+  await expect(Effect.runPromiseExit(threads.remove(created.id))).resolves.toMatchObject({
+    _tag: "Failure",
+  });
+  record.running = false;
+  record.recoveryRequired = true;
+  await expect(Effect.runPromiseExit(threads.remove(created.id))).resolves.toMatchObject({
+    _tag: "Failure",
+  });
+  record.recoveryRequired = false;
+  expect((await runtime.runPromise(threads.get(created.id))).id).toBe(created.id);
+});
+
+test("corrupt and missing session data can still be permanently removed from the catalog", async () => {
+  const { runtime, threads, workspace, reopen } = await setup();
+  const corrupt = await runtime.runPromise(threads.create(workspace.id));
+  const missing = await runtime.runPromise(threads.create(workspace.id));
+  await writeFile(join(corrupt.thread.sessionRef.metadata.path, "identity.json"), "broken JSON");
+  await runtime.runPromise(threads.remove(corrupt.id));
+  await runtime.dispose();
+  await rm(missing.thread.sessionRef.metadata.path, { recursive: true });
+  const next = reopen();
+  const restored = await next.runPromise(ThreadService);
+  await next.runPromise(restored.remove(missing.id));
+  expect(await next.runPromise(restored.list(undefined, true))).toEqual([]);
+});

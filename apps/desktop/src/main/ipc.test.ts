@@ -4,6 +4,9 @@ import type { DesktopApplication } from "./bootstrap.ts";
 import { DesktopServiceError } from "./service/errors.ts";
 
 test.each([
+  { type: "move-thread", id: "thread", projectId: "" },
+  { type: "move-thread", id: "thread", projectId: { path: "/project" } },
+  { type: "delete-thread", id: "" },
   { type: "create", workspaceId: "", requestId: "request" },
   { type: "register-project", rootPath: "", name: "Project" },
   { type: "register-project", rootPath: "/project", name: 42 },
@@ -21,6 +24,10 @@ test.each([
   { type: "submit", id: "thread", prompt: "Hello", requestId: "id", images: "not-an-array" },
   { type: "prepare-image", source: { path: "shot.png" }, provider: 123 },
   { type: "not-a-command" },
+  { type: "storage", path: "/arbitrary-path" },
+  { type: "reveal-storage", target: { kind: "configuration", id: "" } },
+  { type: "reveal-storage", target: { kind: "sessions", path: "/arbitrary-path" } },
+  { type: "reveal-storage", target: { kind: "unknown" } },
 ])(
   "untrusted command payloads fail before reaching application services: $type",
   async (command) => {

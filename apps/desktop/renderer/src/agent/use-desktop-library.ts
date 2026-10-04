@@ -24,7 +24,9 @@ export function useDesktopLibrary() {
   useEffect(() => {
     mounted.current = true;
     reload();
+    const unsubscribe = window.eta.subscribeLibrary(reload);
     return () => {
+      unsubscribe();
       mounted.current = false;
       revision.current++;
     };

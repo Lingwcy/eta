@@ -24,6 +24,10 @@ Use **Settings → Permissions** to control image reading and **Settings → Too
 
 Keep chats, settings, and web pages open in the top tab bar. The **+** opens a web tab; enter an address or search in its address bar. **New chat** returns to an existing unsent chat, preserving its draft and project selection. After submitting it, you can start another chat. Closing a chat tab keeps its saved history and lets an admitted task continue. Use **Cmd/Ctrl+W** to close a tab and **Cmd/Ctrl+Shift+T** to reopen it. Switching tabs preserves each chat's draft and project selection.
 
+Use **Settings → Application → Storage** to check session usage and search or sort local sessions. Click a session to locate its folder in your file manager. The page also provides paths to the sessions directory, model settings, and Catalog.
+
+Right-click a saved chat to rename it, change its project grouping, archive or restore it, open it in another Eta window, or permanently delete its local history. Project grouping does not change the execution directory. **Open with** opens the main JSONL transcript in the default or a selected application; use a text editor to inspect it.
+
 ## Run locally
 
 Install [Vite+](https://viteplus.dev/guide/), then run:

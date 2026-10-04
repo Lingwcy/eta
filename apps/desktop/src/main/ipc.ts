@@ -10,10 +10,20 @@ import { CatalogValidationError } from "./service/catalog/schema.ts";
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
 const Command = Schema.Union([
+  Schema.Struct({ type: Schema.Literal("storage") }),
+  Schema.Struct({
+    type: Schema.Literal("reveal-storage"),
+    target: Schema.Union([
+      Schema.Struct({ kind: Schema.Literal("sessions") }),
+      Schema.Struct({ kind: Schema.Literals(["configuration", "session"]), id: Id }),
+    ]),
+  }),
   Schema.Struct({ type: Schema.Literal("library") }),
   Schema.Struct({ type: Schema.Literal("register-project"), rootPath: Id, name: Id }),
   Schema.Struct({ type: Schema.Literal("create"), workspaceId: Id, requestId: Id }),
   Schema.Struct({ type: Schema.Literal("open"), id: Id }),
+  Schema.Struct({ type: Schema.Literal("move-thread"), id: Id, projectId: Schema.NullOr(Id) }),
+  Schema.Struct({ type: Schema.Literal("delete-thread"), id: Id }),
   Schema.Struct({ type: Schema.Literal("rename"), id: Id, title: Id }),
   Schema.Struct({ type: Schema.Literal("archive"), id: Id, archived: Schema.Boolean }),
   Schema.Struct({
@@ -86,6 +96,10 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     throw new DesktopServiceError({ code: "InvalidInput", message: "请求参数无效" });
   }
   switch (command.type) {
+    case "storage":
+      return application.storage();
+    case "reveal-storage":
+      return application.revealStorage(command.target);
     case "prepare-image":
       return application.prepareImage(
         command.source,
@@ -101,6 +115,10 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       return application.createThread(command.workspaceId, command.requestId);
     case "open":
       return application.openThread(command.id);
+    case "move-thread":
+      return application.moveThread(command.id, command.projectId);
+    case "delete-thread":
+      return application.deleteThread(command.id);
     case "rename":
       return application.renameThread(command.id, command.title);
     case "archive":

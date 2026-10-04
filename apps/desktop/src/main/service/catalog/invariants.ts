@@ -39,6 +39,12 @@ export function validateCatalog(state: CatalogState): ReadonlyArray<CatalogViola
 
   const bindings = new Map<string, Map<string, string>>();
   for (const thread of state.threads) {
+    if (thread.projectId && !projects.has(thread.projectId)) {
+      violations.push({
+        code: "ProjectNotFound",
+        message: `Thread ${thread.id} references missing project ${thread.projectId}.`,
+      });
+    }
     const workspace = workspaces.get(thread.workspaceId);
     const session = thread.sessionRef.metadata;
     if (!workspace) {

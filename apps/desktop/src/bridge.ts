@@ -8,6 +8,7 @@ import type { ProjectMetadata } from "./main/service/projects/type.ts";
 import type { WorkspaceMetadata } from "./main/service/workspaces/type.ts";
 import type { ThreadMetadata } from "./main/service/threads/type.ts";
 import type { BrowserCommand, BrowserEvent, BrowserState } from "./browser/protocol.ts";
+import type { StorageReport, StorageTarget } from "./main/storage/types.ts";
 
 export type AgentEvent =
   | { type: "snapshot"; value: SnapshotResponse }
@@ -48,6 +49,13 @@ export interface DesktopLibrary {
 }
 
 export interface DesktopBridge extends AgentBridge {
+  subscribeLibrary(listener: () => void): () => void;
+  openThreadWindow(id: string): Promise<void>;
+  openThreadFile(id: string, mode: "default" | "reveal" | "choose"): Promise<void>;
+  moveThread(id: string, projectId: string | null): Promise<ThreadMetadata>;
+  deleteThread(id: string): Promise<void>;
+  storage(): Promise<StorageReport>;
+  revealStorage(target: StorageTarget): Promise<void>;
   browser(command: BrowserCommand): Promise<BrowserState | null>;
   subscribeBrowser(listener: (event: BrowserEvent) => void): () => void;
   library(): Promise<DesktopLibrary>;

@@ -22,6 +22,8 @@ import { ProjectService } from "./service/projects/index.ts";
 import { DesktopSettingsService } from "./service/settings/index.ts";
 import type { DesktopSettings } from "./service/settings/index.ts";
 import { ThreadService } from "./service/threads/index.ts";
+import { scanStorage, storageTargetPath } from "./storage/index.ts";
+import type { StorageTarget } from "./storage/types.ts";
 
 /** Electron supplies directories here; the services never call app.getPath themselves. */
 export async function createDesktopApplication(
@@ -32,6 +34,9 @@ export async function createDesktopApplication(
     throw new Error("浏览器不可用");
   },
   processImage?: ImageProcessor,
+  revealPath: (path: string) => void = () => {
+    throw new Error("文件管理器不可用");
+  },
 ) {
   // Despite its name, pi-ai's registration is runtime-independent and embeds OAuth in CJS bundles.
   registerBundledOAuthFlows();
@@ -70,6 +75,9 @@ export async function createDesktopApplication(
     const cwdDefault = cwd;
     const run = <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect);
     return {
+      storage: async () => scanStorage(dataRoot, await run(catalog.read)),
+      revealStorage: async (target: StorageTarget) =>
+        revealPath(await storageTargetPath(dataRoot, target)),
       prepareImage: async (
         source: ImageSource,
         cwd?: string,
@@ -112,6 +120,15 @@ export async function createDesktopApplication(
       createThread: (workspaceId: string, requestId?: string) =>
         run(threads.create(workspaceId, requestId)),
       openThread: (id: string) => run(threads.open(id)),
+      threadFile: async (id: string) => {
+        const thread = await run(threads.get(id));
+        return join(
+          await storageTargetPath(dataRoot, { kind: "session", id: thread.sessionRef.metadata.id }),
+          "main.jsonl",
+        );
+      },
+      moveThread: (id: string, projectId: string | null) => run(threads.move(id, projectId)),
+      deleteThread: (id: string) => run(threads.remove(id)),
       renameThread: (id: string, title: string) => run(threads.rename(id, title)),
       archiveThread: (id: string, archived: boolean) => run(threads.archive(id, archived)),
       configureThread: (id: string, provider: string, modelId: string, level: ThinkingLevel) =>

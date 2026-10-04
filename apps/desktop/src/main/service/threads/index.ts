@@ -36,6 +36,8 @@ export class ThreadService extends Context.Service<
     get(id: string): Effect.Effect<ThreadMetadata, DesktopServiceError>;
     create(workspaceId: string, requestId?: string): Effect.Effect<OpenThread, ThreadError>;
     open(id: string): Effect.Effect<OpenThread, ThreadError>;
+    move(id: string, projectId: string | null): Effect.Effect<ThreadMetadata, ThreadError>;
+    remove(id: string): Effect.Effect<void, ThreadError>;
     rename(id: string, title: string): Effect.Effect<ThreadMetadata, ThreadError>;
     archive(id: string, archived: boolean): Effect.Effect<ThreadMetadata, ThreadError>;
     submit(
@@ -191,6 +193,45 @@ export class ThreadService extends Context.Service<
                 ),
               );
               return yield* open(thread.id);
+            }),
+          ),
+        move: (id, projectId) =>
+          locked(
+            Effect.gen(function* () {
+              if (
+                projectId !== null &&
+                !(yield* catalog.read).projects.some((project) => project.id === projectId)
+              )
+                return yield* new DesktopServiceError({ code: "NotFound", message: "项目不存在" });
+              return yield* change(id, (thread) => ({ ...thread, projectId }));
+            }),
+          ),
+        remove: (id) =>
+          locked(
+            Effect.gen(function* () {
+              const thread = yield* get(id);
+              const runtime = yield* registry.peek(thread.sessionRef);
+              if (runtime && (runtime.running || runtime.recoveryRequired))
+                return yield* new DesktopServiceError({
+                  code: "Busy",
+                  message: "请先停止未完成的任务，再删除会话",
+                });
+              yield* registry.close(thread.sessionRef);
+              const removal = yield* repository.stageRemoval(thread.sessionRef);
+              yield* catalog
+                .update((state) => ({
+                  ...state,
+                  threads: state.threads.filter((thread) => thread.id !== id),
+                }))
+                .pipe(
+                  Effect.catch((error) =>
+                    Effect.gen(function* () {
+                      yield* removal.rollback;
+                      return yield* Effect.fail(error);
+                    }),
+                  ),
+                );
+              yield* removal.commit;
             }),
           ),
         rename: (id, title) =>

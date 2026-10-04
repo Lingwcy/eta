@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, realpath, rename, stat } from "node:fs/promises";
+import { lstat, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { Storage } from "@eta/agent";
@@ -24,6 +24,13 @@ export class SessionRepositoryService extends Context.Service<
       ref: EtaSessionMetadata,
       initializing?: boolean,
     ): Effect.Effect<Storage, DesktopServiceError>;
+    stageRemoval(ref: EtaSessionMetadata): Effect.Effect<
+      {
+        commit: Effect.Effect<void, DesktopServiceError>;
+        rollback: Effect.Effect<void, DesktopServiceError>;
+      },
+      DesktopServiceError
+    >;
     quarantine(ref: EtaSessionMetadata): Effect.Effect<void, DesktopServiceError>;
   }
 >()("eta/desktop/main/service/sessions/SessionRepositoryService") {
@@ -98,6 +105,23 @@ export class SessionRepositoryService extends Context.Service<
             },
             "StorageCorrupt",
           ),
+        stageRemoval: (ref) =>
+          adapter("无法准备删除会话", async () => {
+            const path = checkedPath(ref);
+            const exists = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+              if (error.code !== "ENOENT") throw error;
+              return undefined;
+            });
+            if (!exists) return { commit: Effect.void, rollback: Effect.void };
+            const trash = join(sessionsRoot, ".trash");
+            await mkdir(trash, { recursive: true });
+            const staged = join(trash, `${ref.metadata.id}-${randomUUID()}`);
+            await rename(path, staged);
+            return {
+              commit: adapter("无法永久删除会话文件", () => rm(staged, { recursive: true })),
+              rollback: adapter("无法恢复会话目录", () => rename(staged, path)),
+            };
+          }),
         // Recovery-friendly removal: neither a failed Catalog write nor deletion destroys the JSONL files.
         quarantine: (ref) =>
           adapter("无法移除会话存储", async () => {

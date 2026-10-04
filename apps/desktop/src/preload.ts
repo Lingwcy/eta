@@ -9,6 +9,16 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 }
 
 const bridge: DesktopBridge = {
+  subscribeLibrary(listener) {
+    ipcRenderer.on("eta:library-changed", listener);
+    return () => ipcRenderer.removeListener("eta:library-changed", listener);
+  },
+  openThreadWindow: (id) => invoke("eta:thread-window", id),
+  openThreadFile: (id, mode) => invoke("eta:thread-file", id, mode),
+  moveThread: (id, projectId) => invoke("eta:command", { type: "move-thread", id, projectId }),
+  deleteThread: (id) => invoke("eta:command", { type: "delete-thread", id }),
+  storage: () => invoke("eta:command", { type: "storage" }),
+  revealStorage: (target) => invoke("eta:command", { type: "reveal-storage", target }),
   browser: (command) => invoke("browser:command", command),
   subscribeBrowser(listener) {
     const onEvent = (_event: Electron.IpcRendererEvent, value: BrowserEvent) => listener(value);

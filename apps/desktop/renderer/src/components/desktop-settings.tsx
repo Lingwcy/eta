@@ -11,6 +11,7 @@ import { SettingsPage } from "./settings/settings-page";
 import { settingsGroups } from "./settings/settings-categories";
 import { AuthenticationSettings } from "./settings/authentication/authentication-settings";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { StorageSettings } from "./settings/storage-settings";
 
 interface Props {
   active?: boolean;
@@ -73,13 +74,15 @@ export function DesktopSettings(props: Props) {
             .flatMap((group) => group.items)
             .map((item) => (
               <TabsPanel key={item.id} value={item.id}>
-                <SettingsPage title={item.title}>
+                <SettingsPage title={item.id === "storage" ? undefined : item.title}>
                   {props.error && (
                     <div className="mb-4">
                       <Alert>{props.error}</Alert>
                     </div>
                   )}
-                  {item.id === "permissions" ? (
+                  {item.id === "storage" ? (
+                    <StorageSettings active={props.active !== false && category === "storage"} />
+                  ) : item.id === "permissions" ? (
                     <PermissionSettings
                       blockImages={Boolean(props.library.settings.blockImages)}
                       busy={props.busy}

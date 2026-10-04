@@ -170,6 +170,21 @@ export class DesktopTabs {
     this.publish({ tabs, closed, activeId, history, historyIndex: history.length - 1 });
   }
 
+  /** Catalog updates remove deleted conversations from both open and recently closed tabs. */
+  reconcileThreads(threads: readonly { id: string; workspaceId: string }[]) {
+    const catalog = new Map(threads.map((thread) => [thread.id, thread]));
+    for (const tab of this.state.tabs) {
+      if (tab.kind !== "conversation" || !tab.threadId) continue;
+      const thread = catalog.get(tab.threadId);
+      if (!thread) this.close(tab.id);
+      else this.updateConversation(tab.id, { workspaceId: thread.workspaceId });
+    }
+    const closed = this.state.closed.filter(
+      (tab) => tab.kind !== "conversation" || !tab.threadId || catalog.has(tab.threadId),
+    );
+    if (closed.length !== this.state.closed.length) this.publish({ ...this.state, closed });
+  }
+
   reopen() {
     const tab = this.state.closed.at(-1);
     if (!tab) return;

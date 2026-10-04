@@ -10,6 +10,7 @@ export function useDesktopShell() {
   const navigation = useDesktopTabs(desktop.library);
   const [collapsed, setCollapsed] = useState(false);
   const [overlay, setOverlay] = useState(false);
+  const [threadOverlay, setThreadOverlay] = useState(false);
   const [version, setVersion] = useState(0);
   const toggleSidebar = useCallback(() => setCollapsed((value) => !value), []);
   const runShortcut = useDesktopShortcuts(navigation.tabs, toggleSidebar);
@@ -40,10 +41,11 @@ export function useDesktopShell() {
     items,
     savePreview,
     collapsed,
-    overlay,
+    overlay: overlay || threadOverlay,
     version,
     toggleSidebar,
     setOverlay,
+    setThreadOverlay,
     chooseProject,
     selectThread,
     reconnect,

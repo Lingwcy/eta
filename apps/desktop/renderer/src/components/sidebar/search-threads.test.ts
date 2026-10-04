@@ -82,3 +82,12 @@ test("archive search excludes active conversations and missing matches return no
   expect(searchThreads(library, "does not exist", false)).toEqual([]);
   expect(searchThreads(null, "", false)).toEqual([]);
 });
+
+test("search follows explicit project ownership and ungrouped chats retain their execution workspace", () => {
+  const moved = { ...library, threads: [{ ...library.threads[0]!, projectId: "docs" }] };
+  expect(searchThreads(moved, "文档", false)).toHaveLength(1);
+  expect(searchThreads(moved, "Eta", false)).toEqual([]);
+  const ungrouped = { ...library, threads: [{ ...library.threads[0]!, projectId: null }] };
+  expect(searchThreads(ungrouped, "未分组", false)).toHaveLength(1);
+  expect(ungrouped.threads[0]?.workspaceId).toBe("root");
+});

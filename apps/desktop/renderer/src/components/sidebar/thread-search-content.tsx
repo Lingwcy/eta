@@ -1,3 +1,4 @@
+import { ThreadContextMenu } from "../threads/thread-actions";
 import { useState } from "react";
 import { FolderClosed, SquarePen } from "lucide-react";
 import { DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -91,19 +92,17 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
           <CommandGroup>
             <CommandGroupLabel>{props.archived ? "已归档聊天" : "聊天"}</CommandGroupLabel>
             {chats.map((chat, index) => (
-              <CommandItem
-                key={chat.id}
-                value={chat}
-                onClick={() => choose(() => props.onSelect(chat.id))}
-              >
-                <span className="w-4 shrink-0" aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate">{chat.label}</span>
-                {props.runningThreadIds.has(chat.id) && <RunningIndicator />}
-                <span className="max-w-28 truncate text-[13px] text-neutral-400">
-                  {chat.project}
-                </span>
-                {index < 9 && <Kbd variant="badge">⌃{index + 1}</Kbd>}
-              </CommandItem>
+              <ThreadContextMenu key={chat.id} id={chat.id}>
+                <CommandItem value={chat} onClick={() => choose(() => props.onSelect(chat.id))}>
+                  <span className="w-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">{chat.label}</span>
+                  {props.runningThreadIds.has(chat.id) && <RunningIndicator />}
+                  <span className="max-w-28 truncate text-[13px] text-neutral-400">
+                    {chat.project}
+                  </span>
+                  {index < 9 && <Kbd variant="badge">⌃{index + 1}</Kbd>}
+                </CommandItem>
+              </ThreadContextMenu>
             ))}
             {!chats.length && (
               <p className="px-6 py-3 text-sm text-neutral-400">
