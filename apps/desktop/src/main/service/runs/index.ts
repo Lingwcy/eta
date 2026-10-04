@@ -8,6 +8,7 @@ import type { OperationAdmission } from "../../../agent/protocol.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
+import { normalizeThinkingLevel } from "../conversations/thinking.ts";
 
 export class RunSupervisorService extends Context.Service<
   RunSupervisorService,
@@ -76,6 +77,10 @@ export class RunSupervisorService extends Context.Service<
             code: "Busy",
             message: "此工作区已有任务运行，请等待或停止该任务",
           });
+        if (!runtime.recoveryRequired)
+          yield* adapter("无法更新思考级别", () =>
+            normalizeThinkingLevel(runtime.conversation, models.models),
+          );
       });
       const claim = (runtime: ThreadRuntime) => {
         if (leases.has(runtime.ref.metadata.cwd))

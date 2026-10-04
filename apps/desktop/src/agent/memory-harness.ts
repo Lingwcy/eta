@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { Models } from "@earendil-works/pi-ai";
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { createRegistry, Harness, MemoryStorage } from "@eta/agent";
 import type {
@@ -19,6 +20,7 @@ import type {
   OperationAdmission,
 } from "./protocol.ts";
 import type { AgentSettings } from "./agent-settings.ts";
+import { toAgentModel } from "./model.ts";
 
 export class AgentError extends Error {}
 
@@ -73,7 +75,7 @@ export class MemoryHarnessService {
     try {
       const configuration = {
         model: { provider: model.provider, modelId: model.id },
-        thinkingLevel: settings.defaultThinkingLevel ?? "off",
+        thinkingLevel: clampThinkingLevel(model, settings.defaultThinkingLevel ?? "off"),
       };
       const conversation = await harness.root(BACKGROUND_CONTEXT, {
         agent: {
@@ -88,12 +90,7 @@ export class MemoryHarnessService {
         harness,
         conversation,
         configuration,
-        model: {
-          id: model.id,
-          provider: model.provider,
-          name: model.name,
-          contextWindow: model.contextWindow,
-        },
+        model: toAgentModel(model),
         disposed: false,
         lastResult: null,
         errors: new Set(),

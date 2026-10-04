@@ -1,9 +1,12 @@
 import type { ImageAttachment } from "../../../../src/images/types.ts";
 import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
 import type { AgentModel } from "../../../../src/agent/protocol.ts";
+import type { AuthProvider } from "../../../../src/authentication.ts";
 
-export type InputModel = Pick<AgentModel, "id" | "provider" | "name"> &
+export type InputModel = Pick<AgentModel, "id" | "provider" | "name" | "thinkingLevels"> &
   Pick<AgentModel, "input" | "inputLimits">;
+
+export type InputProvider = Pick<AuthProvider, "id" | "name">;
 
 export interface ContextIndicatorProps {
   readonly percentage?: number;
@@ -25,6 +28,7 @@ export interface PromptTextareaProps {
 export interface ActionToolbarProps {
   readonly model?: InputModel;
   readonly models?: readonly InputModel[];
+  readonly providers?: readonly InputProvider[];
   readonly onModelChange?: (model: InputModel, thinkingLevel: ThinkingLevel) => void;
   readonly thinkingLevel?: ThinkingLevel;
   readonly contextTokens?: number;

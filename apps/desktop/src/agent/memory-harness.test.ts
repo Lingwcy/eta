@@ -74,6 +74,21 @@ test("does not fall back to a fake or unauthenticated model", async () => {
   await expect(service.create()).rejects.toThrow("没有可用模型");
 });
 
+test.each([
+  [false, "off"],
+  [true, "high"],
+] as const)(
+  "memory sessions clamp defaults to supported model effort (reasoning: %s)",
+  async (reasoning, expected) => {
+    const { service } = setup({ models: [{ id: "selected", reasoning }] }, async () => ({
+      defaultThinkingLevel: "max",
+    }));
+    const session = await service.create();
+    expect(session.snapshot.configuration.thinkingLevel).toBe(expected);
+    expect(session.model.thinkingLevels).toContain(expected);
+  },
+);
+
 test("reads pi defaults for new sessions while preserving existing sessions", async () => {
   const directory = await mkdtemp(join(tmpdir(), "eta-settings-"));
   directories.push(directory);

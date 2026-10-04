@@ -1,8 +1,10 @@
 import { builtinToolNames } from "../../../tools.ts";
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
 import { AppPathsService } from "../../platform/app-paths.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import { readJson, writeJson } from "../json-file.ts";
+import { ModelCatalogService } from "../models/index.ts";
 
 export const SettingsSchema = Schema.Struct({
   defaultProvider: Schema.optionalKey(Schema.NonEmptyString),
@@ -34,6 +36,19 @@ export class DesktopSettingsService extends Context.Service<
     DesktopSettingsService,
     Effect.gen(function* () {
       const { settingsPath } = yield* AppPathsService;
+      const { models } = yield* ModelCatalogService;
+      const normalize = (settings: DesktopSettings) => {
+        const model =
+          settings.defaultProvider && settings.defaultModel
+            ? models.getModel(settings.defaultProvider, settings.defaultModel)
+            : undefined;
+        return model
+          ? {
+              ...settings,
+              defaultThinkingLevel: clampThinkingLevel(model, settings.defaultThinkingLevel),
+            }
+          : settings;
+      };
       const raw = yield* adapter("无法读取设置", () => readJson(settingsPath));
       const initial =
         raw === undefined
@@ -47,20 +62,21 @@ export class DesktopSettingsService extends Context.Service<
                   }),
               ),
             )).settings;
-      const state = yield* SynchronizedRef.make<DesktopSettings>(initial);
+      const state = yield* SynchronizedRef.make<DesktopSettings>(normalize(initial));
       return DesktopSettingsService.of({
         read: SynchronizedRef.get(state).pipe(Effect.map((value) => structuredClone(value))),
         update: (patch) =>
           SynchronizedRef.modifyEffect(
             state,
             Effect.fnUntraced(function* (current) {
-              const next = yield* Schema.decodeUnknownEffect(SettingsSchema, {
+              const decoded = yield* Schema.decodeUnknownEffect(SettingsSchema, {
                 onExcessProperty: "error",
               })({ ...current, ...patch }).pipe(
                 Effect.mapError(
                   () => new DesktopServiceError({ code: "InvalidInput", message: "设置格式无效" }),
                 ),
               );
+              const next = normalize(decoded);
               yield* adapter("无法保存设置", () =>
                 writeJson(settingsPath, { version: 1, settings: next }),
               );

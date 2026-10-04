@@ -9,6 +9,7 @@ import { adapter, DesktopServiceError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
 import { AgentResourcesService } from "../resources/index.ts";
 import { SessionRepositoryService } from "../sessions/index.ts";
+import { normalizeThinkingLevel } from "../conversations/thinking.ts";
 import type { EtaSessionMetadata } from "../sessions/type.ts";
 
 export interface ThreadRuntime {
@@ -111,6 +112,10 @@ export class RuntimeRegistryService extends Context.Service<
               message: "持久会话缺少根 conversation",
             });
           const inspection = await harness.inspect(BACKGROUND_CONTEXT);
+          const recoveryRequired = inspection.submissions.length > 0 || inspection.tasks.length > 0;
+          // Idle history can contain levels saved before the picker respected model capabilities.
+          // Pending work retains its pinned request configuration until it is resumed or stopped.
+          if (!recoveryRequired) await normalizeThinkingLevel(conversation, models);
           const record: ThreadRuntime = {
             harness,
             refreshTools,
@@ -119,7 +124,7 @@ export class RuntimeRegistryService extends Context.Service<
             ref,
             watches: new Set(),
             changes: new Set(),
-            recoveryRequired: inspection.submissions.length > 0 || inspection.tasks.length > 0,
+            recoveryRequired,
             running: false,
             disposed: false,
           };

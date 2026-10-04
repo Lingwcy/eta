@@ -1,6 +1,8 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, Effect, Layer } from "effect";
 import type { AgentModel, ThinkingLevel } from "../../../agent/protocol.ts";
+import { toAgentModel } from "../../../agent/model.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
@@ -30,19 +32,13 @@ export class ConversationService extends Context.Service<
             agent.model && models.models.getModel(agent.model.provider, agent.model.modelId);
           // History has an identity even if the provider is no longer configured.
           return model
-            ? {
-                id: model.id,
-                provider: model.provider,
-                name: model.name,
-                contextWindow: model.contextWindow,
-                input: model.input,
-                inputLimits: model.inputLimits,
-              }
+            ? toAgentModel(model)
             : {
                 id: agent.model?.modelId ?? "unknown",
                 provider: agent.model?.provider ?? "unknown",
                 name: agent.model?.modelId ?? "未知模型",
                 contextWindow: 0,
+                thinkingLevels: [],
               };
         }),
         configure: Effect.fn("ConversationService.configure")(function* (
@@ -61,11 +57,18 @@ export class ConversationService extends Context.Service<
               code: "ModelUnavailable",
               message: "模型不可用",
             });
+          const model = models.models.getModel(provider, modelId);
+          if (!model)
+            return yield* new DesktopServiceError({
+              code: "ModelUnavailable",
+              message: "模型不可用",
+            });
+          const level = clampThinkingLevel(model, thinkingLevel);
           yield* adapter("无法保存会话配置", () =>
             runtime.conversation.configure(
               {
                 model: { provider, modelId },
-                thinkingLevel: thinkingLevel === "off" ? null : thinkingLevel,
+                thinkingLevel: level === "off" ? null : level,
               },
               BACKGROUND_CONTEXT,
             ),

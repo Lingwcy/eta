@@ -2,7 +2,11 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { createModels, fauxProvider } from "@earendil-works/pi-ai";
 import type { OperationAdmission } from "../../../src/agent/protocol.ts";
 import { MemoryHarnessService } from "../../../src/agent/memory-harness.ts";
-import type { SessionResponse, SnapshotResponse } from "../../../src/agent/protocol.ts";
+import type {
+  SessionResponse,
+  SnapshotResponse,
+  ThinkingLevel,
+} from "../../../src/agent/protocol.ts";
 import type { AgentEvent, AgentBridge } from "../../../src/bridge.ts";
 import { ThreadAgentClient } from "./client.ts";
 
@@ -12,6 +16,25 @@ class TestBridge implements AgentBridge {
   deleted: string[] = [];
   unsubscribed = 0;
   openThread = async (_id: string) => this.session;
+  configureThread = async (
+    _id: string,
+    provider: string,
+    modelId: string,
+    thinkingLevel: ThinkingLevel,
+  ) => ({
+    ...this.session,
+    model: {
+      ...this.session.model,
+      provider,
+      id: modelId,
+      name: "Selected model",
+      contextWindow: 64000,
+    },
+    snapshot: {
+      ...this.session.snapshot,
+      configuration: { model: { provider, modelId }, thinkingLevel },
+    },
+  });
   submit = async (_sessionId: string, _prompt: string) => admission;
   stop = async (_sessionId: string) => {};
   deleteSession = async (sessionId: string) => {
@@ -149,4 +172,117 @@ test("a rejected prompt reports an error and releases the submission lock", asyn
     submitting: false,
     error: "Lane busy",
   });
+});
+
+test("changing models keeps the transcript visible and retains the live subscription", async () => {
+  const client = await connectedClient();
+  const transcript: SessionResponse["snapshot"]["transcript"] = [
+    {
+      id: "saved-message",
+      type: "message",
+      message: { role: "user", content: "Existing context", timestamp: 1 },
+    },
+  ];
+  bridge.emit({ snapshot: { ...session.snapshot, transcript }, contextTokens: 42 });
+  const rendered = [] as ReturnType<ThreadAgentClient["getSnapshot"]>[];
+  client.subscribe(() => rendered.push(client.getSnapshot()));
+  const listener = bridge.listener;
+  await client.configure("other-provider", "other-model", "high");
+  expect(client.getSnapshot().session?.model).toMatchObject({
+    provider: "other-provider",
+    id: "other-model",
+    name: "Selected model",
+    contextWindow: 64000,
+  });
+  expect(client.getSnapshot().observation?.snapshot.configuration).toEqual({
+    model: { provider: "other-provider", modelId: "other-model" },
+    thinkingLevel: "high",
+  });
+  expect(rendered.length).toBeGreaterThan(0);
+  for (const state of rendered) {
+    expect(state.connection).toBe("connected");
+    expect(state.observation?.snapshot.transcript).toBe(transcript);
+    expect(state.observation?.contextTokens).toBe(42);
+  }
+  expect(bridge.listener).toBe(listener);
+  expect(bridge.unsubscribed).toBe(0);
+  bridge.emit({
+    snapshot: {
+      ...client.getSnapshot().observation!.snapshot,
+      transcript: [
+        ...transcript,
+        {
+          id: "later-message",
+          type: "message",
+          message: { role: "user", content: "Next message", timestamp: 2 },
+        },
+      ],
+    },
+    contextTokens: 50,
+  });
+  expect(client.getSnapshot().observation?.snapshot.transcript).toHaveLength(2);
+});
+
+test("a late configuration reply preserves newer transcript, operation and context updates", async () => {
+  const client = await connectedClient();
+  const configured = await bridge.configureThread(session.id, "provider", "model", "high");
+  let finish!: (value: SessionResponse) => void;
+  bridge.configureThread = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  const pending = client.configure("provider", "model", "high");
+  const newer: SnapshotResponse = {
+    contextTokens: 100,
+    snapshot: {
+      ...configured.snapshot,
+      transcript: [
+        {
+          id: "newer",
+          type: "message",
+          message: { role: "user", content: "Newer context", timestamp: 2 },
+        },
+      ],
+      operation: {
+        ...admission,
+        id: admission.operationId,
+        status: "running",
+        fromTipId: null,
+        runningTools: [],
+      },
+    },
+  };
+  bridge.emit(newer);
+  finish(configured);
+  await pending;
+  expect(client.getSnapshot().observation?.snapshot.transcript).toBe(newer.snapshot.transcript);
+  expect(client.getSnapshot().observation?.snapshot.operation).toBe(newer.snapshot.operation);
+  expect(client.getSnapshot().observation?.contextTokens).toBe(100);
+});
+
+test("a rejected model change leaves the current model, history and connection intact", async () => {
+  const client = await connectedClient();
+  const before = client.getSnapshot();
+  bridge.configureThread = async () => {
+    throw new Error("Model unavailable");
+  };
+  await expect(client.configure("missing", "model", "high")).rejects.toThrow("Model unavailable");
+  expect(client.getSnapshot()).toBe(before);
+  expect(bridge.unsubscribed).toBe(0);
+});
+
+test("a configuration reply after leaving the thread cannot update the disposed view", async () => {
+  const client = await connectedClient();
+  const before = client.getSnapshot();
+  const configured = await bridge.configureThread(session.id, "provider", "model", "high");
+  let finish!: (value: SessionResponse) => void;
+  bridge.configureThread = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  const pending = client.configure("provider", "model", "high");
+  client.dispose();
+  finish(configured);
+  await pending;
+  expect(client.getSnapshot()).toBe(before);
 });

@@ -1,4 +1,5 @@
 import type { ImageAttachment } from "../../../src/images/types.ts";
+import type { ThinkingLevel } from "../../../src/agent/protocol.ts";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { initialAgentState, ThreadAgentClient } from "./client";
 
@@ -28,6 +29,14 @@ export function useThreadAgent(threadId: string | null, version = 0) {
     client?.getSnapshot ?? getInitialState,
   );
   const state = current;
+  const configure = useCallback(
+    async (provider: string, modelId: string, thinkingLevel: ThinkingLevel) => {
+      if (!client || client.getSnapshot().session?.id !== threadId)
+        throw new Error("请先创建或选择会话");
+      await client.configure(provider, modelId, thinkingLevel);
+    },
+    [client, threadId],
+  );
   const submit = useCallback(
     async (text: string, images?: readonly ImageAttachment[]) => {
       if (!client || client.getSnapshot().session?.id !== threadId)
@@ -40,5 +49,5 @@ export function useThreadAgent(threadId: string | null, version = 0) {
     () => (client?.getSnapshot().session?.id === threadId ? client.stop() : undefined),
     [client, threadId],
   );
-  return { ...state, submit, stop };
+  return { ...state, configure, submit, stop };
 }

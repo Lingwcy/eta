@@ -2,9 +2,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect, Layer, ManagedRuntime } from "effect";
+import { createModels, fauxProvider } from "@earendil-works/pi-ai";
 import { afterEach, expect, test } from "vite-plus/test";
 import { AppPathsService } from "../../../platform/app-paths.ts";
 import { DesktopSettingsService } from "../index.ts";
+import { ModelCatalogService } from "../../models/index.ts";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];
@@ -17,9 +19,20 @@ afterEach(async () => {
 async function setup() {
   const directory = await mkdtemp(join(tmpdir(), "eta-settings-service-"));
   directories.push(directory);
+  const models = createModels();
+  models.setProvider(
+    fauxProvider({
+      provider: "eta-test",
+      models: [{ id: "one", reasoning: true }, { id: "plain" }],
+    }).provider,
+  );
   const open = () => {
     const runtime = ManagedRuntime.make(
-      DesktopSettingsService.layer.pipe(Layer.provide(AppPathsService.layer(directory))),
+      DesktopSettingsService.layer.pipe(
+        Layer.provide(
+          Layer.mergeAll(AppPathsService.layer(directory), ModelCatalogService.layerWith(models)),
+        ),
+      ),
     );
     runtimes.push(runtime);
     return runtime;
@@ -97,6 +110,60 @@ test("tool toggles persist across restart and can be restored without losing oth
   await next.runPromise(reopened.update({ disabledTools: [] }));
   expect(await next.runPromise(reopened.read)).toMatchObject({
     disabledTools: [],
+    blockImages: true,
+  });
+});
+
+test("default model changes clamp unsupported effort and preserve the ability to turn thinking off", async () => {
+  const { runtime, settings, open } = await setup();
+  expect(
+    await runtime.runPromise(
+      settings.update({
+        defaultProvider: "eta-test",
+        defaultModel: "one",
+        defaultThinkingLevel: "max",
+      }),
+    ),
+  ).toMatchObject({ defaultThinkingLevel: "high" });
+  expect(await runtime.runPromise(settings.update({ defaultModel: "plain" }))).toMatchObject({
+    defaultThinkingLevel: "off",
+  });
+  expect(
+    await runtime.runPromise(settings.update({ defaultModel: "one", defaultThinkingLevel: "low" })),
+  ).toMatchObject({
+    defaultThinkingLevel: "low",
+  });
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect(await next.runPromise(restored.read)).toMatchObject({
+    defaultModel: "one",
+    defaultThinkingLevel: "low",
+  });
+  expect(await next.runPromise(restored.update({ defaultThinkingLevel: "off" }))).toMatchObject({
+    defaultThinkingLevel: "off",
+  });
+});
+
+test("legacy defaults are normalized on load without losing unrelated preferences", async () => {
+  const { directory, runtime, open } = await setup();
+  await runtime.dispose();
+  await writeFile(
+    join(directory, "settings.json"),
+    JSON.stringify({
+      version: 1,
+      settings: {
+        defaultProvider: "eta-test",
+        defaultModel: "plain",
+        defaultThinkingLevel: "high",
+        blockImages: true,
+      },
+    }),
+  );
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect(await next.runPromise(restored.read)).toMatchObject({
+    defaultThinkingLevel: "off",
     blockImages: true,
   });
 });

@@ -1,5 +1,6 @@
 import type { ImageAttachment } from "../../../images/types.ts";
 import { randomUUID } from "node:crypto";
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, DateTime, Effect, Layer, SynchronizedRef } from "effect";
 import type {
   OperationAdmission,
@@ -148,6 +149,13 @@ export class ThreadService extends Context.Service<
               const workspace = yield* workspaces.validate(workspaceId);
               const defaults = yield* settings.read;
               const model = yield* models.select(defaults);
+              const selected = models.models.getModel(model.provider, model.id);
+              if (!selected)
+                return yield* new DesktopServiceError({
+                  code: "ModelUnavailable",
+                  message: "模型不可用",
+                });
+              const thinkingLevel = clampThinkingLevel(selected, defaults.defaultThinkingLevel);
               const instructions = yield* resources.instructions(workspace.cwd);
               const ref = yield* repository.create(workspace.cwd);
               const thread: ThreadMetadata = {
@@ -161,8 +169,7 @@ export class ThreadService extends Context.Service<
               yield* Effect.gen(function* () {
                 yield* registry.acquire(ref, {
                   model: { provider: model.provider, modelId: model.id },
-                  thinkingLevel:
-                    defaults.defaultThinkingLevel === "off" ? null : defaults.defaultThinkingLevel,
+                  thinkingLevel: thinkingLevel === "off" ? null : thinkingLevel,
                   cwd: workspace.cwd,
                   instructions,
                 });

@@ -8,6 +8,7 @@ import { ModelPicker } from "./model-picker";
 export function ActionToolbar({
   model,
   models = [],
+  providers = [],
   onModelChange,
   thinkingLevel,
   contextTokens = 0,
@@ -60,6 +61,7 @@ export function ActionToolbar({
         <ModelPicker
           model={model}
           models={models}
+          providers={providers}
           thinkingLevel={thinkingLevel}
           disabled={disabled || isRunning}
           onChange={onModelChange}

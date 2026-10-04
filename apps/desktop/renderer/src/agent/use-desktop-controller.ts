@@ -143,12 +143,12 @@ export function useDesktopController() {
         ) ??
         desktop.library?.models[0],
       models: desktop.library?.models ?? [],
+      providers: desktop.library?.providers ?? [],
       onModelChange: (model: InputModel, level: ThinkingLevel) => {
         if (running) return;
         void desktop.act(async () => {
           if (threadId) {
-            await window.eta.configureThread(threadId, model.provider, model.id, level);
-            reconnect();
+            await agent.configure(model.provider, model.id, level);
           } else {
             await window.eta.updateSettings({
               defaultProvider: model.provider,

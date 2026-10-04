@@ -42,7 +42,7 @@ async function setup(withImages = false) {
   await mkdir(cwd);
   const provider = fauxProvider({
     provider: "eta-test",
-    models: [{ id: "one" }, { id: "two" }],
+    models: [{ id: "one", reasoning: true }, { id: "two", reasoning: true }, { id: "plain" }],
     tokensPerSecond: 1000,
   });
   const models = createModels();
@@ -67,6 +67,121 @@ async function setup(withImages = false) {
   const registry = await runtime.runPromise(RuntimeRegistryService);
   return { directory, cwd, runtime, provider, models, reopen, threads, registry, workspace };
 }
+
+test("model switches persist supported levels and send the same effort shown in the thread", async () => {
+  const { runtime, threads, registry, workspace, provider, reopen } = await setup();
+  const requested: (SimpleStreamOptions["reasoning"] | undefined)[] = [];
+  provider.setResponses(
+    Array.from({ length: 3 }, () => (_context, options) => {
+      requested.push(options?.reasoning);
+      return fauxAssistantMessage("Received");
+    }),
+  );
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  for (const [modelId, level, expected] of [
+    ["one", "max", "high"],
+    ["plain", "high", "off"],
+    ["two", "off", "off"],
+  ] as const) {
+    const configured = await runtime.runPromise(
+      threads.configure(created.id, "eta-test", modelId, level),
+    );
+    expect(configured.snapshot.configuration.thinkingLevel).toBe(expected);
+    expect(configured.model.thinkingLevels).toContain(expected);
+    await runtime.runPromise(threads.submit(created.id, "Hello"));
+    await record.harness.waitForIdle(BACKGROUND_CONTEXT);
+    await expect.poll(() => record.running).toBe(false);
+  }
+  expect(requested).toEqual(["high", undefined, undefined]);
+  await runtime.dispose();
+  const next = reopen();
+  const restored = await next.runPromise(ThreadService);
+  expect((await next.runPromise(restored.open(created.id))).snapshot.configuration).toEqual({
+    model: { provider: "eta-test", modelId: "two" },
+    thinkingLevel: "off",
+  });
+});
+
+test("new threads clamp default effort even when only a provider default is configured", async () => {
+  const { runtime, threads, workspace } = await setup();
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await runtime.runPromise(
+    settings.update({ defaultProvider: "eta-test", defaultThinkingLevel: "xhigh" }),
+  );
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  expect(created.snapshot.configuration.thinkingLevel).toBe("high");
+});
+
+test("model-specific extended effort and required thinking work for both defaults and thread changes", async () => {
+  const { runtime, threads, workspace, models } = await setup();
+  const provider = fauxProvider({
+    provider: "extended",
+    models: [{ id: "one", reasoning: true }],
+  }).provider;
+  models.setProvider({
+    ...provider,
+    getModels: () =>
+      provider.getModels().map((model) => ({
+        ...model,
+        thinkingLevelMap: { off: null, minimal: null, xhigh: "xhigh", max: "max" },
+      })),
+  });
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await runtime.runPromise(
+    settings.update({
+      defaultProvider: "extended",
+      defaultModel: "one",
+      defaultThinkingLevel: "off",
+    }),
+  );
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  expect(created.snapshot.configuration.thinkingLevel).toBe("low");
+  for (const level of ["xhigh", "max"] as const) {
+    expect(
+      (await runtime.runPromise(threads.configure(created.id, "extended", "one", level))).snapshot
+        .configuration.thinkingLevel,
+    ).toBe(level);
+  }
+  expect(
+    (await runtime.runPromise(threads.configure(created.id, "eta-test", "one", "max"))).snapshot
+      .configuration.thinkingLevel,
+  ).toBe("high");
+});
+
+test("an existing runtime normalizes invalid effort before the next provider request", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.configure({ thinkingLevel: "max" }, BACKGROUND_CONTEXT);
+  let reasoning: SimpleStreamOptions["reasoning"];
+  provider.setResponses([
+    (_context, options) => {
+      reasoning = options?.reasoning;
+      return fauxAssistantMessage("Received");
+    },
+  ]);
+  await runtime.runPromise(threads.submit(created.id, "Hello"));
+  await record.harness.waitForIdle(BACKGROUND_CONTEXT);
+  expect(reasoning).toBe("high");
+  expect((await record.conversation.agent(BACKGROUND_CONTEXT)).thinkingLevel).toBe("high");
+});
+
+test("reopening idle history repairs a legacy unsupported level before its next request", async () => {
+  const { runtime, threads, registry, workspace, reopen } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.configure({ thinkingLevel: "max" }, BACKGROUND_CONTEXT);
+  await runtime.dispose();
+  const next = reopen();
+  const restored = await next.runPromise(ThreadService);
+  expect(
+    (await next.runPromise(restored.open(created.id))).snapshot.configuration.thinkingLevel,
+  ).toBe("high");
+  const nextRegistry = await next.runPromise(RuntimeRegistryService);
+  const saved = await next.runPromise(nextRegistry.acquire(created.thread.sessionRef));
+  expect((await saved.conversation.agent(BACKGROUND_CONTEXT)).thinkingLevel).toBe("high");
+});
 
 test("create → real tools → dispose → reopen retains transcript, run result and per-thread model", async () => {
   const { runtime, threads, registry, provider, cwd, workspace, reopen } = await setup();

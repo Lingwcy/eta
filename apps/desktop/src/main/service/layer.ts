@@ -27,11 +27,11 @@ export function desktopServices(
   const foundation = Layer.mergeAll(
     catalog,
     CredentialService.layer,
-    DesktopSettingsService.layer,
     SessionRepositoryService.layer,
     AgentResourcesService.layerWith(processImage),
   ).pipe(Layer.provideMerge(paths));
   const models = modelLayer.pipe(Layer.provideMerge(foundation));
+  const settings = DesktopSettingsService.layer.pipe(Layer.provideMerge(models));
   const domain = Layer.mergeAll(
     ProjectService.layer,
     WorkspaceService.layer,
@@ -39,6 +39,6 @@ export function desktopServices(
     ConversationService.layer,
     RunSupervisorService.layer,
     ObservationService.layer,
-  ).pipe(Layer.provideMerge(models));
+  ).pipe(Layer.provideMerge(settings));
   return ThreadService.layer.pipe(Layer.provideMerge(domain));
 }

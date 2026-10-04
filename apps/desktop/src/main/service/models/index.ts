@@ -2,6 +2,7 @@ import type { Models } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { Context, Effect, Layer } from "effect";
 import type { AgentModel } from "../../../agent/protocol.ts";
+import { toAgentModel } from "../../../agent/model.ts";
 import { CredentialService } from "../credentials/index.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import type { DesktopSettings } from "../settings/index.ts";
@@ -34,14 +35,7 @@ function make(models: Models) {
         models.getProviders().map((provider) => models.getAvailable(provider.id).catch(() => [])),
       )
     ).flat();
-    return available.map(({ id, provider, name, contextWindow, input, inputLimits }) => ({
-      id,
-      provider,
-      name,
-      contextWindow,
-      input,
-      inputLimits,
-    }));
+    return available.map(toAgentModel);
   });
   return ModelCatalogService.of({
     models,

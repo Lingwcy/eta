@@ -10,7 +10,9 @@ import type {
 export type ThinkingLevel = ModelThinkingLevel | "off";
 
 export type AgentModel = Pick<Model<Api>, "id" | "provider" | "name" | "contextWindow"> &
-  Partial<Pick<Model<Api>, "input" | "inputLimits">>;
+  Partial<Pick<Model<Api>, "input" | "inputLimits">> & {
+    readonly thinkingLevels: readonly ThinkingLevel[];
+  };
 
 /** Desktop's transport contract, independent of the provider's runtime handles. */
 export interface OperationAdmission {

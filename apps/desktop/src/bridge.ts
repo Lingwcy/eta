@@ -21,6 +21,12 @@ export type CommandReply<A> = { ok: true; value: A } | { ok: false; error: Comma
 
 export interface AgentBridge {
   openThread(id: string): Promise<SessionResponse>;
+  configureThread(
+    id: string,
+    provider: string,
+    modelId: string,
+    thinkingLevel: ThinkingLevel,
+  ): Promise<SessionResponse>;
   submit(
     sessionId: string,
     prompt: string,
@@ -54,12 +60,6 @@ export interface DesktopBridge extends AgentBridge {
   createThread(workspaceId: string, requestId: string): Promise<SessionResponse>;
   renameThread(id: string, title: string): Promise<ThreadMetadata>;
   archiveThread(id: string, archived: boolean): Promise<ThreadMetadata>;
-  configureThread(
-    id: string,
-    provider: string,
-    modelId: string,
-    thinkingLevel: ThinkingLevel,
-  ): Promise<SessionResponse>;
   resume(id: string): Promise<void>;
   compact(id: string): Promise<void>;
   updateSettings(patch: Partial<DesktopSettings>): Promise<DesktopSettings>;

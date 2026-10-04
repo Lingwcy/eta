@@ -1,6 +1,10 @@
 import type { ImageAttachment } from "../../../src/images/types.ts";
 import type { OperationAdmission } from "../../../src/agent/protocol.ts";
-import type { SessionResponse, SnapshotResponse } from "../../../src/agent/protocol.ts";
+import type {
+  SessionResponse,
+  SnapshotResponse,
+  ThinkingLevel,
+} from "../../../src/agent/protocol.ts";
 import type { AgentBridge } from "../../../src/bridge.ts";
 
 export interface AgentClientState {
@@ -59,6 +63,24 @@ export class ThreadAgentClient {
     } catch (error) {
       if (!this.disposed) this.update({ connection: "error", error: message(error) });
     }
+  }
+
+  async configure(provider: string, modelId: string, thinkingLevel: ThinkingLevel) {
+    const sessionId = this.state.session?.id;
+    if (!sessionId || this.disposed) throw new Error("会话尚未打开");
+    const session = await this.bridge.configureThread(sessionId, provider, modelId, thinkingLevel);
+    if (this.disposed || this.state.session?.id !== session.id) return;
+    const observation = this.state.observation;
+    // Configuration replies may arrive after a newer subscription snapshot. Keep its history and run state.
+    this.update({
+      session: { id: session.id, model: session.model },
+      observation: observation
+        ? {
+            ...observation,
+            snapshot: { ...observation.snapshot, configuration: session.snapshot.configuration },
+          }
+        : { snapshot: session.snapshot, contextTokens: session.contextTokens },
+    });
   }
 
   async submit(prompt: string, images?: readonly ImageAttachment[]) {
