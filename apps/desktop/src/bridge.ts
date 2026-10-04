@@ -7,6 +7,7 @@ import type { DesktopSettings } from "./main/service/settings/index.ts";
 import type { ProjectMetadata } from "./main/service/projects/type.ts";
 import type { WorkspaceMetadata } from "./main/service/workspaces/type.ts";
 import type { ThreadMetadata } from "./main/service/threads/type.ts";
+import type { BrowserCommand, BrowserEvent, BrowserState } from "./browser/protocol.ts";
 
 export type AgentEvent =
   | { type: "snapshot"; value: SnapshotResponse }
@@ -47,6 +48,8 @@ export interface DesktopLibrary {
 }
 
 export interface DesktopBridge extends AgentBridge {
+  browser(command: BrowserCommand): Promise<BrowserState | null>;
+  subscribeBrowser(listener: (event: BrowserEvent) => void): () => void;
   library(): Promise<DesktopLibrary>;
   prepareImage(
     source: ImageSource,

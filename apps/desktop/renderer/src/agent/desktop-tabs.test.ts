@@ -1,0 +1,141 @@
+import { expect, test } from "vite-plus/test";
+import { DesktopTabs } from "./desktop-tabs";
+
+function setup() {
+  let id = 0;
+  return new DesktopTabs(() => `tab-${++id}`);
+}
+
+test("conversation drafts and project selection survive switching, closing and reopening", () => {
+  const tabs = setup();
+  const first = tabs.getSnapshot().activeId;
+  tabs.updateConversation(first, { workspaceId: "project-one", draft: "Unsent work" });
+  const second = tabs.newConversation("project-two");
+  tabs.updateConversation(second, { draft: "Other work" });
+  tabs.select(first);
+  tabs.close(first);
+  expect(tabs.getSnapshot().activeId).toBe(second);
+  expect(tabs.getSnapshot().tabs[0]).toMatchObject({
+    workspaceId: "project-two",
+    draft: "Other work",
+  });
+  tabs.reopen();
+  expect(tabs.getSnapshot().activeId).toBe(first);
+  expect(tabs.getSnapshot().tabs.find((tab) => tab.id === first)).toMatchObject({
+    workspaceId: "project-one",
+    draft: "Unsent work",
+  });
+});
+
+test("opening a saved thread and settings repeatedly focuses their existing tabs", () => {
+  const tabs = setup();
+  const thread = tabs.openThread("durable", "workspace");
+  tabs.newBrowser("https://example.com/");
+  expect(tabs.openThread("durable", "workspace")).toBe(thread);
+  tabs.openSettings();
+  const settings = tabs.getSnapshot().activeId;
+  tabs.select(thread);
+  tabs.openSettings();
+  expect(tabs.getSnapshot().activeId).toBe(settings);
+  expect(tabs.getSnapshot().tabs.filter((tab) => tab.kind === "settings")).toHaveLength(1);
+  expect(tabs.getSnapshot().tabs.filter((tab) => tab.kind === "conversation")).toHaveLength(1);
+});
+
+test("a late admission binds a closed draft without changing the selected view", () => {
+  const tabs = setup();
+  const draft = tabs.getSnapshot().activeId;
+  const web = tabs.newBrowser("https://example.com/");
+  tabs.close(draft);
+  tabs.updateConversation(draft, { threadId: "admitted", workspaceId: "original-project" });
+  expect(tabs.getSnapshot().activeId).toBe(web);
+  tabs.reopen();
+  expect(tabs.getSnapshot().tabs.find((tab) => tab.id === draft)).toMatchObject({
+    threadId: "admitted",
+    workspaceId: "original-project",
+  });
+});
+
+test("closing a background tab retains selection; closing the last tab opens a new conversation", () => {
+  const tabs = setup();
+  const first = tabs.getSnapshot().activeId;
+  const second = tabs.newBrowser("https://example.com/");
+  tabs.close(first);
+  expect(tabs.getSnapshot().activeId).toBe(second);
+  tabs.close(second);
+  expect(tabs.getSnapshot().tabs).toEqual([
+    { id: "tab-3", kind: "conversation", workspaceId: null, draft: "" },
+  ]);
+  tabs.reopen();
+  expect(tabs.getSnapshot().activeId).toBe(second);
+  expect(tabs.getSnapshot().tabs.find((tab) => tab.id === second)).toMatchObject({
+    url: "https://example.com/",
+  });
+});
+
+test.each(["conversation", "settings"] as const)(
+  "closing the final %s tab returns to a fresh conversation and can be reversed",
+  (kind) => {
+    const tabs = setup();
+    const initial = tabs.getSnapshot().activeId;
+    if (kind === "settings") {
+      tabs.openSettings();
+      tabs.close(initial);
+    } else tabs.updateConversation(initial, { draft: "Unsent work", workspaceId: "workspace" });
+    const closedId = tabs.getSnapshot().activeId;
+    tabs.close(closedId);
+    const fresh = tabs.getSnapshot().activeId;
+    expect(fresh).not.toBe(closedId);
+    expect(tabs.getSnapshot().tabs).toEqual([
+      { id: fresh, kind: "conversation", workspaceId: null, draft: "" },
+    ]);
+    tabs.reopen();
+    expect(tabs.getSnapshot().activeId).toBe(closedId);
+    expect(tabs.getSnapshot().tabs.find((tab) => tab.id === closedId)).toMatchObject(
+      kind === "conversation" ? { draft: "Unsent work", workspaceId: "workspace" } : { kind },
+    );
+  },
+);
+
+test("navigation truncates the forward path when a different tab is selected", () => {
+  const tabs = setup();
+  const first = tabs.getSnapshot().activeId;
+  const second = tabs.newBrowser();
+  tabs.openSettings();
+  const settings = tabs.getSnapshot().activeId;
+  tabs.navigate(-1);
+  expect(tabs.getSnapshot().activeId).toBe(second);
+  tabs.select(first);
+  tabs.navigate(1);
+  expect(tabs.getSnapshot().activeId).toBe(first);
+  expect(tabs.getSnapshot().history).not.toContain(settings);
+  tabs.close(second);
+  tabs.navigate(-1);
+  expect(tabs.getSnapshot().tabs.some((tab) => tab.id === tabs.getSnapshot().activeId)).toBe(true);
+});
+
+test("reordering and cycling preserve tab identity and draft contents", () => {
+  const tabs = setup();
+  const first = tabs.getSnapshot().activeId;
+  tabs.updateConversation(first, { draft: "Keep me" });
+  const second = tabs.newBrowser();
+  tabs.move(second, first);
+  expect(tabs.getSnapshot().tabs.map((tab) => tab.id)).toEqual([second, first]);
+  expect(tabs.getSnapshot().activeId).toBe(second);
+  tabs.cycle(-1);
+  expect(tabs.getSnapshot().activeId).toBe(first);
+  expect(tabs.getSnapshot().tabs[1]).toMatchObject({ draft: "Keep me" });
+});
+
+test("reopening a closed thread does not duplicate a thread already opened from history", () => {
+  const tabs = setup();
+  const id = tabs.openThread("thread", "workspace");
+  tabs.close(id);
+  const reopened = tabs.openThread("thread", "workspace");
+  tabs.reopen();
+  expect(tabs.getSnapshot().activeId).toBe(reopened);
+  expect(
+    tabs
+      .getSnapshot()
+      .tabs.filter((tab) => tab.kind === "conversation" && tab.threadId === "thread"),
+  ).toHaveLength(1);
+});

@@ -6,7 +6,6 @@ import { Alert } from "@/components/ui/alert";
 import { Tabs, TabsPanel } from "@/components/ui/tabs";
 import { DesktopLayout } from "./desktop-layout";
 import { NavigationRail } from "./sidebar/navigation-rail";
-import { SettingsToolbar } from "./settings/settings-toolbar";
 import { SettingsSidebar } from "./settings/settings-sidebar";
 import { SettingsPage } from "./settings/settings-page";
 import { settingsGroups } from "./settings/settings-categories";
@@ -14,6 +13,7 @@ import { AuthenticationSettings } from "./settings/authentication/authentication
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Props {
+  active?: boolean;
   library: DesktopLibrary;
   initialCategory?: string;
   onChooseProject: () => void;
@@ -35,12 +35,13 @@ export function DesktopSettings(props: Props) {
   );
   const [query, setQuery] = useState("");
   useEffect(() => {
+    if (props.active === false) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) props.onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [props.onClose]);
+  }, [props.onClose, props.active]);
   return (
     <Tabs
       value={category}
@@ -50,7 +51,6 @@ export function DesktopSettings(props: Props) {
     >
       <DesktopLayout
         collapsed={false}
-        toolbar={<SettingsToolbar onClose={props.onClose} />}
         sidebar={
           <>
             <NavigationRail

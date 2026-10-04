@@ -6,12 +6,15 @@ import { createDesktopApplication } from "./main/bootstrap.ts";
 import type { DesktopApplication } from "./main/bootstrap.ts";
 import { commandReply, dispatchCommand } from "./main/ipc.ts";
 import type { AgentEvent } from "./bridge.ts";
+import { createWindowBrowser, decodeBrowserCommand } from "./main/browser/electron.ts";
+import type { BrowserManager } from "./main/browser/manager.ts";
 
 let window: BrowserWindow | undefined;
 let agentService: DesktopApplication | undefined;
 let quitting = false;
 let ready = false;
 let startup: Promise<void> | undefined;
+let browser: BrowserManager | undefined;
 
 type Watch = { token: symbol; unsubscribe?: () => void };
 const watchers = new Map<number, Map<string, Watch>>();
@@ -61,7 +64,7 @@ function openWindow() {
     icon: applicationIconPath(),
     backgroundColor: "#e9e9e9",
     ...(process.platform === "darwin"
-      ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 16, y: 17 } }
+      ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 16, y: 13 } }
       : {}),
     webPreferences: {
       preload: resolve(app.getAppPath(), "dist/electron/preload.cjs"),
@@ -71,6 +74,12 @@ function openWindow() {
     },
   });
   window = currentWindow;
+  browser = createWindowBrowser(currentWindow);
+  currentWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => {
+    if (!isMainFrame || window !== currentWindow) return;
+    browser?.dispose();
+    browser = undefined;
+  });
   currentWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   currentWindow.webContents.on("will-navigate", (event, url) => {
     const allowed = devUrl
@@ -88,7 +97,10 @@ function openWindow() {
     watchers.delete(currentWindow.webContents.id);
   });
   currentWindow.on("closed", () => {
-    if (window === currentWindow) window = undefined;
+    if (window !== currentWindow) return;
+    browser?.dispose();
+    browser = undefined;
+    window = undefined;
   });
   const loaded = devUrl ? currentWindow.loadURL(target) : currentWindow.loadFile(rendererPath);
   void loaded.catch((error: unknown) => {
@@ -99,6 +111,14 @@ function openWindow() {
 
 ipcMain.handle("eta:command", (_event, command: unknown) =>
   commandReply(() => dispatchCommand(service(), command)),
+);
+ipcMain.handle("browser:command", (event, raw: unknown) =>
+  commandReply(() => {
+    if (quitting || !window || window.isDestroyed() || event.sender.id !== window.webContents.id)
+      throw new Error("浏览器窗口不可用");
+    browser ??= createWindowBrowser(window);
+    return browser.command(decodeBrowserCommand(raw));
+  }),
 );
 ipcMain.handle("eta:choose-project", () =>
   commandReply(async () => {
@@ -178,6 +198,8 @@ if (!app.requestSingleInstanceLock()) {
     if (quitting) return;
     event.preventDefault();
     quitting = true;
+    browser?.dispose();
+    browser = undefined;
     for (const [contentsId, subscriptions] of watchers)
       for (const id of subscriptions.keys()) stopWatching(contentsId, id);
     void (startup ?? Promise.resolve())

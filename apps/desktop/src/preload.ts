@@ -2,12 +2,19 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { AgentEvent, DesktopBridge } from "./bridge.ts";
 import type { CommandReply } from "./bridge.ts";
 import { unwrapReply } from "./command-reply.ts";
+import type { BrowserEvent } from "./browser/protocol.ts";
 
 async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
   return unwrapReply((await ipcRenderer.invoke(channel, ...args)) as CommandReply<A>);
 }
 
 const bridge: DesktopBridge = {
+  browser: (command) => invoke("browser:command", command),
+  subscribeBrowser(listener) {
+    const onEvent = (_event: Electron.IpcRendererEvent, value: BrowserEvent) => listener(value);
+    ipcRenderer.on("browser:event", onEvent);
+    return () => ipcRenderer.removeListener("browser:event", onEvent);
+  },
   prepareImage: (source, cwd, provider, modelId) =>
     invoke("eta:command", {
       type: "prepare-image",

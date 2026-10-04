@@ -6,7 +6,7 @@ import { initialAgentState, ThreadAgentClient } from "./client";
 const noopSubscribe = () => () => {};
 const getInitialState = () => initialAgentState;
 
-export function useThreadAgent(threadId: string | null, version = 0) {
+export function useThreadAgent(threadId: string | null, version = 0, active = true) {
   const [binding, setBinding] = useState<{ id: string; client: ThreadAgentClient } | null>(null);
   const client = binding?.id === threadId ? binding.client : null;
   useEffect(() => {
@@ -25,7 +25,7 @@ export function useThreadAgent(threadId: string | null, version = 0) {
     };
   }, [threadId, version]);
   const current = useSyncExternalStore(
-    client?.subscribe ?? noopSubscribe,
+    active ? (client?.subscribe ?? noopSubscribe) : noopSubscribe,
     client?.getSnapshot ?? getInitialState,
   );
   const state = current;

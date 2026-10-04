@@ -1,97 +1,62 @@
 import type { ImageAttachment } from "../../../src/images/types.ts";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useThinkingStatus } from "./use-thinking-status";
-import { useThreadActivity } from "./use-thread-activity";
 import { useThreadAgent } from "./use-thread-agent";
-import { useDesktopLibrary } from "./use-desktop-library";
+import { DraftThread } from "./draft-thread";
+import type { ConversationTab } from "./desktop-tabs";
+import type { DesktopLibraryController } from "./use-desktop-library";
+import type { DesktopTabController } from "./use-desktop-tabs";
 import type { InputModel } from "@/components/input/types";
 import type { ThinkingLevel } from "../../../src/agent/protocol";
+import { hasThreadActivity } from "./thread-activity";
 
-/** Connects desktop commands to presentation props; UI components never manage sessions. */
-export function useDesktopController() {
-  const desktop = useDesktopLibrary();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [version, setVersion] = useState(0);
-  const reconnect = () => setVersion((current) => current + 1);
-  const agent = useThreadAgent(desktop.threadId, version);
+/** A mounted conversation keeps its composer when another tab becomes active. */
+export function useDesktopController(
+  tab: ConversationTab,
+  desktop: DesktopLibraryController,
+  navigation: DesktopTabController,
+  active: boolean,
+  version: number,
+) {
+  const [localVersion, setLocalVersion] = useState(0);
+  const reconnect = () => setLocalVersion((value) => value + 1);
+  const agent = useThreadAgent(tab.threadId ?? null, version + localVersion, active);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+  const [draft] = useState(() => new DraftThread(tab.id, window.eta));
   const workspace = desktop.library?.workspaces.find(
-    (workspace) => workspace.id === desktop.workspaceId,
+    (workspace) => workspace.id === tab.workspaceId,
   );
   const project = desktop.library?.projects.find((project) => project.id === workspace?.projectId);
   const snapshot = agent.observation?.snapshot;
   const operation = snapshot?.operation;
-  const thinking = useThinkingStatus(desktop.threadId, snapshot);
+  const thinking = useThinkingStatus(tab.threadId ?? null, snapshot);
   const running = Boolean(
     ((operation || snapshot?.compacting) && !snapshot?.recoveryRequired) ||
     agent.admission ||
-    agent.submitting,
+    agent.submitting ||
+    pending,
   );
-  const runningThreadIds = useThreadActivity(desktop.threadId, snapshot, running);
+  const threadId = tab.threadId;
   const hasMessages =
     snapshot?.transcript.some(
       (entry) => entry.message.role === "user" || entry.message.role === "assistant",
     ) ?? false;
-  const failure =
-    desktop.error ??
-    agent.error ??
-    snapshot?.blockedReason ??
-    (!operation ? snapshot?.lastResult?.error?.message : undefined) ??
-    (snapshot?.faulted ? "Agent 已发生错误，请新建会话。" : undefined);
-  const openSettings = () => {
-    setSettingsOpen(true);
-  };
-  const newThread = useCallback(() => {
-    if (desktop.busy || !desktop.library) return;
-    desktop.newThread();
-    setSettingsOpen(false);
-  }, [desktop.busy, desktop.library, desktop.newThread]);
-  const chooseProject = () => void desktop.chooseProject();
-  const threadId = desktop.threadId;
-
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || !(event.metaKey || event.ctrlKey)) return;
-      if (event.key.toLowerCase() === "n") {
-        event.preventDefault();
-        newThread();
-      }
-      if (event.key.toLowerCase() === "b") {
-        event.preventDefault();
-        setCollapsed((current) => !current);
-      }
-      if (event.key === ",") {
-        event.preventDefault();
-        setSettingsOpen((open) => !open);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [newThread]);
-
+    if (threadId && snapshot && hasThreadActivity(snapshot)) navigation.activity.watch(threadId);
+  }, [threadId, snapshot, navigation.activity]);
+  const registerProject = async (rootPath: string, name: string) => {
+    await desktop.act(async () => {
+      const project = await window.eta.registerProject(rootPath, name);
+      const next = await desktop.refresh();
+      const workspace = next.workspaces.find(
+        (value) => value.projectId === project.id && value.kind === "project-root",
+      );
+      navigation.tabs.updateConversation(tab.id, { workspaceId: workspace?.id ?? null });
+    });
+  };
   return {
-    collapsed,
-    toolbar: {
-      collapsed,
-      canCreate: !desktop.busy && !!desktop.library,
-      onToggle: () => setCollapsed((current) => !current),
-      onNew: newThread,
-    },
-    sidebar: {
-      library: desktop.library,
-      runningThreadIds,
-      workspaceId: desktop.workspaceId,
-      threadId,
-      busy: desktop.busy,
-      collapsed,
-      onExpand: () => setCollapsed(false),
-      onSelect: desktop.select,
-      onNew: newThread,
-      onChoose: chooseProject,
-      onSettings: openSettings,
-    },
     transcript: { snapshot, running },
-    transcriptKey: threadId ?? "empty",
     welcome:
       !hasMessages && !running
         ? {
@@ -99,7 +64,13 @@ export function useDesktopController() {
             connecting: !!threadId && agent.connection === "connecting",
           }
         : null,
-    failure,
+    failure:
+      error ??
+      desktop.error ??
+      agent.error ??
+      snapshot?.blockedReason ??
+      (!operation ? snapshot?.lastResult?.error?.message : undefined) ??
+      (snapshot?.faulted ? "Agent 已发生错误，请新建会话。" : undefined),
     recovery:
       snapshot?.recoveryRequired && threadId
         ? {
@@ -125,15 +96,17 @@ export function useDesktopController() {
             projectName: project?.name,
             cwd: workspace?.cwd,
             worktree: workspace?.kind === "worktree",
-            busy: desktop.busy || !!threadId,
+            busy: desktop.busy || pending || !!threadId,
             library: desktop.library,
-            workspaceId: desktop.workspaceId,
-            onProject: desktop.selectWorkspace,
-            onCreateProject: desktop.registerProject,
+            workspaceId: tab.workspaceId,
+            onProject: (id: string | null) =>
+              navigation.tabs.updateConversation(tab.id, { workspaceId: id }),
+            onCreateProject: registerProject,
           }
         : null,
-    composerKey: desktop.viewKey,
     composer: {
+      value: tab.draft,
+      onChange: (draft: string) => navigation.tabs.updateConversation(tab.id, { draft }),
       model:
         agent.session?.model ??
         desktop.library?.models.find(
@@ -147,15 +120,13 @@ export function useDesktopController() {
       onModelChange: (model: InputModel, level: ThinkingLevel) => {
         if (running) return;
         void desktop.act(async () => {
-          if (threadId) {
-            await agent.configure(model.provider, model.id, level);
-          } else {
+          if (threadId) await agent.configure(model.provider, model.id, level);
+          else
             await window.eta.updateSettings({
               defaultProvider: model.provider,
               defaultModel: model.id,
               defaultThinkingLevel: level,
             });
-          }
         });
       },
       thinkingLevel:
@@ -164,43 +135,42 @@ export function useDesktopController() {
       contextWindow: agent.session?.model.contextWindow,
       cwd: workspace?.cwd,
       onSubmit: async (prompt: string, images?: readonly ImageAttachment[]) => {
-        if (!threadId) await desktop.submitDraft(prompt, images);
-        else {
-          desktop.clearError();
-          await agent.submit(prompt, images);
-          void desktop.refresh().catch(() => {});
+        desktop.clearError();
+        setError(undefined);
+        setPending(!threadId);
+        try {
+          let id = threadId;
+          if (id) await agent.submit(prompt, images);
+          else {
+            id = await draft.submit(tab.workspaceId, prompt, images);
+            navigation.tabs.updateConversation(tab.id, { threadId: id });
+          }
+          navigation.activity.watch(id);
+        } catch (error) {
+          if (!threadId && draft.persistedId)
+            navigation.tabs.updateConversation(tab.id, { threadId: draft.persistedId });
+          setError(error instanceof Error ? error.message : "无法发送消息");
+          throw error;
+        } finally {
+          setPending(false);
+          desktop.reload();
         }
       },
       onStop: () => void agent.stop(),
       isRunning: running,
       isStopping: agent.stopping || operation?.status === "aborting",
-      submitDisabled: !threadId && !desktop.workspaceId,
+      submitDisabled: !threadId && !tab.workspaceId,
       disabled:
         desktop.busy ||
         !desktop.library ||
+        pending ||
         (!!threadId &&
           (agent.connection !== "connected" ||
             snapshot?.faulted ||
             !!snapshot?.blockedReason ||
             !!snapshot?.recoveryRequired)),
-      onSettings: openSettings,
+      onSettings: () => navigation.tabs.openSettings(),
       placeholder: "随心输入",
     },
-    settings:
-      settingsOpen && desktop.library
-        ? {
-            library: desktop.library,
-            onChooseProject: chooseProject,
-            busy: desktop.busy,
-            act: desktop.act,
-            error: desktop.error,
-            reconnect,
-            refresh: async () => {
-              await desktop.refresh();
-              reconnect();
-            },
-            onClose: () => setSettingsOpen(false),
-          }
-        : null,
   };
 }
