@@ -76,12 +76,12 @@ export function SkillPicker({
       >
         <BookOpen size={17} aria-hidden="true" />
       </PopoverTrigger>
-      <PopoverContent>
-        <div className="flex items-center justify-between border-b border-neutral-100 p-3">
-          <span className="text-sm font-medium">技能</span>
+      <PopoverContent variant="menu" aria-label="选择技能">
+        <div className="flex h-7 shrink-0 items-center justify-between pl-2">
+          <span className="text-xs font-medium">技能</span>
           <Button
             variant="link"
-            size="sm"
+            size="compact"
             onClick={() => {
               setOpen(false);
               onSettings();
@@ -90,8 +90,9 @@ export function SkillPicker({
             管理
           </Button>
         </div>
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-1 p-2">
+        <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
+        <ScrollArea className="max-h-60 min-h-0 flex-1">
+          <div className="space-y-0.5">
             {activeSkills.map((skill) => (
               <div key={skill.id} className="flex items-center gap-1">
                 <span className="min-w-0 flex-1 truncate px-2 text-xs" title={skill.directory}>
@@ -99,7 +100,7 @@ export function SkillPicker({
                 </span>
                 <Button
                   variant="ghost-destructive"
-                  size="icon-xs"
+                  size="icon-tiny"
                   disabled={disabled || busy || !threadId}
                   aria-label={`移除已加载技能 ${skill.name}`}
                   onClick={() => {
@@ -122,7 +123,7 @@ export function SkillPicker({
               .map((skill) => (
                 <Button
                   key={skill.id}
-                  variant="ghost"
+                  variant="menu"
                   size="row-sm"
                   disabled={disabled || busy}
                   title={skill.description}
@@ -131,9 +132,11 @@ export function SkillPicker({
                     setOpen(false);
                   }}
                 >
-                  <span className="flex min-w-0 flex-col">
-                    <span>{skill.name}</span>
-                    <span className="truncate text-xs text-neutral-400">{skill.description}</span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="truncate text-xs">{skill.name}</span>
+                    <span className="truncate text-[11px] leading-3.5 opacity-60">
+                      {skill.description}
+                    </span>
                   </span>
                 </Button>
               ))}

@@ -1,4 +1,4 @@
-import { ArrowUp, Settings2, Square, Paperclip } from "lucide-react";
+import { ArrowUp, Square, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ContextIndicator } from "./context-indicator";
@@ -46,18 +46,6 @@ export function ActionToolbar({
             <Paperclip size={17} aria-hidden="true" />
           </Button>
         )}
-        <Button
-          type="button"
-          variant="accent"
-          size="compact"
-          onClick={onSettings}
-          disabled={!onSettings}
-          title="模型与认证设置"
-          aria-label="模型与认证设置"
-        >
-          <Settings2 size={18} aria-hidden="true" />
-          <span className="hidden min-[701px]:inline">配置</span>
-        </Button>
       </div>
       <div className="flex min-w-0 items-center gap-2.5">
         <ModelPicker

@@ -8,10 +8,10 @@
     "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[typescript]": {
-    "editor.defaultFormatter": "vscode.typescript-language-features"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[typescriptreact]": {
-    "editor.defaultFormatter": "vscode.typescript-language-features"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "oxc.disableNestedConfig": true,
   "oxc.fmt.disableNestedConfig": true,
@@ -19,5 +19,7 @@
   "editor.formatOnSaveMode": "file",
   "editor.codeActionsOnSave": {
     "source.fixAll.oxc": "explicit"
-  }
+  },
+  "js/ts.tsdk.path": "./node_modules/typescript",
+  "js/ts.experimental.useTsgo": true
 }
