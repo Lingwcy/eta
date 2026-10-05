@@ -20,7 +20,7 @@ const thinkingLevels = new Set<ThinkingLevel>([
   "max",
 ]);
 
-/** Read defaults for each new session so existing sessions keep their configuration. */
+/** Read legacy pi defaults for first-run import into desktop settings. */
 export async function readAgentSettings(
   path = join(homedir(), ".pi", "agent", "settings.json"),
 ): Promise<AgentSettings> {

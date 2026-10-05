@@ -5,7 +5,6 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { createModels, fauxProvider } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { readAgentCredentials } from "./agent-credentials.ts";
-import { MemoryHarnessService } from "./memory-harness.ts";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -30,19 +29,12 @@ test("pi API key makes the configured OpenCode model available without env authe
     authContext: { env: async () => undefined, fileExists: async () => false },
   });
   expect((await models.getAuth("opencode-go"))?.auth.apiKey).toBe("test-only-key");
-  const service = new MemoryHarnessService(models, process.cwd(), async () => ({
-    defaultProvider: "opencode-go",
-    defaultModel: "deepseek-v4-flash",
-    defaultThinkingLevel: "high",
-  }));
-  try {
-    const session = await service.create();
-    expect(session.model).toMatchObject({ provider: "opencode-go", id: "deepseek-v4-flash" });
-    expect(session.snapshot.configuration.thinkingLevel).toBe("high");
-    expect(await readFile(path, "utf8")).toBe(content);
-  } finally {
-    await service.close();
-  }
+  expect(await models.getAvailable()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ provider: "opencode-go", id: "deepseek-v4-flash" }),
+    ]),
+  );
+  expect(await readFile(path, "utf8")).toBe(content);
 });
 
 test("stored credentials take precedence and a missing auth file retains env fallback", async () => {

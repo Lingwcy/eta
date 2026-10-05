@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-import { createModels, fauxProvider } from "@earendil-works/pi-ai";
 import type { OperationAdmission } from "../../../src/agent/protocol.ts";
-import { MemoryHarnessService } from "../../../src/agent/memory-harness.ts";
 import type {
   SessionResponse,
   SnapshotResponse,
@@ -13,7 +11,6 @@ import { ThreadAgentClient } from "./client.ts";
 class TestBridge implements AgentBridge {
   session!: SessionResponse;
   listener?: (event: AgentEvent) => void;
-  deleted: string[] = [];
   unsubscribed = 0;
   openThread = async (_id: string) => this.session;
   configureThread = async (
@@ -37,9 +34,6 @@ class TestBridge implements AgentBridge {
   });
   submit = async (_sessionId: string, _prompt: string) => admission;
   stop = async (_sessionId: string) => {};
-  deleteSession = async (sessionId: string) => {
-    this.deleted.push(sessionId);
-  };
   subscribe = (_sessionId: string, listener: (event: AgentEvent) => void) => {
     this.listener = listener;
     return () => {
@@ -52,24 +46,39 @@ class TestBridge implements AgentBridge {
   }
 }
 
-let service: MemoryHarnessService;
 let session: SessionResponse;
 let bridge: TestBridge;
 const clients: ThreadAgentClient[] = [];
 const admission: OperationAdmission = { operationId: "admitted-run", kind: "run", startedAt: 1000 };
 
-beforeEach(async () => {
-  const models = createModels();
-  models.setProvider(fauxProvider().provider);
-  service = new MemoryHarnessService(models, process.cwd());
-  session = await service.create();
+beforeEach(() => {
+  session = {
+    id: "test-thread",
+    model: {
+      provider: "test-provider",
+      id: "test-model",
+      name: "Test model",
+      contextWindow: 64000,
+      thinkingLevels: ["off", "low", "high"],
+    },
+    snapshot: {
+      configuration: {
+        model: { provider: "test-provider", modelId: "test-model" },
+        thinkingLevel: "off",
+      },
+      transcript: [],
+      operation: null,
+      lastResult: null,
+      faulted: false,
+    },
+    contextTokens: 0,
+  };
   bridge = new TestBridge();
   bridge.session = session;
 });
 
-afterEach(async () => {
+afterEach(() => {
   for (const client of clients.splice(0)) client.dispose();
-  await service.close();
 });
 
 async function connectedClient() {
@@ -132,7 +141,7 @@ test("does not leave stale admission state when completion arrives before the in
   expect(client.getSnapshot().submitting).toBe(false);
 });
 
-test("a late open after disposal neither deletes history nor installs a subscription", async () => {
+test("a late open after disposal does not install a subscription", async () => {
   let finish!: (response: SessionResponse) => void;
   bridge.openThread = () => new Promise((resolve) => (finish = resolve));
   const client = new ThreadAgentClient(bridge);
@@ -141,24 +150,22 @@ test("a late open after disposal neither deletes history nor installs a subscrip
   client.dispose();
   finish(session);
   await connecting;
-  expect(bridge.deleted).toEqual([]);
   expect(bridge.listener).toBeUndefined();
   expect(client.getSnapshot().session).toBeNull();
 });
 
-test("disposal unsubscribes only once and never deletes persistent history", async () => {
+test("disposal unsubscribes only once", async () => {
   const client = await connectedClient();
   client.dispose();
   client.dispose();
   expect(bridge.unsubscribed).toBe(1);
-  expect(bridge.deleted).toEqual([]);
 });
 
-test("reports a missing memory session and asks for a new one", async () => {
+test("reports subscription errors from the main process", async () => {
   const client = await connectedClient();
-  bridge.listener?.({ type: "error", message: "内存会话已不存在，请新建会话。" });
+  bridge.listener?.({ type: "error", message: "会话不存在" });
   expect(client.getSnapshot().connection).toBe("error");
-  expect(client.getSnapshot().error).toContain("新建会话");
+  expect(client.getSnapshot().error).toBe("会话不存在");
 });
 
 test("a rejected prompt reports an error and releases the submission lock", async () => {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import type { Credential } from "@earendil-works/pi-ai";
 
-/** Import pi credentials at startup; harness auth updates stay in memory. */
+/** Read legacy pi credentials for first-run import without modifying the shared auth file. */
 export async function readAgentCredentials(path = join(homedir(), ".pi", "agent", "auth.json")) {
   const store = new InMemoryCredentialStore();
   let content: string;
