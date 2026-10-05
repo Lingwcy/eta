@@ -1,5 +1,6 @@
 import { openWithApplication } from "./main/platform/thread-file.ts";
 import { processImage } from "./main/platform/images.ts";
+import { resolveShellPath } from "./main/platform/shell-path.ts";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
@@ -274,6 +275,8 @@ if (!app.requestSingleInstanceLock()) {
   startup = app
     .whenReady()
     .then(async () => {
+      const shellPath = await resolveShellPath();
+      if (shellPath) process.env.PATH = shellPath;
       app.dock?.setIcon(applicationIconPath());
       const root = app.isPackaged ? app.getAppPath() : resolve(app.getAppPath(), "../..");
       const cwd = process.env.ETA_WORKSPACE ?? (app.isPackaged ? app.getPath("home") : root);
