@@ -1,4 +1,4 @@
-import type { getChatMessages } from "./chat-messages";
+import type { AgentSnapshot } from "../../../../src/agent/protocol.ts";
 
 export interface ChatTurn {
   id: string;
@@ -7,7 +7,9 @@ export interface ChatTurn {
 }
 
 /** One tick per user turn; tool rounds stay within that turn's preview. */
-export function getChatTurns(messages: ReturnType<typeof getChatMessages>): ChatTurn[] {
+export function getChatTurns(
+  messages: readonly Pick<AgentSnapshot["transcript"][number], "id" | "message">[],
+): ChatTurn[] {
   const turns: ChatTurn[] = [];
   for (const { id, message } of messages) {
     const text =

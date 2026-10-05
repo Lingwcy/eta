@@ -4,13 +4,16 @@ import ReactMarkdown from "react-markdown";
 import type { AgentSnapshot, SnapshotTool } from "../../../../src/agent/protocol.ts";
 import { TaskList } from "@/components/task-list";
 import { MessageUsage } from "./message-usage";
+import { ThinkingMessage } from "./thinking-message";
 
 export function ChatMessage({
   message,
   tools,
+  streaming = false,
 }: {
   message: AgentSnapshot["transcript"][number]["message"];
   tools: readonly SnapshotTool[];
+  streaming?: boolean;
 }) {
   if (message.role !== "user" && message.role !== "assistant") return null;
   const text =
@@ -29,10 +32,28 @@ export function ChatMessage({
       ? []
       : message.content.filter((content) => content.type === "toolCall");
   const messageTools = tools.filter((tool) => calls.some((call) => call.id === tool.toolCallId));
-  if (!text && !images.length && !messageTools.length) return null;
+  const thinking =
+    message.role === "assistant"
+      ? message.content
+          .filter((part) => part.type === "thinking")
+          .map((part) => part.thinking)
+          .filter((text) => text.trim())
+          .join("\n\n")
+      : "";
+  if (!text && !thinking && !images.length && !messageTools.length) return null;
   return (
     <Reveal>
       <div className="flex flex-col gap-3">
+        {thinking && (
+          <ThinkingMessage
+            text={thinking}
+            active={
+              streaming &&
+              message.role === "assistant" &&
+              message.content.at(-1)?.type === "thinking"
+            }
+          />
+        )}
         {images.length > 0 && (
           <div className="ml-auto flex max-w-[85%] flex-wrap justify-end gap-2">
             {images.map((image, index) => (

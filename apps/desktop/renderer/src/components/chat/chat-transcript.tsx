@@ -74,7 +74,12 @@ export function ChatTranscript({
                   <ChatMessage message={entry.message} tools={tools} />
                 </div>
               ) : (
-                <ChatMessage key={entry.id} message={entry.message} tools={tools} />
+                <ChatMessage
+                  key={entry.id}
+                  message={entry.message}
+                  tools={tools}
+                  streaming={entry.streaming}
+                />
               ),
             )}
             {children}

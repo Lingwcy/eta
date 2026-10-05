@@ -1,32 +1,32 @@
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Clock3, Sparkles } from "lucide-react";
 import { Status } from "@/components/ui/status";
-import { Shimmer } from "@/components/ui/shimmer";
 
-/** Displays the current harness operation with a timer that updates once a second. */
+/** Displays the observed phase duration without a continuously repainting activity animation. */
 export function AgentThinking({
   label = "正在思考",
   startedAt,
+  waiting = false,
 }: {
   label?: string;
   startedAt?: number;
+  waiting?: boolean;
 }) {
-  const [elapsed, setElapsed] = useState(() =>
-    startedAt ? Math.max(0, (Date.now() - startedAt) / 1000) : 0,
-  );
+  const [mountedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const started = startedAt ?? Date.now();
-    const update = () => setElapsed(Math.max(0, (Date.now() - started) / 1000));
+    const update = () => setNow(Date.now());
     update();
     const interval = window.setInterval(update, 1000);
     return () => window.clearInterval(interval);
   }, [startedAt]);
+  const elapsed = Math.max(0, (now - (startedAt ?? mountedAt)) / 1000);
   return (
     <Status
-      icon={<Sparkles size={18} className="animate-pulse motion-reduce:animate-none" />}
+      icon={waiting ? <Clock3 size={18} /> : <Sparkles size={18} />}
       detail={`${Math.floor(elapsed)}s`}
     >
-      <Shimmer>{label}</Shimmer>
+      <span>{waiting && elapsed >= 30 ? `${label}（耗时较长）` : label}</span>
     </Status>
   );
 }

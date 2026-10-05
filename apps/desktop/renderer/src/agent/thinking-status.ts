@@ -1,19 +1,31 @@
 import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
 
-export type ThinkingPhase = "waiting" | "thinking";
+export type ThinkingPhase = "waiting" | "continuing" | "thinking" | "retrying" | "deferred";
 
-/** Once a run has responded, gaps between text and tool rounds are never initial waiting again. */
+/** Track each observed response phase so tool-round gaps stay visible without restarting their timer. */
 export class ThinkingStatus {
   private runKey?: string;
   private responded = false;
+  private phase: ThinkingPhase | null = null;
+  private phaseKey?: string;
+  startedAt = 0;
 
-  update(threadId: string | null, snapshot?: AgentSnapshot): ThinkingPhase | null {
+  update(
+    threadId: string | null,
+    snapshot?: AgentSnapshot,
+    now = Date.now(),
+  ): ThinkingPhase | null {
     const operation = snapshot?.operation;
-    if (!operation) return null;
+    if (!operation) {
+      this.runKey = undefined;
+      this.responded = false;
+      return this.setPhase(null, now);
+    }
     const key = `${threadId}:${operation.id}`;
     if (key !== this.runKey) {
       this.runKey = key;
       this.responded = false;
+      this.phase = null;
     }
     const content = operation.streamingMessage?.content ?? [];
     const activePart = content.findLast((part) =>
@@ -34,10 +46,35 @@ export class ThinkingStatus {
       )
     )
       this.responded = true;
-    if (snapshot.recoveryRequired || snapshot.faulted || operation.status === "aborting")
-      return null;
-    if (operation.runningTools.some((tool) => tool.status === "running")) return null;
-    if (activePart?.type === "thinking") return "thinking";
-    return this.responded ? null : "waiting";
+    let phase: ThinkingPhase | null = null;
+    if (
+      !snapshot.recoveryRequired &&
+      !snapshot.faulted &&
+      !snapshot.blockedReason &&
+      operation.status !== "aborting" &&
+      !operation.runningTools.some((tool) => tool.status === "running")
+    ) {
+      if (operation.retry) phase = "retrying";
+      else if (operation.deferred) phase = "deferred";
+      else if (activePart?.type === "thinking") phase = "thinking";
+      else if (!activePart) phase = this.responded ? "continuing" : "waiting";
+    }
+    const response = snapshot.transcript.findLast(
+      ({ message }) =>
+        (message.role === "assistant" || message.role === "toolResult") &&
+        message.timestamp >= operation.startedAt,
+    );
+    // Fast tools can finish between delivered snapshots; the transcript still identifies the new round.
+    const phaseKey = `${key}:${operation.streamingMessage?.timestamp ?? response?.id ?? ""}:${operation.retry?.attempt ?? ""}`;
+    return this.setPhase(phase, phase === "waiting" ? operation.startedAt : now, phaseKey);
+  }
+
+  private setPhase(phase: ThinkingPhase | null, startedAt: number, phaseKey?: string) {
+    if (phase !== this.phase || phaseKey !== this.phaseKey) {
+      this.phase = phase;
+      this.phaseKey = phaseKey;
+      this.startedAt = startedAt;
+    }
+    return phase;
   }
 }

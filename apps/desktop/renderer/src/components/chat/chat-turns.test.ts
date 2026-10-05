@@ -1,10 +1,9 @@
 import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
-import type { getChatMessages } from "./chat-messages";
 import { getActiveTurn, getChatTurns } from "./chat-turns";
 
 test("navigation groups assistant tool rounds under their user turn", () => {
-  const messages: ReturnType<typeof getChatMessages> = [
+  const messages: Parameters<typeof getChatTurns>[0] = [
     { id: "first", message: { role: "user", content: "第一轮", timestamp: 1 } },
     { id: "answer", message: fauxAssistantMessage("先检查文件") },
     {

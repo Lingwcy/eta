@@ -13,14 +13,24 @@ export function getChatMessages(snapshot?: AgentSnapshot) {
     last.timestamp === streaming?.timestamp &&
     last.provider === streaming.provider &&
     last.model === streaming.model;
-  const messages = entries.map(({ id, message }) => ({ id, message }));
-  if (streaming && !saved) messages.push({ id: "streaming", message: streaming });
+  const messages = entries.map(({ id, message }) => ({ id, message, streaming: false }));
+  if (streaming && !saved)
+    messages.push({
+      id: "streaming",
+      message: streaming,
+      streaming:
+        snapshot.operation?.status === "running" &&
+        !snapshot.recoveryRequired &&
+        !snapshot.faulted &&
+        !snapshot.operation.retry &&
+        !snapshot.operation.deferred,
+    });
   const occurrences = new Map<string, number>();
-  return messages.map(({ id, message }) => {
-    if (message.role !== "assistant") return { id, message };
+  return messages.map(({ id, message, streaming }) => {
+    if (message.role !== "assistant") return { id, message, streaming };
     const identity = `assistant:${message.timestamp}:${message.provider}:${message.model}`;
     const occurrence = occurrences.get(identity) ?? 0;
     occurrences.set(identity, occurrence + 1);
-    return { id: `${identity}:${occurrence}`, message };
+    return { id: `${identity}:${occurrence}`, message, streaming };
   });
 }
