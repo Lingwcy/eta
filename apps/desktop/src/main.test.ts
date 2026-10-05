@@ -11,7 +11,8 @@ const state = vi.hoisted(() => ({
     number,
     { command: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> }
   >(),
-  service: { threadFile: vi.fn(), renameThread: vi.fn() },
+  libraryListener: undefined as (() => void) | undefined,
+  service: { threadFile: vi.fn(), renameThread: vi.fn(), subscribeLibrary: vi.fn() },
   shell: { openPath: vi.fn(), showItemInFolder: vi.fn(), openExternal: vi.fn() },
 }));
 vi.mock("./main/bootstrap.ts", () => ({ createDesktopApplication: async () => state.service }));
@@ -81,7 +82,16 @@ beforeEach(async () => {
   state.handlers.clear();
   state.managers.clear();
   state.service.threadFile.mockReset().mockResolvedValue("/eta/data/sessions/one/main.jsonl");
-  state.service.renameThread.mockReset().mockResolvedValue({ id: "one", title: "Renamed" });
+  state.service.subscribeLibrary.mockReset().mockImplementation((listener: () => void) => {
+    state.libraryListener = listener;
+    return () => {
+      state.libraryListener = undefined;
+    };
+  });
+  state.service.renameThread.mockReset().mockImplementation(async () => {
+    state.libraryListener?.();
+    return { id: "one", title: "Renamed" };
+  });
   state.shell.openPath.mockReset().mockResolvedValue("");
   await import("./main.ts");
   await vi.waitFor(() => expect(state.windows).toHaveLength(1));
@@ -131,6 +141,17 @@ test("successful thread mutations notify every open window to refresh its catalo
   expect(
     await call("eta:command", first, { type: "rename", id: "one", title: "Renamed" }),
   ).toMatchObject({ ok: true });
+  expect(first.webContents.send).toHaveBeenCalledWith("eta:library-changed");
+  expect(second.webContents.send).toHaveBeenCalledWith("eta:library-changed");
+});
+
+test("background title publication refreshes all windows without an IPC mutation", async () => {
+  const first = state.windows[0]!;
+  await call("eta:thread-window", first, "one");
+  const second = state.windows[1]!;
+  first.webContents.send.mockClear();
+  second.webContents.send.mockClear();
+  state.libraryListener?.();
   expect(first.webContents.send).toHaveBeenCalledWith("eta:library-changed");
   expect(second.webContents.send).toHaveBeenCalledWith("eta:library-changed");
 });

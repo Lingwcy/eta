@@ -20,6 +20,8 @@ import { SessionRepositoryService } from "../sessions/index.ts";
 import { DesktopSettingsService } from "../settings/index.ts";
 import { WorkspaceService } from "../workspaces/index.ts";
 import type { ThreadMetadata } from "./type.ts";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { startTitle } from "./title.ts";
 
 export type ThreadError = DesktopServiceError | CatalogError;
 export interface OpenThread extends SessionResponse {
@@ -165,6 +167,7 @@ export class ThreadService extends Context.Service<
                 workspaceId,
                 sessionRef: ref,
                 title: "新会话",
+                titleSource: "temporary",
                 createdAt: DateTime.toEpochMillis(yield* DateTime.now),
                 ...(requestId ? { requestId } : {}),
               };
@@ -239,7 +242,9 @@ export class ThreadService extends Context.Service<
             ? Effect.fail(
                 new DesktopServiceError({ code: "InvalidInput", message: "标题不能为空" }),
               )
-            : locked(change(id, (thread) => ({ ...thread, title: title.trim() }))),
+            : locked(
+                change(id, (thread) => ({ ...thread, title: title.trim(), titleSource: "manual" })),
+              ),
         archive: (id, archived) =>
           locked(
             Effect.gen(function* () {
@@ -268,18 +273,41 @@ export class ThreadService extends Context.Service<
           locked(
             Effect.gen(function* () {
               const runtime = yield* runtimeFor(id, true);
+              const current = yield* get(id);
+              const automatic =
+                current.titleSource === "temporary" ||
+                (current.titleSource === undefined && current.title === "新会话");
+              const titleModel = automatic
+                ? ((yield* settings.read).titleModel ??
+                  (yield* Effect.promise(() => runtime.conversation.agent(BACKGROUND_CONTEXT)))
+                    .model)
+                : undefined;
               const admission = yield* runs.submit(runtime, prompt, requestId, images);
               yield* change(id, (thread) => ({
                 ...thread,
                 title:
+                  automatic &&
+                  thread.titleSource !== "generated" &&
+                  thread.titleSource !== "manual" &&
                   thread.title === "新会话"
                     ? (prompt.trim() || images?.[0]?.name || "图片会话").slice(0, 80)
                     : thread.title,
+                ...(automatic &&
+                thread.titleSource !== "generated" &&
+                thread.titleSource !== "manual"
+                  ? { titleSource: "temporary" as const }
+                  : {}),
                 sessionRef: {
                   ...thread.sessionRef,
                   metadata: { ...thread.sessionRef.metadata, modifiedAt: admission.startedAt },
                 },
               })).pipe(Effect.catch((error) => Effect.logError(error.message)));
+              if (titleModel) {
+                yield* Effect.tryPromise({
+                  try: () => startTitle(runtime, titleModel, admission.operationId),
+                  catch: (error) => error,
+                }).pipe(Effect.catch((error) => Effect.logError(error)));
+              }
               return admission;
             }),
           ),

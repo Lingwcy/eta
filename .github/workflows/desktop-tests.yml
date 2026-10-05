@@ -28,5 +28,11 @@ jobs:
       - name: Build agent package
         run: vp run --no-cache @eta/agent#build
 
+      - name: Type-check repository scripts
+        run: vp run --no-cache typecheck
+
+      - name: Type-check desktop
+        run: vp run --no-cache @eta/desktop#typecheck
+
       - name: Run desktop tests
         run: vp run @eta/desktop#test

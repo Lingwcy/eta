@@ -127,16 +127,7 @@ ipcMain.handle("eta:command", (_event, command: unknown) =>
       typeof command === "object" &&
       command !== null &&
       "type" in command &&
-      [
-        "register-project",
-        "create",
-        "submit",
-        "rename",
-        "archive",
-        "move-thread",
-        "delete-thread",
-        "settings",
-      ].includes(String(command.type))
+      command.type === "settings"
     ) {
       notifyLibrary();
     }
@@ -195,7 +186,6 @@ ipcMain.handle("eta:choose-project", () =>
     const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
     if (result.canceled || !result.filePaths[0]) return null;
     const project = await application.registerProject(result.filePaths[0]);
-    notifyLibrary();
     return project;
   }),
 );
@@ -295,6 +285,7 @@ if (!app.requestSingleInstanceLock()) {
         processImage,
         (path) => shell.showItemInFolder(path),
       );
+      agentService.subscribeLibrary(notifyLibrary);
       ready = true;
       if (!quitting) openWindow();
     })

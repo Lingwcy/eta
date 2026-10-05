@@ -17,6 +17,10 @@ export function ModelPicker({
   models,
   providers = [],
   thinkingLevel = "off",
+  showThinking = true,
+  defaultOption,
+  placeholder = "选择模型",
+  side = "top",
   disabled,
   onChange,
   onSettings,
@@ -25,6 +29,10 @@ export function ModelPicker({
   models: readonly InputModel[];
   providers?: readonly InputProvider[];
   thinkingLevel?: ThinkingLevel;
+  showThinking?: boolean;
+  defaultOption?: { label: string; selected: boolean; onSelect: () => void };
+  placeholder?: string;
+  side?: "top" | "bottom";
   disabled: boolean;
   onChange?: (model: InputModel, level: ThinkingLevel) => void;
   onSettings?: () => void;
@@ -39,9 +47,10 @@ export function ModelPicker({
     : null;
   const visible = visiblePickerModels(models, availableProviders, activeProvider, query);
   const level = resolveThinkingLevel(model, thinkingLevel);
-  const thinkingLabel = model?.thinkingLevels.some((value) => value !== "off")
-    ? thinkingOptions.find((option) => option.value === level)?.label
-    : undefined;
+  const thinkingLabel =
+    showThinking && model?.thinkingLevels.some((value) => value !== "off")
+      ? thinkingOptions.find((option) => option.value === level)?.label
+      : undefined;
   return (
     <Popover.Root
       open={open}
@@ -58,8 +67,8 @@ export function ModelPicker({
     >
       <Popover.Trigger
         disabled={disabled}
-        aria-label="选择模型与思考级别"
-        title={model ? `${model.provider}/${model.id}` : "选择模型"}
+        aria-label={showThinking ? "选择模型与思考级别" : "选择模型"}
+        title={model ? `${model.provider}/${model.id}` : placeholder}
         className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent bg-transparent px-2.5 text-[13px] font-normal text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0"
       >
         {model && (
@@ -68,7 +77,7 @@ export function ModelPicker({
           </span>
         )}
         <span className="max-w-[105px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
-          {model?.name ?? "选择模型"}
+          {model?.name ?? (defaultOption?.selected ? defaultOption.label : placeholder)}
         </span>
         {thinkingLabel && <span className="shrink-0 text-neutral-400">{thinkingLabel}</span>}
         {open ? (
@@ -78,7 +87,7 @@ export function ModelPicker({
         )}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner side="top" align="end" sideOffset={8} className="z-30">
+        <Popover.Positioner side={side} align="end" sideOffset={8} className="z-30">
           <Popover.Popup
             aria-label="可用模型"
             initialFocus={searchInput}
@@ -148,10 +157,40 @@ export function ModelPicker({
               </div>
               <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-0.5 pb-1">
+                  {defaultOption && (
+                    <BaseButton
+                      aria-pressed={defaultOption.selected}
+                      disabled={disabled}
+                      onClick={() => {
+                        defaultOption.onSelect();
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        "flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-[10px] py-2 pr-2 pl-1.5 text-left text-[13px] text-neutral-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
+                        defaultOption.selected ? "bg-neutral-100" : "hover:bg-neutral-50",
+                      )}
+                    >
+                      <Grid2X2 size={18} aria-hidden="true" className="shrink-0 opacity-50" />
+                      <span className="min-w-0 flex-1 truncate">{defaultOption.label}</span>
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "flex size-3.5 shrink-0 items-center justify-center rounded-full border border-neutral-300",
+                          defaultOption.selected && "border-neutral-900 bg-neutral-900",
+                        )}
+                      >
+                        {defaultOption.selected && (
+                          <span className="size-[5px] rounded-full bg-white" />
+                        )}
+                      </span>
+                    </BaseButton>
+                  )}
                   {visible.map((entry) => {
                     const selected = entry.provider === model?.provider && entry.id === model.id;
-                    const showThinking =
-                      selected && entry.thinkingLevels.some((value) => value !== "off");
+                    const showThinkingControl =
+                      showThinking &&
+                      selected &&
+                      entry.thinkingLevels.some((value) => value !== "off");
                     const providerName =
                       availableProviders.find((provider) => provider.id === entry.provider)?.name ??
                       entry.provider;
@@ -167,9 +206,10 @@ export function ModelPicker({
                           aria-pressed={selected}
                           disabled={disabled || !onChange}
                           title={`${entry.provider}/${entry.id}`}
-                          onClick={() =>
-                            onChange?.(entry, resolveThinkingLevel(entry, thinkingLevel))
-                          }
+                          onClick={() => {
+                            onChange?.(entry, resolveThinkingLevel(entry, thinkingLevel));
+                            if (!showThinking) setOpen(false);
+                          }}
                           className={cn(
                             "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[10px] py-2 pr-2 pl-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
                             selected ? "hover:bg-neutral-100" : "hover:bg-neutral-50",
@@ -184,7 +224,9 @@ export function ModelPicker({
                               <span className="ml-1.5 text-neutral-400">{providerName}</span>
                             )}
                           </span>
-                          {showThinking && <span aria-hidden="true" className="w-14 shrink-0" />}
+                          {showThinkingControl && (
+                            <span aria-hidden="true" className="w-14 shrink-0" />
+                          )}
                           <span
                             aria-hidden="true"
                             className={cn(
@@ -195,7 +237,7 @@ export function ModelPicker({
                             {selected && <span className="size-[5px] rounded-full bg-white" />}
                           </span>
                         </BaseButton>
-                        {showThinking && (
+                        {showThinkingControl && (
                           <div className="absolute top-1/2 right-8 -translate-y-1/2">
                             <ThinkingLevelControl
                               key={`${entry.provider}/${entry.id}`}

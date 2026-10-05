@@ -6,6 +6,7 @@ import { DesktopServiceError } from "./service/errors.ts";
 import { ProjectError } from "./service/projects/index.ts";
 import { CatalogStorageError } from "./service/catalog/json-store.ts";
 import { CatalogValidationError } from "./service/catalog/schema.ts";
+import { TitleModelSchema } from "./service/settings/index.ts";
 
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
@@ -65,6 +66,7 @@ const Command = Schema.Union([
     patch: Schema.Struct({
       defaultProvider: Schema.optionalKey(Id),
       defaultModel: Schema.optionalKey(Id),
+      titleModel: Schema.optionalKey(TitleModelSchema),
       defaultThinkingLevel: Schema.optionalKey(
         Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
       ),

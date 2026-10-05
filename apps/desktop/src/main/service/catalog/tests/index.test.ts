@@ -45,6 +45,19 @@ test("persists a related set of records together and reads them after reopening"
   expect(await reopened.runPromise(other.read)).toEqual(catalogFixture());
 });
 
+test("catalog subscribers see adopted state after successful persistence and can unsubscribe", async () => {
+  const { catalog, runtime } = await setup();
+  const observations: Promise<CatalogState>[] = [];
+  const stop = catalog.subscribe(() => observations.push(runtime.runPromise(catalog.read)));
+  await runtime.runPromise(catalog.update(() => catalogFixture()));
+  expect(await Promise.all(observations)).toEqual([catalogFixture()]);
+  await runtime.runPromise(Effect.flip(catalog.update((state) => ({ ...state, workspaces: [] }))));
+  expect(observations).toHaveLength(1);
+  stop();
+  await runtime.runPromise(catalog.update(() => catalogFixture()));
+  expect(observations).toHaveLength(1);
+});
+
 test("serializes concurrent transformations without losing updates", async () => {
   const { catalog, runtime, storeLayer } = await setup();
   await runtime.runPromise(

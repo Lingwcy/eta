@@ -46,6 +46,7 @@ const ThreadSchema = Schema.Struct({
   }),
   archivedAt: Schema.optionalKey(Timestamp),
   title: Schema.String,
+  titleSource: Schema.optionalKey(Schema.Literals(["temporary", "generated", "manual"])),
   createdAt: Timestamp,
 });
 

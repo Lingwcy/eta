@@ -7,6 +7,7 @@ catalogMode: prefer
 
 catalog:
   "@effect/platform-node": 4.0.0-rc.117
+  "@effect/platform-node-shared": 4.0.0-rc.117
   "@tailwindcss/vite": ^4.3.3
   tailwindcss: ^4.3.3
   "@types/node": ^24
@@ -22,6 +23,8 @@ catalog:
   electron-builder: ^26.15.3
   "@cf-wasm/photon": ^0.4.0
 overrides:
+  # The adapter's ^rc range also accepts incompatible stable releases.
+  "@effect/platform-node-shared": "catalog:"
   vite@*: "catalog:"
 peerDependencyRules:
   allowAny:

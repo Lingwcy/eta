@@ -12,6 +12,7 @@ import { settingsGroups } from "./settings/settings-categories";
 import { AuthenticationSettings } from "./settings/authentication/authentication-settings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StorageSettings } from "./settings/storage-settings";
+import { ConversationSettings } from "./settings/conversation-settings";
 
 interface Props {
   active?: boolean;
@@ -80,7 +81,18 @@ export function DesktopSettings(props: Props) {
                       <Alert>{props.error}</Alert>
                     </div>
                   )}
-                  {item.id === "storage" ? (
+                  {item.id === "conversations" ? (
+                    <ConversationSettings
+                      library={props.library}
+                      busy={props.busy}
+                      onTitleModelChange={(titleModel) =>
+                        void props.act(async () => {
+                          await window.eta.updateSettings({ titleModel });
+                          await props.refresh();
+                        })
+                      }
+                    />
+                  ) : item.id === "storage" ? (
                     <StorageSettings active={props.active !== false && category === "storage"} />
                   ) : item.id === "permissions" ? (
                     <PermissionSettings

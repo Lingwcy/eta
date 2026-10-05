@@ -75,6 +75,7 @@ export async function createDesktopApplication(
     const cwdDefault = cwd;
     const run = <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect);
     return {
+      subscribeLibrary: (listener: () => void) => catalog.subscribe(listener),
       storage: async () => scanStorage(dataRoot, await run(catalog.read)),
       revealStorage: async (target: StorageTarget) =>
         revealPath(await storageTargetPath(dataRoot, target)),

@@ -11,12 +11,15 @@ import { AgentResourcesService } from "../resources/index.ts";
 import { SessionRepositoryService } from "../sessions/index.ts";
 import { normalizeThinkingLevel } from "../conversations/thinking.ts";
 import type { EtaSessionMetadata } from "../sessions/type.ts";
+import { DesktopCatalogService } from "../catalog/index.ts";
+import { createTitleTask, TitleDoc, TITLE_TASK_KIND } from "../threads/title.ts";
 
 export interface ThreadRuntime {
   readonly refreshTools: () => Promise<void>;
   readonly harness: Harness;
   readonly storage: Storage;
   readonly conversation: Conversation;
+  readonly titleTask: ReturnType<typeof createTitleTask>;
   readonly ref: EtaSessionMetadata;
   readonly watches: Set<ConversationWatch>;
   recoveryRequired: boolean;
@@ -46,6 +49,7 @@ export class RuntimeRegistryService extends Context.Service<
       const { models } = yield* ModelCatalogService;
       const preferences = yield* DesktopSettingsService;
       const resources = yield* AgentResourcesService;
+      const catalog = yield* DesktopCatalogService;
       const opening = new Map<string, Promise<ThreadRuntime>>();
       const releasing = new Map<string, Promise<void>>();
       let closing = false;
@@ -59,6 +63,11 @@ export class RuntimeRegistryService extends Context.Service<
         let harness: Harness | undefined;
         try {
           const registry = resources.registry(models);
+          const titleTask = createTitleTask(
+            async () => Boolean((await Effect.runPromise(preferences.read)).blockImages),
+            resources.processImage,
+          );
+          registry.install({ name: "desktop-thread-title", tasks: [titleTask] });
           const codingTools = registry.snapshot().extension("coding-tools")!;
           const refreshTools = async () => {
             const disabled = new Set<string>(
@@ -95,6 +104,9 @@ export class RuntimeRegistryService extends Context.Service<
                 },
               },
               registry,
+              conversationCreated: async (tx, conversation) => {
+                await tx.doc(TitleDoc, conversation.id);
+              },
               env: ({ cwd }) => {
                 const env = new NodeExecutionEnv({ cwd: cwd ?? ref.metadata.cwd });
                 environments.add(env);
@@ -112,7 +124,11 @@ export class RuntimeRegistryService extends Context.Service<
               message: "持久会话缺少根 conversation",
             });
           const inspection = await harness.inspect(BACKGROUND_CONTEXT);
-          const recoveryRequired = inspection.submissions.length > 0 || inspection.tasks.length > 0;
+          const recoveryRequired =
+            inspection.submissions.length > 0 ||
+            inspection.tasks.some(
+              ({ record }) => record.kind !== TITLE_TASK_KIND || !record.background,
+            );
           // Idle history can contain levels saved before the picker respected model capabilities.
           // Pending work retains its pinned request configuration until it is resumed or stopped.
           if (!recoveryRequired) await normalizeThinkingLevel(conversation, models);
@@ -120,6 +136,7 @@ export class RuntimeRegistryService extends Context.Service<
             harness,
             refreshTools,
             conversation,
+            titleTask,
             storage,
             ref,
             watches: new Set(),
@@ -128,8 +145,41 @@ export class RuntimeRegistryService extends Context.Service<
             running: false,
             disposed: false,
           };
+          // Older sessions acquire the application document when first opened after this upgrade.
+          await conversation.commit(async (tx) => {
+            await tx.doc(TitleDoc, conversation.id);
+          }, BACKGROUND_CONTEXT);
+          const titleWatch = await harness.watchDoc(TitleDoc, conversation.id, BACKGROUND_CONTEXT);
+          let titleDelivery = Promise.resolve();
+          const publishTitle = (value: NonNullable<typeof titleWatch>["value"]) => {
+            titleDelivery = Effect.runPromise(
+              Effect.gen(function* () {
+                const title = value?.title;
+                if (!title || record.disposed) return;
+                const current = (yield* catalog.read).threads.find(
+                  (thread) => thread.sessionRef.metadata.id === ref.metadata.id,
+                );
+                if (current?.titleSource !== "temporary") return;
+                yield* catalog.update((state) => ({
+                  ...state,
+                  threads: state.threads.map((thread) =>
+                    thread.id === current.id && thread.titleSource === "temporary"
+                      ? { ...thread, title, titleSource: "generated" as const }
+                      : thread,
+                  ),
+                }));
+              }).pipe(Effect.catch((error) => Effect.logError(error.message))),
+            );
+            return titleDelivery;
+          };
+          if (titleWatch) {
+            await publishTitle(titleWatch.value);
+            titleWatch.start(publishTitle);
+          }
           cleanups.set(record, async () => {
             record.disposed = true;
+            await titleWatch?.stop();
+            await titleDelivery;
             await Promise.all([...record.watches].map((watch) => watch.stop()));
             record.watches.clear();
             record.changes.clear();
@@ -144,6 +194,8 @@ export class RuntimeRegistryService extends Context.Service<
               }
             }
           });
+          // Only the title task may resume silently; foreground work still requires explicit recovery.
+          if (!recoveryRequired && inspection.tasks.length) harness.resume();
           return record;
         } catch (error) {
           if (harness) await harness.close(BACKGROUND_CONTEXT);

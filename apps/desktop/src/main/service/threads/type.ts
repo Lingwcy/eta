@@ -8,5 +8,6 @@ export interface ThreadMetadata {
   readonly sessionRef: SessionRef;
   readonly archivedAt?: number;
   readonly title: string;
+  readonly titleSource?: "temporary" | "generated" | "manual";
   readonly createdAt: number;
 }

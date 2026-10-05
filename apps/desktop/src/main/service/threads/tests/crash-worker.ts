@@ -18,7 +18,14 @@ const provider = fauxProvider({
 });
 provider.setResponses([fauxAssistantMessage("A deliberately unfinished response ".repeat(100))]);
 const models = createModels();
-models.setProvider(provider.provider);
+const titleProvider = fauxProvider({ provider: "eta-test", models: [{ id: "one" }] });
+models.setProvider({
+  ...provider.provider,
+  streamSimple: (model, context, options) =>
+    options?.sessionId?.endsWith(":title")
+      ? titleProvider.provider.streamSimple(model, context, options)
+      : provider.provider.streamSimple(model, context, options),
+});
 const runtime = ManagedRuntime.make(
   desktopServices(dataRoot, ModelCatalogService.layerWith(models)),
 );

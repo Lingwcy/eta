@@ -167,3 +167,30 @@ test("legacy defaults are normalized on load without losing unrelated preference
     blockImages: true,
   });
 });
+
+test("a separate title model persists and can be reset to follow the conversation", async () => {
+  const { runtime, settings, open } = await setup();
+  await runtime.runPromise(
+    settings.update({
+      defaultProvider: "eta-test",
+      defaultModel: "one",
+      titleModel: { provider: "eta-test", modelId: "plain" },
+    }),
+  );
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect(await next.runPromise(restored.read)).toMatchObject({
+    defaultProvider: "eta-test",
+    defaultModel: "one",
+    titleModel: { provider: "eta-test", modelId: "plain" },
+  });
+  await next.runPromise(restored.update({ titleModel: null }));
+  await next.dispose();
+  const final = open();
+  const following = await final.runPromise(DesktopSettingsService);
+  expect(await final.runPromise(following.read)).toMatchObject({
+    defaultModel: "one",
+    titleModel: null,
+  });
+});

@@ -8,6 +8,7 @@ export class DesktopCatalogService extends Context.Service<
   DesktopCatalogService,
   {
     readonly read: Effect.Effect<CatalogState>;
+    subscribe(listener: () => void): () => void;
     update(
       transform: (state: CatalogState) => CatalogState,
     ): Effect.Effect<CatalogState, CatalogError>;
@@ -17,6 +18,8 @@ export class DesktopCatalogService extends Context.Service<
     DesktopCatalogService,
     Effect.gen(function* () {
       const store = yield* CatalogStoreService;
+      const listeners = new Set<() => void>();
+      yield* Effect.addFinalizer(() => Effect.sync(() => listeners.clear()));
       const state = yield* SynchronizedRef.make(yield* store.load);
       const read = SynchronizedRef.get(state).pipe(Effect.map((value) => structuredClone(value)));
 
@@ -30,10 +33,30 @@ export class DesktopCatalogService extends Context.Service<
               yield* store.save(valid);
               return [structuredClone(valid), valid] as const;
             }),
-          ).pipe(Effect.uninterruptible),
+          ).pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                for (const listener of listeners) {
+                  try {
+                    listener();
+                  } catch (error) {
+                    console.error("Catalog listener failed", error);
+                  }
+                }
+              }),
+            ),
+            Effect.uninterruptible,
+          ),
       );
 
-      return DesktopCatalogService.of({ read, update });
+      return DesktopCatalogService.of({
+        read,
+        update,
+        subscribe: (listener) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+      });
     }),
   );
 }

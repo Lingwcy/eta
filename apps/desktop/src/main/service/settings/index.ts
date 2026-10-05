@@ -6,9 +6,14 @@ import { adapter, DesktopServiceError } from "../errors.ts";
 import { readJson, writeJson } from "../json-file.ts";
 import { ModelCatalogService } from "../models/index.ts";
 
+export const TitleModelSchema = Schema.NullOr(
+  Schema.Struct({ provider: Schema.NonEmptyString, modelId: Schema.NonEmptyString }),
+);
+
 export const SettingsSchema = Schema.Struct({
   defaultProvider: Schema.optionalKey(Schema.NonEmptyString),
   defaultModel: Schema.optionalKey(Schema.NonEmptyString),
+  titleModel: Schema.optionalKey(TitleModelSchema),
   defaultThinkingLevel: Schema.Literals([
     "off",
     "minimal",

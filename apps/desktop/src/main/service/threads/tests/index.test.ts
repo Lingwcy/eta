@@ -26,6 +26,7 @@ import { RuntimeRegistryService } from "../../runtime/index.ts";
 import { DesktopSettingsService } from "../../settings/index.ts";
 import { WorkspaceService } from "../../workspaces/index.ts";
 import { ThreadService } from "../index.ts";
+import { TitleDoc, TITLE_TASK_KIND } from "../title.ts";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];
@@ -46,7 +47,18 @@ async function setup(withImages = false) {
     tokensPerSecond: 1000,
   });
   const models = createModels();
-  models.setProvider(provider.provider);
+  const titleProvider = fauxProvider({
+    provider: "eta-test",
+    models: provider.models,
+    tokensPerSecond: 1000,
+  });
+  models.setProvider({
+    ...provider.provider,
+    streamSimple: (model, context, options) =>
+      options?.sessionId?.endsWith(":title")
+        ? titleProvider.provider.streamSimple(model, context, options)
+        : provider.provider.streamSimple(model, context, options),
+  });
   const reopen = () => {
     const runtime = ManagedRuntime.make(
       desktopServices(
@@ -65,8 +77,352 @@ async function setup(withImages = false) {
   const workspace = (await runtime.runPromise(workspaces.list(project.id)))[0]!;
   const threads = await runtime.runPromise(ThreadService);
   const registry = await runtime.runPromise(RuntimeRegistryService);
-  return { directory, cwd, runtime, provider, models, reopen, threads, registry, workspace };
+  return {
+    directory,
+    cwd,
+    runtime,
+    provider,
+    titleProvider,
+    models,
+    reopen,
+    threads,
+    registry,
+    workspace,
+  };
 }
+
+function holdResponse(provider: ReturnType<typeof fauxProvider>, text: string) {
+  const ready = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  provider.setResponses([
+    (_context, options) => {
+      ready.resolve();
+      options?.signal?.addEventListener(
+        "abort",
+        () => {
+          answer.resolve(fauxAssistantMessage("", { stopReason: "aborted" }));
+        },
+        { once: true },
+      );
+      return answer.promise;
+    },
+  ]);
+  return { ready: ready.promise, release: () => answer.resolve(fauxAssistantMessage(text)) };
+}
+
+test("title generation runs beside the main answer using the thread's selected model and stays out of its transcript", async () => {
+  const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
+  const main = holdResponse(provider, "Implemented the requested change");
+  let requestedModel: string | undefined;
+  titleProvider.setResponses([
+    (_context, options, _state, model) => {
+      requestedModel = model.id;
+      expect(options?.reasoning).toBeUndefined();
+      expect(getCurrentTools(_context.messages)).toHaveLength(0);
+      return fauxAssistantMessage("修复登录重定向");
+    },
+  ]);
+  const catalog = await runtime.runPromise(DesktopCatalogService);
+  const seen: string[] = [];
+  const stop = catalog.subscribe(() => {
+    void runtime.runPromise(catalog.read).then((state) => seen.push(state.threads[0]?.title ?? ""));
+  });
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.configure(created.id, "eta-test", "two", "high"));
+  await runtime.runPromise(threads.submit(created.id, "请修复登录后错误的重定向"));
+  await main.ready;
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await expect
+    .poll(async () => (await runtime.runPromise(threads.get(created.id))).title)
+    .toBe("修复登录重定向");
+  expect(requestedModel).toBe("two");
+  expect(record.running).toBe(true);
+  await expect.poll(() => seen.includes("修复登录重定向")).toBe(true);
+  stop();
+  expect(
+    (await record.harness.usage(BACKGROUND_CONTEXT)).models["eta-test/two"]?.totalTokens,
+  ).toBeGreaterThan(0);
+  main.release();
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  const snapshot = await runtime.runPromise(threads.open(created.id));
+  expect(snapshot.snapshot.transcript).toHaveLength(2);
+  expect(JSON.stringify(snapshot.snapshot.transcript)).not.toContain("修复登录重定向");
+  expect(snapshot.thread.titleSource).toBe("generated");
+});
+
+test("title generation can use a separately configured provider and model", async () => {
+  const { runtime, threads, registry, workspace, provider, models } = await setup();
+  const titles = fauxProvider({
+    provider: "titles",
+    models: [{ id: "small" }],
+    tokensPerSecond: 1000,
+  });
+  models.setProvider(titles.provider);
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await runtime.runPromise(
+    settings.update({ titleModel: { provider: "titles", modelId: "small" } }),
+  );
+  let titleModel: string | undefined;
+  titles.setResponses([
+    (_context, _options, _state, model) => {
+      titleModel = `${model.provider}/${model.id}`;
+      return fauxAssistantMessage("添加搜索功能");
+    },
+  ]);
+  provider.setResponses([fauxAssistantMessage("Done")]);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "添加搜索功能"));
+  await expect
+    .poll(async () => (await runtime.runPromise(threads.get(created.id))).titleSource)
+    .toBe("generated");
+  expect(titleModel).toBe("titles/small");
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  expect((await record.conversation.agent(BACKGROUND_CONTEXT)).model?.provider).toBe("eta-test");
+});
+
+test.each([
+  { blockImages: false, acceptsImages: true, expectedImages: 1 },
+  { blockImages: true, acceptsImages: true, expectedImages: 0 },
+  { blockImages: false, acceptsImages: false, expectedImages: 0 },
+])(
+  "title generation respects image settings and model capabilities: %j",
+  async ({ blockImages, acceptsImages, expectedImages }) => {
+    const { runtime, threads, registry, workspace, provider, models } = await setup(true);
+    const titles = fauxProvider({
+      provider: "titles",
+      models: [{ id: "small", input: acceptsImages ? ["text", "image"] : ["text"] }],
+      tokensPerSecond: 1000,
+    });
+    models.setProvider(titles.provider);
+    const settings = await runtime.runPromise(DesktopSettingsService);
+    await runtime.runPromise(
+      settings.update({ blockImages, titleModel: { provider: "titles", modelId: "small" } }),
+    );
+    const image = await processImage(
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+      "shot.png",
+    );
+    let imageCount: number | undefined;
+    titles.setResponses([
+      (context) => {
+        imageCount = context.messages
+          .filter((message) => message.role === "user")
+          .flatMap((message) => (typeof message.content === "string" ? [] : message.content))
+          .filter((part) => part.type === "image").length;
+        return fauxAssistantMessage("修复截图中的布局");
+      },
+    ]);
+    provider.setResponses([fauxAssistantMessage("Done")]);
+    const created = await runtime.runPromise(threads.create(workspace.id));
+    await runtime.runPromise(
+      threads.submit(created.id, "修复截图中的布局", "image-title", [image]),
+    );
+    const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+    const state = await record.harness.snapshot(
+      TitleDoc,
+      record.conversation.id,
+      BACKGROUND_CONTEXT,
+    );
+    expect(
+      (await record.harness.waitForTask(state!.taskId!, BACKGROUND_CONTEXT)).state.outcome.status,
+    ).toBe("completed");
+    expect(imageCount).toBe(expectedImages);
+  },
+);
+
+test("an unavailable title model keeps the temporary title while the main answer completes", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await runtime.runPromise(
+    settings.update({ titleModel: { provider: "removed", modelId: "missing" } }),
+  );
+  provider.setResponses([fauxAssistantMessage("Done")]);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "Keep this request"));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const state = await record.harness.snapshot(TitleDoc, record.conversation.id, BACKGROUND_CONTEXT);
+  expect(
+    (await record.harness.waitForTask(state!.taskId!, BACKGROUND_CONTEXT)).state.outcome.status,
+  ).toBe("failed");
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  const opened = await runtime.runPromise(threads.open(created.id));
+  expect(opened.thread.title).toBe("Keep this request");
+  expect(opened.snapshot.lastResult?.status).toBe("completed");
+  expect(opened.snapshot.faulted).toBe(false);
+});
+
+test("title generation never overwrites a manual rename even when it equals the temporary title", async () => {
+  const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
+  const title = holdResponse(titleProvider, "Generated title");
+  provider.setResponses([fauxAssistantMessage("Done")]);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "User request"));
+  await title.ready;
+  await runtime.runPromise(threads.rename(created.id, "User request"));
+  title.release();
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const state = await record.harness.snapshot(TitleDoc, record.conversation.id, BACKGROUND_CONTEXT);
+  await record.harness.waitForTask(state!.taskId!, BACKGROUND_CONTEXT);
+  expect(await runtime.runPromise(threads.get(created.id))).toMatchObject({
+    title: "User request",
+    titleSource: "manual",
+  });
+});
+
+test.each(["新会话", "My title"])(
+  "title generation respects a name set before the first message: %s",
+  async (name) => {
+    const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
+    provider.setResponses([fauxAssistantMessage("Done")]);
+    const created = await runtime.runPromise(threads.create(workspace.id));
+    await runtime.runPromise(threads.rename(created.id, name));
+    await runtime.runPromise(threads.submit(created.id, "User request"));
+    const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    expect(titleProvider.state.callCount).toBe(0);
+    expect(await runtime.runPromise(threads.get(created.id))).toMatchObject({
+      title: name,
+      titleSource: "manual",
+    });
+  },
+);
+
+test.each(["error", "empty"])(
+  "title generation failure keeps the temporary title and does not repeat on later turns: %s",
+  async (failure) => {
+    const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
+    titleProvider.setResponses([
+      fauxAssistantMessage(
+        "",
+        failure === "error" ? { stopReason: "error", errorMessage: "Unavailable" } : {},
+      ),
+    ]);
+    provider.setResponses([
+      fauxAssistantMessage("First answer"),
+      fauxAssistantMessage("Second answer"),
+    ]);
+    const created = await runtime.runPromise(threads.create(workspace.id));
+    await runtime.runPromise(threads.submit(created.id, "First request"));
+    const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+    const state = await record.harness.snapshot(
+      TitleDoc,
+      record.conversation.id,
+      BACKGROUND_CONTEXT,
+    );
+    const task = await record.harness.waitForTask(state!.taskId!, BACKGROUND_CONTEXT);
+    expect(task.state.outcome.status).toBe("failed");
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    await expect.poll(() => record.running).toBe(false);
+    await runtime.runPromise(threads.submit(created.id, "Second request"));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    expect(titleProvider.state.callCount).toBe(1);
+    const opened = await runtime.runPromise(threads.open(created.id));
+    expect(opened.thread.title).toBe("First request");
+    expect(opened.snapshot.faulted).toBe(false);
+    expect(opened.snapshot.lastResult?.status).toBe("completed");
+  },
+);
+
+test("title generation is admitted once when the first request is retried", async () => {
+  const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
+  const main = holdResponse(provider, "Done");
+  titleProvider.setResponses([fauxAssistantMessage("One title")]);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const first = await runtime.runPromise(threads.submit(created.id, "First request", "first"));
+  expect(await runtime.runPromise(threads.submit(created.id, "First request", "first"))).toEqual(
+    first,
+  );
+  await expect.poll(() => titleProvider.state.callCount).toBe(1);
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  expect(
+    (await record.storage.scanTasks({ kind: TITLE_TASK_KIND }, 10, undefined, BACKGROUND_CONTEXT))
+      .items,
+  ).toHaveLength(1);
+  main.release();
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+});
+
+test("stopping a thread cancels its pending title without affecting its temporary name", async () => {
+  const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
+  const title = holdResponse(titleProvider, "Should not apply");
+  const main = holdResponse(provider, "Should not finish");
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "Keep this name"));
+  await Promise.all([title.ready, main.ready]);
+  await runtime.runPromise(threads.stop(created.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const state = await record.harness.snapshot(TitleDoc, record.conversation.id, BACKGROUND_CONTEXT);
+  expect(
+    (await record.harness.waitForTask(state!.taskId!, BACKGROUND_CONTEXT)).state.outcome.status,
+  ).toBe("aborted");
+  expect(state?.title).toBeUndefined();
+  expect((await runtime.runPromise(threads.get(created.id))).title).toBe("Keep this name");
+});
+
+test("title-only unfinished work resumes on reopen without requesting foreground recovery and keeps its pinned model", async () => {
+  const { runtime, threads, registry, workspace, provider, titleProvider, reopen } = await setup();
+  const title = holdResponse(titleProvider, "Interrupted title");
+  provider.setResponses([fauxAssistantMessage("Done")]);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.configure(created.id, "eta-test", "two", "off"));
+  await runtime.runPromise(threads.submit(created.id, "Original request"));
+  await title.ready;
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await expect.poll(() => record.running).toBe(false);
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await runtime.runPromise(
+    settings.update({ titleModel: { provider: "eta-test", modelId: "plain" } }),
+  );
+  await record.harness.close(BACKGROUND_CONTEXT);
+  await runtime.dispose();
+  let requested: string | undefined;
+  titleProvider.setResponses([
+    (_context, _options, _state, model) => {
+      requested = model.id;
+      return fauxAssistantMessage("Restored title");
+    },
+  ]);
+  const next = reopen();
+  const nextThreads = await next.runPromise(ThreadService);
+  const opened = await next.runPromise(nextThreads.open(created.id));
+  expect(opened.snapshot.recoveryRequired).toBe(false);
+  await expect
+    .poll(async () => (await next.runPromise(nextThreads.get(created.id))).title)
+    .toBe("Restored title");
+  expect(requested).toBe("two");
+});
+
+test("a completed generated title survives restart and later messages without another title request", async () => {
+  const { runtime, threads, registry, workspace, provider, titleProvider, reopen } = await setup();
+  titleProvider.setResponses([fauxAssistantMessage("持久化会话标题")]);
+  provider.setResponses([
+    fauxAssistantMessage("First answer"),
+    fauxAssistantMessage("Second answer"),
+  ]);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "Original request"));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.harness.waitForIdle(BACKGROUND_CONTEXT);
+  await expect
+    .poll(async () => (await runtime.runPromise(threads.get(created.id))).title)
+    .toBe("持久化会话标题");
+  await runtime.dispose();
+  const next = reopen();
+  const nextThreads = await next.runPromise(ThreadService);
+  expect((await next.runPromise(nextThreads.open(created.id))).thread.titleSource).toBe(
+    "generated",
+  );
+  await next.runPromise(nextThreads.submit(created.id, "A different request"));
+  const nextRegistry = await next.runPromise(RuntimeRegistryService);
+  const nextRecord = await next.runPromise(nextRegistry.acquire(created.thread.sessionRef));
+  await nextRecord.harness.waitForIdle(BACKGROUND_CONTEXT);
+  expect((await next.runPromise(nextThreads.get(created.id))).title).toBe("持久化会话标题");
+  expect(titleProvider.state.callCount).toBe(1);
+});
 
 test("model switches persist supported levels and send the same effort shown in the thread", async () => {
   const { runtime, threads, registry, workspace, provider, reopen } = await setup();
