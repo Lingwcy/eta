@@ -285,10 +285,10 @@ export function DesktopTabBar({
           return (
             payload && (
               <PreviewCard.Portal>
-                <PreviewCard.Positioner side="bottom" align="start" sideOffset={8} className="z-50">
-                  <PreviewCard.Popup className="w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 text-neutral-800 shadow-[0_10px_30px_#00000012] outline-none [-webkit-app-region:no-drag]">
-                    <p className="truncate text-sm font-semibold">{payload.title}</p>
-                    <p className="mt-1 truncate text-xs text-neutral-400">
+                <PreviewCard.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
+                  <PreviewCard.Popup className="w-64 max-w-[calc(100vw-32px)] overflow-hidden rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 p-2 text-xs text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl [-webkit-app-region:no-drag]">
+                    <p className="truncate font-medium">{payload.title}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-neutral-400">
                       {payload.running ? "正在执行 · " : ""}
                       {payload.subtitle}
                     </p>
@@ -296,11 +296,11 @@ export function DesktopTabBar({
                       <img
                         src={payload.preview}
                         alt={`${payload.title} 的页面预览`}
-                        className="mt-4 aspect-video w-full rounded-lg object-cover object-top"
+                        className="mt-2 aspect-video w-full rounded-[5px] object-cover object-top"
                       />
                     ) : (
-                      <div className="mt-4 rounded-xl bg-neutral-100 px-3.5 py-3 text-[13px] leading-6">
-                        <p className="line-clamp-4 whitespace-pre-wrap">{payload.text}</p>
+                      <div className="mt-2 rounded-[5px] bg-black/4 px-2 py-1.5 leading-5">
+                        <p className="line-clamp-3 whitespace-pre-wrap">{payload.text}</p>
                       </div>
                     )}
                   </PreviewCard.Popup>

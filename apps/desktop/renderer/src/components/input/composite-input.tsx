@@ -151,7 +151,7 @@ export function CompositeInput({
         void addFiles(Array.from(event.dataTransfer.files));
       }}
       className={cn(
-        "relative flex w-full flex-col gap-5 rounded-[20px] border border-neutral-200/80 bg-white p-3 shadow-[0_2px_6px_#00000003,0_9px_35px_#00000004] focus-within:border-neutral-300 min-[701px]:rounded-[24px] min-[701px]:px-4 min-[701px]:pt-4 min-[701px]:pb-3",
+        "relative flex w-full flex-col gap-3 rounded-[24px] bg-white p-4 shadow-[0_2px_6px_#00000006,0_1px_2px_#00000003] min-[701px]:px-5 min-[701px]:pt-5 min-[701px]:pb-3",
         dragging && "ring-2 ring-neutral-400",
         className,
       )}

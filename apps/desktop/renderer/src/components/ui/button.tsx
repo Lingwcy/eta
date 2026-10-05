@@ -12,6 +12,7 @@ const buttonVariants = cva(
         secondary: "bg-neutral-100 text-neutral-700 hover:bg-neutral-200",
         outline: "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
         ghost: "text-neutral-700 hover:bg-neutral-200/50",
+        menu: "cursor-default text-neutral-800 hover:bg-[#007aff] hover:text-white",
         "ghost-muted": "text-neutral-400 hover:bg-neutral-200/50 hover:text-neutral-700",
         "ghost-destructive": "text-red-600 hover:bg-red-50",
         accent: "text-[#ed714b] hover:bg-orange-50 hover:text-[#cf5530]",
@@ -26,6 +27,8 @@ const buttonVariants = cva(
         row: "h-auto w-full justify-start px-2 py-1.5 text-left font-normal",
         "row-sm": "h-auto w-full justify-start px-2 py-1.5 text-left text-[13px] font-normal",
         "row-compact": "h-7 w-full justify-start px-2 text-left text-[13px] font-normal",
+        "menu-item":
+          "h-[26px] w-full justify-start gap-1.5 rounded-[5px] px-2 text-left text-xs font-normal [&_svg]:size-3.5 [&_svg]:stroke-[1.7]",
         icon: "size-9 rounded-xl",
         "icon-sm": "size-[30px] rounded-lg",
         "icon-xs": "size-7 rounded-md",

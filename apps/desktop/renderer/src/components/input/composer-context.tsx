@@ -29,10 +29,10 @@ export function ComposerContext({
   onCreateProject: (rootPath: string, name: string) => Promise<void>;
 }) {
   return (
-    <div className="mx-2 flex items-center gap-3 rounded-t-2xl bg-neutral-100 px-3 pt-2 pb-3 text-[13px] text-neutral-700 min-[701px]:mx-3.5 min-[901px]:gap-5">
+    <div className="mx-5 -mb-1 flex h-[38px] items-center gap-3 rounded-t-2xl bg-neutral-200/60 px-3 pb-1 text-[13px] text-neutral-500 min-[701px]:mx-7 min-[901px]:gap-5">
       <Suspense
         fallback={
-          <Button variant="secondary" size="pill" disabled>
+          <Button variant="ghost" size="pill" disabled>
             {projectName ?? "选择项目"}
           </Button>
         }

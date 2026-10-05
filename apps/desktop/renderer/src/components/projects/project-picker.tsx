@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { FolderClosed, Plus, X } from "lucide-react";
+import { Check, FolderClosed, Plus } from "lucide-react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
-import { Kbd } from "@/components/ui/kbd";
 import { Command, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { CreateProjectDialog } from "./create-project-dialog";
 
@@ -58,19 +56,6 @@ export function ProjectPicker({
   return (
     <>
       <div className="flex min-w-0 items-center gap-1">
-        {workspaceId && (
-          <Tooltip content="不在项目中工作">
-            <Button
-              variant="default"
-              size="icon-tiny"
-              disabled={disabled}
-              aria-label="移除已选项目"
-              onClick={() => onSelect(null)}
-            >
-              <X size={14} aria-hidden="true" />
-            </Button>
-          </Tooltip>
-        )}
         <Popover
           open={open}
           onOpenChange={(next) => {
@@ -78,42 +63,36 @@ export function ProjectPicker({
             if (!next) setQuery("");
           }}
         >
-          <Tooltip
-            content={
-              workspaceId ? (
-                cwd
-              ) : (
-                <span className="flex items-center gap-2">
-                  选择一个项目来运行聊天<Kbd variant="badge">⌥⇧⌘O</Kbd>
-                </span>
-              )
-            }
+          <PopoverTrigger
+            disabled={disabled}
+            openOnHover
+            delay={120}
+            closeDelay={180}
+            aria-label="选择项目"
+            aria-keyshortcuts="Control+Alt+Shift+O Meta+Alt+Shift+O"
+            aria-description={cwd}
+            render={<Button variant="ghost" size="pill" selected={open} />}
           >
-            <PopoverTrigger
-              disabled={disabled}
-              render={<Button variant={workspaceId ? "ghost" : "secondary"} size="pill" />}
-            >
-              {!workspaceId && <FolderClosed size={17} aria-hidden="true" />}
-              <span className="max-w-40 truncate">{projectName ?? "选择项目"}</span>
-            </PopoverTrigger>
-          </Tooltip>
-          <PopoverContent aria-label="选择项目">
+            <FolderClosed size={17} aria-hidden="true" />
+            <span className="max-w-40 truncate">{projectName ?? "选择项目"}</span>
+          </PopoverTrigger>
+          <PopoverContent variant="menu" aria-label="选择项目">
             <Command
               items={options}
               mode="none"
               inline
               open
-              autoHighlight="always"
+              autoHighlight={false}
               value={query}
               onValueChange={setQuery}
               itemToStringValue={(option) => option.label}
             >
-              <div className="mx-3 border-b border-neutral-200">
-                <CommandInput variant="search" aria-label="搜索项目" placeholder="搜索项目" />
-              </div>
-              <CommandList size="compact">
+              <CommandInput variant="menu-search" aria-label="搜索项目" placeholder="搜索项目" />
+              <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
+              <CommandList size="menu">
                 {options.map((option) => (
                   <CommandItem
+                    variant="menu"
                     key={option.id}
                     value={option}
                     title={option.cwd}
@@ -124,20 +103,22 @@ export function ProjectPicker({
                     }}
                   >
                     <FolderClosed size={17} aria-hidden="true" />
-                    <span className="truncate">{option.label}</span>
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    {option.id === workspaceId && <Check size={17} aria-hidden="true" />}
                   </CommandItem>
                 ))}
                 {!options.length && (
-                  <p className="px-3 py-4 text-sm text-neutral-400">
+                  <p className="px-2 py-3 text-xs text-neutral-400">
                     {query ? "没有匹配的项目" : "还没有项目"}
                   </p>
                 )}
               </CommandList>
             </Command>
-            <div className="mx-3 shrink-0 border-t border-neutral-200 py-2">
+            <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
+            <div className="shrink-0">
               <Button
-                variant="ghost"
-                size="row"
+                variant="menu"
+                size="menu-item"
                 disabled={disabled}
                 onClick={() => {
                   setOpen(false);
