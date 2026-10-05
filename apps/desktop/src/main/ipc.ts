@@ -11,6 +11,13 @@ import { TitleModelSchema } from "./service/settings/index.ts";
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
 const Command = Schema.Union([
+  Schema.Struct({ type: Schema.Literal("skills"), cwd: Schema.optional(Id) }),
+  Schema.Struct({
+    type: Schema.Literal("open-skills-directory"),
+    path: Id,
+    cwd: Schema.optional(Id),
+  }),
+  Schema.Struct({ type: Schema.Literal("unload-skill"), id: Id, name: Id }),
   Schema.Struct({ type: Schema.Literal("storage") }),
   Schema.Struct({
     type: Schema.Literal("reveal-storage"),
@@ -72,6 +79,9 @@ const Command = Schema.Union([
       ),
       activeThreadId: Schema.optionalKey(Id),
       disabledTools: Schema.optionalKey(Schema.Array(Schema.Literals(builtinToolNames))),
+      skillsEnabled: Schema.optionalKey(Schema.Boolean),
+      skillDirectories: Schema.optionalKey(Schema.Array(Id)),
+      disabledSkills: Schema.optionalKey(Schema.Array(Id)),
       blockImages: Schema.optionalKey(Schema.Boolean),
     }),
   }),
@@ -98,6 +108,12 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     throw new DesktopServiceError({ code: "InvalidInput", message: "请求参数无效" });
   }
   switch (command.type) {
+    case "skills":
+      return application.skills(command.cwd);
+    case "open-skills-directory":
+      return application.openSkillsDirectory(command.path, command.cwd);
+    case "unload-skill":
+      return application.unloadSkill(command.id, command.name);
     case "storage":
       return application.storage();
     case "reveal-storage":

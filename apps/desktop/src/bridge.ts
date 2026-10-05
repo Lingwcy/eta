@@ -9,6 +9,7 @@ import type { WorkspaceMetadata } from "./main/service/workspaces/type.ts";
 import type { ThreadMetadata } from "./main/service/threads/type.ts";
 import type { BrowserCommand, BrowserEvent, BrowserState } from "./browser/protocol.ts";
 import type { StorageReport, StorageTarget } from "./main/storage/types.ts";
+import type { SkillCatalog } from "./skills/types.ts";
 
 export type AgentEvent =
   | { type: "snapshot"; value: SnapshotResponse }
@@ -49,6 +50,9 @@ export interface DesktopLibrary {
 }
 
 export interface DesktopBridge extends AgentBridge {
+  skills(cwd?: string): Promise<SkillCatalog>;
+  openSkillsDirectory(path: string, cwd?: string): Promise<void>;
+  unloadSkill(id: string, name: string): Promise<void>;
   subscribeLibrary(listener: () => void): () => void;
   openThreadWindow(id: string): Promise<void>;
   openThreadFile(id: string, mode: "default" | "reveal" | "choose"): Promise<void>;

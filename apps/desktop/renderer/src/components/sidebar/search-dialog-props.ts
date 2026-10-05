@@ -9,4 +9,5 @@ export interface SearchDialogProps {
   onSelect: (id: string) => void;
   onNew: () => void;
   onChoose: () => void;
+  onSkills: () => void;
 }

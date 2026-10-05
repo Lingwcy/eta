@@ -9,6 +9,10 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 }
 
 const bridge: DesktopBridge = {
+  skills: (cwd) => invoke("eta:command", { type: "skills", ...(cwd ? { cwd } : {}) }),
+  openSkillsDirectory: (path, cwd) =>
+    invoke("eta:command", { type: "open-skills-directory", path, ...(cwd ? { cwd } : {}) }),
+  unloadSkill: (id, name) => invoke("eta:command", { type: "unload-skill", id, name }),
   subscribeLibrary(listener) {
     ipcRenderer.on("eta:library-changed", listener);
     return () => ipcRenderer.removeListener("eta:library-changed", listener);

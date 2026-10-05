@@ -45,6 +45,8 @@ export function DesktopPanels({ shell }: { shell: DesktopShell }) {
                 <Suspense fallback={<SettingsLoading />}>
                   {shell.desktop.library ? (
                     <DesktopSettings
+                      initialCategory={tab.category}
+                      categoryRevision={tab.categoryRevision}
                       active={active}
                       library={shell.desktop.library}
                       onChooseProject={shell.chooseProject}
@@ -88,6 +90,7 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
             onNew={() => tabs.newConversation()}
             onChoose={shell.chooseProject}
             onSettings={() => tabs.openSettings()}
+            onSkills={() => tabs.openSettings("skills")}
             onSelect={shell.selectThread}
           />
         }

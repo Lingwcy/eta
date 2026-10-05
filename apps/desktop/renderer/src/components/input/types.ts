@@ -2,6 +2,7 @@ import type { ImageAttachment } from "../../../../src/images/types.ts";
 import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
 import type { AgentModel } from "../../../../src/agent/protocol.ts";
 import type { AuthProvider } from "../../../../src/authentication.ts";
+import type { ReactNode } from "react";
 
 export type InputModel = Pick<AgentModel, "id" | "provider" | "name" | "thinkingLevels"> &
   Pick<AgentModel, "input" | "inputLimits">;
@@ -26,6 +27,7 @@ export interface PromptTextareaProps {
 }
 
 export interface ActionToolbarProps {
+  readonly skillsControl?: ReactNode;
   readonly model?: InputModel;
   readonly models?: readonly InputModel[];
   readonly providers?: readonly InputProvider[];

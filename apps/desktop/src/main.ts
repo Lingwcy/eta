@@ -287,6 +287,10 @@ if (!app.requestSingleInstanceLock()) {
         (url) => shell.openExternal(url),
         processImage,
         (path) => shell.showItemInFolder(path),
+        async (path) => {
+          const error = await shell.openPath(path);
+          if (error) throw new Error(error);
+        },
       );
       agentService.subscribeLibrary(notifyLibrary);
       ready = true;

@@ -6,6 +6,20 @@ function setup() {
   return new DesktopTabs(() => `tab-${++id}`);
 }
 
+test("skill management reuses the settings tab and restores its destination after closing and reopening", () => {
+  const tabs = setup();
+  const conversation = tabs.activeTab.id;
+  tabs.openSettings();
+  const settings = tabs.activeTab.id;
+  tabs.select(conversation);
+  tabs.openSettings("skills");
+  expect(tabs.activeTab).toMatchObject({ id: settings, kind: "settings", category: "skills" });
+  expect(tabs.getSnapshot().tabs).toHaveLength(2);
+  tabs.close(settings);
+  tabs.reopen();
+  expect(tabs.activeTab).toMatchObject({ id: settings, category: "skills" });
+});
+
 test("new chat reuses the active draft without changing its state", () => {
   const tabs = setup();
   const id = tabs.activeTab.id;

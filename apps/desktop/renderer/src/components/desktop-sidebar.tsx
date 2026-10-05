@@ -22,6 +22,7 @@ interface Props {
   onNew: () => void;
   onChoose: () => void;
   onSettings: () => void;
+  onSkills: () => void;
 }
 
 export function DesktopSidebar(props: Props) {
@@ -96,6 +97,7 @@ export function DesktopSidebar(props: Props) {
               onSelect={props.onSelect}
               onNew={props.onNew}
               onChoose={props.onChoose}
+              onSkills={props.onSkills}
             />
           }
           onNew={props.onNew}

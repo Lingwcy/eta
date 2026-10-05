@@ -24,6 +24,9 @@ export const SettingsSchema = Schema.Struct({
     "max",
   ]),
   disabledTools: Schema.optionalKey(Schema.Array(Schema.Literals(builtinToolNames))),
+  skillsEnabled: Schema.optionalKey(Schema.Boolean),
+  skillDirectories: Schema.optionalKey(Schema.Array(Schema.NonEmptyString)),
+  disabledSkills: Schema.optionalKey(Schema.Array(Schema.NonEmptyString)),
   blockImages: Schema.optionalKey(Schema.Boolean),
   activeThreadId: Schema.optionalKey(Schema.NonEmptyString),
 });

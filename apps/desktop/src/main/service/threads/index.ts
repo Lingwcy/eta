@@ -10,7 +10,7 @@ import type {
 import { DesktopCatalogService } from "../catalog/index.ts";
 import type { CatalogError } from "../catalog/json-store.ts";
 import { ConversationService } from "../conversations/index.ts";
-import { DesktopServiceError } from "../errors.ts";
+import { adapter, DesktopServiceError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
 import { ObservationService } from "../observation/index.ts";
 import { AgentResourcesService } from "../resources/index.ts";
@@ -22,6 +22,7 @@ import { WorkspaceService } from "../workspaces/index.ts";
 import type { ThreadMetadata } from "./type.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { startTitle } from "./title.ts";
+import { SkillsDoc } from "../skills/extension.ts";
 
 export type ThreadError = DesktopServiceError | CatalogError;
 export interface OpenThread extends SessionResponse {
@@ -51,6 +52,7 @@ export class ThreadService extends Context.Service<
     stop(id: string): Effect.Effect<void, ThreadError>;
     resume(id: string): Effect.Effect<void, ThreadError>;
     compact(id: string): Effect.Effect<void, ThreadError>;
+    unloadSkill(id: string, name: string): Effect.Effect<void, ThreadError>;
     configure(
       id: string,
       provider: string,
@@ -122,6 +124,24 @@ export class ThreadService extends Context.Service<
         return state.threads.find((thread) => thread.id === id)!;
       });
       return ThreadService.of({
+        unloadSkill: (id, name) =>
+          locked(
+            Effect.gen(function* () {
+              const runtime = yield* runtimeFor(id);
+              if (runtime.running || runtime.recoveryRequired)
+                return yield* new DesktopServiceError({
+                  code: "Busy",
+                  message: "请先停止或完成当前任务，再移除技能",
+                });
+              yield* adapter("无法移除技能", () =>
+                runtime.conversation.commit(async (tx) => {
+                  const state = await tx.doc(SkillsDoc, runtime.conversation.id);
+                  state.active = state.active.filter((skill) => skill.name !== name);
+                }, BACKGROUND_CONTEXT),
+              );
+              for (const notify of runtime.changes) notify();
+            }),
+          ),
         get,
         list: (workspaceId, includeArchived = false) =>
           catalog.read.pipe(

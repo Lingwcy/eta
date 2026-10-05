@@ -28,6 +28,12 @@ Use **Settings → Application → Storage** to check session usage and search o
 
 Right-click a saved chat to rename it, change its project grouping, archive or restore it, open it in another Eta window, or permanently delete its local history. Project grouping does not change the execution directory. **Open with** opens the main JSONL transcript in the default or a selected application; use a text editor to inspect it.
 
+## Skills
+
+Place skill folders containing `SKILL.md` in `~/.agents/skills/` for personal use or `.agents/skills/` in a project. Use **Settings → Skills** to view and open skill directories, add custom directories, inspect discovery errors, and enable or disable skills. Opening a missing skill directory creates it. Project skills take precedence when names collide.
+
+Eta first offers the agent skill names and descriptions. The agent loads instructions when relevant and reads supporting files only as needed. Choose a skill from the composer, use **Cmd/Ctrl+Shift+K**, or include `$skill-name` in your request to select it explicitly. The conversation retains activated instructions across restarts and context compaction. Remove a loaded skill in the composer before loading an updated version. Skills use the tools and dependencies already available in your environment.
+
 ## Run locally
 
 Install [Vite+](https://viteplus.dev/guide/), then run:

@@ -185,6 +185,7 @@ export class RunSupervisorService extends Context.Service<
           return yield* adapter("无法提交消息", async () => {
             claim(runtime);
             try {
+              await runtime.prepareSkills(prompt);
               const handle = await runtime.conversation.submit(
                 {
                   type: "input",

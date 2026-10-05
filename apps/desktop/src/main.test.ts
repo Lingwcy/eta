@@ -12,10 +12,24 @@ const state = vi.hoisted(() => ({
     { command: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> }
   >(),
   libraryListener: undefined as (() => void) | undefined,
-  service: { threadFile: vi.fn(), renameThread: vi.fn(), subscribeLibrary: vi.fn() },
+  service: {
+    threadFile: vi.fn(),
+    renameThread: vi.fn(),
+    subscribeLibrary: vi.fn(),
+    openSkillsDirectory: vi.fn(),
+  },
+  openDirectory: undefined as ((path: string) => Promise<void>) | undefined,
   shell: { openPath: vi.fn(), showItemInFolder: vi.fn(), openExternal: vi.fn() },
 }));
-vi.mock("./main/bootstrap.ts", () => ({ createDesktopApplication: async () => state.service }));
+vi.mock("./main/bootstrap.ts", () => ({
+  createDesktopApplication: async (...args: unknown[]) => {
+    state.openDirectory = args[6] as (path: string) => Promise<void>;
+    return state.service;
+  },
+}));
+vi.mock("./main/platform/shell-path.ts", () => ({
+  resolveShellPath: async () => undefined,
+}));
 vi.mock("./main/browser/electron.ts", () => ({
   decodeBrowserCommand: (command: unknown) => command,
   createWindowBrowser: (window: { webContents: { id: number } }) => {
@@ -93,6 +107,9 @@ beforeEach(async () => {
     return { id: "one", title: "Renamed" };
   });
   state.shell.openPath.mockReset().mockResolvedValue("");
+  state.service.openSkillsDirectory
+    .mockReset()
+    .mockImplementation((path: string) => state.openDirectory!(path));
   await import("./main.ts");
   await vi.waitFor(() => expect(state.windows).toHaveLength(1));
 });
@@ -132,6 +149,18 @@ test("default file opening surfaces OS errors and a missing thread cannot open a
   state.service.threadFile.mockRejectedValueOnce(new Error("Missing thread"));
   expect(await call("eta:thread-window", first, "missing")).toMatchObject({ ok: false });
   expect(state.windows).toHaveLength(1);
+});
+
+test("skill directories open in the file manager and operating system errors reach the client", async () => {
+  const window = state.windows[0]!;
+  const command = { type: "open-skills-directory", path: "/eta/skills" };
+  expect(await call("eta:command", window, command)).toEqual({ ok: true, value: undefined });
+  expect(state.shell.openPath).toHaveBeenCalledWith("/eta/skills");
+  state.shell.openPath.mockResolvedValueOnce("File manager unavailable");
+  expect(await call("eta:command", window, command)).toMatchObject({
+    ok: false,
+    error: { message: "File manager unavailable" },
+  });
 });
 
 test("successful thread mutations notify every open window to refresh its catalog", async () => {

@@ -22,6 +22,7 @@ import { ProjectService } from "./service/projects/index.ts";
 import { DesktopSettingsService } from "./service/settings/index.ts";
 import type { DesktopSettings } from "./service/settings/index.ts";
 import { ThreadService } from "./service/threads/index.ts";
+import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
 import type { StorageTarget } from "./storage/types.ts";
 
@@ -37,6 +38,9 @@ export async function createDesktopApplication(
   revealPath: (path: string) => void = () => {
     throw new Error("文件管理器不可用");
   },
+  openDirectory: (path: string) => Promise<void> = async () => {
+    throw new Error("文件管理器不可用");
+  },
 ) {
   // Despite its name, pi-ai's registration is runtime-independent and embeds OAuth in CJS bundles.
   registerBundledOAuthFlows();
@@ -49,6 +53,7 @@ export async function createDesktopApplication(
     const credentials = await runtime.runPromise(CredentialService);
     const models = await runtime.runPromise(ModelCatalogService);
     const catalog = await runtime.runPromise(DesktopCatalogService);
+    const skills = await runtime.runPromise(SkillsService);
     const installationPath = join(dataRoot, "installation.json");
     const installation = await readJson(installationPath);
     const deviceId =
@@ -75,6 +80,10 @@ export async function createDesktopApplication(
     const cwdDefault = cwd;
     const run = <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect);
     return {
+      skills: (cwd?: string) => run(skills.catalog(cwd)),
+      openSkillsDirectory: async (path: string, cwd?: string) =>
+        openDirectory(await run(skills.prepareDirectory(path, cwd))),
+      unloadSkill: (id: string, name: string) => run(threads.unloadSkill(id, name)),
       subscribeLibrary: (listener: () => void) => catalog.subscribe(listener),
       storage: async () => scanStorage(dataRoot, await run(catalog.read)),
       revealStorage: async (target: StorageTarget) =>

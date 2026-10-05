@@ -13,9 +13,12 @@ import { normalizeThinkingLevel } from "../conversations/thinking.ts";
 import type { EtaSessionMetadata } from "../sessions/type.ts";
 import { DesktopCatalogService } from "../catalog/index.ts";
 import { createTitleTask, TitleDoc, TITLE_TASK_KIND } from "../threads/title.ts";
+import { SkillsService } from "../skills/index.ts";
+import { createSkillsExtension, SkillsDoc } from "../skills/extension.ts";
 
 export interface ThreadRuntime {
   readonly refreshTools: () => Promise<void>;
+  readonly prepareSkills: (prompt: string) => Promise<void>;
   readonly harness: Harness;
   readonly storage: Storage;
   readonly conversation: Conversation;
@@ -48,6 +51,7 @@ export class RuntimeRegistryService extends Context.Service<
       const repository = yield* SessionRepositoryService;
       const { models } = yield* ModelCatalogService;
       const preferences = yield* DesktopSettingsService;
+      const skillsService = yield* SkillsService;
       const resources = yield* AgentResourcesService;
       const catalog = yield* DesktopCatalogService;
       const opening = new Map<string, Promise<ThreadRuntime>>();
@@ -69,14 +73,26 @@ export class RuntimeRegistryService extends Context.Service<
           );
           registry.install({ name: "desktop-thread-title", tasks: [titleTask] });
           const codingTools = registry.snapshot().extension("coding-tools")!;
+          let skills = createSkillsExtension(
+            { directories: [], skills: [], issues: [] },
+            { defaultThinkingLevel: "off" },
+          );
           const refreshTools = async () => {
-            const disabled = new Set<string>(
-              (await Effect.runPromise(preferences.read)).disabledTools ?? [],
-            );
+            const settings = await Effect.runPromise(preferences.read);
+            const disabled = new Set<string>(settings.disabledTools ?? []);
             registry.install({
               ...codingTools,
               tools: codingTools.tools?.filter((tool) => !disabled.has(tool.name)),
             });
+            const state =
+              harness &&
+              (await harness.snapshot(SkillsDoc, ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT));
+            skills = createSkillsExtension(
+              await Effect.runPromise(skillsService.catalog(ref.metadata.cwd)),
+              settings,
+              Boolean(state?.active.length),
+            );
+            registry.install(skills.extension);
           };
           await refreshTools();
           registry.install({
@@ -106,6 +122,7 @@ export class RuntimeRegistryService extends Context.Service<
               registry,
               conversationCreated: async (tx, conversation) => {
                 await tx.doc(TitleDoc, conversation.id);
+                await tx.doc(SkillsDoc, conversation.id);
               },
               env: ({ cwd }) => {
                 const env = new NodeExecutionEnv({ cwd: cwd ?? ref.metadata.cwd });
@@ -135,6 +152,8 @@ export class RuntimeRegistryService extends Context.Service<
           const record: ThreadRuntime = {
             harness,
             refreshTools,
+            prepareSkills: (prompt) =>
+              skills.activateExplicit(conversation, prompt, record.harness),
             conversation,
             titleTask,
             storage,
@@ -148,7 +167,9 @@ export class RuntimeRegistryService extends Context.Service<
           // Older sessions acquire the application document when first opened after this upgrade.
           await conversation.commit(async (tx) => {
             await tx.doc(TitleDoc, conversation.id);
+            await tx.doc(SkillsDoc, conversation.id);
           }, BACKGROUND_CONTEXT);
+          await refreshTools();
           const titleWatch = await harness.watchDoc(TitleDoc, conversation.id, BACKGROUND_CONTEXT);
           let titleDelivery = Promise.resolve();
           const publishTitle = (value: NonNullable<typeof titleWatch>["value"]) => {

@@ -26,6 +26,7 @@ import { RuntimeRegistryService } from "../../runtime/index.ts";
 import { DesktopSettingsService } from "../../settings/index.ts";
 import { WorkspaceService } from "../../workspaces/index.ts";
 import { ThreadService } from "../index.ts";
+import { SkillsService } from "../../skills/index.ts";
 import { TitleDoc, TITLE_TASK_KIND } from "../title.ts";
 
 const directories: string[] = [];
@@ -65,6 +66,7 @@ async function setup(withImages = false) {
         join(directory, "data"),
         ModelCatalogService.layerWith(models),
         withImages ? processImage : undefined,
+        SkillsService.layerWith(directory),
       ),
     );
     runtimes.push(runtime);

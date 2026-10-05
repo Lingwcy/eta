@@ -10,6 +10,7 @@ import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { ChatWelcome } from "@/components/chat/chat-welcome";
 import { RecoveryNotice } from "@/components/chat/recovery-notice";
 import { Alert } from "@/components/ui/alert";
+import { SkillPicker } from "@/components/input/skill-picker";
 
 export function ConversationPanel({
   tab,
@@ -51,7 +52,25 @@ export function ConversationPanel({
       <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
         <div className="mx-auto w-full max-w-[960px]">
           {view.composerContext && <ComposerContext {...view.composerContext} />}
-          <CompositeInput {...view.composer} />
+          <CompositeInput
+            {...view.composer}
+            skillsControl={
+              <SkillPicker
+                active={active}
+                disabled={Boolean(view.composer.disabled || running)}
+                cwd={
+                  desktop.library?.threads.find((thread) => thread.id === tab.threadId)?.sessionRef
+                    .metadata.cwd ?? view.composer.cwd
+                }
+                threadId={tab.threadId}
+                activeSkills={view.transcript.snapshot?.activeSkills}
+                onSettings={() => navigation.tabs.openSettings("skills")}
+                onSelect={(name) =>
+                  view.composer.onChange(`${view.composer.value.trimEnd()} $${name} `.trimStart())
+                }
+              />
+            }
+          />
         </div>
       </div>
     </>

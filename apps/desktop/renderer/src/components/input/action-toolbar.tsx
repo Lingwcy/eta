@@ -6,6 +6,7 @@ import type { ActionToolbarProps } from "./types";
 import { ModelPicker } from "./model-picker";
 
 export function ActionToolbar({
+  skillsControl,
   model,
   models = [],
   providers = [],
@@ -32,6 +33,7 @@ export function ActionToolbar({
       aria-label="消息操作栏"
     >
       <div className="flex items-center gap-1">
+        {skillsControl}
         {onAttach && (
           <Button
             variant="ghost-muted"

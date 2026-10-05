@@ -6,6 +6,7 @@ import { Context, Effect, Layer } from "effect";
 import type { SnapshotResponse } from "../../../agent/protocol.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
+import { SkillsDoc, skillSummary } from "../skills/extension.ts";
 
 export class ObservationService extends Context.Service<
   ObservationService,
@@ -149,6 +150,10 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     runtime.ref.metadata.createdAt;
   const active = receipts.find((receipt) => receipt.id === live.run?.inputs[0]);
   const snapshot: SnapshotResponse["snapshot"] = {
+    activeSkills:
+      (
+        await runtime.harness.snapshot(SkillsDoc, runtime.conversation.id, BACKGROUND_CONTEXT)
+      )?.active.map(skillSummary) ?? [],
     configuration: {
       model: agent.model ?? { provider: "", modelId: "" },
       thinkingLevel: agent.thinkingLevel ?? "off",

@@ -13,11 +13,13 @@ import { AuthenticationSettings } from "./settings/authentication/authentication
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StorageSettings } from "./settings/storage-settings";
 import { ConversationSettings } from "./settings/conversation-settings";
+import { SkillSettings } from "./settings/skill-settings";
 
 interface Props {
   active?: boolean;
   library: DesktopLibrary;
   initialCategory?: string;
+  categoryRevision?: number;
   onChooseProject: () => void;
   busy: boolean;
   error: string | null;
@@ -36,6 +38,9 @@ export function DesktopSettings(props: Props) {
         : "accounts"),
   );
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (props.initialCategory) setCategory(props.initialCategory);
+  }, [props.initialCategory, props.categoryRevision]);
   useEffect(() => {
     if (props.active === false) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -102,6 +107,17 @@ export function DesktopSettings(props: Props) {
                         void props.act(async () => {
                           await window.eta.updateSettings({ blockImages: !allowed });
                           await props.refresh();
+                        })
+                      }
+                    />
+                  ) : item.id === "skills" ? (
+                    <SkillSettings
+                      library={props.library}
+                      busy={props.busy}
+                      active={props.active !== false && category === "skills"}
+                      onChange={(patch) =>
+                        props.act(async () => {
+                          await window.eta.updateSettings(patch);
                         })
                       }
                     />

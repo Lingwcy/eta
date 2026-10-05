@@ -16,6 +16,8 @@ export interface BrowserTab {
 export interface SettingsTab {
   id: string;
   kind: "settings";
+  category?: string;
+  categoryRevision?: number;
 }
 
 export type DesktopTab = ConversationTab | BrowserTab | SettingsTab;
@@ -117,10 +119,17 @@ export class DesktopTabs {
     return this.add({ id: this.makeId(), kind: "browser", url, title: "新标签页" });
   }
 
-  openSettings() {
+  openSettings(category?: string) {
     const existing = this.state.tabs.find((tab) => tab.kind === "settings");
-    if (existing) this.select(existing.id);
-    else this.add({ id: this.makeId(), kind: "settings" });
+    if (existing) {
+      if (category)
+        this.update(existing.id, (tab) => ({
+          ...tab,
+          category,
+          categoryRevision: (existing.categoryRevision ?? 0) + 1,
+        }));
+      this.select(existing.id);
+    } else this.add({ id: this.makeId(), kind: "settings", ...(category ? { category } : {}) });
   }
 
   updateConversation(id: string, change: Partial<Omit<ConversationTab, "id" | "kind">>) {

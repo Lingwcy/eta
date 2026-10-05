@@ -1,4 +1,12 @@
-import { KeyRound, UserRound, Shield, Wrench, HardDrive, MessageCircle } from "lucide-react";
+import {
+  KeyRound,
+  UserRound,
+  Shield,
+  Wrench,
+  HardDrive,
+  MessageCircle,
+  BookOpen,
+} from "lucide-react";
 export const settingsGroups = [
   {
     label: "模型连接",
@@ -13,6 +21,7 @@ export const settingsGroups = [
       { id: "conversations", label: "对话", title: "对话", icon: MessageCircle },
       { id: "permissions", label: "权限", title: "权限", icon: Shield },
       { id: "tools", label: "工具函数", title: "工具函数", icon: Wrench },
+      { id: "skills", label: "技能", title: "技能", icon: BookOpen },
       { id: "storage", label: "存储", title: "存储", icon: HardDrive },
     ],
   },

@@ -6,6 +6,7 @@ import type {
   ThinkingLevel as ModelThinkingLevel,
   ToolResultMessage,
 } from "@earendil-works/pi-ai";
+import type { ActiveSkill } from "../skills/types.ts";
 
 export type ThinkingLevel = ModelThinkingLevel | "off";
 
@@ -31,6 +32,7 @@ export interface SnapshotTool {
 }
 
 export interface AgentSnapshot {
+  activeSkills?: readonly ActiveSkill[];
   configuration: { model: { provider: string; modelId: string }; thinkingLevel: ThinkingLevel };
   transcript: { id: string; type: "message"; message: Message }[];
   operation:

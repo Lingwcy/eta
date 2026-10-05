@@ -1,6 +1,6 @@
 import { ThreadContextMenu } from "../threads/thread-actions";
 import { useState } from "react";
-import { FolderClosed, SquarePen } from "lucide-react";
+import { FolderClosed, SquarePen, BookOpen } from "lucide-react";
 import { DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   Command,
@@ -26,6 +26,15 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
     kind: "chat",
   }));
   const actions = [
+    {
+      id: "skills",
+      label: "技能设置",
+      kind: "action",
+      icon: BookOpen,
+      shortcut: "",
+      disabled: props.busy,
+      run: props.onSkills,
+    },
     {
       id: "new",
       label: "新聊天",

@@ -4,6 +4,14 @@ import type { DesktopApplication } from "./bootstrap.ts";
 import { DesktopServiceError } from "./service/errors.ts";
 
 test.each([
+  { type: "skills", cwd: 123 },
+  { type: "open-skills-directory", path: "" },
+  { type: "open-skills-directory", path: "/skills", cwd: 123 },
+  { type: "open-skills-directory", path: "/skills", create: true },
+  { type: "unload-skill", id: "thread", name: "" },
+  { type: "settings", patch: { skillDirectories: [""] } },
+  { type: "settings", patch: { disabledSkills: "review" } },
+  { type: "settings", patch: { skillsEnabled: "yes" } },
   { type: "move-thread", id: "thread", projectId: "" },
   { type: "move-thread", id: "thread", projectId: { path: "/project" } },
   { type: "delete-thread", id: "" },
