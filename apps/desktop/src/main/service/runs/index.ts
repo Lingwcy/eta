@@ -3,7 +3,8 @@ import { imageInput } from "../../../images/content.ts";
 import type { ImageAttachment } from "../../../images/types.ts";
 import { realpath, stat } from "node:fs/promises";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { Context, DateTime, Effect, Layer } from "effect";
+import { Context, Effect, Layer } from "effect";
+import type { SubmissionRecord } from "@eta/agent";
 import type { OperationAdmission } from "../../../agent/protocol.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
@@ -126,17 +127,7 @@ export class RunSupervisorService extends Context.Service<
               ),
             );
             if (existing) {
-              const entry =
-                existing.entry === undefined
-                  ? undefined
-                  : yield* adapter("无法读取提交记录", () =>
-                      runtime.storage.entry(existing.entry!, BACKGROUND_CONTEXT),
-                    );
-              return {
-                operationId: String(existing.id),
-                kind: "run" as const,
-                startedAt: entry?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.createdAt,
-              };
+              return yield* adapter("无法读取提交记录", () => admission(runtime, existing));
             }
           }
           if (runtime.recoveryRequired)
@@ -181,8 +172,7 @@ export class RunSupervisorService extends Context.Service<
                 )
               : images;
           const input = prepared?.length ? imageInput(prompt, prepared) : content;
-          const startedAt = DateTime.toEpochMillis(yield* DateTime.now);
-          return yield* adapter("无法提交消息", async () => {
+          const handle = yield* adapter("无法提交消息", async () => {
             claim(runtime);
             try {
               await runtime.prepareSkills(prompt);
@@ -196,12 +186,15 @@ export class RunSupervisorService extends Context.Service<
                 BACKGROUND_CONTEXT,
               );
               supervise(runtime, handle.wait(BACKGROUND_CONTEXT));
-              return { operationId: String(handle.id), kind: "run" as const, startedAt };
+              return handle;
             } catch (error) {
               release(runtime);
               throw error;
             }
           });
+          return yield* adapter("无法读取提交记录", async () =>
+            admission(runtime, await handle.status(BACKGROUND_CONTEXT)),
+          );
         }, Effect.uninterruptible),
         resume: Effect.fn("RunSupervisorService.resume")(function* (runtime: ThreadRuntime) {
           yield* ready(runtime);
@@ -248,4 +241,20 @@ export class RunSupervisorService extends Context.Service<
       });
     }),
   );
+}
+
+/** Use the durable input timestamp for both initial admission and retries, including after restart. */
+async function admission(
+  runtime: ThreadRuntime,
+  receipt: SubmissionRecord,
+): Promise<OperationAdmission> {
+  const entry =
+    receipt.entry === undefined
+      ? undefined
+      : await runtime.storage.entry(receipt.entry, BACKGROUND_CONTEXT);
+  return {
+    operationId: String(receipt.id),
+    kind: "run",
+    startedAt: entry?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.createdAt,
+  };
 }

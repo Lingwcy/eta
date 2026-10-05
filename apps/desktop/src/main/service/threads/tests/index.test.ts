@@ -16,7 +16,7 @@ import {
   fauxToolCall,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { Effect, ManagedRuntime } from "effect";
+import { Clock, Effect, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vite-plus/test";
 import { DesktopCatalogService } from "../../catalog/index.ts";
 import { desktopServices } from "../../layer.ts";
@@ -333,7 +333,22 @@ test("title generation is admitted once when the first request is retried", asyn
   const main = holdResponse(provider, "Done");
   titleProvider.setResponses([fauxAssistantMessage("One title")]);
   const created = await runtime.runPromise(threads.create(workspace.id));
-  const first = await runtime.runPromise(threads.submit(created.id, "First request", "first"));
+  const first = await runtime.runPromise(
+    Clock.clockWith((clock) =>
+      threads.submit(created.id, "First request", "first").pipe(
+        Effect.provideService(Clock.Clock, {
+          currentTimeMillis: Effect.succeed(0),
+          currentTimeMillisUnsafe: () => 0,
+          currentTimeNanos: Effect.succeed(0n),
+          currentTimeNanosUnsafe: () => 0n,
+          monotonicTimeNanos: clock.monotonicTimeNanos,
+          monotonicTimeNanosUnsafe: () => clock.monotonicTimeNanosUnsafe(),
+          sleep: (duration) => clock.sleep(duration),
+        }),
+      ),
+    ),
+  );
+  expect(first.startedAt).toBeGreaterThan(0);
   expect(await runtime.runPromise(threads.submit(created.id, "First request", "first"))).toEqual(
     first,
   );
@@ -730,18 +745,28 @@ test("different threads cannot run side effects concurrently in the same cwd", a
 });
 
 test("retrying an admitted request returns its receipt rather than launching another run", async () => {
-  const { runtime, threads, workspace, provider } = await setup();
+  const { runtime, threads, workspace, provider, reopen, titleProvider } = await setup();
   provider.setResponses([fauxAssistantMessage("Still running ".repeat(200))]);
   const created = await runtime.runPromise(threads.create(workspace.id));
   const first = await runtime.runPromise(threads.submit(created.id, "Only once", "input-once"));
   const repeated = await runtime.runPromise(threads.submit(created.id, "Only once", "input-once"));
-  expect(repeated.operationId).toBe(first.operationId);
+  expect(repeated).toEqual(first);
   await runtime.runPromise(threads.stop(created.id));
   expect(
     (await runtime.runPromise(threads.open(created.id))).snapshot.transcript.filter(
       (entry) => entry.message.role === "user",
     ),
   ).toHaveLength(1);
+  await runtime.dispose();
+  const next = reopen();
+  const nextThreads = await next.runPromise(ThreadService);
+  const titleCalls = titleProvider.state.callCount;
+  const providerCalls = provider.state.callCount;
+  expect(await next.runPromise(nextThreads.submit(created.id, "Only once", "input-once"))).toEqual(
+    first,
+  );
+  expect(provider.state.callCount).toBe(providerCalls);
+  expect(titleProvider.state.callCount).toBe(titleCalls);
 });
 
 test("failed Catalog publication releases the runtime and preserves the orphan in recovery storage", async () => {
