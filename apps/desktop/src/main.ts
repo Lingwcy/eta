@@ -19,6 +19,12 @@ let startup: Promise<void> | undefined;
 const browsers = new Map<number, BrowserManager>();
 
 type Watch = { token: symbol; unsubscribe?: () => void };
+/**
+ * 按窗口维护活跃会话订阅的二级账本：
+ * Map<contentsId (窗口 ID), Map<subscriptionId (订阅 UUID), Watch (订阅实例)>>
+ * 外层key按窗口划分：窗口销毁时，可通过 contents.id 批量注销其关联的所有监听，避免内存泄漏。
+ * 内层key按 subscriptionId 区分：同一窗口内不同组件、Tab 或后台活动监听器可独立订阅与退订。
+ */
 const watchers = new Map<number, Map<string, Watch>>();
 
 function service() {
@@ -48,15 +54,24 @@ function applicationIconPath() {
   );
 }
 
+/**
+ * 打开窗口，不传会话线程ID打开默认窗口传入打开会话窗口
+ * @param threadId 可选，会话线程ID
+ * @returns
+ */
 function openWindow(threadId?: string) {
   if (!threadId && window && !window.isDestroyed()) {
     window.show();
     window.focus();
     return;
   }
+  // 生产环境web url
   const rendererPath = resolve(app.getAppPath(), "dist/ui/index.html");
+  // 开发环境web url scripts/dev-runner.ts 先把 Vite dev server 跑起来，再把地址传进 ETA_WEB_URL
   const devUrl = process.env.ETA_WEB_URL;
-  const target = devUrl ?? pathToFileURL(rendererPath).href;
+  // 选择确定的渲染路径 打包后用 pathToFileURL 转成 file:// URL
+  const renderTarget = devUrl ?? pathToFileURL(rendererPath).href;
+  // 窗口配置
   const currentWindow = new BrowserWindow({
     width: 1100,
     height: 800,
@@ -65,9 +80,12 @@ function openWindow(threadId?: string) {
     title: "Eta",
     icon: applicationIconPath(),
     backgroundColor: "#e9e9e9",
+    // hiddenInset + trafficLightPosition: {x:16,y:13}：macOS 上隐藏系统标题栏，
+    // 由渲染进程自己画顶栏；红黄绿三个灯手动内缩到 16/13，跟自绘顶栏对齐。Windows/Linux 走默认标题栏
     ...(process.platform === "darwin"
       ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 16, y: 13 } }
       : {}),
+    //能力边界 必须经过 dist/electron/preload.cjs 用 contextBridge 暴露的 window.eta
     webPreferences: {
       preload: resolve(app.getAppPath(), "dist/electron/preload.cjs"),
       contextIsolation: true,
@@ -75,24 +93,32 @@ function openWindow(threadId?: string) {
       sandbox: true,
     },
   });
+  // 只有第一次调用会写入
   window ??= currentWindow;
+  // browsers 账本是 webContents.id → BrowserManager，
+  // 也就是每个窗口独立一套内嵌浏览器页签（manager.ts 里的 pages Map）
+  // 这里只是登记管理器对象本身，真正的 WebContentsView 是等渲染进程发 browser:command {type:"create"} 时才惰性建的。
   const contentsId = currentWindow.webContents.id;
   browsers.set(contentsId, createWindowBrowser(currentWindow));
-  currentWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => {
-    if (!isMainFrame) return;
-    browsers.get(contentsId)?.dispose();
-    browsers.delete(contentsId);
-  });
+
+  // // 窗口自己的页面一旦要重新加载，先把该窗口的内嵌网页全部关掉
+  // currentWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => {
+  //   if (!isMainFrame) return;
+  //   browsers.get(contentsId)?.dispose();
+  //   browsers.delete(contentsId);
+  // });
   currentWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   currentWindow.webContents.on("will-navigate", (event, url) => {
     const allowed = devUrl
       ? new URL(url).origin === new URL(devUrl).origin
-      : new URL(url).pathname === new URL(target).pathname;
+      : new URL(url).pathname === new URL(renderTarget).pathname;
     if (!allowed) event.preventDefault();
   });
+  // 监听退出一个窗口时执行 ObservationService.subscribe 退订事件流
   currentWindow.webContents.on("destroyed", () => {
     const sessions = watchers.get(currentWindow.webContents.id);
     if (!sessions) return;
+    // 把这个窗口产生的所有订阅全注销
     for (const [id, watch] of sessions) {
       sessions.delete(id);
       watch.unsubscribe?.();
@@ -107,7 +133,7 @@ function openWindow(threadId?: string) {
         (value) => value !== currentWindow && !value.isDestroyed(),
       );
   });
-  const url = new URL(target);
+  const url = new URL(renderTarget);
   if (threadId) url.searchParams.set("thread", threadId);
   const loaded = currentWindow.loadURL(url.href);
   void loaded.catch((error: unknown) => {
@@ -121,6 +147,7 @@ function notifyLibrary() {
     window.webContents.send("eta:library-changed");
 }
 
+// 供渲染进程通过 "eta:command" 发送业务命令
 ipcMain.handle("eta:command", (_event, command: unknown) =>
   commandReply(async () => {
     const value = await dispatchCommand(service(), command);
@@ -135,6 +162,8 @@ ipcMain.handle("eta:command", (_event, command: unknown) =>
     return value;
   }),
 );
+
+// 让渲染进程请求主进程打开某个线程窗口
 ipcMain.handle("eta:thread-window", (_event, rawId: unknown) =>
   commandReply(async () => {
     const id = sessionId(rawId);
@@ -142,18 +171,22 @@ ipcMain.handle("eta:thread-window", (_event, rawId: unknown) =>
     openWindow(id);
   }),
 );
+// 用来打开某个会话的 main.jsonl 文件,按 mode 决定处理方式
 ipcMain.handle("eta:thread-file", (_event, rawId: unknown, mode: unknown) =>
   commandReply(async () => {
     const file = await service().threadFile(sessionId(rawId));
+    // 在系统文件管理器中显示该文件
     if (mode === "reveal") {
       shell.showItemInFolder(file);
       return;
     }
+    // 用系统默认应用打开文件,如果系统返回错误，就抛出异常
     if (mode === "default") {
       const error = await shell.openPath(file);
       if (error) throw new Error(error);
       return;
     }
+    // 弹出文件选择框，让用户选择一个应用来打开文件
     if (mode !== "choose") throw new Error("打开方式无效");
     const result = await dialog.showOpenDialog({
       title: "选择打开会话记录的应用",
@@ -164,6 +197,7 @@ ipcMain.handle("eta:thread-file", (_event, rawId: unknown, mode: unknown) =>
           : {}),
       properties: ["openFile"],
     });
+    // 抛出打开方式无效错误
     if (!result.canceled && result.filePaths[0])
       await openWithApplication(file, result.filePaths[0]);
   }),
@@ -181,6 +215,7 @@ ipcMain.handle("browser:command", (event, raw: unknown) =>
     return browser.command(decodeBrowserCommand(raw));
   }),
 );
+// 用户选中一个已有文件夹后，会把这个路径注册为 Eta 项目，并返回项目对象
 ipcMain.handle("eta:choose-project", () =>
   commandReply(async () => {
     const application = service();
@@ -190,6 +225,8 @@ ipcMain.handle("eta:choose-project", () =>
     return project;
   }),
 );
+
+// 弹出dialog选择一个路径
 ipcMain.handle("eta:choose-directory", () =>
   commandReply(async () => {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
@@ -200,6 +237,7 @@ ipcMain.handle("eta:choose-directory", () =>
 ipcMain.on("agent:watch", (event, rawId: unknown, rawSubscriptionId: unknown) => {
   let id: string;
   let subscriptionId: string;
+  // 参数校验
   try {
     id = sessionId(rawId);
     subscriptionId = sessionId(rawSubscriptionId);
@@ -217,11 +255,17 @@ ipcMain.on("agent:watch", (event, rawId: unknown, rawSubscriptionId: unknown) =>
   if (sessions.has(subscriptionId)) return;
   const watch: Watch = { token: Symbol() };
   sessions.set(subscriptionId, watch);
+  // 安全发送器
   const send = (agentEvent: AgentEvent) => {
+    // 确保窗口还没被用户关闭，避免对已销毁的 WebContents 发送 IPC导致崩溃。
+    // Token校验。确保当前的订阅依然是发起该请求时的同一个订阅，防止订阅在短时间内被取消重连时产生串话/脏消息。
     if (!contents.isDestroyed() && sessions?.get(subscriptionId)?.token === watch.token)
       contents.send("agent:event", { sessionId: id, subscriptionId, event: agentEvent });
   };
+  // 加上 void 明确向编译器声明 这里有意将其放入后台执行（Fire-and-Forget），不需要等待它完成。
+  // 在同步执行时抛出异常（例如应用退出抛出RuntimeClosing 或尚未初始化抛出 Agent 尚未就绪） 由catch统一捕获
   void Promise.resolve()
+    // 建立底层订阅通道
     .then(() =>
       service().subscribe(
         id,
@@ -229,9 +273,14 @@ ipcMain.on("agent:watch", (event, rawId: unknown, rawSubscriptionId: unknown) =>
         (message) => send({ type: "error", message }),
       ),
     )
+    // subscribe 会返回 unsubscribe 取消订阅函数
     .then((unsubscribe) => {
+      // 如果这期间renderer把窗口关了或者已经调用了 unwatch（从 Map中删除了该项或被新订阅替代）；
       if (contents.isDestroyed() || sessions?.get(subscriptionId)?.token !== watch.token)
         unsubscribe();
+      // 如果依然有效：将 unsubscribe 保存到 watch.unsubscribe
+      // 上。后续当渲染进程主动发送 agent:unwatch
+      // 时，stopWatching 就能调用该函数完成清理。
       else watch.unsubscribe = unsubscribe;
     })
     .catch((error: unknown) => {
