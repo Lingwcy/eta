@@ -1,0 +1,76 @@
+/* Bound paint-based animations to the reference's ~12.5 updates per second. */
+.eta-agent-thinking-label {
+  background-image: linear-gradient(
+    110deg,
+    var(--eta-agent-thinking-tone) 35%,
+    var(--color-neutral-300) 50%,
+    var(--eta-agent-thinking-tone) 65%
+  );
+  background-size: 250% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: eta-thinking-shimmer 2s steps(25) infinite;
+}
+
+.eta-agent-thinking-star {
+  animation: eta-thinking-twinkle 1.4s steps(18) infinite;
+  transform-origin: center;
+}
+
+.eta-agent-thinking-comet {
+  animation: eta-thinking-comet 1.2s steps(15) infinite;
+}
+
+@keyframes eta-thinking-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@keyframes eta-thinking-twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes eta-thinking-comet {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.eta-agent-thinking[data-animated="false"] .eta-agent-thinking-star,
+.eta-agent-thinking[data-animated="false"] .eta-agent-thinking-comet {
+  animation: none;
+}
+
+.eta-agent-thinking[data-animated="false"] .eta-agent-thinking-label {
+  animation: none;
+  background: none;
+  color: var(--eta-agent-thinking-tone);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eta-agent-thinking-label {
+    animation: none;
+    background: none;
+    color: var(--eta-agent-thinking-tone);
+  }
+
+  .eta-agent-thinking-star,
+  .eta-agent-thinking-comet {
+    animation: none;
+  }
+}

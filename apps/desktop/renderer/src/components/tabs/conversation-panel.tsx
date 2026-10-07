@@ -47,7 +47,15 @@ export function ConversationPanel({
         {view.failure && <Alert>{view.failure}</Alert>}
         {view.recovery && <RecoveryNotice {...view.recovery} />}
         {view.stopped && <output className="text-xs text-neutral-500">已停止生成</output>}
-        <ThinkingSlot thinking={view.thinking} />
+        <ThinkingSlot
+          thinking={
+            view.thinking && {
+              ...view.thinking,
+              variant: desktop.library?.settings.agentThinkingVariant ?? "wave",
+              active,
+            }
+          }
+        />
       </ChatTranscript>
       <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
         <div className="mx-auto w-full max-w-[960px]">

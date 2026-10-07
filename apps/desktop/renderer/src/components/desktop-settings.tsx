@@ -1,3 +1,4 @@
+import { AppearanceSettings } from "./settings/appearance-settings";
 import { ToolSettings } from "./settings/tool-settings";
 import { PermissionSettings } from "./settings/permission-settings";
 import { useEffect, useState } from "react";
@@ -86,7 +87,19 @@ export function DesktopSettings(props: Props) {
                       <Alert>{props.error}</Alert>
                     </div>
                   )}
-                  {item.id === "conversations" ? (
+                  {item.id === "appearance" ? (
+                    <AppearanceSettings
+                      variant={props.library.settings.agentThinkingVariant ?? "wave"}
+                      active={props.active !== false && category === "appearance"}
+                      busy={props.busy}
+                      onVariantChange={(agentThinkingVariant) =>
+                        void props.act(async () => {
+                          await window.eta.updateSettings({ agentThinkingVariant });
+                          await props.refresh();
+                        })
+                      }
+                    />
+                  ) : item.id === "conversations" ? (
                     <ConversationSettings
                       library={props.library}
                       busy={props.busy}

@@ -1,4 +1,5 @@
 import { builtinToolNames } from "../tools.ts";
+import { agentThinkingVariants } from "../appearance.ts";
 import { Schema } from "effect";
 import type { DesktopApplication } from "./bootstrap.ts";
 import type { CommandReply } from "../bridge.ts";
@@ -83,6 +84,7 @@ const Command = Schema.Union([
       skillDirectories: Schema.optionalKey(Schema.Array(Id)),
       disabledSkills: Schema.optionalKey(Schema.Array(Id)),
       blockImages: Schema.optionalKey(Schema.Boolean),
+      agentThinkingVariant: Schema.optionalKey(Schema.Literals(agentThinkingVariants)),
     }),
   }),
   Schema.Struct({ type: Schema.Literal("login-start"), provider: Id, method: Method }),

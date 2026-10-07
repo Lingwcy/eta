@@ -7,6 +7,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { AppPathsService } from "../../../platform/app-paths.ts";
 import { DesktopSettingsService } from "../index.ts";
 import { ModelCatalogService } from "../../models/index.ts";
+import { agentThinkingVariants } from "../../../../appearance.ts";
+import { dispatchCommand } from "../../../ipc.ts";
+import type { DesktopApplication } from "../../../bootstrap.ts";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];
@@ -112,6 +115,48 @@ test("tool toggles persist across restart and can be restored without losing oth
     disabledTools: [],
     blockImages: true,
   });
+});
+
+test.each(agentThinkingVariants)(
+  "thinking style %s persists and can be switched back",
+  async (variant) => {
+    const { runtime, settings, open } = await setup();
+    // Older preferences have no appearance field; the renderer defaults to Dot wave.
+    expect((await runtime.runPromise(settings.read)).agentThinkingVariant).toBeUndefined();
+    const application = {
+      updateSettings: (patch) => runtime.runPromise(settings.update(patch)),
+    } satisfies Pick<DesktopApplication, "updateSettings">;
+    await dispatchCommand(application as DesktopApplication, {
+      type: "settings",
+      patch: { agentThinkingVariant: variant, blockImages: true },
+    });
+    await runtime.dispose();
+    const next = open();
+    const reopened = await next.runPromise(DesktopSettingsService);
+    expect(await next.runPromise(reopened.read)).toMatchObject({ agentThinkingVariant: variant });
+    await next.runPromise(reopened.update({ agentThinkingVariant: "wave" }));
+    await next.dispose();
+    const final = open();
+    const restored = await final.runPromise(DesktopSettingsService);
+    expect(await final.runPromise(restored.read)).toMatchObject({
+      agentThinkingVariant: "wave",
+      blockImages: true,
+    });
+  },
+);
+
+test("unknown thinking styles leave persisted preferences unchanged", async () => {
+  const { directory, runtime, settings } = await setup();
+  await runtime.runPromise(settings.update({ agentThinkingVariant: "spin" }));
+  const before = await readFile(join(directory, "settings.json"), "utf8");
+  expect(
+    await runtime.runPromise(
+      // @ts-expect-error Invalid values can arrive over IPC from outside the typed renderer.
+      Effect.flip(settings.update({ agentThinkingVariant: "unknown" })),
+    ),
+  ).toMatchObject({ code: "InvalidInput" });
+  expect((await runtime.runPromise(settings.read)).agentThinkingVariant).toBe("spin");
+  expect(await readFile(join(directory, "settings.json"), "utf8")).toBe(before);
 });
 
 test("default model changes clamp unsupported effort and preserve the ability to turn thinking off", async () => {

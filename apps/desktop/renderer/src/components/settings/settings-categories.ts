@@ -1,4 +1,5 @@
 import {
+  Palette,
   KeyRound,
   UserRound,
   Shield,
@@ -18,6 +19,7 @@ export const settingsGroups = [
   {
     label: "应用",
     items: [
+      { id: "appearance", label: "外观", title: "外观", icon: Palette },
       { id: "conversations", label: "对话", title: "对话", icon: MessageCircle },
       { id: "permissions", label: "权限", title: "权限", icon: Shield },
       { id: "tools", label: "工具函数", title: "工具函数", icon: Wrench },

@@ -321,31 +321,48 @@ if (!app.requestSingleInstanceLock()) {
       .finally(() => app.quit());
   });
 
+  // 记录启动 Promise，用于在 before-quit 钩子中等待启动完成后再安全关闭服务
   startup = app
     .whenReady()
     .then(async () => {
+      // 1. 修复 GUI 启动时的 PATH 环境变量：
+      // macOS 从 Dock/Finder 启动时不会加载用户的 Shell 配置文件（.zshrc/.bash_profile），
+      // 导致缺少 node/git/brew 等路径。这里动态解析并补全系统 PATH，保证 Agent 工具能正常运行。
       const shellPath = await resolveShellPath();
       if (shellPath) process.env.PATH = shellPath;
+
+      // 2. 设置应用图标（macOS Dock 栏）
       app.dock?.setIcon(applicationIconPath());
+
+      // 3. 计算应用根目录与工作区默认路径：
+      // 打包后为应用安装目录，开发环境下回退到 Monorepo 仓库根目录
       const root = app.isPackaged ? app.getAppPath() : resolve(app.getAppPath(), "../..");
       const cwd = process.env.ETA_WORKSPACE ?? (app.isPackaged ? app.getPath("home") : root);
+
+      // 4. 初始化 Agent 核心业务服务（提供线程调度、存储、模型调用、会话管理等全部后台能力）
       agentService = await createDesktopApplication(
         root,
         cwd,
         app.getPath("userData"),
-        (url) => shell.openExternal(url),
-        processImage,
-        (path) => shell.showItemInFolder(path),
+        (url) => shell.openExternal(url), // 外部浏览器打开链接
+        processImage, // 图片预处理（尺寸调整、格式转换）
+        (path) => shell.showItemInFolder(path), // 在系统文件管理器中定位文件
         async (path) => {
+          // 用系统默认程序打开文件，若失败则抛出异常
           const error = await shell.openPath(path);
           if (error) throw new Error(error);
         },
       );
+
+      // 5. 监听项目与会话库变动，当会话/项目发生增删改时广播通知所有窗口刷新
       agentService.subscribeLibrary(notifyLibrary);
+
+      // 6. 标记就绪状态；若启动过程中未收到退出信号，则打开初始窗口
       ready = true;
       if (!quitting) openWindow();
     })
     .catch((error: unknown) => {
+      // 启动阶段致命异常兜底：弹窗提示用户并退出应用，防止出现僵尸进程
       dialog.showErrorBox("Eta 启动失败", error instanceof Error ? error.message : String(error));
       app.quit();
     });

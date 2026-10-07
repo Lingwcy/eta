@@ -1,3 +1,4 @@
+import { agentThinkingVariants } from "../../../appearance.ts";
 import { builtinToolNames } from "../../../tools.ts";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
@@ -28,6 +29,7 @@ export const SettingsSchema = Schema.Struct({
   skillDirectories: Schema.optionalKey(Schema.Array(Schema.NonEmptyString)),
   disabledSkills: Schema.optionalKey(Schema.Array(Schema.NonEmptyString)),
   blockImages: Schema.optionalKey(Schema.Boolean),
+  agentThinkingVariant: Schema.optionalKey(Schema.Literals(agentThinkingVariants)),
   activeThreadId: Schema.optionalKey(Schema.NonEmptyString),
 });
 export type DesktopSettings = typeof SettingsSchema.Type;

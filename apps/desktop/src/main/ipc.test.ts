@@ -12,6 +12,8 @@ test.each([
   { type: "settings", patch: { skillDirectories: [""] } },
   { type: "settings", patch: { disabledSkills: "review" } },
   { type: "settings", patch: { skillsEnabled: "yes" } },
+  { type: "settings", patch: { agentThinkingVariant: "unknown" } },
+  { type: "settings", patch: { agentThinkingVariant: null } },
   { type: "move-thread", id: "thread", projectId: "" },
   { type: "move-thread", id: "thread", projectId: { path: "/project" } },
   { type: "delete-thread", id: "" },
