@@ -1,6 +1,7 @@
 name: Desktop tests
 
 on:
+  workflow_call:
   push:
     branches:
       - main
@@ -30,6 +31,9 @@ jobs:
 
       - name: Type-check repository scripts
         run: vp run --no-cache typecheck
+
+      - name: Test release tooling
+        run: vp test run scripts/desktop-release.test.ts
 
       - name: Type-check desktop
         run: vp run --no-cache @eta/desktop#typecheck
