@@ -1,7 +1,7 @@
 import type { AppUpdater } from "electron-updater";
 import type { UpdateState } from "../../bridge.ts";
 
-export const releaseUrl = "https://github.com/XiaoMouz/eta/releases/latest";
+export const releaseUrl = "https://github.com/Lingwcy/eta/releases/latest";
 const startupDelay = 10_000;
 const checkInterval = 4 * 60 * 60 * 1000;
 

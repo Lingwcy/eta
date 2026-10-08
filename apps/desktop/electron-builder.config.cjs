@@ -31,7 +31,7 @@ module.exports = {
   forceCodeSigning: signedRelease,
   artifactName: "Eta-${version}-mac-${arch}.${ext}",
   // Writes app-update.yml into the app and latest-mac.yml next to the installers for electron-updater.
-  publish: { provider: "github", owner: "XiaoMouz", repo: "eta" },
+  publish: { provider: "github", owner: "Lingwcy", repo: "eta" },
   mac: {
     category: "public.app-category.developer-tools",
     icon: "resources/eta.icns",
@@ -43,6 +43,8 @@ module.exports = {
   },
   dmg: {
     title: "Eta ${version}",
+    // Updates install from the zip; keep the dmg out of latest-mac.yml and skip its blockmap.
+    writeUpdateInfo: false,
     contents: [
       { x: 150, y: 180, type: "file" },
       { x: 430, y: 180, type: "link", path: "/Applications" },
