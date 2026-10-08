@@ -725,24 +725,93 @@ test("archive has an inverse and default changes never overwrite existing conver
   );
 });
 
-test("different threads cannot run side effects concurrently in the same cwd", async () => {
+test("threads in the same cwd run independently and stopping one leaves the other running", async () => {
   const { runtime, threads, registry, workspace, provider } = await setup();
-  provider.setResponses([fauxAssistantMessage("Long running answer ".repeat(50))]);
   const one = await runtime.runPromise(threads.create(workspace.id));
   const two = await runtime.runPromise(threads.create(workspace.id));
+  const first = holdResponse(provider, "First answer");
   await runtime.runPromise(threads.submit(one.id, "Start"));
-  expect(await runtime.runPromise(Effect.flip(threads.submit(two.id, "Conflict")))).toMatchObject({
-    code: "Busy",
-  });
+  await first.ready;
+  const second = holdResponse(provider, "Second answer");
+  const admission = await runtime.runPromise(threads.submit(two.id, "Run beside the first"));
+  await second.ready;
+  expect((await runtime.runPromise(threads.open(one.id))).snapshot.operation).not.toBeNull();
+  expect((await runtime.runPromise(threads.open(two.id))).snapshot.operation?.id).toBe(
+    admission.operationId,
+  );
   await runtime.runPromise(threads.stop(one.id));
   expect((await runtime.runPromise(threads.open(one.id))).snapshot.lastResult?.status).toBe(
     "aborted",
   );
-  await runtime.runPromise(threads.submit(two.id, "Now allowed"));
-  await (
-    await runtime.runPromise(registry.acquire(two.thread.sessionRef))
-  ).conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect((await runtime.runPromise(threads.open(two.id))).snapshot.operation?.id).toBe(
+    admission.operationId,
+  );
+  provider.setResponses([fauxAssistantMessage("Restarted first answer")]);
+  await runtime.runPromise(threads.submit(one.id, "Restart while the second is running"));
+  const firstRuntime = await runtime.runPromise(registry.acquire(one.thread.sessionRef));
+  await firstRuntime.harness.waitForIdle(BACKGROUND_CONTEXT);
+  expect((await runtime.runPromise(threads.open(one.id))).snapshot.lastResult?.status).toBe(
+    "completed",
+  );
+  second.release();
+  const secondRuntime = await runtime.runPromise(registry.acquire(two.thread.sessionRef));
+  await secondRuntime.harness.waitForIdle(BACKGROUND_CONTEXT);
+  const finished = await runtime.runPromise(threads.open(two.id));
+  expect(finished.snapshot.lastResult?.status).toBe("completed");
+  expect(JSON.stringify(finished.snapshot.transcript)).toContain("Second answer");
+  expect(JSON.stringify(finished.snapshot.transcript)).not.toContain("Restarted first answer");
 });
+
+test.each(["submit", "resume", "compact"] as const)(
+  "%s cannot start another operation in a running thread",
+  async (operation) => {
+    const { runtime, threads, workspace, provider } = await setup();
+    const created = await runtime.runPromise(threads.create(workspace.id));
+    const answer = holdResponse(provider, "Answer");
+    const admission = await runtime.runPromise(threads.submit(created.id, "Start"));
+    await answer.ready;
+    const rejected =
+      operation === "submit"
+        ? threads.submit(created.id, "Duplicate")
+        : threads[operation](created.id);
+    expect(await runtime.runPromise(Effect.flip(rejected))).toMatchObject({
+      code: "Busy",
+      message: "此会话已有任务运行，请等待或停止该任务",
+    });
+    const opened = await runtime.runPromise(threads.open(created.id));
+    expect(opened.snapshot.operation?.id).toBe(admission.operationId);
+    expect(
+      opened.snapshot.transcript.filter((entry) => entry.message.role === "user"),
+    ).toHaveLength(1);
+    await runtime.runPromise(threads.stop(created.id));
+  },
+);
+
+test.each(["compact", "stop"] as const)(
+  "%s in an idle thread does not block or stop another thread in the same cwd",
+  async (operation) => {
+    const { runtime, threads, registry, workspace, provider } = await setup();
+    const one = await runtime.runPromise(threads.create(workspace.id));
+    const two = await runtime.runPromise(threads.create(workspace.id));
+    const first = holdResponse(provider, "First answer");
+    const admission = await runtime.runPromise(threads.submit(one.id, "Keep running"));
+    await first.ready;
+    await runtime.runPromise(threads[operation](two.id));
+    const secondRuntime = await runtime.runPromise(registry.acquire(two.thread.sessionRef));
+    await secondRuntime.harness.waitForIdle(BACKGROUND_CONTEXT);
+    await expect.poll(() => secondRuntime.running).toBe(false);
+    expect((await runtime.runPromise(threads.open(one.id))).snapshot.operation?.id).toBe(
+      admission.operationId,
+    );
+    provider.setResponses([fauxAssistantMessage("Second answer")]);
+    await runtime.runPromise(threads.submit(two.id, "Run after the operation"));
+    await secondRuntime.harness.waitForIdle(BACKGROUND_CONTEXT);
+    expect((await runtime.runPromise(threads.open(two.id))).snapshot.lastResult?.status).toBe(
+      "completed",
+    );
+    await runtime.runPromise(threads.stop(one.id));
+  },
+);
 
 test("retrying an admitted request returns its receipt rather than launching another run", async () => {
   const { runtime, threads, workspace, provider, reopen, titleProvider } = await setup();
@@ -980,6 +1049,10 @@ test("SIGKILL during streaming reopens paused and explicit resume settles the sa
     const registry = await next.runPromise(RuntimeRegistryService);
     const record = await next.runPromise(registry.acquire(crashed.thread.sessionRef));
     expect((await record.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
+    const other = await next.runPromise(threads.create(crashed.thread.workspaceId));
+    const concurrent = holdResponse(provider, "Other thread answer");
+    const admission = await next.runPromise(threads.submit(other.id, "Run during recovery"));
+    await concurrent.ready;
     provider.setResponses([fauxAssistantMessage("Recovered final answer")]);
     await next.runPromise(threads.resume(crashed.thread.id));
     await record.harness.waitForIdle(BACKGROUND_CONTEXT);
@@ -990,6 +1063,15 @@ test("SIGKILL during streaming reopens paused and explicit resume settles the sa
       1,
     );
     expect(JSON.stringify(final.snapshot.transcript)).toContain("Recovered final answer");
+    expect((await next.runPromise(threads.open(other.id))).snapshot.operation?.id).toBe(
+      admission.operationId,
+    );
+    concurrent.release();
+    const otherRuntime = await next.runPromise(registry.acquire(other.thread.sessionRef));
+    await otherRuntime.harness.waitForIdle(BACKGROUND_CONTEXT);
+    expect((await next.runPromise(threads.open(other.id))).snapshot.lastResult?.status).toBe(
+      "completed",
+    );
   } finally {
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
   }

@@ -31,7 +31,7 @@ export class RunSupervisorService extends Context.Service<
     Effect.gen(function* () {
       const models = yield* ModelCatalogService;
       const resources = yield* AgentResourcesService;
-      const leases = new Map<string, ThreadRuntime>();
+      const leases = new Set<ThreadRuntime>();
       const executions = new Map<ThreadRuntime, Promise<unknown>>();
       const changed = (runtime: ThreadRuntime) => {
         for (const notify of runtime.changes) notify();
@@ -73,10 +73,10 @@ export class RunSupervisorService extends Context.Service<
             code: blocked.startsWith("工作区") ? "WorkspaceUnavailable" : "ModelUnavailable",
             message: blocked,
           });
-        if (leases.has(runtime.ref.metadata.cwd))
+        if (leases.has(runtime))
           return yield* new DesktopServiceError({
             code: "Busy",
-            message: "此工作区已有任务运行，请等待或停止该任务",
+            message: "此会话已有任务运行，请等待或停止该任务",
           });
         if (!runtime.recoveryRequired)
           yield* adapter("无法更新思考级别", () =>
@@ -84,14 +84,13 @@ export class RunSupervisorService extends Context.Service<
           );
       });
       const claim = (runtime: ThreadRuntime) => {
-        if (leases.has(runtime.ref.metadata.cwd))
-          throw new DesktopServiceError({ code: "Busy", message: "此工作区已有任务运行" });
-        leases.set(runtime.ref.metadata.cwd, runtime);
+        if (leases.has(runtime))
+          throw new DesktopServiceError({ code: "Busy", message: "此会话已有任务运行" });
+        leases.add(runtime);
         runtime.running = true;
       };
       const release = (runtime: ThreadRuntime) => {
-        if (leases.get(runtime.ref.metadata.cwd) === runtime)
-          leases.delete(runtime.ref.metadata.cwd);
+        leases.delete(runtime);
         runtime.running = false;
         executions.delete(runtime);
         changed(runtime);
