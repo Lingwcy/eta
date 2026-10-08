@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
     renameThread: vi.fn(),
     subscribeLibrary: vi.fn(),
     openSkillsDirectory: vi.fn(),
+    library: vi.fn(async () => ({ settings: {} })),
   },
   openDirectory: undefined as ((path: string) => Promise<void>) | undefined,
   shell: { openPath: vi.fn(), showItemInFolder: vi.fn(), openExternal: vi.fn() },

@@ -351,7 +351,9 @@ if (!app.requestSingleInstanceLock()) {
       .catch((error: unknown) => {
         console.error("Eta shutdown failed", error);
       })
-      .finally(() => app.quit());
+      // 推迟到下一个宏任务：清理很快完成时，微任务里的 app.quit() 会重入仍在执行的 Browser::Quit，
+      // 外层随后把 is_quitting_ 覆盖回 false，窗口全部关闭后进程却不退出（SIGTERM 和 quitAndInstall 都会触发）
+      .finally(() => setImmediate(() => app.quit()));
   });
 
   // 记录启动 Promise，用于在 before-quit 钩子中等待启动完成后再安全关闭服务
@@ -391,17 +393,22 @@ if (!app.requestSingleInstanceLock()) {
       agentService.subscribeLibrary(notifyLibrary);
 
       // 6. 自动更新：只有打包后的应用带有 app-update.yml，开发模式下标记为不支持
-      const { settings } = await agentService.library();
       updater = createUpdater({
         // 按需加载，开发模式不引入 electron-updater
         backend: app.isPackaged ? (await import("electron-updater")).autoUpdater : undefined,
-        autoCheck: settings.autoCheckUpdates !== false,
+        autoCheck: false,
         broadcast: notifyUpdate,
       });
 
       // 7. 标记就绪状态；若启动过程中未收到退出信号，则打开初始窗口
       ready = true;
       if (!quitting) openWindow();
+
+      // 8. 读取设置后再开启自动检查；更新器出错不能阻断启动
+      void agentService.library().then(
+        ({ settings }) => updater?.setAutoCheck(settings.autoCheckUpdates !== false),
+        (error: unknown) => console.error("Eta update schedule failed", error),
+      );
     })
     .catch((error: unknown) => {
       // 启动阶段致命异常兜底：弹窗提示用户并退出应用，防止出现僵尸进程
