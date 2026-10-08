@@ -62,11 +62,6 @@ export type UpdateState =
 
 export interface AppInfo {
   version: string;
-  electron: string;
-  chrome: string;
-  node: string;
-  platform: string;
-  arch: string;
 }
 
 export interface DesktopBridge extends AgentBridge {

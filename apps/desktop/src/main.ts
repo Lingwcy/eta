@@ -177,15 +177,7 @@ ipcMain.handle("eta:command", (_event, command: unknown) =>
 // 关于页：版本信息与更新生命周期
 ipcMain.handle("eta:update", (_event, action: unknown) =>
   commandReply(async () => {
-    if (action === "app-info")
-      return {
-        version: app.getVersion(),
-        electron: process.versions.electron,
-        chrome: process.versions.chrome,
-        node: process.versions.node,
-        platform: process.platform,
-        arch: process.arch,
-      };
+    if (action === "app-info") return { version: app.getVersion() };
     if (action === "release-page") return shell.openExternal(releaseUrl);
     if (!updater) throw new Error("更新服务尚未就绪");
     if (action === "state") return updater.state();

@@ -58,13 +58,7 @@ export function AboutSettings({
     <>
       {error && <Alert>{error}</Alert>}
       <SettingsSection title="Eta">
-        <SettingsRow
-          title={info ? `版本 v${info.version}` : "版本"}
-          description={
-            info &&
-            `Electron ${info.electron} · Chromium ${info.chrome} · Node ${info.node} · ${info.platform}-${info.arch}`
-          }
-        >
+        <SettingsRow title={info ? `版本 v${info.version}` : "版本"}>
           <Avatar label="Eta" fallback="η" src="./favicon.svg" variant="brand" />
         </SettingsRow>
       </SettingsSection>
@@ -96,10 +90,7 @@ export function AboutSettings({
             </Button>
           </SettingsRow>
         )}
-        <SettingsRow
-          title="自动检查更新"
-          description="启动时和每隔 4 小时检查一次，发现新版本后在后台下载，退出时自动安装。"
-        >
+        <SettingsRow title="自动检查更新">
           <Button
             size="sm"
             variant={autoCheck ? "secondary" : "outline"}
