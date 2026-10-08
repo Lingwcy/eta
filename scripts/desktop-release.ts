@@ -2,8 +2,9 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { parse, stringify } from "yaml";
 
 export interface PublishedRelease {
   tag_name: string;
@@ -155,6 +156,59 @@ export function installerChecksums(directory: string, tag: string) {
   });
 }
 
+interface UpdateFeed {
+  version: string;
+  files: { url: string; sha512: string; size: number }[];
+  path: string;
+  sha512: string;
+  releaseDate: string;
+}
+
+/**
+ * electron-updater reads one latest-mac.yml for every architecture. Each CI job writes its own
+ * latest-mac-<arch>.yml; a local `--arm64 --x64` build writes a combined latest-mac.yml.
+ */
+export function updateFeed(directory: string, tag: string) {
+  const expected = version(tag);
+  const sources = readdirSync(directory).filter((name) => /^latest-mac-\w+\.yml$/.test(name));
+  if (!sources.length && existsSync(join(directory, "latest-mac.yml")))
+    sources.push("latest-mac.yml");
+  const feeds = sources.map(
+    (name) => parse(readFileSync(join(directory, name), "utf8")) as UpdateFeed,
+  );
+  const files = new Map<string, UpdateFeed["files"][number]>();
+  for (const feed of feeds) {
+    if (feed.version !== expected)
+      throw new Error(`Update feed version ${feed.version} does not match ${tag}`);
+    for (const file of feed.files) files.set(file.url, file);
+  }
+  const uploads: string[] = [];
+  for (const file of files.values()) {
+    const path = join(directory, file.url);
+    const digest = createHash("sha512").update(readFileSync(path)).digest("base64");
+    if (digest !== file.sha512) throw new Error(`Update feed checksum mismatch: ${file.url}`);
+    uploads.push(path);
+    if (existsSync(`${path}.blockmap`)) uploads.push(`${path}.blockmap`);
+  }
+  // Squirrel.Mac can only install from a zip, so each architecture needs one.
+  const zips = ["arm64", "x64"].map((arch) => `Eta-${expected}-mac-${arch}.zip`);
+  for (const zip of zips) if (!files.has(zip)) throw new Error(`Update feed is missing ${zip}`);
+  const feed: UpdateFeed = {
+    version: expected,
+    files: [...files.values()],
+    // Legacy single-file fields predate `files`; current updaters choose by architecture.
+    path: zips[0]!,
+    sha512: files.get(zips[0]!)!.sha512,
+    releaseDate: feeds
+      .map((feed) => feed.releaseDate)
+      .toSorted()
+      .at(-1)!,
+  };
+  const path = join(directory, "latest-mac.yml");
+  writeFileSync(path, stringify(feed));
+  return [...uploads.filter((upload) => !upload.endsWith(".dmg")), path];
+}
+
 /** Publish only complete drafts; reruns leave an already published release unchanged. */
 export function publishRelease(root: string, tag: string, directory: string, repository: string) {
   const revision = validateRelease(root, tag);
@@ -171,12 +225,13 @@ export function publishRelease(root: string, tag: string, directory: string, rep
   }
   const previous = previousRelease(root, tag, releases);
   const installers = installerChecksums(directory, tag);
+  const updates = updateFeed(directory, tag);
   const signed = process.env.ETA_SIGNED_RELEASE === "1";
   const checksumText = installers.map(({ name, digest }) => `${digest}  ${name}`).join("\n") + "\n";
   const checksumsPath = join(directory, "SHA256SUMS.txt");
   const notesPath = join(directory, "release-notes.md");
   const signing = signed
-    ? "本版本使用 Apple Developer ID 签名并完成公证。"
+    ? "本版本使用 Apple Developer ID 签名并完成公证，已安装的签名版 Eta 会通过自动更新收到此版本。"
     : "本版本使用 ad-hoc 签名，未经过 Apple Developer ID 签名或公证。若 macOS 阻止首次打开，请确认下载来源后，在「系统设置 → 隐私与安全性」中允许打开。";
   const notes =
     releaseNotes(root, tag, repository, previous) +
@@ -206,6 +261,7 @@ export function publishRelease(root: string, tag: string, directory: string, rep
     repository,
     "--clobber",
     ...installers.map(({ path }) => path),
+    ...updates,
     checksumsPath,
   ]);
   const uploaded = JSON.parse(
@@ -213,10 +269,12 @@ export function publishRelease(root: string, tag: string, directory: string, rep
   ) as {
     assets: { name: string; digest: string; state: string }[];
   };
-  for (const installer of installers) {
-    const asset = uploaded.assets.find((asset) => asset.name === installer.name);
-    if (asset?.state !== "uploaded" || asset.digest !== `sha256:${installer.digest}`)
-      throw new Error(`Uploaded installer checksum mismatch: ${installer.name}`);
+  for (const path of [...installers.map(({ path }) => path), ...updates]) {
+    const name = path.slice(directory.length + 1);
+    const digest = createHash("sha256").update(readFileSync(path)).digest("hex");
+    const asset = uploaded.assets.find((asset) => asset.name === name);
+    if (asset?.state !== "uploaded" || asset.digest !== `sha256:${digest}`)
+      throw new Error(`Uploaded installer checksum mismatch: ${name}`);
   }
   const newerPublished = releases.some(
     (release) =>
