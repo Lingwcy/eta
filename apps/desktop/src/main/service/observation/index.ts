@@ -1,11 +1,12 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
-import { CompactionEntry } from "@eta/agent";
+import { CompactionEntry, UserEntry } from "@eta/agent";
 import type { AgentState, ConversationView, Cursor, LiveState, SubmissionRecord } from "@eta/agent";
 import { Context, Effect, Layer } from "effect";
 import type { SnapshotResponse } from "../../../agent/protocol.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
+import { SubagentsDoc } from "../subagents/extension.ts";
 import { SkillsDoc, skillSummary } from "../skills/extension.ts";
 
 export class ObservationService extends Context.Service<
@@ -112,25 +113,42 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     history = entries.reverse();
   }
   const receipts: SubmissionRecord[] = [];
-  let cursor: Cursor | undefined;
-  do {
-    const page = await runtime.storage.scanSubmissions(
-      { conversationId: runtime.conversation.id },
-      200,
-      cursor,
-      BACKGROUND_CONTEXT,
-    );
-    receipts.push(...page.items);
-    cursor = page.next;
-  } while (cursor !== undefined);
+  const reports = new Set<number>();
+  // Fork history includes ancestor entries, whose submission receipts belong to the ancestor.
+  const sources = new Set([
+    runtime.conversation.id,
+    ...history.map((entry) => entry.conversationId),
+  ]);
+  for (const conversationId of sources) {
+    let cursor: Cursor | undefined;
+    do {
+      const page = await runtime.storage.scanSubmissions(
+        { conversationId },
+        200,
+        cursor,
+        BACKGROUND_CONTEXT,
+      );
+      if (conversationId === runtime.conversation.id) receipts.push(...page.items);
+      for (const receipt of page.items)
+        if (receipt.requestId?.startsWith("subagent-report:") && receipt.entry !== undefined)
+          reports.add(receipt.entry);
+      cursor = page.next;
+    } while (cursor !== undefined);
+  }
   const terminal = receipts.findLast(
     (receipt) =>
       receipt.type === "input" &&
       ((receipt.status === "done" && history.some((entry) => entry.id === receipt.answer)) ||
         (receipt.status === "unanswered" && !live.run?.inputs.includes(receipt.id))),
   );
+  // Automatic reports remain model context, but are not messages authored by the user.
   const transcript = history
-    .filter((entry) => !CompactionEntry.is(entry))
+    .filter(
+      (entry) =>
+        !CompactionEntry.is(entry) &&
+        !reports.has(entry.id) &&
+        !(UserEntry.is(entry) && entry.byTaskId !== undefined),
+    )
     .flatMap((entry) =>
       (entry.model ?? [])
         .filter((message) => message.role !== "system")
@@ -149,7 +167,17 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     history.find((entry) => entry.id === id)?.model?.[0]?.timestamp ??
     runtime.ref.metadata.createdAt;
   const active = receipts.find((receipt) => receipt.id === live.run?.inputs[0]);
+  const subagents = await runtime.harness.snapshot(SubagentsDoc, BACKGROUND_CONTEXT);
+  const waiting = subagents?.waiters?.some(
+    (waiter) =>
+      waiter.conversationId === runtime.conversation.id && waiter.taskId === live.run?.taskId,
+  );
   const snapshot: SnapshotResponse["snapshot"] = {
+    subagents: (await runtime.subagents.list()).map((child) =>
+      runtime.recoveryRequired && (child.status === "running" || child.status === "queued")
+        ? { ...child, status: "paused" as const }
+        : child,
+    ),
     activeSkills:
       (
         await runtime.harness.snapshot(SkillsDoc, runtime.conversation.id, BACKGROUND_CONTEXT)
@@ -165,6 +193,7 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
           kind: "run",
           startedAt: entryTime(active?.entry),
           status: "running",
+          ...(waiting ? { waitingForSubagents: true } : {}),
           fromTipId: null,
           runningTools: (live.tools ?? [])
             .filter((tool) => tool.status !== "done")
@@ -187,7 +216,9 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
                     }),
               };
             }),
-          ...(live.generation?.message ? { streamingMessage: live.generation.message } : {}),
+          ...(live.generation?.message && !waiting
+            ? { streamingMessage: live.generation.message }
+            : {}),
           ...(live.generation?.retry
             ? { retry: { attempt: live.generation.attempt, maxAttempts: 4 } }
             : {}),

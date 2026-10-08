@@ -27,6 +27,9 @@ export function ChatTranscript({
   const scroll = useScrollFollow();
   const messages = getChatMessages(snapshot);
   const turns = getChatTurns(messages);
+  const [history, setHistory] = useState<ReadonlySet<string>>();
+  // The first snapshot is restored history; only messages arriving later get an entrance.
+  if (snapshot && !history) setHistory(new Set(messages.map((entry) => entry.id)));
   const [activeId, setActiveId] = useState<string>();
   const updatePosition = () => {
     const viewport = scroll.viewport.current;
@@ -71,7 +74,11 @@ export function ChatTranscript({
             {messages.map((entry) =>
               entry.message.role === "user" ? (
                 <div key={entry.id} data-chat-turn={entry.id}>
-                  <ChatMessage message={entry.message} tools={tools} />
+                  <ChatMessage
+                    message={entry.message}
+                    tools={tools}
+                    animate={Boolean(history && !history.has(entry.id))}
+                  />
                 </div>
               ) : (
                 <ChatMessage
@@ -79,6 +86,7 @@ export function ChatTranscript({
                   message={entry.message}
                   tools={tools}
                   streaming={entry.streaming}
+                  animate={Boolean(history && !history.has(entry.id))}
                 />
               ),
             )}

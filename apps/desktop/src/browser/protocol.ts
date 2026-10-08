@@ -28,6 +28,7 @@ export type DesktopShortcut =
   | "reopen-tab"
   | "settings"
   | "toggle-sidebar"
+  | "toggle-inspector"
   | "next-tab"
   | "previous-tab"
   | "focus-address"
@@ -63,6 +64,8 @@ export function desktopShortcut(input: {
   alt?: boolean;
 }): DesktopShortcut | undefined {
   const key = input.key.toLowerCase();
+  if (input.alt && key === "arrowleft" && !input.meta && !input.control && !input.shift)
+    return "toggle-inspector";
   if (input.control && key === "tab" && !input.alt)
     return input.shift ? "previous-tab" : "next-tab";
   if (!(input.meta || input.control) || input.alt) return;

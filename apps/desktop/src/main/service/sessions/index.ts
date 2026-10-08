@@ -101,7 +101,7 @@ export class SessionRepositoryService extends Context.Service<
               const path = await verify(ref);
               if (!initializing && !(await stat(join(path, "main.jsonl"))).isFile())
                 throw new Error("Missing transcript");
-              return openNodeJsonlStorage(path, BACKGROUND_CONTEXT);
+              return openNodeJsonlStorage(path, BACKGROUND_CONTEXT, { fsync: true });
             },
             "StorageCorrupt",
           ),

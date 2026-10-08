@@ -34,6 +34,14 @@ Place skill folders containing `SKILL.md` in `~/.agents/skills/` for personal us
 
 Eta first offers the agent skill names and descriptions. The agent loads instructions when relevant and reads supporting files only as needed. Choose a skill from the composer, use **Cmd/Ctrl+Shift+K**, or include `$skill-name` in your request to select it explicitly. The conversation retains activated instructions across restarts and context compaction. Remove a loaded skill in the composer before loading an updated version. Skills use the tools and dependencies already available in your environment.
 
+## Subagents
+
+Open the right sidebar from the top-right window control (**Alt+←**) to inspect delegated work. Click a task to open its conversation in the main content area. Send another message after its task finishes to continue working. Independent children receive their assigned task and project instructions; forked children inherit the conversation history at creation.
+
+Use **Settings → Subagents** to create presets with instructions, thinking levels, and candidate models. The model scope follows the current main model by default; enable other models in the model picker. Set nesting depth and concurrency per chat. Opportunistic mode delegates when useful. Orchestrator mode delegates tool execution while the main conversation handles discussion, coordination, and results.
+
+The main task stays running while waiting for children, then resumes with their results and summarizes them. Sending is disabled while it waits. Stopping the main task stops its entire child tree and retains history so you can send another task later. Reopening unfinished work requires an explicit resume or stop. Back up the entire session directory: all agents share the main JSONL transcript, and task recovery also needs the adjacent state files.
+
 ## Run locally
 
 Install [Vite+](https://viteplus.dev/guide/), then run:

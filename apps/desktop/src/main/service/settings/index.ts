@@ -1,3 +1,4 @@
+import { SubagentSettingsSchema } from "../subagents/schema.ts";
 import { agentThinkingVariants } from "../../../appearance.ts";
 import { builtinToolNames } from "../../../tools.ts";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
@@ -12,6 +13,7 @@ export const TitleModelSchema = Schema.NullOr(
 );
 
 export const SettingsSchema = Schema.Struct({
+  subagents: Schema.optionalKey(SubagentSettingsSchema),
   defaultProvider: Schema.optionalKey(Schema.NonEmptyString),
   defaultModel: Schema.optionalKey(Schema.NonEmptyString),
   titleModel: Schema.optionalKey(TitleModelSchema),
@@ -40,6 +42,7 @@ export class DesktopSettingsService extends Context.Service<
   DesktopSettingsService,
   {
     readonly read: Effect.Effect<DesktopSettings>;
+    subscribe(listener: () => void): () => void;
     update(patch: Partial<DesktopSettings>): Effect.Effect<DesktopSettings, DesktopServiceError>;
   }
 >()("eta/desktop/main/service/settings/DesktopSettingsService") {
@@ -74,7 +77,14 @@ export class DesktopSettingsService extends Context.Service<
               ),
             )).settings;
       const state = yield* SynchronizedRef.make<DesktopSettings>(normalize(initial));
+      const listeners = new Set<() => void>();
       return DesktopSettingsService.of({
+        subscribe: (listener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
         read: SynchronizedRef.get(state).pipe(Effect.map((value) => structuredClone(value))),
         update: (patch) =>
           SynchronizedRef.modifyEffect(
@@ -87,13 +97,36 @@ export class DesktopSettingsService extends Context.Service<
                   () => new DesktopServiceError({ code: "InvalidInput", message: "设置格式无效" }),
                 ),
               );
+              if (decoded.subagents) {
+                if (decoded.subagents.mode === "orchestrator" && decoded.subagents.maxDepth === 0)
+                  return yield* new DesktopServiceError({
+                    code: "InvalidInput",
+                    message: "编排模式至少需要一层子智能体",
+                  });
+                const names = decoded.subagents.presets.map((preset) => preset.name);
+                if (
+                  new Set(names).size !== names.length ||
+                  names.some((name) => !/^[a-zA-Z0-9_-]+$/.test(name))
+                )
+                  return yield* new DesktopServiceError({
+                    code: "InvalidInput",
+                    message: "预设名称必须唯一，且只能包含字母、数字、下划线和连字符",
+                  });
+              }
               const next = normalize(decoded);
               yield* adapter("无法保存设置", () =>
                 writeJson(settingsPath, { version: 1, settings: next }),
               );
               return [structuredClone(next), next] as const;
             }),
-          ).pipe(Effect.uninterruptible),
+          ).pipe(
+            Effect.uninterruptible,
+            Effect.tap(() =>
+              Effect.sync(() => {
+                for (const listener of listeners) listener();
+              }),
+            ),
+          ),
       });
     }),
   );

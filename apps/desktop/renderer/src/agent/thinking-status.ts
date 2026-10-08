@@ -1,6 +1,12 @@
 import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
 
-export type ThinkingPhase = "waiting" | "continuing" | "thinking" | "retrying" | "deferred";
+export type ThinkingPhase =
+  | "waiting"
+  | "continuing"
+  | "thinking"
+  | "retrying"
+  | "deferred"
+  | "subagents";
 
 /** Track each observed response phase so tool-round gaps stay visible without restarting their timer. */
 export class ThinkingStatus {
@@ -54,7 +60,8 @@ export class ThinkingStatus {
       operation.status !== "aborting" &&
       !operation.runningTools.some((tool) => tool.status === "running")
     ) {
-      if (operation.retry) phase = "retrying";
+      if (operation.waitingForSubagents) phase = "subagents";
+      else if (operation.retry) phase = "retrying";
       else if (operation.deferred) phase = "deferred";
       else if (activePart?.type === "thinking") phase = "thinking";
       else if (!activePart) phase = this.responded ? "continuing" : "waiting";

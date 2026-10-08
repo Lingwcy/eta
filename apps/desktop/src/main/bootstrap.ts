@@ -1,3 +1,4 @@
+import type { SubagentCommand } from "../subagents.ts";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, basename } from "node:path";
 import type { ImageAttachment, ImageSource, ImageProcessor } from "../images/types.ts";
@@ -80,6 +81,8 @@ export async function createDesktopApplication(
     const cwdDefault = cwd;
     const run = <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect);
     return {
+      subagent: (id: string, command: SubagentCommand, requestId: string) =>
+        run(threads.subagent(id, command, requestId)),
       skills: (cwd?: string) => run(skills.catalog(cwd)),
       openSkillsDirectory: async (path: string, cwd?: string) =>
         openDirectory(await run(skills.prepareDirectory(path, cwd))),
@@ -165,7 +168,8 @@ export async function createDesktopApplication(
         id: string,
         onSnapshot: Parameters<ThreadService["Service"]["subscribe"]>[1],
         onError: (message: string) => void,
-      ) => run(threads.subscribe(id, onSnapshot, onError)),
+        path?: string,
+      ) => run(threads.subscribe(id, onSnapshot, onError, path)),
       close: async () => {
         await authentication.close();
         await runtime.dispose();

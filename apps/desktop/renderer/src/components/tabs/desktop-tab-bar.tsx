@@ -1,7 +1,7 @@
 import { ThreadContextMenu } from "../threads/thread-actions";
 import { lazy, Suspense, useEffect, useId, useState } from "react";
 import { PreviewCard } from "@base-ui/react/preview-card";
-import { ArrowLeft, ArrowRight, ChevronDown, PanelLeft, Plus, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, PanelLeft, PanelRight, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { DesktopTabState, DesktopTabs } from "@/agent/desktop-tabs";
@@ -18,6 +18,9 @@ export function DesktopTabBar({
   items,
   collapsed,
   onToggle,
+  inspectorAvailable,
+  inspectorOpen,
+  onToggleInspector,
   onOverlay,
   onPreview,
 }: {
@@ -26,6 +29,9 @@ export function DesktopTabBar({
   items: readonly TabPresentation[];
   collapsed: boolean;
   onToggle: () => void;
+  inspectorAvailable: boolean;
+  inspectorOpen: boolean;
+  onToggleInspector: () => void;
   onOverlay: (open: boolean) => void;
   onPreview: (id: string) => void;
 }) {
@@ -55,7 +61,7 @@ export function DesktopTabBar({
   return (
     <header
       className={cn(
-        "relative flex h-[42px] shrink-0 items-center border-b border-neutral-200/60 bg-[#f3f3f3] pr-2 [-webkit-app-region:drag]",
+        "relative flex h-[42px] shrink-0 items-center border-b border-neutral-200/60 bg-[#e9e9e9] pr-2 [-webkit-app-region:drag]",
         browsing && (mac ? "pl-[98px]" : "pl-2"),
       )}
     >
@@ -272,6 +278,21 @@ export function DesktopTabBar({
           />
         </Suspense>
       </div>
+      {inspectorAvailable && (
+        <div className="ml-2 border-l border-neutral-200 pl-2 [-webkit-app-region:no-drag]">
+          <Button
+            variant="ghost-muted"
+            size="icon-xs"
+            aria-label={inspectorOpen ? "隐藏右侧栏" : "显示右侧栏"}
+            title="右侧栏 (Alt+←)"
+            aria-expanded={inspectorOpen}
+            aria-controls="desktop-inspector"
+            onClick={onToggleInspector}
+          >
+            <PanelRight size={17} />
+          </Button>
+        </div>
+      )}
       <PreviewCard.Root
         handle={handle}
         open={previewOpen}

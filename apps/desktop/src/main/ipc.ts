@@ -1,3 +1,4 @@
+import { SubagentCommandSchema, SubagentSettingsSchema } from "./service/subagents/schema.ts";
 import { builtinToolNames } from "../tools.ts";
 import { agentThinkingVariants } from "../appearance.ts";
 import { Schema } from "effect";
@@ -12,6 +13,12 @@ import { TitleModelSchema } from "./service/settings/index.ts";
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
 const Command = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("subagent"),
+    id: Id,
+    requestId: Id,
+    command: SubagentCommandSchema,
+  }),
   Schema.Struct({ type: Schema.Literal("skills"), cwd: Schema.optional(Id) }),
   Schema.Struct({
     type: Schema.Literal("open-skills-directory"),
@@ -72,6 +79,7 @@ const Command = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("settings"),
     patch: Schema.Struct({
+      subagents: Schema.optionalKey(SubagentSettingsSchema),
       defaultProvider: Schema.optionalKey(Id),
       defaultModel: Schema.optionalKey(Id),
       titleModel: Schema.optionalKey(TitleModelSchema),
@@ -111,6 +119,8 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     throw new DesktopServiceError({ code: "InvalidInput", message: "请求参数无效" });
   }
   switch (command.type) {
+    case "subagent":
+      return application.subagent(command.id, command.command, command.requestId);
     case "skills":
       return application.skills(command.cwd);
     case "open-skills-directory":

@@ -1,3 +1,6 @@
+import type { SubagentCommand, SubagentSummary } from "../../../subagents.ts";
+import type { SnapshotResponse } from "../../../agent/protocol.ts";
+import type { ThreadRuntime } from "../runtime/index.ts";
 import type { ImageAttachment } from "../../../images/types.ts";
 import { randomUUID } from "node:crypto";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
@@ -32,6 +35,12 @@ export interface OpenThread extends SessionResponse {
 export class ThreadService extends Context.Service<
   ThreadService,
   {
+    subagent(
+      id: string,
+      command: SubagentCommand,
+      requestId: string,
+    ): Effect.Effect<readonly SubagentSummary[], ThreadError>;
+    openSubagent(id: string, path: string): Effect.Effect<SnapshotResponse, ThreadError>;
     list(
       workspaceId?: string,
       includeArchived?: boolean,
@@ -63,6 +72,7 @@ export class ThreadService extends Context.Service<
       id: string,
       onSnapshot: Parameters<ObservationService["Service"]["subscribe"]>[1],
       onError: (message: string) => void,
+      path?: string,
     ): Effect.Effect<() => void, ThreadError>;
   }
 >()("eta/desktop/main/service/threads/ThreadService") {
@@ -102,6 +112,32 @@ export class ThreadService extends Context.Service<
           });
         return yield* registry.acquire(thread.sessionRef);
       });
+      const childRuntime = async (runtime: ThreadRuntime, path: string): Promise<ThreadRuntime> => {
+        const child = (await runtime.subagents.list()).find((child) => child.path === path);
+        if (!child) throw new DesktopServiceError({ code: "NotFound", message: "子智能体不存在" });
+        const record = await runtime.storage.conversation(
+          child.conversationId as typeof runtime.conversation.id,
+          BACKGROUND_CONTEXT,
+        );
+        const conversation =
+          record && (await runtime.harness.conversation(record.id, BACKGROUND_CONTEXT));
+        if (!conversation)
+          throw new DesktopServiceError({ code: "NotFound", message: "子智能体会话不存在" });
+        return {
+          ...runtime,
+          conversation,
+          error: undefined,
+          get disposed() {
+            return runtime.disposed;
+          },
+          get recoveryRequired() {
+            return runtime.recoveryRequired;
+          },
+          get blockedReason() {
+            return runtime.blockedReason;
+          },
+        };
+      };
       const open = Effect.fn("ThreadService.open")(function* (id: string) {
         const thread = yield* get(id);
         const runtime = yield* registry.acquire(thread.sessionRef);
@@ -124,11 +160,47 @@ export class ThreadService extends Context.Service<
         return state.threads.find((thread) => thread.id === id)!;
       });
       return ThreadService.of({
+        subagent: (id, command, requestId) =>
+          locked(
+            Effect.gen(function* () {
+              const runtime = yield* runtimeFor(id, command.action !== "list");
+              if (
+                runtime.recoveryRequired &&
+                command.action !== "list" &&
+                command.action !== "stop"
+              )
+                return yield* new DesktopServiceError({
+                  code: "RecoveryRequired",
+                  message: "请先恢复或停止未完成任务",
+                });
+              if (command.action === "spawn" || command.action === "send")
+                yield* adapter("无法更新工具", runtime.refreshTools);
+              yield* adapter("无法管理子智能体", async () => {
+                const actor =
+                  command.parent && command.parent !== "/root"
+                    ? (await childRuntime(runtime, command.parent)).conversation.id
+                    : runtime.conversation.id;
+                await runtime.subagents.execute(command, actor, requestId);
+                runtime.harness.resume();
+              });
+              return yield* adapter("无法读取子智能体", runtime.subagents.list);
+            }),
+          ),
+        openSubagent: (id, path) =>
+          Effect.gen(function* () {
+            const runtime = yield* runtimeFor(id);
+            const child = yield* adapter("无法打开子智能体", () => childRuntime(runtime, path));
+            return yield* observations.snapshot(child);
+          }),
         unloadSkill: (id, name) =>
           locked(
             Effect.gen(function* () {
               const runtime = yield* runtimeFor(id);
-              if (runtime.running || runtime.recoveryRequired)
+              if (
+                runtime.running ||
+                runtime.recoveryRequired ||
+                (yield* adapter("无法检查任务", runtime.hasWork))
+              )
                 return yield* new DesktopServiceError({
                   code: "Busy",
                   message: "请先停止或完成当前任务，再移除技能",
@@ -234,7 +306,12 @@ export class ThreadService extends Context.Service<
             Effect.gen(function* () {
               const thread = yield* get(id);
               const runtime = yield* registry.peek(thread.sessionRef);
-              if (runtime && (runtime.running || runtime.recoveryRequired))
+              if (
+                runtime &&
+                (runtime.running ||
+                  runtime.recoveryRequired ||
+                  (yield* adapter("无法检查任务", runtime.hasWork)))
+              )
                 return yield* new DesktopServiceError({
                   code: "Busy",
                   message: "请先停止未完成的任务，再删除会话",
@@ -270,7 +347,13 @@ export class ThreadService extends Context.Service<
             Effect.gen(function* () {
               const existing = yield* get(id);
               const runtime = yield* registry.peek(existing.sessionRef);
-              if (archived && runtime && (runtime.running || runtime.recoveryRequired))
+              if (
+                archived &&
+                runtime &&
+                (runtime.running ||
+                  runtime.recoveryRequired ||
+                  (yield* adapter("无法检查任务", runtime.hasWork)))
+              )
                 return yield* new DesktopServiceError({
                   code: "Busy",
                   message: "请先停止未完成的任务，再归档",
@@ -356,9 +439,13 @@ export class ThreadService extends Context.Service<
               return yield* open(id);
             }),
           ),
-        subscribe: (id, onSnapshot, onError) =>
+        subscribe: (id, onSnapshot, onError, path) =>
           Effect.gen(function* () {
-            return yield* observations.subscribe(yield* runtimeFor(id), onSnapshot, onError);
+            const runtime = yield* runtimeFor(id);
+            const target = path
+              ? yield* adapter("无法订阅子智能体", () => childRuntime(runtime, path))
+              : runtime;
+            return yield* observations.subscribe(target, onSnapshot, onError);
           }),
       });
     }),

@@ -1,3 +1,4 @@
+import { SubagentSettings } from "./settings/subagent-settings";
 import { AppearanceSettings } from "./settings/appearance-settings";
 import { ToolSettings } from "./settings/tool-settings";
 import { PermissionSettings } from "./settings/permission-settings";
@@ -19,6 +20,7 @@ import { AboutSettings } from "./settings/about-settings";
 
 interface Props {
   active?: boolean;
+  inspectorOpen?: boolean;
   library: DesktopLibrary;
   initialCategory?: string;
   categoryRevision?: number;
@@ -60,6 +62,7 @@ export function DesktopSettings(props: Props) {
     >
       <DesktopLayout
         collapsed={false}
+        inspectorOpen={props.inspectorOpen}
         sidebar={
           <>
             <NavigationRail
@@ -99,6 +102,15 @@ export function DesktopSettings(props: Props) {
                           await props.refresh();
                         })
                       }
+                    />
+                  ) : item.id === "subagents" ? (
+                    <SubagentSettings
+                      library={props.library}
+                      busy={props.busy}
+                      onChange={async (subagents) => {
+                        await window.eta.updateSettings({ subagents });
+                        await props.refresh();
+                      }}
                     />
                   ) : item.id === "conversations" ? (
                     <ConversationSettings

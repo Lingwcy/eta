@@ -8,8 +8,10 @@ type RootProps = Omit<ComponentProps<typeof BaseScrollArea.Root>, "className"> &
 type ViewportProps = Omit<ComponentProps<typeof BaseScrollArea.Viewport>, "className"> & {
   className?: string;
 };
+type ScrollGutter = "reserved" | "overlay";
 type ContentProps = Omit<ComponentProps<typeof BaseScrollArea.Content>, "className"> & {
   className?: string;
+  gutter?: ScrollGutter;
 };
 
 export function ScrollAreaRoot({ className, ...props }: RootProps) {
@@ -31,8 +33,13 @@ export function ScrollAreaViewport({ className, ...props }: ViewportProps) {
     />
   );
 }
-export function ScrollAreaContent({ className, ...props }: ContentProps) {
-  return <BaseScrollArea.Content className={cn("min-w-0! w-full pr-3", className)} {...props} />;
+export function ScrollAreaContent({ className, gutter = "reserved", ...props }: ContentProps) {
+  return (
+    <BaseScrollArea.Content
+      className={cn("min-w-0! w-full", gutter === "reserved" && "pr-3", className)}
+      {...props}
+    />
+  );
 }
 export function ScrollAreaScrollbar() {
   return (
@@ -57,11 +64,11 @@ export function ScrollAreaFade({ edge }: { edge: "top" | "bottom" }) {
   );
 }
 
-export function ScrollArea({ children, ...props }: RootProps) {
+export function ScrollArea({ children, gutter, ...props }: RootProps & { gutter?: ScrollGutter }) {
   return (
     <ScrollAreaRoot {...props}>
       <ScrollAreaViewport>
-        <ScrollAreaContent>{children}</ScrollAreaContent>
+        <ScrollAreaContent gutter={gutter}>{children}</ScrollAreaContent>
       </ScrollAreaViewport>
       <ScrollAreaScrollbar />
     </ScrollAreaRoot>

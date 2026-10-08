@@ -29,6 +29,18 @@ export function useDesktopController(
   );
   const project = desktop.library?.projects.find((project) => project.id === workspace?.projectId);
   const snapshot = agent.observation?.snapshot;
+  const mainModel =
+    agent.session?.model ??
+    desktop.library?.models.find(
+      (model) =>
+        model.provider === desktop.library?.settings.defaultProvider &&
+        model.id === desktop.library?.settings.defaultModel,
+    ) ??
+    desktop.library?.models[0];
+  useEffect(() => {
+    if (active)
+      desktop.selectMainModel(mainModel && { provider: mainModel.provider, modelId: mainModel.id });
+  }, [active, mainModel?.provider, mainModel?.id, desktop.selectMainModel]);
   const operation = snapshot?.operation;
   const thinking = useThinkingStatus(tab.threadId ?? null, snapshot);
   const running = Boolean(
@@ -107,14 +119,7 @@ export function useDesktopController(
     composer: {
       value: tab.draft,
       onChange: (draft: string) => navigation.tabs.updateConversation(tab.id, { draft }),
-      model:
-        agent.session?.model ??
-        desktop.library?.models.find(
-          (model) =>
-            model.provider === desktop.library?.settings.defaultProvider &&
-            model.id === desktop.library?.settings.defaultModel,
-        ) ??
-        desktop.library?.models[0],
+      model: mainModel,
       models: desktop.library?.models ?? [],
       providers: desktop.library?.providers ?? [],
       onModelChange: (model: InputModel, level: ThinkingLevel) => {
@@ -164,6 +169,7 @@ export function useDesktopController(
         desktop.busy ||
         !desktop.library ||
         pending ||
+        Boolean(operation?.waitingForSubagents) ||
         (!!threadId &&
           (agent.connection !== "connected" ||
             snapshot?.faulted ||

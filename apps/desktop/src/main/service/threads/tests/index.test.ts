@@ -1214,7 +1214,7 @@ test("tool toggles change the model catalog for an existing thread and reenabled
         getCurrentTools(context.messages)
           .map((tool) => tool.name)
           .sort(),
-      ).toEqual(["edit", "write"]);
+      ).toEqual(["edit", "subagent", "write"]);
       return fauxAssistantMessage("No file read");
     },
   ]);
@@ -1231,7 +1231,7 @@ test("tool toggles change the model catalog for an existing thread and reenabled
         getCurrentTools(context.messages)
           .map((tool) => tool.name)
           .sort(),
-      ).toEqual(["bash", "edit", "read", "write"]);
+      ).toEqual(["bash", "edit", "read", "subagent", "write"]);
       return fauxAssistantMessage(
         fauxToolCall("read", { path: "available.txt" }, { id: "reenabled" }),
         { stopReason: "toolUse" },
@@ -1247,7 +1247,7 @@ test("tool toggles change the model catalog for an existing thread and reenabled
   await runtime.runPromise(settings.update({ disabledTools: ["read", "write", "edit", "bash"] }));
   provider.setResponses([
     (context) => {
-      expect(getCurrentTools(context.messages)).toEqual([]);
+      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual(["subagent"]);
       return fauxAssistantMessage("All tools disabled");
     },
   ]);
@@ -1427,4 +1427,325 @@ test("corrupt and missing session data can still be permanently removed from the
   const restored = await next.runPromise(ThreadService);
   await next.runPromise(restored.remove(missing.id));
   expect(await next.runPromise(restored.list(undefined, true))).toEqual([]);
+});
+
+test("desktop subagents expose their transcript and steering, preserve history on reopen, and keep root available", async () => {
+  const { runtime, threads, registry, workspace, provider, reopen } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  provider.setResponses(Array.from({ length: 15 }, () => fauxAssistantMessage("delegate answer")));
+  await runtime.runPromise(
+    threads.subagent(
+      created.id,
+      { action: "spawn", name: "review", message: "Inspect the code independently" },
+      "spawn",
+    ),
+  );
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await expect.poll(async () => (await record.subagents.list())[0]?.status).toBe("completed");
+  for (const task of (await record.harness.inspect(BACKGROUND_CONTEXT)).tasks) {
+    if (task.record.kind === "eta.subagent-reporter")
+      await record.harness.waitForTask(task.record.id, BACKGROUND_CONTEXT);
+  }
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect(
+    JSON.stringify((await record.conversation.context(BACKGROUND_CONTEXT)).messages),
+  ).toContain("[/review completed] delegate answer");
+  const rootSnapshot = await runtime.runPromise(threads.open(created.id));
+  expect(JSON.stringify(rootSnapshot.snapshot.transcript)).not.toContain("[/review completed]");
+  expect(JSON.stringify(rootSnapshot.snapshot.transcript)).toContain("delegate answer");
+  await runtime.runPromise(
+    threads.subagent(
+      created.id,
+      { action: "spawn", name: "forked", fork: true, message: "Another task" },
+      "forked",
+    ),
+  );
+  await expect
+    .poll(
+      async () =>
+        (await record.subagents.list()).find((child) => child.path === "/root/forked")?.status,
+    )
+    .toBe("completed");
+  const forked = await runtime.runPromise(threads.openSubagent(created.id, "/root/forked"));
+  expect(JSON.stringify(forked.snapshot.transcript)).not.toContain("[/review completed]");
+  const child = await runtime.runPromise(threads.openSubagent(created.id, "/review"));
+  expect(JSON.stringify(child.snapshot.transcript)).toContain("Inspect the code independently");
+  expect(JSON.stringify(child.snapshot.transcript)).toContain("delegate answer");
+  const revision = Promise.withResolvers<void>();
+  const dispose = await runtime.runPromise(
+    threads.subscribe(
+      created.id,
+      (value) => {
+        if (JSON.stringify(value.snapshot.transcript).includes("Check the error handling too"))
+          revision.resolve();
+      },
+      (message) => revision.reject(new Error(message)),
+      "/review",
+    ),
+  );
+  await runtime.runPromise(
+    threads.subagent(
+      created.id,
+      { action: "send", path: "/review", message: "Check the error handling too" },
+      "steer",
+    ),
+  );
+  await revision.promise;
+  dispose();
+  await expect.poll(async () => (await record.subagents.list())[0]?.status).toBe("completed");
+  for (const task of (await record.harness.inspect(BACKGROUND_CONTEXT)).tasks) {
+    if (task.record.kind === "eta.subagent-reporter")
+      await record.harness.waitForTask(task.record.id, BACKGROUND_CONTEXT);
+  }
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await runtime.dispose();
+  const next = reopen();
+  const other = await next.runPromise(ThreadService);
+  const restored = await next.runPromise(other.open(created.id));
+  expect(restored.snapshot.subagents).toMatchObject([
+    { path: "/review", status: "completed" },
+    { path: "/root/forked", status: "completed" },
+  ]);
+  expect(JSON.stringify(restored.snapshot.transcript)).not.toContain("[/review completed]");
+  expect(
+    JSON.stringify(
+      (await next.runPromise(other.openSubagent(created.id, "/root/forked"))).snapshot.transcript,
+    ),
+  ).not.toContain("[/review completed]");
+  expect(
+    JSON.stringify(
+      (await next.runPromise(other.openSubagent(created.id, "/review"))).snapshot.transcript,
+    ),
+  ).toContain("Check the error handling too");
+});
+
+test("background delegates block archive and deletion and thread stop releases their work", async () => {
+  const { runtime, threads, workspace, provider } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const held = holdResponse(provider, "delegate answer");
+  await runtime.runPromise(
+    threads.subagent(
+      created.id,
+      { action: "spawn", name: "worker", message: "Long task" },
+      "spawn",
+    ),
+  );
+  await held.ready;
+  const view = await runtime.runPromise(threads.open(created.id));
+  expect(view.snapshot.operation).toBeNull();
+  expect(view.snapshot.subagents).toMatchObject([{ status: "running" }]);
+  expect(await runtime.runPromise(Effect.flip(threads.archive(created.id, true)))).toMatchObject({
+    code: "Busy",
+  });
+  expect(await runtime.runPromise(Effect.flip(threads.remove(created.id)))).toMatchObject({
+    code: "Busy",
+  });
+  await runtime.runPromise(threads.stop(created.id));
+  expect((await runtime.runPromise(threads.open(created.id))).snapshot.subagents).toMatchObject([
+    { status: "stopped" },
+  ]);
+  await runtime.runPromise(threads.archive(created.id, true));
+});
+
+test("orchestrator root offers only delegation while children retain coding tools and configured presets", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  await runtime.runPromise(
+    settings.update({
+      subagents: {
+        mode: "orchestrator",
+        maxDepth: 3,
+        maxConcurrent: 2,
+        allowedModels: [{ provider: "eta-test", modelId: "two" }],
+        presets: [
+          {
+            name: "research",
+            thinkingLevel: "high",
+            instructions: "Research carefully",
+            models: [
+              { provider: "missing", modelId: "offline" },
+              { provider: "eta-test", modelId: "two" },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  provider.setResponses([
+    (context) => {
+      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual(["subagent"]);
+      return fauxAssistantMessage(
+        fauxToolCall(
+          "subagent",
+          { action: "spawn", name: "research", preset: "research", message: "Investigate" },
+          { id: "spawn" },
+        ),
+        { stopReason: "toolUse" },
+      );
+    },
+    ...Array.from({ length: 10 }, () => fauxAssistantMessage("answer")),
+  ]);
+  await runtime.runPromise(threads.submit(created.id, "Research this"));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await expect.poll(async () => (await record.subagents.list())[0]?.status).toBe("completed");
+  for (const task of (await record.harness.inspect(BACKGROUND_CONTEXT)).tasks) {
+    if (task.record.kind === "eta.subagent-reporter")
+      await record.harness.waitForTask(task.record.id, BACKGROUND_CONTEXT);
+  }
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  const child = await runtime.runPromise(threads.openSubagent(created.id, "/research"));
+  expect(child.snapshot.configuration).toEqual({
+    model: { provider: "eta-test", modelId: "two" },
+    thinkingLevel: "high",
+  });
+  const childRecord = (await record.subagents.list())[0]!;
+  const childConversation = (await record.harness.conversation(
+    childRecord.conversationId as typeof record.conversation.id,
+    BACKGROUND_CONTEXT,
+  ))!;
+  expect(
+    (await childConversation.agent(BACKGROUND_CONTEXT)).tools.map((tool) => tool.name),
+  ).toContain("bash");
+  await expect
+    .poll(async () => (await record.harness.inspect(BACKGROUND_CONTEXT)).submissions)
+    .toHaveLength(0);
+  await runtime.runPromise(
+    settings.update({
+      subagents: {
+        mode: "opportunistic",
+        maxDepth: 3,
+        maxConcurrent: 2,
+        presets: [],
+        allowedModels: [],
+      },
+    }),
+  );
+  provider.setResponses([
+    (context) => {
+      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toContain("bash");
+      return fauxAssistantMessage("back to normal");
+    },
+  ]);
+  await runtime.runPromise(threads.submit(created.id, "Continue"));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect((await runtime.runPromise(threads.open(created.id))).snapshot.lastResult?.status).toBe(
+    "completed",
+  );
+});
+
+test("increasing concurrency starts queued delegates while another remains busy", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const settings = await runtime.runPromise(DesktopSettingsService);
+  const policy = {
+    mode: "opportunistic",
+    maxDepth: 3,
+    maxConcurrent: 1,
+    presets: [],
+    allowedModels: [],
+  } as const;
+  await runtime.runPromise(settings.update({ subagents: policy }));
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const held = holdResponse(provider, "first answer");
+  await runtime.runPromise(
+    threads.subagent(created.id, { action: "spawn", name: "one", message: "long task" }, "one"),
+  );
+  await held.ready;
+  provider.setResponses(Array.from({ length: 10 }, () => fauxAssistantMessage("second answer")));
+  await runtime.runPromise(
+    threads.subagent(created.id, { action: "spawn", name: "two", message: "queued task" }, "two"),
+  );
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  expect((await record.subagents.list()).map((child) => child.status)).toEqual([
+    "running",
+    "queued",
+  ]);
+  await runtime.runPromise(settings.update({ subagents: { ...policy, maxConcurrent: 2 } }));
+  await expect.poll(async () => (await record.subagents.list())[1]?.status).toBe("completed");
+  expect((await record.subagents.list())[0]?.status).toBe("running");
+  held.release();
+  await expect.poll(async () => (await record.subagents.list())[0]?.status).toBe("completed");
+  for (const task of (await record.harness.inspect(BACKGROUND_CONTEXT)).tasks) {
+    if (task.record.kind === "eta.subagent-reporter")
+      await record.harness.waitForTask(task.record.id, BACKGROUND_CONTEXT);
+  }
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+});
+
+test("report-like text authored by the user remains visible", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  provider.setResponses([fauxAssistantMessage("User message received")]);
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const content = "[/root/sum completed] 1 + 1 = 2.";
+  await (
+    await record.conversation.submit(
+      { type: "input", content, requestId: "user-message" },
+      BACKGROUND_CONTEXT,
+    )
+  ).wait(BACKGROUND_CONTEXT);
+  const snapshot = await runtime.runPromise(threads.open(created.id));
+  expect(
+    snapshot.snapshot.transcript.some(
+      (entry) => entry.message.role === "user" && entry.message.content === content,
+    ),
+  ).toBe(true);
+});
+
+test("shows child waiting on the original operation and stops the entire task tree", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const childAnswer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  let rootRequests = 0;
+  provider.setResponses(
+    Array.from({ length: 10 }, () => (request, options) => {
+      if (
+        request.messages.findLast((message) => message.role === "user")?.content === "waiting-child"
+      ) {
+        options?.signal?.addEventListener(
+          "abort",
+          () => childAnswer.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+          { once: true },
+        );
+        return childAnswer.promise;
+      }
+      rootRequests++;
+      return rootRequests === 1
+        ? fauxAssistantMessage(
+            [
+              fauxToolCall("subagent", {
+                action: "spawn",
+                name: "worker",
+                message: "waiting-child",
+              }),
+            ],
+            { stopReason: "toolUse" },
+          )
+        : fauxAssistantMessage("Waiting for the child");
+    }),
+  );
+  try {
+    const input = await record.conversation.submit(
+      { type: "input", content: "delegate a task" },
+      BACKGROUND_CONTEXT,
+    );
+    await expect
+      .poll(
+        async () =>
+          (await runtime.runPromise(threads.open(created.id))).snapshot.operation
+            ?.waitingForSubagents,
+      )
+      .toBe(true);
+    expect((await input.status(BACKGROUND_CONTEXT)).status).toBe("placed");
+    expect(rootRequests).toBe(2);
+    await record.subagents.stopAll();
+    expect((await input.wait(BACKGROUND_CONTEXT)).status).toBe("unanswered");
+    const stopped = await runtime.runPromise(threads.open(created.id));
+    expect(stopped.snapshot.operation).toBeNull();
+    expect(stopped.snapshot.subagents).toMatchObject([{ path: "/worker", status: "stopped" }]);
+    expect(rootRequests).toBe(2);
+  } finally {
+    childAnswer.resolve(fauxAssistantMessage("stopped"));
+  }
 });

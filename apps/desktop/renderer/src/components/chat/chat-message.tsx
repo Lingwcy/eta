@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Reveal } from "@/components/ui/reveal";
+import { EntranceAnimation, Reveal } from "@/components/ui/reveal";
 import { MessageMarkdown } from "./message-markdown";
 import type { AgentSnapshot, SnapshotTool } from "../../../../src/agent/protocol.ts";
 import { TaskList } from "@/components/task-list";
@@ -10,10 +10,12 @@ export function ChatMessage({
   message,
   tools,
   streaming = false,
+  animate = true,
 }: {
   message: AgentSnapshot["transcript"][number]["message"];
   tools: readonly SnapshotTool[];
   streaming?: boolean;
+  animate?: boolean;
 }) {
   if (message.role !== "user" && message.role !== "assistant") return null;
   const text =
@@ -42,46 +44,48 @@ export function ChatMessage({
       : "";
   if (!text && !thinking && !images.length && !messageTools.length) return null;
   return (
-    <Reveal>
-      <div className="flex flex-col gap-3">
-        {thinking && (
-          <ThinkingMessage
-            text={thinking}
-            active={
-              streaming &&
-              message.role === "assistant" &&
-              message.content.at(-1)?.type === "thinking"
-            }
-          />
-        )}
-        {images.length > 0 && (
-          <div className="ml-auto flex max-w-[85%] flex-wrap justify-end gap-2">
-            {images.map((image, index) => (
-              <img
-                key={index}
-                src={`data:${image.mimeType};base64,${image.data}`}
-                alt={`附件图片 ${index + 1}`}
-                className="max-h-56 max-w-full rounded-2xl border border-neutral-200 object-contain"
-              />
-            ))}
-          </div>
-        )}
-        {text &&
-          (message.role === "user" ? (
-            <article className="ml-auto max-w-[85%] rounded-2xl border border-neutral-200/70 bg-neutral-50 px-4 py-3 text-sm/6 whitespace-pre-wrap break-words">
-              {text}
-            </article>
-          ) : (
-            <div className="flex flex-col gap-1">
-              <MarkdownMessage text={text} />
-              {(message.stopReason === "stop" || message.stopReason === "length") && (
-                <MessageUsage usage={message.usage} />
-              )}
+    <EntranceAnimation value={animate}>
+      <Reveal>
+        <div className="flex flex-col gap-3">
+          {thinking && (
+            <ThinkingMessage
+              text={thinking}
+              active={
+                streaming &&
+                message.role === "assistant" &&
+                message.content.at(-1)?.type === "thinking"
+              }
+            />
+          )}
+          {images.length > 0 && (
+            <div className="ml-auto flex max-w-[85%] flex-wrap justify-end gap-2">
+              {images.map((image, index) => (
+                <img
+                  key={index}
+                  src={`data:${image.mimeType};base64,${image.data}`}
+                  alt={`附件图片 ${index + 1}`}
+                  className="max-h-56 max-w-full rounded-2xl border border-neutral-200 object-contain"
+                />
+              ))}
             </div>
-          ))}
-        {messageTools.length > 0 && <TaskList tools={messageTools} />}
-      </div>
-    </Reveal>
+          )}
+          {text &&
+            (message.role === "user" ? (
+              <article className="ml-auto max-w-[85%] rounded-2xl border border-neutral-200/70 bg-neutral-50 px-4 py-3 text-sm/6 whitespace-pre-wrap break-words">
+                {text}
+              </article>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <MarkdownMessage text={text} />
+                {(message.stopReason === "stop" || message.stopReason === "length") && (
+                  <MessageUsage usage={message.usage} />
+                )}
+              </div>
+            ))}
+          {messageTools.length > 0 && <TaskList tools={messageTools} />}
+        </div>
+      </Reveal>
+    </EntranceAnimation>
   );
 }
 

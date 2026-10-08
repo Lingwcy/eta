@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 
 /** Application catalog is shared; each tab owns its own selection and draft. */
 export function useDesktopLibrary() {
   const [library, setLibrary] = useState<DesktopLibrary | null>(null);
+  const [mainModel, setMainModel] = useState<DesktopLibrary["subagentDefaultModel"]>();
+  const selectMainModel = useCallback((model: DesktopLibrary["subagentDefaultModel"]) => {
+    setMainModel((current) =>
+      current?.provider === model?.provider && current?.modelId === model?.modelId
+        ? current
+        : model,
+    );
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const mounted = useRef(false);
@@ -49,7 +57,20 @@ export function useDesktopLibrary() {
     },
     [refresh, reportError],
   );
-  return { library, error, busy, refresh, reload, act, clearError: () => setError(null) };
+  const currentLibrary = useMemo(
+    () => (library ? { ...library, subagentDefaultModel: mainModel } : null),
+    [library, mainModel],
+  );
+  return {
+    library: currentLibrary,
+    selectMainModel,
+    error,
+    busy,
+    refresh,
+    reload,
+    act,
+    clearError: () => setError(null),
+  };
 }
 
 export type DesktopLibraryController = ReturnType<typeof useDesktopLibrary>;

@@ -30,7 +30,10 @@ export function DesktopPanels({ shell }: { shell: DesktopShell }) {
               className={cn(
                 "min-h-0 flex-1 flex-col",
                 active ? "flex" : "hidden",
-                tab.kind === "browser" && "mx-[7px] mb-[7px] overflow-hidden rounded-xl bg-white",
+                tab.kind === "browser" &&
+                  "ml-[7px] mb-[3.5px] overflow-hidden bg-white transition-[margin-right,border-radius] duration-180 ease-out motion-reduce:transition-none",
+                tab.kind === "browser" &&
+                  (shell.inspectorOpen ? "rounded-l-xl" : "mr-[3.5px] rounded-xl"),
               )}
             >
               {tab.kind === "browser" ? (
@@ -48,6 +51,7 @@ export function DesktopPanels({ shell }: { shell: DesktopShell }) {
                       initialCategory={tab.category}
                       categoryRevision={tab.categoryRevision}
                       active={active}
+                      inspectorOpen={shell.inspectorOpen}
                       library={shell.desktop.library}
                       onChooseProject={shell.chooseProject}
                       busy={shell.desktop.busy}
@@ -78,6 +82,7 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
     <div className={cn("min-h-0 flex-1", conversation ? "flex" : "hidden")}>
       <DesktopLayout
         collapsed={collapsed}
+        inspectorOpen={shell.inspectorOpen}
         sidebar={
           <DesktopSidebar
             library={desktop.library}
@@ -110,6 +115,10 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
                 desktop={desktop}
                 navigation={navigation}
                 active={active.id === tab.id}
+                selectedSubagent={tab.threadId ? shell.selectedSubagents[tab.threadId] : undefined}
+                onRoot={() => {
+                  if (tab.threadId) shell.selectSubagent(tab.threadId);
+                }}
                 version={version}
                 onPreview={savePreview}
               />

@@ -599,8 +599,12 @@ export interface GenerationHooks {
 	): HookResult<{ readonly messages: readonly Message[] }>;
 	/** Every terminal provider message, before classification. */
 	afterResponse(message: AssistantMessage, api: HookApi, context: Context): void | Promise<void>;
-	/** A final answer; the first `continue` appends a user message and continues the run. */
-	onYield(answer: AssistantMessage, api: HookApi, context: Context): HookResult<{ readonly continue: UserInput }>;
+	/** A final answer; `continueQueued` lets the first continuation merge queued inputs into the current run. */
+	onYield(
+		answer: AssistantMessage,
+		api: HookApi,
+		context: Context,
+	): HookResult<{ readonly continue: UserInput; readonly continueQueued?: boolean }>;
 	/** After every tool of the round is terminal; `results` are the round's result entries in call order. */
 	afterTools(assistant: EntryId, results: readonly EntryId[], api: HookApi, context: Context): void | Promise<void>;
 }

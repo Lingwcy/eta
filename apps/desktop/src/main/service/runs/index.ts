@@ -212,7 +212,7 @@ export class RunSupervisorService extends Context.Service<
             if (!runtime.running) claim(runtime);
             try {
               runtime.recoveryRequired = false;
-              await runtime.conversation.abort(BACKGROUND_CONTEXT, { background: true });
+              await runtime.subagents.stopAll();
               await executions.get(runtime);
             } finally {
               release(runtime);

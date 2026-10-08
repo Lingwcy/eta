@@ -179,3 +179,17 @@ test("completed runs clear the indicator and another thread receives its own wai
   expect(status.update("second", snapshot({ startedAt: 500 }), 550)).toBe("waiting");
   expect(status.startedAt).toBe(500);
 });
+
+test("waiting for children takes priority over the last streamed answer and ends with the run", () => {
+  const status = new ThinkingStatus();
+  expect(
+    status.update(
+      "thread",
+      snapshot({ waitingForSubagents: true, streamingMessage: fauxAssistantMessage("正在计算") }),
+    ),
+  ).toBe("subagents");
+  expect(
+    status.update("thread", snapshot({ streamingMessage: fauxAssistantMessage("13") })),
+  ).toBeNull();
+  expect(status.update("thread", { ...snapshot(), operation: null })).toBeNull();
+});

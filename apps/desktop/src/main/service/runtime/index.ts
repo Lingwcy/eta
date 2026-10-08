@@ -1,3 +1,5 @@
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
+import { createSubagentsExtension, SubagentsDoc } from "../subagents/extension.ts";
 import { omitImages } from "../../../images/content.ts";
 import { DesktopSettingsService } from "../settings/index.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -17,6 +19,8 @@ import { SkillsService } from "../skills/index.ts";
 import { createSkillsExtension, SkillsDoc } from "../skills/extension.ts";
 
 export interface ThreadRuntime {
+  readonly hasWork: () => Promise<boolean>;
+  readonly subagents: ReturnType<typeof createSubagentsExtension>;
   readonly refreshTools: () => Promise<void>;
   readonly prepareSkills: (prompt: string) => Promise<void>;
   readonly harness: Harness;
@@ -72,6 +76,21 @@ export class RuntimeRegistryService extends Context.Service<
             resources.processImage,
           );
           registry.install({ name: "desktop-thread-title", tasks: [titleTask] });
+          const subagents = createSubagentsExtension({
+            harness: () => harness!,
+            settings: async () => (await Effect.runPromise(preferences.read)).subagents,
+            available: async (provider, modelId) =>
+              (await models.getAvailable(provider)).some((model) => model.id === modelId),
+            clamp: (ref, level) => {
+              const model = models.getModel(ref.provider, ref.modelId);
+              if (!model) throw new Error("模型不可用");
+              return clampThinkingLevel(model, level);
+            },
+            maximumImages: (ref) =>
+              models.getModel(ref.provider, ref.modelId)?.inputLimits?.images?.maxPerMessage,
+            instructions: () => Effect.runPromise(resources.instructions(ref.metadata.cwd)),
+          });
+          registry.install(subagents.extension);
           const codingTools = registry.snapshot().extension("coding-tools")!;
           let skills = createSkillsExtension(
             { directories: [], skills: [], issues: [] },
@@ -93,6 +112,13 @@ export class RuntimeRegistryService extends Context.Service<
               Boolean(state?.active.length),
             );
             registry.install(skills.extension);
+            if (harness) {
+              const root = await harness.conversation(ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT);
+              await root?.configure(
+                { tools: settings.subagents?.mode === "orchestrator" ? [subagents.tool] : null },
+                BACKGROUND_CONTEXT,
+              );
+            }
           };
           await refreshTools();
           registry.install({
@@ -121,6 +147,7 @@ export class RuntimeRegistryService extends Context.Service<
               },
               registry,
               conversationCreated: async (tx, conversation) => {
+                await tx.doc(SubagentsDoc);
                 await tx.doc(TitleDoc, conversation.id);
                 await tx.doc(SkillsDoc, conversation.id);
               },
@@ -140,6 +167,9 @@ export class RuntimeRegistryService extends Context.Service<
               code: "StorageCorrupt",
               message: "持久会话缺少根 conversation",
             });
+          // Finish a persisted stop intent after interruption before allowing any model work to resume.
+          if ((await harness.snapshot(SubagentsDoc, BACKGROUND_CONTEXT))?.stopping)
+            await subagents.stopAll();
           const inspection = await harness.inspect(BACKGROUND_CONTEXT);
           const recoveryRequired =
             inspection.submissions.length > 0 ||
@@ -151,6 +181,14 @@ export class RuntimeRegistryService extends Context.Service<
           if (!recoveryRequired) await normalizeThinkingLevel(conversation, models);
           const record: ThreadRuntime = {
             harness,
+            subagents,
+            hasWork: async () => {
+              const inspection = await harness!.inspect(BACKGROUND_CONTEXT);
+              return (
+                inspection.submissions.length > 0 ||
+                inspection.tasks.some(({ record }) => record.kind !== TITLE_TASK_KIND)
+              );
+            },
             refreshTools,
             prepareSkills: (prompt) =>
               skills.activateExplicit(conversation, prompt, record.harness),
@@ -166,10 +204,33 @@ export class RuntimeRegistryService extends Context.Service<
           };
           // Older sessions acquire the application document when first opened after this upgrade.
           await conversation.commit(async (tx) => {
+            await tx.doc(SubagentsDoc);
             await tx.doc(TitleDoc, conversation.id);
             await tx.doc(SkillsDoc, conversation.id);
           }, BACKGROUND_CONTEXT);
           await refreshTools();
+          let settingsDelivery = Promise.resolve();
+          const unsubscribeSettings = preferences.subscribe(() => {
+            settingsDelivery = settingsDelivery
+              .then(async () => {
+                if (record.disposed) return;
+                await refreshTools();
+                await conversation.commit(async (tx) => {
+                  const doc = await tx.doc(SubagentsDoc);
+                  doc.revision = (doc.revision ?? 0) + 1;
+                }, BACKGROUND_CONTEXT);
+              })
+              .catch((error: unknown) => {
+                if (!record.disposed) {
+                  record.error = error instanceof Error ? error.message : "无法应用设置";
+                  for (const notify of record.changes) notify();
+                }
+              });
+          });
+          const subagentWatch = await harness.watchDoc(SubagentsDoc, BACKGROUND_CONTEXT);
+          subagentWatch?.start(async () => {
+            for (const notify of record.changes) notify();
+          });
           const titleWatch = await harness.watchDoc(TitleDoc, conversation.id, BACKGROUND_CONTEXT);
           let titleDelivery = Promise.resolve();
           const publishTitle = (value: NonNullable<typeof titleWatch>["value"]) => {
@@ -199,14 +260,17 @@ export class RuntimeRegistryService extends Context.Service<
           }
           cleanups.set(record, async () => {
             record.disposed = true;
+            unsubscribeSettings();
+            await settingsDelivery;
+            await subagentWatch?.stop();
             await titleWatch?.stop();
             await titleDelivery;
             await Promise.all([...record.watches].map((watch) => watch.stop()));
             record.watches.clear();
             record.changes.clear();
             try {
-              if (record.running)
-                await conversation.abort(BACKGROUND_CONTEXT, { background: true });
+              // Keep background delegates recoverable while preserving the root's normal stop-on-close behavior.
+              if (record.running) await conversation.abort(BACKGROUND_CONTEXT);
             } finally {
               try {
                 await harness!.close(BACKGROUND_CONTEXT);

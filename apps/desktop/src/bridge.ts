@@ -1,3 +1,4 @@
+import type { SubagentCommand, SubagentSummary } from "./subagents.ts";
 import type { ImageAttachment, ImageSource } from "./images/types.ts";
 import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
 import type { OperationAdmission } from "./agent/protocol.ts";
@@ -36,10 +37,11 @@ export interface AgentBridge {
     images?: readonly ImageAttachment[],
   ): Promise<OperationAdmission>;
   stop(sessionId: string): Promise<void>;
-  subscribe(sessionId: string, listener: (event: AgentEvent) => void): () => void;
+  subscribe(sessionId: string, listener: (event: AgentEvent) => void, path?: string): () => void;
 }
 
 export interface DesktopLibrary {
+  subagentDefaultModel?: { provider: string; modelId: string };
   projects: ReadonlyArray<ProjectMetadata>;
   workspaces: ReadonlyArray<WorkspaceMetadata>;
   threads: ReadonlyArray<ThreadMetadata>;
@@ -65,6 +67,7 @@ export interface AppInfo {
 }
 
 export interface DesktopBridge extends AgentBridge {
+  subagent(id: string, command: SubagentCommand): Promise<readonly SubagentSummary[]>;
   skills(cwd?: string): Promise<SkillCatalog>;
   openSkillsDirectory(path: string, cwd?: string): Promise<void>;
   unloadSkill(id: string, name: string): Promise<void>;

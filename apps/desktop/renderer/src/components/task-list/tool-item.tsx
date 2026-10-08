@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useContext, useEffect, useId, useState } from "react";
 import {
   ChevronDown,
   CircleCheck,
@@ -16,7 +16,7 @@ import type { SnapshotTool } from "../../../../src/agent/protocol.ts";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Reveal } from "@/components/ui/reveal";
+import { EntranceAnimation, Reveal } from "@/components/ui/reveal";
 import { Shimmer } from "@/components/ui/shimmer";
 import { ToolDetailsPanel } from "./tool-details-panel";
 
@@ -26,12 +26,14 @@ type DetailMode = "preview" | "expanded" | "collapsed";
 /** New tool calls open once; result updates never override the chosen display mode. */
 export function ToolItem({ tool }: { tool: SnapshotTool }) {
   const [mode, setMode] = useState<DetailMode>("preview");
-  const [entered, setEntered] = useState(false);
+  const animate = useContext(EntranceAnimation);
+  const [entered, setEntered] = useState(!animate);
   const detailsId = useId();
   useEffect(() => {
+    if (!animate) return;
     const frame = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [animate]);
   const open = entered && mode !== "collapsed";
   const expanded = mode === "expanded";
   const failed = tool.status === "settled" && tool.isError;

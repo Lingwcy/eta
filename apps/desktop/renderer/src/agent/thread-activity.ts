@@ -3,7 +3,14 @@ import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
 
 export function hasThreadActivity(snapshot: AgentSnapshot) {
   return Boolean(
-    (snapshot.operation || snapshot.compacting) && !snapshot.recoveryRequired && !snapshot.faulted,
+    (snapshot.operation ||
+      snapshot.compacting ||
+      snapshot.subagents?.some(
+        (child) =>
+          child.status === "running" || child.status === "queued" || child.status === "paused",
+      )) &&
+    !snapshot.recoveryRequired &&
+    !snapshot.faulted,
   );
 }
 

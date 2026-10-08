@@ -9,6 +9,13 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 }
 
 const bridge: DesktopBridge = {
+  subagent: (id, command) =>
+    invoke("eta:command", {
+      type: "subagent",
+      id,
+      command,
+      requestId: globalThis.crypto.randomUUID(),
+    }),
   skills: (cwd) => invoke("eta:command", { type: "skills", ...(cwd ? { cwd } : {}) }),
   openSkillsDirectory: (path, cwd) =>
     invoke("eta:command", { type: "open-skills-directory", path, ...(cwd ? { cwd } : {}) }),
@@ -80,7 +87,7 @@ const bridge: DesktopBridge = {
     ipcRenderer.on("eta:update-state", onEvent);
     return () => ipcRenderer.removeListener("eta:update-state", onEvent);
   },
-  subscribe(sessionId, listener) {
+  subscribe(sessionId, listener, path) {
     const subscriptionId = globalThis.crypto.randomUUID();
     const onEvent = (
       _event: Electron.IpcRendererEvent,
@@ -90,7 +97,7 @@ const bridge: DesktopBridge = {
         listener(message.event);
     };
     ipcRenderer.on("agent:event", onEvent);
-    ipcRenderer.send("agent:watch", sessionId, subscriptionId);
+    ipcRenderer.send("agent:watch", sessionId, subscriptionId, path);
     return () => {
       ipcRenderer.removeListener("agent:event", onEvent);
       ipcRenderer.send("agent:unwatch", subscriptionId);

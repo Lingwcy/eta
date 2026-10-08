@@ -47,7 +47,11 @@ export class ConversationService extends Context.Service<
           modelId: string,
           thinkingLevel: ThinkingLevel,
         ) {
-          if (runtime.running || runtime.recoveryRequired)
+          if (
+            runtime.running ||
+            runtime.recoveryRequired ||
+            (yield* adapter("无法检查任务", runtime.hasWork))
+          )
             return yield* new DesktopServiceError({
               code: "Busy",
               message: "请先停止或完成当前任务，再修改模型",

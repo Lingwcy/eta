@@ -1,3 +1,4 @@
+import type { SubagentSummary } from "../subagents.ts";
 import type {
   Api,
   AssistantMessage,
@@ -32,6 +33,7 @@ export interface SnapshotTool {
 }
 
 export interface AgentSnapshot {
+  subagents?: readonly SubagentSummary[];
   activeSkills?: readonly ActiveSkill[];
   configuration: { model: { provider: string; modelId: string }; thinkingLevel: ThinkingLevel };
   transcript: { id: string; type: "message"; message: Message }[];
@@ -44,6 +46,7 @@ export interface AgentSnapshot {
         streamingMessage?: AssistantMessage;
         retry?: { attempt: number; maxAttempts: number };
         deferred?: { pollAt: number };
+        waitingForSubagents?: boolean;
       })
     | null;
   lastResult:

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Button as BaseButton } from "@base-ui/react/button";
-import { ChevronDown, ChevronUp, Grid2X2, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Grid2X2, Search, Check } from "lucide-react";
 import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,6 +14,7 @@ import { ThinkingLevelControl } from "./thinking-level-control";
 
 export function ModelPicker({
   model,
+  selection,
   models,
   providers = [],
   thinkingLevel = "off",
@@ -26,6 +27,11 @@ export function ModelPicker({
   onSettings,
 }: {
   model?: InputModel;
+  selection?: {
+    models: readonly { provider: string; modelId: string }[];
+    label?: string;
+    onChange: (models: readonly { provider: string; modelId: string }[]) => void;
+  };
   models: readonly InputModel[];
   providers?: readonly InputProvider[];
   thinkingLevel?: ThinkingLevel;
@@ -48,7 +54,7 @@ export function ModelPicker({
   const visible = visiblePickerModels(models, availableProviders, activeProvider, query);
   const level = resolveThinkingLevel(model, thinkingLevel);
   const thinkingLabel =
-    showThinking && model?.thinkingLevels.some((value) => value !== "off")
+    !selection && showThinking && model?.thinkingLevels.some((value) => value !== "off")
       ? thinkingOptions.find((option) => option.value === level)?.label
       : undefined;
   return (
@@ -67,7 +73,7 @@ export function ModelPicker({
     >
       <Popover.Trigger
         disabled={disabled}
-        aria-label={showThinking ? "选择模型与思考级别" : "选择模型"}
+        aria-label={selection ? "选择启用的模型" : showThinking ? "选择模型与思考级别" : "选择模型"}
         title={model ? `${model.provider}/${model.id}` : placeholder}
         className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent bg-transparent px-2.5 text-[13px] font-normal text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0"
       >
@@ -77,7 +83,9 @@ export function ModelPicker({
           </span>
         )}
         <span className="max-w-[105px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
-          {model?.name ?? (defaultOption?.selected ? defaultOption.label : placeholder)}
+          {selection?.label ??
+            model?.name ??
+            (defaultOption?.selected ? defaultOption.label : placeholder)}
         </span>
         {thinkingLabel && <span className="shrink-0 text-neutral-400">{thinkingLabel}</span>}
         {open ? (
@@ -186,8 +194,14 @@ export function ModelPicker({
                     </BaseButton>
                   )}
                   {visible.map((entry) => {
-                    const selected = entry.provider === model?.provider && entry.id === model.id;
+                    const selected = selection
+                      ? selection.models.some(
+                          (model) =>
+                            model.provider === entry.provider && model.modelId === entry.id,
+                        )
+                      : entry.provider === model?.provider && entry.id === model.id;
                     const showThinkingControl =
+                      !selection &&
                       showThinking &&
                       selected &&
                       entry.thinkingLevels.some((value) => value !== "off");
@@ -204,11 +218,26 @@ export function ModelPicker({
                       >
                         <BaseButton
                           aria-pressed={selected}
-                          disabled={disabled || !onChange}
+                          disabled={disabled || (!onChange && !selection)}
                           title={`${entry.provider}/${entry.id}`}
                           onClick={() => {
-                            onChange?.(entry, resolveThinkingLevel(entry, thinkingLevel));
-                            if (!showThinking) setOpen(false);
+                            if (selection)
+                              selection.onChange(
+                                selected
+                                  ? selection.models.filter(
+                                      (model) =>
+                                        model.provider !== entry.provider ||
+                                        model.modelId !== entry.id,
+                                    )
+                                  : [
+                                      ...selection.models,
+                                      { provider: entry.provider, modelId: entry.id },
+                                    ],
+                              );
+                            else {
+                              onChange?.(entry, resolveThinkingLevel(entry, thinkingLevel));
+                              if (!showThinking) setOpen(false);
+                            }
                           }}
                           className={cn(
                             "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[10px] py-2 pr-2 pl-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
@@ -232,9 +261,15 @@ export function ModelPicker({
                             className={cn(
                               "flex size-3.5 shrink-0 items-center justify-center rounded-full border border-neutral-300",
                               selected && "border-neutral-900 bg-neutral-900",
+                              selection && "rounded-[4px]",
                             )}
                           >
-                            {selected && <span className="size-[5px] rounded-full bg-white" />}
+                            {selected &&
+                              (selection ? (
+                                <Check size={10} className="text-white" />
+                              ) : (
+                                <span className="size-[5px] rounded-full bg-white" />
+                              ))}
                           </span>
                         </BaseButton>
                         {showThinkingControl && (
@@ -243,7 +278,7 @@ export function ModelPicker({
                               key={`${entry.provider}/${entry.id}`}
                               level={level}
                               levels={entry.thinkingLevels}
-                              disabled={disabled || !onChange}
+                              disabled={disabled || (!onChange && !selection)}
                               onChange={(next) => onChange?.(entry, next)}
                             />
                           </div>

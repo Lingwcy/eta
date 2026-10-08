@@ -8,6 +8,7 @@ const labels = {
   thinking: "正在思考",
   retrying: "正在重试响应",
   deferred: "等待后台响应",
+  subagents: "等待子任务",
 };
 
 /** Brief phases are suppressed; visible phase changes keep the indicator mounted. */

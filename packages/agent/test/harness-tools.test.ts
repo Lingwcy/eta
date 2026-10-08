@@ -623,6 +623,35 @@ describe("generation hooks", () => {
 		await harness.close(context);
 	});
 
+	it("continues the same run with queued inputs when the yield hook opts in", async () => {
+		const setup = chatSetup();
+		let harness!: Harness;
+		let yields = 0;
+		let report: SubmissionId | undefined;
+		let original: SubmissionId | undefined;
+		addHooks(setup.registry, GenerationTask, {
+			onYield: async () => {
+				if (yields++ > 0) return undefined;
+				const root = await harness.root(context);
+				original = (await harness.snapshot(LiveDoc, root.id, context))!.run!.inputs[0];
+				report = (await root.submit({ type: "input", content: "child result", whenBusy: "steer" }, context)).id;
+				return { continue: "unused fallback", continueQueued: true };
+			},
+		});
+		const second: FauxResponseStep = async (request) => {
+			expect((await (await harness.submission(original!, context))!.status(context)).status).toBe("placed");
+			expect((await (await harness.submission(report!, context))!.status(context)).status).toBe("placed");
+			expect(request.messages.some((message) => textOf(message as never) === "child result")).toBe(true);
+			expect(request.messages.some((message) => textOf(message as never) === "unused fallback")).toBe(false);
+			return fauxAssistantMessage("final synthesis");
+		};
+		const result = await run(setup, [fauxAssistantMessage("progress"), second], async (opened) => { harness = opened; });
+		const answer = result.entries.findLast((entry) => entry.kind === "pi.assistant")!.id;
+		for (const id of [original!, report!])
+			expect(await (await harness.submission(id, context))!.status(context)).toMatchObject({ status: "done", answer });
+		await harness.close(context);
+	});
+
 	it("observes responses that arrive by polling a deferred request", async () => {
 		const setup = chatSetup({ deferred: { pendingFetches: 1, pollAfterMs: 1 } });
 		const observed: string[] = [];

@@ -506,14 +506,18 @@ async function classify(
 
 /**
  * A final answer; the final boundary places queued items (spec §6). The first `onYield` continuation appends a user
- * message and hands the run to a successor generation, but only when the boundary selected no user item and no reset.
+ * message and hands the run to a successor generation. `continueQueued` also merges queued inputs into the same run;
+ * a reset always ends it.
  * Otherwise the run's inputs settle `done`, and selected user items start the next run.
  */
 async function answer(runtime: Runtime, message: AssistantMessage, context: Context): Promise<void> {
 	let continuation: UserInput | undefined;
+	let continueQueued = false;
 	await runtime.hooks.each("onYield", async (hook) => {
 		if (continuation !== undefined) return;
-		continuation = (await hook(message, runtime, context))?.continue;
+		const result = await hook(message, runtime, context);
+		continuation = result?.continue;
+		continueQueued = result?.continueQueued === true;
 	});
 	const conversationId = runtime.conversationId;
 	await runtime.commit(async (tx): Promise<Next> => {
@@ -523,9 +527,11 @@ async function answer(runtime: Runtime, message: AssistantMessage, context: Cont
 		const entry = await appendAssistant(tx, conversationId, message);
 		const result: Next = { status: "terminal", outcome: { status: "completed", result: { entryId: entry.id } } };
 		const { users, reset } = await applyBoundary(tx, boundary, "final", runtime.now());
-		if (continuation !== undefined && users.length === 0 && !reset) {
-			const user = { role: "user", content: continuation, timestamp: runtime.now() } as const;
-			await tx.appendEntry(UserEntry, conversationId, { model: [user] });
+		if (continuation !== undefined && (users.length === 0 || continueQueued) && !reset) {
+			if (users.length === 0) {
+				const user = { role: "user", content: continuation, timestamp: runtime.now() } as const;
+				await tx.appendEntry(UserEntry, conversationId, { model: [user] });
+			} else live.run?.inputs.push(...users);
 			handOver(live, runtime.taskId, await createGeneration(tx, conversationId));
 			delete live.generation;
 			return result;

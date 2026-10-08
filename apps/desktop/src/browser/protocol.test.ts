@@ -31,3 +31,9 @@ test("browser shortcuts work with both platform modifiers and preserve ordinary 
   expect(desktopShortcut({ key: "t" })).toBeUndefined();
   expect(desktopShortcut({ key: "t", control: true, alt: true })).toBeUndefined();
 });
+
+test("right sidebar shortcut is shared by the desktop and native browser views", () => {
+  expect(desktopShortcut({ key: "ArrowLeft", alt: true })).toBe("toggle-inspector");
+  expect(desktopShortcut({ key: "ArrowLeft" })).toBeUndefined();
+  expect(desktopShortcut({ key: "ArrowLeft", alt: true, shift: true })).toBeUndefined();
+});

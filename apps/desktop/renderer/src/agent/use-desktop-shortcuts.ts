@@ -3,7 +3,11 @@ import type { DesktopTabs } from "./desktop-tabs";
 import { desktopShortcut } from "../../../src/browser/protocol.ts";
 import type { DesktopShortcut } from "../../../src/browser/protocol.ts";
 
-export function useDesktopShortcuts(tabs: DesktopTabs, toggleSidebar: () => void) {
+export function useDesktopShortcuts(
+  tabs: DesktopTabs,
+  toggleSidebar: () => void,
+  toggleInspector: () => void,
+) {
   const run = useCallback(
     (action: DesktopShortcut) => {
       if (typeof action === "object") {
@@ -31,6 +35,9 @@ export function useDesktopShortcuts(tabs: DesktopTabs, toggleSidebar: () => void
         case "toggle-sidebar":
           toggleSidebar();
           break;
+        case "toggle-inspector":
+          toggleInspector();
+          break;
         case "next-tab":
           tabs.cycle(1);
           break;
@@ -51,7 +58,7 @@ export function useDesktopShortcuts(tabs: DesktopTabs, toggleSidebar: () => void
         }
       }
     },
-    [tabs, toggleSidebar],
+    [tabs, toggleSidebar, toggleInspector],
   );
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
