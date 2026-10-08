@@ -9,7 +9,7 @@ import { WorkspaceService } from "../../workspaces/index.ts";
 import { ThreadService } from "../index.ts";
 
 // A real child process: the parent kills it after the first persisted streaming revision.
-const [dataRoot, cwd] = process.argv.slice(2);
+const [dataRoot, cwd, queued] = process.argv.slice(2);
 if (!dataRoot || !cwd || !process.send) throw new Error("Crash fixture requires paths and IPC");
 const provider = fauxProvider({
   provider: "eta-test",
@@ -38,11 +38,16 @@ const created = await runtime.runPromise(threads.create(workspace.id));
 const registry = await runtime.runPromise(RuntimeRegistryService);
 const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
 const watch = await record.conversation.watch(BACKGROUND_CONTEXT);
-let reported = false;
+const streamed = Promise.withResolvers<void>();
 watch.start(async (view) => {
-  if (!reported && JSON.stringify(view.docs["pi.live"]).includes("message")) {
-    reported = true;
-    process.send?.({ thread: created.thread });
-  }
+  if (JSON.stringify(view.docs["pi.live"]).includes("message")) streamed.resolve();
 });
 await runtime.runPromise(threads.submit(created.id, "Resume me without adding a second prompt"));
+await streamed.promise;
+if (queued) {
+  await runtime.runPromise(threads.submit(created.id, "Saved steer", "steer", undefined, "steer"));
+  await runtime.runPromise(
+    threads.submit(created.id, "Saved follow-up", "follow", undefined, "followUp"),
+  );
+}
+process.send({ thread: created.thread });

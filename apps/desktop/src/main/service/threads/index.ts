@@ -4,6 +4,7 @@ import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, DateTime, Effect, Layer, SynchronizedRef } from "effect";
 import type {
   OperationAdmission,
+  InputMode,
   SessionResponse,
   ThinkingLevel,
 } from "../../../agent/protocol.ts";
@@ -48,7 +49,9 @@ export class ThreadService extends Context.Service<
       prompt: string,
       requestId?: string,
       images?: readonly ImageAttachment[],
+      whenBusy?: InputMode,
     ): Effect.Effect<OperationAdmission, ThreadError>;
+    withdrawInput(id: string, submissionId: string): Effect.Effect<void, ThreadError>;
     stop(id: string): Effect.Effect<void, ThreadError>;
     resume(id: string): Effect.Effect<void, ThreadError>;
     compact(id: string): Effect.Effect<void, ThreadError>;
@@ -289,7 +292,7 @@ export class ThreadService extends Context.Service<
               return thread;
             }),
           ),
-        submit: (id, prompt, requestId, images) =>
+        submit: (id, prompt, requestId, images, whenBusy) =>
           locked(
             Effect.gen(function* () {
               const runtime = yield* runtimeFor(id, true);
@@ -302,7 +305,7 @@ export class ThreadService extends Context.Service<
                   (yield* Effect.promise(() => runtime.conversation.agent(BACKGROUND_CONTEXT)))
                     .model)
                 : undefined;
-              const admission = yield* runs.submit(runtime, prompt, requestId, images);
+              const admission = yield* runs.submit(runtime, prompt, requestId, images, whenBusy);
               yield* change(id, (thread) => ({
                 ...thread,
                 title:
@@ -319,7 +322,13 @@ export class ThreadService extends Context.Service<
                   : {}),
                 sessionRef: {
                   ...thread.sessionRef,
-                  metadata: { ...thread.sessionRef.metadata, modifiedAt: admission.startedAt },
+                  metadata: {
+                    ...thread.sessionRef.metadata,
+                    modifiedAt: Math.max(
+                      thread.sessionRef.metadata.modifiedAt,
+                      admission.startedAt,
+                    ),
+                  },
                 },
               })).pipe(Effect.catch((error) => Effect.logError(error.message)));
               if (titleModel) {
@@ -329,6 +338,12 @@ export class ThreadService extends Context.Service<
                 }).pipe(Effect.catch((error) => Effect.logError(error)));
               }
               return admission;
+            }),
+          ),
+        withdrawInput: (id, submissionId) =>
+          locked(
+            Effect.gen(function* () {
+              yield* runs.withdrawInput(yield* runtimeFor(id), submissionId);
             }),
           ),
         stop: (id) =>

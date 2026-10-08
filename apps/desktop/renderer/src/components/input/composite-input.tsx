@@ -1,11 +1,13 @@
 import { ImageAttachments, type AttachmentItem } from "./image-attachments";
 import { extractImagePaths } from "./image-paths";
 import type { ImageSource } from "../../../../src/images/types.ts";
+import type { InputMode } from "../../../../src/agent/protocol.ts";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ActionToolbar } from "./action-toolbar";
 import { PromptTextarea } from "./prompt-textarea";
 import type { CompositeInputProps } from "./types";
+import { QueuedInputs } from "./queued-inputs";
 
 export function CompositeInput({
   value,
@@ -18,10 +20,13 @@ export function CompositeInput({
   isRunning = false,
   className,
   cwd,
+  queuedInputs = [],
+  onWithdrawInput,
   ...toolbar
 }: CompositeInputProps) {
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [submitting, setSubmitting] = useState(false);
+  const [inputMode, setInputMode] = useState<InputMode>("steer");
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [attachmentError, setAttachmentError] = useState<string>();
   const [dragging, setDragging] = useState(false);
@@ -36,7 +41,7 @@ export function CompositeInput({
   }, []);
   const pending = attachments.some((item) => !item.image && !item.error);
   const failed = attachments.some((item) => item.error);
-  const locked = disabled || submitting || isRunning;
+  const locked = disabled || submitting;
   const prepare = (source: ImageSource) =>
     window.eta.prepareImage(source, cwd, toolbar.model?.provider, toolbar.model?.id);
   const addFiles = async (files: File[]) => {
@@ -115,7 +120,7 @@ export function CompositeInput({
       const maxPerMessage = toolbar.model?.inputLimits?.images?.maxPerMessage;
       if (maxPerMessage && images.length > maxPerMessage)
         throw new Error(`当前模型每条消息最多支持 ${maxPerMessage} 张图片`);
-      await onSubmit(prompt, images.length ? images : undefined);
+      await onSubmit(prompt, images.length ? images : undefined, inputMode);
       setText("");
       setAttachments([]);
     } catch (error) {
@@ -167,6 +172,9 @@ export function CompositeInput({
           event.target.value = "";
         }}
       />
+      {queuedInputs.length > 0 && (
+        <QueuedInputs items={queuedInputs} onWithdraw={onWithdrawInput} />
+      )}
       {attachments.length > 0 && (
         <ImageAttachments
           items={attachments}
@@ -189,13 +197,22 @@ export function CompositeInput({
           void handleSubmit();
         }}
         placeholder={placeholder}
-        disabled={disabled || submitting || isRunning}
+        disabled={locked}
       />
+      {isRunning && (
+        <p className="text-xs text-neutral-500">
+          {inputMode === "steer"
+            ? "引导输入将在当前工具轮次结束后加入正在进行的工作。"
+            : "后续输入将在本次回答后加入，并启动下一次运行。"}
+        </p>
+      )}
       <ActionToolbar
         {...toolbar}
         onAttach={() => picker.current?.click()}
         disabled={disabled || submitting}
         isRunning={isRunning}
+        inputMode={inputMode}
+        onInputModeChange={setInputMode}
         onSubmit={() => {
           void handleSubmit();
         }}

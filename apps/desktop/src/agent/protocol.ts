@@ -10,6 +10,15 @@ import type { ActiveSkill } from "../skills/types.ts";
 
 export type ThinkingLevel = ModelThinkingLevel | "off";
 
+export type InputMode = "steer" | "followUp";
+
+export interface QueuedInput {
+  id: string;
+  mode: InputMode;
+  text: string;
+  imageCount: number;
+}
+
 export type AgentModel = Pick<Model<Api>, "id" | "provider" | "name" | "contextWindow"> &
   Partial<Pick<Model<Api>, "input" | "inputLimits">> & {
     readonly thinkingLevels: readonly ThinkingLevel[];
@@ -20,6 +29,7 @@ export interface OperationAdmission {
   operationId: string;
   kind: "run";
   startedAt: number;
+  queued?: boolean;
 }
 
 export interface SnapshotTool {
@@ -35,9 +45,11 @@ export interface AgentSnapshot {
   activeSkills?: readonly ActiveSkill[];
   configuration: { model: { provider: string; modelId: string }; thinkingLevel: ThinkingLevel };
   transcript: { id: string; type: "message"; message: Message }[];
+  queuedInputs?: readonly QueuedInput[];
   operation:
     | (Omit<OperationAdmission, "operationId"> & {
         id: string;
+        inputIds?: readonly string[];
         status: "running" | "aborting";
         fromTipId: null;
         runningTools: SnapshotTool[];
@@ -49,6 +61,7 @@ export interface AgentSnapshot {
   lastResult:
     | (OperationAdmission & {
         status: "completed" | "failed" | "aborted";
+        inputIds?: readonly string[];
         fromTipId: null;
         tipId: null;
         endedAt: number;

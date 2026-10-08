@@ -49,14 +49,17 @@ const bridge: DesktopBridge = {
   archiveThread: (id, archived) => invoke("eta:command", { type: "archive", id, archived }),
   configureThread: (id, provider, modelId, thinkingLevel) =>
     invoke("eta:command", { type: "configure", id, provider, modelId, thinkingLevel }),
-  submit: (id, prompt, images) =>
+  submit: (id, prompt, images, whenBusy) =>
     invoke("eta:command", {
       type: "submit",
       id,
       prompt,
       ...(images === undefined ? {} : { images }),
+      ...(whenBusy === undefined ? {} : { whenBusy }),
       requestId: globalThis.crypto.randomUUID(),
     }),
+  withdrawInput: (id, submissionId) =>
+    invoke("eta:command", { type: "withdraw-input", id, submissionId }),
   stop: (id) => invoke("eta:command", { type: "stop", id }),
   resume: (id) => invoke("eta:command", { type: "resume", id }),
   compact: (id) => invoke("eta:command", { type: "compact", id }),

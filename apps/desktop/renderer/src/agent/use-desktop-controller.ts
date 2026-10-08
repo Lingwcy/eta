@@ -7,7 +7,7 @@ import type { ConversationTab } from "./desktop-tabs";
 import type { DesktopLibraryController } from "./use-desktop-library";
 import type { DesktopTabController } from "./use-desktop-tabs";
 import type { InputModel } from "@/components/input/types";
-import type { ThinkingLevel } from "../../../src/agent/protocol";
+import type { InputMode, ThinkingLevel } from "../../../src/agent/protocol";
 import { hasThreadActivity } from "./thread-activity";
 
 /** A mounted conversation keeps its composer when another tab becomes active. */
@@ -134,13 +134,17 @@ export function useDesktopController(
       contextTokens: agent.observation?.contextTokens,
       contextWindow: agent.session?.model.contextWindow,
       cwd: workspace?.cwd,
-      onSubmit: async (prompt: string, images?: readonly ImageAttachment[]) => {
+      onSubmit: async (
+        prompt: string,
+        images?: readonly ImageAttachment[],
+        whenBusy?: InputMode,
+      ) => {
         desktop.clearError();
         setError(undefined);
         setPending(!threadId);
         try {
           let id = threadId;
-          if (id) await agent.submit(prompt, images);
+          if (id) await agent.submit(prompt, images, whenBusy);
           else {
             id = await draft.submit(tab.workspaceId, prompt, images);
             navigation.tabs.updateConversation(tab.id, { threadId: id });
@@ -157,9 +161,15 @@ export function useDesktopController(
         }
       },
       onStop: () => void agent.stop(),
+      queuedInputs: snapshot?.queuedInputs,
+      onWithdrawInput: agent.withdrawInput,
       isRunning: running,
       isStopping: agent.stopping || operation?.status === "aborting",
-      submitDisabled: !threadId && !tab.workspaceId,
+      submitDisabled:
+        (!threadId && !tab.workspaceId) ||
+        agent.submitting ||
+        !!snapshot?.compacting ||
+        agent.stopping,
       disabled:
         desktop.busy ||
         !desktop.library ||

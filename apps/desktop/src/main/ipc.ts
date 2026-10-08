@@ -40,6 +40,7 @@ const Command = Schema.Union([
     id: Id,
     prompt: Schema.String,
     requestId: Id,
+    whenBusy: Schema.optional(Schema.Literals(["steer", "followUp"])),
     images: Schema.optional(
       Schema.Array(
         Schema.Struct({
@@ -60,6 +61,7 @@ const Command = Schema.Union([
     modelId: Schema.optional(Id),
   }),
   Schema.Struct({ type: Schema.Literal("stop"), id: Id }),
+  Schema.Struct({ type: Schema.Literal("withdraw-input"), id: Id, submissionId: Id }),
   Schema.Struct({ type: Schema.Literal("resume"), id: Id }),
   Schema.Struct({ type: Schema.Literal("compact"), id: Id }),
   Schema.Struct({
@@ -145,7 +147,15 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     case "archive":
       return application.archiveThread(command.id, command.archived);
     case "submit":
-      return application.submit(command.id, command.prompt, command.requestId, command.images);
+      return application.submit(
+        command.id,
+        command.prompt,
+        command.requestId,
+        command.images,
+        command.whenBusy,
+      );
+    case "withdraw-input":
+      return application.withdrawInput(command.id, command.submissionId);
     case "stop":
       return application.stop(command.id);
     case "resume":

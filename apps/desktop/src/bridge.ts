@@ -1,6 +1,6 @@
 import type { ImageAttachment, ImageSource } from "./images/types.ts";
 import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
-import type { OperationAdmission } from "./agent/protocol.ts";
+import type { InputMode, OperationAdmission } from "./agent/protocol.ts";
 import type { SessionResponse, SnapshotResponse } from "./agent/protocol.ts";
 import type { AgentModel, ThinkingLevel } from "./agent/protocol.ts";
 import type { DesktopSettings } from "./main/service/settings/index.ts";
@@ -34,7 +34,9 @@ export interface AgentBridge {
     sessionId: string,
     prompt: string,
     images?: readonly ImageAttachment[],
+    whenBusy?: InputMode,
   ): Promise<OperationAdmission>;
+  withdrawInput(sessionId: string, submissionId: string): Promise<void>;
   stop(sessionId: string): Promise<void>;
   subscribe(sessionId: string, listener: (event: AgentEvent) => void): () => void;
 }

@@ -3,9 +3,9 @@ import { imageInput } from "../../../images/content.ts";
 import type { ImageAttachment } from "../../../images/types.ts";
 import { realpath, stat } from "node:fs/promises";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { Context, Effect, Layer } from "effect";
-import type { SubmissionRecord } from "@eta/agent";
-import type { OperationAdmission } from "../../../agent/protocol.ts";
+import { Context, Effect, Layer, Schema } from "effect";
+import type { SubmissionId, SubmissionRecord } from "@eta/agent";
+import type { InputMode, OperationAdmission } from "../../../agent/protocol.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
@@ -19,7 +19,12 @@ export class RunSupervisorService extends Context.Service<
       prompt: string,
       requestId?: string,
       images?: readonly ImageAttachment[],
+      whenBusy?: InputMode,
     ): Effect.Effect<OperationAdmission, DesktopServiceError>;
+    withdrawInput(
+      runtime: ThreadRuntime,
+      submissionId: string,
+    ): Effect.Effect<void, DesktopServiceError>;
     resume(runtime: ThreadRuntime): Effect.Effect<void, DesktopServiceError>;
     stop(runtime: ThreadRuntime): Effect.Effect<void, DesktopServiceError>;
     compact(runtime: ThreadRuntime): Effect.Effect<void, DesktopServiceError>;
@@ -61,7 +66,10 @@ export class RunSupervisorService extends Context.Service<
           return "会话模型或认证不可用，请在设置中配置认证或更换会话模型";
         return undefined;
       });
-      const ready = Effect.fn("RunSupervisorService.ready")(function* (runtime: ThreadRuntime) {
+      const ready = Effect.fn("RunSupervisorService.ready")(function* (
+        runtime: ThreadRuntime,
+        acceptInput = false,
+      ) {
         if (runtime.disposed)
           return yield* new DesktopServiceError({
             code: "RuntimeClosing",
@@ -73,11 +81,13 @@ export class RunSupervisorService extends Context.Service<
             code: blocked.startsWith("工作区") ? "WorkspaceUnavailable" : "ModelUnavailable",
             message: blocked,
           });
-        if (leases.has(runtime))
+        if (leases.has(runtime)) {
+          if (acceptInput) return;
           return yield* new DesktopServiceError({
             code: "Busy",
             message: "此会话已有任务运行，请等待或停止该任务",
           });
+        }
         if (!runtime.recoveryRequired)
           yield* adapter("无法更新思考级别", () =>
             normalizeThinkingLevel(runtime.conversation, models.models),
@@ -101,7 +111,9 @@ export class RunSupervisorService extends Context.Service<
             if (!runtime.disposed)
               runtime.error = error instanceof Error ? error.message : "执行失败";
           })
-          .finally(() => release(runtime));
+          .finally(() => {
+            if (executions.get(runtime) === execution) release(runtime);
+          });
         executions.set(runtime, execution);
       };
       return RunSupervisorService.of({
@@ -111,6 +123,7 @@ export class RunSupervisorService extends Context.Service<
           prompt: string,
           requestId?: string,
           images?: readonly ImageAttachment[],
+          whenBusy?: InputMode,
         ) {
           const content = yield* adapter(
             "图片或消息无效",
@@ -134,7 +147,7 @@ export class RunSupervisorService extends Context.Service<
               code: "RecoveryRequired",
               message: "请先恢复或停止未完成任务",
             });
-          yield* ready(runtime);
+          yield* ready(runtime, whenBusy !== undefined);
           yield* adapter("无法更新工具配置", runtime.refreshTools);
           const agent = yield* adapter("无法读取图片模型限制", () =>
             runtime.conversation.agent(BACKGROUND_CONTEXT),
@@ -172,28 +185,59 @@ export class RunSupervisorService extends Context.Service<
               : images;
           const input = prepared?.length ? imageInput(prompt, prepared) : content;
           const handle = yield* adapter("无法提交消息", async () => {
-            claim(runtime);
+            const owned = !leases.has(runtime);
+            if (owned) claim(runtime);
             try {
               await runtime.prepareSkills(prompt);
               const handle = await runtime.conversation.submit(
                 {
                   type: "input",
                   content: input,
-                  whenBusy: "reject",
+                  whenBusy: whenBusy ?? "reject",
                   ...(requestId ? { requestId } : {}),
                 },
                 BACKGROUND_CONTEXT,
               );
-              supervise(runtime, handle.wait(BACKGROUND_CONTEXT));
+              // A follow-up can start a successor before the original receipt settles.
+              // Keep the lease until the conversation's entire ordinary scope is idle.
+              if (!leases.has(runtime)) claim(runtime);
+              supervise(runtime, runtime.conversation.waitForIdle(BACKGROUND_CONTEXT));
               return handle;
             } catch (error) {
-              release(runtime);
+              if (owned) release(runtime);
               throw error;
             }
           });
           return yield* adapter("无法读取提交记录", async () =>
             admission(runtime, await handle.status(BACKGROUND_CONTEXT)),
           );
+        }, Effect.uninterruptible),
+        withdrawInput: Effect.fn("RunSupervisorService.withdrawInput")(function* (
+          runtime: ThreadRuntime,
+          submissionId: string,
+        ) {
+          const id = yield* adapter(
+            "提交编号无效",
+            async () =>
+              Schema.decodeUnknownSync(
+                Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThan(0)),
+              )(submissionId),
+            "InvalidInput",
+          );
+          yield* adapter("无法撤回消息", async () => {
+            const result = await runtime.harness.abortSubmission(
+              id as SubmissionId,
+              BACKGROUND_CONTEXT,
+              runtime.conversation.id,
+            );
+            if (result === "already_placed")
+              throw new DesktopServiceError({
+                code: "Busy",
+                message: "消息已加入运行，无法撤回",
+              });
+            if (result === "not_found")
+              throw new DesktopServiceError({ code: "NotFound", message: "排队消息不存在" });
+          });
         }, Effect.uninterruptible),
         resume: Effect.fn("RunSupervisorService.resume")(function* (runtime: ThreadRuntime) {
           yield* ready(runtime);
@@ -254,6 +298,7 @@ async function admission(
   return {
     operationId: String(receipt.id),
     kind: "run",
-    startedAt: entry?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.createdAt,
+    startedAt: entry?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.modifiedAt,
+    queued: receipt.status === "queued",
   };
 }

@@ -1,5 +1,5 @@
 import type { ImageAttachment } from "../../../src/images/types.ts";
-import type { OperationAdmission } from "../../../src/agent/protocol.ts";
+import type { InputMode, OperationAdmission } from "../../../src/agent/protocol.ts";
 import type {
   SessionResponse,
   SnapshotResponse,
@@ -83,35 +83,51 @@ export class ThreadAgentClient {
     });
   }
 
-  async submit(prompt: string, images?: readonly ImageAttachment[]) {
+  async submit(prompt: string, images?: readonly ImageAttachment[], whenBusy?: InputMode) {
     if (
       this.state.connection !== "connected" ||
       this.state.submitting ||
-      this.state.observation?.snapshot.operation ||
+      this.state.stopping ||
+      (!whenBusy && (this.state.observation?.snapshot.operation || this.state.admission)) ||
       this.state.observation?.snapshot.compacting ||
-      this.state.admission ||
       this.state.observation?.snapshot.recoveryRequired ||
       this.state.observation?.snapshot.blockedReason
     )
       throw new Error("Agent 尚未就绪");
     const sessionId = this.state.session?.id;
     if (!sessionId) throw new Error("会话尚未打开");
+    const running = Boolean(this.state.observation?.snapshot.operation || this.state.admission);
     this.update({ submitting: true, error: null });
     try {
-      const admission = await this.bridge.submit(sessionId, prompt, ...(images ? [images] : []));
+      const admission = await this.bridge.submit(sessionId, prompt, images, whenBusy);
       const snapshot = this.state.observation?.snapshot;
-      this.update({
-        admission:
-          snapshot?.operation?.id === admission.operationId ||
-          snapshot?.lastResult?.operationId === admission.operationId
-            ? null
-            : admission,
-      });
+      if (!running)
+        this.update({
+          admission:
+            admission.queued ||
+            snapshot?.operation?.id === admission.operationId ||
+            snapshot?.operation?.inputIds?.includes(admission.operationId) ||
+            snapshot?.lastResult?.operationId === admission.operationId ||
+            snapshot?.lastResult?.inputIds?.includes(admission.operationId)
+              ? null
+              : admission,
+        });
     } catch (error) {
       this.update({ error: message(error) });
       throw error;
     } finally {
       this.update({ submitting: false });
+    }
+  }
+
+  async withdrawInput(submissionId: string) {
+    const sessionId = this.state.session?.id;
+    if (!sessionId || this.disposed) throw new Error("会话尚未打开");
+    try {
+      await this.bridge.withdrawInput(sessionId, submissionId);
+    } catch (error) {
+      this.update({ error: message(error) });
+      throw error;
     }
   }
 
@@ -140,7 +156,9 @@ export class ThreadAgentClient {
     const acknowledged =
       id &&
       (observation.snapshot.operation?.id === id ||
-        observation.snapshot.lastResult?.operationId === id);
+        observation.snapshot.operation?.inputIds?.includes(id) ||
+        observation.snapshot.lastResult?.operationId === id ||
+        observation.snapshot.lastResult?.inputIds?.includes(id));
     this.update({
       observation,
       connection: "connected",

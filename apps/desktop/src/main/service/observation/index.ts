@@ -1,7 +1,14 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { CompactionEntry } from "@eta/agent";
-import type { AgentState, ConversationView, Cursor, LiveState, SubmissionRecord } from "@eta/agent";
+import type {
+  AgentState,
+  ConversationView,
+  Cursor,
+  InboxState,
+  LiveState,
+  SubmissionRecord,
+} from "@eta/agent";
 import { Context, Effect, Layer } from "effect";
 import type { SnapshotResponse } from "../../../agent/protocol.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
@@ -91,6 +98,7 @@ export class ObservationService extends Context.Service<
 async function project(runtime: ThreadRuntime, view: ConversationView): Promise<SnapshotResponse> {
   const live = (view.docs["pi.live"] ?? {}) as LiveState;
   const agent = (view.docs["pi.agent"] ?? {}) as AgentState;
+  const inbox = (view.docs["pi.inbox"] ?? { items: [] }) as InboxState;
   let history = view.entries;
   if (view.entries.some((entry) => entry.head !== undefined)) {
     const maxEntryId = view.entries.reduce(
@@ -159,9 +167,28 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
       thinkingLevel: agent.thinkingLevel ?? "off",
     },
     transcript,
+    queuedInputs: inbox.items.flatMap((item) => {
+      if (item.mode === "write") return [];
+      const content = item.content;
+      return [
+        {
+          id: String(item.id),
+          mode: item.mode,
+          text:
+            typeof content === "string"
+              ? content
+              : content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
+          imageCount:
+            typeof content === "string"
+              ? 0
+              : content.filter((part) => part.type === "image").length,
+        },
+      ];
+    }),
     operation: live.run
       ? {
           id: String(live.run.inputs[0] ?? ""),
+          inputIds: live.run.inputs.map(String),
           kind: "run",
           startedAt: entryTime(active?.entry),
           status: "running",
@@ -197,6 +224,14 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     lastResult: terminal
       ? {
           operationId: String(terminal.id),
+          inputIds: receipts
+            .filter(
+              (receipt) =>
+                receipt.status === "done" &&
+                terminal.status === "done" &&
+                receipt.answer === terminal.answer,
+            )
+            .map((receipt) => String(receipt.id)),
           kind: "run",
           startedAt: entryTime(terminal.entry),
           endedAt: terminal.status === "done" ? entryTime(terminal.answer) : timestamp,

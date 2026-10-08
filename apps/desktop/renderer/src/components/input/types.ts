@@ -1,5 +1,5 @@
 import type { ImageAttachment } from "../../../../src/images/types.ts";
-import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
+import type { InputMode, QueuedInput, ThinkingLevel } from "../../../../src/agent/protocol.ts";
 import type { AgentModel } from "../../../../src/agent/protocol.ts";
 import type { AuthProvider } from "../../../../src/authentication.ts";
 import type { ReactNode } from "react";
@@ -28,6 +28,8 @@ export interface PromptTextareaProps {
 
 export interface ActionToolbarProps {
   readonly skillsControl?: ReactNode;
+  readonly inputMode?: InputMode;
+  readonly onInputModeChange?: (mode: InputMode) => void;
   readonly model?: InputModel;
   readonly models?: readonly InputModel[];
   readonly providers?: readonly InputProvider[];
@@ -52,7 +54,13 @@ export interface CompositeInputProps extends Omit<ActionToolbarProps, "onSubmit"
   readonly onChange?: (value: string) => void;
   /** Resolves when the harness admits the prompt. Rejection preserves the draft. */
   readonly cwd?: string;
-  readonly onSubmit?: (text: string, images?: readonly ImageAttachment[]) => void | Promise<void>;
+  readonly onSubmit?: (
+    text: string,
+    images?: readonly ImageAttachment[],
+    whenBusy?: InputMode,
+  ) => void | Promise<void>;
+  readonly queuedInputs?: readonly QueuedInput[];
+  readonly onWithdrawInput?: (submissionId: string) => Promise<void>;
   readonly submitDisabled?: boolean;
   readonly placeholder?: string;
 }

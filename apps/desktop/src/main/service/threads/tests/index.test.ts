@@ -112,6 +112,175 @@ function holdResponse(provider: ReturnType<typeof fauxProvider>, text: string) {
   return { ready: ready.promise, release: () => answer.resolve(fauxAssistantMessage(text)) };
 }
 
+test("steers join after tools while follow-ups start a successor that keeps the desktop busy", async () => {
+  const { runtime, threads, registry, workspace, provider, cwd } = await setup();
+  const firstReady = Promise.withResolvers<void>();
+  const firstAnswer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  const nextReady = Promise.withResolvers<void>();
+  const nextAnswer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("bash", {
+        command: "touch tool-started; while [ ! -f tool-release ]; do sleep 0.01; done",
+      }),
+      { stopReason: "toolUse" },
+    ),
+    (context) => {
+      expect(JSON.stringify(context.messages)).toContain("Steer this work");
+      expect(JSON.stringify(context.messages)).not.toContain("Next request");
+      firstReady.resolve();
+      return firstAnswer.promise;
+    },
+    (context) => {
+      expect(JSON.stringify(context.messages)).toContain("Next request");
+      nextReady.resolve();
+      return nextAnswer.promise;
+    },
+  ]);
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const original = await runtime.runPromise(threads.submit(created.id, "Original request"));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await expect
+    .poll(() =>
+      readFile(join(cwd, "tool-started"))
+        .then(() => true)
+        .catch(() => false),
+    )
+    .toBe(true);
+  const steer = await runtime.runPromise(
+    threads.submit(created.id, "Steer this work", "steer", undefined, "steer"),
+  );
+  const follow = await runtime.runPromise(
+    threads.submit(created.id, "Next request", "follow", undefined, "followUp"),
+  );
+  expect((await runtime.runPromise(threads.open(created.id))).snapshot.queuedInputs).toEqual([
+    { id: steer.operationId, mode: "steer", text: "Steer this work", imageCount: 0 },
+    { id: follow.operationId, mode: "followUp", text: "Next request", imageCount: 0 },
+  ]);
+  await writeFile(join(cwd, "tool-release"), "");
+  await firstReady.promise;
+  const active = await runtime.runPromise(threads.open(created.id));
+  expect(active.snapshot.operation?.inputIds).toEqual([original.operationId, steer.operationId]);
+  expect(active.snapshot.queuedInputs?.map((item) => item.id)).toEqual([follow.operationId]);
+  await expect(
+    runtime.runPromise(threads.withdrawInput(created.id, steer.operationId)),
+  ).rejects.toThrow("已加入运行");
+  firstAnswer.resolve(fauxAssistantMessage("First answer"));
+  await nextReady.promise;
+  expect(record.running).toBe(true);
+  await expect(runtime.runPromise(threads.compact(created.id))).rejects.toThrow("已有任务运行");
+  const originalReceipt = await record.storage.submissionByRequest(
+    record.conversation.id,
+    "steer",
+    BACKGROUND_CONTEXT,
+  );
+  expect(originalReceipt?.status).toBe("done");
+  nextAnswer.resolve(fauxAssistantMessage("Next answer"));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await expect.poll(() => record.running).toBe(false);
+  const final = await runtime.runPromise(threads.open(created.id));
+  expect(final.snapshot.queuedInputs).toEqual([]);
+  expect(final.snapshot.lastResult?.operationId).toBe(follow.operationId);
+});
+
+test("queued inputs can be withdrawn independently, retries do not duplicate them, and stop clears the rest", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const held = holdResponse(provider, "Done");
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const other = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "Original request"));
+  await held.ready;
+  const modifiedAt = (await runtime.runPromise(threads.get(created.id))).sessionRef.metadata
+    .modifiedAt;
+  const image = { type: "image", data: "aGVsbG8=", mimeType: "image/png" } as const;
+  const steer = await runtime.runPromise(
+    threads.submit(created.id, "Withdraw me", "withdraw", [image], "steer"),
+  );
+  const follow = await runtime.runPromise(
+    threads.submit(created.id, "Keep queued", "queued", undefined, "followUp"),
+  );
+  expect(steer.queued).toBe(true);
+  expect(
+    (await runtime.runPromise(threads.get(created.id))).sessionRef.metadata.modifiedAt,
+  ).toBeGreaterThanOrEqual(modifiedAt);
+  expect(
+    (await runtime.runPromise(threads.open(created.id))).snapshot.queuedInputs?.[0]?.imageCount,
+  ).toBe(1);
+  await expect(
+    runtime.runPromise(threads.submit(created.id, "Keep queued", "queued", undefined, "followUp")),
+  ).resolves.toEqual(follow);
+  await expect(
+    runtime.runPromise(threads.withdrawInput(other.id, steer.operationId)),
+  ).rejects.toThrow("不存在");
+  await runtime.runPromise(threads.withdrawInput(created.id, steer.operationId));
+  await runtime.runPromise(threads.withdrawInput(created.id, steer.operationId));
+  expect(
+    (await runtime.runPromise(threads.open(created.id))).snapshot.queuedInputs?.map(
+      (item) => item.id,
+    ),
+  ).toEqual([follow.operationId]);
+  await runtime.runPromise(threads.stop(created.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  expect(
+    await record.storage.submissionByRequest(record.conversation.id, "queued", BACKGROUND_CONTEXT),
+  ).toMatchObject({ status: "unanswered", reason: "aborted" });
+  expect((await runtime.runPromise(threads.open(created.id))).snapshot.queuedInputs).toEqual([]);
+  expect(record.running).toBe(false);
+});
+
+test("input prepared across the previous run ending remains supervised", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const first = holdResponse(provider, "First answer");
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "Original request"));
+  await first.ready;
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const preparing = Promise.withResolvers<void>();
+  const prepared = Promise.withResolvers<void>();
+  const prepareSkills = record.prepareSkills;
+  Object.defineProperty(record, "prepareSkills", {
+    value: async (prompt: string) => {
+      preparing.resolve();
+      await prepared.promise;
+      await prepareSkills(prompt);
+    },
+  });
+  const next = holdResponse(provider, "Next answer");
+  const submission = runtime.runPromise(
+    threads.submit(created.id, "Next request", "next", undefined, "followUp"),
+  );
+  await preparing.promise;
+  first.release();
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await expect.poll(() => record.running).toBe(false);
+  prepared.resolve();
+  await submission;
+  await next.ready;
+  expect(record.running).toBe(true);
+  await expect(runtime.runPromise(threads.compact(created.id))).rejects.toThrow("已有任务运行");
+  next.release();
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await expect.poll(() => record.running).toBe(false);
+});
+
+test("normal shutdown cancels queued inputs before reopening history", async () => {
+  const { runtime, threads, workspace, provider, reopen } = await setup();
+  const held = holdResponse(provider, "Done");
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.submit(created.id, "Original request"));
+  await held.ready;
+  await runtime.runPromise(
+    threads.submit(created.id, "After restart", "queued", undefined, "followUp"),
+  );
+  await runtime.dispose();
+  const next = reopen();
+  const restored = await next.runPromise(ThreadService);
+  const opened = await next.runPromise(restored.open(created.id));
+  expect(opened.snapshot.recoveryRequired).toBe(false);
+  expect(opened.snapshot.queuedInputs).toEqual([]);
+  expect(opened.snapshot.lastResult?.status).toBe("aborted");
+});
+
 test("title generation runs beside the main answer using the thread's selected model and stays out of its transcript", async () => {
   const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
   const main = holdResponse(provider, "Implemented the requested change");
@@ -1003,79 +1172,101 @@ test("session storage identity cannot be redirected outside AppPaths", async () 
   });
 });
 
-test("SIGKILL during streaming reopens paused and explicit resume settles the same input", async () => {
-  const { directory, cwd, runtime, reopen, provider } = await setup();
-  await runtime.dispose();
-  const child = fork(
-    new URL("./crash-worker.ts", import.meta.url),
-    [join(directory, "data"), cwd],
-    {
-      execArgv: [
-        "--experimental-strip-types",
-        "--import",
-        fileURLToPath(new URL("./source-loader.ts", import.meta.url)),
-      ],
-      stdio: ["ignore", "pipe", "pipe", "ipc"],
-    },
-  );
-  let diagnostics = "";
-  child.stderr?.on("data", (chunk: Buffer) => {
-    diagnostics += chunk.toString();
-  });
-  try {
-    const crashed = await new Promise<{ thread: import("../type.ts").ThreadMetadata }>(
-      (resolve, reject) => {
-        const timeout = setTimeout(
-          () => reject(new Error(`Crash worker timed out: ${diagnostics}`)),
-          8000,
-        );
-        child.once("message", (message) => {
-          clearTimeout(timeout);
-          resolve(message as { thread: import("../type.ts").ThreadMetadata });
-        });
-        child.once("exit", (code) => {
-          clearTimeout(timeout);
-          reject(new Error(`Crash worker exited ${code}: ${diagnostics}`));
-        });
+test.each([false, true])(
+  "SIGKILL reopens paused and resume settles saved inputs (queued: %s)",
+  async (queued) => {
+    const { directory, cwd, runtime, reopen, provider } = await setup();
+    await runtime.dispose();
+    const child = fork(
+      new URL("./crash-worker.ts", import.meta.url),
+      [join(directory, "data"), cwd, queued ? "queued" : ""],
+      {
+        execArgv: [
+          "--experimental-strip-types",
+          "--import",
+          fileURLToPath(new URL("./source-loader.ts", import.meta.url)),
+        ],
+        stdio: ["ignore", "pipe", "pipe", "ipc"],
       },
     );
-    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
-    child.kill("SIGKILL");
-    await exited;
-    const next = reopen();
-    const threads = await next.runPromise(ThreadService);
-    const opened = await next.runPromise(threads.open(crashed.thread.id));
-    expect(opened.snapshot.recoveryRequired).toBe(true);
-    const registry = await next.runPromise(RuntimeRegistryService);
-    const record = await next.runPromise(registry.acquire(crashed.thread.sessionRef));
-    expect((await record.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
-    const other = await next.runPromise(threads.create(crashed.thread.workspaceId));
-    const concurrent = holdResponse(provider, "Other thread answer");
-    const admission = await next.runPromise(threads.submit(other.id, "Run during recovery"));
-    await concurrent.ready;
-    provider.setResponses([fauxAssistantMessage("Recovered final answer")]);
-    await next.runPromise(threads.resume(crashed.thread.id));
-    await record.harness.waitForIdle(BACKGROUND_CONTEXT);
-    const final = await next.runPromise(threads.open(crashed.thread.id));
-    expect(final.snapshot.recoveryRequired).toBe(false);
-    expect(final.snapshot.lastResult?.status).toBe("completed");
-    expect(final.snapshot.transcript.filter((entry) => entry.message.role === "user")).toHaveLength(
-      1,
-    );
-    expect(JSON.stringify(final.snapshot.transcript)).toContain("Recovered final answer");
-    expect((await next.runPromise(threads.open(other.id))).snapshot.operation?.id).toBe(
-      admission.operationId,
-    );
-    concurrent.release();
-    const otherRuntime = await next.runPromise(registry.acquire(other.thread.sessionRef));
-    await otherRuntime.harness.waitForIdle(BACKGROUND_CONTEXT);
-    expect((await next.runPromise(threads.open(other.id))).snapshot.lastResult?.status).toBe(
-      "completed",
-    );
-  } finally {
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-  }
-}, 15000);
+    let diagnostics = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      diagnostics += chunk.toString();
+    });
+    try {
+      const crashed = await new Promise<{ thread: import("../type.ts").ThreadMetadata }>(
+        (resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error(`Crash worker timed out: ${diagnostics}`)),
+            8000,
+          );
+          child.once("message", (message) => {
+            clearTimeout(timeout);
+            resolve(message as { thread: import("../type.ts").ThreadMetadata });
+          });
+          child.once("exit", (code) => {
+            clearTimeout(timeout);
+            reject(new Error(`Crash worker exited ${code}: ${diagnostics}`));
+          });
+        },
+      );
+      const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+      child.kill("SIGKILL");
+      await exited;
+      const next = reopen();
+      const threads = await next.runPromise(ThreadService);
+      const opened = await next.runPromise(threads.open(crashed.thread.id));
+      expect(opened.snapshot.recoveryRequired).toBe(true);
+      if (queued) {
+        expect(opened.snapshot.queuedInputs?.map((item) => item.mode)).toEqual([
+          "steer",
+          "followUp",
+        ]);
+        await next.runPromise(
+          threads.withdrawInput(crashed.thread.id, opened.snapshot.queuedInputs![0]!.id),
+        );
+        expect(
+          (await next.runPromise(threads.open(crashed.thread.id))).snapshot.queuedInputs?.map(
+            (item) => item.mode,
+          ),
+        ).toEqual(["followUp"]);
+      }
+      const registry = await next.runPromise(RuntimeRegistryService);
+      const record = await next.runPromise(registry.acquire(crashed.thread.sessionRef));
+      expect((await record.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
+      const other = await next.runPromise(threads.create(crashed.thread.workspaceId));
+      const concurrent = holdResponse(provider, "Other thread answer");
+      const admission = await next.runPromise(threads.submit(other.id, "Run during recovery"));
+      await concurrent.ready;
+      provider.setResponses([
+        fauxAssistantMessage("Recovered final answer"),
+        fauxAssistantMessage("Saved follow-up answer"),
+      ]);
+      await next.runPromise(threads.resume(crashed.thread.id));
+      await record.harness.waitForIdle(BACKGROUND_CONTEXT);
+      const final = await next.runPromise(threads.open(crashed.thread.id));
+      expect(final.snapshot.recoveryRequired).toBe(false);
+      expect(final.snapshot.lastResult?.status).toBe("completed");
+      expect(
+        final.snapshot.transcript.filter((entry) => entry.message.role === "user"),
+      ).toHaveLength(queued ? 2 : 1);
+      expect(final.snapshot.queuedInputs).toEqual([]);
+      expect(JSON.stringify(final.snapshot.transcript)).toContain("Recovered final answer");
+      expect((await next.runPromise(threads.open(other.id))).snapshot.operation?.id).toBe(
+        admission.operationId,
+      );
+      concurrent.release();
+      const otherRuntime = await next.runPromise(registry.acquire(other.thread.sessionRef));
+      await otherRuntime.harness.waitForIdle(BACKGROUND_CONTEXT);
+      expect((await next.runPromise(threads.open(other.id))).snapshot.lastResult?.status).toBe(
+        "completed",
+      );
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    }
+  },
+  15000,
+);
 
 test("normal shutdown settles a running tool, cleans its child process and preserves an aborted receipt", async () => {
   const { cwd, runtime, threads, registry, workspace, provider, reopen } = await setup();

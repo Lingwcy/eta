@@ -11,7 +11,7 @@ import { Effect, ManagedRuntime } from "effect";
 import { loadProjectEnvironment } from "./environment.ts";
 import { readAgentCredentials } from "../agent/agent-credentials.ts";
 import { readAgentSettings } from "../agent/agent-settings.ts";
-import type { ThinkingLevel } from "../agent/protocol.ts";
+import type { InputMode, ThinkingLevel } from "../agent/protocol.ts";
 import type { DesktopLibrary } from "../bridge.ts";
 import { CredentialService } from "./service/credentials/index.ts";
 import { DesktopCatalogService } from "./service/catalog/index.ts";
@@ -148,7 +148,10 @@ export async function createDesktopApplication(
         prompt: string,
         requestId?: string,
         images?: readonly ImageAttachment[],
-      ) => run(threads.submit(id, prompt, requestId, images)),
+        whenBusy?: InputMode,
+      ) => run(threads.submit(id, prompt, requestId, images, whenBusy)),
+      withdrawInput: (id: string, submissionId: string) =>
+        run(threads.withdrawInput(id, submissionId)),
       stop: (id: string) => run(threads.stop(id)),
       resume: (id: string) => run(threads.resume(id)),
       compact: (id: string) => run(threads.compact(id)),

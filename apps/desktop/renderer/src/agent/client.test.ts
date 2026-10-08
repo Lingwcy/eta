@@ -34,6 +34,7 @@ class TestBridge implements AgentBridge {
   });
   submit = async (_sessionId: string, _prompt: string) => admission;
   stop = async (_sessionId: string) => {};
+  withdrawInput = async (_sessionId: string, _submissionId: string) => {};
   subscribe = (_sessionId: string, listener: (event: AgentEvent) => void) => {
     this.listener = listener;
     return () => {
@@ -139,6 +140,80 @@ test("does not leave stale admission state when completion arrives before the in
   await client.submit("Quick answer");
   expect(client.getSnapshot().admission).toBeNull();
   expect(client.getSnapshot().submitting).toBe(false);
+});
+
+test("multiple running inputs do not replace the active admission or lock later queued input", async () => {
+  const client = await connectedClient();
+  await client.submit("Original");
+  bridge.submit = async () => ({ ...admission, operationId: "queued-input", queued: true });
+  await client.submit("Steer", undefined, "steer");
+  expect(client.getSnapshot().admission?.operationId).toBe(admission.operationId);
+  const snapshot = structuredClone(session.snapshot);
+  snapshot.operation = {
+    id: admission.operationId,
+    inputIds: [admission.operationId, "steered-input"],
+    kind: "run",
+    startedAt: 1000,
+    fromTipId: null,
+    status: "running",
+    runningTools: [],
+  };
+  bridge.emit({ snapshot, contextTokens: 10 });
+  await client.submit("Follow-up", undefined, "followUp");
+  await client.submit("Another steer", undefined, "steer");
+  expect(client.getSnapshot().admission).toBeNull();
+  expect(client.getSnapshot().observation?.snapshot.operation?.id).toBe(admission.operationId);
+});
+
+test("a fast answer acknowledges every steer in its run before the submit reply arrives", async () => {
+  const client = await connectedClient();
+  bridge.submit = async () => {
+    const snapshot = structuredClone(session.snapshot);
+    snapshot.lastResult = {
+      operationId: "last-steer",
+      inputIds: [admission.operationId, "last-steer"],
+      kind: "run",
+      status: "completed",
+      fromTipId: null,
+      tipId: null,
+      startedAt: 1000,
+      endedAt: 2000,
+    };
+    bridge.emit({ snapshot, contextTokens: 10 });
+    return admission;
+  };
+  await client.submit("Original", undefined, "steer");
+  expect(client.getSnapshot().admission).toBeNull();
+});
+
+test("compaction and stop keep running input locked, and a failed enqueue leaves the current operation intact", async () => {
+  const client = await connectedClient();
+  const snapshot = structuredClone(session.snapshot);
+  snapshot.compacting = true;
+  bridge.emit({ snapshot, contextTokens: 10 });
+  await expect(client.submit("Steer", undefined, "steer")).rejects.toThrow("尚未就绪");
+  snapshot.compacting = false;
+  snapshot.operation = {
+    id: "current",
+    kind: "run",
+    startedAt: 1000,
+    fromTipId: null,
+    status: "running",
+    runningTools: [],
+  };
+  bridge.emit({ snapshot, contextTokens: 10 });
+  bridge.submit = async () => {
+    throw new Error("Cannot enqueue");
+  };
+  await expect(client.submit("Steer", undefined, "steer")).rejects.toThrow("Cannot enqueue");
+  expect(client.getSnapshot().observation?.snapshot.operation?.id).toBe("current");
+  expect(client.getSnapshot().submitting).toBe(false);
+  const stopped = Promise.withResolvers<void>();
+  bridge.stop = () => stopped.promise;
+  const stopping = client.stop();
+  await expect(client.submit("Follow-up", undefined, "followUp")).rejects.toThrow("尚未就绪");
+  stopped.resolve();
+  await stopping;
 });
 
 test("a late open after disposal does not install a subscription", async () => {

@@ -1,5 +1,5 @@
 import type { ImageAttachment } from "../../../src/images/types.ts";
-import type { ThinkingLevel } from "../../../src/agent/protocol.ts";
+import type { InputMode, ThinkingLevel } from "../../../src/agent/protocol.ts";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { initialAgentState, ThreadAgentClient } from "./client";
 
@@ -38,10 +38,18 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
     [client, threadId],
   );
   const submit = useCallback(
-    async (text: string, images?: readonly ImageAttachment[]) => {
+    async (text: string, images?: readonly ImageAttachment[], whenBusy?: InputMode) => {
       if (!client || client.getSnapshot().session?.id !== threadId)
         throw new Error("请先创建或选择会话");
-      await client.submit(text, images);
+      await client.submit(text, images, whenBusy);
+    },
+    [client, threadId],
+  );
+  const withdrawInput = useCallback(
+    async (submissionId: string) => {
+      if (!client || client.getSnapshot().session?.id !== threadId)
+        throw new Error("请先创建或选择会话");
+      await client.withdrawInput(submissionId);
     },
     [client, threadId],
   );
@@ -49,5 +57,5 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
     () => (client?.getSnapshot().session?.id === threadId ? client.stop() : undefined),
     [client, threadId],
   );
-  return { ...state, configure, submit, stop };
+  return { ...state, configure, submit, withdrawInput, stop };
 }

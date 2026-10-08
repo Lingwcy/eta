@@ -34,6 +34,8 @@ test.each([
   { type: "settings", patch: { titleModel: { provider: "", modelId: "small" } } },
   { type: "settings", patch: { titleModel: "small" } },
   { type: "submit", id: "thread", prompt: "Hello", requestId: "id", images: null },
+  { type: "submit", id: "thread", prompt: "Hello", requestId: "id", whenBusy: "unknown" },
+  { type: "withdraw-input", id: "thread", submissionId: null },
   { type: "submit", id: "thread", prompt: "Hello", requestId: "id", images: "not-an-array" },
   { type: "prepare-image", source: { path: "shot.png" }, provider: 123 },
   { type: "not-a-command" },
