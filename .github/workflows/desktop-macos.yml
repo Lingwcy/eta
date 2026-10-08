@@ -1,6 +1,9 @@
-name: macOS installer
+name: macOS release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       signed:
@@ -11,11 +14,23 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ETA_SIGNED_RELEASE: ${{ (github.event_name == 'workflow_dispatch' && inputs.signed || github.event_name == 'push' && vars.ETA_SIGNED_RELEASE == '1') && '1' || '0' }}
+
 jobs:
+  test:
+    uses: ./.github/workflows/desktop-tests.yml
+
   package:
     name: Build macOS ${{ matrix.arch }} installer
+    needs: test
     runs-on: macos-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [arm64, x64]
     steps:
@@ -24,28 +39,60 @@ jobs:
         with:
           node-version: "24"
           cache: true
+      - name: Validate release version
+        if: github.ref_type == 'tag'
+        run: node scripts/desktop-release.ts validate "$RELEASE_TAG"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
       - name: Install dependencies
         run: vp install --frozen-lockfile
       - name: Verify signing configuration
         run: vp run @eta/desktop#test:packaging
       - name: Build local test installer
-        if: ${{ !inputs.signed }}
+        if: env.ETA_SIGNED_RELEASE == '0'
         run: vp run --no-cache @eta/desktop#package:mac --${{ matrix.arch }}
-        env:
-          ETA_SIGNED_RELEASE: "0"
       - name: Build signed and notarized installer
-        if: ${{ inputs.signed }}
+        if: env.ETA_SIGNED_RELEASE == '1'
         run: vp run --no-cache @eta/desktop#package:mac --${{ matrix.arch }}
         env:
-          ETA_SIGNED_RELEASE: "1"
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Verify installer image
+        run: |
+          for image in apps/desktop/dist/release/*.dmg; do
+            hdiutil verify "$image"
+          done
       - name: Upload installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Eta-mac-${{ matrix.arch }}
           path: apps/desktop/dist/release/*.dmg
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    if: github.ref_type == 'tag'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: Eta-mac-*
+          path: .release/assets
+          merge-multiple: true
+      - name: Generate notes and publish installers
+        run: node scripts/desktop-release.ts publish "$RELEASE_TAG" .release/assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}

@@ -50,3 +50,16 @@ vp run package:mac
 ```
 
 The `.dmg` is saved to `apps/desktop/dist/release/`.
+
+## Publish a release
+
+Update the versions in `package.json` and `apps/desktop/package.json`, commit and push the change, then push a matching stable tag:
+
+```sh
+git tag -a v0.0.3 -m "Eta v0.0.3"
+git push origin v0.0.3
+```
+
+The macOS release workflow tests the tagged source, builds Apple Silicon and Intel installers, and publishes both DMGs with a SHA-256 file. Chinese release notes group Conventional Commit descriptions since the previous published release; unpublished tags do not reset the changelog. A failed upload leaves a draft that can be completed by rerunning the workflow. Reruns preserve an already published release.
+
+Tag releases use ad-hoc signing by default. Set the repository variable `ETA_SIGNED_RELEASE` to `1` and configure the Apple signing secrets used by the workflow to enable Developer ID signing and notarization. The manual workflow still supports building installers from a branch without publishing a release.
