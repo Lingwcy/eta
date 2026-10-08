@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AgentEvent, DesktopBridge } from "./bridge.ts";
-import type { CommandReply } from "./bridge.ts";
+import type { CommandReply, UpdateState } from "./bridge.ts";
 import { unwrapReply } from "./command-reply.ts";
 import type { BrowserEvent } from "./browser/protocol.ts";
 
@@ -70,6 +70,16 @@ const bridge: DesktopBridge = {
   openLoginLink: (id, url) => invoke("eta:command", { type: "login-open", id, url }),
   removeCredential: (provider, method) =>
     invoke("eta:command", { type: "logout", provider, method }),
+  appInfo: () => invoke("eta:update", "app-info"),
+  updateState: () => invoke("eta:update", "state"),
+  checkForUpdates: () => invoke("eta:update", "check"),
+  installUpdate: () => invoke("eta:update", "install"),
+  openReleasePage: () => invoke("eta:update", "release-page"),
+  subscribeUpdate(listener) {
+    const onEvent = (_event: Electron.IpcRendererEvent, state: UpdateState) => listener(state);
+    ipcRenderer.on("eta:update-state", onEvent);
+    return () => ipcRenderer.removeListener("eta:update-state", onEvent);
+  },
   subscribe(sessionId, listener) {
     const subscriptionId = globalThis.crypto.randomUUID();
     const onEvent = (

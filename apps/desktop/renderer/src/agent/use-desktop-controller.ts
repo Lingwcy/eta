@@ -169,7 +169,7 @@ export function useDesktopController(
             snapshot?.faulted ||
             !!snapshot?.blockedReason ||
             !!snapshot?.recoveryRequired)),
-      onSettings: () => navigation.tabs.openSettings(),
+      onSettings: (category?: string) => navigation.tabs.openSettings(category),
       placeholder: "随心输入",
     },
   };

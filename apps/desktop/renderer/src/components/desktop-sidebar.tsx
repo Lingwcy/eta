@@ -21,7 +21,7 @@ interface Props {
   onSelect: (id: string) => void;
   onNew: () => void;
   onChoose: () => void;
-  onSettings: () => void;
+  onSettings: (category?: string) => void;
   onSkills: () => void;
 }
 

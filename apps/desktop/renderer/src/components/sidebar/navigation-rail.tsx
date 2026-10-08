@@ -1,6 +1,7 @@
 import { Archive, FolderPlus, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
+import { useUpdateState } from "@/agent/use-update-state";
 
 interface Props {
   archived: boolean;
@@ -9,7 +10,8 @@ interface Props {
   onArchive?: () => void;
   settingsActive?: boolean;
   onChoose: () => void;
-  onSettings: () => void;
+  /** Receives "about" when a downloaded update is waiting, so the badge leads to it. */
+  onSettings: (category?: string) => void;
 }
 export function NavigationRail({
   archived,
@@ -20,6 +22,8 @@ export function NavigationRail({
   onSettings,
   settingsActive = false,
 }: Props) {
+  const [update] = useUpdateState();
+  const updateReady = update?.status === "downloaded";
   return (
     <nav
       className="flex w-[var(--rail-width)] shrink-0 flex-col items-center gap-3 py-2"
@@ -60,17 +64,25 @@ export function NavigationRail({
       </Button>
       <div className="flex-1" />
       <Avatar label="Eta" fallback="η" src="./favicon.svg" />
-      <Button
-        variant="ghost-muted"
-        size="icon"
-        title="设置 / 模型与认证"
-        aria-label="设置 / 模型与认证"
-        selected={settingsActive}
-        aria-pressed={settingsActive}
-        onClick={onSettings}
-      >
-        <Settings size={21} aria-hidden="true" />
-      </Button>
+      <div className="relative">
+        <Button
+          variant="ghost-muted"
+          size="icon"
+          title={updateReady ? "设置 / 有可安装的更新" : "设置 / 模型与认证"}
+          aria-label={updateReady ? "设置 / 有可安装的更新" : "设置 / 模型与认证"}
+          selected={settingsActive}
+          aria-pressed={settingsActive}
+          onClick={() => onSettings(updateReady ? "about" : undefined)}
+        >
+          <Settings size={21} aria-hidden="true" />
+        </Button>
+        {updateReady && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1.5 right-1.5 size-2 rounded-full bg-[#ed714b]"
+          />
+        )}
+      </div>
     </nav>
   );
 }

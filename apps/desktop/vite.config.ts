@@ -43,6 +43,8 @@ export default defineConfig({
         "@eta/agent/**",
         "@earendil-works/chord",
         "@earendil-works/chord/**",
+        "electron-updater",
+        "electron-updater/**",
       ],
       neverBundle: ["electron"],
     },

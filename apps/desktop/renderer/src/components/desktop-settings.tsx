@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { StorageSettings } from "./settings/storage-settings";
 import { ConversationSettings } from "./settings/conversation-settings";
 import { SkillSettings } from "./settings/skill-settings";
+import { AboutSettings } from "./settings/about-settings";
 
 interface Props {
   active?: boolean;
@@ -70,7 +71,7 @@ export function DesktopSettings(props: Props) {
                 props.onClose();
                 props.onChooseProject();
               }}
-              onSettings={() => setCategory("accounts")}
+              onSettings={(next) => setCategory(next ?? "accounts")}
             />
             <SettingsSidebar query={query} onQuery={setQuery} onClose={props.onClose} />
           </>
@@ -131,6 +132,17 @@ export function DesktopSettings(props: Props) {
                       onChange={(patch) =>
                         props.act(async () => {
                           await window.eta.updateSettings(patch);
+                        })
+                      }
+                    />
+                  ) : item.id === "about" ? (
+                    <AboutSettings
+                      autoCheck={props.library.settings.autoCheckUpdates !== false}
+                      busy={props.busy}
+                      onAutoCheckChange={(autoCheckUpdates) =>
+                        void props.act(async () => {
+                          await window.eta.updateSettings({ autoCheckUpdates });
+                          await props.refresh();
                         })
                       }
                     />
