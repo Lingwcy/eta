@@ -49,6 +49,21 @@ export interface DesktopLibrary {
   credentials: ReadonlyArray<{ providerId: string; type: "api_key" | "oauth" }>;
 }
 
+/** Mirrors electron-updater's lifecycle; `unsupported` covers unpackaged development builds. */
+export type UpdateState =
+  | { status: "unsupported" }
+  | { status: "idle" }
+  | { status: "checking" }
+  | { status: "not-available" }
+  | { status: "available"; version: string }
+  | { status: "downloading"; version: string; percent: number }
+  | { status: "downloaded"; version: string }
+  | { status: "error"; message: string; releaseUrl: string };
+
+export interface AppInfo {
+  version: string;
+}
+
 export interface DesktopBridge extends AgentBridge {
   skills(cwd?: string): Promise<SkillCatalog>;
   openSkillsDirectory(path: string, cwd?: string): Promise<void>;
@@ -84,6 +99,12 @@ export interface DesktopBridge extends AgentBridge {
   cancelLogin(id: string): Promise<void>;
   openLoginLink(id: string, url: string): Promise<void>;
   removeCredential(provider: string, method: LoginMethod): Promise<void>;
+  appInfo(): Promise<AppInfo>;
+  updateState(): Promise<UpdateState>;
+  checkForUpdates(): Promise<UpdateState>;
+  installUpdate(): Promise<void>;
+  openReleasePage(): Promise<void>;
+  subscribeUpdate(listener: (state: UpdateState) => void): () => void;
 }
 
 declare global {

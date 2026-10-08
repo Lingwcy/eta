@@ -30,10 +30,13 @@ module.exports = {
   beforeBuild: async () => false,
   forceCodeSigning: signedRelease,
   artifactName: "Eta-${version}-mac-${arch}.${ext}",
+  // Writes app-update.yml into the app and latest-mac.yml next to the installers for electron-updater.
+  publish: { provider: "github", owner: "XiaoMouz", repo: "eta" },
   mac: {
     category: "public.app-category.developer-tools",
     icon: "resources/eta.icns",
-    target: "dmg",
+    // Squirrel.Mac installs updates from the zip; the dmg stays the first-install download.
+    target: ["dmg", "zip"],
     hardenedRuntime: signedRelease,
     identity: signedRelease ? undefined : "-",
     notarize: signedRelease,

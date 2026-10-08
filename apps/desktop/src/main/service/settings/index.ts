@@ -31,6 +31,7 @@ export const SettingsSchema = Schema.Struct({
   blockImages: Schema.optionalKey(Schema.Boolean),
   agentThinkingVariant: Schema.optionalKey(Schema.Literals(agentThinkingVariants)),
   activeThreadId: Schema.optionalKey(Schema.NonEmptyString),
+  autoCheckUpdates: Schema.optionalKey(Schema.Boolean),
 });
 export type DesktopSettings = typeof SettingsSchema.Type;
 const FileSchema = Schema.Struct({ version: Schema.Literal(1), settings: SettingsSchema });

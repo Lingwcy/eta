@@ -7,6 +7,7 @@ import {
   HardDrive,
   MessageCircle,
   BookOpen,
+  Info,
 } from "lucide-react";
 export const settingsGroups = [
   {
@@ -26,5 +27,9 @@ export const settingsGroups = [
       { id: "skills", label: "技能", title: "技能", icon: BookOpen },
       { id: "storage", label: "存储", title: "存储", icon: HardDrive },
     ],
+  },
+  {
+    label: "其他",
+    items: [{ id: "about", label: "关于", title: "关于", icon: Info }],
   },
 ];

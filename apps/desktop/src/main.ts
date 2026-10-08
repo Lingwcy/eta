@@ -7,12 +7,16 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { createDesktopApplication } from "./main/bootstrap.ts";
 import type { DesktopApplication } from "./main/bootstrap.ts";
 import { commandReply, dispatchCommand } from "./main/ipc.ts";
-import type { AgentEvent } from "./bridge.ts";
+import type { AgentEvent, UpdateState } from "./bridge.ts";
+import { createUpdater, releaseUrl } from "./main/platform/updater.ts";
+import type { Updater } from "./main/platform/updater.ts";
+import type { DesktopSettings } from "./main/service/settings/index.ts";
 import { createWindowBrowser, decodeBrowserCommand } from "./main/browser/electron.ts";
 import type { BrowserManager } from "./main/browser/manager.ts";
 
 let window: BrowserWindow | undefined;
 let agentService: DesktopApplication | undefined;
+let updater: Updater | undefined;
 let quitting = false;
 let ready = false;
 let startup: Promise<void> | undefined;
@@ -142,6 +146,11 @@ function openWindow(threadId?: string) {
   });
 }
 
+function notifyUpdate(state: UpdateState) {
+  for (const window of BrowserWindow.getAllWindows())
+    window.webContents.send("eta:update-state", state);
+}
+
 function notifyLibrary() {
   for (const window of BrowserWindow.getAllWindows())
     window.webContents.send("eta:library-changed");
@@ -157,9 +166,24 @@ ipcMain.handle("eta:command", (_event, command: unknown) =>
       "type" in command &&
       command.type === "settings"
     ) {
+      // dispatchCommand 已校验命令，settings 命令一定返回最新的设置
+      updater?.setAutoCheck((value as DesktopSettings).autoCheckUpdates !== false);
       notifyLibrary();
     }
     return value;
+  }),
+);
+
+// 关于页：版本信息与更新生命周期
+ipcMain.handle("eta:update", (_event, action: unknown) =>
+  commandReply(async () => {
+    if (action === "app-info") return { version: app.getVersion() };
+    if (action === "release-page") return shell.openExternal(releaseUrl);
+    if (!updater) throw new Error("更新服务尚未就绪");
+    if (action === "state") return updater.state();
+    if (action === "check") return updater.check();
+    if (action === "install") return updater.install();
+    throw new Error("更新操作无效");
   }),
 );
 
@@ -309,6 +333,7 @@ if (!app.requestSingleInstanceLock()) {
     if (quitting) return;
     event.preventDefault();
     quitting = true;
+    updater?.dispose();
     for (const browser of browsers.values()) browser.dispose();
     browsers.clear();
     for (const [contentsId, subscriptions] of watchers)
@@ -318,7 +343,9 @@ if (!app.requestSingleInstanceLock()) {
       .catch((error: unknown) => {
         console.error("Eta shutdown failed", error);
       })
-      .finally(() => app.quit());
+      // 推迟到下一个宏任务：清理很快完成时，微任务里的 app.quit() 会重入仍在执行的 Browser::Quit，
+      // 外层随后把 is_quitting_ 覆盖回 false，窗口全部关闭后进程却不退出（SIGTERM 和 quitAndInstall 都会触发）
+      .finally(() => setImmediate(() => app.quit()));
   });
 
   // 记录启动 Promise，用于在 before-quit 钩子中等待启动完成后再安全关闭服务
@@ -357,9 +384,23 @@ if (!app.requestSingleInstanceLock()) {
       // 5. 监听项目与会话库变动，当会话/项目发生增删改时广播通知所有窗口刷新
       agentService.subscribeLibrary(notifyLibrary);
 
-      // 6. 标记就绪状态；若启动过程中未收到退出信号，则打开初始窗口
+      // 6. 自动更新：只有打包后的应用带有 app-update.yml，开发模式下标记为不支持
+      updater = createUpdater({
+        // 按需加载，开发模式不引入 electron-updater
+        backend: app.isPackaged ? (await import("electron-updater")).autoUpdater : undefined,
+        autoCheck: false,
+        broadcast: notifyUpdate,
+      });
+
+      // 7. 标记就绪状态；若启动过程中未收到退出信号，则打开初始窗口
       ready = true;
       if (!quitting) openWindow();
+
+      // 8. 读取设置后再开启自动检查；更新器出错不能阻断启动
+      void agentService.library().then(
+        ({ settings }) => updater?.setAutoCheck(settings.autoCheckUpdates !== false),
+        (error: unknown) => console.error("Eta update schedule failed", error),
+      );
     })
     .catch((error: unknown) => {
       // 启动阶段致命异常兜底：弹窗提示用户并退出应用，防止出现僵尸进程

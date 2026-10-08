@@ -85,6 +85,7 @@ const Command = Schema.Union([
       disabledSkills: Schema.optionalKey(Schema.Array(Id)),
       blockImages: Schema.optionalKey(Schema.Boolean),
       agentThinkingVariant: Schema.optionalKey(Schema.Literals(agentThinkingVariants)),
+      autoCheckUpdates: Schema.optionalKey(Schema.Boolean),
     }),
   }),
   Schema.Struct({ type: Schema.Literal("login-start"), provider: Id, method: Method }),

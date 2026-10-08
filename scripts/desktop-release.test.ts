@@ -5,10 +5,12 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, test } from "vite-plus/test";
+import { parse, stringify } from "yaml";
 import {
   installerChecksums,
   previousRelease,
   releaseNotes,
+  updateFeed,
   validateRelease,
 } from "./desktop-release.ts";
 import type { PublishedRelease } from "./desktop-release.ts";
@@ -151,6 +153,62 @@ test("both nonempty versioned installers are required and produce accurate check
   );
 });
 
+/** Writes one architecture's zip and dmg with the latest-mac-<arch>.yml electron-builder emits. */
+function writeArchitecture(directory: string, arch: string, version = "0.0.3") {
+  const files = ["zip", "dmg"].map((extension) => {
+    const url = `Eta-${version}-mac-${arch}.${extension}`;
+    const data = `${extension} ${arch}`;
+    writeFileSync(join(directory, url), data);
+    return { url, sha512: createHash("sha512").update(data).digest("base64"), size: data.length };
+  });
+  writeFileSync(join(directory, `Eta-${version}-mac-${arch}.zip.blockmap`), `blockmap ${arch}`);
+  writeFileSync(
+    join(directory, `latest-mac-${arch}.yml`),
+    stringify({
+      version,
+      files,
+      path: files[0]!.url,
+      sha512: files[0]!.sha512,
+      releaseDate: arch === "x64" ? "2026-10-08T03:00:00.000Z" : "2026-10-08T02:00:00.000Z",
+    }),
+  );
+}
+
+test("per-architecture update feeds merge into one feed that lists every verified zip", () => {
+  const { root } = setup();
+  writeArchitecture(root, "arm64");
+  assert.throws(() => updateFeed(root, "v0.0.3"), /missing Eta-0\.0\.3-mac-x64\.zip/);
+  writeArchitecture(root, "x64");
+  const uploads = updateFeed(root, "v0.0.3").map((path) => path.slice(root.length + 1));
+  assert.deepEqual(uploads.toSorted(), [
+    "Eta-0.0.3-mac-arm64.zip",
+    "Eta-0.0.3-mac-arm64.zip.blockmap",
+    "Eta-0.0.3-mac-x64.zip",
+    "Eta-0.0.3-mac-x64.zip.blockmap",
+    "latest-mac.yml",
+  ]);
+  const feed = parse(readFileSync(join(root, "latest-mac.yml"), "utf8")) as {
+    version: string;
+    files: { url: string }[];
+    path: string;
+    releaseDate: string;
+  };
+  assert.equal(feed.version, "0.0.3");
+  assert.equal(feed.files.length, 4);
+  assert.equal(feed.path, "Eta-0.0.3-mac-arm64.zip");
+  assert.equal(feed.releaseDate, "2026-10-08T03:00:00.000Z");
+});
+
+test("an update feed for another version or with a corrupted zip is rejected", () => {
+  const { root } = setup();
+  writeArchitecture(root, "arm64");
+  writeArchitecture(root, "x64", "0.0.2");
+  assert.throws(() => updateFeed(root, "v0.0.3"), /version 0\.0\.2 does not match v0\.0\.3/);
+  writeArchitecture(root, "x64");
+  writeFileSync(join(root, "Eta-0.0.3-mac-x64.zip"), "tampered");
+  assert.throws(() => updateFeed(root, "v0.0.3"), /checksum mismatch: Eta-0\.0\.3-mac-x64\.zip/);
+});
+
 function githubFixture(root: string) {
   const bin = join(root, "bin");
   mkdirSync(bin);
@@ -178,8 +236,7 @@ fs.writeFileSync(file, JSON.stringify(state));
   const statePath = join(root, "github.json");
   const assets = join(root, "assets");
   mkdirSync(assets);
-  for (const arch of ["arm64", "x64"])
-    writeFileSync(join(assets, `Eta-0.0.3-mac-${arch}.dmg`), `installer ${arch}`);
+  for (const arch of ["arm64", "x64"]) writeArchitecture(assets, arch);
   const publish = () =>
     execFileSync(
       process.execPath,
@@ -211,7 +268,16 @@ test("publishing creates a complete release and rerunning preserves published ed
   assert.equal(state.current.draft, false);
   assert.match(state.current.body, /修复等待状态/);
   assert.match(state.current.body, /ad-hoc 签名/);
-  assert.equal(state.current.assets.length, 3);
+  assert.deepEqual(state.current.assets.map((asset) => asset.name).toSorted(), [
+    "Eta-0.0.3-mac-arm64.dmg",
+    "Eta-0.0.3-mac-arm64.zip",
+    "Eta-0.0.3-mac-arm64.zip.blockmap",
+    "Eta-0.0.3-mac-x64.dmg",
+    "Eta-0.0.3-mac-x64.zip",
+    "Eta-0.0.3-mac-x64.zip.blockmap",
+    "SHA256SUMS.txt",
+    "latest-mac.yml",
+  ]);
   state.current.body = "Maintainer edited release notes";
   writeFileSync(statePath, JSON.stringify(state));
   rmSync(assets, { recursive: true });

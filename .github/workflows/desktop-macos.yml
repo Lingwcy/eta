@@ -65,11 +65,18 @@ jobs:
           for image in apps/desktop/dist/release/*.dmg; do
             hdiutil verify "$image"
           done
+      # Both jobs write latest-mac.yml; name each copy so the release job can merge them.
+      - name: Name update feed by architecture
+        run: mv apps/desktop/dist/release/latest-mac.yml "apps/desktop/dist/release/latest-mac-${{ matrix.arch }}.yml"
       - name: Upload installer
         uses: actions/upload-artifact@v7
         with:
           name: Eta-mac-${{ matrix.arch }}
-          path: apps/desktop/dist/release/*.dmg
+          path: |
+            apps/desktop/dist/release/*.dmg
+            apps/desktop/dist/release/*.zip
+            apps/desktop/dist/release/*.blockmap
+            apps/desktop/dist/release/latest-mac-*.yml
           if-no-files-found: error
 
   release:
@@ -86,6 +93,8 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.21.1
         with:
           node-version: "24"
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
       - uses: actions/download-artifact@v8
         with:
           pattern: Eta-mac-*
