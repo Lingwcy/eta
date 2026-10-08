@@ -3,7 +3,11 @@ import { beforeEach, expect, test, vi } from "vite-plus/test";
 const state = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => Promise<unknown>>(),
   windows: [] as {
-    webContents: { id: number; send: ReturnType<typeof vi.fn> };
+    webContents: {
+      id: number;
+      send: ReturnType<typeof vi.fn>;
+      setWindowOpenHandler: ReturnType<typeof vi.fn>;
+    };
     loadURL: ReturnType<typeof vi.fn>;
     close(): void;
   }[],
@@ -108,11 +112,39 @@ beforeEach(async () => {
     return { id: "one", title: "Renamed" };
   });
   state.shell.openPath.mockReset().mockResolvedValue("");
+  state.shell.openExternal.mockReset().mockResolvedValue(undefined);
   state.service.openSkillsDirectory
     .mockReset()
     .mockImplementation((path: string) => state.openDirectory!(path));
   await import("./main.ts");
   await vi.waitFor(() => expect(state.windows).toHaveLength(1));
+});
+
+test("message links open externally from every window without creating an Electron popup", async () => {
+  const first = state.windows[0]!;
+  await call("eta:thread-window", first, "one");
+  for (const window of state.windows) {
+    const open = window.webContents.setWindowOpenHandler.mock.calls[0]![0];
+    for (const url of [
+      "https://example.com/market?q=eta#prices",
+      "http://localhost:3000",
+      "mailto:hello@example.com",
+    ]) {
+      expect(open({ url })).toEqual({ action: "deny" });
+      expect(state.shell.openExternal).toHaveBeenLastCalledWith(url);
+    }
+    state.shell.openExternal.mockClear();
+    for (const url of [
+      "file:///etc/passwd",
+      "javascript:alert(1)",
+      "data:text/html,test",
+      "eta://command",
+    ]) {
+      expect(open({ url })).toEqual({ action: "deny" });
+    }
+    expect(state.shell.openExternal).not.toHaveBeenCalled();
+  }
+  expect(state.windows).toHaveLength(2);
 });
 
 async function call(channel: string, sender: { webContents: { id: number } }, ...args: unknown[]) {

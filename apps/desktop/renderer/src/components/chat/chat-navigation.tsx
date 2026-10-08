@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Bookmark } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import { MessageMarkdown } from "./message-markdown";
 import { Button } from "@/components/ui/button";
 import { PreviewCard, PreviewCardContent, PreviewCardTrigger } from "@/components/ui/preview-card";
 import { Reveal } from "@/components/ui/reveal";
@@ -81,7 +81,7 @@ export function ChatNavigation({
                     <Bookmark size={14} className="shrink-0 text-neutral-400" aria-hidden="true" />
                   </div>
                   <div className="mt-1.5 line-clamp-4 text-xs/5 break-words text-neutral-500 [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
-                    <ReactMarkdown>{payload.preview || "等待响应…"}</ReactMarkdown>
+                    <MessageMarkdown text={payload.preview || "等待响应…"} />
                   </div>
                 </Reveal>
               )}

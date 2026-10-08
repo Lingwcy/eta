@@ -111,7 +111,15 @@ function openWindow(threadId?: string) {
   //   browsers.get(contentsId)?.dispose();
   //   browsers.delete(contentsId);
   // });
-  currentWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  currentWindow.webContents.setWindowOpenHandler(({ url }) => {
+    const protocol = new URL(url).protocol;
+    if (protocol === "https:" || protocol === "http:" || protocol === "mailto:") {
+      void shell.openExternal(url).catch((error: unknown) => {
+        dialog.showErrorBox("无法打开链接", error instanceof Error ? error.message : String(error));
+      });
+    }
+    return { action: "deny" };
+  });
   currentWindow.webContents.on("will-navigate", (event, url) => {
     const allowed = devUrl
       ? new URL(url).origin === new URL(devUrl).origin
