@@ -75,7 +75,7 @@ jobs:
           path: |
             apps/desktop/dist/release/*.dmg
             apps/desktop/dist/release/*.zip
-            apps/desktop/dist/release/*.blockmap
+            apps/desktop/dist/release/*.zip.blockmap
             apps/desktop/dist/release/latest-mac-*.yml
           if-no-files-found: error
 

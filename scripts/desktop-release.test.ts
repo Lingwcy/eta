@@ -161,7 +161,12 @@ function writeArchitecture(directory: string, arch: string, version = "0.0.3") {
     writeFileSync(join(directory, url), data);
     return { url, sha512: createHash("sha512").update(data).digest("base64"), size: data.length };
   });
-  writeFileSync(join(directory, `Eta-${version}-mac-${arch}.zip.blockmap`), `blockmap ${arch}`);
+  // electron-builder can also emit a dmg blockmap; the release must leave it out.
+  for (const extension of ["zip", "dmg"])
+    writeFileSync(
+      join(directory, `Eta-${version}-mac-${arch}.${extension}.blockmap`),
+      `blockmap ${arch}`,
+    );
   writeFileSync(
     join(directory, `latest-mac-${arch}.yml`),
     stringify({

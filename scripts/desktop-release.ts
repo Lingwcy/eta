@@ -188,7 +188,9 @@ export function updateFeed(directory: string, tag: string) {
     const digest = createHash("sha512").update(readFileSync(path)).digest("base64");
     if (digest !== file.sha512) throw new Error(`Update feed checksum mismatch: ${file.url}`);
     uploads.push(path);
-    if (existsSync(`${path}.blockmap`)) uploads.push(`${path}.blockmap`);
+    // Only zips are downloaded by the updater, so only their blockmaps enable differential updates.
+    if (file.url.endsWith(".zip") && existsSync(`${path}.blockmap`))
+      uploads.push(`${path}.blockmap`);
   }
   // Squirrel.Mac can only install from a zip, so each architecture needs one.
   const zips = ["arm64", "x64"].map((arch) => `Eta-${expected}-mac-${arch}.zip`);
