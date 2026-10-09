@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-import type { OperationAdmission } from "../../../src/agent/protocol.ts";
-import type {
-  SessionResponse,
-  SnapshotResponse,
-  ThinkingLevel,
-} from "../../../src/agent/protocol.ts";
+import type { OperationAdmission } from "@eta/core/agent/protocol";
+import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentEvent, AgentBridge } from "../../../src/bridge.ts";
 import { ThreadAgentClient } from "./client.ts";
 

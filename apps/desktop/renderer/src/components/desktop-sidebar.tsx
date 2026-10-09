@@ -1,5 +1,5 @@
 import { projectRootWorkspace } from "@/desktop/selectors";
-import { threadProjectId } from "../../../src/shared/thread-project.ts";
+import { threadProjectId } from "@eta/core/shared/thread-project";
 import { ThreadContextMenu } from "./threads/thread-actions";
 import { Button } from "./ui/button";
 import { SlidingLabel } from "./sidebar/sliding-label";

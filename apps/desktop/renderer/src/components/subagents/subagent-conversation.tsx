@@ -1,9 +1,9 @@
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
-import type { ImageAttachment } from "../../../../src/images/types.ts";
+import type { ImageAttachment } from "@eta/core/images/types";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import type { SnapshotResponse } from "../../../../src/agent/protocol.ts";
-import type { SubagentSummary } from "../../../../src/shared/subagents.ts";
+import type { SnapshotResponse } from "@eta/core/agent/protocol";
+import type { SubagentSummary } from "@eta/core/shared/subagents";
 import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { CompositeInput } from "@/components/input";
 import { Button } from "@/components/ui/button";

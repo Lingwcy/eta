@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import { commandReply, dispatchCommand } from "./ipc.ts";
 import type { DesktopApplication } from "./bootstrap.ts";
-import { DesktopServiceError } from "./service/errors.ts";
+import { CoreError } from "@eta/core/service/errors";
 
 test.each([
   { type: "skills", cwd: 123 },
@@ -54,7 +54,7 @@ test.each([
 );
 test("domain error codes and retryability survive Electron's JSON boundary", async () => {
   const reply = await commandReply(async () => {
-    throw new DesktopServiceError({ code: "Busy", message: "工作区正在运行" });
+    throw new CoreError({ code: "Busy", message: "工作区正在运行" });
   });
   expect(reply).toEqual({
     ok: false,
@@ -63,7 +63,7 @@ test("domain error codes and retryability survive Electron's JSON boundary", asy
 });
 
 test("image preparation accepts Electron's undefined optional fields and returns a real image block", async () => {
-  const { processImage } = await import("./platform/images.ts");
+  const { processImage } = await import("@eta/core/node/images");
   const data =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==";
   const application = {

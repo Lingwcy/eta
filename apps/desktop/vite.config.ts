@@ -1,15 +1,27 @@
+import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   resolve: { conditions: ["source"] },
-  ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/agent"] },
+  ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/agent", "@eta/core"] },
   test: { environment: "node", include: ["src/**/*.test.ts", "renderer/src/**/*.test.ts"] },
   pack: {
     inputOptions: {
       resolve: {
-        // Only Agent uses workspace source; published Chord has no source files.
+        // Core and Agent use workspace source; published Chord has no source files.
         alias: {
+          ...Object.fromEntries(
+            globSync("packages/core/src/**/*.ts", {
+              cwd: fileURLToPath(new URL("../../", import.meta.url)),
+            })
+              .filter((path) => !path.endsWith(".test.ts"))
+              .map((path) => [
+                `@eta/core/${path.replace("packages/core/src/", "").replace(/\.ts$/, "")}$`,
+                fileURLToPath(new URL(`../../${path}`, import.meta.url)),
+              ]),
+          ),
+          "@eta/core$": fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
           "@eta/agent$": fileURLToPath(
             new URL("../../packages/agent/src/index.ts", import.meta.url),
           ),
@@ -41,6 +53,8 @@ export default defineConfig({
         "@earendil-works/pi-ai/**",
         "@eta/agent",
         "@eta/agent/**",
+        "@eta/core",
+        "@eta/core/**",
         "@earendil-works/chord",
         "@earendil-works/chord/**",
         "electron-updater",

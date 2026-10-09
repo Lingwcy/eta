@@ -4,7 +4,7 @@ import { Schema } from "effect";
 import { browserAddress, desktopShortcut } from "../../browser/protocol.ts";
 import type { BrowserCommand, BrowserEvent, BrowserState } from "../../browser/protocol.ts";
 import { BrowserManager } from "./manager.ts";
-import { DesktopServiceError } from "../service/errors.ts";
+import { CoreError } from "@eta/core/service/errors";
 
 const Id = Schema.NonEmptyString;
 const CommandSchema = Schema.Union([
@@ -29,7 +29,7 @@ export function decodeBrowserCommand(raw: unknown): BrowserCommand {
   try {
     return Schema.decodeUnknownSync(CommandSchema, { onExcessProperty: "error" })(raw);
   } catch {
-    throw new DesktopServiceError({ code: "InvalidInput", message: "浏览器请求参数无效" });
+    throw new CoreError({ code: "InvalidInput", message: "浏览器请求参数无效" });
   }
 }
 

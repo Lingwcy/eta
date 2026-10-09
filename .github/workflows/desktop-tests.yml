@@ -29,6 +29,11 @@ jobs:
       - name: Build agent package
         run: vp run --no-cache @eta/agent#build
 
+      - name: Verify shared Core
+        run: |
+          vp run --no-cache @eta/core#typecheck
+          vp run @eta/core#test
+
       - name: Type-check repository scripts
         run: vp run --no-cache typecheck
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BookOpen, X } from "lucide-react";
-import type { ActiveSkill, SkillCatalog } from "../../../../src/skills/types.ts";
+import type { ActiveSkill, SkillCatalog } from "@eta/core/skills/types";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";

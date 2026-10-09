@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
-import type { SkillCatalog } from "../../../../src/skills/types.ts";
+import type { SkillCatalog } from "@eta/core/skills/types";
 import type { DesktopSettings } from "../../../../src/shared/settings.ts";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";

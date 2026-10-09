@@ -1,4 +1,4 @@
-import type { SnapshotTool } from "../../../../src/agent/protocol.ts";
+import type { SnapshotTool } from "@eta/core/agent/protocol";
 import {
   ScrollAreaRoot,
   ScrollAreaViewport,

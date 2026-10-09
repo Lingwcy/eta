@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AuthEvent, AuthPrompt, CredentialStore, Models } from "@earendil-works/pi-ai";
 import type { AuthProvider, LoginMethod, LoginState } from "../../authentication.ts";
-import { DesktopServiceError } from "../service/errors.ts";
+import { CoreError } from "@eta/core/service/errors";
 
 type Flow = {
   state: LoginState;
@@ -40,9 +40,9 @@ export class DesktopAuthentication {
 
   start(provider: string, method: LoginMethod) {
     if (this.removing || this.flow?.state.status === "running")
-      throw new DesktopServiceError({ code: "Busy", message: "请先完成或取消当前登录" });
+      throw new CoreError({ code: "Busy", message: "请先完成或取消当前登录" });
     if (!this.providers().some((entry) => entry.id === provider && entry.methods.includes(method)))
-      throw new DesktopServiceError({ code: "InvalidInput", message: "该服务不支持此登录方式" });
+      throw new CoreError({ code: "InvalidInput", message: "该服务不支持此登录方式" });
     const flow: Flow = {
       state: {
         id: randomUUID(),
@@ -92,9 +92,9 @@ export class DesktopAuthentication {
     const flow = this.requireFlow(id);
     const prompt = flow.state.prompt;
     if (flow.state.status !== "running" || prompt?.id !== promptId || !flow.answer)
-      throw new DesktopServiceError({ code: "InvalidInput", message: "此登录步骤已结束" });
+      throw new CoreError({ code: "InvalidInput", message: "此登录步骤已结束" });
     if (prompt.type === "select" && !prompt.options?.some((option) => option.id === value))
-      throw new DesktopServiceError({ code: "InvalidInput", message: "请选择有效选项" });
+      throw new CoreError({ code: "InvalidInput", message: "请选择有效选项" });
     flow.answer(value);
   }
 
@@ -108,19 +108,19 @@ export class DesktopAuthentication {
   async openLink(id: string, url: string) {
     const flow = this.requireFlow(id);
     if (!flow.state.links.some((link) => link.url === url))
-      throw new DesktopServiceError({ code: "InvalidInput", message: "授权链接无效" });
+      throw new CoreError({ code: "InvalidInput", message: "授权链接无效" });
     await this.openExternal(this.webUrl(url));
   }
 
   async remove(provider: string, method: LoginMethod) {
     if (this.flow?.state.status === "running" && this.flow.state.provider === provider)
-      throw new DesktopServiceError({ code: "Busy", message: "请先取消此服务的登录" });
-    if (this.removing) throw new DesktopServiceError({ code: "Busy", message: "正在更新连接" });
+      throw new CoreError({ code: "Busy", message: "请先取消此服务的登录" });
+    if (this.removing) throw new CoreError({ code: "Busy", message: "正在更新连接" });
     this.removing = true;
     try {
       const current = await this.credentials.read(provider);
       if (current?.type !== method)
-        throw new DesktopServiceError({
+        throw new CoreError({
           code: "InvalidInput",
           message: "该登录方式已被替换，请刷新设置",
         });
@@ -136,14 +136,14 @@ export class DesktopAuthentication {
 
   private requireFlow(id: string) {
     if (!this.flow || this.flow.state.id !== id)
-      throw new DesktopServiceError({ code: "NotFound", message: "登录已结束，请重新连接" });
+      throw new CoreError({ code: "NotFound", message: "登录已结束，请重新连接" });
     return this.flow;
   }
 
   private webUrl(url: string) {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
-      throw new DesktopServiceError({ code: "InvalidInput", message: "授权链接无效" });
+      throw new CoreError({ code: "InvalidInput", message: "授权链接无效" });
     return parsed.href;
   }
 

@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
-import type { CatalogState } from "../../shared/catalog.ts";
+import type { CatalogState } from "@eta/core/shared/catalog";
 import { scanStorage, storageTargetPath } from "./index.ts";
 
 const roots: string[] = [];

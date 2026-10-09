@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { FileCode2 } from "lucide-react";
-import type { SnapshotTool } from "../../../../src/agent/protocol.ts";
+import type { SnapshotTool } from "@eta/core/agent/protocol";
 import { cn } from "@/lib/utils";
 
 function ToolBranch({ children, continued = false }: { children: ReactNode; continued?: boolean }) {

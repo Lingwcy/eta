@@ -11,6 +11,11 @@ export default defineConfig({
   base: "./",
   plugins: [tailwindcss(), react()],
   server: { host: "127.0.0.1", port, strictPort: true },
-  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@eta/core": fileURLToPath(new URL("../../../packages/core/src", import.meta.url)),
+    },
+  },
   build: { outDir: fileURLToPath(new URL("../dist/ui", import.meta.url)), emptyOutDir: true },
 });

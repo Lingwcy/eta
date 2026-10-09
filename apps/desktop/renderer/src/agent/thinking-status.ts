@@ -1,4 +1,4 @@
-import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 
 export type ThinkingPhase =
   | "waiting"

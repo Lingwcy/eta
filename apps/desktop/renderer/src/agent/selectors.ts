@@ -1,4 +1,4 @@
-import type { SnapshotTool, AgentSnapshot } from "../../../src/agent/protocol.ts";
+import type { SnapshotTool, AgentSnapshot } from "@eta/core/agent/protocol";
 
 /** Reconstructs tool observations from the transcript, with live results overriding settled history. */
 export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {

@@ -1,6 +1,6 @@
 import type { DesktopLibrary } from "../../../src/bridge.ts";
-import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
-import type { WorkspaceMetadata } from "../../../src/shared/workspaces.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
+import type { WorkspaceMetadata } from "@eta/core/shared/workspaces";
 
 export type ModelSelection = AgentSnapshot["configuration"]["model"];
 

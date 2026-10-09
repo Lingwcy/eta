@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Button as BaseButton } from "@base-ui/react/button";
 import { ChevronDown, ChevronUp, Grid2X2, Search, Check } from "lucide-react";
-import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";

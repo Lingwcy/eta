@@ -1,6 +1,6 @@
 import { ImageAttachments, type AttachmentItem } from "./image-attachments";
 import { extractImagePaths } from "./image-paths";
-import type { ImageSource } from "../../../../src/images/types.ts";
+import type { ImageSource } from "@eta/core/images/types";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ActionToolbar } from "./action-toolbar";

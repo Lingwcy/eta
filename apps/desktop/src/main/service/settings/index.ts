@@ -2,9 +2,9 @@ import { SettingsSchema } from "../../../shared/settings-schema.ts";
 import type { DesktopSettings } from "../../../shared/settings.ts";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
-import { AppPathsService } from "../../platform/app-paths.ts";
-import { adapter, DesktopServiceError } from "../errors.ts";
-import { readJson, writeJson } from "../json-file.ts";
+import { AppPathsService } from "@eta/core/platform/app-paths";
+import { adapter, CoreError } from "@eta/core/service/errors";
+import { readJson, writeJson } from "@eta/core/service/json-file";
 import { ModelCatalogService } from "../models/index.ts";
 
 const FileSchema = Schema.Struct({ version: Schema.Literal(1), settings: SettingsSchema });
@@ -14,7 +14,7 @@ export class DesktopSettingsService extends Context.Service<
   {
     readonly read: Effect.Effect<DesktopSettings>;
     subscribe(listener: () => void): () => void;
-    update(patch: Partial<DesktopSettings>): Effect.Effect<DesktopSettings, DesktopServiceError>;
+    update(patch: Partial<DesktopSettings>): Effect.Effect<DesktopSettings, CoreError>;
   }
 >()("eta/desktop/main/service/settings/DesktopSettingsService") {
   static readonly layer = Layer.effect(
@@ -41,7 +41,7 @@ export class DesktopSettingsService extends Context.Service<
           : (yield* Schema.decodeUnknownEffect(FileSchema)(raw).pipe(
               Effect.mapError(
                 () =>
-                  new DesktopServiceError({
+                  new CoreError({
                     code: "StorageCorrupt",
                     message: "设置文件格式或版本无效",
                   }),
@@ -65,12 +65,12 @@ export class DesktopSettingsService extends Context.Service<
                 onExcessProperty: "error",
               })({ ...current, ...patch }).pipe(
                 Effect.mapError(
-                  () => new DesktopServiceError({ code: "InvalidInput", message: "设置格式无效" }),
+                  () => new CoreError({ code: "InvalidInput", message: "设置格式无效" }),
                 ),
               );
               if (decoded.subagents) {
                 if (decoded.subagents.mode === "orchestrator" && decoded.subagents.maxDepth === 0)
-                  return yield* new DesktopServiceError({
+                  return yield* new CoreError({
                     code: "InvalidInput",
                     message: "编排模式至少需要一层子智能体",
                   });
@@ -79,7 +79,7 @@ export class DesktopSettingsService extends Context.Service<
                   new Set(names).size !== names.length ||
                   names.some((name) => !/^[a-zA-Z0-9_-]+$/.test(name))
                 )
-                  return yield* new DesktopServiceError({
+                  return yield* new CoreError({
                     code: "InvalidInput",
                     message: "预设名称必须唯一，且只能包含字母、数字、下划线和连字符",
                   });

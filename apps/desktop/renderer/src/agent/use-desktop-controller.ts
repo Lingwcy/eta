@@ -1,5 +1,5 @@
 import { defaultModel, projectRootWorkspace } from "@/desktop/selectors";
-import type { ImageAttachment } from "../../../src/images/types.ts";
+import type { ImageAttachment } from "@eta/core/images/types";
 import { useEffect, useState } from "react";
 import { useThinkingStatus } from "./use-thinking-status";
 import { useThreadAgent } from "./use-thread-agent";
@@ -8,7 +8,7 @@ import type { ConversationTab } from "./desktop-tabs";
 import type { DesktopLibraryController } from "./use-desktop-library";
 import type { DesktopTabController } from "./use-desktop-tabs";
 import type { InputModel } from "@/components/input/types";
-import type { ThinkingLevel } from "../../../src/agent/protocol";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { hasThreadActivity } from "./thread-activity";
 
 /** A mounted conversation keeps its composer when another tab becomes active. */

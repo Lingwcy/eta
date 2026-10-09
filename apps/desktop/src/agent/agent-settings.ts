@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ThinkingLevel } from "./protocol.ts";
-import type { AgentModel } from "./protocol.ts";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
+import type { AgentModel } from "@eta/core/agent/protocol";
 
 export interface AgentSettings {
   defaultProvider?: AgentModel["provider"];

@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
-import type { AgentSnapshot } from "../../../../src/agent/protocol.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { getChatMessages } from "./chat-messages";
 
 const message = { ...fauxAssistantMessage("Hello"), timestamp: 100 };

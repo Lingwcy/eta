@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Check, CircleDot, Clock3, CirclePause, CircleAlert, CircleMinus } from "lucide-react";
-import type { SubagentSummary } from "../../../../src/shared/subagents.ts";
+import type { SubagentSummary } from "@eta/core/shared/subagents";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SlidingLabel } from "@/components/sidebar/sliding-label";

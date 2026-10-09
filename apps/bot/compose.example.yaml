@@ -1,0 +1,19 @@
+services:
+  bot:
+    build:
+      context: ../..
+      dockerfile: apps/bot/Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+    volumes:
+      - eta-bot-data:/var/lib/eta-bot
+      - ./config.json:/etc/eta-bot/config.json:ro
+      - ./workspaces/support:/workspaces/support
+volumes:
+  eta-bot-data:

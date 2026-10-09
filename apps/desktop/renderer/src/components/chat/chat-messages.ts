@@ -1,4 +1,4 @@
-import type { AgentSnapshot } from "../../../../src/agent/protocol.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 
 /** Streaming and saved responses share a key so saving never replays their entrance. */
 export function getChatMessages(snapshot?: AgentSnapshot) {

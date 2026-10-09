@@ -1,14 +1,14 @@
-import { SubagentCommandSchema, SubagentSettingsSchema } from "../shared/subagent-schema.ts";
-import { builtinToolNames } from "../tools.ts";
+import { SubagentCommandSchema, SubagentSettingsSchema } from "@eta/core/shared/subagent-schema";
+import { builtinToolNames } from "@eta/core/tools";
 import { agentThinkingVariants } from "../appearance.ts";
 import { Schema } from "effect";
 import type { DesktopApplication } from "./bootstrap.ts";
 import type { CommandReply } from "../bridge.ts";
-import { DesktopServiceError } from "./service/errors.ts";
-import { ProjectError } from "./service/projects/index.ts";
-import { CatalogStorageError } from "./service/catalog/json-store.ts";
-import { CatalogValidationError } from "./service/catalog/schema.ts";
-import { TitleModelSchema } from "../shared/settings-schema.ts";
+import { CoreError } from "@eta/core/service/errors";
+import { ProjectError } from "@eta/core/service/projects/index";
+import { CatalogStorageError } from "@eta/core/service/catalog/json-store";
+import { CatalogValidationError } from "@eta/core/service/catalog/schema";
+import { TitleModelSchema } from "@eta/core/shared/runtime-settings";
 
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
@@ -116,7 +116,7 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
   try {
     command = decode(raw);
   } catch {
-    throw new DesktopServiceError({ code: "InvalidInput", message: "请求参数无效" });
+    throw new CoreError({ code: "InvalidInput", message: "请求参数无效" });
   }
   switch (command.type) {
     case "subagent":
@@ -191,7 +191,7 @@ export async function commandReply<A>(action: () => Promise<A>): Promise<Command
     return { ok: true, value: await action() };
   } catch (error) {
     const code =
-      error instanceof DesktopServiceError
+      error instanceof CoreError
         ? error.code
         : error instanceof ProjectError
           ? error.reason

@@ -1,10 +1,6 @@
-import type { ImageAttachment } from "../../../src/images/types.ts";
-import type { OperationAdmission } from "../../../src/agent/protocol.ts";
-import type {
-  SessionResponse,
-  SnapshotResponse,
-  ThinkingLevel,
-} from "../../../src/agent/protocol.ts";
+import type { ImageAttachment } from "@eta/core/images/types";
+import type { OperationAdmission } from "@eta/core/agent/protocol";
+import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentBridge } from "../../../src/bridge.ts";
 
 export interface AgentClientState {

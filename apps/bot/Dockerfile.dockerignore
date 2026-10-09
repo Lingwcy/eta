@@ -1,0 +1,6 @@
+**
+!apps/
+!apps/bot/
+!apps/bot/dist/
+!apps/bot/dist/**
+!apps/bot/Dockerfile

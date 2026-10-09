@@ -1,7 +1,7 @@
-import type { SubagentCommand } from "../shared/subagents.ts";
+import type { SubagentCommand } from "@eta/core/shared/subagents";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, basename } from "node:path";
-import type { ImageAttachment, ImageSource, ImageProcessor } from "../images/types.ts";
+import type { ImageAttachment, ImageSource, ImageProcessor } from "@eta/core/images/types";
 import { randomUUID } from "node:crypto";
 import { registerBunOAuthFlows as registerBundledOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { Schema } from "effect";
@@ -12,17 +12,17 @@ import { Effect, ManagedRuntime } from "effect";
 import { loadProjectEnvironment } from "./environment.ts";
 import { readAgentCredentials } from "../agent/agent-credentials.ts";
 import { readAgentSettings } from "../agent/agent-settings.ts";
-import type { ThinkingLevel } from "../agent/protocol.ts";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import type { DesktopLibrary } from "../bridge.ts";
 import { CredentialService } from "./service/credentials/index.ts";
-import { DesktopCatalogService } from "./service/catalog/index.ts";
-import { readJson, writeJson } from "./service/json-file.ts";
+import { CatalogService } from "@eta/core/service/catalog/index";
+import { readJson, writeJson } from "@eta/core/service/json-file";
 import { desktopServices } from "./service/layer.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
-import { ProjectService } from "./service/projects/index.ts";
+import { ProjectService } from "@eta/core/service/projects/index";
 import { DesktopSettingsService } from "./service/settings/index.ts";
 import type { DesktopSettings } from "../shared/settings.ts";
-import { ThreadService } from "./service/threads/index.ts";
+import { ThreadService } from "@eta/core/service/threads/index";
 import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
 import type { StorageTarget } from "../shared/storage.ts";
@@ -53,7 +53,7 @@ export async function createDesktopApplication(
     const settings = await runtime.runPromise(DesktopSettingsService);
     const credentials = await runtime.runPromise(CredentialService);
     const models = await runtime.runPromise(ModelCatalogService);
-    const catalog = await runtime.runPromise(DesktopCatalogService);
+    const catalog = await runtime.runPromise(CatalogService);
     const skills = await runtime.runPromise(SkillsService);
     const installationPath = join(dataRoot, "installation.json");
     const installation = await readJson(installationPath);
@@ -80,6 +80,11 @@ export async function createDesktopApplication(
       await runtime.runPromise(projects.register({ rootPath: cwd }));
     const cwdDefault = cwd;
     const run = <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect);
+    const selectThread = async (action: ReturnType<typeof threads.open>) => {
+      const opened = await run(action);
+      await run(settings.update({ activeThreadId: opened.id }));
+      return opened;
+    };
     return {
       subagent: (id: string, command: SubagentCommand, requestId: string) =>
         run(threads.subagent(id, command, requestId)),
@@ -129,10 +134,10 @@ export async function createDesktopApplication(
         };
       },
       registerProject: (rootPath: string, name?: string) =>
-        run(projects.register({ rootPath, name })),
+        run(projects.register({ rootPath, ...(name === undefined ? {} : { name }) })),
       createThread: (workspaceId: string, requestId?: string) =>
-        run(threads.create(workspaceId, requestId)),
-      openThread: (id: string) => run(threads.open(id)),
+        selectThread(threads.create(workspaceId, requestId)),
+      openThread: (id: string) => selectThread(threads.open(id)),
       threadFile: async (id: string) => {
         const thread = await run(threads.get(id));
         return join(
@@ -145,7 +150,7 @@ export async function createDesktopApplication(
       renameThread: (id: string, title: string) => run(threads.rename(id, title)),
       archiveThread: (id: string, archived: boolean) => run(threads.archive(id, archived)),
       configureThread: (id: string, provider: string, modelId: string, level: ThinkingLevel) =>
-        run(threads.configure(id, provider, modelId, level)),
+        selectThread(threads.configure(id, provider, modelId, level)),
       submit: (
         id: string,
         prompt: string,

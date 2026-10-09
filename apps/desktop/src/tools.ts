@@ -1,5 +1,4 @@
-export const builtinToolNames = ["read", "write", "edit", "bash"] as const;
-export type BuiltinToolName = (typeof builtinToolNames)[number];
+import type { BuiltinToolName } from "@eta/core/tools";
 export const builtinTools = [
   { id: "read", name: "读取文件", description: "读取项目中的文本文件和图片。" },
   { id: "write", name: "写入文件", description: "创建文件或覆盖文件内容。" },

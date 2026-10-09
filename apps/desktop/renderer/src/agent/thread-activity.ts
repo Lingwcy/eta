@@ -1,5 +1,5 @@
 import type { AgentBridge, AgentEvent } from "../../../src/bridge.ts";
-import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 
 export function hasThreadActivity(snapshot: AgentSnapshot) {
   return Boolean(

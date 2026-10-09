@@ -1,4 +1,4 @@
-import type { ImageAttachment } from "../../../src/images/types.ts";
+import type { ImageAttachment } from "@eta/core/images/types";
 import type { DesktopBridge } from "../../../src/bridge.ts";
 
 type DraftBridge = Pick<DesktopBridge, "submit"> & {

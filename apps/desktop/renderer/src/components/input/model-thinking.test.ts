@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import { clampThinkingLevel, createModels, fauxProvider } from "@earendil-works/pi-ai";
-import { toAgentModel } from "../../../../src/agent/model.ts";
+import { toAgentModel } from "@eta/core/agent/model";
 import { resolveThinkingLevel, thinkingOptions } from "./model-thinking";
 
 test("picker options and model switching agree with the provider capability policy", () => {

@@ -24,6 +24,11 @@ catalog:
   electron-updater: ^6.8.9
   "@cf-wasm/photon": ^0.4.0
   remark-gfm: ^4.0.1
+  "@hono/node-server": ^2.1.4
+  hono: ^4.13.13
+  discord.js: ^14.27.0
+  "@types/ws": ^8.18.2
+  ws: ^8.22.0
 overrides:
   # The adapter's ^rc range also accepts incompatible stable releases.
   "@effect/platform-node-shared": "catalog:"

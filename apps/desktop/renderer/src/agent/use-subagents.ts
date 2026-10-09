@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SubagentSummary } from "../../../src/shared/subagents.ts";
+import type { SubagentSummary } from "@eta/core/shared/subagents";
 
 /** Observe available inspector content even while the sidebar is collapsed. */
 export function useSubagents(threadId?: string, version = 0) {

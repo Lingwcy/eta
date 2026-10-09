@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
-import type { AgentSnapshot, SnapshotTool } from "../../../src/agent/protocol.ts";
+import type { AgentSnapshot, SnapshotTool } from "@eta/core/agent/protocol";
 import { getTools } from "./selectors.ts";
 
 function snapshot(): AgentSnapshot {

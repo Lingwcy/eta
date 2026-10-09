@@ -1,16 +1,16 @@
-import type { SubagentCommand, SubagentSummary } from "./shared/subagents.ts";
-import type { ImageAttachment, ImageSource } from "./images/types.ts";
+import type { SubagentCommand, SubagentSummary } from "@eta/core/shared/subagents";
+import type { ImageAttachment, ImageSource } from "@eta/core/images/types";
 import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
-import type { OperationAdmission } from "./agent/protocol.ts";
-import type { SessionResponse, SnapshotResponse } from "./agent/protocol.ts";
-import type { AgentModel, ThinkingLevel } from "./agent/protocol.ts";
+import type { OperationAdmission } from "@eta/core/agent/protocol";
+import type { SessionResponse, SnapshotResponse } from "@eta/core/agent/protocol";
+import type { AgentModel, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { DesktopSettings } from "./shared/settings.ts";
-import type { ProjectMetadata } from "./shared/projects.ts";
-import type { WorkspaceMetadata } from "./shared/workspaces.ts";
-import type { ThreadMetadata } from "./shared/threads.ts";
+import type { ProjectMetadata } from "@eta/core/shared/projects";
+import type { WorkspaceMetadata } from "@eta/core/shared/workspaces";
+import type { ThreadMetadata } from "@eta/core/shared/threads";
 import type { BrowserCommand, BrowserEvent, BrowserState } from "./browser/protocol.ts";
 import type { StorageReport, StorageTarget } from "./shared/storage.ts";
-import type { SkillCatalog } from "./skills/types.ts";
+import type { SkillCatalog } from "@eta/core/skills/types";
 
 export type AgentEvent =
   | { type: "snapshot"; value: SnapshotResponse }

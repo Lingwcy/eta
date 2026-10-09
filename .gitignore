@@ -16,7 +16,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
-
+docs/plan/*
 # Editor directories and files
 .vscode/*
 !.vscode/settings.json
@@ -34,3 +34,7 @@ dist-ssr
 !.vscode/
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Local Bot configuration and workspace
+/apps/bot/config.json
+/apps/bot/workspaces/

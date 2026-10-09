@@ -2,8 +2,8 @@ import { defaultModel } from "@/desktop/selectors";
 import type { ModelSelection } from "@/desktop/selectors";
 import { useEffect, useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
-import { defaultSubagentSettings } from "../../../../src/shared/subagents.ts";
-import type { SubagentSettings as Policy } from "../../../../src/shared/subagents.ts";
+import { defaultSubagentSettings } from "@eta/core/shared/subagents";
+import type { SubagentSettings as Policy } from "@eta/core/shared/subagents";
 import { SettingsSection, SettingsRow } from "./settings-section";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { ModelPicker } from "../input/model-picker";
 import { thinkingOptions } from "../input/model-thinking";
 import { Alert } from "@/components/ui/alert";
-import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
 
 type Preset = Policy["presets"][number];
 

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Slider } from "@base-ui/react/slider";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { thinkingOptions } from "./model-thinking";
 
 export function ThinkingLevelControl({

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Layer, ManagedRuntime } from "effect";
-import { AppPathsService } from "../platform/app-paths.ts";
+import { AppPathsService } from "@eta/core/platform/app-paths";
 import { CredentialService } from "../service/credentials/index.ts";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { expect, test, vi } from "vite-plus/test";

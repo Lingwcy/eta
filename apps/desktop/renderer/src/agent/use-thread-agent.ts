@@ -1,5 +1,5 @@
-import type { ImageAttachment } from "../../../src/images/types.ts";
-import type { ThinkingLevel } from "../../../src/agent/protocol.ts";
+import type { ImageAttachment } from "@eta/core/images/types";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { initialAgentState, ThreadAgentClient } from "./client";
 

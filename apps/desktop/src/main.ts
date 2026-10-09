@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { app, BrowserWindow, dialog, shell } from "electron";
-import { processImage } from "./main/platform/images.ts";
+import { processImage } from "@eta/core/node/images";
 import { resolveShellPath } from "./main/platform/shell-path.ts";
 import { createDesktopApplication } from "./main/bootstrap.ts";
 import type { DesktopApplication } from "./main/bootstrap.ts";

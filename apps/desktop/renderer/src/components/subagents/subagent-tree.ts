@@ -1,4 +1,4 @@
-import type { SubagentSummary } from "../../../../src/shared/subagents.ts";
+import type { SubagentSummary } from "@eta/core/shared/subagents";
 
 export type SubagentNode = { agent: SubagentSummary; children: SubagentNode[] };
 

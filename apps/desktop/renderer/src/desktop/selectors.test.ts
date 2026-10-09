@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import { defaultModel, projectRootWorkspace } from "./selectors.ts";
-import type { AgentModel } from "../../../src/agent/protocol.ts";
-import type { WorkspaceMetadata } from "../../../src/shared/workspaces.ts";
+import type { AgentModel } from "@eta/core/agent/protocol";
+import type { WorkspaceMetadata } from "@eta/core/shared/workspaces";
 
 const models: AgentModel[] = ["first", "chosen"].map((id) => ({
   id,

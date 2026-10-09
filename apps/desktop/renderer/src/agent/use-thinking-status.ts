@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { ThinkingStatus } from "./thinking-status";
 
 const labels = {

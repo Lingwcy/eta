@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 import type { AgentEvent } from "../../../src/bridge.ts";
-import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { hasThreadActivity, ThreadActivity } from "./thread-activity";
 
 function snapshot(patch: Partial<AgentSnapshot> = {}): AgentSnapshot {

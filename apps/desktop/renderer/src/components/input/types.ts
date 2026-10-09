@@ -1,6 +1,6 @@
-import type { ImageAttachment } from "../../../../src/images/types.ts";
-import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
-import type { AgentModel } from "../../../../src/agent/protocol.ts";
+import type { ImageAttachment } from "@eta/core/images/types";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
+import type { AgentModel } from "@eta/core/agent/protocol";
 import type { AuthProvider } from "../../../../src/authentication.ts";
 import type { ReactNode } from "react";
 

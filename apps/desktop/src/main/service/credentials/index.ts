@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import type { Credential, CredentialStore } from "@earendil-works/pi-ai";
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
-import { AppPathsService } from "../../platform/app-paths.ts";
-import { adapter, DesktopServiceError } from "../errors.ts";
-import { readJson, writeJson } from "../json-file.ts";
+import { AppPathsService } from "@eta/core/platform/app-paths";
+import { adapter, CoreError } from "@eta/core/service/errors";
+import { readJson, writeJson } from "@eta/core/service/json-file";
 
 const CredentialSchema = Schema.Union([
   Schema.Struct({
@@ -29,11 +29,11 @@ export class CredentialService extends Context.Service<
     readonly store: CredentialStore;
     readonly list: Effect.Effect<
       ReadonlyArray<{ providerId: string; type: Credential["type"] }>,
-      DesktopServiceError
+      CoreError
     >;
-    setApiKey(providerId: string, key: string): Effect.Effect<void, DesktopServiceError>;
-    remove(providerId: string): Effect.Effect<void, DesktopServiceError>;
-    importOnce(source: CredentialStore): Effect.Effect<void, DesktopServiceError>;
+    setApiKey(providerId: string, key: string): Effect.Effect<void, CoreError>;
+    remove(providerId: string): Effect.Effect<void, CoreError>;
+    importOnce(source: CredentialStore): Effect.Effect<void, CoreError>;
   }
 >()("eta/desktop/main/service/credentials/CredentialService") {
   static readonly layer = Layer.effect(
@@ -49,7 +49,7 @@ export class CredentialService extends Context.Service<
               yield* Schema.decodeUnknownEffect(FileSchema)(raw).pipe(
                 Effect.mapError(
                   () =>
-                    new DesktopServiceError({
+                    new CoreError({
                       code: "StorageCorrupt",
                       message: "认证文件格式或版本无效",
                     }),
@@ -60,7 +60,7 @@ export class CredentialService extends Context.Service<
               )(raw).pipe(
                 Effect.mapError(
                   () =>
-                    new DesktopServiceError({
+                    new CoreError({
                       code: "StorageCorrupt",
                       message: "认证文件格式无效",
                     }),
@@ -97,8 +97,7 @@ export class CredentialService extends Context.Service<
                 // Preserve provider-specific OAuth fields, but validate required fields without printing secrets.
                 yield* Schema.decodeUnknownEffect(CredentialSchema)(updated).pipe(
                   Effect.mapError(
-                    () =>
-                      new DesktopServiceError({ code: "InvalidInput", message: "认证格式无效" }),
+                    () => new CoreError({ code: "InvalidInput", message: "认证格式无效" }),
                   ),
                 );
                 const next = { ...current, [provider]: structuredClone(updated) };
@@ -131,7 +130,7 @@ export class CredentialService extends Context.Service<
         setApiKey: (providerId, key) =>
           !providerId.trim() || !key.trim()
             ? Effect.fail(
-                new DesktopServiceError({
+                new CoreError({
                   code: "InvalidInput",
                   message: "Provider 和 API key 不能为空",
                 }),

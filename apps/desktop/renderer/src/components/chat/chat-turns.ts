@@ -1,5 +1,5 @@
-import { messageText } from "../../../../src/agent/message-text.ts";
-import type { AgentSnapshot } from "../../../../src/agent/protocol.ts";
+import { messageText } from "@eta/core/agent/message-text";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 
 export interface ChatTurn {
   id: string;

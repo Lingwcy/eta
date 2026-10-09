@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { getTools } from "@/agent/selectors";
-import type { AgentSnapshot } from "../../../../src/agent/protocol.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "./chat-message";
 import { getChatMessages } from "./chat-messages";

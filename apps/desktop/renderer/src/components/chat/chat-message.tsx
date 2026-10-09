@@ -1,8 +1,8 @@
-import { messageText } from "../../../../src/agent/message-text.ts";
+import { messageText } from "@eta/core/agent/message-text";
 import { memo } from "react";
 import { EntranceAnimation, Reveal } from "@/components/ui/reveal";
 import { MessageMarkdown } from "./message-markdown";
-import type { AgentSnapshot, SnapshotTool } from "../../../../src/agent/protocol.ts";
+import type { AgentSnapshot, SnapshotTool } from "@eta/core/agent/protocol";
 import { TaskList } from "@/components/task-list";
 import { MessageUsage } from "./message-usage";
 import { ThinkingMessage } from "./thinking-message";

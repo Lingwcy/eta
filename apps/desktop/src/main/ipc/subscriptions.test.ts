@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ipcMain } from "electron";
 import type { DesktopApplication } from "../bootstrap.ts";
-import type { SnapshotResponse } from "../../agent/protocol.ts";
+import type { SnapshotResponse } from "@eta/core/agent/protocol";
 import { createAgentSubscriptions } from "./subscriptions.ts";
 
 vi.mock("electron", async () => {

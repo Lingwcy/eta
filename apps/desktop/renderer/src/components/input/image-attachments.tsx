@@ -1,6 +1,6 @@
 import { X, ImageIcon, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ImageAttachment, ImageSource } from "../../../../src/images/types.ts";
+import type { ImageAttachment, ImageSource } from "@eta/core/images/types";
 
 export interface AttachmentItem {
   id: string;

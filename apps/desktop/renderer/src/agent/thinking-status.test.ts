@@ -1,8 +1,8 @@
 import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
-import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
+import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { ThinkingStatus } from "./thinking-status";
-import type { SubagentSummary } from "../../../src/shared/subagents.ts";
+import type { SubagentSummary } from "@eta/core/shared/subagents";
 
 function snapshot(operation: Partial<NonNullable<AgentSnapshot["operation"]>> = {}): AgentSnapshot {
   return {

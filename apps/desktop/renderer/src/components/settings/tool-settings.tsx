@@ -1,6 +1,7 @@
 import { FileSearch, FilePlus2, FilePenLine, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { builtinTools, type BuiltinToolName } from "../../../../src/tools.ts";
+import type { BuiltinToolName } from "@eta/core/tools";
+import { builtinTools } from "../../../../src/tools.ts";
 import { SettingsSection, SettingsRow } from "./settings-section";
 
 const icons = { read: FileSearch, write: FilePlus2, edit: FilePenLine, bash: Terminal };

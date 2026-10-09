@@ -1,4 +1,4 @@
-import type { ThinkingLevel } from "../../../../src/agent/protocol.ts";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import type { InputModel } from "./types";
 
 export const thinkingOptions = [
