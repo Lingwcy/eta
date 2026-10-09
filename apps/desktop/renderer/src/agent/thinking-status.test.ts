@@ -2,6 +2,7 @@ import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
 import { ThinkingStatus } from "./thinking-status";
+import type { SubagentSummary } from "../../../src/subagents.ts";
 
 function snapshot(operation: Partial<NonNullable<AgentSnapshot["operation"]>> = {}): AgentSnapshot {
   return {
@@ -192,4 +193,86 @@ test("waiting for children takes priority over the last streamed answer and ends
     status.update("thread", snapshot({ streamingMessage: fauxAssistantMessage("13") })),
   ).toBeNull();
   expect(status.update("thread", { ...snapshot(), operation: null })).toBeNull();
+});
+
+function delegated(...states: SubagentSummary["status"][]): AgentSnapshot {
+  return {
+    ...snapshot(),
+    operation: null,
+    subagents: states.map((status, index) => ({
+      path: `/worker-${index}`,
+      parent: "/root",
+      conversationId: index + 2,
+      depth: 1,
+      fork: false,
+      status,
+    })),
+  };
+}
+
+test("an idle root shows delegated work until every child finishes without resetting the wait on updates", () => {
+  const status = new ThinkingStatus();
+  expect(status.update("thread", delegated("running", "queued"), 200)).toBe("subagents");
+  expect(status.startedAt).toBe(200);
+  const progress = delegated("running", "completed");
+  progress.subagents![0]!.progress = { message: "Found a source", timestamp: 250 };
+  expect(status.update("thread", progress, 300)).toBe("subagents");
+  expect(status.startedAt).toBe(200);
+  expect(status.update("thread", delegated("completed", "stopped", "failed"), 400)).toBeNull();
+  expect(status.update("thread", delegated("queued"), 500)).toBe("subagents");
+  expect(status.startedAt).toBe(500);
+});
+
+test("resuming the root response replaces delegated waiting and each thread gets its own wait", () => {
+  const status = new ThinkingStatus();
+  expect(status.update("first", delegated("running"), 200)).toBe("subagents");
+  expect(status.update("second", delegated("running"), 300)).toBe("subagents");
+  expect(status.startedAt).toBe(300);
+  expect(
+    status.update(
+      "second",
+      snapshot({
+        streamingMessage: fauxAssistantMessage({
+          type: "thinking",
+          thinking: "Summarizing findings",
+        }),
+      }),
+      400,
+    ),
+  ).toBe("thinking");
+  expect(
+    status.update(
+      "second",
+      snapshot({ streamingMessage: fauxAssistantMessage("Final summary") }),
+      500,
+    ),
+  ).toBeNull();
+  expect(status.update("second", delegated("running"), 600)).toBe("subagents");
+  expect(status.startedAt).toBe(600);
+});
+
+test("paused, interrupted, blocked and faulted children never imply active background work", () => {
+  const status = new ThinkingStatus();
+  expect(status.update("thread", delegated("paused"))).toBeNull();
+  for (const flags of [
+    { recoveryRequired: true },
+    { faulted: true },
+    { blockedReason: "Unavailable" },
+    { compacting: true },
+  ]) {
+    expect(status.update("thread", { ...delegated("running"), ...flags })).toBeNull();
+  }
+});
+
+test("foreground waits show delegated waiting even while the subagent tool is open", () => {
+  const status = new ThinkingStatus();
+  expect(
+    status.update(
+      "thread",
+      snapshot({
+        waitingForSubagents: true,
+        runningTools: [{ toolCallId: "spawn", toolName: "subagent", args: {}, status: "running" }],
+      }),
+    ),
+  ).toBe("subagents");
 });

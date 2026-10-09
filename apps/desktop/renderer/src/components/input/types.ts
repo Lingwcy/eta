@@ -40,13 +40,18 @@ export interface ActionToolbarProps {
   readonly onAttach?: () => void;
   readonly onSettings?: () => void;
   readonly canSubmit: boolean;
+  readonly hasContent?: boolean;
   readonly isRunning?: boolean;
+  readonly allowSubmitWhileRunning?: boolean;
   readonly isStopping?: boolean;
   readonly disabled?: boolean;
   readonly className?: string;
 }
 
-export interface CompositeInputProps extends Omit<ActionToolbarProps, "onSubmit" | "canSubmit"> {
+export interface CompositeInputProps extends Omit<
+  ActionToolbarProps,
+  "onSubmit" | "canSubmit" | "hasContent"
+> {
   readonly value?: string;
   readonly defaultValue?: string;
   readonly onChange?: (value: string) => void;

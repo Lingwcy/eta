@@ -19,7 +19,9 @@ export function ActionToolbar({
   onSettings,
   onAttach,
   canSubmit,
+  hasContent = canSubmit,
   isRunning = false,
+  allowSubmitWhileRunning = false,
   isStopping = false,
   disabled = false,
   className,
@@ -27,6 +29,8 @@ export function ActionToolbar({
   const percentage = contextWindow
     ? Math.min(100, Math.round((contextTokens / contextWindow) * 100))
     : 0;
+  const showStop = isRunning && (!allowSubmitWhileRunning || !hasContent);
+  const actionLabel = showStop ? "停止生成" : "发送消息";
   return (
     <footer
       className={cn("flex items-center justify-between gap-2 select-none", className)}
@@ -39,7 +43,7 @@ export function ActionToolbar({
             variant="ghost-muted"
             size="icon-xs"
             onClick={onAttach}
-            disabled={disabled || isRunning}
+            disabled={disabled || (isRunning && !allowSubmitWhileRunning)}
             aria-label="添加图片"
             title="添加图片"
           >
@@ -60,31 +64,21 @@ export function ActionToolbar({
         {contextWindow && contextTokens > 0 && (
           <ContextIndicator percentage={percentage} hideText />
         )}
-        {isRunning ? (
-          <Button
-            type="button"
-            disabled={!onStop || isStopping}
-            onClick={onStop}
-            variant="default"
-            size="icon-round"
-            aria-label="停止生成"
-            title="停止生成"
-          >
+        <Button
+          type="button"
+          disabled={showStop ? !onStop || isStopping : disabled || !canSubmit || isStopping}
+          onClick={showStop ? onStop : onSubmit}
+          variant="default"
+          size="icon-round"
+          aria-label={actionLabel}
+          title={actionLabel}
+        >
+          {showStop ? (
             <Square size={14} fill="currentColor" aria-hidden="true" />
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            disabled={disabled || !canSubmit}
-            onClick={onSubmit}
-            variant="default"
-            size="icon-round"
-            aria-label="发送消息"
-            title="发送消息"
-          >
+          ) : (
             <ArrowUp size={20} strokeWidth={2} aria-hidden="true" />
-          </Button>
-        )}
+          )}
+        </Button>
       </div>
     </footer>
   );

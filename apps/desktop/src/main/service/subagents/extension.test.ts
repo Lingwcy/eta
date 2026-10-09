@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openNodeJsonlStorage } from "@eta/agent/storage/jsonl/node";
 import type { Storage } from "@eta/agent";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import {
@@ -65,6 +65,40 @@ async function setup(
 }
 
 describe("desktop subagents", () => {
+  it("rejects new delegated work while disabled, while keeping existing children manageable", async () => {
+    const policy = { ...defaultSubagentSettings };
+    const { harness, root, manager, settle } = await setup(policy);
+    try {
+      await manager.execute({ action: "spawn", name: "worker", message: "work" }, root.id, "spawn");
+      await manager.execute({ action: "pause", path: "/worker" }, root.id, "pause");
+      policy.enabled = false;
+      await expect(
+        manager.execute({ action: "spawn", name: "blocked", message: "work" }, root.id, "blocked"),
+      ).rejects.toThrow("子智能体已关闭");
+      await expect(
+        manager.execute({ action: "send", path: "/worker", message: "more work" }, root.id, "send"),
+      ).rejects.toThrow("子智能体已关闭");
+      // Already-admitted requests remain idempotent even if the setting changed before replay.
+      await manager.execute({ action: "spawn", name: "worker", message: "work" }, root.id, "spawn");
+      expect(await manager.list()).toHaveLength(1);
+      expect((await manager.list())[0]?.status).toBe("paused");
+      await manager.execute({ action: "resume", path: "/worker" }, root.id, "resume");
+      await manager.execute({ action: "stop", path: "/worker" }, root.id, "stop");
+      harness.resume();
+      await expect.poll(async () => (await manager.list())[0]?.status).toBe("stopped");
+      policy.enabled = true;
+      await manager.execute(
+        { action: "send", path: "/worker", message: "continue work" },
+        root.id,
+        "send",
+      );
+      await settle();
+      expect((await manager.list())[0]?.status).toBe("completed");
+    } finally {
+      await harness.close(context);
+    }
+  });
+
   it("separates fork history from independent history and replaces parent instructions", async () => {
     const { harness, root, manager, settle } = await setup();
     try {
@@ -105,7 +139,12 @@ describe("desktop subagents", () => {
     };
     const { harness, root, manager, settle } = await setup(policy);
     try {
-      const command = { action: "spawn", name: "worker", message: "work" } as const;
+      const command = {
+        action: "spawn",
+        name: "worker",
+        message: "work",
+        canDelegate: true,
+      } as const;
       await manager.execute(command, root.id, "same");
       await manager.execute(command, root.id, "same");
       await settle();
@@ -342,7 +381,7 @@ it("waits for independently named descendants and reports their parent's final s
   ]);
   try {
     await manager.execute(
-      { action: "spawn", name: "parent", message: "research" },
+      { action: "spawn", name: "parent", message: "research", canDelegate: true },
       root.id,
       "parent",
     );
@@ -404,7 +443,7 @@ it("restores a parent waiting for a descendant without losing or duplicating its
       },
     ]);
     await first.manager.execute(
-      { action: "spawn", name: "parent", message: "research" },
+      { action: "spawn", name: "parent", message: "research", canDelegate: true },
       first.root.id,
       "parent",
     );
@@ -442,8 +481,11 @@ it("restores a parent waiting for a descendant without losing or duplicating its
   }
 });
 
-it("keeps the original root input running while children work and resumes it with their result", async () => {
-  const { harness, root, manager, faux } = await setup();
+it("lets the orchestrator yield while children work and wakes it once with their result", async () => {
+  const { harness, root, manager, faux } = await setup({
+    ...defaultSubagentSettings,
+    mode: "orchestrator",
+  });
   const childReady = Promise.withResolvers<void>();
   const childAnswer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
   let rootRequests = 0;
@@ -463,6 +505,7 @@ it("keeps the original root input running while children work and resumes it wit
               name: "sum",
               fork: false,
               message: "child-work",
+              wait: false,
             }),
           ],
           { stopReason: "toolUse" },
@@ -476,26 +519,559 @@ it("keeps the original root input running while children work and resumes it wit
       context,
     );
     await childReady.promise;
-    await expect
-      .poll(async () => (await harness.snapshot(SubagentsDoc, context))?.waiters?.length)
-      .toBe(1);
-    expect((await input.status(context)).status).toBe("placed");
-    expect((await harness.snapshot(LiveDoc, root.id, context))?.run?.inputs).toContain(input.id);
+    expect((await input.wait(context)).status).toBe("done");
+    expect((await harness.snapshot(LiveDoc, root.id, context))?.run).toBeUndefined();
+    expect((await manager.list())[0]?.status).toBe("running");
     expect(rootRequests).toBe(2);
     childAnswer.resolve(fauxAssistantMessage("13"));
-    const result = await input.wait(context);
-    expect(result.status).toBe("done");
+    await expect.poll(async () => (await manager.list())[0]?.status).toBe("completed");
     await root.waitForIdle(context);
     expect(rootRequests).toBe(3);
     expect((await manager.list())[0]?.status).toBe("completed");
-    if (result.status === "done" && result.type === "input") {
-      const entries = (await root.context(context)).entries;
-      expect(JSON.stringify(entries.find((entry) => entry.id === result.answer)?.model)).toContain(
-        "Final result: 13",
-      );
-    }
+    expect(JSON.stringify((await root.context(context)).messages)).toContain("Final result: 13");
   } finally {
     childAnswer.resolve(fauxAssistantMessage("13"));
+    await harness.close(context);
+  }
+});
+
+it("keeps progress passive and preserves it when a working child is stopped", async () => {
+  const { harness, root, manager, faux } = await setup();
+  const ready = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  let requests = 0;
+  faux.setResponses([
+    (_request, options) => {
+      requests++;
+      ready.resolve();
+      options?.signal?.addEventListener(
+        "abort",
+        () => answer.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+        { once: true },
+      );
+      return answer.promise;
+    },
+    () => {
+      requests++;
+      return fauxAssistantMessage("Work stopped; source needs verification");
+    },
+  ]);
+  try {
+    await manager.execute(
+      { action: "spawn", name: "research", message: "research" },
+      root.id,
+      "spawn",
+    );
+    harness.resume();
+    await ready.promise;
+    const child = (await manager.list())[0]!;
+    await manager.execute(
+      { action: "update", message: "Found a government notice; verifying the source" },
+      child.conversationId as typeof root.id,
+      "progress",
+    );
+    await manager.execute(
+      { action: "update", message: "Found a government notice; verifying the source" },
+      child.conversationId as typeof root.id,
+      "progress",
+    );
+    expect(requests).toBe(1);
+    expect(
+      JSON.stringify((await root.context(context)).messages).match(/Found a government notice/g),
+    ).toHaveLength(1);
+    await manager.execute({ action: "stop", path: child.path }, root.id, "stop");
+    expect((await manager.list())[0]).toMatchObject({
+      status: "stopped",
+      progress: { message: "Found a government notice; verifying the source" },
+    });
+    await root.waitForIdle(context);
+    expect(JSON.stringify((await root.context(context)).messages)).toContain("stopped");
+  } finally {
+    answer.resolve(fauxAssistantMessage("done"));
+    await harness.close(context);
+  }
+});
+
+it("steers a running child without creating another completion reporter", async () => {
+  const { harness, root, manager, faux, settle } = await setup();
+  const ready = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  faux.setResponses([
+    () => {
+      ready.resolve();
+      return answer.promise;
+    },
+    () => fauxAssistantMessage("Verified source and scope"),
+    () => fauxAssistantMessage("Root synthesis"),
+  ]);
+  try {
+    await manager.execute(
+      { action: "spawn", name: "research", message: "research" },
+      root.id,
+      "spawn",
+    );
+    harness.resume();
+    await ready.promise;
+    await manager.execute(
+      { action: "send", path: "/research", message: "Verify the source" },
+      root.id,
+      "steer",
+    );
+    await expect
+      .poll(async () =>
+        (await harness.inspect(context)).submissions.some(
+          (receipt) => receipt.requestId === "subagent-steer:steer",
+        ),
+      )
+      .toBe(true);
+    expect(
+      (await harness.inspect(context)).tasks.filter(
+        (task) => task.record.kind === "eta.subagent-reporter",
+      ),
+    ).toHaveLength(1);
+    answer.resolve(fauxAssistantMessage("Initial findings"));
+    await settle();
+    const messages = JSON.stringify((await root.context(context)).messages);
+    expect(messages.match(/\[\/research completed\]/g)).toHaveLength(1);
+    expect(messages).toContain("Verified source and scope");
+    expect(messages).not.toContain("[/research completed] Initial findings");
+  } finally {
+    answer.resolve(fauxAssistantMessage("done"));
+    await harness.close(context);
+  }
+});
+
+it("times out or cancels waiting without stopping the child", async () => {
+  const { harness, root, manager, faux } = await setup();
+  const ready = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  faux.setResponses([
+    () => {
+      ready.resolve();
+      return answer.promise;
+    },
+    () => fauxAssistantMessage("root answer"),
+  ]);
+  try {
+    await manager.execute({ action: "spawn", name: "worker", message: "work" }, root.id, "spawn");
+    harness.resume();
+    await ready.promise;
+    expect(await manager.wait("/worker", root.id, 0, context)).toMatchObject({ status: "running" });
+    const abort = new AbortController();
+    const waiting = manager.wait("/worker", root.id, undefined, {
+      ...context,
+      abortSignal: abort.signal,
+    });
+    abort.abort();
+    await expect(waiting).rejects.toThrow();
+    expect((await manager.list())[0]?.status).toBe("running");
+    answer.resolve(fauxAssistantMessage("Final worker result"));
+    expect(await manager.wait("/worker", root.id, undefined, context)).toMatchObject({
+      status: "completed",
+      output: "Final worker result",
+    });
+  } finally {
+    answer.resolve(fauxAssistantMessage("done"));
+    await harness.close(context);
+  }
+});
+
+it("gives workers progress tools and reserves nested delegation for explicit coordinators", async () => {
+  const { harness, root, manager, settle } = await setup();
+  try {
+    await manager.execute({ action: "spawn", name: "worker", message: "work" }, root.id, "worker");
+    await settle();
+    const child = (await manager.list())[0]!;
+    const conversation = (await harness.conversation(
+      child.conversationId as typeof root.id,
+      context,
+    ))!;
+    expect((await conversation.agent(context)).tools.map((tool) => tool.name)).toEqual([
+      "agent_update",
+    ]);
+    await expect(
+      manager.execute(
+        { action: "spawn", name: "nested", message: "same work" },
+        conversation.id,
+        "nested",
+      ),
+    ).rejects.toThrow("委派权限");
+    await expect(
+      manager.execute(
+        { action: "send", path: "/root", message: "report" },
+        conversation.id,
+        "parent",
+      ),
+    ).rejects.toThrow("下级");
+    await manager.execute(
+      { action: "send", path: child.path, message: "Verify the remaining source" },
+      root.id,
+      "tool:idle",
+    );
+    await settle();
+    expect(JSON.stringify((await conversation.context(context)).messages)).toContain(
+      "Agent steering from /root; this is not a new user request",
+    );
+  } finally {
+    await harness.close(context);
+  }
+});
+
+it("sends one timeout reminder and can rearm it without steering or cancelling work", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  const { harness, root, manager, faux } = await setup();
+  const ready = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  let requests = 0;
+  faux.setResponses([
+    () => {
+      requests++;
+      ready.resolve();
+      return answer.promise;
+    },
+    () => {
+      requests++;
+      return fauxAssistantMessage("The research continues");
+    },
+    () => {
+      requests++;
+      return fauxAssistantMessage("Still verifying the source");
+    },
+    () => {
+      requests++;
+      return fauxAssistantMessage("Verified result");
+    },
+  ]);
+  try {
+    await manager.execute(
+      { action: "spawn", name: "research", message: "research", wait: false, timeoutMs: 30000 },
+      root.id,
+      "spawn",
+    );
+    harness.resume();
+    await ready.promise;
+    await vi.waitFor(() => expect(vi.getTimerCount()).toBeGreaterThan(0));
+    const first = (await harness.snapshot(SubagentsDoc, context))!.agents[0]!.timeoutTask!;
+    await vi.advanceTimersByTimeAsync(30000);
+    await harness.waitForTask(first, context);
+    await root.waitForIdle(context);
+    expect(requests).toBe(2);
+    expect((await manager.list())[0]?.status).toBe("running");
+    await manager.execute(
+      { action: "send", path: "/research", timeoutMs: 30000 },
+      root.id,
+      "rearm",
+    );
+    const second = (await harness.snapshot(SubagentsDoc, context))!.agents[0]!.timeoutTask!;
+    await vi.waitFor(() => expect(vi.getTimerCount()).toBeGreaterThan(0));
+    await vi.advanceTimersByTimeAsync(30000);
+    await harness.waitForTask(second, context);
+    await root.waitForIdle(context);
+    expect(requests).toBe(3);
+    const inspection = await harness.inspect(context);
+    expect(
+      inspection.submissions.filter((receipt) => receipt.requestId?.startsWith("subagent-steer:")),
+    ).toHaveLength(0);
+    expect(
+      JSON.stringify((await root.context(context)).messages).match(/\[\/research timeout\]/g),
+    ).toHaveLength(2);
+    answer.resolve(fauxAssistantMessage("Final verified result"));
+    expect(await manager.wait("/research", root.id, undefined, context)).toMatchObject({
+      status: "completed",
+    });
+  } finally {
+    vi.useRealTimers();
+    answer.resolve(fauxAssistantMessage("done"));
+    await harness.close(context);
+  }
+});
+
+it("keeps complete output in storage while paging large reports", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "eta-subagent-output-"));
+  let harness: Harness | undefined;
+  try {
+    const first = await setup(
+      defaultSubagentSettings,
+      await openNodeJsonlStorage(directory, context),
+    );
+    harness = first.harness;
+    const output = "verified-source\n".repeat(2000);
+    first.faux.setResponses([
+      () => fauxAssistantMessage(output),
+      () => fauxAssistantMessage("Summary"),
+    ]);
+    await first.manager.execute(
+      { action: "spawn", name: "worker", message: "work" },
+      first.root.id,
+      "spawn",
+    );
+    await first.settle();
+    expect((await first.manager.list())[0]).toMatchObject({
+      output: output.slice(0, 16000),
+      outputTruncated: true,
+    });
+    expect(JSON.stringify((await first.root.context(context)).messages)).toContain(
+      "Report truncated",
+    );
+    await harness.close(context);
+    const second = await setup(
+      defaultSubagentSettings,
+      await openNodeJsonlStorage(directory, context),
+    );
+    harness = second.harness;
+    const page = JSON.parse(
+      await second.manager.execute(
+        { action: "output", path: "/worker", offset: 16000, limit: 1000 },
+        second.root.id,
+        "output",
+      ),
+    );
+    expect(page).toMatchObject({
+      output: output.slice(16000, 17000),
+      total: output.length,
+      nextOffset: 17000,
+    });
+  } finally {
+    await harness?.close(context);
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it("recovers accepted steering before delivery without duplicating the request or final report", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "eta-subagent-steering-"));
+  let harness: Harness | undefined;
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  try {
+    const first = await setup(
+      defaultSubagentSettings,
+      await openNodeJsonlStorage(directory, context),
+    );
+    harness = first.harness;
+    await first.manager.execute(
+      { action: "spawn", name: "worker", message: "original assignment" },
+      first.root.id,
+      "spawn",
+    );
+    await first.manager.execute(
+      { action: "send", path: "/worker", message: "Verify sources" },
+      first.root.id,
+      "tool:queued",
+    );
+    await harness.close(context);
+    const second = await setup(
+      defaultSubagentSettings,
+      await openNodeJsonlStorage(directory, context),
+    );
+    harness = second.harness;
+    const ready = Promise.withResolvers<void>();
+    second.faux.setResponses([
+      () => {
+        ready.resolve();
+        return answer.promise;
+      },
+      () => fauxAssistantMessage("Verified findings"),
+      () => fauxAssistantMessage("Root summary"),
+    ]);
+    harness.resume();
+    await ready.promise;
+    await second.manager.execute(
+      { action: "send", path: "/worker", message: "Verify sources" },
+      second.root.id,
+      "tool:queued",
+    );
+    await expect
+      .poll(async () =>
+        (await harness!.inspect(context)).submissions.some(
+          (receipt) => receipt.requestId === "subagent-steer:tool:queued",
+        ),
+      )
+      .toBe(true);
+    answer.resolve(fauxAssistantMessage("Initial findings"));
+    await second.settle();
+    const child = (await second.manager.list())[0]!;
+    expect(child.output).toBe("Verified findings");
+    const conversation = (await harness.conversation(
+      child.conversationId as typeof second.root.id,
+      context,
+    ))!;
+    const messages = JSON.stringify((await conversation.context(context)).messages);
+    expect(messages.match(/original assignment/g)).toHaveLength(1);
+    expect(messages.match(/Verify sources/g)).toHaveLength(1);
+    expect(messages).toContain("Agent steering from /root; this is not a new user request");
+    expect(
+      JSON.stringify((await second.root.context(context)).messages).match(
+        /\[\/worker completed\]/g,
+      ),
+    ).toHaveLength(1);
+  } finally {
+    answer.resolve(fauxAssistantMessage("done"));
+    await harness?.close(context);
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it("retains the original reminder deadline across reopening", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const started = Date.now();
+  const directory = await mkdtemp(join(tmpdir(), "eta-subagent-timeout-"));
+  let harness: Harness | undefined;
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  try {
+    const first = await setup(
+      defaultSubagentSettings,
+      await openNodeJsonlStorage(directory, context),
+    );
+    harness = first.harness;
+    await first.manager.execute(
+      { action: "spawn", name: "worker", message: "work", wait: false, timeoutMs: 30000 },
+      first.root.id,
+      "spawn",
+    );
+    const timer = (await harness.snapshot(SubagentsDoc, context))!.agents[0]!.timeoutTask!;
+    await harness.close(context);
+    vi.setSystemTime(started + 60000);
+    const second = await setup(
+      defaultSubagentSettings,
+      await openNodeJsonlStorage(directory, context),
+    );
+    harness = second.harness;
+    second.faux.setResponses(
+      Array.from(
+        { length: 5 },
+        () => (request) =>
+          request.messages.findLast((message) => message.role === "user")?.content === "work"
+            ? answer.promise
+            : fauxAssistantMessage("Still working"),
+      ),
+    );
+    harness.resume();
+    await harness.waitForTask(timer, context);
+    await second.root.waitForIdle(context);
+    expect(
+      JSON.stringify((await second.root.context(context)).messages).match(/\[\/worker timeout\]/g),
+    ).toHaveLength(1);
+    expect((await second.manager.list())[0]?.status).toBe("running");
+    answer.resolve(fauxAssistantMessage("Done"));
+    await second.settle();
+  } finally {
+    vi.useRealTimers();
+    answer.resolve(fauxAssistantMessage("done"));
+    await harness?.close(context);
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it("stops active descendants without reviving their parent or discarding completed descendants", async () => {
+  const { harness, root, manager, faux } = await setup();
+  const parentReady = Promise.withResolvers<void>();
+  const descendantReady = Promise.withResolvers<void>();
+  const parentAnswer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  const descendantAnswer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  let parentRequests = 0;
+  faux.setResponses(
+    Array.from({ length: 8 }, () => (request, options) => {
+      const last = request.messages.findLast((message) => message.role === "user");
+      if (last?.content === "parent-work" || last?.content === "descendant-work") {
+        const parent = last.content === "parent-work";
+        if (parent) parentRequests++;
+        const answer = parent ? parentAnswer : descendantAnswer;
+        (parent ? parentReady : descendantReady).resolve();
+        options?.signal?.addEventListener(
+          "abort",
+          () => answer.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+          { once: true },
+        );
+        return answer.promise;
+      }
+      return fauxAssistantMessage("Work stopped; unfinished findings need verification");
+    }),
+  );
+  try {
+    await manager.execute(
+      { action: "spawn", name: "parent", message: "parent-work", canDelegate: true },
+      root.id,
+      "parent",
+    );
+    harness.resume();
+    await parentReady.promise;
+    const parent = (await manager.list())[0]!;
+    await manager.execute(
+      { action: "spawn", name: "done", message: "finished-work" },
+      parent.conversationId as typeof root.id,
+      "done",
+    );
+    await manager.wait("/done", root.id, undefined, context);
+    await manager.execute(
+      { action: "spawn", name: "active", message: "descendant-work" },
+      parent.conversationId as typeof root.id,
+      "active",
+    );
+    await descendantReady.promise;
+    await manager.execute({ action: "stop", path: "/parent" }, root.id, "stop");
+    await root.waitForIdle(context);
+    expect((await manager.list()).map((child) => child.status)).toEqual([
+      "stopped",
+      "completed",
+      "stopped",
+    ]);
+    for (const child of await manager.list())
+      expect(
+        (await harness.snapshot(LiveDoc, child.conversationId as typeof root.id, context))?.run,
+      ).toBeUndefined();
+    expect(parentRequests).toBe(1);
+    expect(
+      JSON.stringify((await root.context(context)).messages).match(/\[\/parent stopped\]/g),
+    ).toHaveLength(1);
+  } finally {
+    parentAnswer.resolve(fauxAssistantMessage("done"));
+    descendantAnswer.resolve(fauxAssistantMessage("done"));
+    await harness.close(context);
+  }
+});
+
+it("stops live descendant conversations after their reporters are aborted and keeps completed siblings", async () => {
+  const { harness, root, manager, settle, faux } = await setup();
+  const ready = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  try {
+    await manager.execute({ action: "spawn", name: "done", message: "finish" }, root.id, "done");
+    await settle();
+    faux.setResponses([
+      (_request, options) => {
+        ready.resolve();
+        options?.signal?.addEventListener(
+          "abort",
+          () => answer.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+          { once: true },
+        );
+        return answer.promise;
+      },
+    ]);
+    await manager.execute(
+      { action: "spawn", name: "parent", message: "work", canDelegate: true },
+      root.id,
+      "parent",
+    );
+    await ready.promise;
+    const parent = (await manager.list()).find((child) => child.path === "/parent")!;
+    await manager.execute(
+      { action: "spawn", name: "queued", message: "more work" },
+      parent.conversationId as typeof root.id,
+      "queued",
+    );
+    await manager.stopAll();
+    expect((await manager.list()).map((child) => child.status)).toEqual([
+      "completed",
+      "stopped",
+      "stopped",
+    ]);
+    for (const child of await manager.list())
+      expect(
+        (await harness.snapshot(LiveDoc, child.conversationId as typeof root.id, context))?.run,
+      ).toBeUndefined();
+    expect((await harness.inspect(context)).tasks).toHaveLength(0);
+  } finally {
+    answer.resolve(fauxAssistantMessage("done"));
     await harness.close(context);
   }
 });

@@ -10,6 +10,7 @@ import { ModelCatalogService } from "../../models/index.ts";
 import { agentThinkingVariants } from "../../../../appearance.ts";
 import { dispatchCommand } from "../../../ipc.ts";
 import type { DesktopApplication } from "../../../bootstrap.ts";
+import { defaultSubagentSettings } from "../../../../subagents.ts";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];
@@ -115,6 +116,51 @@ test("tool toggles persist across restart and can be restored without losing oth
     disabledTools: [],
     blockImages: true,
   });
+});
+
+test("the subagent switch preserves legacy preferences and survives disabling and reenabling", async () => {
+  const { runtime, settings, open } = await setup();
+  const { enabled: _enabled, ...legacy } = defaultSubagentSettings;
+  const policy = { ...legacy, mode: "orchestrator" as const, maxConcurrent: 2 };
+  await runtime.runPromise(settings.update({ subagents: policy, blockImages: true }));
+  expect((await runtime.runPromise(settings.read)).subagents?.enabled).toBeUndefined();
+  await runtime.runPromise(settings.update({ subagents: { ...policy, enabled: false } }));
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect(await next.runPromise(restored.read)).toMatchObject({
+    subagents: { ...policy, enabled: false },
+    blockImages: true,
+  });
+  await next.runPromise(restored.update({ subagents: { ...policy, enabled: true } }));
+  await next.dispose();
+  const final = open();
+  const reenabled = await final.runPromise(DesktopSettingsService);
+  expect(await final.runPromise(reenabled.read)).toMatchObject({
+    subagents: { ...policy, enabled: true },
+    blockImages: true,
+  });
+});
+
+test("subagent presets preserve explicit delegation permissions across reopening", async () => {
+  const { runtime, settings, open } = await setup();
+  const preset = {
+    name: "coordinator",
+    instructions: "Coordinate independent tasks",
+    canDelegate: true,
+    thinkingLevel: "off" as const,
+    models: [],
+  };
+  const policy = { ...defaultSubagentSettings, presets: [preset] };
+  await runtime.runPromise(settings.update({ subagents: policy }));
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect((await next.runPromise(restored.read)).subagents?.presets).toEqual([preset]);
+  await next.runPromise(
+    restored.update({ subagents: { ...policy, presets: [{ ...preset, canDelegate: false }] } }),
+  );
+  expect((await next.runPromise(restored.read)).subagents?.presets[0]?.canDelegate).toBe(false);
 });
 
 test.each(agentThinkingVariants)(

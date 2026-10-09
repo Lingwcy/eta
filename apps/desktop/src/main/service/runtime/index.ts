@@ -69,6 +69,7 @@ export class RuntimeRegistryService extends Context.Service<
         const storage = await Effect.runPromise(repository.open(ref, initial !== undefined));
         const environments = new Set<NodeExecutionEnv>();
         let harness: Harness | undefined;
+        let runtimeRecord: ThreadRuntime | undefined;
         try {
           const registry = resources.registry(models);
           const titleTask = createTitleTask(
@@ -78,6 +79,7 @@ export class RuntimeRegistryService extends Context.Service<
           registry.install({ name: "desktop-thread-title", tasks: [titleTask] });
           const subagents = createSubagentsExtension({
             harness: () => harness!,
+            ready: () => runtimeRecord !== undefined && !runtimeRecord.recoveryRequired,
             settings: async () => (await Effect.runPromise(preferences.read)).subagents,
             available: async (provider, modelId) =>
               (await models.getAvailable(provider)).some((model) => model.id === modelId),
@@ -98,6 +100,14 @@ export class RuntimeRegistryService extends Context.Service<
           );
           const refreshTools = async () => {
             const settings = await Effect.runPromise(preferences.read);
+            const subagentsEnabled = settings.subagents?.enabled !== false;
+            // Keep task definitions installed so existing delegates can finish or be stopped while disabled.
+            registry.install({
+              ...subagents.extension,
+              tools: subagentsEnabled
+                ? [subagents.tool, subagents.updateTool]
+                : [subagents.updateTool],
+            });
             const disabled = new Set<string>(settings.disabledTools ?? []);
             registry.install({
               ...codingTools,
@@ -115,7 +125,12 @@ export class RuntimeRegistryService extends Context.Service<
             if (harness) {
               const root = await harness.conversation(ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT);
               await root?.configure(
-                { tools: settings.subagents?.mode === "orchestrator" ? [subagents.tool] : null },
+                {
+                  tools:
+                    subagentsEnabled && settings.subagents?.mode === "orchestrator"
+                      ? [subagents.tool]
+                      : { remove: [subagents.updateTool] },
+                },
                 BACKGROUND_CONTEXT,
               );
             }
@@ -168,8 +183,21 @@ export class RuntimeRegistryService extends Context.Service<
               message: "持久会话缺少根 conversation",
             });
           // Finish a persisted stop intent after interruption before allowing any model work to resume.
-          if ((await harness.snapshot(SubagentsDoc, BACKGROUND_CONTEXT))?.stopping)
-            await subagents.stopAll();
+          const delegated = await harness.snapshot(SubagentsDoc, BACKGROUND_CONTEXT);
+          if (delegated?.stopping) await subagents.stopAll();
+          else {
+            for (const child of delegated?.agents.filter(
+              (child) =>
+                child.stopping &&
+                !delegated.agents.find((parent) => parent.path === child.parent)?.stopping,
+            ) ?? []) {
+              await subagents.execute(
+                { action: "stop", path: child.path },
+                ROOT_CONVERSATION_ID,
+                `recover-stop:${child.path}`,
+              );
+            }
+          }
           const inspection = await harness.inspect(BACKGROUND_CONTEXT);
           const recoveryRequired =
             inspection.submissions.length > 0 ||
@@ -203,11 +231,13 @@ export class RuntimeRegistryService extends Context.Service<
             disposed: false,
           };
           // Older sessions acquire the application document when first opened after this upgrade.
+          runtimeRecord = record;
           await conversation.commit(async (tx) => {
             await tx.doc(SubagentsDoc);
             await tx.doc(TitleDoc, conversation.id);
             await tx.doc(SkillsDoc, conversation.id);
           }, BACKGROUND_CONTEXT);
+          if (!recoveryRequired) await subagents.wake();
           await refreshTools();
           let settingsDelivery = Promise.resolve();
           const unsubscribeSettings = preferences.subscribe(() => {

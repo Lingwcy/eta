@@ -71,4 +71,51 @@ test("live tool progress overrides the transcript call without duplicating it", 
     runningTools: [tool],
   };
   expect(getTools(value)).toEqual([tool]);
+  value.operation = null;
+  expect(getTools(value)[0]?.status).toBe("incomplete");
+});
+
+test("forked or stopped calls without results do not appear to be executing", () => {
+  const value = snapshot();
+  expect(getTools(value)[0]).toMatchObject({ toolCallId: "read-file", status: "incomplete" });
+  value.operation = {
+    id: "child-run",
+    kind: "run",
+    status: "running",
+    startedAt: 2,
+    fromTipId: null,
+    runningTools: [{ status: "running", toolCallId: "child-read", toolName: "read", args: {} }],
+  };
+  expect(getTools(value).map(({ toolCallId, status }) => ({ toolCallId, status }))).toEqual([
+    { toolCallId: "read-file", status: "incomplete" },
+    { toolCallId: "child-read", status: "running" },
+  ]);
+});
+
+test("cancelled tools retain partial output and show stopped rather than failed", () => {
+  const value = snapshot();
+  const content = [{ type: "text" as const, text: "Partial output before cancellation" }];
+  value.transcript.push({
+    id: "cancelled-result",
+    type: "message",
+    toolStatus: "stopped",
+    message: {
+      role: "toolResult",
+      toolCallId: "read-file",
+      toolName: "read",
+      content,
+      isError: true,
+      timestamp: 2,
+    },
+  });
+  expect(getTools(value)).toEqual([
+    {
+      toolCallId: "read-file",
+      toolName: "read",
+      args: { path: "example.txt" },
+      status: "stopped",
+      result: { content, details: undefined },
+      isError: true,
+    },
+  ]);
 });

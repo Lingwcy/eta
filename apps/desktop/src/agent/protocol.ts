@@ -24,7 +24,7 @@ export interface OperationAdmission {
 }
 
 export interface SnapshotTool {
-  status: "running" | "settled";
+  status: "running" | "settled" | "stopped" | "incomplete";
   toolCallId: string;
   toolName: string;
   args: Record<string, unknown>;
@@ -36,7 +36,7 @@ export interface AgentSnapshot {
   subagents?: readonly SubagentSummary[];
   activeSkills?: readonly ActiveSkill[];
   configuration: { model: { provider: string; modelId: string }; thinkingLevel: ThinkingLevel };
-  transcript: { id: string; type: "message"; message: Message }[];
+  transcript: { id: string; type: "message"; message: Message; toolStatus?: "stopped" }[];
   operation:
     | (Omit<OperationAdmission, "operationId"> & {
         id: string;

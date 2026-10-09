@@ -8,6 +8,7 @@ import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { CompositeInput } from "@/components/input";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { subagentStatus } from "./subagent-status";
 
 export function SubagentConversation({
   threadId,
@@ -52,8 +53,7 @@ export function SubagentConversation({
   const snapshot = observation?.snapshot;
   const running =
     Boolean(snapshot?.operation || child.status === "running") && !snapshot?.recoveryRequired;
-  const unfinished =
-    Boolean(snapshot?.operation) || ["running", "queued", "paused"].includes(child.status);
+  const enabled = library?.settings.subagents?.enabled !== false;
   const reference = snapshot?.configuration.model ?? child.model;
   const catalogModel = library?.models.find(
     (model) => model.provider === reference?.provider && model.id === reference.modelId,
@@ -97,11 +97,17 @@ export function SubagentConversation({
         <span className="min-w-0 flex-1 truncate text-xs text-neutral-600" title={child.path}>
           {child.path}
         </span>
+        <span role="status" className="shrink-0 text-xs text-neutral-500">
+          {subagentStatus[child.status]}
+        </span>
       </div>
       <ChatTranscript snapshot={snapshot} running={running}>
         {error && <Alert>{error}</Alert>}
         {snapshot?.recoveryRequired && <Alert>请在主会话恢复或停止未完成任务。</Alert>}
         {child.error && <Alert>{child.error}</Alert>}
+        {child.status === "stopped" && (
+          <output className="text-xs text-neutral-500">任务已停止，未完成的工作已取消。</output>
+        )}
       </ChatTranscript>
       <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
         <div className="mx-auto w-full max-w-[960px]">
@@ -116,10 +122,17 @@ export function SubagentConversation({
             contextWindow={catalogModel?.contextWindow}
             cwd={library?.threads.find((thread) => thread.id === threadId)?.sessionRef.metadata.cwd}
             isRunning={running}
+            allowSubmitWhileRunning
             isStopping={busy || snapshot?.operation?.status === "aborting"}
             onStop={() => void act("stop").catch(() => {})}
-            disabled={busy || blocked || !observation || unfinished}
-            placeholder={unfinished ? "任务结束后可继续发送消息" : "调整工作方向…"}
+            disabled={busy || blocked || !observation || !enabled}
+            placeholder={
+              !enabled
+                ? "子智能体已关闭，可在设置中重新启用"
+                : running
+                  ? "调整当前任务，或请求汇报已有结果…"
+                  : "调整工作方向…"
+            }
             onSubmit={async (text, images) => {
               await act("send", text, images);
             }}

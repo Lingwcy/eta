@@ -201,8 +201,10 @@ export class RunSupervisorService extends Context.Service<
           yield* adapter("无法恢复任务", async () => {
             claim(runtime);
             runtime.recoveryRequired = false;
+            await runtime.subagents.wake();
             runtime.harness.resume();
-            supervise(runtime, runtime.harness.waitForIdle(BACKGROUND_CONTEXT));
+            // Background children report through durable tasks; only the root turn reserves input.
+            supervise(runtime, runtime.conversation.waitForIdle(BACKGROUND_CONTEXT));
             changed(runtime);
           });
         }, Effect.uninterruptible),

@@ -5,6 +5,7 @@ import type {
 
 export type SubagentSettings = typeof SubagentSettingsSchema.Type;
 export const defaultSubagentSettings: SubagentSettings = {
+  enabled: true,
   mode: "opportunistic",
   maxDepth: 3,
   maxConcurrent: 4,
@@ -20,4 +21,8 @@ export interface SubagentSummary {
   status: "running" | "queued" | "paused" | "completed" | "failed" | "stopped";
   model?: { provider: string; modelId: string };
   error?: string;
+  canDelegate?: boolean;
+  progress?: { message: string; timestamp: number };
+  output?: string;
+  outputTruncated?: boolean;
 }

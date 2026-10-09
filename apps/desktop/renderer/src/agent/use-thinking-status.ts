@@ -8,7 +8,7 @@ const labels = {
   thinking: "正在思考",
   retrying: "正在重试响应",
   deferred: "等待后台响应",
-  subagents: "等待子任务",
+  subagents: "等待子智能体",
 };
 
 /** Brief phases are suppressed; visible phase changes keep the indicator mounted. */
@@ -19,7 +19,11 @@ export function useThinkingStatus(threadId: string | null, snapshot?: AgentSnaps
     [tracker, threadId, snapshot],
   );
   const operation = snapshot?.operation;
-  const runKey = operation ? `${threadId}:${operation.id}` : null;
+  const runKey = operation
+    ? `${threadId}:${operation.id}`
+    : phase === "subagents"
+      ? `${threadId}:subagents`
+      : null;
   const [shownRun, setShownRun] = useState<string | null>(null);
   useEffect(() => {
     if (!phase || !runKey) {
@@ -30,7 +34,7 @@ export function useThinkingStatus(threadId: string | null, snapshot?: AgentSnaps
     const timer = window.setTimeout(() => setShownRun(runKey), 150);
     return () => window.clearTimeout(timer);
   }, [phase, runKey, shownRun]);
-  return phase && operation && shownRun === runKey
+  return phase && shownRun === runKey
     ? { label: labels[phase], startedAt, waiting: phase !== "thinking" }
     : null;
 }

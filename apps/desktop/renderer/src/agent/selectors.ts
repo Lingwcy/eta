@@ -10,7 +10,8 @@ export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {
       for (const content of message.content) {
         if (content.type === "toolCall")
           tools.set(content.id, {
-            status: "running",
+            // Forks can inherit a call without its result. Only live tools are executing here.
+            status: "incomplete",
             toolCallId: content.id,
             toolName: content.name,
             args: content.arguments,
@@ -19,7 +20,7 @@ export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {
     } else if (message.role === "toolResult") {
       const tool = tools.get(message.toolCallId);
       tools.set(message.toolCallId, {
-        status: "settled",
+        status: entry.toolStatus ?? "settled",
         toolCallId: message.toolCallId,
         toolName: message.toolName,
         args: tool?.args ?? {},

@@ -16,6 +16,7 @@ export function CompositeInput({
   disabled = false,
   submitDisabled = false,
   isRunning = false,
+  allowSubmitWhileRunning = false,
   className,
   cwd,
   ...toolbar
@@ -36,7 +37,7 @@ export function CompositeInput({
   }, []);
   const pending = attachments.some((item) => !item.image && !item.error);
   const failed = attachments.some((item) => item.error);
-  const locked = disabled || submitting || isRunning;
+  const locked = disabled || submitting || (isRunning && !allowSubmitWhileRunning);
   const prepare = (source: ImageSource) =>
     window.eta.prepareImage(source, cwd, toolbar.model?.provider, toolbar.model?.id);
   const addFiles = async (files: File[]) => {
@@ -189,13 +190,15 @@ export function CompositeInput({
           void handleSubmit();
         }}
         placeholder={placeholder}
-        disabled={disabled || submitting || isRunning}
+        disabled={locked}
       />
       <ActionToolbar
         {...toolbar}
         onAttach={() => picker.current?.click()}
         disabled={disabled || submitting}
         isRunning={isRunning}
+        allowSubmitWhileRunning={allowSubmitWhileRunning}
+        hasContent={Boolean(text.trim()) || attachments.length > 0}
         onSubmit={() => {
           void handleSubmit();
         }}

@@ -6,15 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SlidingLabel } from "@/components/sidebar/sliding-label";
 import { subagentTree } from "./subagent-tree";
 import type { SubagentNode } from "./subagent-tree";
-
-const subagentStatus = {
-  running: "运行中",
-  queued: "排队中",
-  paused: "已暂停",
-  completed: "已完成",
-  failed: "出错",
-  stopped: "已停止",
-};
+import { subagentStatus } from "./subagent-status";
 
 const statusIcons = {
   running: CircleDot,
@@ -38,7 +30,7 @@ export function SubagentControls({
     <ul className={nested ? "ml-2 min-w-0 list-none p-0" : "min-w-0 list-none p-0"}>
       {nodes.map(({ agent: child, children }, index) => {
         const StatusIcon = statusIcons[child.status];
-        const label = `${child.path} · ${subagentStatus[child.status]}`;
+        const label = `${child.path} · ${subagentStatus[child.status]}${child.progress ? ` · ${child.progress.message}` : ""}`;
         return (
           <li key={child.path} className={nested ? "relative min-w-0 pl-4" : "min-w-0"}>
             {nested && (
@@ -71,7 +63,11 @@ export function SubagentControls({
                 onClick={() => onSelect(child.path)}
               >
                 <SlidingLabel text={child.path.split("/").at(-1) ?? child.path} />
-                <span className="shrink-0 text-neutral-400" aria-hidden="true">
+                <span
+                  className="flex shrink-0 items-center gap-1 text-xs text-neutral-400"
+                  aria-hidden="true"
+                >
+                  {child.status === "stopped" && subagentStatus.stopped}
                   <StatusIcon size={13} />
                 </span>
               </Button>

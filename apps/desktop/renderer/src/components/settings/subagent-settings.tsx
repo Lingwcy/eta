@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ModelPicker } from "../input/model-picker";
 import { thinkingOptions } from "../input/model-thinking";
 import { Alert } from "@/components/ui/alert";
@@ -68,6 +69,7 @@ export function SubagentSettings({
   onChange: (subagents: Policy) => Promise<void>;
 }) {
   const policy = library.settings.subagents ?? defaultSubagentSettings;
+  const enabled = policy.enabled !== false;
   const mainModel =
     library.subagentDefaultModel ??
     (() => {
@@ -100,11 +102,13 @@ export function SubagentSettings({
   const [editing, setEditing] = useState<string>();
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [canDelegate, setCanDelegate] = useState(false);
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("off");
   const [models, setModels] = useState<Preset["models"]>([]);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const locked = busy || saving;
+  const configurationLocked = locked || !enabled;
   const save = async (next: Policy) => {
     setSaving(true);
     setError(undefined);
@@ -121,6 +125,7 @@ export function SubagentSettings({
     setEditing(preset?.name ?? "");
     setName(preset?.name ?? "");
     setInstructions(preset?.instructions ?? "");
+    setCanDelegate(preset?.canDelegate ?? false);
     setThinkingLevel(preset?.thinkingLevel ?? "off");
     setModels(preset?.models ?? []);
     setError(undefined);
@@ -128,6 +133,19 @@ export function SubagentSettings({
   return (
     <>
       {error && <Alert>{error}</Alert>}
+      <SettingsSection title="首选项">
+        <SettingsRow
+          title="启用子智能体"
+          description="允许智能体委派任务。关闭后已有任务继续收尾，历史仍可查看和停止。"
+        >
+          <Switch
+            aria-label="启用子智能体"
+            checked={enabled}
+            disabled={locked}
+            onCheckedChange={(enabled) => void save({ ...policy, enabled }).catch(() => {})}
+          />
+        </SettingsRow>
+      </SettingsSection>
       <SettingsSection title="委派设置">
         <SettingsRow title="工作模式" description="按需委派，或由主线程专注交流与编排。">
           <Select
@@ -140,7 +158,7 @@ export function SubagentSettings({
               { value: "opportunistic", label: "按需" },
               { value: "orchestrator", label: "编排" },
             ]}
-            disabled={locked}
+            disabled={configurationLocked}
             onValueChange={(mode) => void save({ ...policy, mode }).catch(() => {})}
           />
         </SettingsRow>
@@ -150,7 +168,7 @@ export function SubagentSettings({
             value={policy.maxDepth}
             minimum={0}
             maximum={10}
-            disabled={locked}
+            disabled={configurationLocked}
             onChange={(maxDepth) => void save({ ...policy, maxDepth }).catch(() => {})}
           />
         </SettingsRow>
@@ -160,7 +178,7 @@ export function SubagentSettings({
             value={policy.maxConcurrent}
             minimum={1}
             maximum={32}
-            disabled={locked}
+            disabled={configurationLocked}
             onChange={(maxConcurrent) => void save({ ...policy, maxConcurrent }).catch(() => {})}
           />
         </SettingsRow>
@@ -169,7 +187,7 @@ export function SubagentSettings({
             <Button
               variant="link"
               size="compact"
-              disabled={locked}
+              disabled={configurationLocked}
               onClick={() => {
                 const { allowedModels: _models, ...rest } = policy;
                 void save(rest).catch(() => {});
@@ -181,7 +199,7 @@ export function SubagentSettings({
           <ModelPicker
             models={library.models}
             providers={library.providers}
-            disabled={locked}
+            disabled={configurationLocked}
             side="bottom"
             showThinking={false}
             selection={{
@@ -200,7 +218,12 @@ export function SubagentSettings({
       </SettingsSection>
       <SettingsSection title="智能体预设">
         <SettingsRow title="预设配置" description="为不同任务保存指令、思考级别和候选模型。">
-          <Button variant="ghost" size="compact" disabled={locked} onClick={() => edit()}>
+          <Button
+            variant="ghost"
+            size="compact"
+            disabled={configurationLocked}
+            onClick={() => edit()}
+          >
             添加预设
           </Button>
         </SettingsRow>
@@ -210,13 +233,18 @@ export function SubagentSettings({
             title={preset.name}
             description={`${thinkingOptions.find((option) => option.value === preset.thinkingLevel)?.label ?? preset.thinkingLevel} · ${modelLabel(preset.models, "跟随主模型")}`}
           >
-            <Button variant="ghost" size="compact" disabled={locked} onClick={() => edit(preset)}>
+            <Button
+              variant="ghost"
+              size="compact"
+              disabled={configurationLocked}
+              onClick={() => edit(preset)}
+            >
               编辑
             </Button>
             <Button
               variant="ghost-destructive"
               size="compact"
-              disabled={locked}
+              disabled={configurationLocked}
               onClick={() =>
                 void save({
                   ...policy,
@@ -233,7 +261,13 @@ export function SubagentSettings({
             className="py-3"
             onSubmit={(event) => {
               event.preventDefault();
-              const preset = { name: name.trim(), instructions, thinkingLevel, models };
+              const preset = {
+                name: name.trim(),
+                instructions,
+                thinkingLevel,
+                models,
+                canDelegate,
+              };
               void save({
                 ...policy,
                 presets: [...policy.presets.filter((preset) => preset.name !== editing), preset],
@@ -249,7 +283,7 @@ export function SubagentSettings({
                 placeholder="预设名称，如 quick 或 reviewer"
                 value={name}
                 onValueChange={setName}
-                disabled={locked}
+                disabled={configurationLocked}
               />
               <Select
                 label="预设思考级别"
@@ -259,7 +293,7 @@ export function SubagentSettings({
                 value={thinkingLevel}
                 options={thinkingOptions}
                 onValueChange={setThinkingLevel}
-                disabled={locked}
+                disabled={configurationLocked}
               />
             </div>
             <div className="mb-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
@@ -268,16 +302,27 @@ export function SubagentSettings({
                 placeholder="任务职责和约束"
                 value={instructions}
                 onChange={(event) => setInstructions(event.target.value)}
-                disabled={locked}
+                disabled={configurationLocked}
               />
             </div>
+            <SettingsRow
+              title="允许继续委派"
+              description="为需要协调其他智能体的预设开启；执行任务的预设默认直接完成工作。"
+            >
+              <Switch
+                aria-label="允许预设继续委派"
+                checked={canDelegate}
+                disabled={configurationLocked}
+                onCheckedChange={setCanDelegate}
+              />
+            </SettingsRow>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <ModelPicker
                 models={enabledCatalog}
                 providers={library.providers}
                 showThinking={false}
                 side="bottom"
-                disabled={locked}
+                disabled={configurationLocked}
                 selection={{ models, label: modelLabel(models, "跟随主模型"), onChange: setModels }}
               />
               <div className="flex gap-1">
@@ -289,7 +334,7 @@ export function SubagentSettings({
                 >
                   取消
                 </Button>
-                <Button type="submit" size="compact" disabled={locked || !name.trim()}>
+                <Button type="submit" size="compact" disabled={configurationLocked || !name.trim()}>
                   保存
                 </Button>
               </div>

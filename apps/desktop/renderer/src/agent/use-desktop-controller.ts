@@ -49,6 +49,7 @@ export function useDesktopController(
     agent.submitting ||
     pending,
   );
+  const backgroundWork = Boolean(snapshot && !running && hasThreadActivity(snapshot));
   const threadId = tab.threadId;
   const hasMessages =
     snapshot?.transcript.some(
@@ -123,7 +124,7 @@ export function useDesktopController(
       models: desktop.library?.models ?? [],
       providers: desktop.library?.providers ?? [],
       onModelChange: (model: InputModel, level: ThinkingLevel) => {
-        if (running) return;
+        if (running || backgroundWork) return;
         void desktop.act(async () => {
           if (threadId) await agent.configure(model.provider, model.id, level);
           else
@@ -162,7 +163,8 @@ export function useDesktopController(
         }
       },
       onStop: () => void agent.stop(),
-      isRunning: running,
+      isRunning: running || backgroundWork,
+      allowSubmitWhileRunning: backgroundWork,
       isStopping: agent.stopping || operation?.status === "aborting",
       submitDisabled: !threadId && !tab.workspaceId,
       disabled:

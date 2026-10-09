@@ -25,7 +25,21 @@ export class ThinkingStatus {
     if (!operation) {
       this.runKey = undefined;
       this.responded = false;
-      return this.setPhase(null, now);
+      const waiting = Boolean(
+        snapshot &&
+        !snapshot.recoveryRequired &&
+        !snapshot.faulted &&
+        !snapshot.blockedReason &&
+        !snapshot.compacting &&
+        snapshot.subagents?.some(
+          (child) => child.status === "running" || child.status === "queued",
+        ),
+      );
+      return this.setPhase(
+        waiting ? "subagents" : null,
+        now,
+        waiting ? `${threadId}:subagents` : undefined,
+      );
     }
     const key = `${threadId}:${operation.id}`;
     if (key !== this.runKey) {
@@ -57,14 +71,15 @@ export class ThinkingStatus {
       !snapshot.recoveryRequired &&
       !snapshot.faulted &&
       !snapshot.blockedReason &&
-      operation.status !== "aborting" &&
-      !operation.runningTools.some((tool) => tool.status === "running")
+      operation.status !== "aborting"
     ) {
       if (operation.waitingForSubagents) phase = "subagents";
-      else if (operation.retry) phase = "retrying";
-      else if (operation.deferred) phase = "deferred";
-      else if (activePart?.type === "thinking") phase = "thinking";
-      else if (!activePart) phase = this.responded ? "continuing" : "waiting";
+      else if (!operation.runningTools.some((tool) => tool.status === "running")) {
+        if (operation.retry) phase = "retrying";
+        else if (operation.deferred) phase = "deferred";
+        else if (activePart?.type === "thinking") phase = "thinking";
+        else if (!activePart) phase = this.responded ? "continuing" : "waiting";
+      }
     }
     const response = snapshot.transcript.findLast(
       ({ message }) =>

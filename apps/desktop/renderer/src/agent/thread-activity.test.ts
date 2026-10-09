@@ -74,6 +74,27 @@ test("compaction is active, while interrupted recovery and faults are not runnin
   expect(hasThreadActivity(snapshot())).toBe(false);
 });
 
+test("keeps watching an idle root until background children and their final synthesis finish", () => {
+  const { activity, emit, unsubscribed } = fixture();
+  activity.watch("thread");
+  const child = {
+    path: "/worker",
+    parent: "/root",
+    conversationId: 2,
+    fork: false,
+    depth: 1,
+    status: "running" as const,
+  };
+  emit("thread", snapshot({ subagents: [child] }));
+  expect(activity.getSnapshot().has("thread")).toBe(true);
+  expect(unsubscribed).toEqual([]);
+  emit("thread", { ...active, subagents: [{ ...child, status: "completed" }] });
+  expect(activity.getSnapshot().has("thread")).toBe(true);
+  emit("thread", snapshot({ subagents: [{ ...child, status: "completed" }] }));
+  expect(activity.getSnapshot().size).toBe(0);
+  expect(unsubscribed).toEqual(["thread"]);
+});
+
 test("a lost observation removes stale indicators and releases its subscription", () => {
   const { activity, listeners, unsubscribed } = fixture();
   activity.watch("thread");

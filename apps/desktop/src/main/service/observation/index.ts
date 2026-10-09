@@ -1,12 +1,12 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
-import { CompactionEntry, UserEntry } from "@eta/agent";
+import { CompactionEntry, ToolResultEntry, UserEntry } from "@eta/agent";
 import type { AgentState, ConversationView, Cursor, LiveState, SubmissionRecord } from "@eta/agent";
 import { Context, Effect, Layer } from "effect";
 import type { SnapshotResponse } from "../../../agent/protocol.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
-import { SubagentsDoc } from "../subagents/extension.ts";
+import { SubagentsDoc, SubagentEventEntry } from "../subagents/extension.ts";
 import { SkillsDoc, skillSummary } from "../skills/extension.ts";
 
 export class ObservationService extends Context.Service<
@@ -114,6 +114,7 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
   }
   const receipts: SubmissionRecord[] = [];
   const reports = new Set<number>();
+  const inputs = new Set<number>();
   // Fork history includes ancestor entries, whose submission receipts belong to the ancestor.
   const sources = new Set([
     runtime.conversation.id,
@@ -129,9 +130,11 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
         BACKGROUND_CONTEXT,
       );
       if (conversationId === runtime.conversation.id) receipts.push(...page.items);
-      for (const receipt of page.items)
+      for (const receipt of page.items) {
         if (receipt.requestId?.startsWith("subagent-report:") && receipt.entry !== undefined)
           reports.add(receipt.entry);
+        else if (receipt.type === "input" && receipt.entry !== undefined) inputs.add(receipt.entry);
+      }
       cursor = page.next;
     } while (cursor !== undefined);
   }
@@ -146,8 +149,9 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     .filter(
       (entry) =>
         !CompactionEntry.is(entry) &&
+        !SubagentEventEntry.is(entry) &&
         !reports.has(entry.id) &&
-        !(UserEntry.is(entry) && entry.byTaskId !== undefined),
+        !(UserEntry.is(entry) && entry.byTaskId !== undefined && !inputs.has(entry.id)),
     )
     .flatMap((entry) =>
       (entry.model ?? [])
@@ -156,6 +160,11 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
           id: `${entry.id}:${index}`,
           type: "message" as const,
           message,
+          ...(message.role === "toolResult" &&
+          ToolResultEntry.is(entry) &&
+          entry.data?.diagnostics.some((diagnostic) => diagnostic.code === "aborted")
+            ? { toolStatus: "stopped" as const }
+            : {}),
         })),
     );
   const failed = terminal?.status === "unanswered" && terminal.reason !== "aborted";
