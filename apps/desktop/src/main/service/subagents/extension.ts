@@ -828,15 +828,13 @@ export function createSubagentsExtension(options: {
     const parentAgent = await parent.agent(context);
     let selected = command.model;
     if (command.action === "spawn") {
+      const allowedModels = await modelScope(policy, context);
       const candidates = command.model
         ? [command.model]
         : preset?.models.length
           ? preset.models
-          : parentAgent.model
-            ? [parentAgent.model]
-            : [];
+          : [...(parentAgent.model ? [parentAgent.model] : []), ...allowedModels];
       selected = undefined;
-      const allowedModels = await modelScope(policy, context);
       for (const model of candidates) {
         if (
           !allowedModels.some(

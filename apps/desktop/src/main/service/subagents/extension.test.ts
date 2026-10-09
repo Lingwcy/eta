@@ -188,6 +188,52 @@ describe("desktop subagents", () => {
       await harness.close(context);
     }
   });
+  it("falls back to enabled models when the parent model is forbidden or unavailable", async () => {
+    const fallback = { provider: "faux", modelId: "faux-2" };
+    const policy = {
+      ...defaultSubagentSettings,
+      allowedModels: [{ provider: "unavailable", modelId: "missing" }, fallback],
+    };
+    const { harness, root, manager, settle } = await setup(policy);
+    try {
+      await manager.execute(
+        { action: "spawn", name: "forbidden-parent", message: "work" },
+        root.id,
+        "forbidden-parent",
+      );
+      await root.configure({ model: policy.allowedModels[0]! }, context);
+      await manager.execute(
+        { action: "spawn", name: "unavailable-parent", message: "work" },
+        root.id,
+        "unavailable-parent",
+      );
+      await settle();
+      expect((await manager.list()).map((child) => child.model)).toEqual([fallback, fallback]);
+      await expect(
+        manager.execute(
+          { action: "spawn", message: "work", model: policy.allowedModels[0]! },
+          root.id,
+          "explicit-unavailable",
+        ),
+      ).rejects.toThrow("候选模型");
+    } finally {
+      await harness.close(context);
+    }
+  });
+  it("prefers the allowed parent model over other enabled models", async () => {
+    const parent = { provider: "faux", modelId: "faux-1" };
+    const { harness, root, manager, settle } = await setup({
+      ...defaultSubagentSettings,
+      allowedModels: [{ provider: "faux", modelId: "faux-2" }, parent],
+    });
+    try {
+      await manager.execute({ action: "spawn", message: "work" }, root.id, "spawn");
+      await settle();
+      expect((await manager.list())[0]?.model).toEqual(parent);
+    } finally {
+      await harness.close(context);
+    }
+  });
   it("queues paused children and resumes their original task", async () => {
     const { harness, root, manager, settle } = await setup();
     try {
