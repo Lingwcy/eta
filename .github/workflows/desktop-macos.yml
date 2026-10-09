@@ -1,4 +1,4 @@
-name: macOS release
+name: Desktop release
 
 on:
   push:
@@ -79,10 +79,45 @@ jobs:
             apps/desktop/dist/release/latest-mac-*.yml
           if-no-files-found: error
 
+  package-windows:
+    name: Build Windows x64 installer
+    needs: test
+    runs-on: windows-latest
+    env:
+      # Apple signing and notarization apply only to the macOS jobs.
+      ETA_SIGNED_RELEASE: "0"
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "24"
+          cache: true
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+      - name: Validate release version
+        if: github.ref_type == 'tag'
+        run: node scripts/desktop-release.ts validate "$env:RELEASE_TAG"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Verify signing configuration
+        run: vp run @eta/desktop#test:packaging
+      - name: Build Windows installer and verify isolated runtime
+        run: vp run --no-cache @eta/desktop#package:win
+      - name: Upload installer and update feed
+        uses: actions/upload-artifact@v7
+        with:
+          name: Eta-win-x64
+          path: |
+            apps/desktop/dist/release/*.exe
+            apps/desktop/dist/release/*.exe.blockmap
+            apps/desktop/dist/release/latest.yml
+          if-no-files-found: error
+
   release:
     name: Publish GitHub release
     if: github.ref_type == 'tag'
-    needs: package
+    needs: [package, package-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -97,7 +132,7 @@ jobs:
         run: vp install --frozen-lockfile
       - uses: actions/download-artifact@v8
         with:
-          pattern: Eta-mac-*
+          pattern: Eta-*
           path: .release/assets
           merge-multiple: true
       - name: Generate notes and publish installers

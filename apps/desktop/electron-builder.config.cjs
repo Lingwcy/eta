@@ -29,10 +29,10 @@ module.exports = {
   // The staged app contains its entire runtime; do not collect workspace node_modules.
   beforeBuild: async () => false,
   forceCodeSigning: signedRelease,
-  artifactName: "Eta-${version}-mac-${arch}.${ext}",
-  // Writes app-update.yml into the app and latest-mac.yml next to the installers for electron-updater.
+  // Writes app-update.yml into the app and platform update feeds next to the installers.
   publish: { provider: "github", owner: "Lingwcy", repo: "eta" },
   mac: {
+    artifactName: "Eta-${version}-mac-${arch}.${ext}",
     category: "public.app-category.developer-tools",
     icon: "resources/eta.icns",
     // Squirrel.Mac installs updates from the zip; the dmg stays the first-install download.
@@ -40,6 +40,17 @@ module.exports = {
     hardenedRuntime: signedRelease,
     identity: signedRelease ? undefined : "-",
     notarize: signedRelease,
+  },
+  win: {
+    artifactName: "Eta-${version}-win-${arch}.${ext}",
+    icon: "resources/eta.ico",
+    target: "nsis",
+  },
+  nsis: {
+    oneClick: false,
+    perMachine: false,
+    allowToChangeInstallationDirectory: true,
+    deleteAppDataOnUninstall: false,
   },
   dmg: {
     title: "Eta ${version}",

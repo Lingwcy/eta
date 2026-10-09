@@ -58,3 +58,11 @@ vp run package:mac
 ```
 
 `.dmg` 文件保存在 `apps/desktop/dist/release/`。
+
+在 Windows 上构建 Windows x64 安装包：
+
+```sh
+vp run package:win
+```
+
+`.exe` 文件保存在 `apps/desktop/dist/release/`。Windows 命令执行功能需要安装含 Git Bash 的 [Git for Windows](https://gitforwindows.org/)。

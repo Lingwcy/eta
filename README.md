@@ -58,3 +58,11 @@ vp run package:mac
 ```
 
 The `.dmg` is saved to `apps/desktop/dist/release/`.
+
+To build a Windows x64 installer on Windows:
+
+```sh
+vp run package:win
+```
+
+The `.exe` is saved to `apps/desktop/dist/release/`. Windows command execution requires [Git for Windows](https://gitforwindows.org/) with Git Bash installed.

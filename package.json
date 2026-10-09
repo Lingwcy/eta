@@ -11,6 +11,7 @@
     "sync:agent": "node scripts/sync-agent.ts",
     "build:desktop": "vp run @eta/desktop#build",
     "package:mac": "vp run --no-cache @eta/desktop#package:mac",
+    "package:win": "vp run --no-cache @eta/desktop#package:win",
     "dev": "vp run --no-cache @eta/desktop#build:electron && vp run @eta/desktop#dev"
   },
   "devDependencies": {

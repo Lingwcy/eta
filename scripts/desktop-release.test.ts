@@ -12,6 +12,7 @@ import {
   releaseNotes,
   updateFeed,
   validateRelease,
+  windowsUpdateFeed,
 } from "./desktop-release.ts";
 import type { PublishedRelease } from "./desktop-release.ts";
 
@@ -131,13 +132,15 @@ test("tags must name the checked-out source and match both manifest versions", (
   assert.throws(() => validateRelease(root, "v0.0.3"), /Check out/);
 });
 
-test("both nonempty versioned installers are required and produce accurate checksums", () => {
+test("all nonempty versioned installers are required and produce accurate checksums", () => {
   const { root } = setup();
   assert.throws(() => installerChecksums(root, "v0.0.3"), /ENOENT/);
   writeFileSync(join(root, "Eta-0.0.3-mac-arm64.dmg"), "arm64 installer");
   writeFileSync(join(root, "Eta-0.0.3-mac-x64.dmg"), "");
   assert.throws(() => installerChecksums(root, "v0.0.3"), /Empty installer/);
   writeFileSync(join(root, "Eta-0.0.3-mac-x64.dmg"), "x64 installer");
+  assert.throws(() => installerChecksums(root, "v0.0.3"), /ENOENT/);
+  writeFileSync(join(root, "Eta-0.0.3-win-x64.exe"), "windows installer");
   assert.deepEqual(
     installerChecksums(root, "v0.0.3").map(({ name, digest }) => ({ name, digest })),
     [
@@ -148,6 +151,10 @@ test("both nonempty versioned installers are required and produce accurate check
       {
         name: "Eta-0.0.3-mac-x64.dmg",
         digest: createHash("sha256").update("x64 installer").digest("hex"),
+      },
+      {
+        name: "Eta-0.0.3-win-x64.exe",
+        digest: createHash("sha256").update("windows installer").digest("hex"),
       },
     ],
   );
@@ -214,6 +221,58 @@ test("an update feed for another version or with a corrupted zip is rejected", (
   assert.throws(() => updateFeed(root, "v0.0.3"), /checksum mismatch: Eta-0\.0\.3-mac-x64\.zip/);
 });
 
+function writeWindows(directory: string, version = "0.0.3") {
+  const url = `Eta-${version}-win-x64.exe`;
+  const data = "Windows installer";
+  const sha512 = createHash("sha512").update(data).digest("base64");
+  writeFileSync(join(directory, url), data);
+  writeFileSync(join(directory, `${url}.blockmap`), "Windows blockmap");
+  writeFileSync(
+    join(directory, "latest.yml"),
+    stringify({
+      version,
+      files: [{ url, sha512, size: data.length }],
+      path: url,
+      sha512,
+      releaseDate: "2026-10-08T03:00:00.000Z",
+    }),
+  );
+}
+
+test("Windows updates require the matching installer, valid digest and nonempty blockmap", () => {
+  const { root } = setup();
+  assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /ENOENT/);
+  writeWindows(root, "0.0.2");
+  assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /version 0\.0\.2 does not match/);
+  writeWindows(root);
+  assert.deepEqual(windowsUpdateFeed(root, "v0.0.3"), [
+    join(root, "Eta-0.0.3-win-x64.exe.blockmap"),
+    join(root, "latest.yml"),
+  ]);
+  writeFileSync(join(root, "Eta-0.0.3-win-x64.exe"), "corrupted");
+  assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /checksum mismatch/);
+  writeWindows(root);
+  rmSync(join(root, "Eta-0.0.3-win-x64.exe.blockmap"));
+  assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /ENOENT/);
+  writeFileSync(join(root, "Eta-0.0.3-win-x64.exe.blockmap"), "");
+  assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /Empty blockmap/);
+});
+
+test("Windows feeds cannot point at installers omitted from the release", () => {
+  const { root } = setup();
+  writeWindows(root);
+  const path = join(root, "latest.yml");
+  const feed = parse(readFileSync(path, "utf8")) as { files: { url: string }[] };
+  feed.files[0]!.url = "Eta-0.0.3-win-arm64.exe";
+  writeFileSync(path, stringify(feed));
+  assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /missing Eta-0\.0\.3-win-x64\.exe/);
+  writeWindows(root);
+  const otherFeed = parse(readFileSync(path, "utf8")) as { path: string };
+  otherFeed.path = "Eta-0.0.3-win-arm64.exe";
+  writeFileSync(path, stringify(otherFeed));
+  assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /unexpected installer references/);
+});
+
 function githubFixture(root: string) {
   const bin = join(root, "bin");
   mkdirSync(bin);
@@ -242,6 +301,7 @@ fs.writeFileSync(file, JSON.stringify(state));
   const assets = join(root, "assets");
   mkdirSync(assets);
   for (const arch of ["arm64", "x64"]) writeArchitecture(assets, arch);
+  writeWindows(assets);
   const publish = () =>
     execFileSync(
       process.execPath,
@@ -273,6 +333,8 @@ test("publishing creates a complete release and rerunning preserves published ed
   assert.equal(state.current.draft, false);
   assert.match(state.current.body, /修复等待状态/);
   assert.match(state.current.body, /ad-hoc 签名/);
+  assert.match(state.current.body, /Windows x64/);
+  assert.match(state.current.body, /Git for Windows/);
   assert.deepEqual(state.current.assets.map((asset) => asset.name).toSorted(), [
     "Eta-0.0.3-mac-arm64.dmg",
     "Eta-0.0.3-mac-arm64.zip",
@@ -280,8 +342,11 @@ test("publishing creates a complete release and rerunning preserves published ed
     "Eta-0.0.3-mac-x64.dmg",
     "Eta-0.0.3-mac-x64.zip",
     "Eta-0.0.3-mac-x64.zip.blockmap",
+    "Eta-0.0.3-win-x64.exe",
+    "Eta-0.0.3-win-x64.exe.blockmap",
     "SHA256SUMS.txt",
     "latest-mac.yml",
+    "latest.yml",
   ]);
   state.current.body = "Maintainer edited release notes";
   writeFileSync(statePath, JSON.stringify(state));
@@ -309,4 +374,14 @@ test("a corrupted upload stays a draft; retrying an older version preserves the 
   publish();
   assert.equal((JSON.parse(readFileSync(statePath, "utf8")) as typeof state).current.draft, false);
   assert.equal((JSON.parse(readFileSync(statePath, "utf8")) as typeof state).current.latest, false);
+});
+
+test("missing Windows assets prevent publishing even when the macOS build is complete", () => {
+  const { root, release } = setup();
+  const { statePath, assets, publish } = githubFixture(root);
+  writeFileSync(statePath, JSON.stringify({ previous: [release("v0.0.1")] }));
+  rmSync(join(assets, "Eta-0.0.3-win-x64.exe"));
+  const before = readFileSync(statePath, "utf8");
+  assert.throws(publish, /ENOENT/);
+  assert.equal(readFileSync(statePath, "utf8"), before);
 });

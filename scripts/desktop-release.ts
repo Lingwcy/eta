@@ -144,11 +144,14 @@ export function releaseNotes(root: string, tag: string, repository: string, prev
   return `${introduction}\n\n${sections.join("\n\n")}\n\n[完整提交记录](${compare})\n`;
 }
 
-/** Both architecture files must exist before a release draft is created. */
+/** Every supported platform installer must exist before a release draft is created. */
 export function installerChecksums(directory: string, tag: string) {
   const expected = version(tag);
-  return ["arm64", "x64"].map((arch) => {
-    const name = `Eta-${expected}-mac-${arch}.dmg`;
+  return [
+    `Eta-${expected}-mac-arm64.dmg`,
+    `Eta-${expected}-mac-x64.dmg`,
+    `Eta-${expected}-win-x64.exe`,
+  ].map((name) => {
     const path = join(directory, name);
     const data = readFileSync(path);
     if (!data.length) throw new Error(`Empty installer: ${name}`);
@@ -211,6 +214,31 @@ export function updateFeed(directory: string, tag: string) {
   return [...uploads.filter((upload) => !upload.endsWith(".dmg")), path];
 }
 
+/** NSIS installs from the EXE referenced by latest.yml, including its differential blockmap. */
+export function windowsUpdateFeed(directory: string, tag: string) {
+  const expected = version(tag);
+  const path = join(directory, "latest.yml");
+  const feed = parse(readFileSync(path, "utf8")) as UpdateFeed;
+  if (feed.version !== expected)
+    throw new Error(`Update feed version ${feed.version} does not match ${tag}`);
+  const name = `Eta-${expected}-win-x64.exe`;
+  const file = feed.files.find((file) => file.url === name);
+  if (!file) throw new Error(`Update feed is missing ${name}`);
+  // This release builds only x64; reject references to assets that will not be uploaded.
+  if (feed.files.length !== 1 || feed.path !== name || feed.sha512 !== file.sha512)
+    throw new Error("Windows update feed contains unexpected installer references");
+  const installer = join(directory, name);
+  const data = readFileSync(installer);
+  if (
+    createHash("sha512").update(data).digest("base64") !== file.sha512 ||
+    data.length !== file.size
+  )
+    throw new Error(`Update feed checksum mismatch: ${name}`);
+  const blockmap = `${installer}.blockmap`;
+  if (!readFileSync(blockmap).length) throw new Error(`Empty blockmap: ${name}`);
+  return [blockmap, path];
+}
+
 /** Publish only complete drafts; reruns leave an already published release unchanged. */
 export function publishRelease(root: string, tag: string, directory: string, repository: string) {
   const revision = validateRelease(root, tag);
@@ -227,7 +255,7 @@ export function publishRelease(root: string, tag: string, directory: string, rep
   }
   const previous = previousRelease(root, tag, releases);
   const installers = installerChecksums(directory, tag);
-  const updates = updateFeed(directory, tag);
+  const updates = [...updateFeed(directory, tag), ...windowsUpdateFeed(directory, tag)];
   const signed = process.env.ETA_SIGNED_RELEASE === "1";
   const checksumText = installers.map(({ name, digest }) => `${digest}  ${name}`).join("\n") + "\n";
   const checksumsPath = join(directory, "SHA256SUMS.txt");
@@ -237,7 +265,7 @@ export function publishRelease(root: string, tag: string, directory: string, rep
     : "本版本使用 ad-hoc 签名，未经过 Apple Developer ID 签名或公证。若 macOS 阻止首次打开，请确认下载来源后，在「系统设置 → 隐私与安全性」中允许打开。";
   const notes =
     releaseNotes(root, tag, repository, previous) +
-    `\n### macOS 安装包\n\n- Apple Silicon：\`${installers[0]!.name}\`\n- Intel：\`${installers[1]!.name}\`\n\n打开对应 DMG，将 Eta 拖入 Applications 文件夹。\n\n${signing}\n\n### SHA-256\n\n\`\`\`text\n${checksumText}\`\`\`\n\n源码提交：\`${revision}\`。\n`;
+    `\n### macOS 安装包\n\n- Apple Silicon：\`${installers[0]!.name}\`\n- Intel：\`${installers[1]!.name}\`\n\n打开对应 DMG，将 Eta 拖入 Applications 文件夹。\n\n${signing}\n\n### Windows 安装包\n\n- Windows x64：\`${installers[2]!.name}\`\n\n运行 EXE 安装 Eta。此版本未签名，Windows 可能显示 SmartScreen 提示。使用命令执行工具需要先安装 Git for Windows（含 Git Bash）。\n\n### SHA-256\n\n\`\`\`text\n${checksumText}\`\`\`\n\n源码提交：\`${revision}\`。\n`;
   writeFileSync(checksumsPath, checksumText);
   writeFileSync(notesPath, notes);
   if (existing) gh(["release", "edit", tag, "--repo", repository, "--notes-file", notesPath]);
