@@ -36,11 +36,11 @@ Eta first offers the agent skill names and descriptions. The agent loads instruc
 
 ## Subagents
 
-Open the right sidebar from the top-right window control (**Alt+←**) to inspect delegated work. Click a task to open its conversation in the main content area. Send another message after its task finishes to continue working. Independent children receive their assigned task and project instructions; forked children inherit the conversation history at creation.
+Open the right sidebar from the top-right window control (**Alt+←**) to inspect delegated work. Click a task to open its conversation and view reported progress. Send a message while it is working to adjust its direction or request a summary of existing findings; sending to a settled or paused task continues the same conversation. Independent children receive their assigned task and project instructions; forked children inherit the conversation history at creation.
 
-Use **Settings → Subagents** to create presets with instructions, thinking levels, and candidate models. The model scope follows the current main model by default; enable other models in the model picker. Set nesting depth and concurrency per chat. Opportunistic mode delegates when useful. Orchestrator mode delegates tool execution while the main conversation handles discussion, coordination, and results.
+Use **Settings → Subagents** to create presets with instructions, thinking levels, and candidate models. Enable further delegation only for presets that coordinate other agents; workers complete their assigned task directly by default. The model scope follows the current main model by default; enable other models in the model picker. Set nesting depth and concurrency per chat. Opportunistic mode delegates when useful. Orchestrator mode delegates tool execution while the main conversation handles discussion, coordination, and results.
 
-The main task stays running while waiting for children, then resumes with their results and summarizes them. Sending is disabled while it waits. Stopping the main task stops its entire child tree and retains history so you can send another task later. Reopening unfinished work requires an explicit resume or stop. Back up the entire session directory: all agents share the main JSONL transcript, and task recovery also needs the adjacent state files.
+In orchestrator mode the main conversation remains available between coordinating turns while children keep working. Completion events bring it back to summarize their results. A wait timeout does not stop the child. Stopping cancels work without producing a final answer; saved progress and history remain available. Stopping the main task stops its entire child tree. Reopening unfinished work requires an explicit resume or stop. Back up the entire session directory: all agents share the main JSONL transcript, and task recovery also needs the adjacent state files.
 
 ## Run locally
 
@@ -58,16 +58,3 @@ vp run package:mac
 ```
 
 The `.dmg` is saved to `apps/desktop/dist/release/`.
-
-## Publish a release
-
-Update the versions in `package.json` and `apps/desktop/package.json`, commit and push the change, then push a matching stable tag:
-
-```sh
-git tag -a v0.0.3 -m "Eta v0.0.3"
-git push origin v0.0.3
-```
-
-The macOS release workflow tests the tagged source, builds Apple Silicon and Intel installers, and publishes both DMGs with a SHA-256 file. Chinese release notes group Conventional Commit descriptions since the previous published release; unpublished tags do not reset the changelog. A failed upload leaves a draft that can be completed by rerunning the workflow. Reruns preserve an already published release.
-
-Tag releases use ad-hoc signing by default. Set the repository variable `ETA_SIGNED_RELEASE` to `1` and configure the Apple signing secrets used by the workflow to enable Developer ID signing and notarization. The manual workflow still supports building installers from a branch without publishing a release.

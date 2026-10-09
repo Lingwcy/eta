@@ -12,7 +12,6 @@ node_modules
 dist
 dist-ssr
 *.local
-docs/*
 # dotenv environment variable files
 .env
 .env.*

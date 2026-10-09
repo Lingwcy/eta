@@ -94,3 +94,7 @@ Most code changes do not need an internal documentation change. Agents can read 
 
 - Don't verify with browsers or computer use unless the user explicitly agrees or requests it.
 - Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features.
+
+## Release
+
+read file path: docs/release.md
