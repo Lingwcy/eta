@@ -1,4 +1,5 @@
-import type { SubagentCommand, SubagentSummary } from "../../../subagents.ts";
+import { canGenerateTitle, applyInputTitle, applyManualTitle } from "../titles/policy.ts";
+import type { SubagentCommand, SubagentSummary } from "../../../shared/subagents.ts";
 import type { SnapshotResponse } from "../../../agent/protocol.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
 import type { ImageAttachment } from "../../../images/types.ts";
@@ -22,7 +23,7 @@ import { RuntimeRegistryService } from "../runtime/index.ts";
 import { SessionRepositoryService } from "../sessions/index.ts";
 import { DesktopSettingsService } from "../settings/index.ts";
 import { WorkspaceService } from "../workspaces/index.ts";
-import type { ThreadMetadata } from "./type.ts";
+import type { ThreadMetadata } from "../../../shared/threads.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { startTitle } from "./title.ts";
 import { SkillsDoc } from "../skills/extension.ts";
@@ -339,9 +340,7 @@ export class ThreadService extends Context.Service<
             ? Effect.fail(
                 new DesktopServiceError({ code: "InvalidInput", message: "标题不能为空" }),
               )
-            : locked(
-                change(id, (thread) => ({ ...thread, title: title.trim(), titleSource: "manual" })),
-              ),
+            : locked(change(id, (thread) => applyManualTitle(thread, title))),
         archive: (id, archived) =>
           locked(
             Effect.gen(function* () {
@@ -377,9 +376,7 @@ export class ThreadService extends Context.Service<
             Effect.gen(function* () {
               const runtime = yield* runtimeFor(id, true);
               const current = yield* get(id);
-              const automatic =
-                current.titleSource === "temporary" ||
-                (current.titleSource === undefined && current.title === "新会话");
+              const automatic = canGenerateTitle(current);
               const titleModel = automatic
                 ? ((yield* settings.read).titleModel ??
                   (yield* Effect.promise(() => runtime.conversation.agent(BACKGROUND_CONTEXT)))
@@ -387,19 +384,11 @@ export class ThreadService extends Context.Service<
                 : undefined;
               const admission = yield* runs.submit(runtime, prompt, requestId, images);
               yield* change(id, (thread) => ({
-                ...thread,
-                title:
-                  automatic &&
-                  thread.titleSource !== "generated" &&
-                  thread.titleSource !== "manual" &&
-                  thread.title === "新会话"
-                    ? (prompt.trim() || images?.[0]?.name || "图片会话").slice(0, 80)
-                    : thread.title,
-                ...(automatic &&
-                thread.titleSource !== "generated" &&
-                thread.titleSource !== "manual"
-                  ? { titleSource: "temporary" as const }
-                  : {}),
+                ...applyInputTitle(
+                  thread,
+                  prompt.trim() || images?.[0]?.name || "图片会话",
+                  automatic,
+                ),
                 sessionRef: {
                   ...thread.sessionRef,
                   metadata: { ...thread.sessionRef.metadata, modifiedAt: admission.startedAt },

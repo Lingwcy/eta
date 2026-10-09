@@ -1,4 +1,4 @@
-import { SubagentCommandSchema, SubagentSettingsSchema } from "./service/subagents/schema.ts";
+import { SubagentCommandSchema, SubagentSettingsSchema } from "../shared/subagent-schema.ts";
 import { builtinToolNames } from "../tools.ts";
 import { agentThinkingVariants } from "../appearance.ts";
 import { Schema } from "effect";
@@ -8,7 +8,7 @@ import { DesktopServiceError } from "./service/errors.ts";
 import { ProjectError } from "./service/projects/index.ts";
 import { CatalogStorageError } from "./service/catalog/json-store.ts";
 import { CatalogValidationError } from "./service/catalog/schema.ts";
-import { TitleModelSchema } from "./service/settings/index.ts";
+import { TitleModelSchema } from "../shared/settings-schema.ts";
 
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);

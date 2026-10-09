@@ -37,3 +37,20 @@ test("reading position selects the last turn above the viewport reading line", (
   expect(getActiveTurn(positions, -200)).toBe("first");
   expect(getActiveTurn([], 48)).toBeUndefined();
 });
+
+test("turn previews use the same phase-aware text as the root and subagent transcripts", () => {
+  const text = "已委托 subagent 计算，正在等待结果。";
+  const message = fauxAssistantMessage(
+    (["commentary", "final_answer"] as const).map((phase) => ({
+      type: "text" as const,
+      text,
+      textSignature: JSON.stringify({ v: 1, id: `message-${phase}`, phase }),
+    })),
+  );
+  expect(
+    getChatTurns([
+      { id: "user", message: { role: "user", content: "使用 subagent 计算 1+1", timestamp: 1 } },
+      { id: "assistant", message },
+    ])[0]?.preview,
+  ).toBe(text);
+});

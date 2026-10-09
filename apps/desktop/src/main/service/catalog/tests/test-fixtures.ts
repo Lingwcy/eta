@@ -1,4 +1,4 @@
-import type { CatalogState } from "../type.ts";
+import type { CatalogState } from "../../../../shared/catalog.ts";
 
 export function catalogFixture(): CatalogState {
   return {

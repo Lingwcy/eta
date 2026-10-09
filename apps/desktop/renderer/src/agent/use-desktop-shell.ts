@@ -1,3 +1,4 @@
+import { projectRootWorkspace } from "@/desktop/selectors";
 import { useSubagents } from "./use-subagents";
 import { inspectedConversation } from "./inspector";
 import { useCallback, useState } from "react";
@@ -37,7 +38,7 @@ export function useDesktopShell() {
       if (!project) return;
       const library = await desktop.refresh();
       navigation.tabs.newConversation(
-        library.workspaces.find((workspace) => workspace.projectId === project.id)?.id ?? null,
+        projectRootWorkspace(library.workspaces, project.id)?.id ?? null,
       );
     });
   const selectThread = (id: string) => {
@@ -45,7 +46,7 @@ export function useDesktopShell() {
     if (thread) navigation.tabs.openThread(thread.id, thread.workspaceId);
   };
   const reconnect = () => setVersion((value) => value + 1);
-  const refreshSettings = async () => {
+  const refreshAuthentication = async () => {
     await desktop.refresh();
     reconnect();
   };
@@ -71,7 +72,7 @@ export function useDesktopShell() {
     chooseProject,
     selectThread,
     reconnect,
-    refreshSettings,
+    refreshAuthentication,
     expandSidebar: () => setCollapsed(false),
   };
 }

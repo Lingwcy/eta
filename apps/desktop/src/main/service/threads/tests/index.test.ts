@@ -27,10 +27,10 @@ import { DesktopSettingsService } from "../../settings/index.ts";
 import { WorkspaceService } from "../../workspaces/index.ts";
 import { ThreadService } from "../index.ts";
 import { SkillsService } from "../../skills/index.ts";
-import { TitleDoc, TITLE_TASK_KIND } from "../title.ts";
+import { TitleDoc, TITLE_TASK_KIND } from "../../../../agent/extension/title/task.ts";
 import { getTools } from "../../../../../renderer/src/agent/selectors.ts";
-import { defaultSubagentSettings } from "../../../../subagents.ts";
-import { SubagentsDoc } from "../../subagents/extension.ts";
+import { defaultSubagentSettings } from "../../../../shared/subagents.ts";
+import { SubagentsDoc } from "../../../../agent/extension/subagent/index.ts";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];
@@ -1026,22 +1026,22 @@ test("SIGKILL during streaming reopens paused and explicit resume settles the sa
     diagnostics += chunk.toString();
   });
   try {
-    const crashed = await new Promise<{ thread: import("../type.ts").ThreadMetadata }>(
-      (resolve, reject) => {
-        const timeout = setTimeout(
-          () => reject(new Error(`Crash worker timed out: ${diagnostics}`)),
-          8000,
-        );
-        child.once("message", (message) => {
-          clearTimeout(timeout);
-          resolve(message as { thread: import("../type.ts").ThreadMetadata });
-        });
-        child.once("exit", (code) => {
-          clearTimeout(timeout);
-          reject(new Error(`Crash worker exited ${code}: ${diagnostics}`));
-        });
-      },
-    );
+    const crashed = await new Promise<{
+      thread: import("../../../../shared/threads.ts").ThreadMetadata;
+    }>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error(`Crash worker timed out: ${diagnostics}`)),
+        8000,
+      );
+      child.once("message", (message) => {
+        clearTimeout(timeout);
+        resolve(message as { thread: import("../../../../shared/threads.ts").ThreadMetadata });
+      });
+      child.once("exit", (code) => {
+        clearTimeout(timeout);
+        reject(new Error(`Crash worker exited ${code}: ${diagnostics}`));
+      });
+    });
     const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
     child.kill("SIGKILL");
     await exited;

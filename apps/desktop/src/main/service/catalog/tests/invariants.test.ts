@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
-import type { CatalogState } from "../type.ts";
-import type { ThreadMetadata } from "../../threads/type.ts";
+import type { CatalogState } from "../../../../shared/catalog.ts";
+import type { ThreadMetadata } from "../../../../shared/threads.ts";
 import { validateCatalog } from "../invariants.ts";
 
 function thread(id: string, workspaceId: string, cwd: string, sessionId = id): ThreadMetadata {

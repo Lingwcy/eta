@@ -19,8 +19,8 @@ import {
   AppWindow,
 } from "lucide-react";
 import type { DesktopLibraryController } from "@/agent/use-desktop-library";
-import type { ThreadMetadata } from "../../../../src/main/service/threads/type.ts";
-import { threadProjectId } from "../../../../src/main/service/threads/project.ts";
+import type { ThreadMetadata } from "../../../../src/shared/threads.ts";
+import { threadProjectId } from "../../../../src/shared/thread-project.ts";
 import {
   ContextMenu,
   ContextMenuTrigger,

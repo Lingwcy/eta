@@ -1,4 +1,5 @@
-import { threadProjectId } from "../../../src/main/service/threads/project.ts";
+import { projectRootWorkspace } from "@/desktop/selectors";
+import { threadProjectId } from "../../../src/shared/thread-project.ts";
 import { ThreadContextMenu } from "./threads/thread-actions";
 import { Button } from "./ui/button";
 import { SlidingLabel } from "./sidebar/sliding-label";
@@ -29,9 +30,9 @@ export function DesktopSidebar(props: Props) {
   const [archived, setArchived] = useState(false);
   const sidebarWorkspace = (thread: DesktopLibrary["threads"][number]) => {
     if (thread.projectId === undefined) return thread.workspaceId;
-    return props.library?.workspaces.find(
-      (workspace) => workspace.projectId === thread.projectId && workspace.kind === "project-root",
-    )?.id;
+    return props.library
+      ? projectRootWorkspace(props.library.workspaces, thread.projectId)?.id
+      : undefined;
   };
   const ungrouped =
     props.library?.threads.filter(

@@ -58,7 +58,9 @@ export function DesktopPanels({ shell }: { shell: DesktopShell }) {
                       act={shell.desktop.act}
                       error={shell.desktop.error}
                       reconnect={shell.reconnect}
-                      refresh={shell.refreshSettings}
+                      refreshAuthentication={shell.refreshAuthentication}
+                      updateSettings={shell.desktop.updateSettings}
+                      mainModel={shell.desktop.mainModel}
                       onClose={() => tabs.close(tab.id)}
                     />
                   ) : (

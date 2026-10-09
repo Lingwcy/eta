@@ -7,7 +7,7 @@ import { AppPathsService } from "../../../platform/app-paths.ts";
 import { DesktopCatalogService } from "../index.ts";
 import { CatalogStorageError, CatalogStoreService } from "../json-store.ts";
 import { catalogFixture } from "./test-fixtures.ts";
-import type { CatalogState } from "../type.ts";
+import type { CatalogState } from "../../../../shared/catalog.ts";
 
 const directories: string[] = [];
 const runtimes: ManagedRuntime.ManagedRuntime<DesktopCatalogService, unknown>[] = [];

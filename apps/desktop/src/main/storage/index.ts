@@ -1,8 +1,8 @@
 import { lstat, readdir, realpath } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { threadProjectId } from "../service/threads/project.ts";
-import type { CatalogState } from "../service/catalog/type.ts";
-import type { StorageReport, StorageTarget } from "./types.ts";
+import { threadProjectId } from "../../shared/thread-project.ts";
+import type { CatalogState } from "../../shared/catalog.ts";
+import type { StorageReport, StorageTarget } from "../../shared/storage.ts";
 
 /** Count session files without reading transcripts or following directory links. */
 export async function scanStorage(root: string, catalog: CatalogState): Promise<StorageReport> {

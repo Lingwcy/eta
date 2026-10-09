@@ -1,9 +1,8 @@
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
-import { createSubagentsExtension, SubagentsDoc } from "../subagents/extension.ts";
-import { omitImages } from "../../../images/content.ts";
+import { createSubagentsExtension, SubagentsDoc } from "../../../agent/extension/subagent/index.ts";
 import { DesktopSettingsService } from "../settings/index.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { Harness, ROOT_CONVERSATION_ID, GenerationTask, hook } from "@eta/agent";
+import { Harness, ROOT_CONVERSATION_ID } from "@eta/agent";
 import type { AgentChange, Conversation, ConversationWatch, Storage } from "@eta/agent";
 import { NodeExecutionEnv } from "@eta/agent/env/node";
 import { Context, Effect, Layer } from "effect";
@@ -12,11 +11,13 @@ import { ModelCatalogService } from "../models/index.ts";
 import { AgentResourcesService } from "../resources/index.ts";
 import { SessionRepositoryService } from "../sessions/index.ts";
 import { normalizeThinkingLevel } from "../conversations/thinking.ts";
-import type { EtaSessionMetadata } from "../sessions/type.ts";
-import { DesktopCatalogService } from "../catalog/index.ts";
-import { createTitleTask, TitleDoc, TITLE_TASK_KIND } from "../threads/title.ts";
+import type { EtaSessionMetadata } from "../../../shared/sessions.ts";
+import { ThreadTitleService } from "../titles/index.ts";
+import { createRuntimeTools } from "./tools.ts";
+import { recoverRuntime, hasForegroundWork } from "./recovery.ts";
+import { createTitleTask, TitleDoc } from "../../../agent/extension/title/task.ts";
 import { SkillsService } from "../skills/index.ts";
-import { createSkillsExtension, SkillsDoc } from "../skills/extension.ts";
+import { SkillsDoc } from "../skills/extension.ts";
 
 export interface ThreadRuntime {
   readonly hasWork: () => Promise<boolean>;
@@ -57,7 +58,7 @@ export class RuntimeRegistryService extends Context.Service<
       const preferences = yield* DesktopSettingsService;
       const skillsService = yield* SkillsService;
       const resources = yield* AgentResourcesService;
-      const catalog = yield* DesktopCatalogService;
+      const titles = yield* ThreadTitleService;
       const opening = new Map<string, Promise<ThreadRuntime>>();
       const releasing = new Map<string, Promise<void>>();
       let closing = false;
@@ -78,6 +79,9 @@ export class RuntimeRegistryService extends Context.Service<
           );
           registry.install({ name: "desktop-thread-title", tasks: [titleTask] });
           const subagents = createSubagentsExtension({
+            invalid: (message) => {
+              throw new DesktopServiceError({ code: "InvalidInput", message });
+            },
             harness: () => harness!,
             ready: () => runtimeRecord !== undefined && !runtimeRecord.recoveryRequired,
             settings: async () => (await Effect.runPromise(preferences.read)).subagents,
@@ -93,60 +97,15 @@ export class RuntimeRegistryService extends Context.Service<
             instructions: () => Effect.runPromise(resources.instructions(ref.metadata.cwd)),
           });
           registry.install(subagents.extension);
-          const codingTools = registry.snapshot().extension("coding-tools")!;
-          let skills = createSkillsExtension(
-            { directories: [], skills: [], issues: [] },
-            { defaultThinkingLevel: "off" },
-          );
-          const refreshTools = async () => {
-            const settings = await Effect.runPromise(preferences.read);
-            const subagentsEnabled = settings.subagents?.enabled !== false;
-            // Keep task definitions installed so existing delegates can finish or be stopped while disabled.
-            registry.install({
-              ...subagents.extension,
-              tools: subagentsEnabled
-                ? [subagents.tool, subagents.updateTool]
-                : [subagents.updateTool],
-            });
-            const disabled = new Set<string>(settings.disabledTools ?? []);
-            registry.install({
-              ...codingTools,
-              tools: codingTools.tools?.filter((tool) => !disabled.has(tool.name)),
-            });
-            const state =
-              harness &&
-              (await harness.snapshot(SkillsDoc, ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT));
-            skills = createSkillsExtension(
-              await Effect.runPromise(skillsService.catalog(ref.metadata.cwd)),
-              settings,
-              Boolean(state?.active.length),
-            );
-            registry.install(skills.extension);
-            if (harness) {
-              const root = await harness.conversation(ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT);
-              await root?.configure(
-                {
-                  tools:
-                    subagentsEnabled && settings.subagents?.mode === "orchestrator"
-                      ? [subagents.tool]
-                      : { remove: [subagents.updateTool] },
-                },
-                BACKGROUND_CONTEXT,
-              );
-            }
-          };
-          await refreshTools();
-          registry.install({
-            name: "desktop-image-settings",
-            hooks: [
-              hook(GenerationTask, {
-                beforeRequest: async ({ messages }) =>
-                  (await Effect.runPromise(preferences.read)).blockImages
-                    ? { messages: omitImages(messages) }
-                    : undefined,
-              }),
-            ],
+          const tools = createRuntimeTools({
+            registry,
+            harness: () => harness,
+            subagents,
+            readSettings: () => Effect.runPromise(preferences.read),
+            skillCatalog: () => Effect.runPromise(skillsService.catalog(ref.metadata.cwd)),
           });
+          const refreshTools = tools.refresh;
+          await refreshTools();
           harness = await Harness.open(
             storage,
             {
@@ -182,28 +141,7 @@ export class RuntimeRegistryService extends Context.Service<
               code: "StorageCorrupt",
               message: "持久会话缺少根 conversation",
             });
-          // Finish a persisted stop intent after interruption before allowing any model work to resume.
-          const delegated = await harness.snapshot(SubagentsDoc, BACKGROUND_CONTEXT);
-          if (delegated?.stopping) await subagents.stopAll();
-          else {
-            for (const child of delegated?.agents.filter(
-              (child) =>
-                child.stopping &&
-                !delegated.agents.find((parent) => parent.path === child.parent)?.stopping,
-            ) ?? []) {
-              await subagents.execute(
-                { action: "stop", path: child.path },
-                ROOT_CONVERSATION_ID,
-                `recover-stop:${child.path}`,
-              );
-            }
-          }
-          const inspection = await harness.inspect(BACKGROUND_CONTEXT);
-          const recoveryRequired =
-            inspection.submissions.length > 0 ||
-            inspection.tasks.some(
-              ({ record }) => record.kind !== TITLE_TASK_KIND || !record.background,
-            );
+          const { inspection, recoveryRequired } = await recoverRuntime(harness, subagents);
           // Idle history can contain levels saved before the picker respected model capabilities.
           // Pending work retains its pinned request configuration until it is resumed or stopped.
           if (!recoveryRequired) await normalizeThinkingLevel(conversation, models);
@@ -212,14 +150,10 @@ export class RuntimeRegistryService extends Context.Service<
             subagents,
             hasWork: async () => {
               const inspection = await harness!.inspect(BACKGROUND_CONTEXT);
-              return (
-                inspection.submissions.length > 0 ||
-                inspection.tasks.some(({ record }) => record.kind !== TITLE_TASK_KIND)
-              );
+              return hasForegroundWork(inspection);
             },
             refreshTools,
-            prepareSkills: (prompt) =>
-              skills.activateExplicit(conversation, prompt, record.harness),
+            prepareSkills: (prompt) => tools.prepareSkills(conversation, prompt),
             conversation,
             titleTask,
             storage,
@@ -261,40 +195,13 @@ export class RuntimeRegistryService extends Context.Service<
           subagentWatch?.start(async () => {
             for (const notify of record.changes) notify();
           });
-          const titleWatch = await harness.watchDoc(TitleDoc, conversation.id, BACKGROUND_CONTEXT);
-          let titleDelivery = Promise.resolve();
-          const publishTitle = (value: NonNullable<typeof titleWatch>["value"]) => {
-            titleDelivery = Effect.runPromise(
-              Effect.gen(function* () {
-                const title = value?.title;
-                if (!title || record.disposed) return;
-                const current = (yield* catalog.read).threads.find(
-                  (thread) => thread.sessionRef.metadata.id === ref.metadata.id,
-                );
-                if (current?.titleSource !== "temporary") return;
-                yield* catalog.update((state) => ({
-                  ...state,
-                  threads: state.threads.map((thread) =>
-                    thread.id === current.id && thread.titleSource === "temporary"
-                      ? { ...thread, title, titleSource: "generated" as const }
-                      : thread,
-                  ),
-                }));
-              }).pipe(Effect.catch((error) => Effect.logError(error.message))),
-            );
-            return titleDelivery;
-          };
-          if (titleWatch) {
-            await publishTitle(titleWatch.value);
-            titleWatch.start(publishTitle);
-          }
+          const stopTitle = await Effect.runPromise(titles.watch(record));
           cleanups.set(record, async () => {
             record.disposed = true;
             unsubscribeSettings();
             await settingsDelivery;
             await subagentWatch?.stop();
-            await titleWatch?.stop();
-            await titleDelivery;
+            await stopTitle();
             await Promise.all([...record.watches].map((watch) => watch.stop()));
             record.watches.clear();
             record.changes.clear();

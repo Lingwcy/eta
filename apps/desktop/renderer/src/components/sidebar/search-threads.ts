@@ -1,4 +1,4 @@
-import { threadProjectId } from "../../../../src/main/service/threads/project.ts";
+import { threadProjectId } from "../../../../src/shared/thread-project.ts";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 
 /** Searches titles and project names without opening any history runtimes. */

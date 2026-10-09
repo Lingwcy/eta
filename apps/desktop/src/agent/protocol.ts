@@ -1,4 +1,4 @@
-import type { SubagentSummary } from "../subagents.ts";
+import type { SubagentSummary } from "../shared/subagents.ts";
 import type {
   Api,
   AssistantMessage,

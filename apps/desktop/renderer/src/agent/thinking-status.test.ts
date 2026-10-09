@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import type { AgentSnapshot } from "../../../src/agent/protocol.ts";
 import { ThinkingStatus } from "./thinking-status";
-import type { SubagentSummary } from "../../../src/subagents.ts";
+import type { SubagentSummary } from "../../../src/shared/subagents.ts";
 
 function snapshot(operation: Partial<NonNullable<AgentSnapshot["operation"]>> = {}): AgentSnapshot {
   return {

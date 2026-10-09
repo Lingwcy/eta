@@ -13,6 +13,7 @@ import { RunSupervisorService } from "./runs/index.ts";
 import { RuntimeRegistryService } from "./runtime/index.ts";
 import { SessionRepositoryService } from "./sessions/index.ts";
 import { DesktopSettingsService } from "./settings/index.ts";
+import { ThreadTitleService } from "./titles/index.ts";
 import { ThreadService } from "./threads/index.ts";
 import { SkillsService } from "./skills/index.ts";
 import { WorkspaceService } from "./workspaces/index.ts";
@@ -34,7 +35,9 @@ export function desktopServices(
   ).pipe(Layer.provideMerge(paths));
   const models = modelLayer.pipe(Layer.provideMerge(foundation));
   const settings = DesktopSettingsService.layer.pipe(Layer.provideMerge(models));
-  const skills = skillLayer.pipe(Layer.provideMerge(settings));
+  const skills = Layer.mergeAll(skillLayer, ThreadTitleService.layer).pipe(
+    Layer.provideMerge(settings),
+  );
   const domain = Layer.mergeAll(
     ProjectService.layer,
     WorkspaceService.layer,

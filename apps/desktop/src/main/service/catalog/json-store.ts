@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { Context, Effect, Layer, Schema } from "effect";
 import { AppPathsService } from "../../platform/app-paths.ts";
 import { CatalogValidationError, encodeCatalog, parseCatalog } from "./schema.ts";
-import type { CatalogState } from "./type.ts";
+import type { CatalogState } from "../../../shared/catalog.ts";
 
 export class CatalogStorageError extends Schema.TaggedError<CatalogStorageError>()(
   "CatalogStorageError",

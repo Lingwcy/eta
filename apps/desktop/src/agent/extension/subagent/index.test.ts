@@ -13,9 +13,15 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux";
 import { createRegistry, Harness, MemoryStorage, LiveDoc } from "@eta/agent";
-import { createSubagentsExtension, SubagentsDoc, childPath } from "./extension.ts";
-import { defaultSubagentSettings } from "../../../subagents.ts";
-import type { SubagentSettings } from "../../../subagents.ts";
+import { createSubagentsExtension, SubagentsDoc } from "./index.ts";
+import { childPath } from "./state.ts";
+import { DesktopServiceError } from "../../../main/service/errors.ts";
+import { defaultSubagentSettings } from "../../../shared/subagents.ts";
+import type { SubagentSettings } from "../../../shared/subagents.ts";
+
+const invalid = (message: string): never => {
+  throw new DesktopServiceError({ code: "InvalidInput", message });
+};
 
 async function setup(
   policy: SubagentSettings = defaultSubagentSettings,
@@ -30,6 +36,7 @@ async function setup(
   const registry = createRegistry();
   let harness: Harness;
   const manager = createSubagentsExtension({
+    invalid,
     harness: () => harness,
     settings: async () => policy,
     available: async (provider) => provider === "faux",
@@ -248,9 +255,9 @@ describe("desktop subagents", () => {
     }
   });
   it("validates paths independently of execution ancestry", () => {
-    expect(childPath("/root/worker", "review", false)).toBe("/review");
-    expect(childPath("/root/worker", "review", true)).toBe("/root/worker/review");
-    expect(() => childPath("/root", "../bad", true)).toThrow();
+    expect(childPath("/root/worker", "review", false, invalid)).toBe("/review");
+    expect(childPath("/root/worker", "review", true, invalid)).toBe("/root/worker/review");
+    expect(() => childPath("/root", "../bad", true, invalid)).toThrow();
   });
 });
 
@@ -1118,6 +1125,55 @@ it("stops live descendant conversations after their reporters are aborted and ke
     expect((await harness.inspect(context)).tasks).toHaveLength(0);
   } finally {
     answer.resolve(fauxAssistantMessage("done"));
+    await harness.close(context);
+  }
+});
+
+it("returns phase-aware output and reports it once while retaining the child's signed history", async () => {
+  const { harness, root, manager, settle, faux } = await setup();
+  const text = "1+1 = 2。";
+  const parts = (["commentary", "final_answer"] as const).map((phase) => ({
+    type: "text" as const,
+    text,
+    textSignature: JSON.stringify({ v: 1, id: `answer-${phase}`, phase }),
+  }));
+  faux.setResponses([
+    () => fauxAssistantMessage(parts),
+    () => fauxAssistantMessage("Summary: 1+1 = 2。"),
+  ]);
+  try {
+    await manager.execute(
+      { action: "spawn", name: "addition", message: "Compute 1+1" },
+      root.id,
+      "spawn",
+    );
+    await settle();
+    const child = (await manager.list())[0]!;
+    expect(child.output).toBe(text);
+    const output = JSON.parse(
+      await manager.execute({ action: "output", path: child.path }, root.id, "output"),
+    );
+    expect(output.output).toBe(text);
+    const parentMessages = (await root.context(context)).messages;
+    const reports = parentMessages.filter(
+      (message) =>
+        message.role === "user" &&
+        typeof message.content === "string" &&
+        message.content.startsWith("[/addition completed]"),
+    );
+    expect(reports).toHaveLength(1);
+    expect(reports[0]?.content).toContain(
+      `[/addition completed] ${text}\n\nThis is a subagent report`,
+    );
+    const conversation = (await harness.conversation(
+      child.conversationId as typeof root.id,
+      context,
+    ))!;
+    const answer = (await conversation.context(context)).messages.find(
+      (message) => message.role === "assistant",
+    );
+    expect(answer?.content).toEqual(parts);
+  } finally {
     await harness.close(context);
   }
 });

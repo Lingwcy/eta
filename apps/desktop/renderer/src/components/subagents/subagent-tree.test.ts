@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import type { SubagentSummary } from "../../../../src/subagents.ts";
+import type { SubagentSummary } from "../../../../src/shared/subagents.ts";
 import { subagentTree } from "./subagent-tree";
 
 const agent = (path: string, parent = "/root"): SubagentSummary => ({

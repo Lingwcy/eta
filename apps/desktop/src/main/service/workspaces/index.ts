@@ -4,7 +4,7 @@ import { Context, DateTime, Effect, Layer } from "effect";
 import { DesktopCatalogService } from "../catalog/index.ts";
 import type { CatalogError } from "../catalog/json-store.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
-import type { WorkspaceMetadata } from "./type.ts";
+import type { WorkspaceMetadata } from "../../../shared/workspaces.ts";
 
 export class WorkspaceService extends Context.Service<
   WorkspaceService,

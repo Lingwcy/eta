@@ -1,5 +1,5 @@
-import type { CatalogState } from "../catalog/type.ts";
-import type { ThreadMetadata } from "./type.ts";
+import type { CatalogState } from "./catalog.ts";
+import type { ThreadMetadata } from "./threads.ts";
 
 /** Sidebar ownership is independent of the immutable execution workspace. */
 export function threadProjectId(thread: ThreadMetadata, catalog: Pick<CatalogState, "workspaces">) {

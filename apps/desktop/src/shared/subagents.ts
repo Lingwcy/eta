@@ -1,7 +1,4 @@
-import type {
-  SubagentSettingsSchema,
-  SubagentCommandSchema,
-} from "./main/service/subagents/schema.ts";
+import type { SubagentSettingsSchema, SubagentCommandSchema } from "./subagent-schema.ts";
 
 export type SubagentSettings = typeof SubagentSettingsSchema.Type;
 export const defaultSubagentSettings: SubagentSettings = {

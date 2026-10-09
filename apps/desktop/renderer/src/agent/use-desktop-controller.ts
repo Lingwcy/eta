@@ -1,3 +1,4 @@
+import { defaultModel, projectRootWorkspace } from "@/desktop/selectors";
 import type { ImageAttachment } from "../../../src/images/types.ts";
 import { useEffect, useState } from "react";
 import { useThinkingStatus } from "./use-thinking-status";
@@ -30,13 +31,7 @@ export function useDesktopController(
   const project = desktop.library?.projects.find((project) => project.id === workspace?.projectId);
   const snapshot = agent.observation?.snapshot;
   const mainModel =
-    agent.session?.model ??
-    desktop.library?.models.find(
-      (model) =>
-        model.provider === desktop.library?.settings.defaultProvider &&
-        model.id === desktop.library?.settings.defaultModel,
-    ) ??
-    desktop.library?.models[0];
+    agent.session?.model ?? (desktop.library ? defaultModel(desktop.library) : undefined);
   useEffect(() => {
     if (active)
       desktop.selectMainModel(mainModel && { provider: mainModel.provider, modelId: mainModel.id });
@@ -62,9 +57,7 @@ export function useDesktopController(
     await desktop.act(async () => {
       const project = await window.eta.registerProject(rootPath, name);
       const next = await desktop.refresh();
-      const workspace = next.workspaces.find(
-        (value) => value.projectId === project.id && value.kind === "project-root",
-      );
+      const workspace = projectRootWorkspace(next.workspaces, project.id);
       navigation.tabs.updateConversation(tab.id, { workspaceId: workspace?.id ?? null });
     });
   };

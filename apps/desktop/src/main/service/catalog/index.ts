@@ -2,7 +2,7 @@ import { Context, Effect, Layer, SynchronizedRef } from "effect";
 import { CatalogStoreService } from "./json-store.ts";
 import type { CatalogError } from "./json-store.ts";
 import { CATALOG_VERSION, decodeCatalog } from "./schema.ts";
-import type { CatalogState } from "./type.ts";
+import type { CatalogState } from "../../../shared/catalog.ts";
 
 export class DesktopCatalogService extends Context.Service<
   DesktopCatalogService,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Folder, ListTree, RefreshCw, SlidersHorizontal } from "lucide-react";
-import type { StorageReport, StorageTarget } from "../../../../src/main/storage/types.ts";
+import type { StorageReport, StorageTarget } from "../../../../src/shared/storage.ts";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { SearchInput } from "@/components/ui/search-input";

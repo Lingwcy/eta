@@ -4,7 +4,7 @@ import type { Conversation, ConversationId, DocumentReader, Tx } from "@eta/agen
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { SkillCatalog } from "../../../skills/types.ts";
 import { loadSkill } from "./catalog.ts";
-import type { DesktopSettings } from "../settings/index.ts";
+import type { DesktopSettings } from "../../../shared/settings.ts";
 import { DesktopServiceError } from "../errors.ts";
 
 type LoadedSkill = Awaited<ReturnType<typeof loadSkill>>;

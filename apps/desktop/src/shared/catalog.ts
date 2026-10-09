@@ -1,6 +1,6 @@
-import type { ProjectMetadata } from "../projects/type";
-import type { WorkspaceMetadata } from "../workspaces/type";
-import type { ThreadMetadata } from "../threads/type";
+import type { ProjectMetadata } from "./projects.ts";
+import type { WorkspaceMetadata } from "./workspaces.ts";
+import type { ThreadMetadata } from "./threads.ts";
 
 export interface CatalogState {
   readonly projects: ReadonlyArray<ProjectMetadata>;

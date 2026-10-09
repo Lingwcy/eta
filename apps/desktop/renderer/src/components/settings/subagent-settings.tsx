@@ -1,7 +1,9 @@
+import { defaultModel } from "@/desktop/selectors";
+import type { ModelSelection } from "@/desktop/selectors";
 import { useEffect, useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
-import { defaultSubagentSettings } from "../../../../src/subagents.ts";
-import type { SubagentSettings as Policy } from "../../../../src/subagents.ts";
+import { defaultSubagentSettings } from "../../../../src/shared/subagents.ts";
+import type { SubagentSettings as Policy } from "../../../../src/shared/subagents.ts";
 import { SettingsSection, SettingsRow } from "./settings-section";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,26 +63,20 @@ function SettingsNumber({
 
 export function SubagentSettings({
   library,
+  mainModel: activeModel,
   busy,
   onChange,
 }: {
   library: DesktopLibrary;
+  mainModel?: ModelSelection;
   busy: boolean;
   onChange: (subagents: Policy) => Promise<void>;
 }) {
   const policy = library.settings.subagents ?? defaultSubagentSettings;
   const enabled = policy.enabled !== false;
+  const fallback = defaultModel(library);
   const mainModel =
-    library.subagentDefaultModel ??
-    (() => {
-      const model =
-        library.models.find(
-          (model) =>
-            model.provider === library.settings.defaultProvider &&
-            model.id === library.settings.defaultModel,
-        ) ?? library.models[0];
-      return model && { provider: model.provider, modelId: model.id };
-    })();
+    activeModel ?? (fallback && { provider: fallback.provider, modelId: fallback.id });
   const enabledModels = policy.allowedModels?.length
     ? policy.allowedModels
     : mainModel

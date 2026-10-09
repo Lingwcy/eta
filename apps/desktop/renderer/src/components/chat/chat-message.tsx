@@ -1,3 +1,4 @@
+import { messageText } from "../../../../src/agent/message-text.ts";
 import { memo } from "react";
 import { EntranceAnimation, Reveal } from "@/components/ui/reveal";
 import { MessageMarkdown } from "./message-markdown";
@@ -18,13 +19,7 @@ export function ChatMessage({
   animate?: boolean;
 }) {
   if (message.role !== "user" && message.role !== "assistant") return null;
-  const text =
-    typeof message.content === "string"
-      ? message.content
-      : message.content
-          .filter((part) => part.type === "text")
-          .map((part) => part.text)
-          .join("\n");
+  const text = messageText(message);
   const images =
     typeof message.content === "string"
       ? []

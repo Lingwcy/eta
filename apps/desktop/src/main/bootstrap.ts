@@ -1,4 +1,4 @@
-import type { SubagentCommand } from "../subagents.ts";
+import type { SubagentCommand } from "../shared/subagents.ts";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, basename } from "node:path";
 import type { ImageAttachment, ImageSource, ImageProcessor } from "../images/types.ts";
@@ -21,11 +21,11 @@ import { desktopServices } from "./service/layer.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
 import { ProjectService } from "./service/projects/index.ts";
 import { DesktopSettingsService } from "./service/settings/index.ts";
-import type { DesktopSettings } from "./service/settings/index.ts";
+import type { DesktopSettings } from "../shared/settings.ts";
 import { ThreadService } from "./service/threads/index.ts";
 import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
-import type { StorageTarget } from "./storage/types.ts";
+import type { StorageTarget } from "../shared/storage.ts";
 
 /** Electron supplies directories here; the services never call app.getPath themselves. */
 export async function createDesktopApplication(

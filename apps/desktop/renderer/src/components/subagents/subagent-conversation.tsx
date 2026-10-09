@@ -3,7 +3,7 @@ import type { ImageAttachment } from "../../../../src/images/types.ts";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { SnapshotResponse } from "../../../../src/agent/protocol.ts";
-import type { SubagentSummary } from "../../../../src/subagents.ts";
+import type { SubagentSummary } from "../../../../src/shared/subagents.ts";
 import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { CompositeInput } from "@/components/input";
 import { Button } from "@/components/ui/button";

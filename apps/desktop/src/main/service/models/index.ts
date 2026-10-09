@@ -5,7 +5,7 @@ import type { AgentModel } from "../../../agent/protocol.ts";
 import { toAgentModel } from "../../../agent/model.ts";
 import { CredentialService } from "../credentials/index.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
-import type { DesktopSettings } from "../settings/index.ts";
+import type { DesktopSettings } from "../../../shared/settings.ts";
 
 export class ModelCatalogService extends Context.Service<
   ModelCatalogService,

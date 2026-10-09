@@ -1,15 +1,15 @@
-import type { SubagentCommand, SubagentSummary } from "./subagents.ts";
+import type { SubagentCommand, SubagentSummary } from "./shared/subagents.ts";
 import type { ImageAttachment, ImageSource } from "./images/types.ts";
 import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
 import type { OperationAdmission } from "./agent/protocol.ts";
 import type { SessionResponse, SnapshotResponse } from "./agent/protocol.ts";
 import type { AgentModel, ThinkingLevel } from "./agent/protocol.ts";
-import type { DesktopSettings } from "./main/service/settings/index.ts";
-import type { ProjectMetadata } from "./main/service/projects/type.ts";
-import type { WorkspaceMetadata } from "./main/service/workspaces/type.ts";
-import type { ThreadMetadata } from "./main/service/threads/type.ts";
+import type { DesktopSettings } from "./shared/settings.ts";
+import type { ProjectMetadata } from "./shared/projects.ts";
+import type { WorkspaceMetadata } from "./shared/workspaces.ts";
+import type { ThreadMetadata } from "./shared/threads.ts";
 import type { BrowserCommand, BrowserEvent, BrowserState } from "./browser/protocol.ts";
-import type { StorageReport, StorageTarget } from "./main/storage/types.ts";
+import type { StorageReport, StorageTarget } from "./shared/storage.ts";
 import type { SkillCatalog } from "./skills/types.ts";
 
 export type AgentEvent =
@@ -41,7 +41,6 @@ export interface AgentBridge {
 }
 
 export interface DesktopLibrary {
-  subagentDefaultModel?: { provider: string; modelId: string };
   projects: ReadonlyArray<ProjectMetadata>;
   workspaces: ReadonlyArray<WorkspaceMetadata>;
   threads: ReadonlyArray<ThreadMetadata>;

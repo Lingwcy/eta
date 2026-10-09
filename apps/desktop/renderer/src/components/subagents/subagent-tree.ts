@@ -1,4 +1,4 @@
-import type { SubagentSummary } from "../../../../src/subagents.ts";
+import type { SubagentSummary } from "../../../../src/shared/subagents.ts";
 
 export type SubagentNode = { agent: SubagentSummary; children: SubagentNode[] };
 

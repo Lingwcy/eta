@@ -10,7 +10,7 @@ import { ModelCatalogService } from "../../models/index.ts";
 import { agentThinkingVariants } from "../../../../appearance.ts";
 import { dispatchCommand } from "../../../ipc.ts";
 import type { DesktopApplication } from "../../../bootstrap.ts";
-import { defaultSubagentSettings } from "../../../../subagents.ts";
+import { defaultSubagentSettings } from "../../../../shared/subagents.ts";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];

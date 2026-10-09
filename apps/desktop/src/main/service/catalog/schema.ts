@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 import { Effect, Schema } from "effect";
 import { validateCatalog } from "./invariants.ts";
-import type { CatalogState } from "./type.ts";
+import type { CatalogState } from "../../../shared/catalog.ts";
 
 export const CATALOG_VERSION = 1;
 

@@ -1,3 +1,4 @@
+import { messageText } from "../../../../src/agent/message-text.ts";
 import type { AgentSnapshot } from "../../../../src/agent/protocol.ts";
 
 export interface ChatTurn {
@@ -12,13 +13,7 @@ export function getChatTurns(
 ): ChatTurn[] {
   const turns: ChatTurn[] = [];
   for (const { id, message } of messages) {
-    const text =
-      typeof message.content === "string"
-        ? message.content
-        : message.content
-            .filter((part) => part.type === "text")
-            .map((part) => part.text)
-            .join("\n");
+    const text = messageText(message);
     if (message.role === "user") turns.push({ id, title: text.trim() || "附件消息", preview: "" });
     else if (text && turns.length) {
       const turn = turns[turns.length - 1];

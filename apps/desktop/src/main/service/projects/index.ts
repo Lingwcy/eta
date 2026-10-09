@@ -4,7 +4,7 @@ import { basename } from "node:path";
 import { Context, DateTime, Effect, Layer, Schema } from "effect";
 import { DesktopCatalogService } from "../catalog/index.ts";
 import type { CatalogError } from "../catalog/json-store.ts";
-import type { ProjectMetadata, RegisterProjectInput } from "./type.ts";
+import type { ProjectMetadata, RegisterProjectInput } from "../../../shared/projects.ts";
 
 export class ProjectError extends Schema.TaggedError<ProjectError>()("ProjectError", {
   reason: Schema.Literals(["InvalidInput", "PathUnavailable", "NotDirectory", "NotFound"]),

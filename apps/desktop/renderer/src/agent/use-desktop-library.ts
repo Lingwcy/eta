@@ -1,75 +1,32 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DesktopLibrary } from "../../../src/bridge.ts";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { DesktopLibraryClient } from "@/desktop/library-client";
+import type { ModelSelection } from "@/desktop/selectors";
 
-/** Application catalog is shared; each tab owns its own selection and draft. */
+/** Catalog state comes from main; the last active conversation model is separate UI context. */
 export function useDesktopLibrary() {
-  const [library, setLibrary] = useState<DesktopLibrary | null>(null);
-  const [mainModel, setMainModel] = useState<DesktopLibrary["subagentDefaultModel"]>();
-  const selectMainModel = useCallback((model: DesktopLibrary["subagentDefaultModel"]) => {
+  const [client] = useState(() => new DesktopLibraryClient(window.eta));
+  const state = useSyncExternalStore(client.subscribe, client.getSnapshot);
+  const [mainModel, setMainModel] = useState<ModelSelection>();
+  const selectMainModel = useCallback((model: ModelSelection | undefined) => {
     setMainModel((current) =>
       current?.provider === model?.provider && current?.modelId === model?.modelId
         ? current
         : model,
     );
   }, []);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const mounted = useRef(false);
-  const busyRef = useRef(false);
-  const revision = useRef(0);
-  const refresh = useCallback(async () => {
-    const epoch = ++revision.current;
-    const next = await window.eta.library();
-    if (mounted.current && epoch === revision.current) setLibrary(next);
-    return next;
-  }, []);
-  const reportError = useCallback((error: unknown) => {
-    if (mounted.current) setError(error instanceof Error ? error.message : String(error));
-  }, []);
-  const reload = useCallback(() => {
-    void refresh().catch(reportError);
-  }, [refresh, reportError]);
   useEffect(() => {
-    mounted.current = true;
-    reload();
-    const unsubscribe = window.eta.subscribeLibrary(reload);
-    return () => {
-      unsubscribe();
-      mounted.current = false;
-      revision.current++;
-    };
-  }, [reload]);
-  const act = useCallback(
-    async (action: () => Promise<void>) => {
-      if (busyRef.current) return;
-      busyRef.current = true;
-      setBusy(true);
-      setError(null);
-      try {
-        await action();
-        await refresh();
-      } catch (error) {
-        reportError(error);
-      } finally {
-        busyRef.current = false;
-        if (mounted.current) setBusy(false);
-      }
-    },
-    [refresh, reportError],
-  );
-  const currentLibrary = useMemo(
-    () => (library ? { ...library, subagentDefaultModel: mainModel } : null),
-    [library, mainModel],
-  );
+    client.connect();
+    return () => client.dispose();
+  }, [client]);
   return {
-    library: currentLibrary,
+    ...state,
+    mainModel,
     selectMainModel,
-    error,
-    busy,
-    refresh,
-    reload,
-    act,
-    clearError: () => setError(null),
+    refresh: client.refresh,
+    reload: client.reload,
+    act: client.act,
+    updateSettings: client.updateSettings,
+    clearError: client.clearError,
   };
 }
 

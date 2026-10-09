@@ -8,7 +8,7 @@ import { Context, DateTime, Effect, Layer, Schema } from "effect";
 import { AppPathsService } from "../../platform/app-paths.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import { readJson, writeJson } from "../json-file.ts";
-import type { EtaSessionMetadata } from "./type.ts";
+import type { EtaSessionMetadata } from "../../../shared/sessions.ts";
 
 const IdentitySchema = Schema.Struct({
   version: Schema.Literal(1),

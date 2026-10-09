@@ -1,4 +1,4 @@
-import type { SessionRef } from "../sessions/type";
+import type { SessionRef } from "./sessions.ts";
 
 export interface ThreadMetadata {
   readonly requestId?: string;

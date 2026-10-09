@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { SkillCatalog } from "../../../../src/skills/types.ts";
-import type { DesktopSettings } from "../../../../src/main/service/settings/index.ts";
+import type { DesktopSettings } from "../../../../src/shared/settings.ts";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { SettingsRow, SettingsSection } from "./settings-section";

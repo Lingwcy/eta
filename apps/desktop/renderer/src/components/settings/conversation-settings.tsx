@@ -1,5 +1,5 @@
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
-import type { DesktopSettings } from "../../../../src/main/service/settings/index.ts";
+import type { DesktopSettings } from "../../../../src/shared/settings.ts";
 import { ModelPicker } from "../input/model-picker";
 import { SettingsSection, SettingsRow } from "./settings-section";
 

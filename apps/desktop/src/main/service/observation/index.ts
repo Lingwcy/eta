@@ -6,7 +6,7 @@ import { Context, Effect, Layer } from "effect";
 import type { SnapshotResponse } from "../../../agent/protocol.ts";
 import { adapter, DesktopServiceError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
-import { SubagentsDoc, SubagentEventEntry } from "../subagents/extension.ts";
+import { SubagentsDoc, SubagentEventEntry } from "../../../agent/extension/subagent/index.ts";
 import { SkillsDoc, skillSummary } from "../skills/extension.ts";
 
 export class ObservationService extends Context.Service<
