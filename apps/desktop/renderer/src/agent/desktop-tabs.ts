@@ -1,4 +1,5 @@
 export interface ConversationTab {
+  sandboxMode?: import("@eta/core/shared/sandbox").SandboxMode;
   id: string;
   kind: "conversation";
   threadId?: string;
@@ -140,6 +141,7 @@ export class DesktopTabs {
       return next.threadId === tab.threadId &&
         next.workspaceId === tab.workspaceId &&
         next.environment === tab.environment &&
+        next.sandboxMode === tab.sandboxMode &&
         next.draft === tab.draft
         ? tab
         : next;

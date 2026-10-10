@@ -240,6 +240,7 @@ export class DesktopBot {
     return this.session(await this.request<SessionResponse>(this.route(id)));
   }
   async create(workspaceId: string, requestId: string, configuration?: CreateThreadConfiguration) {
+    if (configuration?.sandboxMode) this.requireSandbox();
     const result = this.session(
       await this.request<SessionResponse>("/v1/threads", {
         workspaceId: this.raw(workspaceId),
@@ -257,6 +258,22 @@ export class DesktopBot {
         modelId,
         thinkingLevel,
       }),
+    );
+  }
+  async configureSandbox(id: string, mode: import("@eta/core/shared/sandbox").SandboxMode) {
+    this.requireSandbox();
+    return this.session(await this.request<SessionResponse>(this.route(id) + "/sandbox", { mode }));
+  }
+  private requireSandbox() {
+    if (!this.state.library?.allowedSandboxModes?.length)
+      throw new Error("当前 Bot 尚不支持沙盒，请更新 Bot 并重新连接。");
+  }
+  async decideApproval(id: string, requestId: string, approved: boolean) {
+    return this.session(
+      await this.request<SessionResponse>(
+        this.route(id) + `/approvals/${encodeURIComponent(requestId)}`,
+        { approved },
+      ),
     );
   }
   async metadata(id: string, body: object) {
@@ -408,6 +425,10 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
     openThread: (id: string) => (isCloudId(id) ? choose(bot.open(id)) : local.openThread(id)),
     configureThread: (...args: Parameters<LocalDesktopApplication["configureThread"]>) =>
       isCloudId(args[0]) ? choose(bot.configure(...args)) : local.configureThread(...args),
+    configureSandbox: (...args: Parameters<LocalDesktopApplication["configureSandbox"]>) =>
+      isCloudId(args[0]) ? choose(bot.configureSandbox(...args)) : local.configureSandbox(...args),
+    decideApproval: (...args: Parameters<LocalDesktopApplication["decideApproval"]>) =>
+      isCloudId(args[0]) ? choose(bot.decideApproval(...args)) : local.decideApproval(...args),
     submit: (...args: Parameters<LocalDesktopApplication["submit"]>) =>
       isCloudId(args[0])
         ? bot.command<Awaited<ReturnType<LocalDesktopApplication["submit"]>>>(args[0], "messages", {

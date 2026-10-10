@@ -11,6 +11,7 @@ import { BotHttpError, httpError } from "./errors.ts";
 import { BotController } from "./controller.ts";
 import { BotProjects } from "./projects.ts";
 import { BotStore } from "./store.ts";
+import { SandboxModeSchema } from "@eta/core/shared/sandbox";
 
 const RequestId = Schema.NonEmptyString.check(Schema.isMaxLength(256));
 const Create = Schema.Struct({
@@ -20,6 +21,7 @@ const Create = Schema.Struct({
     Schema.Struct({
       provider: Schema.NonEmptyString,
       modelId: Schema.NonEmptyString,
+      sandboxMode: Schema.optionalKey(SandboxModeSchema),
       thinkingLevel: Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
     }),
   ),
@@ -183,6 +185,7 @@ export function createHttpApp(options: {
       threads,
       models: await core.models(),
       settings: config.runtime,
+      allowedSandboxModes: config.allowedSandboxModes ?? ["read-only", "workspace-write"],
     });
   });
   app.post("/v1/threads/:id/configure", async (context) => {
@@ -198,6 +201,20 @@ export function createHttpApp(options: {
     );
     return context.json(
       await core.configureThread(id, input.provider, input.modelId, input.thinkingLevel),
+    );
+  });
+  app.post("/v1/threads/:id/sandbox", async (context) => {
+    const id = context.req.param("id");
+    await controller.authorize(id);
+    const input = decode(Schema.Struct({ mode: SandboxModeSchema }), await readBody(context.req));
+    return context.json(await core.configureSandbox(id, input.mode));
+  });
+  app.post("/v1/threads/:id/approvals/:requestId", async (context) => {
+    const id = context.req.param("id");
+    await controller.authorize(id);
+    const input = decode(Schema.Struct({ approved: Schema.Boolean }), await readBody(context.req));
+    return context.json(
+      await core.decideApproval(id, context.req.param("requestId"), input.approved),
     );
   });
   app.post("/v1/threads/:id/metadata", async (context) => {

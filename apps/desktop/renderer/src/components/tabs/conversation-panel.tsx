@@ -12,6 +12,7 @@ import { ChatWelcome } from "@/components/chat/chat-welcome";
 import { RecoveryNotice } from "@/components/chat/recovery-notice";
 import { Alert } from "@/components/ui/alert";
 import { SkillPicker } from "@/components/input/skill-picker";
+import { ApprovalNotice } from "@/components/chat/approval-notice";
 
 export function ConversationPanel({
   tab,
@@ -106,6 +107,7 @@ export function ConversationPanel({
         <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
           <div className="mx-auto w-full max-w-[960px]">
             {view.composerContext && <ComposerContext {...view.composerContext} />}
+            <ApprovalNotice {...view.approval} />
             <CompositeInput
               {...view.composer}
               skillsControl={

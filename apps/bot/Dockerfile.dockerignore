@@ -4,3 +4,9 @@
 !apps/bot/dist/
 !apps/bot/dist/**
 !apps/bot/Dockerfile
+!packages/
+!packages/core/
+!packages/core/src/
+!packages/core/src/platform/
+!packages/core/src/platform/sandbox/
+!packages/core/src/platform/sandbox/linux-launcher.c

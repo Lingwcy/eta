@@ -1,10 +1,34 @@
 import { expect, test } from "vite-plus/test";
 import { DesktopTabs } from "./desktop-tabs";
+import { sandboxModes } from "@eta/core/shared/sandbox";
 
 function setup() {
   let id = 0;
   return new DesktopTabs(() => `tab-${++id}`);
 }
+
+test("an unsent draft can change sandbox modes without selecting a project or creating a thread", () => {
+  const tabs = setup();
+  const id = tabs.activeTab.id;
+  let notifications = 0;
+  tabs.subscribe(() => notifications++);
+  for (const sandboxMode of sandboxModes) {
+    tabs.updateConversation(id, { sandboxMode });
+    expect(tabs.activeTab).toMatchObject({ id, sandboxMode, workspaceId: null, draft: "" });
+    expect(tabs.activeTab).not.toHaveProperty("threadId");
+    const saved = tabs.getSnapshot();
+    tabs.updateConversation(id, { sandboxMode });
+    expect(tabs.getSnapshot()).toBe(saved);
+  }
+  expect(notifications).toBe(sandboxModes.length);
+  tabs.newBrowser();
+  tabs.select(id);
+  tabs.close(id);
+  tabs.reopen();
+  expect(tabs.activeTab).toMatchObject({ id, sandboxMode: "danger-full-access" });
+  tabs.updateConversation(id, { sandboxMode: undefined });
+  expect(tabs.activeTab).toMatchObject({ sandboxMode: undefined });
+});
 
 test("skill management reuses the settings tab and restores its destination after closing and reopening", () => {
   const tabs = setup();

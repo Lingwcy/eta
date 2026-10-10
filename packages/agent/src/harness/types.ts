@@ -414,6 +414,9 @@ export type Settings = {
 
 /** What `HarnessOptions.env` builds an environment for. */
 export type EnvTarget = {
+	/** The task requesting this environment; absent for direct host environment reads. */
+	readonly taskId?: TaskId;
+	readonly taskKind?: string;
 	readonly conversationId: ConversationId;
 	/** The conversation's agent `cwd`. */
 	readonly cwd?: string;
@@ -611,6 +614,12 @@ export interface GenerationHooks {
 
 /** Hooks of the built-in tool task. */
 export interface ToolHooks {
+	/** Authorize the validated call before execution intent. A task wait survives restart without running the tool. */
+	authorizeTool(
+		call: ToolCall,
+		api: HookApi,
+		context: Context,
+	): HookResult<{ readonly waitFor?: TaskId; readonly block?: string }>;
 	/** Before intent; the first `block` wins, otherwise `arguments` replace the call's arguments. A throw blocks. */
 	beforeTool(
 		call: ToolCall,

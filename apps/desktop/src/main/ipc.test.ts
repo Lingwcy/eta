@@ -18,6 +18,17 @@ test.each([
   { type: "move-thread", id: "thread", projectId: { path: "/project" } },
   { type: "delete-thread", id: "" },
   { type: "create", workspaceId: "", requestId: "request" },
+  {
+    type: "create",
+    workspaceId: "workspace",
+    requestId: "request",
+    configuration: {
+      provider: "test",
+      modelId: "model",
+      thinkingLevel: "off",
+      sandboxMode: "unknown",
+    },
+  },
   { type: "register-project", rootPath: "", name: "Project" },
   { type: "register-project", rootPath: "/project", name: 42 },
   { type: "archive", id: "thread", archived: "yes" },
@@ -52,15 +63,44 @@ test.each([
     expect(JSON.stringify(reply)).not.toContain("do-not-echo-this-secret");
   },
 );
-test("domain error codes and retryability survive Electron's JSON boundary", async () => {
-  const reply = await commandReply(async () => {
-    throw new CoreError({ code: "Busy", message: "工作区正在运行" });
-  });
+test("thread creation accepts the sandbox configuration sent by the composer", async () => {
+  const configuration = {
+    provider: "test",
+    modelId: "model",
+    thinkingLevel: "off",
+    sandboxMode: "read-only",
+  };
+  const application = {
+    createThread: async (...args: Parameters<DesktopApplication["createThread"]>) => {
+      expect(args[2]).toEqual(configuration);
+      throw new CoreError({ code: "ModelUnavailable", message: "模型尚未配置" });
+    },
+  } satisfies Pick<DesktopApplication, "createThread">;
+  const reply = await commandReply(() =>
+    dispatchCommand(application as unknown as DesktopApplication, {
+      type: "create",
+      workspaceId: "workspace",
+      requestId: "request",
+      configuration,
+    }),
+  );
   expect(reply).toEqual({
     ok: false,
-    error: { code: "Busy", message: "工作区正在运行", retryable: true },
+    error: { code: "ModelUnavailable", message: "模型尚未配置", retryable: true },
   });
 });
+test.each(["Busy", "SandboxUnavailable"] as const)(
+  "%s and retryability survive Electron's JSON boundary",
+  async (code) => {
+    const reply = await commandReply(async () => {
+      throw new CoreError({ code, message: "当前执行环境不可用" });
+    });
+    expect(reply).toEqual({
+      ok: false,
+      error: { code, message: "当前执行环境不可用", retryable: true },
+    });
+  },
+);
 
 test("image preparation accepts Electron's undefined optional fields and returns a real image block", async () => {
   const { processImage } = await import("@eta/core/node/images");

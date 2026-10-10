@@ -7,6 +7,30 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+test("a sandbox-only draft change is saved and restored before its first message", () => {
+  vi.useFakeTimers();
+  const tabs = new DesktopTabs();
+  const storage = new Map<string, string>();
+  const dispose = persistTabs(
+    tabs,
+    { setItem: (key, value) => storage.set(key, value) },
+    new EventTarget(),
+  );
+  tabs.updateConversation(tabs.activeTab.id, { sandboxMode: "read-only" });
+  vi.advanceTimersByTime(250);
+  const restored = new DesktopTabs(
+    undefined,
+    readTabs({ getItem: (key) => storage.get(key) ?? null }),
+  );
+  expect(restored.activeTab).toMatchObject({
+    sandboxMode: "read-only",
+    workspaceId: null,
+    draft: "",
+  });
+  expect(restored.activeTab).toHaveProperty("threadId", undefined);
+  dispose();
+});
+
 test("draft edits are batched and pagehide flushes the current selection for restoration", () => {
   vi.useFakeTimers();
   let id = 0;

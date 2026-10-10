@@ -38,7 +38,11 @@ export default defineConfig({
         },
       },
     },
-    entry: ["src/main.ts", "src/preload.ts"],
+    entry: {
+      main: "src/main.ts",
+      preload: "src/preload.ts",
+      "sandbox-worker": "../../packages/core/src/platform/sandbox/worker.ts",
+    },
     format: "cjs",
     outDir: "dist/electron",
     dts: false,

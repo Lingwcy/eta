@@ -39,23 +39,26 @@ export function ToolItem({ tool }: { tool: SnapshotTool }) {
   const expanded = mode === "expanded";
   const failed = tool.status === "settled" && tool.isError;
   const running = tool.status === "running";
+  const waiting = tool.status === "waiting";
   const StateIcon = running
     ? LoaderCircle
     : failed
       ? CircleX
-      : tool.status === "incomplete" || tool.status === "stopped"
+      : tool.status === "incomplete" || tool.status === "stopped" || waiting
         ? CircleMinus
         : CircleCheck;
   const Icon = toolIcons[tool.toolName as keyof typeof toolIcons] ?? Wrench;
   const label = failed
     ? `${tool.toolName} · 失败`
-    : tool.status === "settled"
-      ? `${tool.toolName} · 已完成`
-      : running
-        ? `正在执行 ${tool.toolName}`
-        : tool.status === "stopped"
-          ? `${tool.toolName} · 已停止`
-          : `${tool.toolName} · 无结果记录`;
+    : waiting
+      ? `${tool.toolName} · 等待批准`
+      : tool.status === "settled"
+        ? `${tool.toolName} · 已完成`
+        : running
+          ? `正在执行 ${tool.toolName}`
+          : tool.status === "stopped"
+            ? `${tool.toolName} · 已停止`
+            : `${tool.toolName} · 无结果记录`;
   return (
     <Reveal>
       <Collapsible open={open} onOpenChange={(next) => setMode(next ? "preview" : "collapsed")}>

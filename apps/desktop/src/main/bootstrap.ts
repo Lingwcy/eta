@@ -154,6 +154,10 @@ async function createLocalDesktopApplication(
       archiveThread: (id: string, archived: boolean) => run(threads.archive(id, archived)),
       configureThread: (id: string, provider: string, modelId: string, level: ThinkingLevel) =>
         selectThread(threads.configure(id, provider, modelId, level)),
+      configureSandbox: (id: string, mode: import("@eta/core/shared/sandbox").SandboxMode) =>
+        selectThread(threads.configureSandbox(id, mode)),
+      decideApproval: (id: string, requestId: string, approved: boolean) =>
+        selectThread(threads.decideApproval(id, requestId, approved)),
       submit: (
         id: string,
         prompt: string,

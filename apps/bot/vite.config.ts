@@ -20,7 +20,11 @@ export default defineConfig({
   ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/core", "@eta/agent"] },
   test: { environment: "node", include: ["src/**/*.test.ts", "extensions/**/*.test.ts"] },
   pack: {
-    entry: ["src/main.ts", "src/runtime.ts"],
+    entry: {
+      main: "src/main.ts",
+      runtime: "src/runtime.ts",
+      "sandbox-worker": "../../packages/core/src/platform/sandbox/worker.ts",
+    },
     format: "esm",
     outExtensions: () => ({ js: ".mjs" }),
     dts: false,

@@ -1,4 +1,5 @@
 import type { CreateThreadConfiguration } from "./agent/protocol.ts";
+import type { SandboxMode } from "./shared/sandbox.ts";
 import { ManagedRuntime } from "effect";
 import type { JsonValue } from "@earendil-works/chord";
 import type { ImageAttachment } from "./images/types.ts";
@@ -42,6 +43,10 @@ export async function createCore(options: CoreOptions) {
         configuration?: CreateThreadConfiguration,
       ) => runtime.runPromise(threads.create(workspaceId, requestId, configuration)),
       openThread: (id: string) => runtime.runPromise(threads.open(id)),
+      configureSandbox: (id: string, mode: SandboxMode) =>
+        runtime.runPromise(threads.configureSandbox(id, mode)),
+      decideApproval: (id: string, requestId: string, approved: boolean) =>
+        runtime.runPromise(threads.decideApproval(id, requestId, approved)),
       renameThread: (id: string, title: string) => runtime.runPromise(threads.rename(id, title)),
       archiveThread: (id: string, archived: boolean) =>
         runtime.runPromise(threads.archive(id, archived)),

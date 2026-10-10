@@ -80,3 +80,19 @@ test("workspaceRoot configuration does not require preconfigured projects", asyn
   expect(config.workspaceRoot).toBe(join(root, "workspaces"));
   expect(config.projects).toEqual([]);
 });
+
+test("deployment ceilings must include the default sandbox mode", async () => {
+  for (const overrides of [
+    { allowedSandboxModes: [] },
+    { allowedSandboxModes: ["read-only"] },
+    { runtime: { defaultThinkingLevel: "off", defaultSandboxMode: "danger-full-access" } },
+  ]) {
+    const { path } = await configuration(overrides);
+    await expect(loadBotConfig(path)).rejects.toThrow("default sandbox mode must be allowed");
+  }
+  const { path } = await configuration({
+    allowedSandboxModes: ["read-only"],
+    runtime: { defaultThinkingLevel: "off", defaultSandboxMode: "read-only" },
+  });
+  expect((await loadBotConfig(path)).runtime.defaultSandboxMode).toBe("read-only");
+});

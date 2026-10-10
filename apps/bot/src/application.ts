@@ -1,4 +1,6 @@
 import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
@@ -28,6 +30,7 @@ export async function createBotApplication(
     log?: BotLog;
   } = {},
 ) {
+  const worker = fileURLToPath(new URL("./sandbox-worker.mjs", import.meta.url));
   await mkdir(config.dataRoot, { recursive: true });
   const unlock = lockDataRoot(join(config.dataRoot, "writer-lock.sqlite"));
   registerBunOAuthFlows();
@@ -59,6 +62,8 @@ export async function createBotApplication(
       environment: {
         userAgent: "eta-bot",
         shutdown: "preserve",
+        allowedSandboxModes: config.allowedSandboxModes ?? ["read-only", "workspace-write"],
+        sandboxWorkerPath: existsSync(worker) ? worker : undefined,
         ...dependencies.environment,
         extensions: async (ref, models) => [
           ...((await dependencies.environment?.extensions?.(ref, models)) ?? []),

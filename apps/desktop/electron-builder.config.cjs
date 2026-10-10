@@ -26,6 +26,7 @@ module.exports = {
   },
   files: ["dist/**/*", "package.json"],
   asar: true,
+  asarUnpack: ["dist/electron/**"],
   // The staged app contains its entire runtime; do not collect workspace node_modules.
   beforeBuild: async () => false,
   forceCodeSigning: signedRelease,
@@ -40,6 +41,7 @@ module.exports = {
     hardenedRuntime: signedRelease,
     identity: signedRelease ? undefined : "-",
     notarize: signedRelease,
+    binaries: ["Contents/Resources/app.asar.unpacked/dist/electron/sandbox-cleanup"],
   },
   win: {
     artifactName: "Eta-${version}-win-${arch}.${ext}",

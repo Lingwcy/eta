@@ -10,6 +10,7 @@ import { ProjectError } from "@eta/core/service/projects/index";
 import { CatalogStorageError } from "@eta/core/service/catalog/json-store";
 import { CatalogValidationError } from "@eta/core/service/catalog/schema";
 import { TitleModelSchema } from "@eta/core/shared/runtime-settings";
+import { SandboxModeSchema } from "@eta/core/shared/sandbox";
 
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
@@ -55,11 +56,19 @@ const Command = Schema.Union([
       Schema.Struct({
         provider: Id,
         modelId: Id,
+        sandboxMode: Schema.optionalKey(SandboxModeSchema),
         thinkingLevel: Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
       }),
     ),
   }),
   Schema.Struct({ type: Schema.Literal("open"), id: Id }),
+  Schema.Struct({ type: Schema.Literal("configure-sandbox"), id: Id, mode: SandboxModeSchema }),
+  Schema.Struct({
+    type: Schema.Literal("decide-approval"),
+    id: Id,
+    requestId: Id,
+    approved: Schema.Boolean,
+  }),
   Schema.Struct({ type: Schema.Literal("move-thread"), id: Id, projectId: Schema.NullOr(Id) }),
   Schema.Struct({ type: Schema.Literal("delete-thread"), id: Id }),
   Schema.Struct({ type: Schema.Literal("rename"), id: Id, title: Id }),
@@ -96,11 +105,13 @@ const Command = Schema.Union([
     id: Id,
     provider: Id,
     modelId: Id,
+    sandboxMode: Schema.optionalKey(SandboxModeSchema),
     thinkingLevel: Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
   }),
   Schema.Struct({
     type: Schema.Literal("settings"),
     patch: Schema.Struct({
+      defaultSandboxMode: Schema.optionalKey(SandboxModeSchema),
       subagents: Schema.optionalKey(SubagentSettingsSchema),
       defaultProvider: Schema.optionalKey(Id),
       defaultModel: Schema.optionalKey(Id),
@@ -184,6 +195,10 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       );
     case "open":
       return application.openThread(command.id);
+    case "configure-sandbox":
+      return application.configureSandbox(command.id, command.mode);
+    case "decide-approval":
+      return application.decideApproval(command.id, command.requestId, command.approved);
     case "move-thread":
       return application.moveThread(command.id, command.projectId);
     case "delete-thread":
@@ -247,6 +262,7 @@ export async function commandReply<A>(action: () => Promise<A>): Promise<Command
           "Busy",
           "ModelUnavailable",
           "WorkspaceUnavailable",
+          "SandboxUnavailable",
           "StorageUnavailable",
           "RuntimeClosing",
         ].includes(code),

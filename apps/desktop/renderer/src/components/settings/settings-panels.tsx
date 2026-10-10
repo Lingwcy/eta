@@ -71,6 +71,8 @@ export const settingsPanels = {
   permissions: (props) => (
     <PermissionSettings
       blockImages={Boolean(props.library.settings.blockImages)}
+      sandboxMode={props.library.settings.defaultSandboxMode ?? "workspace-write"}
+      onSandboxChange={(defaultSandboxMode) => update(props, { defaultSandboxMode })}
       busy={props.busy}
       onAllowImagesChange={(allowed) => update(props, { blockImages: !allowed })}
     />

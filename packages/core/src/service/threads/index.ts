@@ -27,6 +27,9 @@ import type { OperationResult, RecoveryState } from "../../agent/protocol.ts";
 import { readOperation, readRecovery } from "./operations.ts";
 import type { JsonValue } from "@earendil-works/chord";
 import { enqueueTask, readTask } from "./tasks.ts";
+import { SandboxModeSchema } from "../../shared/sandbox.ts";
+import type { SandboxMode } from "../../shared/sandbox.ts";
+import { Schema } from "effect";
 
 export type ThreadError = CoreError | CatalogError;
 export interface OpenThread extends SessionResponse {
@@ -53,6 +56,12 @@ export class ThreadService extends Context.Service<
       configuration?: CreateThreadConfiguration,
     ): Effect.Effect<OpenThread, ThreadError>;
     open(id: string): Effect.Effect<OpenThread, ThreadError>;
+    configureSandbox(id: string, mode: SandboxMode): Effect.Effect<OpenThread, ThreadError>;
+    decideApproval(
+      id: string,
+      requestId: string,
+      approved: boolean,
+    ): Effect.Effect<OpenThread, ThreadError>;
     operation(id: string, operationId: string): Effect.Effect<OperationResult, ThreadError>;
     operationByRequest(
       id: string,
@@ -178,6 +187,33 @@ export class ThreadService extends Context.Service<
         return state.threads.find((thread) => thread.id === id)!;
       });
       return ThreadService.of({
+        decideApproval: (id, requestId, approved) =>
+          locked(
+            Effect.gen(function* () {
+              const runtime = yield* runtimeFor(id, true);
+              if (runtime.recoveryRequired)
+                return yield* new CoreError({
+                  code: "RecoveryRequired",
+                  message: "请先恢复或停止未完成任务",
+                });
+              const request = (yield* adapter("无法读取审批", runtime.approvals.list)).find(
+                (request) => request.id === requestId,
+              );
+              if (!request)
+                return yield* new CoreError({
+                  code: "NotFound",
+                  message: "审批请求不存在或已失效",
+                });
+              yield* adapter("无法处理审批", () =>
+                runtime.approvals.decide(
+                  Number(request.conversationId) as typeof runtime.conversation.id,
+                  requestId,
+                  approved,
+                ),
+              );
+              return yield* open(id);
+            }),
+          ),
         subagent: (id, command, requestId) =>
           locked(
             Effect.gen(function* () {
@@ -244,6 +280,19 @@ export class ThreadService extends Context.Service<
             ),
           ),
         open: (id) => locked(open(id)),
+        configureSandbox: (id, mode) =>
+          locked(
+            Effect.gen(function* () {
+              const selected = yield* adapter(
+                "无效沙盒模式",
+                async () => Schema.decodeUnknownSync(SandboxModeSchema)(mode),
+                "InvalidInput",
+              );
+              const runtime = yield* runtimeFor(id);
+              yield* adapter("无法切换沙盒模式", () => runtime.configureSandbox(selected));
+              return yield* open(id);
+            }),
+          ),
         operation: (id, operationId) =>
           Effect.gen(function* () {
             const runtime = yield* runtimeFor(id);
@@ -331,12 +380,16 @@ export class ThreadService extends Context.Service<
                 ...(requestId ? { requestId } : {}),
               };
               yield* Effect.gen(function* () {
-                yield* registry.acquire(ref, {
-                  model: { provider: model.provider, modelId: model.id },
-                  thinkingLevel: thinkingLevel === "off" ? null : thinkingLevel,
-                  cwd: workspace.cwd,
-                  instructions,
-                });
+                yield* registry.acquire(
+                  ref,
+                  {
+                    model: { provider: model.provider, modelId: model.id },
+                    thinkingLevel: thinkingLevel === "off" ? null : thinkingLevel,
+                    cwd: workspace.cwd,
+                    instructions,
+                  },
+                  configuration?.sandboxMode,
+                );
                 yield* catalog.update((state) => ({
                   ...state,
                   threads: [...state.threads, thread],

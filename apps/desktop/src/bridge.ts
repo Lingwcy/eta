@@ -13,6 +13,7 @@ import type { ThreadMetadata } from "@eta/core/shared/threads";
 import type { BrowserCommand, BrowserEvent, BrowserState } from "./browser/protocol.ts";
 import type { StorageReport, StorageTarget } from "./shared/storage.ts";
 import type { SkillCatalog } from "@eta/core/skills/types";
+import type { SandboxMode } from "@eta/core/shared/sandbox";
 
 export type AgentEvent =
   | { type: "snapshot"; value: SnapshotResponse }
@@ -27,6 +28,7 @@ export type CommandReply<A> = { ok: true; value: A } | { ok: false; error: Comma
 
 export interface AgentBridge {
   openThread(id: string): Promise<SessionResponse>;
+  configureSandbox(id: string, mode: SandboxMode): Promise<SessionResponse>;
   configureThread(
     id: string,
     provider: string,
@@ -69,6 +71,7 @@ export interface AppInfo {
 }
 
 export interface DesktopBridge extends AgentBridge {
+  decideApproval(id: string, requestId: string, approved: boolean): Promise<SessionResponse>;
   importBotCredentials(): Promise<{ imported: number }>;
   removeBotCredential(providerId: string): Promise<void>;
   connectBot(connection: BotConnection): Promise<BotState>;

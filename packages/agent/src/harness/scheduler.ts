@@ -139,7 +139,12 @@ export type TaskSchedulerOptions = {
 	/** Resolve the settings; read at each access. */
 	readonly settings: () => Settings;
 	/** Build a conversation's environment with `HarnessOptions.env`. */
-	readonly env: (conversationId: ConversationId, context: Context) => Promise<ExecutionEnv | undefined>;
+	readonly env: (
+		conversationId: ConversationId,
+		context: Context,
+		taskId?: TaskId,
+		taskKind?: string,
+	) => Promise<ExecutionEnv | undefined>;
 	readonly now: () => number;
 	readonly report: (error: unknown) => void;
 	/** Harness cleanup staged in the commit that makes an outcome the scheduler wrote itself terminal. */
@@ -1081,7 +1086,8 @@ export class TaskScheduler {
 			get settings() {
 				return settings();
 			},
-			env: (context) => this.#read(invocation, () => this.#env(invocation.conversationId, context)),
+			env: (context) => this.#read(invocation, () =>
+				this.#env(invocation.conversationId, context, invocation.taskId, phase.task().definition.name)),
 			hooks: hooks as ErasedRuntime["hooks"],
 			get registry() {
 				return phase.snapshot();

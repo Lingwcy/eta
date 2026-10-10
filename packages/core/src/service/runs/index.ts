@@ -48,6 +48,8 @@ export class RunSupervisorService extends Context.Service<
             .catch(() => false),
         );
         if (!exists) return "工作区目录不可用，历史仍可查看";
+        const sandbox = yield* adapter("无法检查沙盒", runtime.sandbox);
+        if (!sandbox.available) return sandbox.reason ?? "沙盒不可用，执行已阻止";
         const agent = yield* adapter("无法读取模型配置", () =>
           runtime.conversation.agent(BACKGROUND_CONTEXT),
         );
@@ -69,6 +71,14 @@ export class RunSupervisorService extends Context.Service<
             message: "会话正在关闭",
           });
         const blocked = yield* blockedReason(runtime);
+        if (blocked?.startsWith("工作区"))
+          return yield* new CoreError({ code: "WorkspaceUnavailable", message: blocked });
+        const sandbox = yield* adapter("无法检查沙盒", runtime.sandbox);
+        if (!sandbox.available)
+          return yield* new CoreError({
+            code: "SandboxUnavailable",
+            message: sandbox.reason ?? "沙盒不可用，执行已阻止",
+          });
         if (blocked)
           return yield* new CoreError({
             code: blocked.startsWith("工作区") ? "WorkspaceUnavailable" : "ModelUnavailable",
@@ -229,6 +239,7 @@ export class RunSupervisorService extends Context.Service<
             try {
               runtime.recoveryRequired = false;
               await runtime.subagents.stopAll();
+              await runtime.revokeSandboxGrants();
               await executions.get(runtime);
             } finally {
               release(runtime);

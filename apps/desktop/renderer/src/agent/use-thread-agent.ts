@@ -1,5 +1,6 @@
 import type { ImageAttachment } from "@eta/core/images/types";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
+import type { SandboxMode } from "@eta/core/shared/sandbox";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { initialAgentState, ThreadAgentClient } from "./client";
 
@@ -45,9 +46,17 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
     },
     [client, threadId],
   );
+  const configureSandbox = useCallback(
+    async (mode: SandboxMode) => {
+      if (!client || client.getSnapshot().session?.id !== threadId)
+        throw new Error("请先创建或选择会话");
+      await client.configureSandbox(mode);
+    },
+    [client, threadId],
+  );
   const stop = useCallback(
     () => (client?.getSnapshot().session?.id === threadId ? client.stop() : undefined),
     [client, threadId],
   );
-  return { ...state, configure, submit, stop };
+  return { ...state, configure, configureSandbox, submit, stop };
 }

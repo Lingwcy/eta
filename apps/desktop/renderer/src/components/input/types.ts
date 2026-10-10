@@ -3,6 +3,7 @@ import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentModel } from "@eta/core/agent/protocol";
 import type { AuthProvider } from "../../../../src/authentication.ts";
 import type { ReactNode } from "react";
+import type { SandboxMode } from "@eta/core/shared/sandbox";
 
 export type InputModel = Pick<AgentModel, "id" | "provider" | "name" | "thinkingLevels"> &
   Pick<AgentModel, "input" | "inputLimits">;
@@ -27,6 +28,11 @@ export interface PromptTextareaProps {
 }
 
 export interface ActionToolbarProps {
+  readonly sandboxMode?: SandboxMode;
+  readonly allowedSandboxModes?: readonly SandboxMode[];
+  readonly sandboxDisabled?: boolean;
+  readonly sandboxDisabledReason?: string;
+  readonly onSandboxChange?: (mode: SandboxMode) => void;
   readonly skillsControl?: ReactNode;
   readonly model?: InputModel;
   readonly models?: readonly InputModel[];

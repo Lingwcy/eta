@@ -19,6 +19,11 @@ function readTab(value: unknown): DesktopTab | undefined {
         threadId: typeof value.threadId === "string" ? value.threadId : undefined,
         ...(value.environment === "cloud" ? { environment: "cloud" as const } : {}),
         draft: typeof value.draft === "string" ? value.draft : "",
+        ...(value.sandboxMode === "read-only" ||
+        value.sandboxMode === "workspace-write" ||
+        value.sandboxMode === "danger-full-access"
+          ? { sandboxMode: value.sandboxMode }
+          : {}),
       };
     }
     case "browser": {

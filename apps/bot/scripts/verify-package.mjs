@@ -58,6 +58,8 @@ try {
   const response = await create(application);
   assert.equal(response.status, 201);
   const thread = await response.json();
+  assert.equal(thread.snapshot.sandbox.mode, "workspace-write");
+  assert.equal(thread.snapshot.sandbox.available, true, thread.snapshot.sandbox.reason);
   await application.close();
   application = await createBotApplication(config);
   assert.equal((await (await create(application)).json()).id, thread.id);

@@ -181,7 +181,10 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     (waiter) =>
       waiter.conversationId === runtime.conversation.id && waiter.taskId === live.run?.taskId,
   );
+  const approvals = await runtime.approvals.list();
   const snapshot: SnapshotResponse["snapshot"] = {
+    sandbox: await runtime.sandbox(),
+    approvals,
     subagents: (await runtime.subagents.list()).map((child) =>
       runtime.recoveryRequired && (child.status === "running" || child.status === "queued")
         ? { ...child, status: "paused" as const }
@@ -203,6 +206,7 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
           startedAt: entryTime(active?.entry),
           status: "running",
           ...(waiting ? { waitingForSubagents: true } : {}),
+          ...(approvals.length ? { waitingForApproval: true } : {}),
           fromTipId: null,
           runningTools: (live.tools ?? [])
             .filter((tool) => tool.status !== "done")
@@ -211,7 +215,9 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
                 .flatMap(({ message }) => (message.role === "assistant" ? message.content : []))
                 .find((part) => part.type === "toolCall" && part.id === tool.callId);
               return {
-                status: "running",
+                status: approvals.some((request) => request.toolTaskId === String(tool.taskId))
+                  ? "waiting"
+                  : "running",
                 toolCallId: tool.callId,
                 toolName: tool.name,
                 args: call?.type === "toolCall" ? call.arguments : {},

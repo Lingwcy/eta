@@ -114,6 +114,15 @@ try {
     return response.json();
   };
   const thread = await create();
+  assert.equal(thread.snapshot.sandbox.mode, "workspace-write");
+  assert.equal(thread.snapshot.sandbox.backend, "landlock");
+  assert.equal(thread.snapshot.sandbox.available, true, thread.snapshot.sandbox.reason);
+  docker([
+    "cp",
+    fileURLToPath(new URL("./verify-sandbox.mjs", import.meta.url)),
+    `${name}:/tmp/verify-sandbox.mjs`,
+  ]);
+  docker(["exec", name, "node", "/tmp/verify-sandbox.mjs", "/opt/eta-bot/dist"]);
   reader = (await fetch(`${url}/v1/threads/${thread.id}/events`, { headers })).body.getReader();
   assert.match(new TextDecoder().decode((await reader.read()).value), /event: snapshot/);
   docker(["stop", "--time", "15", name]);
@@ -124,7 +133,7 @@ try {
   url = await ready();
   assert.equal((await create()).id, thread.id);
   console.log(
-    "Linux container verified: tools, non-root persistent volumes, HTTP/SSE, shutdown, restart and bundled images.",
+    "Linux container verified: native sandbox, tools, non-root persistent volumes, HTTP/SSE, shutdown, restart and bundled images.",
   );
 } catch (error) {
   // Preserve startup and shutdown diagnostics before removing this verifier's container.

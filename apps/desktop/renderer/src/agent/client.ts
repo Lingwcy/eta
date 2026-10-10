@@ -2,6 +2,7 @@ import type { ImageAttachment } from "@eta/core/images/types";
 import type { OperationAdmission } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentBridge } from "../../../src/bridge.ts";
+import type { SandboxMode } from "@eta/core/shared/sandbox";
 
 export interface AgentClientState {
   session: Pick<SessionResponse, "id" | "model"> | null;
@@ -74,6 +75,23 @@ export class ThreadAgentClient {
         ? {
             ...observation,
             snapshot: { ...observation.snapshot, configuration: session.snapshot.configuration },
+          }
+        : { snapshot: session.snapshot, contextTokens: session.contextTokens },
+    });
+  }
+
+  async configureSandbox(mode: SandboxMode) {
+    const sessionId = this.state.session?.id;
+    if (!sessionId || this.disposed) throw new Error("会话尚未打开");
+    const session = await this.bridge.configureSandbox(sessionId, mode);
+    if (this.disposed || this.state.session?.id !== session.id) return;
+    const observation = this.state.observation;
+    // A policy change keeps the live transcript and subscription, including updates received while saving.
+    this.update({
+      observation: observation
+        ? {
+            ...observation,
+            snapshot: { ...observation.snapshot, sandbox: session.snapshot.sandbox },
           }
         : { snapshot: session.snapshot, contextTokens: session.contextTokens },
     });

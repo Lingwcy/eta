@@ -10,6 +10,7 @@ import { CompositeInput } from "@/components/input";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { subagentStatus } from "./subagent-status";
+import { ApprovalNotice } from "@/components/chat/approval-notice";
 
 export function SubagentConversation({
   threadId,
@@ -114,8 +115,27 @@ export function SubagentConversation({
       </ChatTranscript>
       <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
         <div className="mx-auto w-full max-w-[960px]">
+          <ApprovalNotice
+            requests={
+              snapshot?.approvals?.filter(
+                (request) => request.conversationId === String(child.conversationId),
+              ) ?? []
+            }
+            busy={busy || blocked}
+            onDecision={(id, approved) => {
+              setBusy(true);
+              void window.eta
+                .decideApproval(threadId, id, approved)
+                .catch((error: unknown) =>
+                  setError(error instanceof Error ? error.message : "审批失败"),
+                )
+                .finally(() => setBusy(false));
+            }}
+          />
           <CompositeInput
             value={draft}
+            sandboxMode={snapshot?.sandbox?.mode}
+            sandboxDisabled
             onChange={onDraft}
             model={model}
             models={source?.models}

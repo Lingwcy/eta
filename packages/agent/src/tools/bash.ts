@@ -10,6 +10,21 @@ const MAX_TIMEOUT_SECONDS = 2_147_483_647 / 1000;
 const bashSchema = Type.Object({
 	command: Type.String({ description: "Bash command to execute" }),
 	timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
+	sandbox: Type.Optional(
+		Type.Object(
+			{
+				reason: Type.String({
+					minLength: 1,
+					description:
+						"Why this command needs additional access. This pauses for human approval before execution.",
+				}),
+				networkAccess: Type.Optional(Type.Boolean()),
+				readableRoots: Type.Optional(Type.Array(Type.String())),
+				writableRoots: Type.Optional(Type.Array(Type.String())),
+			},
+			{ additionalProperties: false },
+		),
+	),
 });
 
 export type BashToolInput = Static<typeof bashSchema>;
@@ -47,7 +62,7 @@ function validateTimeout(timeout: number | undefined): void {
 export function createBashTool(options?: BashToolOptions): ToolRegistration<typeof bashSchema> {
 	return defineTool({
 		name: "bash",
-		description: `Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+		description: `Execute a bash command in the current working directory. Sandbox restrictions apply to the command and its descendants. Workspace-write permits network access. Access to files outside the workspace, or network access in read-only mode, requires an explicit sandbox request with the minimum required roots and a reason. Never retry a failed command blindly: it may have partially executed. Returns combined stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
 		parameters: bashSchema,
 		outputLimits: { retain: "tail" },
 		async execute(args, api, context) {

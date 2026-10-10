@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { Schema } from "effect";
 import { RuntimeSettingsSchema } from "@eta/core";
 import { DiscordConfigSchema } from "../extensions/discord/types.ts";
+import { SandboxModeSchema } from "@eta/core/shared/sandbox";
 
 export const BotConfigSchema = Schema.Struct({
   dataRoot: Schema.NonEmptyString,
@@ -10,6 +11,7 @@ export const BotConfigSchema = Schema.Struct({
   host: Schema.optionalKey(Schema.NonEmptyString),
   port: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }))),
   adminToken: Schema.NonEmptyString,
+  allowedSandboxModes: Schema.optionalKey(Schema.Array(SandboxModeSchema)),
   maxConcurrent: Schema.optionalKey(
     Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 32 })),
   ),
@@ -43,6 +45,12 @@ export async function loadBotConfig(path: string) {
       "Bot configuration is unreadable or invalid; check its fields and JSON format.",
     );
   }
+  if (
+    !(config.allowedSandboxModes ?? ["read-only", "workspace-write"]).includes(
+      config.runtime.defaultSandboxMode ?? "workspace-write",
+    )
+  )
+    throw new Error("The default sandbox mode must be allowed by the deployment.");
   if (
     new Set((config.projects ?? []).map(({ key }) => key)).size !== (config.projects ?? []).length
   )

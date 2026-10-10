@@ -81,6 +81,38 @@ async function fixture(empty = false, defaultProvider?: string) {
   return { bot, open, config, provider, request, create, cwd, workspace };
 }
 
+test("a missing sandbox returns a conflict without admitting unchecked execution", async () => {
+  const { bot, open, config, cwd } = await fixture();
+  await bot.close();
+  const unavailable = await open({ sandboxWorkerPath: join(cwd, "missing-worker.mjs") });
+  const headers = {
+    authorization: `Bearer ${config.adminToken}`,
+    "content-type": "application/json",
+  };
+  const response = await unavailable.app.request("/v1/threads", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      workspaceId: [...unavailable.workspaceProjects.keys()][0],
+      requestId: "unavailable-thread",
+    }),
+  });
+  expect(response.status).toBe(201);
+  const { id } = Schema.decodeUnknownSync(identity)(await response.json());
+  const rejected = await unavailable.app.request(`/v1/threads/${id}/messages`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ prompt: "Run", requestId: "unavailable-input" }),
+  });
+  expect(rejected.status).toBe(409);
+  expect(await rejected.json()).toMatchObject({ error: { code: "SandboxUnavailable" } });
+  expect(await unavailable.core.operationByRequest(id, "unavailable-input")).toBeUndefined();
+  expect((await unavailable.core.openThread(id)).snapshot.sandbox).toMatchObject({
+    mode: "workspace-write",
+    available: false,
+  });
+});
+
 test("HTTP admission executes real tools, rejects conflicting retries and retains results across restart", async () => {
   const { bot, open, provider, request, create, cwd } = await fixture();
   provider.setResponses([
@@ -123,6 +155,47 @@ test("HTTP admission executes real tools, rejects conflicting retries and retain
     status: "completed",
     operationId: accepted.operationId,
   });
+});
+
+test("HTTP exposes sandbox ceilings and scopes approvals to the owning thread", async () => {
+  const { bot, provider, request, create, cwd } = await fixture();
+  const id = await create("sandbox-thread");
+  const other = await create("other-thread");
+  expect((await request(`/v1/threads/${id}/sandbox`, { mode: "danger-full-access" })).status).toBe(
+    400,
+  );
+  expect((await request(`/v1/threads/${id}/sandbox`, { mode: "read-only" })).status).toBe(200);
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("write", { path: "approved-via-http.txt", content: "approved" }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const response = await request(`/v1/threads/${id}/messages`, {
+    prompt: "Write",
+    requestId: "sandbox-message",
+  });
+  const operation = Schema.decodeUnknownSync(admission)(await response.json());
+  await expect
+    .poll(async () => (await bot.core.openThread(id)).snapshot.approvals?.length, { timeout: 5000 })
+    .toBe(1);
+  const approval = (await bot.core.openThread(id)).snapshot.approvals![0]!;
+  expect(
+    (await request(`/v1/threads/${other}/approvals/${approval.id}`, { approved: true })).status,
+  ).toBe(404);
+  await expect(readFile(join(cwd, "approved-via-http.txt"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  expect(
+    (await request(`/v1/threads/${id}/approvals/${approval.id}`, { approved: true })).status,
+  ).toBe(200);
+  await expect
+    .poll(async () => (await bot.core.operation(id, operation.operationId)).status, {
+      timeout: 5000,
+    })
+    .toBe("completed");
+  expect(await readFile(join(cwd, "approved-via-http.txt"), "utf8")).toBe("approved");
 });
 
 test("authentication and configured workspace boundaries reject input before execution", async () => {

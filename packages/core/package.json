@@ -16,9 +16,10 @@
     }
   },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack && node ../../scripts/build-sandbox.mjs dist/sandbox",
     "typecheck": "tsc --noEmit",
-    "test": "vp test run"
+    "test": "vp test run",
+    "verify-package": "node scripts/verify-package.mjs"
   },
   "dependencies": {
     "@cf-wasm/photon": "catalog:",

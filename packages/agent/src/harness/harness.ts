@@ -186,7 +186,7 @@ class HarnessImpl<Tool extends ToolRegistration> extends SessionImpl implements 
 			models: options.models,
 			agent: (id, snapshot, callContext) => this.resolveAgent(id, snapshot as RegistrySnapshot<Tool>, callContext),
 			settings,
-			env: (id, callContext) => this.buildEnv(id, callContext),
+			env: (id, callContext, taskId, taskKind) => this.buildEnv(id, callContext, taskId, taskKind),
 			now,
 			report: this.#report,
 			settleOutcome: settleSchedulerOutcome,
@@ -222,11 +222,16 @@ class HarnessImpl<Tool extends ToolRegistration> extends SessionImpl implements 
 	}
 
 	/** Build a conversation's environment from its current `cwd`; `undefined` without an `env` option. */
-	async buildEnv(id: ConversationId, context: Context): Promise<ExecutionEnv | undefined> {
+	async buildEnv(
+		id: ConversationId,
+		context: Context,
+		taskId?: TaskId,
+		taskKind?: string,
+	): Promise<ExecutionEnv | undefined> {
 		const build = this.#options.env;
 		if (build === undefined) return undefined;
 		const cwd = (await this.snapshot(AgentDoc, id, context))?.cwd;
-		return build({ conversationId: id, ...(cwd === undefined ? {} : { cwd }), read: this }, context);
+		return build({ conversationId: id, taskId, taskKind, ...(cwd === undefined ? {} : { cwd }), read: this }, context);
 	}
 
 	/** Reconcile surviving `running` tasks to `pending`; part of open. */

@@ -70,6 +70,9 @@ const bridge: DesktopBridge = {
       ...(configuration ? { configuration } : {}),
     }),
   openThread: (id) => invoke("eta:command", { type: "open", id }),
+  configureSandbox: (id, mode) => invoke("eta:command", { type: "configure-sandbox", id, mode }),
+  decideApproval: (id, requestId, approved) =>
+    invoke("eta:command", { type: "decide-approval", id, requestId, approved }),
   renameThread: (id, title) => invoke("eta:command", { type: "rename", id, title }),
   archiveThread: (id, archived) => invoke("eta:command", { type: "archive", id, archived }),
   configureThread: (id, provider, modelId, thinkingLevel) =>

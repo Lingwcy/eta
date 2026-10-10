@@ -37,6 +37,13 @@ export function ComposerContext({
 }) {
   return (
     <div className="mx-5 -mb-1 flex h-[38px] items-center gap-3 rounded-t-2xl bg-neutral-200/60 px-3 pb-1 text-[13px] text-neutral-500 min-[701px]:mx-7 min-[901px]:gap-5">
+      <EnvironmentPicker
+        cloud={cloud}
+        connected={library?.bot?.status === "connected"}
+        disabled={busy}
+        onChange={onEnvironment}
+        onSettings={onSettings}
+      />
       <Suspense
         fallback={
           <Button variant="ghost" size="pill" disabled>
@@ -55,13 +62,6 @@ export function ComposerContext({
           onCreate={onCreateProject}
         />
       </Suspense>
-      <EnvironmentPicker
-        cloud={cloud}
-        connected={library?.bot?.status === "connected"}
-        disabled={busy}
-        onChange={onEnvironment}
-        onSettings={onSettings}
-      />
       {worktree && (
         <span className="ml-auto flex items-center gap-1.5">
           <GitBranch size={15} aria-hidden="true" />

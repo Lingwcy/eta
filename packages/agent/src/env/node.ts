@@ -442,7 +442,14 @@ export class NodeExecutionEnv implements ExecutionEnv {
 	private shellEnv?: NodeJS.ProcessEnv;
 	private activeChildPids = new Set<number>();
 
-	constructor(options: { cwd: string; shellPath?: string; shellEnv?: NodeJS.ProcessEnv }) {
+	private readonly detachedCommands: boolean;
+	constructor(options: {
+		cwd: string;
+		shellPath?: string;
+		shellEnv?: NodeJS.ProcessEnv;
+		detachedCommands?: boolean;
+	}) {
+		this.detachedCommands = options.detachedCommands ?? process.platform !== "win32";
 		this.cwd = options.cwd;
 		this.shellPath = options.shellPath;
 		this.shellEnv = options.shellEnv;
@@ -598,7 +605,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
 					commandFromStdin ? shellConfig.value.args : [...shellConfig.value.args, command],
 					{
 						cwd,
-						detached: process.platform !== "win32",
+						detached: this.detachedCommands,
 						env: getShellEnv(this.shellEnv, options?.env, options?.inheritEnv),
 						stdio: [commandFromStdin ? "pipe" : "ignore", "pipe", "pipe"],
 						windowsHide: true,

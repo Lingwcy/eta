@@ -8,6 +8,7 @@ export class CoreError extends Schema.TaggedError<CoreError>()("CoreError", {
     "StorageCorrupt",
     "WorkspaceUnavailable",
     "ModelUnavailable",
+    "SandboxUnavailable",
     "Busy",
     "RuntimeClosing",
     "RecoveryRequired",

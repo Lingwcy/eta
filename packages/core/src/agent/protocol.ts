@@ -8,10 +8,12 @@ import type {
   ToolResultMessage,
 } from "@earendil-works/pi-ai";
 import type { ActiveSkill } from "../skills/types.ts";
+import type { SandboxApproval, SandboxMode, SandboxStatus } from "../shared/sandbox.ts";
 
 export type ThinkingLevel = ModelThinkingLevel | "off";
 
 export interface CreateThreadConfiguration {
+  sandboxMode?: SandboxMode;
   provider: string;
   modelId: string;
   thinkingLevel: ThinkingLevel;
@@ -44,7 +46,7 @@ export interface RecoveryState {
 }
 
 export interface SnapshotTool {
-  status: "running" | "settled" | "stopped" | "incomplete";
+  status: "running" | "waiting" | "settled" | "stopped" | "incomplete";
   toolCallId: string;
   toolName: string;
   args: Record<string, unknown>;
@@ -53,6 +55,8 @@ export interface SnapshotTool {
 }
 
 export interface AgentSnapshot {
+  sandbox?: SandboxStatus;
+  approvals?: readonly SandboxApproval[];
   subagents?: readonly SubagentSummary[];
   activeSkills?: readonly ActiveSkill[];
   configuration: { model: { provider: string; modelId: string }; thinkingLevel: ThinkingLevel };
@@ -67,6 +71,7 @@ export interface AgentSnapshot {
         retry?: { attempt: number; maxAttempts: number };
         deferred?: { pollAt: number };
         waitingForSubagents?: boolean;
+        waitingForApproval?: boolean;
       })
     | null;
   lastResult:

@@ -1,5 +1,7 @@
 import { Context, Layer } from "effect";
-import { NodeExecutionEnv } from "@eta/agent/env/node";
+import { SandboxedExecutionEnv } from "../platform/sandbox/environment.ts";
+import type { SandboxMode, SandboxPolicy } from "../shared/sandbox.ts";
+import { sandboxModes } from "../shared/sandbox.ts";
 import type { ExecutionEnv } from "@eta/agent/env";
 import type { Extension } from "@eta/agent";
 import type { Models } from "@earendil-works/pi-ai";
@@ -8,7 +10,12 @@ import type { EtaSessionMetadata } from "../shared/sessions.ts";
 export interface CoreEnvironment {
   readonly userAgent: string;
   readonly shutdown: "preserve" | "abortForeground";
-  readonly executionEnvironment: (cwd: string) => ExecutionEnv | Promise<ExecutionEnv>;
+  readonly executionEnvironment: (
+    cwd: string,
+    policy: SandboxPolicy,
+  ) => ExecutionEnv | Promise<ExecutionEnv>;
+  readonly allowedSandboxModes: readonly SandboxMode[];
+  readonly sandboxWorkerPath?: string;
   readonly extensions: (
     ref: EtaSessionMetadata,
     models: Models,
@@ -24,8 +31,12 @@ export class CoreEnvironmentService extends Context.Service<
     Layer.succeed(CoreEnvironmentService, {
       userAgent: options.userAgent ?? "eta",
       shutdown: options.shutdown ?? "preserve",
+      allowedSandboxModes: options.allowedSandboxModes ?? sandboxModes,
+      sandboxWorkerPath: options.sandboxWorkerPath,
       executionEnvironment:
-        options.executionEnvironment ?? ((cwd) => new NodeExecutionEnv({ cwd })),
+        options.executionEnvironment ??
+        ((_cwd, policy) =>
+          SandboxedExecutionEnv.open(policy, { workerPath: options.sandboxWorkerPath })),
       extensions: options.extensions ?? (() => []),
     });
 }

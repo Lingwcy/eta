@@ -1,9 +1,9 @@
-import type { CreateThreadConfiguration, ThinkingLevel } from "@eta/core/agent/protocol";
+import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import type { ImageAttachment } from "@eta/core/images/types";
 import type { DesktopBridge } from "../../../src/bridge.ts";
 
 type DraftBridge = Pick<DesktopBridge, "submit"> &
-  Partial<Pick<DesktopBridge, "configureThread">> & {
+  Partial<Pick<DesktopBridge, "configureThread" | "configureSandbox">> & {
     createThread(
       workspaceId: string,
       requestId: string,
@@ -26,7 +26,7 @@ export class DraftThread {
     workspaceId: string | null,
     prompt: string,
     images?: readonly ImageAttachment[],
-    configuration?: { provider: string; modelId: string; thinkingLevel: ThinkingLevel },
+    configuration?: CreateThreadConfiguration,
   ) {
     if (this.pending) return this.pending;
     if (!prompt.trim() && !images?.length) return Promise.reject(new Error("请输入消息"));
@@ -43,7 +43,7 @@ export class DraftThread {
     workspaceId: string,
     prompt: string,
     images?: readonly ImageAttachment[],
-    configuration?: { provider: string; modelId: string; thinkingLevel: ThinkingLevel },
+    configuration?: CreateThreadConfiguration,
   ) {
     if (!this.threadId) {
       const created = await this.bridge.createThread(
@@ -61,6 +61,8 @@ export class DraftThread {
         configuration.modelId,
         configuration.thinkingLevel,
       );
+    if (configuration?.sandboxMode)
+      await this.bridge.configureSandbox?.(this.threadId, configuration.sandboxMode);
     await this.bridge.submit(this.threadId, prompt, ...(images ? [images] : []));
     return this.threadId;
   }

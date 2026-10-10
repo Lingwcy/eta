@@ -1,12 +1,14 @@
 import { Schema } from "effect";
 import { builtinToolNames } from "../tools.ts";
 import { SubagentSettingsSchema } from "./subagent-schema.ts";
+import { SandboxModeSchema } from "./sandbox.ts";
 
 export const TitleModelSchema = Schema.NullOr(
   Schema.Struct({ provider: Schema.NonEmptyString, modelId: Schema.NonEmptyString }),
 );
 
 export const RuntimeSettingsSchema = Schema.Struct({
+  defaultSandboxMode: Schema.optionalKey(SandboxModeSchema),
   subagents: Schema.optionalKey(SubagentSettingsSchema),
   defaultProvider: Schema.optionalKey(Schema.NonEmptyString),
   defaultModel: Schema.optionalKey(Schema.NonEmptyString),

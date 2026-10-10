@@ -32,6 +32,7 @@ jobs:
           vp run --no-cache @eta/core#typecheck
           vp run @eta/core#test
           vp run --no-cache @eta/core#build
+          vp run @eta/core#verify-package
       - name: Verify Bot
         run: |
           vp run --no-cache @eta/bot#build

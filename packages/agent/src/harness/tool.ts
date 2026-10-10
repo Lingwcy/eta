@@ -34,6 +34,7 @@ export type ToolTaskInput = { assistant: EntryId; callId: string };
 
 export type ToolTaskCheckpoint =
 	| { phase: "call" }
+	| { phase: "authorize"; arguments: JsonObject; replay: "safe" | "unsafe" }
 	/** Durable intent: the final arguments and the replay policy recorded before execution. */
 	| { phase: "execute"; arguments: JsonObject; replay: "safe" | "unsafe" };
 
@@ -43,9 +44,9 @@ type Runtime = TaskRuntime<ToolTaskInput, ToolTaskCheckpoint, ToolTaskResult, To
 type Content = (TextContent | ImageContent)[];
 
 /**
- * Built-in tool task: resolves the called tool among its phase agent's tools, validates, runs `beforeTool`, records intent,
- * executes, runs `afterTool`, and appends the result, all in one `call` handler so nothing separates resolution from
- * settlement. `execute` is reached only by recovery and applies the replay rule.
+ * Validates and applies `beforeTool` before authorization. A pending authorization parks the
+ * final arguments without recording execution intent. After authorization, records intent,
+ * executes, applies `afterTool`, and settles. `execute` recovery applies the replay rule.
  */
 export const ToolTask = defineTask<ToolTaskInput, ToolTaskCheckpoint, ToolTaskResult, ToolHooks>({
 	name: "pi.tool",
@@ -82,6 +83,7 @@ export const ToolTask = defineTask<ToolTaskInput, ToolTaskCheckpoint, ToolTaskRe
 			const validated = validate(tool, call, args);
 			if ("error" in validated) return settle(runtime, call, COMPLETED, () => invalid(validated.error), context);
 			const final = validated.args;
+			if (await authorize(runtime, call, final, tool.replay ?? "unsafe", context)) return;
 			await runtime.commit(async (tx) => {
 				const slot = toolSlot(await tx.doc(LiveDoc, runtime.conversationId), runtime.taskId);
 				if (slot !== undefined) slot.status = "running";
@@ -90,12 +92,39 @@ export const ToolTask = defineTask<ToolTaskInput, ToolTaskCheckpoint, ToolTaskRe
 			}, context);
 			await run(runtime, call, tool, final, context);
 		},
+		authorize: async (task, runtime, context) => {
+			const call = await readCall(runtime, task.input, context);
+			const tool = (await runtime.agent(context)).tools.find((each) => each.name === call.name);
+			if (!tool)
+				return settle(
+					runtime,
+					call,
+					COMPLETED,
+					() => harnessError("tool_unavailable", `Tool ${call.name} is not available`),
+					context,
+				);
+			const { arguments: args, replay } = task.state.checkpoint;
+			const checked = validate(tool, call, args);
+			if ("error" in checked)
+				return settle(runtime, call, COMPLETED, () => invalid(checked.error), context);
+			const currentReplay = replay === "safe" && tool.replay === "safe" ? "safe" : "unsafe";
+			if (await authorize(runtime, call, checked.args, currentReplay, context)) return;
+			await runtime.commit(
+				() => ({
+					status: "running",
+					checkpoint: { phase: "execute", arguments: checked.args, replay: currentReplay },
+				}),
+				context,
+			);
+			await run(runtime, call, tool, checked.args, context);
+		},
 		/** Recovery after intent: rerun only when the stored and the current policy both say `safe`. */
 		execute: async (task, runtime, context) => {
 			const { arguments: args, replay } = task.state.checkpoint;
 			const call = await readCall(runtime, task.input, context);
 			const tool = (await runtime.agent(context)).tools.find((each) => each.name === call.name);
 			if (replay === "safe" && tool?.replay === "safe") {
+				if (await authorize(runtime, call, args, replay, context)) return;
 				// The rerun reports from scratch; clear what the interrupted attempt published.
 				await runtime.commit(async (tx) => {
 					const slot = toolSlot(await tx.doc(LiveDoc, runtime.conversationId), runtime.taskId);
@@ -116,6 +145,45 @@ export const ToolTask = defineTask<ToolTaskInput, ToolTaskCheckpoint, ToolTaskRe
 		await settle(runtime, call, { status: "aborted" }, (slot) => fromSlot(slot, "aborted", message), context);
 	},
 });
+
+async function authorize(
+	runtime: Runtime,
+	call: ToolCall,
+	args: JsonObject,
+	replay: "safe" | "unsafe",
+	context: Context,
+) {
+	let blocked: string | undefined;
+	const waits: TaskId[] = [];
+	await runtime.hooks.each("authorizeTool", async (hook) => {
+		try {
+			const decision = await hook({ ...call, arguments: args }, runtime, context);
+			if (decision?.block !== undefined) blocked = decision.block;
+			if (decision?.waitFor !== undefined) waits.push(decision.waitFor);
+		} catch (error) {
+			if (runtime.signal.aborted) throw error;
+			blocked = errorText(error);
+		}
+	});
+	if (blocked !== undefined) {
+		const reason = blocked;
+		await settle(runtime, call, COMPLETED, () => harnessError("blocked", reason), context);
+		return true;
+	}
+	if (waits.length) {
+		await runtime.commit(
+			() => ({
+				status: "waiting",
+				checkpoint: { phase: "authorize", arguments: args, replay },
+				on: waits,
+				policy: "allSettled",
+			}),
+			context,
+		);
+		return true;
+	}
+	return false;
+}
 
 /** The tool call `callId` of the assistant entry. */
 async function readCall(runtime: Runtime, input: ToolTaskInput, context: Context): Promise<ToolCall> {

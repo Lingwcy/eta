@@ -1,12 +1,12 @@
 {
   "name": "@eta/desktop",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "type": "module",
   "main": "dist/electron/main.cjs",
   "scripts": {
     "build:renderer": "vp build --config renderer/vite.config.ts",
-    "build:electron": "tsc --noEmit && vp pack",
+    "build:electron": "tsc --noEmit && vp pack && node ../../scripts/build-sandbox.mjs dist/electron",
     "build": "vp run build:renderer && vp run build:electron",
     "package:mac": "vp run build && node scripts/prepare-package.mjs && node scripts/verify-package.mjs && electron-builder --config electron-builder.config.cjs --mac --publish never",
     "package:win": "vp run build && node scripts/prepare-package.mjs && node scripts/verify-package.mjs && electron-builder --config electron-builder.config.cjs --win --x64 --publish never",

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --experimental-transform-types --import ./src/source-loader.ts ./src/main.ts",
-    "build": "tsc --noEmit && vp pack",
+    "build": "tsc --noEmit && vp pack && node ../../scripts/build-sandbox.mjs dist",
     "start": "node dist/main.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vp test run",

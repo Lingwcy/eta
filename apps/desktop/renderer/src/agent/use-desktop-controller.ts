@@ -11,6 +11,8 @@ import type { DesktopTabController } from "./use-desktop-tabs";
 import type { InputModel } from "@/components/input/types";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { hasThreadActivity } from "./thread-activity";
+import { defaultSandboxMode, sandboxModes } from "@eta/core/shared/sandbox";
+import type { SandboxMode } from "@eta/core/shared/sandbox";
 
 /** A mounted conversation keeps its composer when another tab becomes active. */
 export function useDesktopController(
@@ -67,6 +69,20 @@ export function useDesktopController(
     pending,
   );
   const backgroundWork = Boolean(snapshot && !running && hasThreadActivity(snapshot));
+  const sandboxDisabledReason =
+    cloud && remote?.status !== "connected"
+      ? "Bot 未连接，请在设置中重新连接后切换策略。"
+      : cloud && !remote?.library?.allowedSandboxModes?.length
+        ? "当前 Bot 尚不支持沙盒，请更新 Bot 并重新连接。"
+        : running || backgroundWork
+          ? "请先停止线程和子智能体，再切换策略。"
+          : snapshot?.recoveryRequired
+            ? "请先恢复或停止当前任务，再切换策略。"
+            : tab.threadId && agent.connection !== "connected"
+              ? "会话连接尚未就绪，请重新打开会话后切换策略。"
+              : desktop.busy || pending
+                ? "正在保存更改，请稍后切换策略。"
+                : undefined;
   const threadId = tab.threadId;
   const hasMessages =
     snapshot?.transcript.some(
@@ -123,34 +139,67 @@ export function useDesktopController(
         : null,
     stopped: snapshot?.lastResult?.status === "aborted" && !running,
     thinking,
-    composerContext: {
-      cloud,
-      onEnvironment: (next: boolean) => {
-        setCloudSelection(undefined);
-        navigation.tabs.updateConversation(tab.id, {
-          environment: next ? "cloud" : "local",
-          workspaceId: null,
-        });
+    approval: {
+      requests: snapshot?.approvals ?? [],
+      busy: desktop.busy || Boolean(snapshot?.recoveryRequired),
+      onDecision: (id: string, approved: boolean) => {
+        if (threadId)
+          void desktop.act(async () => {
+            await window.eta.decideApproval(threadId, id, approved);
+          });
       },
-      onSettings: () => navigation.tabs.openSettings("bot"),
-      projectName: project?.name,
-      cwd: workspace?.cwd,
-      worktree: workspace?.kind === "worktree",
-      busy: desktop.busy || pending || !!threadId,
-      library: desktop.library,
-      workspaceId: tab.workspaceId,
-      onProject: (id: string | null) =>
-        navigation.tabs.updateConversation(tab.id, {
-          workspaceId: id,
-          environment: isCloudId(id) ? "cloud" : "local",
-        }),
-      onCreateProject: registerProject,
     },
+    composerContext:
+      threadId || pending
+        ? null
+        : {
+            cloud,
+            onEnvironment: (next: boolean) => {
+              desktop.clearError();
+              setError(undefined);
+              setCloudSelection(undefined);
+              navigation.tabs.updateConversation(tab.id, {
+                environment: next ? "cloud" : "local",
+                workspaceId: null,
+                sandboxMode: undefined,
+              });
+            },
+            onSettings: () => navigation.tabs.openSettings("bot"),
+            projectName: project?.name,
+            cwd: workspace?.cwd,
+            worktree: workspace?.kind === "worktree",
+            busy: desktop.busy,
+            library: desktop.library,
+            workspaceId: tab.workspaceId,
+            onProject: (id: string | null) =>
+              navigation.tabs.updateConversation(tab.id, {
+                workspaceId: id,
+                environment: isCloudId(id) ? "cloud" : "local",
+              }),
+            onCreateProject: registerProject,
+          },
     composer: {
       value: tab.draft,
       onChange: (draft: string) => navigation.tabs.updateConversation(tab.id, { draft }),
       model: mainModel,
       cloud,
+      sandboxMode:
+        snapshot?.sandbox?.mode ??
+        tab.sandboxMode ??
+        modelLibrary?.settings.defaultSandboxMode ??
+        defaultSandboxMode,
+      allowedSandboxModes:
+        snapshot?.sandbox?.allowedModes ??
+        (cloud ? (remote?.library?.allowedSandboxModes ?? []) : sandboxModes),
+      sandboxDisabled: Boolean(sandboxDisabledReason),
+      sandboxDisabledReason,
+      onSandboxChange: (mode: SandboxMode) => {
+        if (threadId)
+          void desktop.act(async () => {
+            await agent.configureSandbox(mode);
+          });
+        else navigation.tabs.updateConversation(tab.id, { sandboxMode: mode });
+      },
       models: modelLibrary?.models ?? [],
       providers: cloud
         ? [...new Set(modelLibrary?.models.map((model) => model.provider) ?? [])].map((id) => ({
@@ -191,7 +240,7 @@ export function useDesktopController(
               tab.workspaceId,
               prompt,
               images,
-              cloud && mainModel
+              mainModel
                 ? {
                     provider: mainModel.provider,
                     modelId: mainModel.id,
@@ -199,6 +248,10 @@ export function useDesktopController(
                       cloudSelection?.thinkingLevel ??
                       modelLibrary?.settings.defaultThinkingLevel ??
                       "off",
+                    sandboxMode:
+                      tab.sandboxMode ??
+                      modelLibrary?.settings.defaultSandboxMode ??
+                      defaultSandboxMode,
                   }
                 : undefined,
             );

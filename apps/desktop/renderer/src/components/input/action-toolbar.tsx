@@ -4,9 +4,15 @@ import { cn } from "@/lib/utils";
 import { ContextIndicator } from "./context-indicator";
 import type { ActionToolbarProps } from "./types";
 import { ModelPicker } from "./model-picker";
+import { SandboxPicker } from "./sandbox-picker";
 
 export function ActionToolbar({
   skillsControl,
+  sandboxMode,
+  allowedSandboxModes,
+  sandboxDisabled,
+  sandboxDisabledReason,
+  onSandboxChange,
   model,
   models = [],
   providers = [],
@@ -49,6 +55,15 @@ export function ActionToolbar({
           >
             <Paperclip size={17} aria-hidden="true" />
           </Button>
+        )}
+        {sandboxMode && (
+          <SandboxPicker
+            mode={sandboxMode}
+            allowedModes={allowedSandboxModes}
+            disabled={sandboxDisabled ?? (disabled || isRunning)}
+            disabledReason={sandboxDisabledReason}
+            onChange={onSandboxChange}
+          />
         )}
       </div>
       <div className="flex min-w-0 items-center gap-2.5">

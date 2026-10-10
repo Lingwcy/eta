@@ -1,14 +1,23 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import type { OperationAdmission } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentEvent, AgentBridge } from "../../../src/bridge.ts";
 import { ThreadAgentClient } from "./client.ts";
+import type { SandboxMode } from "@eta/core/shared/sandbox";
 
 class TestBridge implements AgentBridge {
   session!: SessionResponse;
   listener?: (event: AgentEvent) => void;
   unsubscribed = 0;
   openThread = async (_id: string) => this.session;
+  configureSandbox = async (_id: string, mode: SandboxMode): Promise<SessionResponse> => ({
+    ...this.session,
+    snapshot: {
+      ...this.session.snapshot,
+      sandbox: { mode, backend: "seatbelt", available: true },
+    },
+  });
   configureThread = async (
     _id: string,
     provider: string,
@@ -224,6 +233,98 @@ test("changing models keeps the transcript visible and retains the live subscrip
     contextTokens: 50,
   });
   expect(client.getSnapshot().observation?.snapshot.transcript).toHaveLength(2);
+});
+
+test("sandbox changes keep the transcript visible and retain the live subscription", async () => {
+  const client = await connectedClient();
+  const transcript: SessionResponse["snapshot"]["transcript"] = [
+    {
+      id: "existing-message",
+      type: "message",
+      message: { role: "user", content: "Keep this history", timestamp: 1 },
+    },
+  ];
+  bridge.emit({ snapshot: { ...session.snapshot, transcript }, contextTokens: 42 });
+  const rendered: ReturnType<ThreadAgentClient["getSnapshot"]>[] = [];
+  client.subscribe(() => rendered.push(client.getSnapshot()));
+  const listener = bridge.listener;
+  await client.configureSandbox("read-only");
+  expect(client.getSnapshot().observation?.snapshot.sandbox?.mode).toBe("read-only");
+  expect(rendered.length).toBeGreaterThan(0);
+  for (const state of rendered) {
+    expect(state.connection).toBe("connected");
+    expect(state.observation?.snapshot.transcript).toBe(transcript);
+    expect(state.observation?.contextTokens).toBe(42);
+  }
+  expect(bridge.listener).toBe(listener);
+  expect(bridge.unsubscribed).toBe(0);
+  bridge.emit({ snapshot: { ...session.snapshot, transcript }, contextTokens: 50 });
+  expect(client.getSnapshot().observation?.contextTokens).toBe(50);
+});
+
+test("a late sandbox reply preserves newer transcript, operation and context updates", async () => {
+  const client = await connectedClient();
+  const configured = await bridge.configureSandbox(session.id, "read-only");
+  let finish!: (value: SessionResponse) => void;
+  bridge.configureSandbox = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  const pending = client.configureSandbox("read-only");
+  const newer: SnapshotResponse = {
+    contextTokens: 100,
+    snapshot: {
+      ...configured.snapshot,
+      transcript: [
+        {
+          id: "newer",
+          type: "message",
+          message: { role: "user", content: "Newer context", timestamp: 2 },
+        },
+      ],
+      operation: {
+        ...admission,
+        id: admission.operationId,
+        status: "running",
+        fromTipId: null,
+        runningTools: [],
+        streamingMessage: fauxAssistantMessage("Keep streaming"),
+      },
+    },
+  };
+  bridge.emit(newer);
+  finish(configured);
+  await pending;
+  expect(client.getSnapshot().observation?.snapshot.transcript).toBe(newer.snapshot.transcript);
+  expect(client.getSnapshot().observation?.snapshot.operation).toBe(newer.snapshot.operation);
+  expect(client.getSnapshot().observation?.contextTokens).toBe(100);
+});
+
+test("a failed sandbox change preserves the previous policy, history and connection", async () => {
+  const client = await connectedClient();
+  const before = client.getSnapshot();
+  bridge.configureSandbox = async () => {
+    throw new Error("Sandbox unavailable");
+  };
+  await expect(client.configureSandbox("read-only")).rejects.toThrow("Sandbox unavailable");
+  expect(client.getSnapshot()).toBe(before);
+  expect(bridge.unsubscribed).toBe(0);
+});
+
+test("a sandbox reply after leaving the thread cannot update the disposed view", async () => {
+  const client = await connectedClient();
+  const before = client.getSnapshot();
+  const configured = await bridge.configureSandbox(session.id, "read-only");
+  let finish!: (value: SessionResponse) => void;
+  bridge.configureSandbox = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  const pending = client.configureSandbox("read-only");
+  client.dispose();
+  finish(configured);
+  await pending;
+  expect(client.getSnapshot()).toBe(before);
 });
 
 test("a late configuration reply preserves newer transcript, operation and context updates", async () => {

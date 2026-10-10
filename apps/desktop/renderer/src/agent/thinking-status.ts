@@ -31,6 +31,7 @@ export class ThinkingStatus {
         !snapshot.faulted &&
         !snapshot.blockedReason &&
         !snapshot.compacting &&
+        !snapshot.approvals?.length &&
         snapshot.subagents?.some(
           (child) => child.status === "running" || child.status === "queued",
         ),
@@ -71,6 +72,7 @@ export class ThinkingStatus {
       !snapshot.recoveryRequired &&
       !snapshot.faulted &&
       !snapshot.blockedReason &&
+      !operation.waitingForApproval &&
       operation.status !== "aborting"
     ) {
       if (operation.waitingForSubagents) phase = "subagents";

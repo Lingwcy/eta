@@ -21,7 +21,9 @@ export function httpError(error: unknown) {
         ? 404
         : error.code === "InvalidInput"
           ? 400
-          : ["Busy", "RecoveryRequired", "WorkspaceUnavailable"].includes(error.code)
+          : ["Busy", "RecoveryRequired", "WorkspaceUnavailable", "SandboxUnavailable"].includes(
+                error.code,
+              )
             ? 409
             : 503;
     return new BotHttpError(status, error.code, error.message);

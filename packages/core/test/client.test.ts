@@ -1,6 +1,7 @@
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createServer } from "node:http";
 import { Effect } from "effect";
 import {
   createModels,
@@ -193,6 +194,279 @@ test("independent Core instances do not share catalogs or live execution", async
     .toBe("completed");
   await expect(isolated.openThread(thread.id)).rejects.toMatchObject({ code: "NotFound" });
   expect(await isolated.threads()).toEqual([]);
+});
+
+test("workspace network access needs no approval and survives a separate filesystem grant", async () => {
+  const { core, provider, cwd, workspace } = await fixture();
+  const externalFile = join(cwd, "../external.txt");
+  await writeFile(externalFile, "outside file");
+  const server = createServer((_request, response) => response.end("network allowed"));
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("No test server address");
+    const fetch = `/usr/bin/curl --silent --show-error --max-time 2 --noproxy '*' http://127.0.0.1:${address.port}`;
+    const quotedFile = `'${externalFile.replaceAll("'", "'\\''")}'`;
+    provider.setResponses([
+      fauxAssistantMessage(
+        fauxToolCall("bash", {
+          command: `${fetch} > network.txt`,
+          sandbox: { networkAccess: true, reason: "Fetch a page" },
+        }),
+        { stopReason: "toolUse" },
+      ),
+      fauxAssistantMessage(
+        fauxToolCall("bash", {
+          command: `(${fetch} && cat ${quotedFile}) > granted.txt`,
+          sandbox: { readableRoots: [externalFile], reason: "Read an external file" },
+        }),
+        { stopReason: "toolUse" },
+      ),
+      fauxAssistantMessage("Done"),
+    ]);
+    const thread = await core.createThread(workspace.id);
+    const operation = await core.submit(thread.id, "Fetch and read");
+    await expect
+      .poll(async () => readFile(join(cwd, "network.txt"), "utf8").catch(() => ""))
+      .toBe("network allowed");
+    await expect
+      .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+      .toBe(1);
+    const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
+    expect(approval).toMatchObject({ reason: "Read an external file", networkAccess: false });
+    await core.decideApproval(thread.id, approval.id, true);
+    await expect
+      .poll(async () => (await core.operation(thread.id, operation.operationId)).status)
+      .toBe("completed");
+    expect(await readFile(join(cwd, "granted.txt"), "utf8")).toBe("network allowedoutside file");
+    expect((await core.openThread(thread.id)).snapshot.approvals).toEqual([]);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
+test("read-only pauses edits for one exact approval and persists the selected policy", async () => {
+  const { core, open, provider, cwd, workspace } = await fixture();
+  const thread = await core.createThread(workspace.id);
+  expect(thread.snapshot.sandbox?.mode).toBe("workspace-write");
+  await core.configureSandbox(thread.id, "read-only");
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("write", { path: "approved.txt", content: "approved once" }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const operation = await core.submit(thread.id, "Write");
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+    .toBe(1);
+  await expect(readFile(join(cwd, "approved.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(core.configureSandbox(thread.id, "danger-full-access")).rejects.toMatchObject({
+    code: "Busy",
+  });
+  const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
+  expect(approval).toMatchObject({
+    tool: "write",
+    mode: "read-only",
+    args: { path: "approved.txt", content: "approved once" },
+  });
+  await core.decideApproval(thread.id, approval.id, true);
+  await expect
+    .poll(async () => (await core.operation(thread.id, operation.operationId)).status)
+    .toBe("completed");
+  expect(await readFile(join(cwd, "approved.txt"), "utf8")).toBe("approved once");
+  await expect(core.decideApproval(thread.id, approval.id, true)).rejects.toMatchObject({
+    code: "NotFound",
+  });
+  await core.close();
+  const restored = await open();
+  expect((await restored.openThread(thread.id)).snapshot.sandbox?.mode).toBe("read-only");
+});
+
+test.each(["deny", "stop"] as const)(
+  "%s cancels a waiting command without executing it",
+  async (decision) => {
+    const { core, provider, cwd, workspace } = await fixture();
+    const thread = await core.createThread(workspace.id);
+    await core.configureSandbox(thread.id, "read-only");
+    provider.setResponses([
+      fauxAssistantMessage(fauxToolCall("bash", { command: "printf escaped > command.txt" }), {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("Denied"),
+    ]);
+    const operation = await core.submit(thread.id, "Run");
+    await expect
+      .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+      .toBe(1);
+    const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
+    if (decision === "deny") await core.decideApproval(thread.id, approval.id, false);
+    else await core.stop(thread.id);
+    await expect
+      .poll(async () => (await core.operation(thread.id, operation.operationId)).status)
+      .toBe(decision === "deny" ? "completed" : "aborted");
+    await expect(readFile(join(cwd, "command.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await core.openThread(thread.id)).snapshot.approvals).toEqual([]);
+  },
+);
+
+test("environment ceilings reject full access for new and existing threads", async () => {
+  const { core, open, workspace } = await fixture();
+  const thread = await core.createThread(workspace.id);
+  await core.close();
+  const constrained = await open("data", { allowedSandboxModes: ["read-only", "workspace-write"] });
+  await expect(constrained.configureSandbox(thread.id, "danger-full-access")).rejects.toMatchObject(
+    { code: "InvalidInput" },
+  );
+  await expect(
+    constrained.createThread(workspace.id, undefined, {
+      provider: "core-test",
+      modelId: "one",
+      thinkingLevel: "off",
+      sandboxMode: "danger-full-access",
+    }),
+  ).rejects.toMatchObject({ code: "InvalidInput" });
+});
+
+test("pending approvals survive restart without executing before explicit resume and approval", async () => {
+  const { core, open, provider, cwd, workspace } = await fixture();
+  const thread = await core.createThread(workspace.id);
+  await core.configureSandbox(thread.id, "read-only");
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("write", { path: "restart.txt", content: "after approval" }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const operation = await core.submit(thread.id, "Write");
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+    .toBe(1);
+  const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
+  await core.close();
+  const restored = await open();
+  expect((await restored.openThread(thread.id)).snapshot.approvals).toMatchObject([
+    { id: approval.id },
+  ]);
+  await expect(readFile(join(cwd, "restart.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(restored.decideApproval(thread.id, approval.id, true)).rejects.toMatchObject({
+    code: "RecoveryRequired",
+  });
+  await restored.resume(thread.id);
+  await restored.decideApproval(thread.id, approval.id, true);
+  await expect
+    .poll(async () => (await restored.operation(thread.id, operation.operationId)).status, {
+      timeout: 5000,
+    })
+    .toBe("completed");
+  expect(await readFile(join(cwd, "restart.txt"), "utf8")).toBe("after approval");
+});
+
+test("subagents inherit read-only policy and expose their own requests to the owning thread", async () => {
+  const { core, provider, cwd, workspace } = await fixture();
+  const thread = await core.createThread(workspace.id);
+  await core.configureSandbox(thread.id, "read-only");
+  provider.setResponses([
+    fauxAssistantMessage(fauxToolCall("write", { path: "child.txt", content: "approved child" }), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage("Child finished"),
+  ]);
+  await core.subagent(
+    thread.id,
+    { action: "spawn", name: "worker", message: "Write" },
+    "child-spawn",
+  );
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length, {
+      timeout: 5000,
+    })
+    .toBe(1);
+  const snapshot = (await core.openThread(thread.id)).snapshot;
+  const request = snapshot.approvals![0]!;
+  expect(request).toMatchObject({
+    mode: "read-only",
+    conversationId: String(snapshot.subagents![0]!.conversationId),
+  });
+  await expect(readFile(join(cwd, "child.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(core.configureSandbox(thread.id, "danger-full-access")).rejects.toMatchObject({
+    code: "Busy",
+  });
+  await core.decideApproval(thread.id, request.id, true);
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.subagents?.[0]?.status, {
+      timeout: 5000,
+    })
+    .toBe("completed");
+  expect(await readFile(join(cwd, "child.txt"), "utf8")).toBe("approved child");
+});
+
+test("an unavailable worker blocks execution without changing the stored sandbox policy", async () => {
+  const { core, open, provider, cwd, workspace } = await fixture();
+  await core.close();
+  const broken = await open("data", { sandboxWorkerPath: join(cwd, "missing-worker.mjs") });
+  const thread = await broken.createThread(workspace.id);
+  expect(thread.snapshot.sandbox).toMatchObject({ mode: "workspace-write", available: false });
+  await expect(broken.submit(thread.id, "Write")).rejects.toMatchObject({
+    code: "SandboxUnavailable",
+  });
+  await broken.close();
+  const restored = await open();
+  expect((await restored.openThread(thread.id)).snapshot.sandbox).toMatchObject({
+    mode: "workspace-write",
+    available: true,
+  });
+  provider.setResponses([
+    fauxAssistantMessage(fauxToolCall("write", { path: "restored.txt", content: "safe" }), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage("Done"),
+  ]);
+  const operation = await restored.submit(thread.id, "Write");
+  await expect
+    .poll(async () => (await restored.operation(thread.id, operation.operationId)).status, {
+      timeout: 5000,
+    })
+    .toBe("completed");
+  expect(await readFile(join(cwd, "restored.txt"), "utf8")).toBe("safe");
+});
+
+test("an approved read-only command receives only its requested workspace scope", async () => {
+  const { core, provider, cwd, workspace } = await fixture();
+  const thread = await core.createThread(workspace.id);
+  await core.configureSandbox(thread.id, "read-only");
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("bash", {
+        command: "printf approved > command.txt",
+        sandbox: { reason: "Write the requested result", writableRoots: [cwd] },
+      }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const operation = await core.submit(thread.id, "Write");
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+    .toBe(1);
+  await expect(readFile(join(cwd, "command.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  const request = (await core.openThread(thread.id)).snapshot.approvals![0]!;
+  expect(request.writableRoots).toHaveLength(1);
+  await core.decideApproval(thread.id, request.id, true);
+  await expect
+    .poll(async () => (await core.operation(thread.id, operation.operationId)).status, {
+      timeout: 5000,
+    })
+    .toBe("completed");
+  expect(await readFile(join(cwd, "command.txt"), "utf8")).toBe("approved");
+  expect((await core.openThread(thread.id)).snapshot.sandbox?.mode).toBe("read-only");
 });
 
 test("host model catalogs and mutable default settings stay local to each Core instance", async () => {

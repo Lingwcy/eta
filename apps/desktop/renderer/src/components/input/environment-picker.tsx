@@ -25,7 +25,7 @@ export function EnvironmentPicker({
         aria-label="选择执行位置"
       >
         {cloud ? <Cloud size={18} /> : <Laptop size={18} />}
-        {cloud ? "云端" : "此计算机"}
+        {cloud ? "Bot" : "此计算机"}
       </PopoverTrigger>
       <PopoverContent variant="menu" aria-label="选择执行位置">
         <Button
@@ -49,7 +49,7 @@ export function EnvironmentPicker({
           }}
         >
           <Cloud size={17} />
-          云端{cloud && <Check size={16} />}
+          Bot{cloud && <Check size={16} />}
         </Button>
         {!connected && (
           <Button

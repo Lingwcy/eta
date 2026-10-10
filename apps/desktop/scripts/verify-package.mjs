@@ -71,6 +71,12 @@ try {
   assert.equal(library.projects.length, 1);
   assert.ok(library.models.length > 0, "Bundled model catalog must be available");
   assert.ok(library.providers.length > 0, "Bundled authentication providers must be available");
+  const workspaceId = library.workspaces[0].id;
+  const thread = await application.createThread(workspaceId);
+  assert.equal(thread.snapshot.sandbox.mode, "workspace-write");
+  if (process.platform !== "win32")
+    assert.equal(thread.snapshot.sandbox.available, true, thread.snapshot.sandbox.reason);
+  else assert.equal(thread.snapshot.sandbox.available, false);
   await application.updateSettings({ defaultThinkingLevel: "low" });
   await application.close();
   application = await compiled.exports.createDesktopApplication(

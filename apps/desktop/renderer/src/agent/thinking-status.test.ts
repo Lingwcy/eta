@@ -40,6 +40,13 @@ test("waiting for the next response appears between tool rounds without repeatin
   expect(status.update("thread", snapshot())).toBe("continuing");
 });
 
+test("an approval pause suppresses thinking and resumes the existing run afterwards", () => {
+  const status = new ThinkingStatus();
+  expect(status.update("thread", snapshot())).toBe("waiting");
+  expect(status.update("thread", snapshot({ waitingForApproval: true }))).toBeNull();
+  expect(status.update("thread", snapshot())).toBe("waiting");
+});
+
 test("only an active thinking part shows reasoning, not a thinking part retained before text", () => {
   const status = new ThinkingStatus();
   const reasoning = { type: "thinking" as const, thinking: "Let me consider this" };
