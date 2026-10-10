@@ -15,6 +15,7 @@ export default defineConfig({
             globSync("packages/core/src/**/*.ts", {
               cwd: fileURLToPath(new URL("../../", import.meta.url)),
             })
+              .map((path) => path.replaceAll("\\", "/"))
               .filter((path) => !path.endsWith(".test.ts"))
               .map((path) => [
                 `@eta/core/${path.replace("packages/core/src/", "").replace(/\.ts$/, "")}$`,

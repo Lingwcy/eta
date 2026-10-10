@@ -10,7 +10,7 @@ export default defineConfig({
     entry: Object.fromEntries(
       globSync("src/**/*.ts")
         .filter((path) => !path.endsWith(".test.ts"))
-        .map((path) => [relative("src", path).replace(/\.ts$/, ""), path]),
+        .map((path) => [relative("src", path).replaceAll("\\", "/").replace(/\.ts$/, ""), path]),
     ),
     format: "esm",
     outExtensions: () => ({ js: ".mjs" }),

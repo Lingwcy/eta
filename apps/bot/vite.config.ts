@@ -6,6 +6,7 @@ const repository = fileURLToPath(new URL("../../", import.meta.url));
 const workspaceAliases = Object.fromEntries(
   ["core", "agent"].flatMap((name) =>
     globSync(`packages/${name}/src/**/*.ts`, { cwd: repository })
+      .map((path) => path.replaceAll("\\", "/"))
       .filter((path) => !path.endsWith(".test.ts"))
       .map((path) => [
         `@eta/${name}/${path.replace(`packages/${name}/src/`, "").replace(/\.ts$/, "")}$`,
