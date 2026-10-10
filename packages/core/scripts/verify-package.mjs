@@ -35,16 +35,16 @@ try {
       "-o",
       program,
     ]);
-    const network = await SandboxedExecutionEnv.open({
+    const offline = await SandboxedExecutionEnv.open({
       mode: "workspace-write",
       workspaceRoot,
-      networkAccess: true,
+      networkAccess: false,
     });
-    environments.push(network);
+    environments.push(offline);
     const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
     for (const { environment, suffix } of [
-      { environment: env, suffix: "" },
-      { environment: network, suffix: " network" },
+      { environment: offline, suffix: "" },
+      { environment: env, suffix: " network" },
     ]) {
       let output = "";
       const result = await environment.exec(
