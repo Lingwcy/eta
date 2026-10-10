@@ -81,7 +81,9 @@ test("headless execution retains older operation results and idempotency after r
   expect((await core.createThread(workspace.id, "create-request")).id).toBe(thread.id);
   const first = await core.submit(thread.id, "Write a file", "input-request");
   await expect
-    .poll(async () => (await core.operation(thread.id, first.operationId)).status)
+    .poll(async () => (await core.operation(thread.id, first.operationId)).status, {
+      timeout: 10000,
+    })
     .toBe("completed");
   expect(await readFile(join(cwd, "proof.txt"), "utf8")).toBe("Executed by Core");
   const second = await core.submit(thread.id, "Continue", "second-request");

@@ -61,12 +61,14 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
   private cleanupPromise?: Promise<void>;
   private readonly pending = new Map<number, Pending>();
   private readonly ready: Promise<void>;
+  private readonly child: ChildProcess;
+  private readonly launch: SandboxLaunch;
+  private readonly commandsAllowed: boolean;
 
-  private constructor(
-    private readonly child: ChildProcess,
-    private readonly launch: SandboxLaunch,
-    private readonly commandsAllowed: boolean,
-  ) {
+  private constructor(child: ChildProcess, launch: SandboxLaunch, commandsAllowed: boolean) {
+    this.child = child;
+    this.launch = launch;
+    this.commandsAllowed = commandsAllowed;
     this.cwd = launch.cwd;
     this.ready = new Promise((resolve, reject) => {
       let ready = false;
