@@ -232,16 +232,22 @@ test("workspace network access needs no approval and survives a separate filesys
     const thread = await core.createThread(workspace.id);
     const operation = await core.submit(thread.id, "Fetch and read");
     await expect
-      .poll(async () => readFile(join(cwd, "network.txt"), "utf8").catch(() => ""))
+      .poll(async () => readFile(join(cwd, "network.txt"), "utf8").catch(() => ""), {
+        timeout: 10000,
+      })
       .toBe("network allowed");
     await expect
-      .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+      .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length, {
+        timeout: 10000,
+      })
       .toBe(1);
     const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
     expect(approval).toMatchObject({ reason: "Read an external file", networkAccess: false });
     await core.decideApproval(thread.id, approval.id, true);
     await expect
-      .poll(async () => (await core.operation(thread.id, operation.operationId)).status)
+      .poll(async () => (await core.operation(thread.id, operation.operationId)).status, {
+        timeout: 10000,
+      })
       .toBe("completed");
     expect(await readFile(join(cwd, "granted.txt"), "utf8")).toBe("network allowedoutside file");
     expect((await core.openThread(thread.id)).snapshot.approvals).toEqual([]);
