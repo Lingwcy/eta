@@ -1,6 +1,6 @@
 import { canGenerateTitle, applyInputTitle, applyManualTitle } from "../titles/policy.ts";
 import type { SubagentCommand, SubagentSummary } from "../../shared/subagents.ts";
-import type { SnapshotResponse } from "../../agent/protocol.ts";
+import type { CreateThreadConfiguration, SnapshotResponse } from "../../agent/protocol.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
 import type { ImageAttachment } from "../../images/types.ts";
 import { randomUUID } from "node:crypto";
@@ -47,7 +47,11 @@ export class ThreadService extends Context.Service<
       includeArchived?: boolean,
     ): Effect.Effect<ReadonlyArray<ThreadMetadata>>;
     get(id: string): Effect.Effect<ThreadMetadata, CoreError>;
-    create(workspaceId: string, requestId?: string): Effect.Effect<OpenThread, ThreadError>;
+    create(
+      workspaceId: string,
+      requestId?: string,
+      configuration?: CreateThreadConfiguration,
+    ): Effect.Effect<OpenThread, ThreadError>;
     open(id: string): Effect.Effect<OpenThread, ThreadError>;
     operation(id: string, operationId: string): Effect.Effect<OperationResult, ThreadError>;
     operationByRequest(
@@ -278,7 +282,7 @@ export class ThreadService extends Context.Service<
             const runtime = yield* runtimeFor(id);
             return yield* adapter("无法读取宿主任务", () => readTask(runtime, taskId));
           }),
-        create: (workspaceId, requestId) =>
+        create: (workspaceId, requestId, configuration) =>
           locked(
             Effect.gen(function* () {
               if (requestId) {
@@ -296,14 +300,25 @@ export class ThreadService extends Context.Service<
               }
               const workspace = yield* workspaces.validate(workspaceId);
               const defaults = yield* settings.read;
-              const model = yield* models.select(defaults);
+              const model = yield* models.select(
+                configuration
+                  ? {
+                      ...defaults,
+                      defaultProvider: configuration.provider,
+                      defaultModel: configuration.modelId,
+                    }
+                  : defaults,
+              );
               const selected = models.models.getModel(model.provider, model.id);
               if (!selected)
                 return yield* new CoreError({
                   code: "ModelUnavailable",
                   message: "模型不可用",
                 });
-              const thinkingLevel = clampThinkingLevel(selected, defaults.defaultThinkingLevel);
+              const thinkingLevel = clampThinkingLevel(
+                selected,
+                configuration?.thinkingLevel ?? defaults.defaultThinkingLevel,
+              );
               const instructions = yield* resources.instructions(workspace.cwd);
               const ref = yield* repository.create(workspace.cwd);
               const thread: ThreadMetadata = {

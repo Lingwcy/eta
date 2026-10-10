@@ -1,3 +1,4 @@
+import { BotSettings } from "./bot-settings";
 import type { ReactNode } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { DesktopSettings } from "../../../../src/shared/settings.ts";
@@ -41,6 +42,7 @@ const authentication = (props: SettingsPanelProps, method: "oauth" | "api_key") 
 );
 
 export const settingsPanels = {
+  bot: (props) => <BotSettings bot={props.library.bot} refresh={props.refreshAuthentication} />,
   accounts: (props) => authentication(props, "oauth"),
   "api-keys": (props) => authentication(props, "api_key"),
   appearance: (props) => (

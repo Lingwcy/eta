@@ -4,7 +4,9 @@
   "port": 8080,
   "adminToken": "replace-with-a-private-admin-token",
   "maxConcurrent": 1,
-  "projects": [{ "key": "support", "rootPath": "/workspaces/support" }],
-  "credentials": { "anthropic": "ANTHROPIC_API_KEY" },
-  "runtime": { "defaultProvider": "anthropic", "defaultThinkingLevel": "off" }
+  "runtime": {
+    "defaultProvider": "anthropic",
+    "defaultThinkingLevel": "off"
+  },
+  "workspaceRoot": "/workspaces"
 }

@@ -16,15 +16,17 @@ export const BotConfigSchema = Schema.Struct({
   shutdownGraceMs: Schema.optionalKey(
     Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 10000 })),
   ),
-  projects: Schema.Array(
-    Schema.Struct({
-      key: Schema.NonEmptyString,
-      rootPath: Schema.NonEmptyString,
-      name: Schema.optionalKey(Schema.NonEmptyString),
-    }),
+  workspaceRoot: Schema.NonEmptyString,
+  projects: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        key: Schema.NonEmptyString,
+        rootPath: Schema.NonEmptyString,
+        name: Schema.optionalKey(Schema.NonEmptyString),
+      }),
+    ),
   ),
   runtime: RuntimeSettingsSchema,
-  credentials: Schema.optionalKey(Schema.Record(Schema.String, Schema.NonEmptyString)),
   discord: Schema.optionalKey(DiscordConfigSchema),
 });
 export type BotConfig = typeof BotConfigSchema.Type;
@@ -41,7 +43,9 @@ export async function loadBotConfig(path: string) {
       "Bot configuration is unreadable or invalid; check its fields and JSON format.",
     );
   }
-  if (new Set(config.projects.map(({ key }) => key)).size !== config.projects.length)
+  if (
+    new Set((config.projects ?? []).map(({ key }) => key)).size !== (config.projects ?? []).length
+  )
     throw new Error("Bot project keys must be unique.");
   if (
     config.discord &&
@@ -53,8 +57,9 @@ export async function loadBotConfig(path: string) {
   return {
     ...config,
     dataRoot,
+    workspaceRoot: resolve(root, config.workspaceRoot),
     home: config.home === undefined ? resolve(dataRoot, "home") : resolve(root, config.home),
-    projects: config.projects.map((project) => ({
+    projects: (config.projects ?? []).map((project) => ({
       ...project,
       rootPath: resolve(root, project.rootPath),
     })),

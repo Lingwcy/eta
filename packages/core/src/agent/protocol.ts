@@ -11,6 +11,12 @@ import type { ActiveSkill } from "../skills/types.ts";
 
 export type ThinkingLevel = ModelThinkingLevel | "off";
 
+export interface CreateThreadConfiguration {
+  provider: string;
+  modelId: string;
+  thinkingLevel: ThinkingLevel;
+}
+
 export type AgentModel = Pick<Model<Api>, "id" | "provider" | "name" | "contextWindow"> &
   Partial<Pick<Model<Api>, "input" | "inputLimits">> & {
     readonly thinkingLevels: readonly ThinkingLevel[];

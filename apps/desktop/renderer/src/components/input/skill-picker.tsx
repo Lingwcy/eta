@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function SkillPicker({
   cwd,
+  workspaceId,
   threadId,
   activeSkills = [],
   active,
@@ -15,6 +16,7 @@ export function SkillPicker({
   onSettings,
 }: {
   cwd?: string;
+  workspaceId?: string | null;
   threadId?: string;
   activeSkills?: readonly ActiveSkill[];
   active: boolean;
@@ -48,7 +50,7 @@ export function SkillPicker({
     setCatalog(undefined);
     setError(undefined);
     window.eta
-      .skills(cwd)
+      .skills(cwd, workspaceId ?? undefined)
       .then((value) => {
         if (!cancelled) setCatalog(value);
       })
@@ -60,7 +62,7 @@ export function SkillPicker({
       cancelled = true;
       unsubscribe();
     };
-  }, [open, cwd, revision]);
+  }, [open, cwd, workspaceId, revision]);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger

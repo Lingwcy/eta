@@ -1,3 +1,5 @@
+import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
+import { DesktopBot, withBot } from "./bot.ts";
 import type { SubagentCommand } from "@eta/core/shared/subagents";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, basename } from "node:path";
@@ -14,7 +16,7 @@ import { readAgentCredentials } from "../agent/agent-credentials.ts";
 import { readAgentSettings } from "../agent/agent-settings.ts";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import type { DesktopLibrary } from "../bridge.ts";
-import { CredentialService } from "./service/credentials/index.ts";
+import { CredentialService } from "@eta/core/service/credentials/index";
 import { CatalogService } from "@eta/core/service/catalog/index";
 import { readJson, writeJson } from "@eta/core/service/json-file";
 import { desktopServices } from "./service/layer.ts";
@@ -27,8 +29,7 @@ import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
 import type { StorageTarget } from "../shared/storage.ts";
 
-/** Electron supplies directories here; the services never call app.getPath themselves. */
-export async function createDesktopApplication(
+async function createLocalDesktopApplication(
   root: string,
   cwd: string,
   dataRoot: string,
@@ -43,7 +44,6 @@ export async function createDesktopApplication(
     throw new Error("文件管理器不可用");
   },
 ) {
-  // Despite its name, pi-ai's registration is runtime-independent and embeds OAuth in CJS bundles.
   registerBundledOAuthFlows();
   await loadProjectEnvironment(root);
   const runtime = ManagedRuntime.make(desktopServices(dataRoot, undefined, processImage));
@@ -135,8 +135,11 @@ export async function createDesktopApplication(
       },
       registerProject: (rootPath: string, name?: string) =>
         run(projects.register({ rootPath, ...(name === undefined ? {} : { name }) })),
-      createThread: (workspaceId: string, requestId?: string) =>
-        selectThread(threads.create(workspaceId, requestId)),
+      createThread: (
+        workspaceId: string,
+        requestId?: string,
+        configuration?: CreateThreadConfiguration,
+      ) => selectThread(threads.create(workspaceId, requestId, configuration)),
       openThread: (id: string) => selectThread(threads.open(id)),
       threadFile: async (id: string) => {
         const thread = await run(threads.get(id));
@@ -161,6 +164,7 @@ export async function createDesktopApplication(
       resume: (id: string) => run(threads.resume(id)),
       compact: (id: string) => run(threads.compact(id)),
       updateSettings: (patch: Partial<DesktopSettings>) => run(settings.update(patch)),
+      exportBotCredentials: () => run(credentials.export),
       startLogin: (provider: string, method: LoginMethod) => authentication.start(provider, method),
       loginState: (id: string) => authentication.read(id),
       answerLogin: (id: string, promptId: string, value: string) =>
@@ -182,6 +186,23 @@ export async function createDesktopApplication(
     };
   } catch (error) {
     await runtime.dispose();
+    throw error;
+  }
+}
+
+export type LocalDesktopApplication = Awaited<ReturnType<typeof createLocalDesktopApplication>>;
+
+export async function createDesktopApplication(
+  ...args: Parameters<typeof createLocalDesktopApplication>
+) {
+  const local = await createLocalDesktopApplication(...args);
+  const bot = new DesktopBot(args[2]);
+  try {
+    await bot.initialize();
+    return withBot(local, bot);
+  } catch (error) {
+    bot.close();
+    await local.close();
     throw error;
   }
 }

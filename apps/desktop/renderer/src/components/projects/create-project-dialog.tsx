@@ -9,8 +9,12 @@ export function CreateProjectDialog({
   open,
   onOpenChange,
   onCreate,
+  cloud = false,
+  cloudRoot,
 }: {
   open: boolean;
+  cloud?: boolean;
+  cloudRoot?: string;
   onOpenChange: (open: boolean) => void;
   onCreate: (rootPath: string, name: string) => Promise<void>;
 }) {
@@ -26,6 +30,8 @@ export function CreateProjectDialog({
         <CreateProjectForm
           onClose={() => onOpenChange(false)}
           onCreate={onCreate}
+          cloud={cloud}
+          cloudRoot={cloudRoot}
           onBusyChange={setBusy}
         />
       )}
@@ -37,14 +43,18 @@ function CreateProjectForm({
   onClose,
   onCreate,
   onBusyChange,
+  cloud,
+  cloudRoot,
 }: {
+  cloud: boolean;
+  cloudRoot?: string;
   onClose: () => void;
   onCreate: (rootPath: string, name: string) => Promise<void>;
   onBusyChange: (busy: boolean) => void;
 }) {
   const [name, setName] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
-  const [rootPath, setRootPath] = useState<string | null>(null);
+  const [rootPath, setRootPath] = useState<string | null>(cloud ? (cloudRoot ?? null) : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const addFolder = async () => {
@@ -64,12 +74,12 @@ function CreateProjectForm({
     }
   };
   const create = async () => {
-    if (busy || !rootPath || !name.trim()) return;
+    if (busy || (!cloud && !rootPath) || !name.trim()) return;
     setBusy(true);
     onBusyChange(true);
     setError(null);
     try {
-      await onCreate(rootPath, name.trim());
+      await onCreate(rootPath ?? "", name.trim());
       onClose();
     } catch (error) {
       setError(error instanceof Error ? error.message : "无法创建项目");
@@ -88,7 +98,9 @@ function CreateProjectForm({
         }}
       >
         <div className="flex items-center justify-between gap-4">
-          <DialogTitle className="text-sm font-medium text-neutral-900">创建项目</DialogTitle>
+          <DialogTitle className="text-sm font-medium text-neutral-900">
+            {cloud ? "创建云端项目" : "创建项目"}
+          </DialogTitle>
           <DialogClose
             disabled={busy}
             render={
@@ -109,38 +121,48 @@ function CreateProjectForm({
           disabled={busy}
           required
         />
-        <section className="flex flex-col gap-1.5" aria-labelledby="project-source-label">
-          <h2 id="project-source-label" className="text-xs font-medium text-neutral-800">
-            源文件夹
-          </h2>
-          <div className="flex min-w-0 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-2">
-            {rootPath ? (
-              <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-neutral-700">
-                <FolderClosed size={16} className="shrink-0" aria-hidden="true" />
-                <span className="truncate" title={rootPath}>
-                  {rootPath}
-                </span>
-              </div>
-            ) : (
-              <p className="min-w-0 flex-1 text-xs text-neutral-500">在此电脑上添加文件夹</p>
-            )}
-            <Button
-              variant="secondary"
-              size="compact"
-              disabled={busy}
-              onClick={() => void addFolder()}
-            >
-              <FolderPlus size={14} aria-hidden="true" />
-              {rootPath ? "更换文件夹" : "添加"}
-            </Button>
-          </div>
-        </section>
+        {cloud ? (
+          <p className="text-xs text-neutral-500">
+            在 Bot 工作空间根目录下新建同名文件夹{cloudRoot ? `：${cloudRoot}` : ""}
+          </p>
+        ) : (
+          <section className="flex flex-col gap-1.5" aria-labelledby="project-source-label">
+            <h2 id="project-source-label" className="text-xs font-medium text-neutral-800">
+              源文件夹
+            </h2>
+            <div className="flex min-w-0 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-2">
+              {rootPath ? (
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-neutral-700">
+                  <FolderClosed size={16} className="shrink-0" aria-hidden="true" />
+                  <span className="truncate" title={rootPath}>
+                    {rootPath}
+                  </span>
+                </div>
+              ) : (
+                <p className="min-w-0 flex-1 text-xs text-neutral-500">在此电脑上添加文件夹</p>
+              )}
+              <Button
+                variant="secondary"
+                size="compact"
+                disabled={busy}
+                onClick={() => void addFolder()}
+              >
+                <FolderPlus size={14} aria-hidden="true" />
+                {rootPath ? "更换文件夹" : "添加"}
+              </Button>
+            </div>
+          </section>
+        )}
         {error && <Alert>{error}</Alert>}
         <div className="mt-1 flex justify-end gap-2">
           <Button variant="ghost-muted" size="compact" disabled={busy} onClick={onClose}>
             取消
           </Button>
-          <Button size="compact" type="submit" disabled={busy || !rootPath || !name.trim()}>
+          <Button
+            size="compact"
+            type="submit"
+            disabled={busy || (!cloud && !rootPath) || !name.trim()}
+          >
             {busy ? "请稍候…" : "创建项目"}
           </Button>
         </div>

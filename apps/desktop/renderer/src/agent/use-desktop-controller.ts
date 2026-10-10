@@ -1,6 +1,7 @@
+import { isCloudId } from "../../../src/shared/bot.ts";
 import { defaultModel, projectRootWorkspace } from "@/desktop/selectors";
 import type { ImageAttachment } from "@eta/core/images/types";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useThinkingStatus } from "./use-thinking-status";
 import { useThreadAgent } from "./use-thread-agent";
 import { DraftThread } from "./draft-thread";
@@ -29,9 +30,30 @@ export function useDesktopController(
     (workspace) => workspace.id === tab.workspaceId,
   );
   const project = desktop.library?.projects.find((project) => project.id === workspace?.projectId);
+  const cloud =
+    tab.threadId || tab.workspaceId
+      ? isCloudId(tab.threadId ?? tab.workspaceId)
+      : tab.environment === "cloud";
+  const remote = desktop.library?.bot;
+  const previousConnection = useRef(remote?.status);
+  useEffect(() => {
+    if (cloud && remote?.status === "connected" && previousConnection.current === "error")
+      setLocalVersion((value) => value + 1);
+    previousConnection.current = remote?.status;
+  }, [cloud, remote?.status]);
+  const modelLibrary = cloud ? remote?.library : desktop.library;
+  const [cloudSelection, setCloudSelection] = useState<{
+    model: InputModel;
+    thinkingLevel: ThinkingLevel;
+  }>();
   const snapshot = agent.observation?.snapshot;
   const mainModel =
-    agent.session?.model ?? (desktop.library ? defaultModel(desktop.library) : undefined);
+    agent.session?.model ??
+    (cloud && cloudSelection
+      ? cloudSelection.model
+      : modelLibrary
+        ? defaultModel(modelLibrary)
+        : undefined);
   useEffect(() => {
     if (active)
       desktop.selectMainModel(mainModel && { provider: mainModel.provider, modelId: mainModel.id });
@@ -55,7 +77,9 @@ export function useDesktopController(
   }, [threadId, snapshot, navigation.activity]);
   const registerProject = async (rootPath: string, name: string) => {
     await desktop.act(async () => {
-      const project = await window.eta.registerProject(rootPath, name);
+      const project = cloud
+        ? await window.eta.createCloudProject(name, crypto.randomUUID())
+        : await window.eta.registerProject(rootPath, name);
       const next = await desktop.refresh();
       const workspace = projectRootWorkspace(next.workspaces, project.id);
       navigation.tabs.updateConversation(tab.id, { workspaceId: workspace?.id ?? null });
@@ -71,6 +95,9 @@ export function useDesktopController(
           }
         : null,
     failure:
+      (cloud && remote?.status !== "connected"
+        ? (remote?.message ?? "Bot 未连接，请在设置中重新连接")
+        : undefined) ??
       error ??
       desktop.error ??
       agent.error ??
@@ -96,30 +123,46 @@ export function useDesktopController(
         : null,
     stopped: snapshot?.lastResult?.status === "aborted" && !running,
     thinking,
-    composerContext:
-      !hasMessages && (!threadId || snapshot)
-        ? {
-            projectName: project?.name,
-            cwd: workspace?.cwd,
-            worktree: workspace?.kind === "worktree",
-            busy: desktop.busy || pending || !!threadId,
-            library: desktop.library,
-            workspaceId: tab.workspaceId,
-            onProject: (id: string | null) =>
-              navigation.tabs.updateConversation(tab.id, { workspaceId: id }),
-            onCreateProject: registerProject,
-          }
-        : null,
+    composerContext: {
+      cloud,
+      onEnvironment: (next: boolean) => {
+        setCloudSelection(undefined);
+        navigation.tabs.updateConversation(tab.id, {
+          environment: next ? "cloud" : "local",
+          workspaceId: null,
+        });
+      },
+      onSettings: () => navigation.tabs.openSettings("bot"),
+      projectName: project?.name,
+      cwd: workspace?.cwd,
+      worktree: workspace?.kind === "worktree",
+      busy: desktop.busy || pending || !!threadId,
+      library: desktop.library,
+      workspaceId: tab.workspaceId,
+      onProject: (id: string | null) =>
+        navigation.tabs.updateConversation(tab.id, {
+          workspaceId: id,
+          environment: isCloudId(id) ? "cloud" : "local",
+        }),
+      onCreateProject: registerProject,
+    },
     composer: {
       value: tab.draft,
       onChange: (draft: string) => navigation.tabs.updateConversation(tab.id, { draft }),
       model: mainModel,
-      models: desktop.library?.models ?? [],
-      providers: desktop.library?.providers ?? [],
+      cloud,
+      models: modelLibrary?.models ?? [],
+      providers: cloud
+        ? [...new Set(modelLibrary?.models.map((model) => model.provider) ?? [])].map((id) => ({
+            id,
+            name: id,
+          }))
+        : (desktop.library?.providers ?? []),
       onModelChange: (model: InputModel, level: ThinkingLevel) => {
         if (running || backgroundWork) return;
         void desktop.act(async () => {
           if (threadId) await agent.configure(model.provider, model.id, level);
+          else if (cloud) setCloudSelection({ model, thinkingLevel: level });
           else
             await window.eta.updateSettings({
               defaultProvider: model.provider,
@@ -129,10 +172,13 @@ export function useDesktopController(
         });
       },
       thinkingLevel:
-        snapshot?.configuration.thinkingLevel ?? desktop.library?.settings.defaultThinkingLevel,
+        snapshot?.configuration.thinkingLevel ??
+        (cloud
+          ? (cloudSelection?.thinkingLevel ?? modelLibrary?.settings.defaultThinkingLevel)
+          : desktop.library?.settings.defaultThinkingLevel),
       contextTokens: agent.observation?.contextTokens,
       contextWindow: agent.session?.model.contextWindow,
-      cwd: workspace?.cwd,
+      cwd: cloud ? undefined : workspace?.cwd,
       onSubmit: async (prompt: string, images?: readonly ImageAttachment[]) => {
         desktop.clearError();
         setError(undefined);
@@ -141,7 +187,21 @@ export function useDesktopController(
           let id = threadId;
           if (id) await agent.submit(prompt, images);
           else {
-            id = await draft.submit(tab.workspaceId, prompt, images);
+            id = await draft.submit(
+              tab.workspaceId,
+              prompt,
+              images,
+              cloud && mainModel
+                ? {
+                    provider: mainModel.provider,
+                    modelId: mainModel.id,
+                    thinkingLevel:
+                      cloudSelection?.thinkingLevel ??
+                      modelLibrary?.settings.defaultThinkingLevel ??
+                      "off",
+                  }
+                : undefined,
+            );
             navigation.tabs.updateConversation(tab.id, { threadId: id });
           }
           navigation.activity.watch(id);
@@ -159,9 +219,10 @@ export function useDesktopController(
       isRunning: running || backgroundWork,
       allowSubmitWhileRunning: backgroundWork,
       isStopping: agent.stopping || operation?.status === "aborting",
-      submitDisabled: !threadId && !tab.workspaceId,
+      submitDisabled: (!threadId && !tab.workspaceId) || (cloud && remote?.status !== "connected"),
       disabled:
         desktop.busy ||
+        (cloud && remote?.status !== "connected") ||
         !desktop.library ||
         pending ||
         Boolean(operation?.waitingForSubagents) ||

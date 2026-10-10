@@ -1,3 +1,5 @@
+import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
+import type { BotConnection, BotState } from "./shared/bot.ts";
 import type { SubagentCommand, SubagentSummary } from "@eta/core/shared/subagents";
 import type { ImageAttachment, ImageSource } from "@eta/core/images/types";
 import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
@@ -41,6 +43,7 @@ export interface AgentBridge {
 }
 
 export interface DesktopLibrary {
+  bot?: BotState;
   projects: ReadonlyArray<ProjectMetadata>;
   workspaces: ReadonlyArray<WorkspaceMetadata>;
   threads: ReadonlyArray<ThreadMetadata>;
@@ -66,8 +69,13 @@ export interface AppInfo {
 }
 
 export interface DesktopBridge extends AgentBridge {
+  importBotCredentials(): Promise<{ imported: number }>;
+  removeBotCredential(providerId: string): Promise<void>;
+  connectBot(connection: BotConnection): Promise<BotState>;
+  disconnectBot(): Promise<BotState>;
+  reconnectBot(): Promise<BotState>;
   subagent(id: string, command: SubagentCommand): Promise<readonly SubagentSummary[]>;
-  skills(cwd?: string): Promise<SkillCatalog>;
+  skills(cwd?: string, workspaceId?: string): Promise<SkillCatalog>;
   openSkillsDirectory(path: string, cwd?: string): Promise<void>;
   unloadSkill(id: string, name: string): Promise<void>;
   subscribeLibrary(listener: () => void): () => void;
@@ -88,8 +96,13 @@ export interface DesktopBridge extends AgentBridge {
   ): Promise<ImageAttachment>;
   chooseProject(): Promise<ProjectMetadata | null>;
   chooseDirectory(): Promise<string | null>;
+  createCloudProject(name: string, requestId: string): Promise<ProjectMetadata>;
   registerProject(rootPath: string, name: string): Promise<ProjectMetadata>;
-  createThread(workspaceId: string, requestId: string): Promise<SessionResponse>;
+  createThread(
+    workspaceId: string,
+    requestId: string,
+    configuration?: CreateThreadConfiguration,
+  ): Promise<SessionResponse>;
   renameThread(id: string, title: string): Promise<ThreadMetadata>;
   archiveThread(id: string, archived: boolean): Promise<ThreadMetadata>;
   resume(id: string): Promise<void>;

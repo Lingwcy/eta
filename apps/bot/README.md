@@ -12,13 +12,13 @@ cp apps/bot/config.example.json apps/bot/config.json
 node apps/bot/dist/main.mjs apps/bot/config.json
 ```
 
-Edit the configuration before starting. Set a private administrator token, an existing project directory, the provider/model you want to use, and the environment variable containing its API key. Relative paths resolve against the configuration file. Credential mappings contain environment variable names, never API key values. `home` defaults to `dataRoot/home`, and controls personal skill discovery. The server defaults to `127.0.0.1:8080`. `maxConcurrent` limits active threads; threads sharing a project serialize access to its checkout. `shutdownGraceMs` allows a bounded finish window before preserving outstanding work (default 250 ms, maximum 10 seconds).
+Edit the configuration before starting. Set a private administrator token, a workspace root (`workspaceRoot`), the provider/model you want to use, then connect from Desktop and import its model credentials. Relative paths resolve against the configuration file. Model credentials use the same persistent store as Desktop, including OAuth refresh; they are not configured through environment variables. `home` defaults to `dataRoot/home`, and controls personal skill discovery. The server defaults to `127.0.0.1:8080`. `maxConcurrent` limits active threads; threads sharing a project serialize access to its checkout. `shutdownGraceMs` allows a bounded finish window before preserving outstanding work (default 250 ms, maximum 10 seconds).
 
 Query `GET /v1/workspaces` with `Authorization: Bearer <adminToken>`, then create a thread with `POST /v1/threads` and a JSON body containing `workspaceId` and `requestId`. Submit work with `POST /v1/threads/:id/messages`, containing `prompt` and a new `requestId`. A `202` response means the input was saved; use its `operationId` with `GET /v1/threads/:id/operations/:operationId` to read the final result. Retry the same request ID and payload after a network failure. A different payload with that ID returns `409`. A Busy response means the input was not admitted and may be retried later.
 
 `GET /v1/threads/:id/events` streams current snapshots through SSE. Reconnection reads the latest snapshot; it does not replay every event. Disconnecting a client leaves execution running. `POST /v1/threads/:id/stop` cancels work, while `/resume` explicitly resumes paused work. Process shutdown preserves work, and safe pending work resumes at startup. Interrupted tools with uncertain side effects and missing task definitions require maintainer review; inspect `GET /v1/status` before choosing resume or stop. Blocked recovery reserves the project's checkout until addressed.
 
-For Linux deployment, build the distribution first, copy the example configuration to `apps/bot/config.json`, and prepare `apps/bot/workspaces/support`. Then run:
+For Linux deployment, build the distribution first, copy the example configuration to `apps/bot/config.json`, and prepare `apps/bot/workspaces`. Then run:
 
 ```sh
 docker compose -f apps/bot/compose.example.yaml up --build -d
@@ -28,11 +28,21 @@ With Docker available, `vp run @eta/bot#verify-container` builds an isolated tes
 
 The image runs as the `node` user (UID 1000); the mounted project must be writable by that user. Git, Bash and CA certificates are included. Expose the loopback port through your HTTPS reverse proxy when accessing it remotely. Mount configuration read-only and supply provider keys through the deployment environment. The image copies the complete `dist` directory and needs no workspace dependencies at runtime. Use one replica per data root; SQLite enforces the writer lock.
 
-Back up the entire data volume after stopping the Bot, including Catalog/session files, `bot.sqlite` and `discord.sqlite` when using Discord. Keep the project checkout in a separate backup if work must be recoverable. Restore the complete data directory and project at the same paths, retain the same configuration and credential mappings, then start the Bot and inspect `/v1/status`. Copying only session files loses request deduplication, issue associations and delivery state. In-flight unsafe tools may require review after restoration.
+Back up the entire data volume after stopping the Bot, including Catalog/session files, `bot.sqlite` and `discord.sqlite` when using Discord. Keep the project checkout in a separate backup if work must be recoverable. Restore the complete data directory and project at the same paths, retain the same configuration, then start the Bot and inspect `/v1/status`. Copying only session files loses request deduplication, issue associations and delivery state. In-flight unsafe tools may require review after restoration.
+
+## Desktop connection
+
+In Desktop, open Settings → Application → Bot, enter this deployment's URL and administrator token, and save the connection. New chats can select cloud execution and a project under the workspace root. Desktop uses the Bot's own models and skills; local and cloud histories stay separate. Existing chats retain their execution location. Closing Desktop leaves remote work running.
+
+Desktop connects to one Bot at a time. Restart the Bot with this version before connecting: older deployments do not expose the Desktop catalog and management endpoints. In Settings → Application → Bot → Configuration, use **Import client credentials** to copy the client’s API keys and OAuth credentials to the Bot. Re-importing updates matching providers; other Bot credentials remain. Credentials stay separate after import and can be removed on the Bot without logging out the client. The Bot persists credentials under `dataRoot` and refreshes its model list immediately.
+
+Use the cloud project picker to create a project: the Bot creates a same-name directory immediately under `workspaceRoot`. Existing immediate subdirectories are discovered automatically. Projects, workspaces and threads outside that root are not exposed, including symlinks pointing outside it. No project is created by default. `dataRoot` stores runtime state separately from project files.
+
+When migrating an older configuration, replace the fixed `projects` list with `workspaceRoot` and mount the whole root in Docker. Existing project directories and history are retained at their original paths.
 
 ## Discord issues
 
-Add this section to your configuration, replacing IDs and the project key:
+Project folder names are available as extension project keys. Add this section to your configuration, replacing IDs and the project key with an existing folder name under `workspaceRoot`:
 
 ```json
 {

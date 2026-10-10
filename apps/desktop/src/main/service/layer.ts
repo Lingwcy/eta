@@ -3,7 +3,7 @@ import { Effect, Layer } from "effect";
 import { coreFoundation, coreDomainServices } from "@eta/core/layer";
 import { RuntimeSettingsService } from "@eta/core/service/settings/index";
 import { runtimeSettings } from "@eta/core/shared/runtime-settings";
-import { CredentialService } from "./credentials/index.ts";
+import { CredentialService } from "@eta/core/service/credentials/index";
 import { ModelCatalogService } from "./models/index.ts";
 import { DesktopSettingsService } from "./settings/index.ts";
 import { SkillsService } from "./skills/index.ts";

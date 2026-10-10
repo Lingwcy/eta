@@ -3,15 +3,27 @@ import { bearerAuth } from "hono/bearer-auth";
 import { HTTPException } from "hono/http-exception";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
+import { SubagentCommandSchema } from "@eta/core/shared/subagent-schema";
 import { Schema } from "effect";
 import type { CoreClient } from "@eta/core";
 import type { BotConfig } from "./config.ts";
 import { BotHttpError, httpError } from "./errors.ts";
 import { BotController } from "./controller.ts";
+import { BotProjects } from "./projects.ts";
 import { BotStore } from "./store.ts";
 
 const RequestId = Schema.NonEmptyString.check(Schema.isMaxLength(256));
-const Create = Schema.Struct({ workspaceId: Schema.NonEmptyString, requestId: RequestId });
+const Create = Schema.Struct({
+  workspaceId: Schema.NonEmptyString,
+  requestId: RequestId,
+  configuration: Schema.optionalKey(
+    Schema.Struct({
+      provider: Schema.NonEmptyString,
+      modelId: Schema.NonEmptyString,
+      thinkingLevel: Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
+    }),
+  ),
+});
 const Message = Schema.Struct({
   requestId: RequestId,
   prompt: Schema.String,
@@ -36,8 +48,22 @@ function decode<A>(schema: Schema.ConstraintDecoder<A>, input: unknown): A {
   }
 }
 
+async function readBody(request: { json(): Promise<unknown> }) {
+  try {
+    return await request.json();
+  } catch {
+    throw new BotHttpError(400, "InvalidInput", "Request must be JSON.");
+  }
+}
+
 export function createHttpApp(options: {
   config: BotConfig;
+  projects: BotProjects;
+  credentials: {
+    list(): Promise<readonly { providerId: string; type: "api_key" | "oauth" }[]>;
+    import(values: unknown): Promise<void>;
+    remove(provider: string): Promise<void>;
+  };
   core: CoreClient;
   controller: BotController;
   store: BotStore;
@@ -66,6 +92,7 @@ export function createHttpApp(options: {
   app.use("/v1/*", bearerAuth({ token: config.adminToken }));
   app.use("/v1/*", async (_context, next) => {
     if (shutdown.aborted) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
+    await options.projects.refresh();
     await next();
   });
   app.use(
@@ -82,6 +109,37 @@ export function createHttpApp(options: {
   app.get("/v1/status", (context) =>
     context.json({ ...controller.status(), extensions: options.extensionStatus?.() ?? {} }),
   );
+  app.post("/v1/credentials/import", async (context) => {
+    const input = decode(
+      Schema.Struct({ credentials: Schema.Record(Schema.NonEmptyString, Schema.Unknown) }),
+      await readBody(context.req),
+    );
+    await options.credentials.import(input.credentials);
+    return context.json({ imported: Object.keys(input.credentials).length });
+  });
+  app.post("/v1/credentials/remove", async (context) => {
+    const input = decode(
+      Schema.Struct({ providerId: Schema.NonEmptyString }),
+      await readBody(context.req),
+    );
+    await options.credentials.remove(input.providerId);
+    return context.json({ removed: true });
+  });
+  app.post("/v1/projects", async (context) => {
+    const input = decode(
+      Schema.Struct({ name: Schema.NonEmptyString, requestId: RequestId }),
+      await readBody(context.req),
+    );
+    const result = await store.request(
+      `project.create:${config.workspaceRoot}`,
+      input.requestId,
+      JSON.stringify({ name: input.name }),
+      () => options.projects.create(input.name),
+    );
+    if (![...workspaceProjects.values()].includes(result.id))
+      throw new BotHttpError(403, "ProjectUnavailable", "项目必须位于 Bot 工作空间根目录内。");
+    return context.json(result, 201);
+  });
   app.get("/v1/projects", async (context) =>
     context.json(
       (await core.projects()).filter((project) =>
@@ -94,13 +152,112 @@ export function createHttpApp(options: {
       (await core.workspaces()).filter((workspace) => workspaceProjects.has(workspace.id)),
     ),
   );
-  app.post("/v1/threads", async (context) => {
-    const input = decode(
-      Create,
-      await context.req.json().catch(() => {
-        throw new BotHttpError(400, "InvalidInput", "Request must be JSON.");
-      }),
+  app.get("/v1/skills", async (context) => {
+    const workspaceId = context.req.query("workspaceId");
+    const workspace = (await core.workspaces()).find(
+      (value) => value.id === workspaceId && workspaceProjects.has(value.id),
     );
+    if (!workspace)
+      throw new BotHttpError(
+        403,
+        "ProjectUnavailable",
+        "Workspace is outside the configured projects.",
+      );
+    return context.json(await core.skills(workspace.cwd));
+  });
+  app.get("/v1/library", async (context) => {
+    const projects = (await core.projects()).filter((project) =>
+      [...workspaceProjects.values()].includes(project.id),
+    );
+    const workspaces = (await core.workspaces()).filter((workspace) =>
+      workspaceProjects.has(workspace.id),
+    );
+    const threads = (await core.threads(undefined, true)).filter((thread) =>
+      workspaceProjects.has(thread.workspaceId),
+    );
+    return context.json({
+      credentials: await options.credentials.list(),
+      workspaceRoot: config.workspaceRoot,
+      projects,
+      workspaces,
+      threads,
+      models: await core.models(),
+      settings: config.runtime,
+    });
+  });
+  app.post("/v1/threads/:id/configure", async (context) => {
+    const id = context.req.param("id");
+    await controller.authorize(id);
+    const input = decode(
+      Schema.Struct({
+        provider: Schema.NonEmptyString,
+        modelId: Schema.NonEmptyString,
+        thinkingLevel: Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
+      }),
+      await readBody(context.req),
+    );
+    return context.json(
+      await core.configureThread(id, input.provider, input.modelId, input.thinkingLevel),
+    );
+  });
+  app.post("/v1/threads/:id/metadata", async (context) => {
+    const id = context.req.param("id");
+    await controller.authorize(id);
+    const input = decode(
+      Schema.Union([
+        Schema.Struct({ action: Schema.Literal("rename"), title: Schema.NonEmptyString }),
+        Schema.Struct({ action: Schema.Literal("archive"), archived: Schema.Boolean }),
+        Schema.Struct({
+          action: Schema.Literal("move"),
+          projectId: Schema.NullOr(Schema.NonEmptyString),
+        }),
+        Schema.Struct({ action: Schema.Literal("delete") }),
+      ]),
+      await readBody(context.req),
+    );
+    switch (input.action) {
+      case "rename":
+        return context.json(await core.renameThread(id, input.title));
+      case "archive":
+        return context.json(await core.archiveThread(id, input.archived));
+      case "move":
+        if (input.projectId !== null && ![...workspaceProjects.values()].includes(input.projectId))
+          throw new BotHttpError(
+            403,
+            "ProjectUnavailable",
+            "Project is outside the configured projects.",
+          );
+        return context.json(await core.moveThread(id, input.projectId));
+      case "delete":
+        await core.deleteThread(id);
+        return context.json({ deleted: true });
+    }
+  });
+  app.post("/v1/threads/:id/compact", async (context) => {
+    await controller.compact(context.req.param("id"));
+    return context.json({ compacted: true });
+  });
+  app.post("/v1/threads/:id/subagent", async (context) => {
+    const id = context.req.param("id");
+    await controller.authorize(id);
+    const input = decode(
+      Schema.Struct({ command: SubagentCommandSchema, requestId: RequestId }),
+      await readBody(context.req),
+    );
+    return context.json(await controller.subagent(id, input.command, input.requestId));
+  });
+  app.post("/v1/threads/:id/unload-skill", async (context) => {
+    const id = context.req.param("id");
+    await controller.authorize(id);
+    const input = decode(
+      Schema.Struct({ name: Schema.NonEmptyString }),
+      await readBody(context.req),
+    );
+    await core.unloadSkill(id, input.name);
+    return context.json({ unloaded: true });
+  });
+  app.post("/v1/threads", async (context) => {
+    const input = decode(Create, await readBody(context.req));
     if (!workspaceProjects.has(input.workspaceId))
       throw new BotHttpError(
         403,
@@ -110,8 +267,12 @@ export function createHttpApp(options: {
     const result = await store.request(
       "create",
       input.requestId,
-      JSON.stringify({ workspaceId: input.workspaceId }),
-      () => core.createThread(input.workspaceId, `http:create:${input.requestId}`),
+      JSON.stringify({
+        workspaceId: input.workspaceId,
+        ...(input.configuration ? { configuration: input.configuration } : {}),
+      }),
+      () =>
+        core.createThread(input.workspaceId, `http:create:${input.requestId}`, input.configuration),
     );
     return context.json(result, 201);
   });
@@ -121,12 +282,7 @@ export function createHttpApp(options: {
   app.post("/v1/threads/:id/messages", async (context) => {
     const id = context.req.param("id");
     await controller.authorize(id);
-    const input = decode(
-      Message,
-      await context.req.json().catch(() => {
-        throw new BotHttpError(400, "InvalidInput", "Request must be JSON.");
-      }),
-    );
+    const input = decode(Message, await readBody(context.req));
     const result = await store.request(
       `messages:${id}`,
       input.requestId,
@@ -178,6 +334,7 @@ export function createHttpApp(options: {
               .catch(() => {});
             end();
           },
+          context.req.query("path"),
         );
         if (signal.aborted) end();
         await ended.promise;

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Layer, ManagedRuntime } from "effect";
 import { AppPathsService } from "@eta/core/platform/app-paths";
-import { CredentialService } from "../service/credentials/index.ts";
+import { CredentialService } from "@eta/core/service/credentials/index";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { expect, test, vi } from "vite-plus/test";
 import { DesktopAuthentication } from "./index.ts";

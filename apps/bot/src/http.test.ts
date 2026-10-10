@@ -1,4 +1,6 @@
-import { mkdtemp, mkdir, readFile, rename, rm } from "node:fs/promises";
+import type { ProjectMetadata } from "@eta/core/shared/projects";
+import type { BotLibrary } from "@eta/core/shared/bot";
+import { mkdtemp, mkdir, readFile, rename, rm, readdir, symlink, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -25,11 +27,11 @@ afterEach(async () => {
 const identity = Schema.Struct({ id: Schema.String });
 const admission = Schema.Struct({ operationId: Schema.String });
 
-async function fixture() {
+async function fixture(empty = false, defaultProvider?: string) {
   const root = await mkdtemp(join(tmpdir(), "eta-bot-http-"));
   roots.push(root);
-  const cwd = join(root, "workspace");
-  await mkdir(cwd);
+  const cwd = join(root, "workspaces", "workspace");
+  await mkdir(empty ? join(root, "workspaces") : cwd, { recursive: true });
   const provider = fauxProvider({
     provider: "bot-test",
     models: [{ id: "one" }],
@@ -51,8 +53,9 @@ async function fixture() {
   const config: BotConfig = {
     dataRoot: join(root, "data"),
     adminToken: "test-admin-token",
-    projects: [{ key: "test", rootPath: cwd }],
-    runtime: { defaultThinkingLevel: "off" },
+    workspaceRoot: join(root, "workspaces"),
+    projects: empty ? [] : [{ key: "test", rootPath: cwd }],
+    runtime: { defaultThinkingLevel: "off", ...(defaultProvider ? { defaultProvider } : {}) },
   };
   const open = async (environment?: Partial<CoreEnvironment>) => {
     const bot = await createBotApplication(config, {
@@ -362,4 +365,199 @@ test("blocked recovery reserves a checkout until a maintainer stops its task", a
   await expect
     .poll(async () => (await restored.core.operation(another.id, admitted.operationId)).status)
     .toBe("completed");
+});
+
+test("Desktop HTTP catalog and management stay within configured projects", async () => {
+  const { bot, request, create, cwd } = await fixture();
+  const outside = join(cwd, "outside");
+  await mkdir(outside);
+  const hidden = await bot.core.registerProject(outside);
+  const hiddenWorkspace = (await bot.core.workspaces(hidden.id))[0]!;
+  const hiddenThread = await bot.core.createThread(hiddenWorkspace.id);
+  const id = await create("desktop-thread");
+  const library = (await (await request("/v1/library")).json()) as BotLibrary;
+  expect(library.projects.map((project: { id: string }) => project.id)).not.toContain(hidden.id);
+  expect(library.threads.map((thread: { id: string }) => thread.id)).toEqual([id]);
+  expect((await bot.app.request("/v1/library")).status).toBe(401);
+  expect(
+    (
+      await request(`/v1/threads/${hiddenThread.id}/metadata`, {
+        action: "rename",
+        title: "Hidden",
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (await request(`/v1/threads/${id}/metadata`, { action: "move", projectId: hidden.id })).status,
+  ).toBe(403);
+  expect(
+    (
+      await request(`/v1/threads/${id}/configure`, {
+        provider: "bot-test",
+        modelId: "one",
+        thinkingLevel: "off",
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (await request(`/v1/threads/${id}/metadata`, { action: "rename", title: "Remote support" }))
+      .status,
+  ).toBe(200);
+  expect(
+    (await request(`/v1/threads/${id}/metadata`, { action: "archive", archived: true })).status,
+  ).toBe(200);
+  expect(((await (await request("/v1/library")).json()) as BotLibrary).threads[0]).toMatchObject({
+    title: "Remote support",
+    archivedAt: expect.any(Number),
+  });
+  expect(
+    (await request(`/v1/threads/${id}/metadata`, { action: "archive", archived: false })).status,
+  ).toBe(200);
+  expect((await request(`/v1/threads/${id}/metadata`, { action: "delete" })).status).toBe(200);
+  expect(((await (await request("/v1/library")).json()) as BotLibrary).threads).toEqual([]);
+});
+
+test("an empty root has no default project; folders can be created, adopted and restored", async () => {
+  const { bot, config, request, open } = await fixture(true);
+  expect(await (await request("/v1/projects")).json()).toEqual([]);
+  expect(await readdir(config.workspaceRoot)).toEqual([]);
+  const input = { name: "客户反馈", requestId: "new-project" };
+  const created = await request("/v1/projects", input);
+  expect(created.status).toBe(201);
+  const project = (await created.json()) as ProjectMetadata;
+  expect(project.rootPath).toBe(await realpath(join(config.workspaceRoot, input.name)));
+  expect(await (await request("/v1/projects", input)).json()).toEqual(project);
+  expect((await request("/v1/projects", { ...input, name: "changed" })).status).toBe(409);
+  const library = (await (await request("/v1/library")).json()) as BotLibrary;
+  const workspace = library.workspaces.find((value) => value.projectId === project.id)!;
+  const thread = await request("/v1/threads", {
+    workspaceId: workspace.id,
+    requestId: "new-thread",
+  });
+  expect(thread.status).toBe(201);
+  const id = Schema.decodeUnknownSync(identity)(await thread.json()).id;
+  await mkdir(join(config.workspaceRoot, "existing"));
+  expect(await (await request("/v1/projects")).json()).toEqual(
+    expect.arrayContaining([expect.objectContaining({ name: "existing" })]),
+  );
+  await bot.close();
+  const restored = await open();
+  const response = await restored.app.request("/v1/library", {
+    headers: { authorization: `Bearer ${config.adminToken}` },
+  });
+  const catalog = (await response.json()) as BotLibrary;
+  expect(catalog.projects).toContainEqual(project);
+  expect(catalog.threads).toEqual(
+    expect.arrayContaining([expect.objectContaining({ id, workspaceId: workspace.id })]),
+  );
+});
+
+test("root scope rejects traversal and escaping symlinks, including previously registered workspaces", async () => {
+  const { request, config, cwd, create } = await fixture();
+  for (const name of ["../escape", "/tmp/escape", "a/b", "a\\b", "..", ".", " hidden "]) {
+    expect((await request("/v1/projects", { name, requestId: name })).status).toBe(400);
+  }
+  const outside = join(config.dataRoot, "outside");
+  await mkdir(outside);
+  await symlink(outside, join(config.workspaceRoot, "escape"));
+  expect((await request("/v1/projects", { name: "escape", requestId: "escape" })).status).toBe(403);
+  expect(await (await request("/v1/projects")).json()).not.toEqual(
+    expect.arrayContaining([expect.objectContaining({ name: "escape" })]),
+  );
+  const id = await create("scope-thread");
+  await rename(cwd, `${cwd}-saved`);
+  await symlink(outside, cwd);
+  const library = (await (await request("/v1/library")).json()) as BotLibrary;
+  expect(library.threads.some((thread) => thread.id === id)).toBe(false);
+  expect((await request(`/v1/threads/${id}`)).status).toBe(403);
+  expect(await readdir(outside)).toEqual([]);
+});
+
+test("credential import persists API keys and OAuth without exposing secrets in the library", async () => {
+  const { bot, request, config } = await fixture(true);
+  const credentials = {
+    anthropic: { type: "api_key", key: "private-key" },
+    "openai-codex": {
+      type: "oauth",
+      access: "private-access",
+      refresh: "private-refresh",
+      expires: 0,
+      accountId: "account",
+    },
+  };
+  expect(
+    (
+      await bot.app.request("/v1/credentials/import", {
+        method: "POST",
+        body: JSON.stringify({ credentials }),
+      })
+    ).status,
+  ).toBe(401);
+  expect(await (await request("/v1/credentials/import", { credentials })).json()).toEqual({
+    imported: 2,
+  });
+  expect(
+    (
+      await request("/v1/credentials/import", {
+        credentials: { anthropic: { type: "oauth", access: "secret" } },
+      })
+    ).status,
+  ).toBe(400);
+  const library = (await (await request("/v1/library")).json()) as BotLibrary;
+  expect(library.credentials).toHaveLength(2);
+  expect(JSON.stringify(library)).not.toMatch(
+    /private-key|private-access|private-refresh|accountId/,
+  );
+  await bot.close();
+  const restored = await createBotApplication(config);
+  bots.push(restored);
+  expect((await restored.core.models()).some((value) => value.provider === "anthropic")).toBe(true);
+  const remove = await restored.app.request("/v1/credentials/remove", {
+    method: "POST",
+    headers: { authorization: `Bearer ${config.adminToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ providerId: "anthropic" }),
+  });
+  expect(remove.status).toBe(200);
+  expect((await restored.core.models()).some((value) => value.provider === "anthropic")).toBe(
+    false,
+  );
+});
+
+test("creation uses the requested model even when the Bot default provider is unavailable", async () => {
+  const { request, workspace, bot, provider } = await fixture(false, "unavailable-default");
+  expect(
+    (await request("/v1/threads", { workspaceId: workspace, requestId: "default" })).status,
+  ).toBe(503);
+  expect(await bot.core.threads()).toEqual([]);
+  const configuration = { provider: "bot-test", modelId: "one", thinkingLevel: "off" };
+  const input = { workspaceId: workspace, requestId: "selected", configuration };
+  const created = await request("/v1/threads", input);
+  expect(created.status).toBe(201);
+  const thread = Schema.decodeUnknownSync(identity)(await created.json());
+  expect((await bot.core.openThread(thread.id)).snapshot.configuration.model).toEqual({
+    provider: "bot-test",
+    modelId: "one",
+  });
+  expect(
+    Schema.decodeUnknownSync(identity)(await (await request("/v1/threads", input)).json()).id,
+  ).toBe(thread.id);
+  expect(
+    (
+      await request("/v1/threads", {
+        ...input,
+        configuration: { ...configuration, modelId: "different" },
+      })
+    ).status,
+  ).toBe(409);
+  provider.setResponses([fauxAssistantMessage("Selected model works")]);
+  expect(
+    (await request(`/v1/threads/${thread.id}/messages`, { prompt: "Hello", requestId: "hello" }))
+      .status,
+  ).toBe(202);
+  await expect.poll(() => bot.controller.status().activeThreads).toEqual([]);
+  expect(
+    (await bot.core.openThread(thread.id)).snapshot.transcript.some(
+      ({ message }) => message.role === "assistant",
+    ),
+  ).toBe(true);
 });

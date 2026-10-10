@@ -17,6 +17,7 @@ function readTab(value: unknown): DesktopTab | undefined {
         kind: value.kind,
         workspaceId: value.workspaceId,
         threadId: typeof value.threadId === "string" ? value.threadId : undefined,
+        ...(value.environment === "cloud" ? { environment: "cloud" as const } : {}),
         draft: typeof value.draft === "string" ? value.draft : "",
       };
     }

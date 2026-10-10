@@ -31,6 +31,7 @@ export const settingsGroups = [
   {
     label: "应用",
     items: [
+      { id: "bot" as const, label: "Bot", title: "Bot", icon: Bot },
       { id: "appearance" as const, label: "外观", title: "外观", icon: Palette },
       { id: "subagents" as const, label: "子智能体", title: "子智能体", icon: Bot },
       { id: "conversations" as const, label: "对话", title: "对话", icon: MessageCircle },

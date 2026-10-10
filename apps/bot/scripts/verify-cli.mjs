@@ -64,6 +64,14 @@ export async function verifyCli(isolated, temporary, config, fetch) {
       if (Date.now() >= deadline) throw new Error(`Compiled CLI did not become ready: ${stderr}`);
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
+    const imported = await fetch(`${base}/v1/credentials/import`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        credentials: { anthropic: { type: "api_key", key: "offline-placeholder" } },
+      }),
+    });
+    assert.equal(imported.status, 200);
     const workspaces = await (await fetch(`${base}/v1/workspaces`, { headers })).json();
     const response = await fetch(`${base}/v1/threads`, {
       method: "POST",

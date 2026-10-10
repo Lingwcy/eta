@@ -9,7 +9,6 @@ import { verifyDiscord } from "./verify-discord.mjs";
 // Load only the compiled distribution outside the workspace and without a provider network.
 const temporary = await mkdtemp(join(tmpdir(), "eta-bot-package-"));
 const fetch = globalThis.fetch;
-const credential = process.env.ETA_BOT_PACKAGE_TEST_KEY;
 let application;
 try {
   const isolated = join(temporary, "app");
@@ -19,7 +18,6 @@ try {
   globalThis.fetch = () => {
     throw new Error("Package verification must remain offline.");
   };
-  process.env.ETA_BOT_PACKAGE_TEST_KEY = "offline-placeholder";
   const { createBotApplication, processImage, DiscordSdk } = await import(
     pathToFileURL(join(isolated, "runtime.mjs")).href
   );
@@ -29,16 +27,24 @@ try {
   );
   assert.equal(image.mimeType, "image/png");
   assert.ok(image.data.length > 0);
-  const workspace = join(temporary, "workspace");
-  await mkdir(workspace);
+  const workspace = join(temporary, "workspaces", "test");
+  await mkdir(workspace, { recursive: true });
   const config = {
     dataRoot: join(temporary, "data"),
     adminToken: "offline-admin-token",
+    workspaceRoot: join(temporary, "workspaces"),
     projects: [{ key: "test", rootPath: workspace }],
-    credentials: { anthropic: "ETA_BOT_PACKAGE_TEST_KEY" },
     runtime: { defaultThinkingLevel: "off" },
   };
   application = await createBotApplication(config);
+  const imported = await application.app.request("/v1/credentials/import", {
+    method: "POST",
+    headers: { authorization: "Bearer offline-admin-token", "content-type": "application/json" },
+    body: JSON.stringify({
+      credentials: { anthropic: { type: "api_key", key: "offline-placeholder" } },
+    }),
+  });
+  assert.equal(imported.status, 200);
   assert.ok((await application.core.models()).length > 0);
   assert.equal((await application.app.request("/healthz")).status, 200);
   assert.equal((await application.app.request("/v1/projects")).status, 401);
@@ -64,7 +70,5 @@ try {
 } finally {
   await application?.close();
   globalThis.fetch = fetch;
-  if (credential === undefined) delete process.env.ETA_BOT_PACKAGE_TEST_KEY;
-  else process.env.ETA_BOT_PACKAGE_TEST_KEY = credential;
   await rm(temporary, { recursive: true, force: true });
 }

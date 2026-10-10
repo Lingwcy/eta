@@ -220,3 +220,12 @@ test("catalog removal clears open and closed tabs so a deleted thread cannot be 
   expect(tabs.getSnapshot().tabs).toHaveLength(1);
   expect(tabs.activeTab).toMatchObject({ kind: "conversation", workspaceId: null, draft: "" });
 });
+
+test("a draft switches execution environments even before a project is selected", () => {
+  const tabs = new DesktopTabs();
+  const id = tabs.activeTab.id;
+  tabs.updateConversation(id, { environment: "cloud", workspaceId: null });
+  expect(tabs.activeTab).toMatchObject({ environment: "cloud", workspaceId: null });
+  tabs.updateConversation(id, { environment: "local", workspaceId: null });
+  expect(tabs.activeTab).toMatchObject({ environment: "local", workspaceId: null });
+});

@@ -1,4 +1,5 @@
-import { GitBranch, Laptop } from "lucide-react";
+import { EnvironmentPicker } from "./environment-picker";
+import { GitBranch } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,13 @@ export function ComposerContext({
   workspaceId,
   onProject,
   onCreateProject,
+  cloud,
+  onEnvironment,
+  onSettings,
 }: {
+  cloud: boolean;
+  onEnvironment: (cloud: boolean) => void;
+  onSettings: () => void;
   projectName?: string;
   cwd?: string;
   worktree: boolean;
@@ -39,6 +46,7 @@ export function ComposerContext({
       >
         <ProjectPicker
           library={library}
+          cloud={cloud}
           workspaceId={workspaceId}
           projectName={projectName}
           cwd={cwd}
@@ -47,10 +55,13 @@ export function ComposerContext({
           onCreate={onCreateProject}
         />
       </Suspense>
-      <span className="hidden items-center gap-2 min-[701px]:flex">
-        <Laptop size={18} aria-hidden="true" />
-        此计算机
-      </span>
+      <EnvironmentPicker
+        cloud={cloud}
+        connected={library?.bot?.status === "connected"}
+        disabled={busy}
+        onChange={onEnvironment}
+        onSettings={onSettings}
+      />
       {worktree && (
         <span className="ml-auto flex items-center gap-1.5">
           <GitBranch size={15} aria-hidden="true" />

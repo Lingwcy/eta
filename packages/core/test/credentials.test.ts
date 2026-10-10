@@ -5,7 +5,7 @@ import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vite-plus/test";
 import { AppPathsService } from "@eta/core/platform/app-paths";
-import { CredentialService } from "./index.ts";
+import { CredentialService } from "../src/service/credentials/index.ts";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];
@@ -88,4 +88,36 @@ test("malformed credential JSON does not quote secret contents in errors", async
   expect(error).toMatchObject({ code: "StorageCorrupt" });
   expect(String(error)).not.toContain("do-not-leak");
   expect(await readFile(path, "utf8")).toContain("do-not-leak");
+});
+
+test("bulk import is atomic, preserves OAuth fields, and copies independent snapshots", async () => {
+  const { runtime, credentials, open } = await setup();
+  const values = {
+    one: { type: "api_key", key: "private-key" },
+    two: {
+      type: "oauth",
+      access: "private-access",
+      refresh: "private-refresh",
+      expires: 1234,
+      accountId: "account",
+    },
+  };
+  await runtime.runPromise(credentials.import(values));
+  values.one.key = "changed-client";
+  expect(await credentials.store.read("one")).toEqual({ type: "api_key", key: "private-key" });
+  await expect(
+    runtime.runPromise(
+      credentials.import({
+        one: { type: "api_key", key: "replacement" },
+        bad: { type: "oauth", access: "secret" },
+      }),
+    ),
+  ).rejects.toThrow("认证格式无效");
+  expect(await credentials.store.read("one")).toEqual({ type: "api_key", key: "private-key" });
+  await runtime.dispose();
+  const restored = await open().runPromise(CredentialService);
+  expect(await restored.store.read("two")).toMatchObject({
+    accountId: "account",
+    refresh: "private-refresh",
+  });
 });

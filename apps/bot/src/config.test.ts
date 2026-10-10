@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { loadBotConfig } from "./config.ts";
-import { environmentCredentials } from "./credentials.ts";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -22,6 +21,7 @@ async function configuration(overrides: Record<string, unknown> = {}) {
       dataRoot: "data",
       adminToken: "fixture-token",
       runtime: { defaultThinkingLevel: "off" },
+      workspaceRoot: "workspaces",
       projects: [{ key: "support", rootPath: "repository" }],
       ...overrides,
     }),
@@ -29,21 +29,22 @@ async function configuration(overrides: Record<string, unknown> = {}) {
   return { root, path };
 }
 
-test("deployment paths resolve from the configuration file and secrets remain environment references", async () => {
-  const { root, path } = await configuration({ credentials: { anthropic: "ETA_TEST_KEY" } });
+test("deployment paths resolve from the configuration file", async () => {
+  const { root, path } = await configuration();
   const config = await loadBotConfig(path);
   expect(config.dataRoot).toBe(join(root, "data"));
+  expect(config.workspaceRoot).toBe(join(root, "workspaces"));
   expect(config.home).toBe(join(root, "data", "home"));
-  expect(config.projects[0]?.rootPath).toBe(join(root, "repository"));
-  expect(config.credentials).toEqual({ anthropic: "ETA_TEST_KEY" });
+  expect(config.projects?.[0]?.rootPath).toBe(join(root, "repository"));
 });
 
 test.each([
+  { workspaceRoot: undefined },
   { port: 0 },
   { maxConcurrent: 33 },
   { shutdownGraceMs: -1 },
   { runtime: { defaultThinkingLevel: "off", updateChannel: "secret-value" } },
-  { credentials: { anthropic: "" } },
+  { credentials: { anthropic: "ETA_TEST_KEY" } },
 ])(
   "invalid deployment configuration is rejected without echoing its contents: %j",
   async (overrides) => {
@@ -73,16 +74,9 @@ test("ambiguous project and channel mappings fail before runtime startup", async
   await expect(loadBotConfig(channels.path)).rejects.toThrow("channel mappings must be unique");
 });
 
-test("credential adapters keep independent snapshots and do not discover unconfigured keys", async () => {
-  vi.stubEnv("ETA_TEST_KEY", "first-key");
-  vi.stubEnv("ETA_UNCONFIGURED_KEY", "unconfigured-key");
-  const first = environmentCredentials({ anthropic: "ETA_TEST_KEY" });
-  vi.stubEnv("ETA_TEST_KEY", "second-key");
-  const second = environmentCredentials({ openai: "ETA_TEST_KEY" });
-  expect(await first.read("anthropic")).toEqual({ type: "api_key", key: "first-key" });
-  expect(await second.read("openai")).toEqual({ type: "api_key", key: "second-key" });
-  expect(await first.read("openai")).toBeUndefined();
-  expect(await second.read("anthropic")).toBeUndefined();
-  expect(await environmentCredentials().list()).toEqual([]);
-  expect(await first.list()).toEqual([{ providerId: "anthropic", type: "api_key" }]);
+test("workspaceRoot configuration does not require preconfigured projects", async () => {
+  const { path, root } = await configuration({ projects: undefined });
+  const config = await loadBotConfig(path);
+  expect(config.workspaceRoot).toBe(join(root, "workspaces"));
+  expect(config.projects).toEqual([]);
 });

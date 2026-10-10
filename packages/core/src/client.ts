@@ -1,3 +1,4 @@
+import type { CreateThreadConfiguration } from "./agent/protocol.ts";
 import { ManagedRuntime } from "effect";
 import type { JsonValue } from "@earendil-works/chord";
 import type { ImageAttachment } from "./images/types.ts";
@@ -9,6 +10,7 @@ import { CatalogService } from "./service/catalog/index.ts";
 import { ProjectService } from "./service/projects/index.ts";
 import { WorkspaceService } from "./service/workspaces/index.ts";
 import { ThreadService } from "./service/threads/index.ts";
+import { SkillsService } from "./service/skills/index.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
 
 /** Each invocation creates an independent service graph; the host owns its lifetime through close. */
@@ -19,8 +21,10 @@ export async function createCore(options: CoreOptions) {
     const projects = await runtime.runPromise(ProjectService);
     const workspaces = await runtime.runPromise(WorkspaceService);
     const models = await runtime.runPromise(ModelCatalogService);
+    const skills = await runtime.runPromise(SkillsService);
     const catalog = await runtime.runPromise(CatalogService);
     return {
+      skills: (cwd?: string) => runtime.runPromise(skills.catalog(cwd)),
       projects: () => runtime.runPromise(projects.list()),
       registerProject: (rootPath: string, name?: string) =>
         runtime.runPromise(
@@ -32,8 +36,11 @@ export async function createCore(options: CoreOptions) {
       models: () => runtime.runPromise(models.list),
       threads: (workspaceId?: string, includeArchived?: boolean) =>
         runtime.runPromise(threads.list(workspaceId, includeArchived)),
-      createThread: (workspaceId: string, requestId?: string) =>
-        runtime.runPromise(threads.create(workspaceId, requestId)),
+      createThread: (
+        workspaceId: string,
+        requestId?: string,
+        configuration?: CreateThreadConfiguration,
+      ) => runtime.runPromise(threads.create(workspaceId, requestId, configuration)),
       openThread: (id: string) => runtime.runPromise(threads.open(id)),
       renameThread: (id: string, title: string) => runtime.runPromise(threads.rename(id, title)),
       archiveThread: (id: string, archived: boolean) =>

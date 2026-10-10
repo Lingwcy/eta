@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import type { Credential, CredentialStore } from "@earendil-works/pi-ai";
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
-import { AppPathsService } from "@eta/core/platform/app-paths";
-import { adapter, CoreError } from "@eta/core/service/errors";
-import { readJson, writeJson } from "@eta/core/service/json-file";
+import { AppPathsService } from "../../platform/app-paths.ts";
+import { adapter, CoreError } from "../errors.ts";
+import { readJson, writeJson } from "../json-file.ts";
 
-const CredentialSchema = Schema.Union([
+export const CredentialSchema = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("api_key"),
     key: Schema.optionalKey(Schema.NonEmptyString),
@@ -33,9 +33,11 @@ export class CredentialService extends Context.Service<
     >;
     setApiKey(providerId: string, key: string): Effect.Effect<void, CoreError>;
     remove(providerId: string): Effect.Effect<void, CoreError>;
+    export: Effect.Effect<Record<string, Credential>>;
+    import(values: unknown): Effect.Effect<void, CoreError>;
     importOnce(source: CredentialStore): Effect.Effect<void, CoreError>;
   }
->()("eta/desktop/main/service/credentials/CredentialService") {
+>()("eta/core/service/credentials/CredentialService") {
   static readonly layer = Layer.effect(
     CredentialService,
     Effect.gen(function* () {
@@ -126,6 +128,25 @@ export class CredentialService extends Context.Service<
       };
       return CredentialService.of({
         store,
+        export: SynchronizedRef.get(state).pipe(Effect.map((value) => structuredClone(value))),
+        import: (values) =>
+          SynchronizedRef.modifyEffect(
+            state,
+            Effect.fnUntraced(function* (current) {
+              yield* Schema.decodeUnknownEffect(
+                Schema.Record(Schema.NonEmptyString, CredentialSchema),
+              )(values).pipe(
+                Effect.mapError(
+                  () => new CoreError({ code: "InvalidInput", message: "认证格式无效" }),
+                ),
+              );
+              const next = { ...current, ...structuredClone(values as Record<string, Credential>) };
+              yield* adapter("无法保存认证信息", () =>
+                writeJson(path, { version: 1, credentials: next }),
+              );
+              return [undefined, next] as const;
+            }),
+          ).pipe(Effect.uninterruptible),
         list: adapter("无法列出认证信息", () => store.list()),
         setApiKey: (providerId, key) =>
           !providerId.trim() || !key.trim()

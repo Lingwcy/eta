@@ -1,3 +1,4 @@
+import { isCloudId, sameEnvironment } from "../../../../src/shared/bot.ts";
 import {
   createContext,
   useContext,
@@ -103,17 +104,19 @@ export function ThreadContextMenu({ id, children }: { id?: string; children: Rea
             项目
           </ContextMenuSubmenuTrigger>
           <ContextMenuContent submenu>
-            {library.projects.map((project) => (
-              <ContextMenuItem
-                key={project.id}
-                title={project.name}
-                disabled={project.id === projectId}
-                onClick={() => run(() => window.eta.moveThread(thread.id, project.id))}
-              >
-                <Folder size={16} />
-                <span className="min-w-0 flex-1 truncate">{project.name}</span>
-              </ContextMenuItem>
-            ))}
+            {library.projects
+              .filter((project) => sameEnvironment(thread.id, project.id))
+              .map((project) => (
+                <ContextMenuItem
+                  key={project.id}
+                  title={project.name}
+                  disabled={project.id === projectId}
+                  onClick={() => run(() => window.eta.moveThread(thread.id, project.id))}
+                >
+                  <Folder size={16} />
+                  <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                </ContextMenuItem>
+              ))}
             {projectId && (
               <>
                 <ContextMenuSeparator />
@@ -134,7 +137,7 @@ export function ThreadContextMenu({ id, children }: { id?: string; children: Rea
           在新窗口中打开
         </ContextMenuItem>
         <ContextMenuSubmenu>
-          <ContextMenuSubmenuTrigger disabled={desktop.busy}>
+          <ContextMenuSubmenuTrigger disabled={desktop.busy || isCloudId(thread.id)}>
             <ArrowUpRight size={16} />
             打开方式
           </ContextMenuSubmenuTrigger>

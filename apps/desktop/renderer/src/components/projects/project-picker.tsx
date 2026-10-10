@@ -1,3 +1,4 @@
+import { isCloudId } from "../../../../src/shared/bot.ts";
 import { useEffect, useState } from "react";
 import { Check, FolderClosed, Plus } from "lucide-react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
@@ -8,6 +9,7 @@ import { CreateProjectDialog } from "./create-project-dialog";
 
 export function ProjectPicker({
   library,
+  cloud = false,
   workspaceId,
   projectName,
   cwd,
@@ -16,6 +18,7 @@ export function ProjectPicker({
   onCreate,
 }: {
   library: DesktopLibrary | null;
+  cloud?: boolean;
   workspaceId: string | null;
   projectName?: string;
   cwd?: string;
@@ -43,6 +46,7 @@ export function ProjectPicker({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [disabled, creating]);
   const options = (library?.workspaces ?? [])
+    .filter((workspace) => isCloudId(workspace.id) === cloud)
     .map((workspace) => ({
       id: workspace.id,
       label: `${library?.projects.find((project) => project.id === workspace.projectId)?.name ?? "项目"}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split(/[\\/]/).at(-1)}` : ""}`,
@@ -109,7 +113,7 @@ export function ProjectPicker({
                 ))}
                 {!options.length && (
                   <p className="px-2 py-3 text-xs text-neutral-400">
-                    {query ? "没有匹配的项目" : "还没有项目"}
+                    {query ? "没有匹配的项目" : cloud ? "还没有云端项目" : "还没有项目"}
                   </p>
                 )}
               </CommandList>
@@ -119,20 +123,26 @@ export function ProjectPicker({
               <Button
                 variant="menu"
                 size="menu-item"
-                disabled={disabled}
+                disabled={disabled || (cloud && library?.bot?.status !== "connected")}
                 onClick={() => {
                   setOpen(false);
                   setCreating(true);
                 }}
               >
                 <Plus size={18} aria-hidden="true" />
-                新建项目
+                {cloud ? "新建云端项目" : "新建本地项目"}
               </Button>
             </div>
           </PopoverContent>
         </Popover>
       </div>
-      <CreateProjectDialog open={creating} onOpenChange={setCreating} onCreate={onCreate} />
+      <CreateProjectDialog
+        cloud={cloud}
+        cloudRoot={library?.bot?.library?.workspaceRoot}
+        open={creating}
+        onOpenChange={setCreating}
+        onCreate={onCreate}
+      />
     </>
   );
 }

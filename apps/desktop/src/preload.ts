@@ -9,6 +9,12 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 }
 
 const bridge: DesktopBridge = {
+  importBotCredentials: () => invoke("eta:command", { type: "bot-import-credentials" }),
+  removeBotCredential: (providerId) =>
+    invoke("eta:command", { type: "bot-remove-credential", providerId }),
+  connectBot: (connection) => invoke("eta:command", { type: "bot-connect", connection }),
+  disconnectBot: () => invoke("eta:command", { type: "bot-disconnect" }),
+  reconnectBot: () => invoke("eta:command", { type: "bot-reconnect" }),
   subagent: (id, command) =>
     invoke("eta:command", {
       type: "subagent",
@@ -16,7 +22,12 @@ const bridge: DesktopBridge = {
       command,
       requestId: globalThis.crypto.randomUUID(),
     }),
-  skills: (cwd) => invoke("eta:command", { type: "skills", ...(cwd ? { cwd } : {}) }),
+  skills: (cwd, workspaceId) =>
+    invoke("eta:command", {
+      type: "skills",
+      ...(cwd ? { cwd } : {}),
+      ...(workspaceId ? { workspaceId } : {}),
+    }),
   openSkillsDirectory: (path, cwd) =>
     invoke("eta:command", { type: "open-skills-directory", path, ...(cwd ? { cwd } : {}) }),
   unloadSkill: (id, name) => invoke("eta:command", { type: "unload-skill", id, name }),
@@ -47,10 +58,17 @@ const bridge: DesktopBridge = {
   library: () => invoke("eta:command", { type: "library" }),
   chooseProject: () => invoke("eta:choose-project"),
   chooseDirectory: () => invoke("eta:choose-directory"),
+  createCloudProject: (name, requestId) =>
+    invoke("eta:command", { type: "create-cloud-project", name, requestId }),
   registerProject: (rootPath, name) =>
     invoke("eta:command", { type: "register-project", rootPath, name }),
-  createThread: (workspaceId, requestId) =>
-    invoke("eta:command", { type: "create", workspaceId, requestId }),
+  createThread: (workspaceId, requestId, configuration) =>
+    invoke("eta:command", {
+      type: "create",
+      workspaceId,
+      requestId,
+      ...(configuration ? { configuration } : {}),
+    }),
   openThread: (id) => invoke("eta:command", { type: "open", id }),
   renameThread: (id, title) => invoke("eta:command", { type: "rename", id, title }),
   archiveThread: (id, archived) => invoke("eta:command", { type: "archive", id, archived }),

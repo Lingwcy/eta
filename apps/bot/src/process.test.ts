@@ -55,13 +55,14 @@ test("SIGKILL releases the writer lock and a fresh Bot process resumes persisted
     return { base: `http://127.0.0.1:${await listening.promise}`, waiting: waiting.promise };
   };
   try {
-    await mkdir(join(root, "workspace"));
+    await mkdir(join(root, "workspaces", "workspace"), { recursive: true });
     await writeFile(
       config,
       JSON.stringify({
         dataRoot: "data",
         adminToken: "process-test-token",
-        projects: [{ key: "test", rootPath: "workspace" }],
+        workspaceRoot: "workspaces",
+        projects: [{ key: "test", rootPath: "workspaces/workspace" }],
         runtime: { defaultThinkingLevel: "off" },
       }),
     );
@@ -89,7 +90,7 @@ test("SIGKILL releases the writer lock and a fresh Bot process resumes persisted
     const exited = once(child!, "exit");
     child!.kill("SIGKILL");
     await exited;
-    expect(await readFile(join(root, "workspace/process-result.txt"), "utf8")).toBe(
+    expect(await readFile(join(root, "workspaces/workspace/process-result.txt"), "utf8")).toBe(
       "Written before SIGKILL",
     );
     const restored = await start("finish");

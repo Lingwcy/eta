@@ -1,3 +1,4 @@
+import { isCloudId } from "../../../../src/shared/bot.ts";
 import { threadProjectId } from "@eta/core/shared/thread-project";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 
@@ -16,7 +17,7 @@ export function searchThreads(library: DesktopLibrary | null, query: string, arc
         thread.projectId === undefined && workspace?.kind === "worktree"
           ? `${name} · ${workspace.cwd.split("/").at(-1)}`
           : name;
-      return { thread, project };
+      return { thread, project: isCloudId(thread.id) ? `云端 · ${project}` : project };
     })
     .filter(
       ({ thread, project }) =>

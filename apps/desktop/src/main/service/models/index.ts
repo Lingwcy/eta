@@ -1,6 +1,6 @@
 import { Effect, Layer } from "effect";
 import { ModelCatalogService as CoreModelCatalogService } from "@eta/core/service/models/index";
-import { CredentialService } from "../credentials/index.ts";
+import { CredentialService } from "@eta/core/service/credentials/index";
 
 export class ModelCatalogService extends CoreModelCatalogService {
   static readonly layer = Layer.unwrap(

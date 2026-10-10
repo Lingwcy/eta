@@ -80,3 +80,24 @@ test("an image-only draft still requires a project and forwards the image on fir
   await draft.submit("project", "", images);
   expect(submit).toHaveBeenCalledWith("persisted", "", images);
 });
+
+test("a failed cloud configuration preserves the created thread and admits no message until retry", async () => {
+  const { createThread, submit } = setup();
+  const configureThread = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Bot disconnected"))
+    .mockResolvedValue({});
+  const draft = new DraftThread("cloud-draft", { createThread, submit, configureThread });
+  const configuration = { provider: "cloud", modelId: "one", thinkingLevel: "off" as const };
+  await expect(
+    draft.submit("bot:server:workspace", "Cloud work", undefined, configuration),
+  ).rejects.toThrow("Bot disconnected");
+  expect(draft.persistedId).toBe("persisted");
+  expect(submit).not.toHaveBeenCalled();
+  await expect(
+    draft.submit("bot:server:workspace", "Cloud work", undefined, configuration),
+  ).resolves.toBe("persisted");
+  expect(createThread).toHaveBeenCalledTimes(1);
+  expect(configureThread).toHaveBeenLastCalledWith("persisted", "cloud", "one", "off");
+  expect(submit).toHaveBeenCalledExactlyOnceWith("persisted", "Cloud work");
+});

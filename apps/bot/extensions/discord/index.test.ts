@@ -97,8 +97,8 @@ class FakeDiscord implements DiscordPort {
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "eta-discord-"));
   roots.push(root);
-  const cwd = join(root, "workspace");
-  await mkdir(cwd);
+  const cwd = join(root, "workspaces", "workspace");
+  await mkdir(cwd, { recursive: true });
   const provider = fauxProvider({
     provider: "discord-test",
     models: [{ id: "one" }],
@@ -122,6 +122,7 @@ async function fixture() {
     dataRoot: join(root, "data"),
     adminToken: "test-admin",
     shutdownGraceMs: 0,
+    workspaceRoot: join(root, "workspaces"),
     projects: [{ key: "test", rootPath: cwd }],
     runtime: { defaultThinkingLevel: "off" },
     discord: {

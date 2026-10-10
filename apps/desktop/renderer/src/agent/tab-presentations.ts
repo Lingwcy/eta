@@ -1,3 +1,4 @@
+import { isCloudId } from "../../../src/shared/bot.ts";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 import type { BrowserViewState } from "@/browser/client";
 import type { DesktopTab } from "./desktop-tabs";
@@ -48,7 +49,11 @@ export function presentTab(
       return {
         ...identity,
         title: thread?.title || "新聊天",
-        subtitle: tab.threadId ? (project?.name ?? "聊天") : "草稿",
+        subtitle: tab.threadId
+          ? `${isCloudId(tab.threadId) ? "云端 · " : ""}${project?.name ?? "聊天"}`
+          : tab.environment === "cloud" || isCloudId(tab.workspaceId)
+            ? "云端草稿"
+            : "草稿",
         text: tab.draft || preview || thread?.title || "选择项目，开始新的聊天。",
         running: tab.threadId !== undefined && running.has(tab.threadId),
       };

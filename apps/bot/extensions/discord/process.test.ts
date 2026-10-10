@@ -86,14 +86,15 @@ test.each(["create", "thread", "execute", "result", "send", "stop"])(
       };
     };
     try {
-      await mkdir(join(root, "workspace"));
+      await mkdir(join(root, "workspaces", "workspace"), { recursive: true });
       await writeFile(
         config,
         JSON.stringify({
           dataRoot: "data",
           adminToken: "crash-test",
           shutdownGraceMs: 0,
-          projects: [{ key: "test", rootPath: "workspace" }],
+          workspaceRoot: "workspaces",
+          projects: [{ key: "test", rootPath: "workspaces/workspace" }],
           runtime: { defaultThinkingLevel: "off" },
           discord: {
             tokenEnv: "UNUSED_MOCK_TOKEN",
@@ -143,7 +144,7 @@ test.each(["create", "thread", "execute", "result", "send", "stop"])(
         ).json(),
       );
       expect(operation.status).toBe(phase === "stop" ? "aborted" : "completed");
-      expect(await readFile(join(root, "workspace/crash-proof.txt"), "utf8")).toBe(
+      expect(await readFile(join(root, "workspaces/workspace/crash-proof.txt"), "utf8")).toBe(
         "Investigated before reply",
       );
       const remote = new DatabaseSync(join(root, "remote.sqlite"));

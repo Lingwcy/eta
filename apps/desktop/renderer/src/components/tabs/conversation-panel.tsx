@@ -111,14 +111,19 @@ export function ConversationPanel({
               skillsControl={
                 <SkillPicker
                   active={active}
-                  disabled={Boolean(view.composer.disabled || running)}
+                  disabled={Boolean(
+                    view.composer.disabled || running || (view.composer.cloud && !tab.workspaceId),
+                  )}
                   cwd={
                     desktop.library?.threads.find((thread) => thread.id === tab.threadId)
                       ?.sessionRef.metadata.cwd ?? view.composer.cwd
                   }
+                  workspaceId={tab.workspaceId}
                   threadId={tab.threadId}
                   activeSkills={view.transcript.snapshot?.activeSkills}
-                  onSettings={() => navigation.tabs.openSettings("skills")}
+                  onSettings={() =>
+                    navigation.tabs.openSettings(view.composer.cloud ? "bot" : "skills")
+                  }
                   onSelect={(name) =>
                     view.composer.onChange(`${view.composer.value.trimEnd()} $${name} `.trimStart())
                   }

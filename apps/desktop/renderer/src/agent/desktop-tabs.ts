@@ -4,6 +4,7 @@ export interface ConversationTab {
   threadId?: string;
   workspaceId: string | null;
   draft: string;
+  environment?: "local" | "cloud";
 }
 
 export interface BrowserTab {
@@ -138,6 +139,7 @@ export class DesktopTabs {
       const next = { ...tab, ...change };
       return next.threadId === tab.threadId &&
         next.workspaceId === tab.workspaceId &&
+        next.environment === tab.environment &&
         next.draft === tab.draft
         ? tab
         : next;

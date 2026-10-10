@@ -1,14 +1,17 @@
 import { mkdir } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { Effect } from "effect";
+import { join } from "node:path";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { Models } from "@earendil-works/pi-ai";
 import { createCore } from "@eta/core";
 import type { CoreEnvironment } from "@eta/core";
 import { processImage } from "@eta/core/node/images";
 import type { BotConfig } from "./config.ts";
-import { environmentCredentials } from "./credentials.ts";
+import { CredentialService } from "@eta/core/service/credentials/index";
+import { AppPathsService } from "@eta/core/platform/app-paths";
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { BotStore, lockDataRoot } from "./store.ts";
+import { BotProjects } from "./projects.ts";
 import { BotController } from "./controller.ts";
 import { createHttpApp } from "./http.ts";
 import { BotExtensions } from "./extensions.ts";
@@ -27,11 +30,16 @@ export async function createBotApplication(
 ) {
   await mkdir(config.dataRoot, { recursive: true });
   const unlock = lockDataRoot(join(config.dataRoot, "writer-lock.sqlite"));
+  registerBunOAuthFlows();
+  const credentialsRuntime = ManagedRuntime.make(
+    CredentialService.layer.pipe(Layer.provide(AppPathsService.layer(config.dataRoot))),
+  );
   let core: Awaited<ReturnType<typeof createCore>> | undefined;
   let store: BotStore | undefined;
   let extensions: BotExtensions | undefined;
   let discord: DiscordExtension | undefined;
   try {
+    const credentials = await credentialsRuntime.runPromise(CredentialService);
     store = new BotStore(join(config.dataRoot, "bot.sqlite"));
     discord = config.discord
       ? new DiscordExtension(
@@ -45,9 +53,7 @@ export async function createBotApplication(
     core = await createCore({
       dataRoot: config.dataRoot,
       home: config.home ?? join(config.dataRoot, "home"),
-      models:
-        dependencies.models ??
-        builtinModels({ credentials: environmentCredentials(config.credentials) }),
+      models: dependencies.models ?? builtinModels({ credentials: credentials.store }),
       settings: { read: Effect.succeed(config.runtime), subscribe: () => () => {} },
       processImage,
       environment: {
@@ -60,37 +66,9 @@ export async function createBotApplication(
         ],
       },
     });
-    const projectKeys = new Map<string, string>();
-    const existingProjects = await core.projects();
-    for (const project of config.projects) {
-      const path = resolve(project.rootPath);
-      // Persist the configured spelling as well as Core's canonical identity. A missing mount or
-      // symlink must not hide history; Core validates the canonical workspace before execution.
-      const id = await store.request(
-        "deployment.project",
-        JSON.stringify([project.key, path]),
-        path,
-        async () => {
-          try {
-            return (await core!.registerProject(path, project.name)).id;
-          } catch (error) {
-            const existing = existingProjects.find(({ rootPath }) => rootPath === path);
-            const unavailable =
-              error instanceof Error &&
-              "reason" in error &&
-              (error.reason === "PathUnavailable" || error.reason === "NotDirectory");
-            if (!existing || !unavailable) throw error;
-            return existing.id;
-          }
-        },
-      );
-      projectKeys.set(project.key, id);
-    }
-    const workspaceProjects = new Map(
-      (await core.workspaces())
-        .filter((workspace) => [...projectKeys.values()].includes(workspace.projectId))
-        .map((workspace) => [workspace.id, workspace.projectId]),
-    );
+    const projects = new BotProjects(core, config);
+    await projects.refresh();
+    const { projectKeys, workspaceProjects } = projects;
     const log = dependencies.log ?? (() => {});
     const controller = new BotController(core, workspaceProjects, config.maxConcurrent ?? 1, log);
     const projectWorkspaces = new Map(
@@ -103,6 +81,12 @@ export async function createBotApplication(
     const shutdown = new AbortController();
     const app = createHttpApp({
       config,
+      credentials: {
+        list: () => credentialsRuntime.runPromise(credentials.list),
+        import: (values: unknown) => credentialsRuntime.runPromise(credentials.import(values)),
+        remove: (provider: string) => credentialsRuntime.runPromise(credentials.remove(provider)),
+      },
+      projects,
       core,
       controller,
       store,
@@ -140,6 +124,7 @@ export async function createBotApplication(
                 try {
                   await persistence.close();
                 } finally {
+                  await credentialsRuntime.dispose();
                   unlock();
                 }
               }
@@ -159,6 +144,7 @@ export async function createBotApplication(
           await store?.close();
         }
       } finally {
+        await credentialsRuntime.dispose();
         unlock();
       }
     }

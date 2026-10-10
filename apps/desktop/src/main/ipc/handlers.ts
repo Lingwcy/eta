@@ -1,3 +1,4 @@
+import { isCloudId } from "../../shared/bot.ts";
 import { app, dialog, ipcMain, shell } from "electron";
 import type { DesktopApplication } from "../bootstrap.ts";
 import { commandReply, dispatchCommand } from "../ipc.ts";
@@ -57,7 +58,8 @@ export function registerDesktopIpc({
   ipcMain.handle("eta:thread-window", (_event, rawId: unknown) =>
     commandReply(async () => {
       const id = sessionId(rawId);
-      await service().threadFile(id);
+      if (isCloudId(id)) await service().openThread(id);
+      else await service().threadFile(id);
       openWindow(id);
     }),
   );

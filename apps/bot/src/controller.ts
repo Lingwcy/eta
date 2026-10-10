@@ -1,3 +1,4 @@
+import type { SubagentCommand } from "@eta/core/shared/subagents";
 import type { CoreClient, OperationAdmission, ImageAttachment } from "@eta/core";
 import { BotHttpError } from "./errors.ts";
 import type { BotLog } from "./log.ts";
@@ -166,6 +167,39 @@ export class BotController {
           this.blocked.delete(id);
           this.blockedProjects.delete(id);
           await this.monitor(id);
+        } catch (error) {
+          this.release(id);
+          throw error;
+        }
+      })(),
+    );
+  }
+
+  compact(id: string) {
+    return this.track(
+      (async () => {
+        await this.claim(id);
+        try {
+          await this.core.compact(id);
+        } finally {
+          this.release(id);
+          await this.pumpRecovery();
+        }
+      })(),
+    );
+  }
+
+  subagent(id: string, command: SubagentCommand, requestId: string) {
+    return this.track(
+      (async () => {
+        await this.authorize(id);
+        if (!["spawn", "send", "resume"].includes(command.action) || this.active.has(id))
+          return this.core.subagent(id, command, requestId);
+        await this.claim(id);
+        try {
+          const result = await this.core.subagent(id, command, requestId);
+          await this.monitor(id);
+          return result;
         } catch (error) {
           this.release(id);
           throw error;

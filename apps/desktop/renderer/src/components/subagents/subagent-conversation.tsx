@@ -1,3 +1,4 @@
+import { isCloudId } from "../../../../src/shared/bot.ts";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { ImageAttachment } from "@eta/core/images/types";
 import { useEffect, useState } from "react";
@@ -53,9 +54,11 @@ export function SubagentConversation({
   const snapshot = observation?.snapshot;
   const running =
     Boolean(snapshot?.operation || child.status === "running") && !snapshot?.recoveryRequired;
-  const enabled = library?.settings.subagents?.enabled !== false;
+  const cloud = isCloudId(threadId);
+  const source = cloud ? library?.bot?.library : library;
+  const enabled = source?.settings.subagents?.enabled !== false;
   const reference = snapshot?.configuration.model ?? child.model;
-  const catalogModel = library?.models.find(
+  const catalogModel = source?.models.find(
     (model) => model.provider === reference?.provider && model.id === reference.modelId,
   );
   const thinkingLevel = snapshot?.configuration.thinkingLevel ?? "off";
@@ -115,12 +118,16 @@ export function SubagentConversation({
             value={draft}
             onChange={onDraft}
             model={model}
-            models={library?.models}
+            models={source?.models}
             providers={library?.providers}
             thinkingLevel={thinkingLevel}
             contextTokens={observation?.contextTokens}
             contextWindow={catalogModel?.contextWindow}
-            cwd={library?.threads.find((thread) => thread.id === threadId)?.sessionRef.metadata.cwd}
+            cwd={
+              cloud
+                ? undefined
+                : library?.threads.find((thread) => thread.id === threadId)?.sessionRef.metadata.cwd
+            }
             isRunning={running}
             allowSubmitWhileRunning
             isStopping={busy || snapshot?.operation?.status === "aborting"}

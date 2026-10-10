@@ -1,3 +1,4 @@
+import { BotConnectionSchema } from "./bot-schema.ts";
 import { SubagentCommandSchema, SubagentSettingsSchema } from "@eta/core/shared/subagent-schema";
 import { builtinToolNames } from "@eta/core/tools";
 import { agentThinkingVariants } from "../appearance.ts";
@@ -13,13 +14,22 @@ import { TitleModelSchema } from "@eta/core/shared/runtime-settings";
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
 const Command = Schema.Union([
+  Schema.Struct({ type: Schema.Literal("bot-import-credentials") }),
+  Schema.Struct({ type: Schema.Literal("bot-remove-credential"), providerId: Id }),
+  Schema.Struct({ type: Schema.Literal("bot-connect"), connection: BotConnectionSchema }),
+  Schema.Struct({ type: Schema.Literal("bot-disconnect") }),
+  Schema.Struct({ type: Schema.Literal("bot-reconnect") }),
   Schema.Struct({
     type: Schema.Literal("subagent"),
     id: Id,
     requestId: Id,
     command: SubagentCommandSchema,
   }),
-  Schema.Struct({ type: Schema.Literal("skills"), cwd: Schema.optional(Id) }),
+  Schema.Struct({
+    type: Schema.Literal("skills"),
+    cwd: Schema.optional(Id),
+    workspaceId: Schema.optional(Id),
+  }),
   Schema.Struct({
     type: Schema.Literal("open-skills-directory"),
     path: Id,
@@ -35,8 +45,20 @@ const Command = Schema.Union([
     ]),
   }),
   Schema.Struct({ type: Schema.Literal("library") }),
+  Schema.Struct({ type: Schema.Literal("create-cloud-project"), name: Id, requestId: Id }),
   Schema.Struct({ type: Schema.Literal("register-project"), rootPath: Id, name: Id }),
-  Schema.Struct({ type: Schema.Literal("create"), workspaceId: Id, requestId: Id }),
+  Schema.Struct({
+    type: Schema.Literal("create"),
+    workspaceId: Id,
+    requestId: Id,
+    configuration: Schema.optional(
+      Schema.Struct({
+        provider: Id,
+        modelId: Id,
+        thinkingLevel: Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
+      }),
+    ),
+  }),
   Schema.Struct({ type: Schema.Literal("open"), id: Id }),
   Schema.Struct({ type: Schema.Literal("move-thread"), id: Id, projectId: Schema.NullOr(Id) }),
   Schema.Struct({ type: Schema.Literal("delete-thread"), id: Id }),
@@ -119,10 +141,20 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     throw new CoreError({ code: "InvalidInput", message: "请求参数无效" });
   }
   switch (command.type) {
+    case "bot-import-credentials":
+      return application.importBotCredentials();
+    case "bot-remove-credential":
+      return application.removeBotCredential(command.providerId);
+    case "bot-connect":
+      return application.connectBot(command.connection);
+    case "bot-disconnect":
+      return application.disconnectBot();
+    case "bot-reconnect":
+      return application.reconnectBot();
     case "subagent":
       return application.subagent(command.id, command.command, command.requestId);
     case "skills":
-      return application.skills(command.cwd);
+      return application.skills(command.cwd, command.workspaceId);
     case "open-skills-directory":
       return application.openSkillsDirectory(command.path, command.cwd);
     case "unload-skill":
@@ -140,10 +172,16 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       );
     case "library":
       return application.library();
+    case "create-cloud-project":
+      return application.createCloudProject(command.name, command.requestId);
     case "register-project":
       return application.registerProject(command.rootPath, command.name);
     case "create":
-      return application.createThread(command.workspaceId, command.requestId);
+      return application.createThread(
+        command.workspaceId,
+        command.requestId,
+        command.configuration,
+      );
     case "open":
       return application.openThread(command.id);
     case "move-thread":

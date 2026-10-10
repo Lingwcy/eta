@@ -1,3 +1,4 @@
+import { isCloudId } from "../../../src/shared/bot.ts";
 import { projectRootWorkspace } from "@/desktop/selectors";
 import { threadProjectId } from "@eta/core/shared/thread-project";
 import { ThreadContextMenu } from "./threads/thread-actions";
@@ -103,17 +104,30 @@ export function DesktopSidebar(props: Props) {
           }
           onNew={props.onNew}
         >
-          {groups.map((group) => (
-            <ProjectGroup
-              key={group.workspace.id}
-              {...group}
-              selected={props.workspaceId === group.workspace.id}
-              threadId={props.threadId}
-              runningThreadIds={props.runningThreadIds}
-              busy={props.busy}
-              archived={archived}
-              onSelect={props.onSelect}
-            />
+          {[false, true].map((cloud) => (
+            <div key={String(cloud)}>
+              {groups.some((group) => isCloudId(group.workspace.id) === cloud) && (
+                <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">
+                  {cloud
+                    ? `云端项目${props.library?.bot?.status === "error" ? " · 离线" : ""}`
+                    : "本地项目"}
+                </p>
+              )}
+              {groups
+                .filter((group) => isCloudId(group.workspace.id) === cloud)
+                .map((group) => (
+                  <ProjectGroup
+                    key={group.workspace.id}
+                    {...group}
+                    selected={props.workspaceId === group.workspace.id}
+                    threadId={props.threadId}
+                    runningThreadIds={props.runningThreadIds}
+                    busy={props.busy}
+                    archived={archived}
+                    onSelect={props.onSelect}
+                  />
+                ))}
+            </div>
           ))}
           {ungrouped.length > 0 && (
             <>

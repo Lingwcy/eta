@@ -35,14 +35,8 @@ try {
       port: 8080,
       adminToken: "container-fixture-token",
       shutdownGraceMs: 0,
-      projects: [{ key: "test", rootPath: "/workspaces/test" }],
-      credentials: { anthropic: "ETA_BOT_CONTAINER_KEY" },
+      workspaceRoot: "/workspaces",
       runtime: { defaultThinkingLevel: "off" },
-      discord: {
-        enabled: false,
-        tokenEnv: "UNUSED_DISCORD_TOKEN",
-        channels: [{ guildId: "1", channelId: "10", projectKey: "test" }],
-      },
     }),
   );
   docker(["build", "--tag", image, "--file", "apps/bot/Dockerfile", "."], true);
@@ -56,14 +50,12 @@ try {
     "--mount",
     `source=${data},target=/var/lib/eta-bot`,
     "--mount",
-    `source=${workspace},target=/workspaces/test`,
-    "--env",
-    "ETA_BOT_CONTAINER_KEY=offline-placeholder",
+    `source=${workspace},target=/workspaces`,
     "--publish",
     "127.0.0.1::8080",
     image,
   ]);
-  docker(["exec", "--user", "0", name, "chown", "node:node", "/workspaces/test"]);
+  docker(["exec", "--user", "0", name, "chown", "node:node", "/workspaces"]);
   const base = () => `http://${docker(["port", name, "8080/tcp"])}`;
   const ready = async () => {
     const url = base();
@@ -81,7 +73,7 @@ try {
   };
   let url = await ready();
   assert.equal(docker(["exec", name, "id", "-u"]), "1000");
-  docker(["exec", name, "test", "-w", "/workspaces/test"]);
+  docker(["exec", name, "test", "-w", "/workspaces"]);
   assert.match(docker(["exec", name, "git", "--version"]), /^git version/);
   assert.match(docker(["exec", name, "bash", "--version"]), /GNU bash/);
   docker([
@@ -96,6 +88,21 @@ try {
     authorization: "Bearer container-fixture-token",
     "content-type": "application/json",
   };
+  const imported = await fetch(`${url}/v1/credentials/import`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      credentials: { anthropic: { type: "api_key", key: "offline-placeholder" } },
+    }),
+  });
+  assert.equal(imported.status, 200);
+  const project = await fetch(`${url}/v1/projects`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "test", requestId: "container-project" }),
+  });
+  assert.equal(project.status, 201);
+  docker(["exec", name, "test", "-d", "/workspaces/test"]);
   const workspaces = await (await fetch(`${url}/v1/workspaces`, { headers })).json();
   const create = async () => {
     const response = await fetch(`${url}/v1/threads`, {
