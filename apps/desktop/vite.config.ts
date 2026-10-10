@@ -26,6 +26,9 @@ export default defineConfig({
           "@eta/agent$": fileURLToPath(
             new URL("../../packages/agent/src/index.ts", import.meta.url),
           ),
+          "@eta/agent/env$": fileURLToPath(
+            new URL("../../packages/agent/src/env/index.ts", import.meta.url),
+          ),
           "@eta/agent/env/node$": fileURLToPath(
             new URL("../../packages/agent/src/env/node.ts", import.meta.url),
           ),
