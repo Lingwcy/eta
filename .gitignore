@@ -14,6 +14,7 @@ dist-ssr
 *.local
 # dotenv environment variable files
 .env
+.agents/*
 .env.*
 !.env.example
 docs/plan/*
