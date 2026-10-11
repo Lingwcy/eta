@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "eta-mobile",
+    "slug": "eta-mobile",
+    "scheme": "eta-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.eta.mobile"
+    },
+    "android": {
+      "package": "com.eta.mobile",
+      "permissions": [],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
+    },
+    "plugins": ["expo-router", "expo-secure-store"]
+  }
+}

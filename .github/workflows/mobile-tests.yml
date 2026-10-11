@@ -1,0 +1,44 @@
+name: Mobile tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - "vite.config.ts"
+      - ".github/workflows/mobile-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - "vite.config.ts"
+      - ".github/workflows/mobile-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Verify mobile and export both platforms
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp install --frozen-lockfile
+      - run: vp run eta-mobile#typecheck
+      - run: vp run eta-mobile#test
+      - run: vp fmt --check apps/mobile docs/user/mobile.md
+      - run: vp lint apps/mobile
+      - run: vp exec expo install --check
+        working-directory: apps/mobile
+      - run: vp run build:mobile
+      - run: vp run eta-mobile#verify-package

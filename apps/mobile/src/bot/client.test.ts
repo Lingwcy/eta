@@ -1,0 +1,73 @@
+import { expect, test } from "vite-plus/test";
+import { BotClient, normalizeConnection } from "./client.ts";
+import { json, library, requestUrl } from "./fixtures.test-support.ts";
+
+test("connection validation rejects credential URLs, query strings and unsupported schemes", () => {
+  for (const url of [
+    "ftp://bot",
+    "https://name:secret@bot",
+    "https://bot?token=secret",
+    "https://bot#hash",
+    "bad",
+  ])
+    expect(() => normalizeConnection({ url, token: "secret" })).toThrow();
+  expect(normalizeConnection({ url: " https://bot/base/// ", token: " secret " })).toEqual({
+    url: "https://bot/base",
+    token: "secret",
+  });
+});
+
+test("HTTP requests use bearer authentication and safely encode thread IDs", async () => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  const client = new BotClient({ url: "https://bot/base", token: "secret" }, async (url, init) => {
+    calls.push({ url: requestUrl(url), init });
+    return json({ stopped: true });
+  });
+  await client.stop("id/with space");
+  expect(calls[0]?.url).toBe("https://bot/base/v1/threads/id%2Fwith%20space/stop");
+  expect(calls[0]?.init?.headers).toMatchObject({ authorization: "Bearer secret" });
+  expect(calls[0]?.init?.redirect).toBe("error");
+});
+
+test("invalid Bot responses fail at the transport boundary", async () => {
+  const client = new BotClient({ url: "https://bot", token: "secret" }, async () =>
+    json({ ...library, models: null }),
+  );
+  await expect(client.library()).rejects.toMatchObject({ code: "InvalidResponse" });
+});
+
+test("unauthorized SSE stops reconnecting and reports an actionable error", async () => {
+  let requests = 0;
+  const client = new BotClient({ url: "https://bot", token: "secret" }, async () => {
+    ++requests;
+    return json({ error: { code: "Unauthorized", message: "Unauthorized" } }, 401);
+  });
+  const errors: { fatal?: boolean; message?: string }[] = [];
+  await client.watch(
+    "thread",
+    new AbortController().signal,
+    () => {},
+    (message, fatal) => errors.push({ message, fatal }),
+  );
+  expect(requests).toBe(1);
+  expect(errors).toEqual([{ fatal: true, message: "Bot 令牌无效，请修改连接设置" }]);
+});
+
+test("a JSON response stalled after headers still times out", async () => {
+  const client = new BotClient(
+    { url: "https://bot", token: "secret" },
+    async (_url, init) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            init?.signal?.addEventListener("abort", () => controller.error(new Error("Aborted")), {
+              once: true,
+            });
+          },
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+    10,
+  );
+  await expect(client.library()).rejects.toMatchObject({ code: "Timeout" });
+});

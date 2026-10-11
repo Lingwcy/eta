@@ -1,6 +1,6 @@
 {
   "name": "eta",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -11,6 +11,8 @@
     "sync:repos": "node scripts/sync-reference-repos.ts",
     "sync:agent": "node scripts/sync-agent.ts",
     "build:desktop": "vp run @eta/desktop#build",
+    "dev:mobile": "vp run eta-mobile#dev",
+    "build:mobile": "vp run eta-mobile#build",
     "package:mac": "vp run --no-cache @eta/desktop#package:mac",
     "package:win": "vp run --no-cache @eta/desktop#package:win",
     "dev": "vp run --no-cache @eta/desktop#build:electron && vp run @eta/desktop#dev"
