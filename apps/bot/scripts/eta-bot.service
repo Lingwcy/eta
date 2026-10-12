@@ -1,0 +1,23 @@
+[Unit]
+Description=Eta Bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=eta-bot
+Group=eta-bot
+WorkingDirectory=/opt/eta-bot/current
+Environment=NODE_ENV=production
+Environment=HOME=/var/lib/eta-bot/home
+Environment=ETA_BOT_CONFIG=/etc/eta-bot/config.json
+EnvironmentFile=-/etc/eta-bot/environment
+ExecStart=/usr/bin/node dist/main.mjs
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

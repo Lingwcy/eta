@@ -20,4 +20,6 @@ tag 发版默认使用 ad-hoc 签名。将仓库变量 `ETA_SIGNED_RELEASE` 设�
 
 Windows 构建在 `windows-latest` runner 上执行，默认未签名，首次安装可能出现 SmartScreen 提示。Windows ARM64 安装包暂未提供。Windows 用户使用命令执行工具前需安装 Git for Windows（含 Git Bash）。
 
+正式 Release 发布成功后，`Deploy Bot to eta-server` 工作流会构建并验证同一提交的 Bot，然后通过 SSH 部署到 eta-server。仓库需要配置 secret `ETA_SERVER_SSH_KEY` 和变量 `ETA_SERVER_HOST`、`ETA_SERVER_USER`、`ETA_SERVER_KNOWN_HOSTS`。服务器预先安装 Node.js 24、Git，并配置 `eta-bot` 用户和 `/etc/eta-bot/config.json`；Linux 内核需要支持 Landlock ABI 3（eta-server 使用 Debian backports 的 6.12 内核），工作流使用的 SSH 用户需要免密码 sudo。服务由 systemd 管理，配置、凭证、会话和项目保存在版本目录之外；接口或实际沙盒执行检查失败会恢复上一版。重新运行部署工作流会重试；也可手动选择分支或 tag 部署。自动部署只接受最新已发布的正式版本。
+
 本地在 Windows 上运行 `vp run package:win` 构建 x64 安装包，产物位于 `apps/desktop/dist/release/`。手动运行 Desktop release 工作流也会构建 Windows 安装包，可从工作流 artifacts 下载；`signed` 选项仅控制 macOS 的签名与公证。
