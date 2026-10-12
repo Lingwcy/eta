@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import {
+  Animated,
+  Easing,
   KeyboardAvoidingView,
-  Platform,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,11 +13,22 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Archive, Check, Folder, Plus, Settings, SquarePen, X } from "lucide-react-native";
+import {
+  Archive,
+  Check,
+  ChevronRight,
+  Folder,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Settings,
+  SquarePen,
+  X,
+} from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BotThread } from "../bot/contracts.ts";
 import { useMobile } from "../provider.tsx";
-import { Button, colors, common, IconButton, SheetContent, useAction } from "../ui.tsx";
+import { colors, useAction } from "../ui.tsx";
 
 export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { state, store } = useMobile();
@@ -27,256 +40,814 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
   const [menu, setMenu] = useState<BotThread>();
   const { busy, run } = useAction();
   const available = state.status === "connected" && !state.sending && !busy;
+
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(-340)).current;
+
+  useEffect(() => {
+    if (visible) {
+      backdropAnim.setValue(0);
+      slideAnim.setValue(-340);
+      Animated.parallel([
+        Animated.timing(backdropAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible, backdropAnim, slideAnim]);
+
+  const handleClose = () => {
+    Animated.parallel([
+      Animated.timing(backdropAnim, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: -340,
+        duration: 200,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setEditing(undefined);
+      setMenu(undefined);
+      onClose();
+    });
+  };
+
+  const closePanel = () => {
+    if (editing) setEditing(undefined);
+    else if (menu) setMenu(undefined);
+    else handleClose();
+  };
+
   const threads =
     state.library?.threads
       .filter(
         (thread) => !!thread.archivedAt === archived && thread.workspaceId === state.workspaceId,
       )
       .sort((left, right) => right.createdAt - left.createdAt) ?? [];
+
   const edit = (thread?: BotThread) => {
     setName(thread?.title ?? "");
     setEditing({ thread });
     setMenu(undefined);
   };
-  const closePanel = () => {
-    if (editing) setEditing(undefined);
-    else if (menu) setMenu(undefined);
-    else onClose();
-  };
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={closePanel}>
-      <KeyboardAvoidingView
-        style={[styles.overlay, (editing || menu) && styles.panelOverlay]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          accessibilityLabel="关闭面板"
-          onPress={closePanel}
-        />
-        {editing ? (
-          <SheetContent
-            title={editing?.thread ? "重命名会话" : "新建 Bot 项目"}
-            onClose={() => setEditing(undefined)}
-          >
-            <TextInput
-              accessibilityLabel={editing?.thread ? "会话名称" : "项目名称"}
-              value={name}
-              onChangeText={setName}
-              placeholder={editing?.thread ? "会话名称" : "项目名称"}
-              placeholderTextColor={colors.muted}
-              style={common.field}
-              autoFocus
-              maxLength={256}
-            />
-            {!editing?.thread && (
-              <Text style={common.hint}>项目会创建在 Bot 配置的工作空间根目录内。</Text>
-            )}
-            <Button
-              disabled={busy || !name.trim()}
-              onPress={() => {
-                void run(async () => {
-                  if (editing?.thread)
-                    await store.metadata(editing.thread.id, { title: name.trim() });
-                  else await store.createProject(name.trim());
-                  setEditing(undefined);
-                });
-              }}
-            >
-              {busy ? "正在保存…" : "保存"}
-            </Button>
-          </SheetContent>
-        ) : menu ? (
-          <SheetContent title="管理会话" onClose={() => setMenu(undefined)}>
-            <Text style={common.body}>{menu?.title}</Text>
-            <Button secondary disabled={busy} onPress={() => edit(menu)}>
-              重命名
-            </Button>
-            <Button
-              secondary
-              disabled={busy}
-              onPress={() => {
-                void run(async () => {
-                  if (!menu) return;
-                  await store.metadata(menu.id, { archived: !menu.archivedAt });
-                  setMenu(undefined);
-                });
-              }}
-            >
-              {menu?.archivedAt ? "取消归档" : "归档会话"}
-            </Button>
-          </SheetContent>
-        ) : (
-          <View
-            accessibilityViewIsModal
-            style={[
-              styles.drawer,
-              { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 },
-            ]}
-          >
-            <View style={styles.header}>
-              <Text style={styles.brand}>eta-mobile</Text>
-              <IconButton icon={X} label="关闭侧栏" onPress={onClose} />
+    <Modal visible={visible} transparent animationType="none" onRequestClose={closePanel}>
+      <View style={styles.modalRoot}>
+        {/* 背景蒙层：固定铺满，仅透明度渐变 */}
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdropAnim }]}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            accessibilityLabel="关闭侧栏"
+            onPress={closePanel}
+          />
+        </Animated.View>
+
+        {/* 抽屉容器：自左侧平滑滑入 */}
+        <Animated.View
+          accessibilityViewIsModal
+          style={[
+            styles.drawer,
+            {
+              transform: [{ translateX: slideAnim }],
+              paddingTop: Math.max(insets.top, 8),
+            },
+          ]}
+        >
+          {/* 顶栏：Brand + 状态指示 + 关闭按钮 */}
+          <View style={styles.header}>
+            <View style={styles.brandRow}>
+              <Text style={styles.brand}>eta</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>mobile</Text>
+              </View>
+              <View
+                style={[
+                  styles.statusDot,
+                  state.status === "connected"
+                    ? styles.statusDotConnected
+                    : state.status === "connecting"
+                      ? styles.statusDotConnecting
+                      : styles.statusDotDisconnected,
+                ]}
+              />
             </View>
-            <View style={styles.newChat}>
-              <Button
-                secondary
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="关闭侧栏"
+              onPress={handleClose}
+              hitSlop={8}
+              style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
+            >
+              <X size={14} color={colors.muted} />
+            </Pressable>
+          </View>
+
+          {/* 新建会话按钮：紧凑桌面级质感 */}
+          <View style={styles.newChat}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="新建会话"
+              disabled={!available}
+              onPress={() => {
+                void run(() => {
+                  store.newThread();
+                  handleClose();
+                });
+              }}
+              style={({ pressed }) => [
+                styles.newChatButton,
+                pressed && styles.newChatButtonPressed,
+                !available && styles.buttonDisabled,
+              ]}
+            >
+              <SquarePen size={14} color={colors.text} />
+              <Text style={styles.newChatText}>新建会话</Text>
+            </Pressable>
+          </View>
+
+          {/* 滚动区域 */}
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* 项目区域标题 */}
+            <View style={styles.sectionHeading}>
+              <Text style={styles.sectionLabel}>项目</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="新建项目"
                 disabled={!available}
-                onPress={() => {
-                  void run(() => {
-                    store.newThread();
-                    onClose();
-                  });
-                }}
+                hitSlop={6}
+                onPress={() => edit()}
+                style={({ pressed }) => [
+                  styles.sectionAction,
+                  pressed && styles.sectionActionPressed,
+                  !available && styles.buttonDisabled,
+                ]}
               >
-                新建会话
-              </Button>
+                <Plus size={12} color={colors.muted} />
+                <Text style={styles.sectionActionText}>新建</Text>
+              </Pressable>
             </View>
-            <ScrollView contentContainerStyle={styles.content}>
-              <View style={styles.sectionHeading}>
-                <Text style={styles.label}>项目</Text>
-                <IconButton
-                  icon={Plus}
-                  label="新建项目"
-                  disabled={!available}
-                  onPress={() => edit()}
-                />
-              </View>
-              {state.library?.workspaces.map((workspace) => {
-                const project = state.library?.projects.find(
-                  (value) => value.id === workspace.projectId,
-                );
-                return (
-                  <Pressable
-                    key={workspace.id}
-                    accessibilityRole="button"
-                    disabled={!available}
-                    accessibilityState={{ selected: state.workspaceId === workspace.id }}
-                    onPress={() => {
-                      void run(() => store.newThread(workspace.id));
-                    }}
-                    style={[styles.row, state.workspaceId === workspace.id && styles.selected]}
-                  >
-                    <Folder size={18} color={colors.muted} />
-                    <Text numberOfLines={1} style={styles.rowTitle}>
-                      {project?.name ?? "项目"}
-                      {workspace.kind === "worktree" ? " · 工作树" : ""}
-                    </Text>
-                    {state.workspaceId === workspace.id && <Check size={16} color={colors.blue} />}
-                  </Pressable>
-                );
-              })}
-              {!state.library?.workspaces.length && (
-                <Text style={common.hint}>还没有项目，先创建一个。</Text>
-              )}
-              <View style={styles.sectionHeading}>
-                <Text style={styles.label}>{archived ? "已归档会话" : "会话"}</Text>
+
+            {/* 项目列表 */}
+            {state.library?.workspaces.map((workspace) => {
+              const project = state.library?.projects.find(
+                (value) => value.id === workspace.projectId,
+              );
+              const isSelected = state.workspaceId === workspace.id;
+              return (
                 <Pressable
+                  key={workspace.id}
                   accessibilityRole="button"
-                  onPress={() => setArchived(!archived)}
-                  style={styles.archiveToggle}
+                  disabled={!available}
+                  accessibilityState={{ selected: isSelected }}
+                  onPress={() => {
+                    void run(() => store.newThread(workspace.id));
+                  }}
+                  style={({ pressed }) => [
+                    styles.projectRow,
+                    isSelected && styles.rowSelected,
+                    pressed && styles.rowPressed,
+                  ]}
                 >
-                  <Archive size={16} color={colors.muted} />
-                  <Text style={common.hint}>{archived ? "返回" : "归档"}</Text>
+                  <Folder size={14} color={isSelected ? colors.text : colors.muted} />
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.projectTitle, isSelected && styles.projectTitleSelected]}
+                  >
+                    {project?.name ?? "项目"}
+                    {workspace.kind === "worktree" ? " · 工作树" : ""}
+                  </Text>
+                  {isSelected && <Check size={13} color={colors.blue} />}
                 </Pressable>
-              </View>
-              {threads.map((thread) => (
-                <View
-                  key={thread.id}
-                  style={[styles.threadRow, thread.id === state.threadId && styles.selected]}
-                >
+              );
+            })}
+            {!state.library?.workspaces.length && (
+              <Text style={styles.emptyHint}>还没有项目，点击上方新建。</Text>
+            )}
+
+            {/* 会话区域标题 */}
+            <View style={[styles.sectionHeading, { marginTop: 12 }]}>
+              <Text style={styles.sectionLabel}>{archived ? "已归档会话" : "会话"}</Text>
+              <Pressable
+                accessibilityRole="button"
+                hitSlop={6}
+                onPress={() => setArchived(!archived)}
+                style={({ pressed }) => [
+                  styles.sectionAction,
+                  pressed && styles.sectionActionPressed,
+                ]}
+              >
+                <Archive size={12} color={colors.muted} />
+                <Text style={styles.sectionActionText}>{archived ? "返回会话" : "归档"}</Text>
+              </Pressable>
+            </View>
+
+            {/* 会话列表 */}
+            {threads.map((thread) => {
+              const isSelected = thread.id === state.threadId;
+              return (
+                <View key={thread.id} style={[styles.threadRow, isSelected && styles.rowSelected]}>
                   <Pressable
                     accessibilityRole="button"
                     disabled={!available}
                     style={styles.threadOpen}
                     onPress={() => {
                       void run(async () => {
-                        onClose();
+                        handleClose();
                         await store.open(thread.id);
                       });
                     }}
                   >
-                    <Text numberOfLines={2} style={styles.rowTitle}>
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.threadTitle, isSelected && styles.threadTitleSelected]}
+                    >
                       {thread.title || "未命名会话"}
                     </Text>
                   </Pressable>
-                  <IconButton
-                    icon={SquarePen}
-                    label={`管理会话：${thread.title}`}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`管理会话：${thread.title}`}
                     disabled={!available}
+                    hitSlop={4}
                     onPress={() => setMenu(thread)}
-                  />
+                    style={({ pressed }) => [
+                      styles.threadMoreButton,
+                      pressed && styles.threadMoreButtonPressed,
+                    ]}
+                  >
+                    <MoreHorizontal size={14} color={colors.muted} />
+                  </Pressable>
                 </View>
-              ))}
-              {!threads.length && (
-                <Text style={common.hint}>
-                  {archived ? "没有已归档会话" : "这个项目还没有会话"}
+              );
+            })}
+            {!threads.length && (
+              <Text style={styles.emptyHint}>
+                {archived ? "没有已归档会话" : "这个项目还没有会话"}
+              </Text>
+            )}
+          </ScrollView>
+
+          {/* 底栏：设置与连接状态卡片 */}
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.footerCard, pressed && styles.footerCardPressed]}
+              onPress={() => {
+                handleClose();
+                router.push("/settings");
+              }}
+            >
+              <View style={styles.footerRow}>
+                <View style={styles.footerLeft}>
+                  <Settings size={14} color={colors.muted} />
+                  <Text style={styles.footerTitle}>连接与设置</Text>
+                </View>
+                <ChevronRight size={13} color={colors.muted} />
+              </View>
+              <View style={styles.footerSubRow}>
+                <View
+                  style={[
+                    styles.footerStatusDot,
+                    state.status === "connected"
+                      ? styles.statusDotConnected
+                      : state.status === "connecting"
+                        ? styles.statusDotConnecting
+                        : styles.statusDotDisconnected,
+                  ]}
+                />
+                <Text numberOfLines={1} style={styles.footerUrl}>
+                  {state.url || "未配置服务器"}
                 </Text>
-              )}
-            </ScrollView>
-            <View style={styles.footer}>
+              </View>
+            </Pressable>
+          </View>
+        </Animated.View>
+
+        {/* 会话操作弹层 (类似于桌面端 ThreadContextMenu) */}
+        {Boolean(menu) && (
+          <View style={StyleSheet.absoluteFill}>
+            <Pressable
+              style={[StyleSheet.absoluteFill, styles.subBackdrop]}
+              onPress={() => setMenu(undefined)}
+            />
+            <View style={[styles.menuSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+              <View style={styles.menuHandle} />
+              <Text numberOfLines={1} style={styles.menuHeaderTitle}>
+                {menu?.title || "未命名会话"}
+              </Text>
               <Pressable
                 accessibilityRole="button"
-                style={styles.row}
-                onPress={() => {
-                  onClose();
-                  router.push("/settings");
-                }}
+                disabled={busy}
+                onPress={() => edit(menu)}
+                style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
               >
-                <Settings size={20} color={colors.text} />
-                <Text style={styles.rowTitle}>连接与设置</Text>
+                <Pencil size={15} color={colors.text} />
+                <Text style={styles.menuItemText}>重命名</Text>
               </Pressable>
-              <Text numberOfLines={1} style={styles.url}>
-                {state.url}
-              </Text>
+              <Pressable
+                accessibilityRole="button"
+                disabled={busy}
+                onPress={() => {
+                  void run(async () => {
+                    if (!menu) return;
+                    await store.metadata(menu.id, { archived: !menu.archivedAt });
+                    setMenu(undefined);
+                  });
+                }}
+                style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+              >
+                <Archive size={15} color={colors.text} />
+                <Text style={styles.menuItemText}>
+                  {menu?.archivedAt ? "取消归档" : "归档会话"}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setMenu(undefined)}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  styles.menuCancelItem,
+                  pressed && styles.menuItemPressed,
+                ]}
+              >
+                <X size={15} color={colors.muted} />
+                <Text style={styles.menuCancelText}>取消</Text>
+              </Pressable>
             </View>
           </View>
         )}
-      </KeyboardAvoidingView>
+
+        {/* 重命名 / 新建项目弹层 */}
+        {Boolean(editing) && (
+          <View style={StyleSheet.absoluteFill}>
+            <Pressable
+              style={[StyleSheet.absoluteFill, styles.subBackdrop]}
+              onPress={() => setEditing(undefined)}
+            />
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.editCenter}
+            >
+              <View style={styles.editDialog}>
+                <Text style={styles.editTitle}>
+                  {editing?.thread ? "重命名会话" : "新建 Bot 项目"}
+                </Text>
+                {!editing?.thread && (
+                  <Text style={styles.editHint}>项目会创建在 Bot 配置的工作空间根目录内。</Text>
+                )}
+                <TextInput
+                  accessibilityLabel={editing?.thread ? "会话名称" : "项目名称"}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder={editing?.thread ? "输入会话名称…" : "输入项目名称…"}
+                  placeholderTextColor={colors.muted}
+                  style={styles.editInput}
+                  autoFocus
+                  maxLength={256}
+                />
+                <View style={styles.editActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy}
+                    onPress={() => setEditing(undefined)}
+                    style={({ pressed }) => [
+                      styles.editCancelButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <Text style={styles.editCancelText}>取消</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy || !name.trim()}
+                    onPress={() => {
+                      void run(async () => {
+                        if (editing?.thread)
+                          await store.metadata(editing.thread.id, { title: name.trim() });
+                        else await store.createProject(name.trim());
+                        setEditing(undefined);
+                      });
+                    }}
+                    style={({ pressed }) => [
+                      styles.editSaveButton,
+                      pressed && styles.buttonPressed,
+                      (busy || !name.trim()) && styles.buttonDisabled,
+                    ]}
+                  >
+                    <Text style={styles.editSaveText}>{busy ? "保存中" : "保存"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        )}
+      </View>
     </Modal>
   );
 }
+
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "#00000035" },
-  panelOverlay: { justifyContent: "flex-end" },
-  drawer: {
+  modalRoot: {
     flex: 1,
-    width: "86%",
-    maxWidth: 400,
+  },
+  backdrop: {
+    backgroundColor: "#00000040",
+  },
+  drawer: {
+    width: "82%",
+    maxWidth: 320,
+    height: "100%",
     backgroundColor: colors.background,
-    borderTopRightRadius: 28,
-    borderBottomRightRadius: 28,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 12,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle,
   },
-  brand: { fontSize: 20, fontWeight: "600", color: colors.text },
-  newChat: { paddingHorizontal: 20, paddingVertical: 18 },
-  content: { paddingHorizontal: 16, paddingBottom: 24 },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  brand: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+    letterSpacing: -0.4,
+  },
+  badge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    backgroundColor: colors.soft,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: colors.muted,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusDotConnected: { backgroundColor: colors.success },
+  statusDotConnecting: { backgroundColor: "#EAB308" },
+  statusDotDisconnected: { backgroundColor: colors.danger },
+  closeButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.soft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeButtonPressed: {
+    backgroundColor: colors.softHover,
+  },
+  newChat: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  newChatButton: {
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  newChatButtonPressed: {
+    backgroundColor: colors.softHover,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  newChatText: {
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 10,
+    paddingBottom: 16,
+  },
   sectionHeading: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 12,
-    paddingLeft: 10,
+    paddingHorizontal: 6,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
-  label: { fontSize: 13, fontWeight: "600", color: colors.muted },
-  row: {
-    minHeight: 48,
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.muted,
+    letterSpacing: 0.3,
+  },
+  sectionAction: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 12,
-    borderRadius: 15,
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 4,
   },
-  selected: { backgroundColor: colors.soft },
-  rowTitle: { flex: 1, fontSize: 15, color: colors.text, lineHeight: 22 },
-  archiveToggle: { flexDirection: "row", alignItems: "center", gap: 6, padding: 12 },
-  threadRow: { flexDirection: "row", alignItems: "center", borderRadius: 15, marginTop: 5 },
-  threadOpen: { flex: 1, paddingHorizontal: 12, paddingVertical: 14 },
-  footer: { borderTopWidth: 1, borderTopColor: colors.border, padding: 14 },
-  url: { fontSize: 12, color: colors.muted, paddingHorizontal: 12, marginTop: 8 },
+  sectionActionPressed: {
+    backgroundColor: colors.softHover,
+  },
+  sectionActionText: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: colors.muted,
+  },
+  projectRow: {
+    height: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginVertical: 1,
+  },
+  rowSelected: {
+    backgroundColor: colors.softHover,
+  },
+  rowPressed: {
+    backgroundColor: colors.soft,
+  },
+  projectTitle: {
+    flex: 1,
+    fontSize: 13,
+    color: "#3F3F3E",
+  },
+  projectTitleSelected: {
+    fontWeight: "600",
+    color: colors.text,
+  },
+  emptyHint: {
+    fontSize: 12,
+    color: colors.muted,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  threadRow: {
+    height: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 6,
+    marginVertical: 1,
+    paddingLeft: 8,
+    paddingRight: 4,
+  },
+  threadOpen: {
+    flex: 1,
+    height: "100%",
+    justifyContent: "center",
+  },
+  threadTitle: {
+    fontSize: 13,
+    color: "#3F3F3E",
+  },
+  threadTitleSelected: {
+    fontWeight: "600",
+    color: colors.text,
+  },
+  threadMoreButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  threadMoreButtonPressed: {
+    backgroundColor: "#DCDCDA",
+  },
+  footer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    backgroundColor: colors.background,
+  },
+  footerCard: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    gap: 4,
+  },
+  footerCardPressed: {
+    backgroundColor: colors.softHover,
+  },
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  footerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  footerTitle: {
+    fontSize: 12.5,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  footerSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingLeft: 20,
+  },
+  footerStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  footerUrl: {
+    flex: 1,
+    fontSize: 10.5,
+    color: colors.muted,
+  },
+  subBackdrop: {
+    backgroundColor: "#00000030",
+  },
+  menuSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+  },
+  menuHandle: {
+    width: 32,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#D4D4D4",
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  menuHeaderTitle: {
+    fontSize: 12,
+    color: colors.muted,
+    fontWeight: "500",
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle,
+    marginBottom: 4,
+  },
+  menuItem: {
+    height: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginVertical: 1,
+  },
+  menuItemPressed: {
+    backgroundColor: colors.softHover,
+  },
+  menuItemText: {
+    fontSize: 13.5,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  menuCancelItem: {
+    marginTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSubtle,
+  },
+  menuCancelText: {
+    fontSize: 13.5,
+    color: colors.muted,
+  },
+  editCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  editDialog: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  editTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 4,
+  },
+  editHint: {
+    fontSize: 12,
+    color: colors.muted,
+    marginBottom: 10,
+    lineHeight: 16,
+  },
+  editInput: {
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingHorizontal: 10,
+    fontSize: 13.5,
+    color: colors.text,
+    marginVertical: 8,
+  },
+  editActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 8,
+  },
+  editCancelButton: {
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    backgroundColor: colors.soft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editCancelText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: "500",
+  },
+  editSaveButton: {
+    height: 34,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: colors.text,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editSaveText: {
+    fontSize: 13,
+    color: colors.surface,
+    fontWeight: "600",
+  },
+  buttonPressed: {
+    opacity: 0.75,
+  },
 });

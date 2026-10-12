@@ -16,8 +16,11 @@ vp run dev:mobile
 也可以在 Mac 上通过 Android Emulator 测试。安装模拟器并创建 Android 虚拟设备后，在仓库根目录运行：
 
 ```sh
+export ANDROID_HOME="$HOME/Library/Android/sdk"
 vp run eta-mobile#dev -- --android --localhost
 ```
+
+将 `ANDROID_HOME` 配置到终端启动文件（如 `~/.zshrc`）后，无需每次手动设置。Expo 自动启动模拟器需要这个变量，或将 SDK 的 `emulator` 目录加入 `PATH`。
 
 Expo 会打开虚拟设备、安装匹配 SDK 的 Expo Go 并加载应用。修改 TypeScript 和界面代码时，Fast Refresh 会更新运行中的应用；新增原生模块或修改原生配置时仍需重新构建安装包。模拟器连接 Bot 时，填写与手机相同的局域网地址和访问令牌。
 

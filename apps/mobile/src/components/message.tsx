@@ -1,12 +1,58 @@
 import { memo, useState } from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Markdown from "react-native-markdown-display";
-import { ChevronDown, ChevronRight, Terminal } from "lucide-react-native";
+import {
+  Brain,
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleMinus,
+  CircleX,
+  FileCode2,
+  FilePenLine,
+  FileText,
+  Globe,
+  Search,
+  Terminal,
+  Wrench,
+} from "lucide-react-native";
 import type { BotMessage, BotSnapshot } from "../bot/contracts.ts";
-import { textContent } from "../conversation.ts";
-import { colors } from "../ui.tsx";
+import { getToolSummary, textContent } from "../conversation.ts";
+import { colors, ScrollArea } from "../ui.tsx";
 
-function ToolCard({
+function ToolIcon({ name, size = 14, color }: { name: string; size?: number; color: string }) {
+  const lower = name.toLowerCase();
+  if (lower === "bash" || lower === "shell" || lower === "exec") {
+    return <Terminal size={size} color={color} />;
+  }
+  if (lower === "edit" || lower.includes("edit")) {
+    return <FilePenLine size={size} color={color} />;
+  }
+  if (lower === "write" || lower.includes("write")) {
+    return <FileCode2 size={size} color={color} />;
+  }
+  if (lower === "read" || lower.includes("read") || lower === "view_file") {
+    return <FileText size={size} color={color} />;
+  }
+  if (lower.includes("search") || lower === "grep" || lower === "find") {
+    return <Search size={size} color={color} />;
+  }
+  if (lower.includes("url") || lower.includes("web") || lower.includes("browser")) {
+    return <Globe size={size} color={color} />;
+  }
+  return <Wrench size={size} color={color} />;
+}
+
+export function ToolCard({
   name,
   args,
   result,
@@ -18,61 +64,116 @@ function ToolCard({
   status?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const label = result
-    ? result.isError
-      ? "失败"
-      : "完成"
-    : status === "stopped"
-      ? "已停止"
-      : status === "waiting"
-        ? "等待中"
-        : status === "settled"
-          ? "已结束"
-          : status === "incomplete"
-            ? "未完成"
-            : "执行中";
+  const summary = getToolSummary(name, args);
+  const isError = result?.isError ?? false;
+  const isRunning = status === "running" || (status === undefined && !result);
+
   return (
-    <View style={styles.tool}>
+    <View style={styles.toolCard}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
+        accessibilityLabel={`${name}${summary ? ` · ${summary}` : ""}，点击${expanded ? "收起" : "展开"}详情`}
         onPress={() => setExpanded(!expanded)}
-        style={styles.toolHeader}
+        style={styles.toolRow}
       >
-        <Terminal size={17} color={colors.muted} />
+        <ToolIcon name={name} size={14} color={colors.muted} />
         <Text style={styles.toolName}>{name}</Text>
-        <Text style={[styles.toolState, result?.isError && styles.error]}>{label}</Text>
+        {!!summary && (
+          <Text numberOfLines={1} ellipsizeMode="middle" style={styles.toolSummary}>
+            {summary}
+          </Text>
+        )}
+        <View style={styles.toolStatus}>
+          {isRunning ? (
+            <ActivityIndicator size="small" color={colors.text} style={styles.toolSpinner} />
+          ) : isError ? (
+            <CircleX size={14} color={colors.danger} />
+          ) : status === "stopped" || status === "incomplete" || status === "waiting" ? (
+            <CircleMinus size={14} color={colors.muted} />
+          ) : (
+            <CircleCheck size={14} color={colors.muted} />
+          )}
+        </View>
         {expanded ? (
-          <ChevronDown size={16} color={colors.muted} />
+          <ChevronDown size={14} color={colors.muted} />
         ) : (
-          <ChevronRight size={16} color={colors.muted} />
+          <ChevronRight size={14} color={colors.muted} />
+        )}
+      </Pressable>
+
+      {expanded && (
+        <ScrollArea
+          maxHeight={220}
+          style={styles.toolScrollArea}
+          contentContainerStyle={styles.toolScrollContent}
+        >
+          {args && Object.keys(args).length > 0 && (
+            <View style={styles.toolSection}>
+              <Text style={styles.toolSectionTitle}>参数</Text>
+              <Text selectable style={styles.codeText}>
+                {JSON.stringify(args, null, 2)}
+              </Text>
+            </View>
+          )}
+          {result && (
+            <View style={styles.toolSection}>
+              <Text style={[styles.toolSectionTitle, isError && styles.errorText]}>
+                {isError ? "执行失败" : "执行结果"}
+              </Text>
+              <Text selectable style={[styles.codeText, isError && styles.errorText]}>
+                {textContent(result) || "（无文本输出）"}
+              </Text>
+              {typeof result.content !== "string" &&
+                result.content
+                  .filter((part) => part.type === "image" && part.data && part.mimeType)
+                  .map((part, index) => (
+                    <Image
+                      key={index}
+                      accessibilityLabel="工具返回的图片"
+                      source={{ uri: `data:${part.mimeType};base64,${part.data}` }}
+                      resizeMode="contain"
+                      style={styles.toolImage}
+                    />
+                  ))}
+            </View>
+          )}
+          {isRunning && !result && <Text style={styles.runningHint}>正在执行中…</Text>}
+        </ScrollArea>
+      )}
+    </View>
+  );
+}
+
+function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <View style={styles.thinkingWrapper}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${active ? "正在思考" : "思考内容"}，点击${expanded ? "收起" : "展开"}`}
+        onPress={() => setExpanded(!expanded)}
+        style={styles.thinkingRow}
+      >
+        <Brain size={14} color={colors.muted} />
+        <Text style={styles.thinkingTitle}>{active ? "正在思考…" : "思考过程"}</Text>
+        {active && (
+          <ActivityIndicator size="small" color={colors.muted} style={styles.toolSpinner} />
+        )}
+        {expanded ? (
+          <ChevronDown size={14} color={colors.muted} />
+        ) : (
+          <ChevronRight size={14} color={colors.muted} />
         )}
       </Pressable>
       {expanded && (
-        <View style={styles.details}>
-          {args && (
-            <Text selectable style={styles.code}>
-              {JSON.stringify(args, null, 2)}
+        <View style={styles.thinkingContentWrapper}>
+          <ScrollArea maxHeight={180}>
+            <Text selectable style={styles.thinkingText}>
+              {text}
             </Text>
-          )}
-          {result && (
-            <Text selectable style={[styles.code, result.isError && styles.error]}>
-              {textContent(result) || "工具未返回文本"}
-            </Text>
-          )}
-          {result &&
-            typeof result.content !== "string" &&
-            result.content
-              .filter((part) => part.type === "image" && part.data && part.mimeType)
-              .map((part, index) => (
-                <Image
-                  key={index}
-                  accessibilityLabel="工具返回的图片"
-                  source={{ uri: `data:${part.mimeType};base64,${part.data}` }}
-                  resizeMode="contain"
-                  style={styles.image}
-                />
-              ))}
+          </ScrollArea>
         </View>
       )}
     </View>
@@ -87,20 +188,27 @@ export const MessageView = memo(function MessageView({
   snapshot: BotSnapshot;
 }) {
   const user = message.role === "user";
-  const [showThinking, setShowThinking] = useState(false);
-  if (message.role === "toolResult")
+
+  if (message.role === "toolResult") {
     return <ToolCard name={message.toolName ?? "工具结果"} result={message} />;
+  }
+
   const parts =
     typeof message.content === "string"
       ? [{ type: "text", text: message.content }]
       : message.content;
+
+  const isStreamingMessage =
+    snapshot.operation?.status === "running" &&
+    (message === snapshot.operation.streamingMessage ||
+      (!message.stopReason && message.role === "assistant"));
+
   return (
-    <View style={[styles.message, user && styles.user]}>
-      {!user && <Text style={styles.author}>Eta</Text>}
+    <View style={[styles.message, user && styles.userMessage]}>
       {parts.map((part, index) => {
-        if (part.type === "text")
+        if (part.type === "text") {
           return user ? (
-            <Text key={index} selectable style={styles.body}>
+            <Text key={index} selectable style={styles.userText}>
               {part.text}
             </Text>
           ) : (
@@ -116,25 +224,13 @@ export const MessageView = memo(function MessageView({
               {part.text ?? ""}
             </Markdown>
           );
-        if (part.type === "thinking")
-          return (
-            <View key={index}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ expanded: showThinking }}
-                onPress={() => setShowThinking(!showThinking)}
-              >
-                <Text style={styles.thinkingLabel}>
-                  {showThinking ? "收起思考过程" : "查看思考过程"}
-                </Text>
-              </Pressable>
-              {showThinking && (
-                <Text selectable style={styles.thinking}>
-                  {part.thinking}
-                </Text>
-              )}
-            </View>
-          );
+        }
+
+        if (part.type === "thinking") {
+          const isActive = Boolean(isStreamingMessage) && index === parts.length - 1;
+          return <ThinkingBlock key={index} text={part.thinking ?? ""} active={isActive} />;
+        }
+
         if (part.type === "toolCall") {
           const result = snapshot.transcript.find(
             ({ message: value }) => value.role === "toolResult" && value.toolCallId === part.id,
@@ -155,24 +251,28 @@ export const MessageView = memo(function MessageView({
             />
           );
         }
-        if (part.type === "image" && part.data && part.mimeType)
+
+        if (part.type === "image" && part.data && part.mimeType) {
           return (
             <Image
               key={index}
               accessibilityLabel="消息中的图片"
               source={{ uri: `data:${part.mimeType};base64,${part.data}` }}
               resizeMode="contain"
-              style={styles.image}
+              style={styles.messageImage}
             />
           );
+        }
+
         return (
-          <Text key={index} style={styles.thinking}>
+          <Text key={index} style={styles.fallbackContent}>
             [{part.type} 内容]
           </Text>
         );
       })}
+
       {message.errorMessage && (
-        <Text selectable style={styles.error}>
+        <Text selectable style={styles.errorMessage}>
           {message.errorMessage}
         </Text>
       )}
@@ -181,78 +281,278 @@ export const MessageView = memo(function MessageView({
 });
 
 const styles = StyleSheet.create({
-  message: { marginBottom: 26, gap: 6, alignSelf: "stretch" },
-  user: {
-    alignSelf: "flex-end",
-    maxWidth: "92%",
-    backgroundColor: colors.soft,
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
+  message: {
+    marginBottom: 18,
+    gap: 6,
+    alignSelf: "stretch",
   },
-  author: { fontSize: 13, fontWeight: "600", color: colors.muted, marginBottom: 4 },
-  body: { fontSize: 17, lineHeight: 26, color: colors.text },
-  thinkingLabel: { fontSize: 13, color: colors.muted, paddingVertical: 8 },
-  thinking: { color: colors.muted, lineHeight: 22, fontSize: 14 },
-  tool: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+  userMessage: {
+    alignSelf: "flex-end",
+    maxWidth: "85%",
+    backgroundColor: colors.soft,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  userText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+  },
+  messageImage: {
+    width: 240,
+    height: 180,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  fallbackContent: {
+    color: colors.muted,
+    fontSize: 13,
+  },
+  errorMessage: {
+    color: colors.danger,
+    fontSize: 13,
+    lineHeight: 19,
+    paddingTop: 4,
+  },
+  // Thinking Component
+  thinkingWrapper: {
     marginVertical: 4,
   },
-  toolHeader: { flexDirection: "row", alignItems: "center", gap: 8, padding: 13 },
-  toolName: { flex: 1, color: colors.text, fontSize: 14 },
-  toolState: { color: colors.muted, fontSize: 12 },
-  details: { padding: 14, gap: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  code: { fontFamily: "monospace", fontSize: 12, lineHeight: 19, color: colors.text },
-  error: { color: colors.danger, fontSize: 14, lineHeight: 21 },
-  image: { width: 240, height: 180, borderRadius: 14 },
+  thinkingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 5,
+  },
+  thinkingTitle: {
+    fontSize: 13,
+    color: colors.muted,
+    fontWeight: "500",
+  },
+  thinkingContentWrapper: {
+    marginTop: 4,
+    marginLeft: 4,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+  },
+  thinkingText: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  // Single-row Tool Component
+  toolCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginVertical: 3,
+    overflow: "hidden",
+  },
+  toolRow: {
+    height: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+  },
+  toolName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  toolSummary: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    color: colors.muted,
+  },
+  toolStatus: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  toolSpinner: {
+    transform: [{ scale: 0.75 }],
+  },
+  toolScrollArea: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.soft,
+  },
+  toolScrollContent: {
+    padding: 10,
+    gap: 8,
+  },
+  toolSection: {
+    gap: 4,
+  },
+  toolSectionTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  codeText: {
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  errorText: {
+    color: colors.danger,
+    borderColor: colors.dangerSoft,
+  },
+  runningHint: {
+    fontSize: 12,
+    color: colors.muted,
+    fontStyle: "italic",
+  },
+  toolImage: {
+    width: 220,
+    height: 160,
+    borderRadius: 8,
+    marginTop: 6,
+  },
 });
+
 const markdownStyles = StyleSheet.create({
-  body: { color: colors.text, fontSize: 17, lineHeight: 27 },
-  heading1: { fontSize: 25, fontWeight: "600", marginTop: 16, marginBottom: 8 },
-  heading2: { fontSize: 22, fontWeight: "600", marginTop: 14, marginBottom: 8 },
-  heading3: { fontSize: 19, fontWeight: "600", marginTop: 12, marginBottom: 6 },
-  paragraph: { marginTop: 0, marginBottom: 10 },
-  strong: { fontWeight: "600" },
-  em: { fontStyle: "italic" },
-  link: { color: colors.blue },
+  body: {
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  heading1: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  heading2: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  heading3: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  paragraph: {
+    marginTop: 0,
+    marginBottom: 8,
+  },
+  strong: {
+    fontWeight: "600",
+    color: colors.text,
+  },
+  em: {
+    fontStyle: "italic",
+  },
+  link: {
+    color: colors.blue,
+  },
   blockquote: {
     backgroundColor: colors.soft,
     borderLeftWidth: 3,
     borderLeftColor: colors.border,
-    padding: 12,
-    marginVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginVertical: 6,
   },
-  code_inline: { backgroundColor: colors.soft, fontFamily: "monospace", fontSize: 14 },
-  fence: {
+  code_inline: {
     backgroundColor: colors.soft,
-    borderRadius: 14,
-    padding: 14,
-    fontFamily: "monospace",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     fontSize: 13,
-    lineHeight: 20,
-    marginVertical: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.text,
+  },
+  fence: {
+    backgroundColor: "#18181B",
+    borderRadius: 12,
+    padding: 12,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#F4F4F5",
+    marginVertical: 6,
   },
   code_block: {
-    backgroundColor: colors.soft,
-    borderRadius: 14,
-    padding: 14,
-    fontFamily: "monospace",
-    fontSize: 13,
-    lineHeight: 20,
+    backgroundColor: "#18181B",
+    borderRadius: 12,
+    padding: 12,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#F4F4F5",
+    marginVertical: 6,
   },
-  bullet_list: { marginBottom: 10 },
-  ordered_list: { marginBottom: 10 },
-  list_item: { flexDirection: "row", justifyContent: "flex-start", marginVertical: 3 },
-  bullet_list_icon: { marginRight: 8 },
-  ordered_list_icon: { marginRight: 8 },
-  bullet_list_content: { flex: 1 },
-  ordered_list_content: { flex: 1 },
-  table: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, marginVertical: 8 },
-  tr: { flexDirection: "row", borderBottomWidth: 1, borderColor: colors.border },
-  th: { flex: 1, padding: 6, fontWeight: "600" },
-  td: { flex: 1, padding: 6 },
-  hr: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
+  bullet_list: {
+    marginBottom: 8,
+  },
+  ordered_list: {
+    marginBottom: 8,
+  },
+  list_item: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    marginVertical: 2,
+  },
+  bullet_list_icon: {
+    marginRight: 6,
+  },
+  ordered_list_icon: {
+    marginRight: 6,
+  },
+  bullet_list_content: {
+    flex: 1,
+  },
+  ordered_list_content: {
+    flex: 1,
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    marginVertical: 8,
+  },
+  tr: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  th: {
+    flex: 1,
+    padding: 6,
+    fontWeight: "600",
+  },
+  td: {
+    flex: 1,
+    padding: 6,
+  },
+  hr: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 12,
+  },
 });

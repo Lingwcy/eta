@@ -23,6 +23,7 @@ export const CacheSchema = z.object({
   threadId: z.string().optional(),
   drafts: z.record(z.string(), z.string()).default({}),
   pending: PendingSchema.optional(),
+  lastConfiguration: ConfigurationSchema.optional(),
 });
 export type MobileCache = z.infer<typeof CacheSchema>;
 export interface MobileStorage {
@@ -129,6 +130,7 @@ export class MobileStore {
       threadId: this.state.threadId,
       drafts: this.state.drafts,
       pending: this.state.pending,
+      lastConfiguration: this.state.configuration,
     };
     return this.write(async () => {
       if (epoch === this.epoch) await this.storage.saveCache(url, cache);
@@ -227,7 +229,18 @@ export class MobileStore {
       const cache = await this.storage.cache(url);
       if (epoch !== this.epoch) return;
       this.update({ ...cache, url, status: "reconnecting" });
-      if (cache?.library) this.update({ configuration: defaultConfiguration(cache.library) });
+      if (cache?.library) {
+        const remembered =
+          cache.lastConfiguration &&
+          cache.library.models.some(
+            (m) =>
+              m.provider === cache.lastConfiguration?.provider &&
+              m.id === cache.lastConfiguration?.modelId,
+          )
+            ? cache.lastConfiguration
+            : defaultConfiguration(cache.library);
+        this.update({ configuration: remembered });
+      }
       await this.reconnect();
     } catch (error) {
       if (epoch === this.epoch) this.update({ status: "error", error: message(error) });
@@ -263,7 +276,15 @@ export class MobileStore {
           ? cache?.threadId
           : undefined,
         thread: undefined,
-        configuration: defaultConfiguration(library),
+        configuration:
+          cache?.lastConfiguration &&
+          library.models.some(
+            (m) =>
+              m.provider === cache.lastConfiguration?.provider &&
+              m.id === cache.lastConfiguration?.modelId,
+          )
+            ? cache.lastConfiguration
+            : defaultConfiguration(library),
         sending: false,
       });
       await this.persist();
@@ -398,7 +419,9 @@ export class MobileStore {
       thread: undefined,
       opening: false,
       error: undefined,
-      configuration: this.state.library ? defaultConfiguration(this.state.library) : undefined,
+      configuration:
+        this.state.configuration ??
+        (this.state.library ? defaultConfiguration(this.state.library) : undefined),
     });
     this.saveLater();
   }
@@ -532,6 +555,7 @@ export class MobileStore {
     if (this.state.thread?.snapshot.operation) throw new Error("请等待当前任务结束再更改配置");
     if (!id) {
       this.update({ configuration });
+      await this.persist();
       return;
     }
     if (!this.state.thread) throw new Error("请先等待会话加载完成");
@@ -543,6 +567,7 @@ export class MobileStore {
       if (epoch !== this.epoch || view !== this.view) return;
       this.useThread(thread);
     }
+    await this.persist();
   }
   async control(action: "stop" | "resume") {
     const client = this.requireClient();

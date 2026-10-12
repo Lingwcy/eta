@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { conversationRows, taskLabel } from "./conversation.ts";
+import { conversationRows, getToolSummary, taskLabel } from "./conversation.ts";
 import { thread } from "./bot/fixtures.test-support.ts";
 import type { BotMessage, BotSnapshot } from "./bot/contracts.ts";
 
@@ -58,4 +58,39 @@ test("tool results without a saved call stay visible in recovered history", () =
   });
   expect(rows).toHaveLength(1);
   expect(rows[0]?.message.role).toBe("toolResult");
+});
+
+test("getToolSummary extracts concise rough info for compact single-row display", () => {
+  // bash tool shows command
+  expect(getToolSummary("bash", { command: "git status -s" })).toBe("git status -s");
+  expect(getToolSummary("bash", { CommandLine: "npm run test\n--watch" })).toBe("npm run test");
+
+  // edit tool shows file path
+  expect(getToolSummary("edit", { path: "apps/mobile/src/screens/chat.tsx" })).toBe(
+    "apps/mobile/src/screens/chat.tsx",
+  );
+  expect(getToolSummary("edit", { TargetFile: "/Users/dev/project/index.ts" })).toBe(
+    "/Users/dev/project/index.ts",
+  );
+
+  // write tool shows file path
+  expect(getToolSummary("write", { file_path: "src/components/message.tsx" })).toBe(
+    "src/components/message.tsx",
+  );
+
+  // read tool shows file path
+  expect(getToolSummary("read", { AbsolutePath: "/etc/hosts" })).toBe("/etc/hosts");
+
+  // search/grep shows query
+  expect(getToolSummary("grep", { query: "ComposerInput" })).toBe("ComposerInput");
+
+  // web search / url
+  expect(getToolSummary("read_url_content", { Url: "https://example.com" })).toBe(
+    "https://example.com",
+  );
+
+  // generic tool fallback
+  expect(getToolSummary("custom_tool", { prompt: "summarize this" })).toBe("summarize this");
+  expect(getToolSummary("empty_tool", {})).toBe("");
+  expect(getToolSummary("no_args")).toBe("");
 });

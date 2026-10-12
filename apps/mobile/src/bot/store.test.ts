@@ -250,3 +250,32 @@ test("approval, stop and resume call the Bot and refresh observable state", asyn
   ]);
   expect(store.getSnapshot().thread?.id).toBe("thread");
 });
+
+test("chosen model configuration is remembered across new threads and restarts", async () => {
+  const saved = memoryStorage();
+  const fetcher: typeof fetch = async (url, init) => {
+    const path = new URL(requestUrl(url)).pathname;
+    if (path === "/v1/library") return json(library);
+    if (path.endsWith("/events")) return events(init?.signal);
+    return json(thread);
+  };
+  const first = setup(fetcher, saved).store;
+  await first.connect(connection);
+  const customConfig = {
+    provider: "test",
+    modelId: "one",
+    thinkingLevel: "high" as const,
+    sandboxMode: "read-only" as const,
+  };
+  await first.configure(customConfig);
+  expect(first.getSnapshot().configuration).toEqual(customConfig);
+
+  // New thread keeps the chosen configuration
+  first.newThread();
+  expect(first.getSnapshot().configuration).toEqual(customConfig);
+
+  // Restarting with cache preserves the chosen configuration
+  const restarted = setup(fetcher, saved).store;
+  await restarted.initialize();
+  expect(restarted.getSnapshot().configuration).toEqual(customConfig);
+});

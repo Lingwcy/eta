@@ -59,3 +59,62 @@ export function taskLabel(snapshot?: BotSnapshot) {
   if (snapshot.lastResult?.status === "completed") return "任务已完成";
   return "";
 }
+
+export function getToolSummary(name: string, args?: Record<string, unknown>): string {
+  if (!args || typeof args !== "object") return "";
+  const lower = name.toLowerCase();
+  if (lower === "bash" || lower === "shell" || lower === "exec") {
+    const cmd = args.command ?? args.cmd ?? args.CommandLine;
+    if (typeof cmd === "string") return cmd.trim().split("\n")[0]?.trim() ?? "";
+  }
+  if (lower === "edit" || lower === "write" || lower === "read" || lower.includes("file")) {
+    const filePath =
+      args.path ??
+      args.filePath ??
+      args.file_path ??
+      args.TargetFile ??
+      args.target_file ??
+      args.AbsolutePath ??
+      args.file;
+    if (typeof filePath === "string") return filePath.trim();
+  }
+  if (lower.includes("search") || lower === "grep" || lower === "find") {
+    const q = args.query ?? args.pattern ?? args.q ?? args.path;
+    if (typeof q === "string") return q.trim();
+  }
+  if (lower.includes("url") || lower.includes("fetch") || lower.includes("http")) {
+    const url = args.Url ?? args.url ?? args.uri;
+    if (typeof url === "string") return url.trim();
+  }
+  const candidateKeys = [
+    "path",
+    "TargetFile",
+    "target_file",
+    "filePath",
+    "file_path",
+    "AbsolutePath",
+    "file",
+    "command",
+    "cmd",
+    "CommandLine",
+    "query",
+    "pattern",
+    "url",
+    "Url",
+    "name",
+    "id",
+  ];
+  for (const key of candidateKeys) {
+    const val = args[key];
+    if (typeof val === "string" && val.trim()) {
+      return val.trim().split("\n")[0]?.trim() ?? "";
+    }
+  }
+  const stringValues = Object.values(args).filter(
+    (v): v is string => typeof v === "string" && v.trim().length > 0,
+  );
+  if (stringValues.length === 1 && stringValues[0]) {
+    return stringValues[0].trim().split("\n")[0]?.trim() ?? "";
+  }
+  return "";
+}

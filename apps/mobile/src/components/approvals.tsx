@@ -1,7 +1,7 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import type { BotSnapshot } from "../bot/contracts.ts";
 import { useMobile } from "../provider.tsx";
-import { Button, colors, common, useAction } from "../ui.tsx";
+import { Button, colors, common, ScrollArea, useAction } from "../ui.tsx";
 
 export function Approvals({ snapshot }: { snapshot: BotSnapshot }) {
   const { state, store } = useMobile();
@@ -16,9 +16,11 @@ export function Approvals({ snapshot }: { snapshot: BotSnapshot }) {
             <Text selectable style={common.body}>
               {approval.reason}
             </Text>
-            <Text selectable style={styles.code}>
-              {JSON.stringify(approval.args, null, 2)}
-            </Text>
+            <ScrollArea maxHeight={140} style={styles.codeScroll}>
+              <Text selectable style={styles.code}>
+                {JSON.stringify(approval.args, null, 2)}
+              </Text>
+            </ScrollArea>
             {approval.networkAccess && <Text style={common.hint}>请求网络访问</Text>}
             {!!approval.readableRoots.length && (
               <Text selectable style={common.hint}>
@@ -58,17 +60,30 @@ export function Approvals({ snapshot }: { snapshot: BotSnapshot }) {
     </>
   );
 }
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 22,
-    padding: 18,
-    gap: 12,
-    marginBottom: 18,
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+    marginBottom: 14,
   },
-  title: { fontSize: 16, fontWeight: "600", color: colors.text },
-  code: { fontSize: 12, lineHeight: 18, fontFamily: "monospace", color: colors.muted },
+  title: { fontSize: 15, fontWeight: "600", color: colors.text },
+  codeScroll: {
+    backgroundColor: colors.soft,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+  },
+  code: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    color: colors.text,
+  },
   action: { flex: 1 },
 });

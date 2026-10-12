@@ -7,17 +7,17 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
-import { ArrowDown, ArrowUp, Menu, Square, SquarePen } from "lucide-react-native";
+import { ArrowDown, Menu, SquarePen } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMobile } from "../provider.tsx";
 import { draftKey } from "../bot/store.ts";
 import { conversationRows, taskLabel } from "../conversation.ts";
 import { MessageView } from "../components/message.tsx";
 import { Approvals } from "../components/approvals.tsx";
-import { ConfigurationSheet, thinkingLabels } from "../components/configuration.tsx";
+import { ConfigurationSheet, sandboxLabels, thinkingLabels } from "../components/configuration.tsx";
+import { ComposerInput } from "../components/composer-input.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
 import { Button, colors, common, IconButton, useAction } from "../ui.tsx";
 import { SettingsScreen } from "./settings.tsx";
@@ -28,8 +28,8 @@ export function ChatScreen() {
   const [sidebar, setSidebar] = useState(false);
   const [configuration, setConfiguration] = useState(false);
   const [away, setAway] = useState(false);
-  const [inputHeight, setInputHeight] = useState(48);
   const { busy, run } = useAction();
+
   const atBottom = useRef(true);
   const list = useRef<FlatList<ReturnType<typeof conversationRows>[number]>>(null);
   const snapshot = state.thread?.snapshot;
@@ -255,71 +255,45 @@ export function ChatScreen() {
           </View>
         )}
         <View style={styles.composerArea}>
-          <View style={styles.composer}>
-            <TextInput
-              accessibilityLabel="消息输入框"
-              value={draft}
-              onChangeText={(value) => store.setDraft(value)}
-              multiline
-              placeholder="交给 Eta Bot…"
-              placeholderTextColor="#959591"
-              style={[styles.input, { height: inputHeight }]}
-              onContentSizeChange={({ nativeEvent }) =>
-                setInputHeight(Math.max(48, Math.min(160, nativeEvent.contentSize.height)))
-              }
-              editable={!state.opening}
-              textAlignVertical="top"
-            />
-            <View style={styles.composerBottom}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="选择模型与思考等级"
-                disabled={!allowed || running || !!state.pending || !state.configuration}
-                onPress={() => setConfiguration(true)}
-                style={styles.modelButton}
-              >
-                <Text numberOfLines={1} style={styles.modelText}>
-                  {model?.name ?? "选择模型"}
-                </Text>
-                {state.configuration && (
-                  <Text style={styles.thinking}>
-                    {thinkingLabels[state.configuration.thinkingLevel]}
-                  </Text>
-                )}
-              </Pressable>
-              {running ? (
-                <IconButton
-                  icon={Square}
-                  label="停止任务"
-                  primary
-                  disabled={!allowed || snapshot?.operation?.status === "aborting"}
-                  onPress={() => {
-                    void run(() => store.control("stop"));
-                  }}
-                />
-              ) : (
-                <IconButton
-                  icon={ArrowUp}
-                  label="发送消息"
-                  primary
-                  disabled={
-                    !allowed ||
-                    !!state.pending ||
-                    !draft.trim() ||
-                    !workspace ||
-                    !model ||
-                    !!state.thread?.thread.archivedAt ||
-                    !!snapshot?.recoveryRequired ||
-                    !!snapshot?.blockedReason ||
-                    !!snapshot?.faulted
-                  }
-                  onPress={() => {
-                    void run(() => store.send());
-                  }}
-                />
-              )}
-            </View>
-          </View>
+          <ComposerInput
+            value={draft}
+            onChangeText={(value) => store.setDraft(value)}
+            onSubmit={() => {
+              void run(() => store.send());
+            }}
+            onStop={() => {
+              void run(() => store.control("stop"));
+            }}
+            onOpenConfiguration={() => setConfiguration(true)}
+            running={running}
+            canStop={allowed && snapshot?.operation?.status !== "aborting"}
+            canSend={
+              allowed &&
+              !state.pending &&
+              Boolean(draft.trim()) &&
+              Boolean(workspace) &&
+              Boolean(model) &&
+              !state.thread?.thread.archivedAt &&
+              !snapshot?.recoveryRequired &&
+              !snapshot?.blockedReason &&
+              !snapshot?.faulted
+            }
+            disabled={!connected || state.opening || !!state.pending}
+            modelName={model?.name}
+            thinkingLevel={state.configuration?.thinkingLevel}
+            thinkingLevelLabel={
+              state.configuration ? thinkingLabels[state.configuration.thinkingLevel] : undefined
+            }
+            sandboxMode={state.configuration?.sandboxMode ?? snapshot?.sandbox?.mode}
+            sandboxModeLabel={
+              state.configuration?.sandboxMode
+                ? sandboxLabels[state.configuration.sandboxMode]
+                : snapshot?.sandbox?.mode
+                  ? sandboxLabels[snapshot.sandbox.mode]
+                  : undefined
+            }
+            contextTokens={state.thread?.contextTokens}
+          />
         </View>
       </KeyboardAvoidingView>
       <Sidebar visible={sidebar} onClose={() => setSidebar(false)} />
@@ -332,100 +306,80 @@ export function ChatScreen() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   loading: { justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 14,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  title: { flex: 1, alignItems: "center", gap: 4 },
+  title: { flex: 1, alignItems: "center", gap: 2 },
   titleText: { fontSize: 16, fontWeight: "600", color: colors.text },
   project: { fontSize: 12, color: colors.muted },
   banner: {
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginBottom: 8,
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 14,
     backgroundColor: colors.soft,
+    borderWidth: 1,
+    borderColor: colors.border,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  bannerText: { flex: 1, color: colors.muted, fontSize: 13, lineHeight: 20 },
-  link: { color: colors.blue, fontSize: 13, paddingVertical: 6 },
+  bannerText: { flex: 1, color: colors.muted, fontSize: 13, lineHeight: 18 },
+  link: { color: colors.blue, fontSize: 13, fontWeight: "500", paddingVertical: 4 },
   transcript: { flex: 1 },
   messages: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingHorizontal: 18,
+    paddingTop: 16,
     paddingBottom: 12,
     maxWidth: 760,
     width: "100%",
     alignSelf: "center",
   },
   emptyList: { flexGrow: 1 },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12, paddingBottom: 64 },
-  emptyTitle: { fontSize: 25, fontWeight: "500", color: colors.text },
-  emptyHint: { color: colors.muted, fontSize: 14, lineHeight: 22, textAlign: "center" },
-  task: { marginTop: 4, marginBottom: 16 },
-  resume: { marginVertical: 12 },
+  empty: { flex: 1, justifyContent: "center", alignItems: "center", gap: 10, paddingBottom: 64 },
+  emptyTitle: { fontSize: 22, fontWeight: "600", color: colors.text, letterSpacing: -0.2 },
+  emptyHint: {
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
+    maxWidth: 320,
+  },
+  task: { marginTop: 4, marginBottom: 12 },
+  resume: { marginVertical: 10 },
   jump: {
     position: "absolute",
     bottom: 14,
-    right: 22,
-    borderRadius: 24,
+    right: 20,
+    borderRadius: 20,
+  },
+  pending: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 12,
+    gap: 6,
+    backgroundColor: colors.soft,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  pending: {
-    marginHorizontal: 20,
-    padding: 14,
-    gap: 8,
-    backgroundColor: colors.soft,
-    borderRadius: 18,
-  },
-  pendingTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
+  pendingTitle: { fontSize: 13, fontWeight: "600", color: colors.text },
   composerArea: {
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 4 : 8,
     maxWidth: 760,
     width: "100%",
     alignSelf: "center",
   },
-  composer: {
-    backgroundColor: colors.surface,
-    borderRadius: 30,
-    padding: 14,
-    boxShadow: "0 5px 28px rgba(0, 0, 0, 0.06)",
-  },
-  input: {
-    minHeight: 48,
-    maxHeight: 160,
-    fontSize: 18,
-    lineHeight: 26,
-    paddingHorizontal: 8,
-    paddingTop: 7,
-    paddingBottom: 10,
-    color: colors.text,
-  },
-  composerBottom: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  modelButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-  },
-  modelText: { flexShrink: 1, color: colors.text, fontSize: 13, fontWeight: "500" },
-  thinking: { color: colors.muted, fontSize: 12 },
 });
