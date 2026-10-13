@@ -11,6 +11,7 @@ import type { GitHubAdapter } from "../platform/github.ts";
 export interface CoreEnvironment {
   readonly github?: GitHubAdapter;
   readonly userAgent: string;
+  readonly authorizeScheduleWorkspace: (workspaceId: string) => Promise<void>;
   readonly shutdown: "preserve" | "abortForeground";
   readonly executionEnvironment: (
     cwd: string,
@@ -34,6 +35,7 @@ export class CoreEnvironmentService extends Context.Service<
   static readonly layer = (options: Partial<CoreEnvironment> = {}) =>
     Layer.succeed(CoreEnvironmentService, {
       userAgent: options.userAgent ?? "eta",
+      authorizeScheduleWorkspace: options.authorizeScheduleWorkspace ?? (async () => {}),
       github: options.github,
       shutdown: options.shutdown ?? "preserve",
       allowedSandboxModes: options.allowedSandboxModes ?? sandboxModes,

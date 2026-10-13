@@ -6,7 +6,8 @@ import type {
   ScheduleRequest,
 } from "../../shared/schedules.ts";
 import { CatalogService } from "../catalog/index.ts";
-import { CoreError } from "../errors.ts";
+import { CoreEnvironmentService } from "../environment.ts";
+import { adapter, CoreError } from "../errors.ts";
 import { WorkspaceService } from "../workspaces/index.ts";
 import { ScheduleGateService } from "./gate.ts";
 import {
@@ -50,6 +51,7 @@ export class ScheduleService extends Context.Service<
       const catalog = yield* CatalogService;
       const workspaces = yield* WorkspaceService;
       const gate = yield* ScheduleGateService;
+      const environment = yield* CoreEnvironmentService;
       // Fail startup on corrupt storage before any host starts its dispatcher.
       yield* store.read;
       const decodeOptions = { onExcessProperty: "error" as const };
@@ -67,8 +69,14 @@ export class ScheduleService extends Context.Service<
         const state = yield* store.read;
         if (state.requests[requestId]) return;
         const thread = (yield* catalog.read).threads.find((thread) => thread.id === threadId);
-        if (thread && thread.archivedAt === undefined)
+        if (thread && thread.archivedAt === undefined) {
+          yield* adapter(
+            "当前宿主不允许此工作区的定时任务",
+            () => environment.authorizeScheduleWorkspace(thread.workspaceId),
+            "WorkspaceUnavailable",
+          );
           yield* workspaces.validate(thread.workspaceId);
+        }
       });
       const write = Effect.fn("ScheduleService.write")(function* (raw: ScheduleWriteInput) {
         const input = yield* decodeWrite(raw).pipe(Effect.mapError(inputError));

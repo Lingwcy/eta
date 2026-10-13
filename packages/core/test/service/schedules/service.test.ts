@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Deferred, Effect, Fiber, Layer, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vite-plus/test";
 import { AppPathsService } from "@eta/core/platform/app-paths";
+import { CoreEnvironmentService } from "@eta/core/service/environment";
 import { CatalogService } from "@eta/core/service/catalog/index";
 import { WorkspaceService } from "@eta/core/service/workspaces/index";
 import { CoreError } from "@eta/core/service/errors";
@@ -28,6 +29,7 @@ async function fixture() {
         Layer.mergeAll(
           ScheduleStoreService.layer.pipe(Layer.provide(AppPathsService.layer(root))),
           ScheduleGateService.layer,
+          CoreEnvironmentService.layer(),
           Layer.succeed(CatalogService, {
             read: Effect.sync(() => structuredClone(currentCatalog)),
             update: (change) =>
