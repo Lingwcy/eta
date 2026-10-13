@@ -1,3 +1,4 @@
+import { mountScheduleRoutes } from "./schedule-http.ts";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { HTTPException } from "hono/http-exception";
@@ -471,5 +472,6 @@ export function createHttpApp(options: {
       }
     });
   });
+  mountScheduleRoutes(app, { core, workspaceProjects, shutdown, decode, readBody });
   return app;
 }
