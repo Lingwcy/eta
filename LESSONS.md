@@ -123,6 +123,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Cover tool argument generation when mapping model activity to UI status.**
+
+- Evidence: on 2026-10-13, a Desktop session spent about 2 minutes 38 seconds generating a `write` call containing a 284-line plan. The thinking status hid on the streamed tool call, while the tool card only appeared once execution began. The `streaming tool arguments` regression in `renderer/src/agent/thinking-status.test.ts` reproduced the missing indicator and now covers partial arguments, timer continuity, execution and completion.
+- Check: treat streamed tool arguments as active model generation; keep execution, approval pauses, retries and deferred responses distinct.
+- Seen: 2026-10-13.
+
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**
 
