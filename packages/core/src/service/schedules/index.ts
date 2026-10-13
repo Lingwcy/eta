@@ -109,13 +109,16 @@ export class ScheduleService extends Context.Service<
         approved: boolean,
       ) {
         const input = yield* decodeDecision(raw).pipe(Effect.mapError(inputError));
-        const proposal = (yield* store.read).proposals[input.proposalId];
-        if (!proposal)
+        const saved = yield* store.read;
+        const proposal = saved.proposals[input.proposalId];
+        const prior = saved.requests[input.requestId];
+        const threadId = prior?.threadId ?? proposal?.threadId;
+        if (!threadId)
           return yield* new CoreError({ code: "NotFound", message: "待确认提案不存在" });
         return yield* gate.withThread(
-          proposal.threadId,
+          threadId,
           Effect.gen(function* () {
-            if (approved) yield* validateWorkspace(proposal.threadId, input.requestId);
+            if (approved) yield* validateWorkspace(threadId, input.requestId);
             const currentCatalog = yield* catalog.read;
             const now = DateTime.toEpochMillis(yield* DateTime.now);
             const state = yield* store.update((state) => {

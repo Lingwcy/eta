@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Schema } from "effect";
 import { AppPathsService } from "../../platform/app-paths.ts";
 import { ScheduleStoreSchema, type ScheduleStoreState } from "../../shared/schedules.ts";
 import { CoreError } from "../errors.ts";
+import { trimScheduleHistory } from "./history.ts";
 import { readJson, writeJson } from "../json-file.ts";
 
 const decode = Schema.decodeUnknownSync(ScheduleStoreSchema, { onExcessProperty: "error" });
@@ -70,11 +71,16 @@ export function decodeScheduleStore(input: unknown): ScheduleStoreState {
       if (id !== request.requestId) throw new Error("Request key mismatch");
       if (request.scheduleId && state.schedules[request.scheduleId]?.threadId !== request.threadId)
         throw new Error("Invalid request schedule");
-      if (request.proposalId && state.proposals[request.proposalId]?.threadId !== request.threadId)
-        throw new Error("Invalid request proposal");
+      if (request.proposalId) {
+        const proposal = state.proposals[request.proposalId];
+        if (proposal ? proposal.threadId !== request.threadId : request.state === "pending")
+          throw new Error("Invalid request proposal");
+      }
       if (
         request.occurrenceId &&
-        state.occurrences[request.occurrenceId]?.threadId !== request.threadId
+        (state.occurrences[request.occurrenceId]
+          ? state.occurrences[request.occurrenceId].threadId !== request.threadId
+          : request.state !== "applied" || !request.scheduleId)
       )
         throw new Error("Invalid request occurrence");
     }
@@ -137,7 +143,9 @@ export class ScheduleStoreService extends Context.Service<
                 const previous = await load();
                 const changed = change(previous);
                 if (JSON.stringify(changed) === JSON.stringify(previous)) return previous;
-                const state = decodeScheduleStore({ ...changed, revision: previous.revision + 1 });
+                const state = decodeScheduleStore(
+                  trimScheduleHistory({ ...changed, revision: previous.revision + 1 }),
+                );
                 await writeJson(scheduleStorePath, state);
                 for (const listener of listeners) {
                   try {

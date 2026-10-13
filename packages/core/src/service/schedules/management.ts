@@ -63,6 +63,12 @@ export function scheduleFingerprint(input: unknown) {
     .digest("hex");
 }
 
+function compactScheduleRequest(request: ScheduleRequest): ScheduleRequest {
+  if (request.state === "pending") return request;
+  const { change: _change, ...receipt } = request;
+  return receipt;
+}
+
 function invalid(message: string): never {
   throw new CoreError({ code: "InvalidInput", message });
 }
@@ -213,8 +219,8 @@ export function writeScheduleChange(
     if (!(error instanceof CoreError)) throw error;
     request = { ...request, state: "rejected", reason: error.message, finishedAt: now };
   }
-  state.requests[input.requestId] = request;
-  return request;
+  state.requests[input.requestId] = compactScheduleRequest(request);
+  return state.requests[input.requestId];
 }
 
 /** Proposals freeze both content and execution workspace; they never create an active schedule. */
@@ -266,8 +272,8 @@ export function proposeScheduleChange(
     if (!(error instanceof CoreError)) throw error;
     request = { ...request, state: "rejected", reason: error.message };
   }
-  state.requests[input.requestId] = request;
-  return request;
+  state.requests[input.requestId] = compactScheduleRequest(request);
+  return state.requests[input.requestId];
 }
 
 export function decideScheduleProposal(
@@ -337,8 +343,8 @@ export function decideScheduleProposal(
     )
       state.proposals[proposal.id] = { ...proposal, state: "invalidated", reason: error.message };
   }
-  state.requests[input.requestId] = request;
-  return request;
+  state.requests[input.requestId] = compactScheduleRequest(request);
+  return state.requests[input.requestId];
 }
 
 function approvedProposal(proposal: ScheduleProposal, request: ScheduleRequest): ScheduleProposal {
@@ -391,7 +397,7 @@ export function settleScheduleRequests(
       if (proposal)
         state.proposals[proposal.id] = { ...proposal, state: "invalidated", reason: error.message };
     }
-    state.requests[request.requestId] = request;
+    state.requests[request.requestId] = compactScheduleRequest(request);
   }
 }
 
@@ -465,6 +471,6 @@ export function runScheduleNow(
     if (!(error instanceof CoreError)) throw error;
     request = { ...request, state: "rejected", reason: error.message };
   }
-  state.requests[input.requestId] = request;
-  return request;
+  state.requests[input.requestId] = compactScheduleRequest(request);
+  return state.requests[input.requestId];
 }

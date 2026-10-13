@@ -24,7 +24,7 @@ async function fixture() {
   const workspace = currentCatalog.workspaces[0];
   const runtime = ManagedRuntime.make(
     ScheduleService.layer.pipe(
-      Layer.provide(
+      Layer.provideMerge(
         Layer.mergeAll(
           ScheduleStoreService.layer.pipe(Layer.provide(AppPathsService.layer(root))),
           ScheduleGateService.layer,
@@ -200,4 +200,36 @@ test("thread gates serialize admission boundaries while unrelated threads progre
       expect(order).toEqual(["first", "other", "released", "second"]);
     }).pipe(Effect.provide(ScheduleGateService.layer)),
   );
+});
+
+test("decision replay resolves its receipt even after terminal proposal history has been pruned", async () => {
+  const { runtime, service } = await fixture();
+  const proposed = await runtime.runPromise(
+    service.propose({ ...create, sourceIdentity: "root:call" }),
+  );
+  const proposal = (await runtime.runPromise(service.proposals()))[0];
+  const input = {
+    proposalId: proposal.id,
+    contentFingerprint: proposal.contentFingerprint,
+    requestId: "reject",
+  };
+  const rejected = await runtime.runPromise(service.decide(input, false));
+  const store = await runtime.runPromise(ScheduleStoreService);
+  await runtime.runPromise(
+    store.update((state) => {
+      const proposals = { ...state.proposals };
+      delete proposals[proposed.proposalId!];
+      return { ...state, proposals };
+    }),
+  );
+  expect(await runtime.runPromise(service.proposals())).toEqual([]);
+  expect(await runtime.runPromise(service.decide(input, false))).toEqual(rejected);
+  expect(
+    (
+      await runtime.runPromise(
+        Effect.flip(service.decide({ ...input, contentFingerprint: "different" }, false)),
+      )
+    ).code,
+  ).toBe("InvalidInput");
+  expect(await runtime.runPromise(service.list())).toEqual([]);
 });
