@@ -16,6 +16,8 @@ import { CoreError } from "../errors.ts";
 import { ApprovalsDoc } from "./approval-doc.ts";
 import type { Approval } from "./approval-doc.ts";
 import { createReviewTask } from "./review.ts";
+import { gitMetadataScope } from "../git/metadata.ts";
+import type { GitMetadataScope } from "../git/metadata.ts";
 import type { ReviewOptions } from "./review.ts";
 
 export { ApprovalsDoc } from "./approval-doc.ts";
@@ -24,6 +26,7 @@ export { ApprovalsDoc } from "./approval-doc.ts";
 export const REVIEW_DENIAL_LIMIT = 3;
 
 const Access = Schema.Struct({
+  gitMetadata: Schema.optionalKey(Schema.Boolean),
   networkAccess: Schema.optionalKey(Schema.Boolean),
   readableRoots: Schema.optionalKey(Schema.Array(Schema.String)),
   writableRoots: Schema.optionalKey(Schema.Array(Schema.String)),
@@ -110,6 +113,7 @@ export function createSandboxApprovals(
     const writableRoots: string[] = [];
     let networkAccess = false;
     let reason = "";
+    let git: GitMetadataScope | undefined;
     const protectedRoots = await Promise.all(
       [
         ...deniedRoots,
@@ -165,18 +169,28 @@ export function createSandboxApprovals(
         );
         networkAccess = mode === "read-only" && requested.networkAccess === true;
         for (const path of [...readableRoots, ...writableRoots]) assertUnprotected(path);
-        if (networkAccess || readableRoots.length || writableRoots.length)
+        if (requested.gitMetadata) git = await gitMetadataScope(await canonicalRoot(workspaceRoot));
+        if (
+          networkAccess ||
+          readableRoots.length ||
+          writableRoots.length ||
+          git?.writableRoots.length
+        )
           reason = requested.reason;
       }
     }
     if (!reason) return undefined;
-    const scope = {
+    // Core-expanded Git roots are judged by the expansion itself; only hand-written roots go through the rules.
+    const userOnly =
+      (await requiresUser({ readableRoots, writableRoots })) || git?.requiresUser === true;
+    return {
       reason,
-      readableRoots: [...new Set(readableRoots)],
-      writableRoots: [...new Set(writableRoots)],
+      readableRoots: [...new Set([...readableRoots, ...(git?.readableRoots ?? [])])],
+      writableRoots: [...new Set([...writableRoots, ...(git?.writableRoots ?? [])])],
       networkAccess,
+      ...(git?.description ? { gitMetadata: git.description } : {}),
+      requiresUser: userOnly,
     };
-    return { ...scope, requiresUser: await requiresUser(scope) };
   };
   /** Scopes that automatic review may never grant: Git metadata outside the workspace, or the whole home. */
   const requiresUser = async (scope: { readableRoots: string[]; writableRoots: string[] }) => {

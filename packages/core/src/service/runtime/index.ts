@@ -29,6 +29,7 @@ import type { SandboxMode, SandboxStatus } from "../../shared/sandbox.ts";
 import { sandboxStatus } from "../../platform/sandbox/backend.ts";
 import { createSandboxApprovals, ApprovalsDoc } from "./approvals.ts";
 import { SandboxedExecutionEnv } from "../../platform/sandbox/environment.ts";
+import { gitReadRoots } from "../git/metadata.ts";
 
 export interface ThreadRuntime {
   readonly hasWork: () => Promise<boolean>;
@@ -95,6 +96,8 @@ export class RuntimeRegistryService extends Context.Service<
         let runtimeRecord: ThreadRuntime | undefined;
         try {
           const registry = resources.registry(models);
+          // A worktree's shared Git metadata is readable without approval so status, log and diff work.
+          const gitReadable = gitReadRoots(ref.metadata.cwd).catch(() => []);
           const approvals = createSandboxApprovals(
             () => harness!,
             ref.metadata.cwd,
@@ -212,6 +215,7 @@ export class RuntimeRegistryService extends Context.Service<
                   taskKind === "pi.tool"
                     ? `tool:${taskId}`
                     : `${mode}:${state?.revision ?? 0}:${cwd ?? ref.metadata.cwd}`;
+                const gitRoots = await gitReadable;
                 let opening = sandboxEnvironments.get(key);
                 if (!opening) {
                   opening = Promise.resolve(
@@ -220,10 +224,10 @@ export class RuntimeRegistryService extends Context.Service<
                       workspaceRoot: ref.metadata.cwd,
                       deniedRoots: [paths.dataRoot],
                       scratchRoot,
+                      readableRoots: [...gitRoots, ...(grant?.readableRoots ?? [])],
                       ...(grant
                         ? {
                             commandAccess: grant.tool === "bash",
-                            readableRoots: grant.readableRoots,
                             writableRoots: grant.writableRoots,
                             networkAccess: mode === "workspace-write" || grant.networkAccess,
                           }

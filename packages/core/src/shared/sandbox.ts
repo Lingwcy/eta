@@ -44,6 +44,8 @@ export interface SandboxApproval {
   readonly writableRoots: readonly string[];
   readonly status: "pending" | "approved" | "denied" | "cancelled" | "consumed";
   readonly decidedBy?: "user" | "auto";
+  /** Set when Core expanded `sandbox.gitMetadata`; the roots above already include the expansion. */
+  readonly gitMetadata?: { commonDir: string; worktreeDir: string; branch?: string };
   readonly review?: SandboxReview;
 }
 
