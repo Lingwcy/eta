@@ -394,3 +394,77 @@ export function settleScheduleRequests(
     state.requests[request.requestId] = request;
   }
 }
+
+export const ScheduleRunInputSchema = Schema.Struct({
+  threadId: Schema.NonEmptyString,
+  scheduleId: Schema.NonEmptyString,
+  expectedRevision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
+  requestId: Schema.NonEmptyString,
+});
+export type ScheduleRunInput = typeof ScheduleRunInputSchema.Type;
+
+/** Manual runs have their own delivery identity and leave the automatic cursor untouched. */
+export function runScheduleNow(
+  state: ScheduleDraft,
+  input: ScheduleRunInput,
+  catalog: CatalogState,
+  now: number,
+): ScheduleRequest {
+  const fingerprint = scheduleFingerprint({ kind: "manual", ...input });
+  const existing = replay(state, input.requestId, fingerprint);
+  if (existing) return existing;
+  let request: ScheduleRequest = {
+    requestId: input.requestId,
+    threadId: input.threadId,
+    fingerprint,
+    state: "applied",
+    createdAt: now,
+    finishedAt: now,
+  };
+  try {
+    threadWorkspace(catalog, input.threadId);
+    checkChange(
+      state,
+      input.threadId,
+      { action: "pause", scheduleId: input.scheduleId, expectedRevision: input.expectedRevision },
+      now,
+    );
+    if (
+      Object.values(state.requests).some(
+        (value) => value.threadId === input.threadId && value.state === "pending",
+      )
+    )
+      invalid("计划管理请求正在处理，请稍后重试");
+    if (
+      Object.values(state.occurrences).some(
+        (occurrence) =>
+          occurrence.scheduleId === input.scheduleId &&
+          occurrence.source === "manual" &&
+          ["pending", "dispatching"].includes(occurrence.state),
+      )
+    )
+      invalid("已有立即运行请求正在等待投递");
+    const schedule = state.schedules[input.scheduleId];
+    const occurrenceId = randomUUID();
+    state.occurrences[occurrenceId] = {
+      id: occurrenceId,
+      scheduleId: schedule.id,
+      threadId: schedule.threadId,
+      scheduleRevision: schedule.revision,
+      scheduledAt: now,
+      detectedAt: now,
+      source: "manual",
+      name: schedule.name,
+      prompt: schedule.prompt,
+      rule: schedule.rule,
+      requestId: `schedule:manual:${input.requestId}`,
+      state: "pending",
+    };
+    request = { ...request, scheduleId: schedule.id, occurrenceId };
+  } catch (error) {
+    if (!(error instanceof CoreError)) throw error;
+    request = { ...request, state: "rejected", reason: error.message };
+  }
+  state.requests[input.requestId] = request;
+  return request;
+}
