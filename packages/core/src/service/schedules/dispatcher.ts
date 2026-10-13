@@ -33,9 +33,14 @@ export interface ScheduleHostAdapter {
   /** settled=true is proof no prior admission call can still commit this request. */
   lookup(input: { threadId: string; requestId: string }): Promise<ScheduleAdmissionLookup>;
   validate(threadId: string): Promise<string | undefined>;
+  subscribe?(listener: () => void): () => void;
 }
 
-type Flight = { promise: Promise<ScheduleAdmissionResult>; outcome?: ScheduleAdmissionResult };
+type Flight = {
+  waiting?: boolean;
+  promise: Promise<ScheduleAdmissionResult>;
+  outcome?: ScheduleAdmissionResult;
+};
 
 export class ScheduleDispatcherService extends Context.Service<
   ScheduleDispatcherService,
@@ -59,9 +64,10 @@ export class ScheduleDispatcherService extends Context.Service<
       const flights = new Map<string, Flight>();
       let loop: Fiber.Fiber<void, never> | undefined;
       let activeHost: ScheduleHostAdapter | undefined;
+      let stopHostWatch: (() => void) | undefined;
       let stopping = false;
-      const unsubscribe = store.subscribe(() => {
-        Queue.offerUnsafe(signals, undefined);
+      const unsubscribe = store.subscribe((origin) => {
+        if (origin !== "dispatcher") Queue.offerUnsafe(signals, undefined);
       });
       yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
       const nowMillis = DateTime.now.pipe(Effect.map(DateTime.toEpochMillis));
@@ -70,7 +76,7 @@ export class ScheduleDispatcherService extends Context.Service<
           const draft = scheduleDraft(state);
           change(draft);
           return draft;
-        });
+        }, "dispatcher");
       const outcome = Effect.fn("ScheduleDispatcher.outcome")(function* (
         occurrence: ScheduleOccurrence,
         result: ScheduleAdmissionResult,
@@ -244,7 +250,11 @@ export class ScheduleDispatcherService extends Context.Service<
         const ready = yield* save((state) => {
           const selected = nextPendingOccurrence(state, threadId);
           if (selected?.id === pending.id && !pendingOccurrenceReason(state, selected, now))
-            state.occurrences[selected.id] = { ...selected, state: "dispatching" };
+            state.occurrences[selected.id] = {
+              ...selected,
+              state: "dispatching",
+              reason: "admissionUnknown",
+            };
         });
         const dispatching = ready.occurrences[pending.id];
         if (dispatching.state !== "dispatching" || stopping) return;
@@ -258,7 +268,7 @@ export class ScheduleDispatcherService extends Context.Service<
           .catch((): ScheduleAdmissionResult => ({ status: "unknown", reason: "admissionUnknown" }))
           .then((result) => {
             flight.outcome = result;
-            Queue.offerUnsafe(signals, undefined);
+            if (flight.waiting) Queue.offerUnsafe(signals, undefined);
             return result;
           });
         flights.set(dispatching.requestId, flight);
@@ -267,6 +277,10 @@ export class ScheduleDispatcherService extends Context.Service<
           Effect.timeoutOption(1_000),
         );
         if (Option.isSome(admitted)) yield* outcome(dispatching, admitted.value);
+        else {
+          flight.waiting = true;
+          if (flight.outcome) Queue.offerUnsafe(signals, undefined);
+        }
       });
       const tick = Effect.fn("ScheduleDispatcher.tick")((host: ScheduleHostAdapter, at?: number) =>
         ticking.withPermit(
@@ -284,6 +298,8 @@ export class ScheduleDispatcherService extends Context.Service<
       const stop = lifecycle.withPermit(
         Effect.gen(function* () {
           stopping = true;
+          stopHostWatch?.();
+          stopHostWatch = undefined;
           if (loop) yield* Fiber.interrupt(loop);
           loop = undefined;
           // Complete in-flight host calls before its Controller/Core can be closed.
@@ -304,6 +320,9 @@ export class ScheduleDispatcherService extends Context.Service<
               return yield* new CoreError({ code: "Busy", message: "定时任务调度器已经启动" });
             stopping = false;
             activeHost = host;
+            stopHostWatch = host.subscribe?.(() => {
+              Queue.offerUnsafe(signals, undefined);
+            });
             const run = Effect.gen(function* () {
               while (!stopping) {
                 yield* tick(host).pipe(Effect.catch((error) => Effect.logError(error.message)));

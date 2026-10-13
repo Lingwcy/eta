@@ -396,3 +396,42 @@ test("dispatcher remains dormant until host readiness, rejects a second start an
   await runtime.runPromise(dispatcher.tick(host, now + 2000));
   expect(calls).toHaveLength(1);
 });
+
+test("busy admission does not wake itself continuously from its own receipt writes", async () => {
+  const { runtime, store, dispatcher, host, calls } = await fixture();
+  const now = DateTime.toEpochMillis(DateTime.nowUnsafe());
+  await runtime.runPromise(
+    store.update((state) => {
+      const draft = scheduleDraft(state);
+      const schedule = Object.values(draft.schedules)[0];
+      writeScheduleChange(
+        draft,
+        {
+          threadId: "thread",
+          requestId: "future",
+          change: {
+            action: "update",
+            scheduleId: schedule.id,
+            expectedRevision: 1,
+            patch: { rule: { type: "once", at: now + 100 } },
+          },
+        },
+        catalogFixture(),
+        now,
+      );
+      return draft;
+    }),
+  );
+  host.submit = async (input) => {
+    calls.push(input);
+    return { status: "blocked", reason: "busy" };
+  };
+  await runtime.runPromise(dispatcher.start(host));
+  await expect.poll(() => calls.length > 0, { timeout: 5000 }).toBe(true);
+  await new Promise<void>((resolve) => setTimeout(resolve, 250));
+  expect(calls).toHaveLength(1);
+  expect(Object.values((await runtime.runPromise(store.read)).occurrences)[0].state).toBe(
+    "pending",
+  );
+  await runtime.runPromise(dispatcher.stop);
+});

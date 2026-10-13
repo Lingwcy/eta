@@ -103,9 +103,10 @@ export class ScheduleStoreService extends Context.Service<
   ScheduleStoreService,
   {
     readonly read: Effect.Effect<ScheduleStoreState, CoreError>;
-    subscribe(listener: () => void): () => void;
+    subscribe(listener: (origin?: "dispatcher") => void): () => void;
     update(
       change: (state: ScheduleStoreState) => ScheduleStoreState,
+      origin?: "dispatcher",
     ): Effect.Effect<ScheduleStoreState, CoreError>;
   }
 >()("eta/core/service/schedules/ScheduleStoreService") {
@@ -114,7 +115,7 @@ export class ScheduleStoreService extends Context.Service<
     Effect.gen(function* () {
       const { scheduleStorePath } = yield* AppPathsService;
       let queue = Promise.resolve();
-      const listeners = new Set<() => void>();
+      const listeners = new Set<(origin?: "dispatcher") => void>();
       yield* Effect.addFinalizer(() => Effect.sync(() => listeners.clear()));
       const load = async () => {
         const raw = await readJson(scheduleStorePath);
@@ -136,7 +137,7 @@ export class ScheduleStoreService extends Context.Service<
           },
           catch: storageError,
         }),
-        update: (change) =>
+        update: (change, origin) =>
           Effect.tryPromise({
             try: () => {
               const next = queue.then(async () => {
@@ -149,7 +150,7 @@ export class ScheduleStoreService extends Context.Service<
                 await writeJson(scheduleStorePath, state);
                 for (const listener of listeners) {
                   try {
-                    listener();
+                    listener(origin);
                   } catch (error) {
                     console.error("Schedule listener failed", error);
                   }
