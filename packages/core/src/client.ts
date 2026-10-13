@@ -13,6 +13,7 @@ import { WorkspaceService } from "./service/workspaces/index.ts";
 import { ThreadService } from "./service/threads/index.ts";
 import { SkillsService } from "./service/skills/index.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
+import { GitRepositoryService } from "./service/git/index.ts";
 
 /** Each invocation creates an independent service graph; the host owns its lifetime through close. */
 export async function createCore(options: CoreOptions) {
@@ -24,6 +25,7 @@ export async function createCore(options: CoreOptions) {
     const models = await runtime.runPromise(ModelCatalogService);
     const skills = await runtime.runPromise(SkillsService);
     const catalog = await runtime.runPromise(CatalogService);
+    const git = await runtime.runPromise(GitRepositoryService);
     return {
       skills: (cwd?: string) => runtime.runPromise(skills.catalog(cwd)),
       projects: () => runtime.runPromise(projects.list()),
@@ -34,6 +36,10 @@ export async function createCore(options: CoreOptions) {
       workspaces: (projectId?: string) => runtime.runPromise(workspaces.list(projectId)),
       registerWorkspace: (projectId: string, cwd: string) =>
         runtime.runPromise(workspaces.register(projectId, cwd)),
+      gitRepository: (workspaceId: string) => runtime.runPromise(git.repository(workspaceId)),
+      gitBranches: (workspaceId: string) => runtime.runPromise(git.branches(workspaceId)),
+      selectGitHubRemote: (projectId: string, remoteName: string | null) =>
+        runtime.runPromise(git.selectGitHubRemote(projectId, remoteName)),
       models: () => runtime.runPromise(models.list),
       threads: (workspaceId?: string, includeArchived?: boolean) =>
         runtime.runPromise(threads.list(workspaceId, includeArchived)),

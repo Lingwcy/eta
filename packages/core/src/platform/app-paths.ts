@@ -7,6 +7,7 @@ interface AppPathValues {
   readonly catalogPath: string; // 保存 project、workspace、thread 之间的产品关系
   readonly settingsPath: string; // 全局设置
   readonly reviewLogPath: string; // 沙盒自动审查的本地追加记录
+  readonly gitStorePath: string; // Git 绑定、remote 选择与 worktree 生命周期收据
 }
 
 export function makeAppPaths(dataRoot: string) {
@@ -17,6 +18,7 @@ export function makeAppPaths(dataRoot: string) {
     catalogPath: resolve(root, "catalog.json"),
     settingsPath: resolve(root, "settings.json"),
     reviewLogPath: resolve(root, "approval-reviews.jsonl"),
+    gitStorePath: resolve(root, "git.json"),
   } satisfies AppPathValues;
 }
 
