@@ -11,7 +11,8 @@ const COMMAND_TIMEOUT_SECONDS = 15;
 export const reviewTools: Tool[] = [
   {
     name: "read",
-    description: "Read a text file inside the workspace. Paths are relative to the workspace root.",
+    description:
+      "Read a text file inside the workspace or this repository's shared Git directory. Paths are relative to the workspace root.",
     parameters: Type.Object({
       path: Type.String(),
       offset: Type.Optional(Type.Integer({ minimum: 1, description: "First line, 1-based" })),
@@ -20,7 +21,7 @@ export const reviewTools: Tool[] = [
   },
   {
     name: "list",
-    description: "List a directory inside the workspace.",
+    description: "List a directory inside the workspace or this repository's shared Git directory.",
     parameters: Type.Object({ path: Type.String() }),
   },
   {
@@ -89,10 +90,12 @@ const GIT_PREFIX = [
 ];
 
 const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
-const clip = (text: string) =>
-  text.length > REVIEW_TOOL_OUTPUT_LIMIT
-    ? `${text.slice(0, REVIEW_TOOL_OUTPUT_LIMIT)}\n…[output truncated at ${REVIEW_TOOL_OUTPUT_LIMIT} bytes]`
+const clip = (text: string) => {
+  const bytes = Buffer.from(text);
+  return bytes.length > REVIEW_TOOL_OUTPUT_LIMIT
+    ? `${bytes.subarray(0, REVIEW_TOOL_OUTPUT_LIMIT).toString("utf8")}\n…[output truncated at ${REVIEW_TOOL_OUTPUT_LIMIT} bytes]`
     : text;
+};
 const contains = (root: string, path: string) => {
   const suffix = relative(root, path);
   return suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix);
@@ -113,6 +116,10 @@ export function gitCommand(args: readonly string[]) {
         (option) =>
           arg === option ||
           arg.startsWith(`${option}=`) ||
+          (option.startsWith("--") &&
+            arg.startsWith("--") &&
+            arg.length > 2 &&
+            option.startsWith(arg.split("=")[0]!)) ||
           (option.length === 2 && arg.startsWith(option) && !arg.startsWith("--")),
       )
     )
@@ -129,7 +136,11 @@ export function gitCommand(args: readonly string[]) {
 type ToolOutcome = { readonly text: string; readonly isError: boolean; readonly summary: string };
 
 /** Executes reviewer tool calls in a dedicated read-only sandbox confined to `root`. */
-export function createReviewToolRunner(open: () => Promise<ExecutionEnv>, root: string) {
+export function createReviewToolRunner(
+  open: () => Promise<ExecutionEnv>,
+  root: string,
+  readableRoots: readonly string[] = [],
+) {
   let env: Promise<ExecutionEnv> | undefined;
   const environment = () => (env ??= open());
   const inside = async (path: string | undefined, context: Context) => {
@@ -137,7 +148,10 @@ export function createReviewToolRunner(open: () => Promise<ExecutionEnv>, root: 
     const target = resolve(root, path ?? ".");
     const canonical = await sandbox.canonicalPath(target, context);
     // Symlinks are judged by where they point, so a link inside the workspace cannot reach outside it.
-    if (!canonical.ok || !contains(root, canonical.value))
+    const allowed = await Promise.all(
+      [root, ...readableRoots].map((path) => sandbox.canonicalPath(path, context)),
+    );
+    if (!canonical.ok || !allowed.some((path) => path.ok && contains(path.value, canonical.value)))
       throw new Error(`审查器无权访问此路径：${path ?? "."}`);
     return canonical.value;
   };
@@ -151,7 +165,7 @@ export function createReviewToolRunner(open: () => Promise<ExecutionEnv>, root: 
         timeout: COMMAND_TIMEOUT_SECONDS,
         env: { GIT_PAGER: "cat", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" },
         onOutput: (text) => {
-          if (output.length <= REVIEW_TOOL_OUTPUT_LIMIT) output += text;
+          if (Buffer.byteLength(output) <= REVIEW_TOOL_OUTPUT_LIMIT) output = clip(output + text);
         },
       },
       context,
@@ -190,8 +204,11 @@ export function createReviewToolRunner(open: () => Promise<ExecutionEnv>, root: 
       }
       case "grep": {
         const path = await inside(typeof args.path === "string" ? args.path : undefined, context);
+        const workspace = await (await environment()).canonicalPath(root, context);
+        if (!workspace.ok || !contains(workspace.value, path))
+          throw new Error("grep 只能搜索工作区");
         const { output } = await run(
-          `grep -rnIF --exclude-dir=.git -m 50 -e ${quote(stringArg(args.pattern, "pattern"))} -- ${quote(path)}`,
+          `grep -rnIF --exclude-dir=.git -m 50 -e ${quote(stringArg(args.pattern, "pattern"))} -- ${quote(path)} | head -n 50`,
           context,
         );
         return {

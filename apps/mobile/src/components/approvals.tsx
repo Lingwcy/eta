@@ -1,4 +1,5 @@
 import { Platform, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
 import type { BotSnapshot } from "../bot/contracts.ts";
 import { useMobile } from "../provider.tsx";
 import { Button, colors, common, ScrollArea, useAction } from "../ui.tsx";
@@ -19,7 +20,10 @@ const skipped: Record<string, string> = {
 function reviewNote(approval: Approval) {
   const review = approval.review;
   if (!review) return undefined;
-  if (review.status === "reviewing") return "自动审查中";
+  if (review.status === "reviewing")
+    return review.toolCalls?.length
+      ? `自动审查中（已查看 ${review.toolCalls.length} 项）`
+      : "自动审查中";
   if (review.status === "escalated")
     return `自动审查建议你确认${review.risk === "high" ? "（高风险）" : ""}：${review.rationale ?? ""}`;
   if (review.status === "skipped" && review.skippedReason) return skipped[review.skippedReason];
@@ -29,6 +33,10 @@ function reviewNote(approval: Approval) {
 export function Approvals({ snapshot }: { snapshot: BotSnapshot }) {
   const { state, store } = useMobile();
   const { busy, run } = useAction();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const history = snapshot.operation
+    ? (snapshot.approvalHistory ?? []).slice(-20).toReversed()
+    : [];
   return (
     <>
       {snapshot.approvals
@@ -82,18 +90,70 @@ export function Approvals({ snapshot }: { snapshot: BotSnapshot }) {
               </View>
             </View>
             {approval.reusable && (
-              <Button
-                secondary
-                disabled={busy || state.status !== "connected"}
-                onPress={() => {
-                  void run(() => store.approve(approval.id, true, "run"));
-                }}
-              >
-                本次运行内允许此 Git 范围
-              </Button>
+              <>
+                <Button
+                  secondary
+                  disabled={busy || state.status !== "connected"}
+                  onPress={() => {
+                    void run(() => store.approve(approval.id, true, "run"));
+                  }}
+                >
+                  本次运行内允许此 Git 范围
+                </Button>
+                <Text style={common.hint}>
+                  本次运行中，任何申请相同范围的命令都能写这些 Git 目录，包括共享对象库；不含 config
+                  与 hooks。
+                </Text>
+              </>
             )}
           </View>
         ))}
+      {history.length > 0 && (
+        <View style={styles.card}>
+          <Button secondary onPress={() => setHistoryOpen((open) => !open)}>
+            {historyOpen ? "收起" : "展开"}自动审查记录（{history.length}）
+          </Button>
+          {historyOpen &&
+            history.map((approval) => (
+              <View key={approval.id}>
+                <Text style={styles.title}>
+                  {approval.decidedBy === "reuse"
+                    ? "沿用本次运行的批准"
+                    : approval.status === "denied"
+                      ? "已自动拒绝"
+                      : "已自动批准"}{" "}
+                  · {approval.tool}
+                </Text>
+                {approval.review?.rationale && (
+                  <Text selectable style={common.body}>
+                    {approval.review.rationale}
+                  </Text>
+                )}
+                {approval.review?.reviewer && (
+                  <Text style={common.hint}>
+                    审查模型：{approval.review.reviewer.provider}/{approval.review.reviewer.modelId}
+                  </Text>
+                )}
+                {!!approval.review?.toolCalls?.length && (
+                  <Text selectable style={common.hint}>
+                    审查器查看了：{approval.review.toolCalls.map((call) => call.summary).join("、")}
+                  </Text>
+                )}
+                {!!approval.readableRoots.length && (
+                  <Text selectable style={common.hint}>
+                    可读路径：{approval.readableRoots.join("、")}
+                  </Text>
+                )}
+                {!!approval.writableRoots.length && (
+                  <Text selectable style={common.hint}>
+                    可写路径：{approval.writableRoots.join("、")}
+                  </Text>
+                )}
+                {approval.networkAccess && <Text style={common.hint}>允许网络访问</Text>}
+              </View>
+            ))}
+        </View>
+      )}
     </>
   );
 }

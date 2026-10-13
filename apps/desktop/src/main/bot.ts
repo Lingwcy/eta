@@ -11,6 +11,8 @@ import type { BotConnection, BotState } from "../shared/bot.ts";
 import { isCloudId } from "../shared/bot.ts";
 import { BotConnectionSchema } from "./bot-schema.ts";
 import type { LocalDesktopApplication } from "./bootstrap.ts";
+import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/shared/git";
+import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 
 /** Remote identities never enter the local catalog, even while a Bot is unavailable. */
 export class DesktopBot {
@@ -78,7 +80,10 @@ export class DesktopBot {
   async connect(connection: BotConnection) {
     const candidate = new DesktopBot(this.dataRoot);
     candidate.use(connection);
-    const library = candidate.mapLibrary(await candidate.request<BotLibrary>("/v1/library"));
+    const [library, capabilities] = await Promise.all([
+      candidate.request<BotLibrary>("/v1/library").then((value) => candidate.mapLibrary(value)),
+      candidate.readCapabilities(),
+    ]);
     ++this.generation;
     if (this.connection?.url !== candidate.connection!.url) this.cancelStreams();
     this.use(candidate.connection!);
@@ -86,6 +91,7 @@ export class DesktopBot {
       status: "connected",
       url: this.connection!.url,
       library,
+      capabilities,
     };
     await writeFile(join(this.dataRoot, "bot-connection.json"), JSON.stringify(this.connection), {
       mode: 0o600,
@@ -126,6 +132,14 @@ export class DesktopBot {
     };
   }
 
+  private async readCapabilities(): Promise<readonly string[]> {
+    const status = await this.request<{ capabilities?: unknown }>("/v1/status").catch(() => ({}));
+    // An older Bot can omit this field or the endpoint entirely.
+    return "capabilities" in status && Array.isArray(status.capabilities)
+      ? status.capabilities.filter((value): value is string => typeof value === "string")
+      : [];
+  }
+
   async refresh(force = false) {
     if (this.refreshing) {
       await this.refreshing;
@@ -135,9 +149,18 @@ export class DesktopBot {
     const generation = this.generation;
     this.refreshing = (async () => {
       try {
-        const library = this.mapLibrary(await this.request<BotLibrary>("/v1/library"));
+        const [library, capabilities] = await Promise.all([
+          this.request<BotLibrary>("/v1/library").then((value) => this.mapLibrary(value)),
+          this.readCapabilities(),
+        ]);
         if (generation !== this.generation) return;
-        const next: BotState = { status: "connected", url: this.connection!.url, library };
+        const next: BotState = {
+          status: "connected",
+          url: this.connection!.url,
+          library,
+          // Older Bots omit the list; their features are then reported as unsupported.
+          capabilities,
+        };
         const changed = JSON.stringify(next) !== JSON.stringify(this.state);
         this.state = next;
         if (changed) {
@@ -294,6 +317,85 @@ export class DesktopBot {
     await this.command(id, "metadata", { action: "delete" });
     await this.refresh(true);
   }
+  private worktree(value: WorktreeSummary): WorktreeSummary {
+    return {
+      ...value,
+      projectId: this.prefix + value.projectId,
+      ...(value.workspaceId ? { workspaceId: this.prefix + value.workspaceId } : {}),
+      ...(value.continues ? { continues: this.prefix + value.continues } : {}),
+    };
+  }
+  private get capabilities() {
+    return this.state.capabilities ?? [];
+  }
+  private requireCapability(name: string) {
+    if (!this.capabilities.includes(name))
+      throw new Error("当前 Bot 版本不支持此功能，请更新 Bot 后重新连接。");
+  }
+  async gitRepository(workspaceId: string): Promise<GitRepositoryInfo> {
+    this.requireCapability("git");
+    const info = await this.request<GitRepositoryInfo>(
+      `/v1/workspaces/${encodeURIComponent(this.raw(workspaceId))}/git`,
+    );
+    return { ...info, workspaceId };
+  }
+  gitBranches(workspaceId: string) {
+    this.requireCapability("git");
+    return this.request<GitBranch[]>(
+      `/v1/workspaces/${encodeURIComponent(this.raw(workspaceId))}/branches`,
+    );
+  }
+  async selectGitHubRemote(projectId: string, remoteName: string | null) {
+    this.requireCapability("git");
+    const info = await this.request<GitRepositoryInfo>(
+      `/v1/projects/${encodeURIComponent(this.raw(projectId))}/github-remote`,
+      { remoteName },
+    );
+    return { ...info, workspaceId: this.prefix + info.workspaceId };
+  }
+  async listWorktrees(projectId: string) {
+    this.requireCapability("worktree");
+    return (
+      await this.request<WorktreeSummary[]>(
+        `/v1/projects/${encodeURIComponent(this.raw(projectId))}/worktrees`,
+      )
+    ).map((value) => this.worktree(value));
+  }
+  async reconcileWorktrees(projectId: string) {
+    this.requireCapability("worktree");
+    const result = await this.request<WorktreeSummary[]>(
+      `/v1/projects/${encodeURIComponent(this.raw(projectId))}/worktrees/reconcile`,
+      {},
+    );
+    await this.refresh(true);
+    return result.map((value) => this.worktree(value));
+  }
+  async createWorktree(input: CreateWorktreeInput) {
+    this.requireCapability("worktree");
+    const created = await this.request<WorktreeSummary>(
+      `/v1/projects/${encodeURIComponent(this.raw(input.projectId))}/worktrees`,
+      {
+        baseWorkspaceId: this.raw(input.baseWorkspaceId),
+        branch: input.branch,
+        requestId: input.requestId,
+        ...(input.continuesWorkspaceId
+          ? { continuesWorkspaceId: this.raw(input.continuesWorkspaceId) }
+          : {}),
+      },
+    );
+    // The new workspace must be in the library before a thread can be created in it.
+    await this.refresh(true);
+    return this.worktree(created);
+  }
+  async removeWorktree(workspaceId: string, requestId: string) {
+    this.requireCapability("worktree");
+    const removed = await this.request<WorktreeSummary>(
+      `/v1/workspaces/${encodeURIComponent(this.raw(workspaceId))}/remove`,
+      { requestId },
+    );
+    await this.refresh(true);
+    return this.worktree(removed);
+  }
   skills(workspaceId: string) {
     return this.request<Awaited<ReturnType<LocalDesktopApplication["skills"]>>>(
       `/v1/skills?workspaceId=${encodeURIComponent(this.raw(workspaceId))}`,
@@ -418,6 +520,26 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
         threads: [...library.threads, ...(state.library?.threads ?? [])],
       };
     },
+    gitRepository: (workspaceId: string) =>
+      isCloudId(workspaceId) ? bot.gitRepository(workspaceId) : local.gitRepository(workspaceId),
+    gitBranches: (workspaceId: string) =>
+      isCloudId(workspaceId) ? bot.gitBranches(workspaceId) : local.gitBranches(workspaceId),
+    selectGitHubRemote: (projectId: string, remoteName: string | null) =>
+      isCloudId(projectId)
+        ? bot.selectGitHubRemote(projectId, remoteName)
+        : local.selectGitHubRemote(projectId, remoteName),
+    listWorktrees: (projectId: string) =>
+      isCloudId(projectId) ? bot.listWorktrees(projectId) : local.listWorktrees(projectId),
+    reconcileWorktrees: (projectId: string) =>
+      isCloudId(projectId)
+        ? bot.reconcileWorktrees(projectId)
+        : local.reconcileWorktrees(projectId),
+    createWorktree: (input: CreateWorktreeInput) =>
+      isCloudId(input.projectId) ? bot.createWorktree(input) : local.createWorktree(input),
+    removeWorktree: (workspaceId: string, requestId: string) =>
+      isCloudId(workspaceId)
+        ? bot.removeWorktree(workspaceId, requestId)
+        : local.removeWorktree(workspaceId, requestId),
     createThread: (id: string, requestId?: string, configuration?: CreateThreadConfiguration) =>
       isCloudId(id)
         ? choose(bot.create(id, requestId ?? crypto.randomUUID(), configuration))

@@ -13,6 +13,8 @@ import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { hasThreadActivity } from "./thread-activity";
 import { defaultSandboxMode, sandboxModes } from "@eta/core/shared/sandbox";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
+import type { WorktreeDraft } from "@/components/input/worktree-picker";
+import { defaultApprovalReviewerMode } from "@eta/core/shared/runtime-settings";
 
 /** A mounted conversation keeps its composer when another tab becomes active. */
 export function useDesktopController(
@@ -28,6 +30,7 @@ export function useDesktopController(
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [draft] = useState(() => new DraftThread(tab.id, window.eta));
+  const [worktreeDraft, setWorktreeDraft] = useState<WorktreeDraft>({ enabled: false });
   const workspace = desktop.library?.workspaces.find(
     (workspace) => workspace.id === tab.workspaceId,
   );
@@ -160,6 +163,7 @@ export function useDesktopController(
               desktop.clearError();
               setError(undefined);
               setCloudSelection(undefined);
+              setWorktreeDraft({ enabled: false });
               navigation.tabs.updateConversation(tab.id, {
                 environment: next ? "cloud" : "local",
                 workspaceId: null,
@@ -173,14 +177,31 @@ export function useDesktopController(
             busy: desktop.busy,
             library: desktop.library,
             workspaceId: tab.workspaceId,
-            onProject: (id: string | null) =>
+            onProject: (id: string | null) => {
+              setWorktreeDraft({ enabled: false });
               navigation.tabs.updateConversation(tab.id, {
                 workspaceId: id,
                 environment: isCloudId(id) ? "cloud" : "local",
-              }),
+              });
+            },
             onCreateProject: registerProject,
+            worktreeDraft,
+            onWorktreeDraft: (next: WorktreeDraft) => {
+              setWorktreeDraft(next);
+            },
+            ...(cloud && !remote?.capabilities?.includes("worktree")
+              ? { worktreeUnsupported: "当前 Bot 版本不支持 worktree，请更新 Bot 后重新连接。" }
+              : {}),
           },
     composer: {
+      approvalReviewerLabel:
+        cloud && !remote?.capabilities?.includes("approval-review")
+          ? "由我审批"
+          : (modelLibrary?.settings.approvalReviewer?.mode ?? defaultApprovalReviewerMode) ===
+              "auto"
+            ? "自动审查"
+            : "由我审批",
+      onReviewerSettings: () => navigation.tabs.openSettings("permissions"),
       value: tab.draft,
       onChange: (draft: string) => navigation.tabs.updateConversation(tab.id, { draft }),
       model: mainModel,
@@ -256,13 +277,26 @@ export function useDesktopController(
                       defaultSandboxMode,
                   }
                 : undefined,
+              worktreeDraft.enabled && worktreeDraft.branch && workspace
+                ? {
+                    projectId: workspace.projectId,
+                    baseWorkspaceId: workspace.id,
+                    branch: worktreeDraft.branch,
+                  }
+                : undefined,
             );
-            navigation.tabs.updateConversation(tab.id, { threadId: id });
+            navigation.tabs.updateConversation(tab.id, {
+              threadId: id,
+              workspaceId: draft.persistedWorkspaceId ?? tab.workspaceId,
+            });
           }
           navigation.activity.watch(id);
         } catch (error) {
           if (!threadId && draft.persistedId)
-            navigation.tabs.updateConversation(tab.id, { threadId: draft.persistedId });
+            navigation.tabs.updateConversation(tab.id, {
+              threadId: draft.persistedId,
+              workspaceId: draft.persistedWorkspaceId ?? tab.workspaceId,
+            });
           setError(error instanceof Error ? error.message : "无法发送消息");
           throw error;
         } finally {

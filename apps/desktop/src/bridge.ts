@@ -1,4 +1,6 @@
 import type { ReviewStats } from "@eta/core/service/runtime/review-log";
+import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/shared/git";
+import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import type { BotConnection, BotState } from "./shared/bot.ts";
 import type { SubagentCommand, SubagentSummary } from "@eta/core/shared/subagents";
@@ -80,6 +82,14 @@ export interface DesktopBridge extends AgentBridge {
   ): Promise<SessionResponse>;
   /** Summary of this computer's automatic review log. */
   reviewStats(): Promise<ReviewStats>;
+  /** Live repository state of a workspace in its own environment (this computer or the Bot). */
+  gitRepository(workspaceId: string): Promise<GitRepositoryInfo>;
+  gitBranches(workspaceId: string): Promise<readonly GitBranch[]>;
+  selectGitHubRemote(projectId: string, remoteName: string | null): Promise<GitRepositoryInfo>;
+  listWorktrees(projectId: string): Promise<readonly WorktreeSummary[]>;
+  reconcileWorktrees(projectId: string): Promise<readonly WorktreeSummary[]>;
+  createWorktree(input: CreateWorktreeInput): Promise<WorktreeSummary>;
+  removeWorktree(workspaceId: string, requestId: string): Promise<WorktreeSummary>;
   importBotCredentials(): Promise<{ imported: number }>;
   removeBotCredential(providerId: string): Promise<void>;
   connectBot(connection: BotConnection): Promise<BotState>;

@@ -1,5 +1,6 @@
 import { EnvironmentPicker } from "./environment-picker";
-import { GitBranch } from "lucide-react";
+import { WorktreePicker } from "./worktree-picker";
+import type { WorktreeDraft } from "./worktree-picker";
 import { lazy, Suspense } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,13 @@ export function ComposerContext({
   cloud,
   onEnvironment,
   onSettings,
+  worktreeDraft,
+  worktreeUnsupported,
+  onWorktreeDraft,
 }: {
+  worktreeDraft: WorktreeDraft;
+  worktreeUnsupported?: string;
+  onWorktreeDraft: (draft: WorktreeDraft) => void;
   cloud: boolean;
   onEnvironment: (cloud: boolean) => void;
   onSettings: () => void;
@@ -62,12 +69,16 @@ export function ComposerContext({
           onCreate={onCreateProject}
         />
       </Suspense>
-      {worktree && (
-        <span className="ml-auto flex items-center gap-1.5">
-          <GitBranch size={15} aria-hidden="true" />
-          工作树
-        </span>
-      )}
+      <span className="ml-auto flex min-w-0 items-center">
+        <WorktreePicker
+          workspaceId={workspaceId}
+          worktree={worktree}
+          draft={worktreeDraft}
+          disabled={busy || !library}
+          onChange={onWorktreeDraft}
+          {...(worktreeUnsupported ? { unsupported: worktreeUnsupported } : {})}
+        />
+      </span>
     </div>
   );
 }

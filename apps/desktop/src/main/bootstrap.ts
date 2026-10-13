@@ -28,6 +28,9 @@ import { ThreadService } from "@eta/core/service/threads/index";
 import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
 import { readReviewStats } from "@eta/core/service/runtime/review-log";
+import { GitRepositoryService } from "@eta/core/service/git/index";
+import { WorktreeService } from "@eta/core/service/git/worktrees";
+import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import { makeAppPaths } from "@eta/core/platform/app-paths";
 import type { StorageTarget } from "../shared/storage.ts";
 
@@ -55,6 +58,8 @@ async function createLocalDesktopApplication(
     const settings = await runtime.runPromise(DesktopSettingsService);
     const credentials = await runtime.runPromise(CredentialService);
     const models = await runtime.runPromise(ModelCatalogService);
+    const git = await runtime.runPromise(GitRepositoryService);
+    const worktrees = await runtime.runPromise(WorktreeService);
     const catalog = await runtime.runPromise(CatalogService);
     const skills = await runtime.runPromise(SkillsService);
     const installationPath = join(dataRoot, "installation.json");
@@ -97,6 +102,15 @@ async function createLocalDesktopApplication(
       subscribeLibrary: (listener: () => void) => catalog.subscribe(listener),
       storage: async () => scanStorage(dataRoot, await run(catalog.read)),
       reviewStats: () => readReviewStats(makeAppPaths(dataRoot).reviewLogPath),
+      gitRepository: (workspaceId: string) => run(git.repository(workspaceId)),
+      gitBranches: (workspaceId: string) => run(git.branches(workspaceId)),
+      selectGitHubRemote: (projectId: string, remoteName: string | null) =>
+        run(git.selectGitHubRemote(projectId, remoteName)),
+      listWorktrees: (projectId: string) => run(worktrees.list(projectId)),
+      reconcileWorktrees: (projectId: string) => run(worktrees.reconcile(projectId)),
+      createWorktree: (input: CreateWorktreeInput) => run(worktrees.create(input)),
+      removeWorktree: (workspaceId: string, requestId: string) =>
+        run(worktrees.remove(workspaceId, requestId)),
       revealStorage: async (target: StorageTarget) =>
         revealPath(await storageTargetPath(dataRoot, target)),
       prepareImage: async (

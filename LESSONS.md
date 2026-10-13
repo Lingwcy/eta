@@ -58,6 +58,13 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Test a new setting through the IPC decoder and persistence, including its reset path.**
+
+- Why: renderer and storage types can accept a setting while the separately maintained IPC patch schema rejects it.
+- Evidence: on 2026-10-13, the permission settings screenshot showed “请求参数无效”. `approvalReviewer` existed in the runtime and desktop settings schemas but was absent from `main/ipc.ts`. The `reviewer choices` regression in `main/service/settings/index.test.ts` reproduced that rejection, then verified updates, subscriptions, reopening and resetting after adding the shared field schema.
+- Check: send the same payload the renderer uses through `dispatchCommand` into the real settings service; retain rejection tests for malformed values.
+- Seen 1× (2026-10-13).
+
 **Verify the runtime entry point and the packaged dependency graph when adding
 a dependency. A dev server succeeding does not prove an installed client works.**
 
@@ -99,6 +106,13 @@ allows native startup, before checking an operation's result.**
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.
 - Seen 1× (2026-10-12).
+
+**Propagate a shared deadline through every asynchronous stage, including tools and the final decision check.**
+
+- Why: a model timeout alone does not bound context gathering or prevent a late approval.
+- Evidence: the 2026-10-13 sandbox review follow-up found `review.ts` passing its timeout only to the model, while `tools.execute` received the original context. The focused `packages/core/test/service/runtime/review-task.test.ts` now blocks a tool, model availability and the final settings read, and verifies timeout leaves the request pending for the user.
+- Check: cancel the actual operation as well as its waiter; retain a non-cancelled context for recording the fallback and cleanup.
+- Seen 1× (2026-10-13).
 
 ## Defaults and explicit choices
 

@@ -6,7 +6,9 @@ import { Schema } from "effect";
 import { sumUsage } from "../../agent/extension/title/task.ts";
 import type { ApprovalReviewer } from "../../shared/runtime-settings.ts";
 import type { SandboxReview, SandboxReviewSkip } from "../../shared/sandbox.ts";
+import { defaultApprovalReviewerMode } from "../../shared/runtime-settings.ts";
 import type { ExecutionEnv } from "@eta/agent/env";
+import { awaitWithContext, withAbortSignal } from "@earendil-works/chord/context";
 import { ApprovalsDoc, runGrant } from "./approval-doc.ts";
 import { createReviewToolRunner, reviewTools } from "./review-tools.ts";
 import type { Approval } from "./approval-doc.ts";
@@ -26,6 +28,7 @@ export type ReviewRecord =
       readonly readableRoots: readonly string[];
       readonly writableRoots: readonly string[];
       readonly networkAccess: boolean;
+      readonly gitMetadata?: boolean;
       readonly outcome: SandboxReview["status"] | "preempted";
       readonly risk?: SandboxReview["risk"];
       readonly rationale?: string;
@@ -50,7 +53,11 @@ export interface ReviewOptions {
   readonly record: (entry: ReviewRecord) => Promise<void>;
   readonly timeoutMs?: number;
   /** Read-only sandbox for the reviewer's tools, confined to the workspace `root`. */
-  readonly tools?: { readonly open: () => Promise<ExecutionEnv>; readonly root: string };
+  readonly tools?: {
+    readonly open: () => Promise<ExecutionEnv>;
+    readonly root: string;
+    readonly readableRoots?: () => Promise<readonly string[]>;
+  };
 }
 
 const Verdict = Schema.Struct({
@@ -123,13 +130,14 @@ export function reviewTranscript(messages: readonly Message[]) {
   return [...intent, ...recent].join("\n");
 }
 
-export function reviewRequest(request: Approval) {
+export function reviewRequest(request: Approval, workspace?: string) {
   return JSON.stringify(
     {
       tool: request.tool,
       arguments: request.args,
       reason: request.reason,
       sandboxMode: request.mode,
+      ...(workspace ? { workspace } : {}),
       readableRoots: request.readableRoots,
       writableRoots: request.writableRoots,
       networkAccess: request.networkAccess,
@@ -167,11 +175,36 @@ export function createReviewTask(options: ReviewOptions) {
     phases: {
       review: async (task, runtime, context) => {
         const started = runtime.now();
+        const timeout = AbortSignal.timeout(timeoutMs);
+        const signal = AbortSignal.any([runtime.signal, timeout]);
+        const reviewContext = withAbortSignal(signal, context);
+        const wait = <T>(promise: Promise<T>) => awaitWithContext(promise, reviewContext);
         const find = async () =>
           (await runtime.snapshot(ApprovalsDoc, context))?.requests.find(
             (request) => request.id === task.input.requestId,
           );
         const finish = async (outcome: ReviewOutcome, reviewer?: ModelRef) => {
+          if (outcome.status === "approved" || outcome.status === "denied") {
+            try {
+              if (
+                ((await wait(options.reviewer()))?.mode ?? defaultApprovalReviewerMode) !== "auto"
+              )
+                outcome = {
+                  ...outcome,
+                  status: "skipped",
+                  skippedReason: "interrupted",
+                  rationale: "已切换为由用户审批",
+                };
+            } catch (error) {
+              runtime.signal.throwIfAborted();
+              outcome = {
+                ...outcome,
+                status: "skipped",
+                skippedReason: timeout.aborted ? "timeout" : "reviewer-unavailable",
+                rationale: error instanceof Error ? error.message : undefined,
+              };
+            }
+          }
           let applied: Approval | undefined;
           await runtime.commit(async (tx) => {
             const request = (await tx.doc(ApprovalsDoc)).requests.find(
@@ -213,6 +246,7 @@ export function createReviewTask(options: ReviewOptions) {
               readableRoots: request.readableRoots,
               writableRoots: request.writableRoots,
               networkAccess: request.networkAccess,
+              gitMetadata: Boolean(request.gitMetadata),
               outcome: applied ? outcome.status : "preempted",
               ...(outcome.status === "skipped"
                 ? { skippedReason: outcome.skippedReason }
@@ -243,29 +277,46 @@ export function createReviewTask(options: ReviewOptions) {
           return undefined;
         }, context);
 
-        const settings = await options.reviewer();
-        const configured = settings?.model ?? undefined;
-        const reference = configured ?? (await runtime.agent(context)).model;
-        if (configured && !(await options.available(configured)))
-          return finish({ status: "skipped", skippedReason: "reviewer-unavailable" }, configured);
-        const model = reference && runtime.models.getModel(reference.provider, reference.modelId);
-        if (!reference || !model)
+        let settings;
+        let reference;
+        let model;
+        let view;
+        let readableRoots;
+        try {
+          settings = await wait(options.reviewer());
+          const configured = settings?.model ?? undefined;
+          reference = configured ?? (await wait(runtime.agent(reviewContext))).model;
+          if (configured && !(await wait(options.available(configured))))
+            return finish({ status: "skipped", skippedReason: "reviewer-unavailable" }, configured);
+          model = reference && runtime.models.getModel(reference.provider, reference.modelId);
+          if (!reference || !model)
+            return finish(
+              { status: "skipped", skippedReason: "reviewer-unavailable" },
+              reference ?? undefined,
+            );
+
+          view = await wait(runtime.context(runtime.conversationId, reviewContext));
+          readableRoots = await wait(options.tools?.readableRoots?.() ?? Promise.resolve([]));
+        } catch (error) {
+          runtime.signal.throwIfAborted();
           return finish(
-            { status: "skipped", skippedReason: "reviewer-unavailable" },
+            {
+              status: "skipped",
+              skippedReason: timeout.aborted ? "timeout" : "reviewer-unavailable",
+              rationale: error instanceof Error ? error.message : undefined,
+            },
             reference ?? undefined,
           );
-
-        const view = await runtime.context(runtime.conversationId, context);
+        }
         const thinking = clampThinkingLevel(model, settings?.thinkingLevel ?? "low");
-        const timeout = AbortSignal.timeout(timeoutMs);
-        const signal = AbortSignal.any([runtime.signal, timeout]);
         const tools =
-          options.tools && createReviewToolRunner(options.tools.open, options.tools.root);
+          options.tools &&
+          createReviewToolRunner(options.tools.open, options.tools.root, readableRoots);
         const messages: Message[] = [
           { role: "system", content: SYSTEM_PROMPT, timestamp: runtime.now() },
           {
             role: "user",
-            content: `<transcript>\n${reviewTranscript(view.messages)}\n</transcript>\n\n<request>\n${reviewRequest(request)}\n</request>`,
+            content: `<transcript>\n${reviewTranscript(view.messages)}\n</transcript>\n\n<request>\n${reviewRequest(request, options.tools?.root)}\n</request>`,
             timestamp: runtime.now(),
           },
         ];
@@ -279,18 +330,20 @@ export function createReviewTask(options: ReviewOptions) {
         try {
           for (;;) {
             try {
-              reply = await runtime.models.completeSimple(
-                model,
-                { messages, ...(tools ? { tools: reviewTools } : {}) },
-                {
-                  ...runtime.settings.stream,
-                  deferred: undefined,
-                  maxTokens: Math.min(model.maxTokens, thinking === "off" ? 1024 : 4096),
-                  cacheRetention: "none",
-                  sessionId: `${String(runtime.conversationId)}:review`,
-                  signal,
-                  ...(thinking === "off" ? {} : { reasoning: thinking }),
-                },
+              reply = await wait(
+                runtime.models.completeSimple(
+                  model,
+                  { messages, ...(tools ? { tools: reviewTools } : {}) },
+                  {
+                    ...runtime.settings.stream,
+                    deferred: undefined,
+                    maxTokens: Math.min(model.maxTokens, thinking === "off" ? 1024 : 4096),
+                    cacheRetention: "none",
+                    sessionId: `${String(runtime.conversationId)}:review`,
+                    signal,
+                    ...(thinking === "off" ? {} : { reasoning: thinking }),
+                  },
+                ),
               );
             } catch (error) {
               runtime.signal.throwIfAborted();
@@ -316,9 +369,20 @@ export function createReviewTask(options: ReviewOptions) {
               return await failed("tool-budget");
             messages.push(reply);
             for (const call of calls) {
-              const outcome = await tools.execute(call, context);
+              const entry = { tool: call.name, summary: `${call.name} (running)` };
+              toolCalls.push(entry);
+              await runtime.commit(async (tx) => {
+                const current = (await tx.doc(ApprovalsDoc)).requests.find(
+                  (value) => value.id === request.id,
+                );
+                if (current?.status === "pending" && current.review)
+                  current.review.toolCalls = toolCalls.map((value) => ({ ...value }));
+                return undefined;
+              }, context);
+              const outcome = await wait(tools.execute(call, reviewContext));
               runtime.signal.throwIfAborted();
-              toolCalls.push({ tool: call.name, summary: outcome.summary });
+              signal.throwIfAborted();
+              entry.summary = outcome.summary;
               messages.push({
                 role: "toolResult",
                 toolCallId: call.id,
@@ -329,9 +393,16 @@ export function createReviewTask(options: ReviewOptions) {
               });
             }
           }
+        } catch (error) {
+          runtime.signal.throwIfAborted();
+          return await failed(
+            timeout.aborted ? "timeout" : "reviewer-unavailable",
+            error instanceof Error ? error.message : undefined,
+          );
         } finally {
           await tools?.cleanup(context).catch((error: unknown) => runtime.report(error));
         }
+        if (timeout.aborted) return failed("timeout");
         if (reply.stopReason !== "stop")
           return failed(
             timeout.aborted ? "timeout" : "reviewer-unavailable",

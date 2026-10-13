@@ -21,6 +21,8 @@ export function SubagentConversation({
   blocked,
   onBack,
   library,
+  approvalReviewerLabel,
+  onReviewerSettings,
 }: {
   threadId: string;
   child: SubagentSummary;
@@ -30,6 +32,8 @@ export function SubagentConversation({
   blocked: boolean;
   onBack: () => void;
   library: DesktopLibrary | null;
+  approvalReviewerLabel: string;
+  onReviewerSettings: () => void;
 }) {
   const [observation, setObservation] = useState<SnapshotResponse>();
   const [error, setError] = useState<string>();
@@ -138,6 +142,8 @@ export function SubagentConversation({
             }}
           />
           <CompositeInput
+            approvalReviewerLabel={approvalReviewerLabel}
+            onReviewerSettings={onReviewerSettings}
             value={draft}
             sandboxMode={snapshot?.sandbox?.mode}
             sandboxDisabled

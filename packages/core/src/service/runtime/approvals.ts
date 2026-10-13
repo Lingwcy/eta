@@ -117,6 +117,7 @@ export function createSandboxApprovals(
     const readableRoots: string[] = [];
     const writableRoots: string[] = [];
     let networkAccess = false;
+    let requestedNetworkAccess = false;
     let reason = "";
     let git: GitMetadataScope | undefined;
     const protectedRoots = await Promise.all(
@@ -172,7 +173,8 @@ export function createSandboxApprovals(
             ),
           )),
         );
-        networkAccess = mode === "read-only" && requested.networkAccess === true;
+        requestedNetworkAccess = requested.networkAccess === true;
+        networkAccess = mode === "read-only" && requestedNetworkAccess;
         for (const path of [...readableRoots, ...writableRoots]) assertUnprotected(path);
         if (requested.gitMetadata) git = await gitMetadataScope(await canonicalRoot(workspaceRoot));
         if (
@@ -195,7 +197,7 @@ export function createSandboxApprovals(
       !git.requiresUser &&
       !readableRoots.length &&
       !writableRoots.length &&
-      !networkAccess;
+      !requestedNetworkAccess;
     return {
       reason,
       ...(reusable ? { reusable } : {}),
@@ -401,6 +403,19 @@ export function createSandboxApprovals(
         async (tx) => {
           const doc = await tx.doc(ApprovalsDoc);
           if (doc.runGrants?.length) doc.runGrants = [];
+        },
+        BACKGROUND_CONTEXT,
+      );
+    },
+    /** Returning to manual review permanently withdraws automatic grants, even if auto is enabled again. */
+    withdrawAutoRunGrants: async (conversationId: ConversationId) => {
+      if ((await reviewerMode()) === "auto") return;
+      await commit(
+        conversationId,
+        async (tx) => {
+          const doc = await tx.doc(ApprovalsDoc);
+          if (doc.runGrants?.some((grant) => grant.by === "auto"))
+            doc.runGrants = doc.runGrants.filter((grant) => grant.by === "user");
         },
         BACKGROUND_CONTEXT,
       );

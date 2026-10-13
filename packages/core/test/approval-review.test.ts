@@ -361,6 +361,7 @@ test("reviewer git commands neutralise repository configuration that executes co
   for (const args of [
     ["log", "-c", "x"],
     ["show", "--output=/tmp/x"],
+    ["show", "--out=/tmp/x"],
     ["diff", "-O/etc/hosts"],
     ["status", "--git-dir=/elsewhere"],
     ["rev-parse", "-C", "/"],

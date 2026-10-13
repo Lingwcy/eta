@@ -16,6 +16,12 @@ Use **Settings → Application → Storage (设置 → 应用 → 存储)** to c
 
 Back up the entire session directory, not just the main JSONL transcript. Subagents share that transcript, and task recovery also needs the adjacent state files. Reopening unfinished work requires an explicit resume or stop.
 
+## Start in a separate worktree
+
+Before sending the first message in a new chat, open the branch selector beside the project and enable “在新 worktree 中开始”. Select an existing branch or enter a new branch name. Eta creates the directory when you send; uncommitted changes in the current checkout stay there. If creation or sending fails, the draft is preserved and retries reuse the created workspace. Checked-out branches and remote-tracking branches become the base of a new local branch.
+
+See the [sandbox guide](./sandbox.md#在-worktree-中提交) for Git approvals and run-scoped grants. Closing a tab or archiving a chat keeps its worktree.
+
 ## Skills
 
 Skills give an agent reusable instructions. Put each skill in a folder containing `SKILL.md`:

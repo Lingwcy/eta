@@ -9,6 +9,8 @@ export interface BotState {
   url?: string;
   message?: string;
   library?: BotLibrary;
+  /** Features the connected Bot declares in `/v1/status`; empty for Bots that predate the list. */
+  capabilities?: readonly string[];
 }
 export const isCloudId = (id?: string | null) => id?.startsWith("bot:") ?? false;
 export const sameEnvironment = (left: string, right: string) =>

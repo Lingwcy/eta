@@ -80,6 +80,16 @@ const bridge: DesktopBridge = {
       ...(reuse ? { reuse } : {}),
     }),
   reviewStats: () => invoke("eta:command", { type: "review-stats" }),
+  gitRepository: (workspaceId) => invoke("eta:command", { type: "git-repository", workspaceId }),
+  gitBranches: (workspaceId) => invoke("eta:command", { type: "git-branches", workspaceId }),
+  selectGitHubRemote: (projectId, remoteName) =>
+    invoke("eta:command", { type: "select-github-remote", projectId, remoteName }),
+  listWorktrees: (projectId) => invoke("eta:command", { type: "list-worktrees", projectId }),
+  reconcileWorktrees: (projectId) =>
+    invoke("eta:command", { type: "reconcile-worktrees", projectId }),
+  createWorktree: (input) => invoke("eta:command", { type: "create-worktree", input }),
+  removeWorktree: (workspaceId, requestId) =>
+    invoke("eta:command", { type: "remove-worktree", workspaceId, requestId }),
   renameThread: (id, title) => invoke("eta:command", { type: "rename", id, title }),
   archiveThread: (id, archived) => invoke("eta:command", { type: "archive", id, archived }),
   configureThread: (id, provider, modelId, thinkingLevel) =>

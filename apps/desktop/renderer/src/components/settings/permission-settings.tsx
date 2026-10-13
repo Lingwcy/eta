@@ -159,6 +159,23 @@ export function PermissionSettings({
         active={active}
         onChange={onReviewerChange}
       />
+      {library.bot?.status === "connected" && (
+        <SettingsSection title="Bot 越界请求审批">
+          <SettingsRow
+            title="审批人"
+            description="由 Bot 配置文件的 runtime.approvalReviewer 决定。"
+          >
+            <span className="text-xs text-neutral-500">
+              {library.bot.capabilities?.includes("approval-review")
+                ? (library.bot.library?.settings.approvalReviewer?.mode ??
+                    DEFAULT_REVIEWER_MODE) === "auto"
+                  ? "自动审查"
+                  : "我"
+                : "当前 Bot 版本不支持自动审查"}
+            </span>
+          </SettingsRow>
+        </SettingsSection>
+      )}
       <SettingsSection title="图片读取">
         <SettingsRow
           title="允许模型读取图片"

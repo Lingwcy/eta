@@ -9,7 +9,7 @@ import { CoreError } from "@eta/core/service/errors";
 import { ProjectError } from "@eta/core/service/projects/index";
 import { CatalogStorageError } from "@eta/core/service/catalog/json-store";
 import { CatalogValidationError } from "@eta/core/service/catalog/schema";
-import { TitleModelSchema } from "@eta/core/shared/runtime-settings";
+import { RuntimeSettingsSchema, TitleModelSchema } from "@eta/core/shared/runtime-settings";
 import { SandboxModeSchema } from "@eta/core/shared/sandbox";
 
 const Id = Schema.NonEmptyString;
@@ -71,6 +71,33 @@ const Command = Schema.Union([
     reuse: Schema.optionalKey(Schema.Literals(["call", "run"])),
   }),
   Schema.Struct({ type: Schema.Literal("review-stats") }),
+  Schema.Struct({ type: Schema.Literal("git-repository"), workspaceId: Id }),
+  Schema.Struct({ type: Schema.Literal("git-branches"), workspaceId: Id }),
+  Schema.Struct({
+    type: Schema.Literal("select-github-remote"),
+    projectId: Id,
+    remoteName: Schema.NullOr(Id),
+  }),
+  Schema.Struct({ type: Schema.Literal("list-worktrees"), projectId: Id }),
+  Schema.Struct({ type: Schema.Literal("reconcile-worktrees"), projectId: Id }),
+  Schema.Struct({
+    type: Schema.Literal("create-worktree"),
+    input: Schema.Struct({
+      projectId: Id,
+      baseWorkspaceId: Id,
+      branch: Schema.Union([
+        Schema.Struct({
+          kind: Schema.Literal("new"),
+          name: Id,
+          baseRef: Schema.optionalKey(Id),
+        }),
+        Schema.Struct({ kind: Schema.Literal("existing"), name: Id }),
+      ]),
+      requestId: Id,
+      continuesWorkspaceId: Schema.optionalKey(Id),
+    }),
+  }),
+  Schema.Struct({ type: Schema.Literal("remove-worktree"), workspaceId: Id, requestId: Id }),
   Schema.Struct({ type: Schema.Literal("move-thread"), id: Id, projectId: Schema.NullOr(Id) }),
   Schema.Struct({ type: Schema.Literal("delete-thread"), id: Id }),
   Schema.Struct({ type: Schema.Literal("rename"), id: Id, title: Id }),
@@ -118,6 +145,7 @@ const Command = Schema.Union([
       defaultProvider: Schema.optionalKey(Id),
       defaultModel: Schema.optionalKey(Id),
       titleModel: Schema.optionalKey(TitleModelSchema),
+      approvalReviewer: RuntimeSettingsSchema.fields.approvalReviewer,
       defaultThinkingLevel: Schema.optionalKey(
         Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
       ),
@@ -208,6 +236,20 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       );
     case "review-stats":
       return application.reviewStats();
+    case "git-repository":
+      return application.gitRepository(command.workspaceId);
+    case "git-branches":
+      return application.gitBranches(command.workspaceId);
+    case "select-github-remote":
+      return application.selectGitHubRemote(command.projectId, command.remoteName);
+    case "list-worktrees":
+      return application.listWorktrees(command.projectId);
+    case "reconcile-worktrees":
+      return application.reconcileWorktrees(command.projectId);
+    case "create-worktree":
+      return application.createWorktree(command.input);
+    case "remove-worktree":
+      return application.removeWorktree(command.workspaceId, command.requestId);
     case "move-thread":
       return application.moveThread(command.id, command.projectId);
     case "delete-thread":

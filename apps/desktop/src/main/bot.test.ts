@@ -11,11 +11,12 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function connect(supported: boolean) {
+async function connect(supported: boolean, capabilities?: unknown) {
   const root = await mkdtemp(join(tmpdir(), "eta-bot-compatibility-"));
   roots.push(root);
   const request = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.endsWith("/v1/status")) return Response.json({ capabilities });
     if (url.endsWith("/v1/library"))
       return Response.json({
         projects: [],
@@ -62,4 +63,68 @@ test("a compatible Bot still receives sandbox changes through the HTTP endpoint"
   expect(init?.method).toBe("POST");
   expect(JSON.parse(init?.body as string)).toEqual({ mode: "read-only" });
   bot.close();
+});
+
+test("an older Bot refuses worktree operations without sending them to another environment", async () => {
+  const { bot, request, prefix } = await connect(true);
+  try {
+    await expect(
+      bot.createWorktree({
+        projectId: prefix + "project",
+        baseWorkspaceId: prefix + "workspace",
+        branch: { kind: "new", name: "eta/work" },
+        requestId: "create",
+      }),
+    ).rejects.toThrow("不支持此功能");
+    await expect(bot.gitRepository(prefix + "workspace")).rejects.toThrow("不支持此功能");
+    expect(request).not.toHaveBeenCalled();
+  } finally {
+    bot.close();
+  }
+});
+
+test("a Bot exposes capabilities immediately and translates worktree IDs on both sides of HTTP", async () => {
+  const { bot, request, prefix } = await connect(true, ["git", "worktree", "approval-review", 42]);
+  try {
+    expect(bot.status().capabilities).toEqual(["git", "worktree", "approval-review"]);
+    request.mockResolvedValueOnce(
+      Response.json({
+        projectId: "project",
+        workspaceId: "created",
+        continues: "prior",
+        status: "ready",
+      }),
+    );
+    const created = await bot.createWorktree({
+      projectId: prefix + "project",
+      baseWorkspaceId: prefix + "workspace",
+      branch: { kind: "existing", name: "eta/work" },
+      requestId: "create",
+      continuesWorkspaceId: prefix + "prior",
+    });
+    expect(created).toMatchObject({
+      projectId: prefix + "project",
+      workspaceId: prefix + "created",
+      continues: prefix + "prior",
+    });
+    const [url, init] = request.mock.calls[0]!;
+    expect(url).toBe("http://localhost:8080/v1/projects/project/worktrees");
+    expect(JSON.parse(init!.body as string)).toEqual({
+      baseWorkspaceId: "workspace",
+      branch: { kind: "existing", name: "eta/work" },
+      requestId: "create",
+      continuesWorkspaceId: "prior",
+    });
+    request.mockClear();
+    request.mockResolvedValueOnce(
+      Response.json({ projectId: "project", workspaceId: "created", status: "removed" }),
+    );
+    expect(await bot.removeWorktree(prefix + "created", "remove")).toMatchObject({
+      workspaceId: prefix + "created",
+      status: "removed",
+    });
+    expect(request.mock.calls[0]![0]).toBe("http://localhost:8080/v1/workspaces/created/remove");
+  } finally {
+    bot.close();
+  }
 });

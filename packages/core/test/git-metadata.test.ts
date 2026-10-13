@@ -31,6 +31,7 @@ afterEach(async () => {
 async function fixture(initialReviewer: ApprovalReviewer | null = null, subdirectory = false) {
   let approvalReviewer = initialReviewer;
   let reviews = 0;
+  const reviewRequests: string[] = [];
   const directory = await realpath(await mkdtemp(join(tmpdir(), "eta-gitmeta-")));
   directories.push(directory);
   const main = join(directory, "main");
@@ -65,7 +66,9 @@ async function fixture(initialReviewer: ApprovalReviewer | null = null, subdirec
       options?.sessionId?.endsWith(":title")
         ? side.provider.streamSimple(model, context, options)
         : options?.sessionId?.endsWith(":review")
-          ? (reviews++, reviewer.provider.streamSimple(model, context, options))
+          ? (reviews++,
+            reviewRequests.push(JSON.stringify(context.messages)),
+            reviewer.provider.streamSimple(model, context, options))
           : agent.provider.streamSimple(model, context, options),
   });
   const core = await createCore({
@@ -97,13 +100,22 @@ async function fixture(initialReviewer: ApprovalReviewer | null = null, subdirec
     cwd,
     thread,
     reviews: () => reviews,
+    reviewRequests: () => reviewRequests,
     setReviewer: (value: ApprovalReviewer | null) => {
       approvalReviewer = value;
     },
   };
 }
 
-const bash = (command: string, sandbox?: { gitMetadata: boolean; reason: string }) =>
+const bash = (
+  command: string,
+  sandbox?: {
+    gitMetadata: boolean;
+    reason: string;
+    writableRoots?: string[];
+    networkAccess?: boolean;
+  },
+) =>
   fauxAssistantMessage(fauxToolCall("bash", { command, ...(sandbox ? { sandbox } : {}) }), {
     stopReason: "toolUse",
   });
@@ -232,7 +244,7 @@ test("a run grant does not cover a request with additional roots", async () => {
   const { core, agent, directory, thread } = await fixture();
   agent.setResponses([
     commitAs("first", "a.txt"),
-    bash("true", { gitMetadata: true, reason: "More", writableRoots: [directory] } as never),
+    bash("true", { gitMetadata: true, reason: "More", writableRoots: [directory] }),
     fauxAssistantMessage("Done"),
   ]);
   await core.submit(thread.id, "Commit");
@@ -272,3 +284,43 @@ test("a reviewer's run grant skips later reviews but not after switching back to
   const approval = await pending(core, thread.id);
   expect(approval.args).toMatchObject({ command: expect.stringContaining("fourth") });
 }, 30000);
+
+test("a run grant does not cover a request that explicitly adds network access", async () => {
+  const { core, agent, thread } = await fixture();
+  agent.setResponses([
+    commitAs("first", "a.txt"),
+    bash("true", { gitMetadata: true, reason: "Network operation", networkAccess: true }),
+    fauxAssistantMessage("Done"),
+  ]);
+  await core.submit(thread.id, "Commit");
+  const approval = await pending(core, thread.id);
+  await core.decideApproval(thread.id, approval.id, true, "run");
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.[0]?.args, {
+      timeout: 15000,
+    })
+    .toMatchObject({ sandbox: { networkAccess: true } });
+  expect((await pending(core, thread.id)).reusable).toBeUndefined();
+});
+
+test("a worktree reviewer reads the shared Git metadata in its own read-only sandbox", async () => {
+  const { core, agent, reviewer, main, worktree, thread, reviewRequests } = await fixture({
+    mode: "auto",
+  });
+  reviewer.setResponses([
+    fauxAssistantMessage(
+      [
+        fauxToolCall("git", { args: ["status", "--short"] }),
+        fauxToolCall("read", { path: join(main, ".git", "HEAD") }),
+      ],
+      { stopReason: "toolUse" },
+    ),
+    verdict("call"),
+  ]);
+  agent.setResponses([commitAs("reviewed", "new.txt"), fauxAssistantMessage("Done")]);
+  const operation = await core.submit(thread.id, "Commit");
+  await settle(core, thread.id, operation.operationId);
+  expect(reviewRequests().at(-1)).toContain("ref: refs/heads/main");
+  expect(reviewRequests().at(-1)).not.toContain("审查器无权访问此路径");
+  expect(await subject(worktree)).toBe("reviewed");
+});

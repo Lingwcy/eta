@@ -28,6 +28,8 @@ export interface PromptTextareaProps {
 }
 
 export interface ActionToolbarProps {
+  readonly approvalReviewerLabel?: string;
+  readonly onReviewerSettings?: () => void;
   readonly sandboxMode?: SandboxMode;
   readonly allowedSandboxModes?: readonly SandboxMode[];
   readonly sandboxDisabled?: boolean;

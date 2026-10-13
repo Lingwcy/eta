@@ -101,3 +101,102 @@ test("a failed cloud configuration preserves the created thread and admits no me
   expect(configureThread).toHaveBeenLastCalledWith("persisted", "cloud", "one", "off");
   expect(submit).toHaveBeenCalledExactlyOnceWith("persisted", "Cloud work");
 });
+
+const worktreeInput = {
+  projectId: "project",
+  baseWorkspaceId: "base",
+  branch: { kind: "new" as const, name: "eta/work" },
+};
+const worktreeReceipt = {
+  requestId: "create",
+  projectId: "project",
+  workspaceId: "worktree",
+  path: "/worktree",
+  cwd: "/worktree",
+  branch: "eta/work",
+  baseSha: "base",
+  createdBranch: true,
+  managed: true,
+  status: "ready" as const,
+  createdAt: 1,
+};
+
+test("a failed first send in a worktree keeps the actual execution workspace for retry", async () => {
+  const { createThread, submit } = setup();
+  const createWorktree = vi.fn(async () => worktreeReceipt);
+  submit.mockRejectedValueOnce(new Error("Provider unavailable"));
+  const draft = new DraftThread("thread-request", { createThread, submit, createWorktree });
+  await expect(draft.submit("base", "Hello", undefined, undefined, worktreeInput)).rejects.toThrow(
+    "Provider unavailable",
+  );
+  expect(draft.persistedWorkspaceId).toBe("worktree");
+  await draft.submit("base", "Hello", undefined, undefined, worktreeInput);
+  expect(createThread).toHaveBeenCalledExactlyOnceWith("worktree", "thread-request");
+  expect(createWorktree).toHaveBeenCalledTimes(1);
+  await expect(
+    draft.submit("other", "Hello", undefined, undefined, {
+      ...worktreeInput,
+      baseWorkspaceId: "other",
+    }),
+  ).rejects.toThrow("不能切换项目");
+});
+
+test("worktree creation retries use one receipt and empty messages never create a directory", async () => {
+  const { createThread, submit } = setup();
+  const createWorktree = vi.fn(
+    async (_input: import("@eta/core/service/git/worktrees").CreateWorktreeInput) =>
+      worktreeReceipt,
+  );
+  createWorktree.mockRejectedValueOnce(new Error("Connection lost"));
+  const draft = new DraftThread("thread-request", { createThread, submit, createWorktree });
+  await expect(draft.submit("base", " ", undefined, undefined, worktreeInput)).rejects.toThrow(
+    "请输入消息",
+  );
+  expect(createWorktree).not.toHaveBeenCalled();
+  await expect(draft.submit("base", "Hello", undefined, undefined, worktreeInput)).rejects.toThrow(
+    "Connection lost",
+  );
+  await draft.submit("base", "Hello", undefined, undefined, worktreeInput);
+  expect(createWorktree.mock.calls[0]).toEqual(createWorktree.mock.calls[1]);
+  expect(createThread).toHaveBeenCalledTimes(1);
+});
+
+test("changing the branch after thread creation fails creates the newly selected worktree", async () => {
+  const { createThread, submit } = setup();
+  const createWorktree = vi.fn(
+    async (_input: import("@eta/core/service/git/worktrees").CreateWorktreeInput) =>
+      worktreeReceipt,
+  );
+  createThread.mockRejectedValueOnce(new Error("Storage unavailable"));
+  const draft = new DraftThread("thread-request", { createThread, submit, createWorktree });
+  await expect(draft.submit("base", "Hello", undefined, undefined, worktreeInput)).rejects.toThrow(
+    "Storage unavailable",
+  );
+  await draft.submit("base", "Hello", undefined, undefined, {
+    ...worktreeInput,
+    branch: { kind: "new", name: "eta/other" },
+  });
+  const first = createWorktree.mock.calls[0]![0];
+  const second = createWorktree.mock.calls[1]![0];
+  expect(second.branch.name).toBe("eta/other");
+  expect(second.requestId).not.toBe(first.requestId);
+});
+
+test("duplicate sends during worktree creation share one creation and one message", async () => {
+  const { createThread, submit } = setup();
+  let finish!: (value: typeof worktreeReceipt) => void;
+  const createWorktree = vi.fn(
+    () =>
+      new Promise<typeof worktreeReceipt>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const draft = new DraftThread("thread-request", { createThread, submit, createWorktree });
+  const first = draft.submit("base", "Hello", undefined, undefined, worktreeInput);
+  expect(draft.submit("base", "Hello", undefined, undefined, worktreeInput)).toBe(first);
+  finish(worktreeReceipt);
+  await first;
+  expect(createWorktree).toHaveBeenCalledTimes(1);
+  expect(createThread).toHaveBeenCalledTimes(1);
+  expect(submit).toHaveBeenCalledTimes(1);
+});

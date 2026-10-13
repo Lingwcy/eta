@@ -122,6 +122,7 @@ export class RuntimeRegistryService extends Context.Service<
               record: (entry) => appendFile(paths.reviewLogPath, `${JSON.stringify(entry)}\n`),
               tools: {
                 root: ref.metadata.cwd,
+                readableRoots: () => gitReadable,
                 // A fresh read-only sandbox per review: no network, no grants, its own scratch.
                 open: async () =>
                   environment.executionEnvironment(ref.metadata.cwd, {
@@ -130,6 +131,7 @@ export class RuntimeRegistryService extends Context.Service<
                     deniedRoots: [paths.dataRoot],
                     networkAccess: false,
                     commandAccess: true,
+                    readableRoots: await gitReadable,
                   }),
               },
             },
@@ -383,6 +385,7 @@ export class RuntimeRegistryService extends Context.Service<
             settingsDelivery = settingsDelivery
               .then(async () => {
                 if (record.disposed) return;
+                await approvals.withdrawAutoRunGrants(conversation.id);
                 await refreshTools();
                 await conversation.commit(async (tx) => {
                   const doc = await tx.doc(SubagentsDoc);

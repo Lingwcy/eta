@@ -130,6 +130,12 @@ export function ApprovalNotice({
                 </div>
               </div>
               {note && <p className="mt-0.5 px-2 text-[11px] break-all text-neutral-500">{note}</p>}
+              {request.reusable && (
+                <p className="mt-0.5 px-2 text-[11px] text-neutral-500">
+                  本次运行内允许后，任何申请相同范围的命令都能写这些 Git 目录，包括共享对象库；不含
+                  config 与 hooks。
+                </p>
+              )}
               <details className="group mt-0.5 text-[11px]">
                 <summary
                   aria-label={`查看权限详情：${request.reason}`}
