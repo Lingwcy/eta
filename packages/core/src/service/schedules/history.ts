@@ -7,6 +7,20 @@ const terminalRuns = new Set(["succeeded", "failed", "cancelled", "skipped"]);
 
 /** Compact request receipts and slot cursors outlive the bounded, content-bearing histories. */
 export function trimScheduleHistory(state: ScheduleStoreState): ScheduleStoreState {
+  const messageOrigins = { ...state.messageOrigins };
+  for (const run of Object.values(state.occurrences)) {
+    if (run.inputEntryId && run.operationId)
+      messageOrigins[run.id] = {
+        occurrenceId: run.id,
+        scheduleId: run.scheduleId,
+        threadId: run.threadId,
+        inputEntryId: run.inputEntryId,
+        operationId: run.operationId,
+        requestId: run.requestId,
+        name: run.name,
+        scheduledAt: run.scheduledAt,
+      };
+  }
   const occurrences = { ...state.occurrences };
   const proposals = { ...state.proposals };
   const counts = new Map<string, number>();
@@ -44,5 +58,11 @@ export function trimScheduleHistory(state: ScheduleStoreState): ScheduleStoreSta
       return [id, receipt];
     }),
   );
-  return { ...state, occurrences, proposals, requests };
+  return {
+    ...state,
+    ...(Object.keys(messageOrigins).length ? { messageOrigins } : {}),
+    occurrences,
+    proposals,
+    requests,
+  };
 }

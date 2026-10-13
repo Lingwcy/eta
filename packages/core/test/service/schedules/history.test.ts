@@ -221,3 +221,46 @@ test("store applies the host-wide terminal cap atomically across many schedules 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("compact chat origins retain stable message attribution after full run details are pruned", () => {
+  const state = scheduleDraft(emptyScheduleStore());
+  const created = writeScheduleChange(
+    state,
+    { threadId: "thread", requestId: "create", change },
+    catalog,
+    0,
+  );
+  for (let i = 0; i < 101; i++) {
+    const id = `run-${i}`;
+    state.occurrences[id] = {
+      id,
+      scheduleId: created.scheduleId!,
+      threadId: "thread",
+      scheduleRevision: 1,
+      scheduledAt: i * 300000,
+      detectedAt: i * 300000,
+      source: "automatic",
+      name: "Saved plan name",
+      prompt: "Private execution content",
+      rule: change.rule,
+      requestId: `delivery-${i}`,
+      operationId: String(i + 1),
+      inputEntryId: `${i + 100}:0`,
+      state: "succeeded",
+      finishedAt: i * 300000 + 1,
+    };
+  }
+  const trimmed = trimScheduleHistory(state);
+  expect(trimmed.occurrences["run-0"]).toBeUndefined();
+  expect(trimmed.messageOrigins?.["run-0"]).toMatchObject({
+    inputEntryId: "100:0",
+    name: "Saved plan name",
+    scheduledAt: 0,
+    requestId: "delivery-0",
+  });
+  expect(JSON.stringify(trimmed.messageOrigins)).not.toContain("Private execution content");
+  decodeScheduleStore(trimmed);
+  expect(trimScheduleHistory(trimmed).messageOrigins?.["run-0"]).toEqual(
+    trimmed.messageOrigins?.["run-0"],
+  );
+});

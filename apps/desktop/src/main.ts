@@ -1,5 +1,6 @@
+import { createBackgroundResidence } from "./main/platform/background.ts";
 import { resolve } from "node:path";
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, shell, Tray, Menu, nativeImage } from "electron";
 import { processImage } from "@eta/core/node/images";
 import { resolveShellPath } from "./main/platform/shell-path.ts";
 import { createDesktopApplication } from "./main/bootstrap.ts";
@@ -26,6 +27,40 @@ function service() {
 const subscriptions = createAgentSubscriptions(service);
 const windows = createDesktopWindows(subscriptions.disposeWindow, () => quitting);
 const openWindow = windows.open;
+const background = createBackgroundResidence({
+  platform: process.platform,
+  open: () => {
+    if (ready && !quitting) openWindow();
+  },
+  quit: () => app.quit(),
+  windowCount: () => BrowserWindow.getAllWindows().length,
+  createTray: (open, quit) => {
+    const icon = nativeImage.createFromPath(applicationIconPath());
+    if (icon.isEmpty()) throw new Error("无法加载后台托盘图标");
+    const tray = new Tray(icon.resize({ width: 16, height: 16 }));
+    tray.setToolTip("Eta · 后台运行");
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: "打开 Eta", click: open },
+        { type: "separator" },
+        { label: "退出 Eta", click: quit },
+      ]),
+    );
+    tray.on("double-click", open);
+    return tray;
+  },
+});
+let backgroundRevision = 0;
+function refreshBackground() {
+  const revision = ++backgroundRevision;
+  void agentService
+    ?.library()
+    .then(({ settings }) => {
+      if (!quitting && revision === backgroundRevision)
+        background.configure(settings.backgroundOnClose === true);
+    })
+    .catch((error: unknown) => console.error("Eta background setting failed", error));
+}
 
 function notifyUpdate(state: UpdateState) {
   for (const window of BrowserWindow.getAllWindows())
@@ -33,6 +68,7 @@ function notifyUpdate(state: UpdateState) {
 }
 
 function notifyLibrary() {
+  refreshBackground();
   for (const window of BrowserWindow.getAllWindows())
     window.webContents.send("eta:library-changed");
 }
@@ -49,12 +85,13 @@ if (!app.requestSingleInstanceLock()) {
     if (ready) openWindow();
   });
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") app.quit();
+    if (!background.keepRunning()) app.quit();
   });
   app.on("before-quit", (event) => {
     if (quitting) return;
     event.preventDefault();
     quitting = true;
+    background.dispose();
     updater?.dispose();
     windows.dispose();
     subscriptions.dispose();
@@ -103,6 +140,11 @@ if (!app.requestSingleInstanceLock()) {
 
       // 5. 监听项目与会话库变动，当会话/项目发生增删改时广播通知所有窗口刷新
       agentService.subscribeLibrary(notifyLibrary);
+      agentService.subscribeSchedules(() => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.send("eta:schedules-changed");
+        }
+      });
 
       // 6. 自动更新：只有打包后的应用带有 app-update.yml，开发模式下标记为不支持
       updater = createUpdater({
@@ -113,6 +155,7 @@ if (!app.requestSingleInstanceLock()) {
       });
 
       // 7. 标记就绪状态；若启动过程中未收到退出信号，则打开初始窗口
+      background.configure((await agentService.library()).settings.backgroundOnClose === true);
       ready = true;
       if (!quitting) openWindow();
 

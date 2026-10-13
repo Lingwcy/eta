@@ -38,6 +38,12 @@ export const ScheduleProposeInputSchema = Schema.Struct({
   threadId: Schema.NonEmptyString,
   requestId: Schema.NonEmptyString,
   sourceIdentity: Schema.NonEmptyString,
+  replaces: Schema.optionalKey(
+    Schema.Struct({
+      proposalId: Schema.NonEmptyString,
+      contentFingerprint: Schema.NonEmptyString,
+    }),
+  ),
   change: ScheduleChangeSchema,
 });
 export type ScheduleProposeInput = typeof ScheduleProposeInputSchema.Type;
@@ -259,9 +265,22 @@ export function proposeScheduleChange(
   try {
     const workspaceId = threadWorkspace(catalog, input.threadId);
     checkChange(state, input.threadId, input.change, now);
+    const replaced = input.replaces ? state.proposals[input.replaces.proposalId] : undefined;
+    if (
+      input.replaces &&
+      (!replaced ||
+        replaced.threadId !== input.threadId ||
+        replaced.workspaceId !== workspaceId ||
+        replaced.state !== "pending" ||
+        replaced.decisionRequestId ||
+        replaced.expiresAt <= now ||
+        replaced.contentFingerprint !== input.replaces.contentFingerprint)
+    )
+      invalid("原提案已变更、失效或正在处理，请重新加载");
     if (
       Object.values(state.proposals).filter(
-        (proposal) => proposal.state === "pending" && proposal.expiresAt > now,
+        (proposal) =>
+          proposal.id !== replaced?.id && proposal.state === "pending" && proposal.expiresAt > now,
       ).length >= MAX_HOST_SCHEDULES
     )
       invalid("待确认提案数量已达上限");
@@ -282,6 +301,12 @@ export function proposeScheduleChange(
       expiresAt: now + DEFAULT_PROPOSAL_TTL_MS,
       state: "pending",
     };
+    if (replaced)
+      state.proposals[replaced.id] = {
+        ...replaced,
+        state: "invalidated",
+        reason: "已被新提案替代，请确认新内容",
+      };
     request = { ...request, proposalId };
   } catch (error) {
     if (!(error instanceof CoreError)) throw error;

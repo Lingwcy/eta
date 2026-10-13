@@ -67,3 +67,15 @@ Use **Settings → Subagents (设置 → 子智能体)** to create presets with 
 In orchestrator mode, the main conversation remains available between coordinating turns while children keep working. Completion events bring it back to summarize results.
 
 A wait timeout does not stop a child. Stopping cancels work without producing a final answer, but preserves reported progress and history. Stopping the main task stops its entire child tree. To continue unfinished work, explicitly resume it or send a new task after stopping it.
+
+## Scheduled tasks
+
+Open **Scheduled tasks** in the sidebar and create a task with a workspace, prompt and time rule, or choose **Add scheduled task** from an existing chat’s context menu. Plans stay in that chat. Manage them in the inspector: edit, pause, resume, run once, delete and view recent results. Rules support one-time, intervals of at least five minutes, daily and weekly schedules with an explicit time zone.
+
+Agents propose changes for your confirmation. Review the content, rule and workspace before approving; rejecting creates no plan. Editing a proposal creates a replacement and invalidates the original. Proposals expire after 24 hours. Tasks use the chat’s current model, workspace and approvals and may change files and consume model usage.
+
+Busy chats finish their current work first. Missed recurring slots coalesce into the latest one within a 24-hour window; failed runs do not retry automatically. Archiving pauses plans, and restoring a chat does not resume them. Closing a chat tab keeps schedules active. Pausing or deleting a plan stops future triggers; stop already-started work in the chat. Pending management requests retain the effective state until their result is confirmed.
+
+Local tasks require Eta to be running and the computer awake. macOS keeps running after windows close. Windows exits by default; enable **Keep running after closing windows** in **Settings → App → About → Background** to keep a visible tray with Open and Quit actions. Explicitly quitting stops local scheduling.
+
+Bot schedules stay on the server and continue while Desktop is disconnected or closed. Offline views show stale cached data and disable changes. Older Bots report this feature as unsupported; tasks never move to this computer. Missing workspaces and recovery requirements block execution until resolved.

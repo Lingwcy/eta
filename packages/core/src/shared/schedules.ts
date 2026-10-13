@@ -107,6 +107,7 @@ export const ScheduleOccurrenceSchema = Schema.Struct({
   detectedAt: Timestamp,
   admittedAt: Schema.optionalKey(Timestamp),
   operationId: Schema.optionalKey(Id),
+  inputEntryId: Schema.optionalKey(Id),
   finishedAt: Schema.optionalKey(Timestamp),
   state: Schema.Literals([
     "pending",
@@ -165,8 +166,22 @@ export const ScheduleLifecycleIntentSchema = Schema.Struct({
 });
 export type ScheduleLifecycleIntent = typeof ScheduleLifecycleIntentSchema.Type;
 
+/** Compact chat provenance survives pruning of full run history; it contains no execution prompt. */
+export const ScheduleMessageOriginSchema = Schema.Struct({
+  occurrenceId: Id,
+  scheduleId: Id,
+  threadId: Id,
+  inputEntryId: Id,
+  operationId: Id,
+  requestId: Id,
+  name: ScheduleNameSchema,
+  scheduledAt: Timestamp,
+});
+export type ScheduleMessageOrigin = typeof ScheduleMessageOriginSchema.Type;
+
 export const ScheduleStoreSchema = Schema.Struct({
   version: Schema.Literal(1),
+  messageOrigins: Schema.optionalKey(Schema.Record(Id, ScheduleMessageOriginSchema)),
   revision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   schedules: Schema.Record(Id, ScheduleSchema),
   occurrences: Schema.Record(Id, ScheduleOccurrenceSchema),
@@ -177,6 +192,8 @@ export const ScheduleStoreSchema = Schema.Struct({
 export type ScheduleStoreState = typeof ScheduleStoreSchema.Type;
 
 export const ScheduleSnapshotSchema = Schema.Struct({
+  messageOrigins: Schema.optionalKey(Schema.Array(ScheduleMessageOriginSchema)),
+  occurrences: Schema.optionalKey(Schema.Array(ScheduleOccurrenceSchema)),
   revision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   schedules: Schema.Array(ScheduleSchema),
   proposals: Schema.Array(ScheduleProposalSchema),

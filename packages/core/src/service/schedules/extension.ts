@@ -52,6 +52,9 @@ const Parameters = Type.Object(
         Type.Literal(action),
       ),
     ),
+    replaces: Type.Optional(
+      Type.Object({ proposalId: Text, contentFingerprint: Text }, ObjectOptions),
+    ),
     name: Type.Optional(Text),
     prompt: Type.Optional(Text),
     rule: Type.Optional(Rule),
@@ -78,7 +81,7 @@ export function createScheduleExtension(options: {
   const tool = defineTool({
     name: SCHEDULE_TOOL_NAME,
     description:
-      "Manage time plans for the current root conversation. create requires name/prompt/rule; update requires scheduleId/expectedRevision/patch; pause/resume/delete require scheduleId/expectedRevision. list returns host time, schedules and pending proposals. Every write creates a proposal for trusted human confirmation, including explicit user instructions. Report successful writes as waiting for confirmation; next time is a preview until approval. Use UTC epoch milliseconds for once and interval anchors, at least 5 minutes for intervals, and HH:mm with an explicit IANA zone for daily/weekly rules. Resolve relative dates using the host time from list; ask for a specific time or zone when unclear. Approval and immediate execution belong to the client.",
+      "Manage time plans for the current root conversation. create requires name/prompt/rule; update requires scheduleId/expectedRevision/patch; pause/resume/delete require scheduleId/expectedRevision. list returns host time, schedules and pending proposals. Every write creates a proposal for trusted human confirmation, including explicit user instructions. Report successful writes as waiting for confirmation; next time is a preview until approval. Use UTC epoch milliseconds for once and interval anchors, at least 5 minutes for intervals, and HH:mm with an explicit IANA zone for daily/weekly rules. Resolve relative dates using the host time from list; ask for a specific time or zone when unclear. To revise pending content, supply replaces with its proposalId and contentFingerprint; this creates a new proposal and invalidates the old one. Approval and immediate execution belong to the client.",
     parameters: Parameters,
     replay: "safe",
     executionMode: "sequential",
@@ -121,8 +124,9 @@ export function createScheduleExtension(options: {
           details: { threadId: thread.id, workspaceId: thread.workspaceId, clock },
         };
       }
+      const { replaces, ...changeArgs } = args;
       const change = Schema.decodeUnknownSync(ScheduleChangeSchema, { onExcessProperty: "error" })(
-        args,
+        changeArgs,
       );
       const identity = {
         sessionId: options.ref.metadata.id,
@@ -137,6 +141,7 @@ export function createScheduleExtension(options: {
           change,
           requestId,
           sourceIdentity: JSON.stringify(identity),
+          ...(replaces ? { replaces } : {}),
         }),
       );
       if (result.state === "rejected")

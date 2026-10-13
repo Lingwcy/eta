@@ -60,14 +60,37 @@ try {
   const thread = await response.json();
   assert.equal(thread.snapshot.sandbox.mode, "workspace-write");
   assert.equal(thread.snapshot.sandbox.available, true, thread.snapshot.sandbox.reason);
+  const schedule = await application.core.createSchedule({
+    threadId: thread.id,
+    requestId: "packaged-schedule",
+    name: "Packaged plan",
+    prompt: "Review repository",
+    rule: { type: "once", at: Date.now() + 3600000 },
+  });
+  assert.equal(schedule.state, "applied");
+  const status = await application.app.request("/v1/status", {
+    headers: { authorization: "Bearer offline-admin-token" },
+  });
+  assert.ok((await status.json()).capabilities.includes("schedules"));
   await application.close();
   application = await createBotApplication(config);
   assert.equal((await (await create(application)).json()).id, thread.id);
+  assert.equal((await application.core.listSchedules())[0].id, schedule.scheduleId);
+  assert.equal(
+    (
+      await application.core.pauseSchedule({
+        scheduleId: schedule.scheduleId,
+        expectedRevision: 1,
+        requestId: "packaged-pause",
+      })
+    ).state,
+    "applied",
+  );
   await application.close();
   await verifyCli(isolated, temporary, config, fetch);
   await verifyDiscord(DiscordSdk);
   console.log(
-    "Bot distribution verified: isolated startup, HTTP, images, restart, CLI shutdown and real Discord SDK against a local Gateway/REST fixture.",
+    "Bot distribution verified: isolated startup, HTTP, images, schedule persistence, restart, CLI shutdown and real Discord SDK against a local Gateway/REST fixture.",
   );
 } finally {
   await application?.close();

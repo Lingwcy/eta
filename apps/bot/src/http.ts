@@ -49,6 +49,7 @@ export const BOT_CAPABILITIES = [
   "git",
   "worktree",
   "github",
+  "schedules",
 ] as const;
 
 function decode<A>(schema: Schema.ConstraintDecoder<A>, input: unknown): A {

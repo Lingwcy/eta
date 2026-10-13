@@ -1,3 +1,11 @@
+import type { DesktopScheduleSnapshot } from "./shared/schedules.ts";
+import type { ScheduleRequest, ScheduleOccurrence } from "@eta/core/shared/schedules";
+import type {
+  ScheduleWriteInput,
+  ScheduleProposeInput,
+  ScheduleDecisionInput,
+  ScheduleRunInput,
+} from "@eta/core/service/schedules/management";
 import type { ReviewStats } from "@eta/core/service/runtime/review-log";
 import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/shared/git";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
@@ -71,10 +79,19 @@ export type UpdateState =
   | { status: "error"; message: string; releaseUrl: string };
 
 export interface AppInfo {
+  platform?: string;
   version: string;
 }
 
 export interface DesktopBridge extends AgentBridge {
+  scheduleSnapshot(): Promise<DesktopScheduleSnapshot>;
+  writeSchedule(input: ScheduleWriteInput): Promise<ScheduleRequest>;
+  proposeSchedule(input: ScheduleProposeInput): Promise<ScheduleRequest>;
+  decideSchedule(input: ScheduleDecisionInput, approved: boolean): Promise<ScheduleRequest>;
+  runSchedule(input: ScheduleRunInput): Promise<ScheduleRequest>;
+  scheduleRuns(scheduleId: string): Promise<readonly ScheduleOccurrence[]>;
+  scheduleRequest(threadId: string, requestId: string): Promise<ScheduleRequest | undefined>;
+  subscribeSchedules(listener: () => void): () => void;
   githubIdentity(projectId: string): Promise<GitHubIdentity>;
   githubQuery(input: GitHubQuery): Promise<GitHubPage>;
   decideApproval(

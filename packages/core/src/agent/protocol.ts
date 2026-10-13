@@ -29,6 +29,8 @@ export interface OperationAdmission {
   operationId: string;
   kind: "run";
   startedAt: number;
+  /** Stable user-message identity in the observed transcript, derived from the durable receipt. */
+  inputEntryId?: string;
 }
 
 export interface OperationResult extends OperationAdmission {

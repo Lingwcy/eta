@@ -87,6 +87,8 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
         inspectorOpen={shell.inspectorOpen}
         sidebar={
           <DesktopSidebar
+            schedules={shell.schedules}
+            onScheduleSaved={(id) => void shell.scheduleSaved(id)}
             library={desktop.library}
             runningThreadIds={runningThreadIds}
             workspaceId={conversation?.workspaceId ?? null}
@@ -115,6 +117,7 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
               <ConversationPanel
                 tab={tab}
                 desktop={desktop}
+                schedules={shell.schedules}
                 navigation={navigation}
                 active={active.id === tab.id}
                 selectedSubagent={tab.threadId ? shell.selectedSubagents[tab.threadId] : undefined}

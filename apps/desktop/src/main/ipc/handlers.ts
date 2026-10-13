@@ -43,7 +43,7 @@ export function registerDesktopIpc({
   // 关于页：版本信息与更新生命周期
   ipcMain.handle("eta:update", (_event, action: unknown) =>
     commandReply(async () => {
-      if (action === "app-info") return { version: app.getVersion() };
+      if (action === "app-info") return { version: app.getVersion(), platform: process.platform };
       if (action === "release-page") return shell.openExternal(releaseUrl);
       const currentUpdater = updater();
       if (!currentUpdater) throw new Error("更新服务尚未就绪");

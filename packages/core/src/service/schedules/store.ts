@@ -51,6 +51,13 @@ export function decodeScheduleStore(input: unknown): ScheduleStoreState {
       if (["admitted", "succeeded", "failed"].includes(occurrence.state) && !occurrence.operationId)
         throw new Error("Missing admission receipt");
     }
+    for (const [id, origin] of Object.entries(state.messageOrigins ?? {})) {
+      if (
+        id !== origin.occurrenceId ||
+        state.schedules[origin.scheduleId]?.threadId !== origin.threadId
+      )
+        throw new Error("Invalid chat origin relation");
+    }
     for (const [id, proposal] of Object.entries(state.proposals)) {
       if (id !== proposal.id || proposal.expiresAt <= proposal.createdAt)
         throw new Error("Invalid proposal identity or expiry");
@@ -115,8 +122,15 @@ export class ScheduleStoreService extends Context.Service<
     Effect.gen(function* () {
       const { scheduleStorePath } = yield* AppPathsService;
       let queue = Promise.resolve();
+      let closing = false;
       const listeners = new Set<(origin?: "dispatcher") => void>();
-      yield* Effect.addFinalizer(() => Effect.sync(() => listeners.clear()));
+      yield* Effect.addFinalizer(() =>
+        Effect.promise(async () => {
+          closing = true;
+          listeners.clear();
+          await queue;
+        }),
+      );
       const load = async () => {
         const raw = await readJson(scheduleStorePath);
         return raw === undefined ? emptyScheduleStore() : decodeScheduleStore(raw);
@@ -140,6 +154,8 @@ export class ScheduleStoreService extends Context.Service<
         update: (change, origin) =>
           Effect.tryPromise({
             try: () => {
+              if (closing)
+                throw new CoreError({ code: "RuntimeClosing", message: "定时任务存储正在关闭" });
               const next = queue.then(async () => {
                 const previous = await load();
                 const changed = change(previous);

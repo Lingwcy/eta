@@ -2,7 +2,12 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DateTime } from "effect";
-import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
+import {
+  createModels,
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+} from "@earendil-works/pi-ai";
 import { afterEach, expect, test } from "vite-plus/test";
 import { createBotApplication, type BotApplication } from "./application.ts";
 
@@ -57,6 +62,7 @@ async function fixture(maximum = 1) {
   return {
     bot,
     root,
+    fast,
     open,
     thread,
     releaseModel: () => {
@@ -172,3 +178,55 @@ test("Core scheduling boundaries reject workspaces outside Bot scope before pers
   expect(await bot.core.listScheduleProposals({ threadId: thread.id })).toEqual([]);
   expect(await bot.core.listSchedules({ threadId: thread.id })).toEqual([]);
 });
+
+test("Bot root tool waits for authenticated HTTP confirmation before automatic Controller delivery", async () => {
+  const { bot, thread, fast, releaseModel } = await fixture();
+  releaseModel();
+  const id = await thread("Tool schedule");
+  fast.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall(
+        "schedule",
+        {
+          action: "create",
+          name: "Review",
+          prompt: "Scheduled review",
+          rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 1500 },
+        },
+        { id: "plan" },
+      ),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Waiting for confirmation"),
+  ]);
+  await bot.controller.submit(id, "Plan a review", "ordinary");
+  await expect
+    .poll(async () => (await bot.core.listScheduleProposals({ threadId: id })).length, {
+      timeout: 5000,
+    })
+    .toBe(1);
+  await expect.poll(() => bot.controller.status().activeThreads.length).toBe(0);
+  expect(await bot.core.listSchedules({ threadId: id })).toEqual([]);
+  const proposal = (await bot.core.listScheduleProposals({ threadId: id }))[0];
+  fast.setResponses([fauxAssistantMessage("Scheduled review finished")]);
+  const response = await bot.app.request(`/v1/schedule-proposals/${proposal.id}/approve`, {
+    method: "POST",
+    headers: { authorization: "Bearer schedule-test-token", "content-type": "application/json" },
+    body: JSON.stringify({
+      requestId: "approve-from-http",
+      contentFingerprint: proposal.contentFingerprint,
+    }),
+  });
+  expect(response.status).toBe(200);
+  const schedule = (await bot.core.listSchedules({ threadId: id }))[0];
+  await expect
+    .poll(async () => (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0]?.state, {
+      timeout: 8000,
+    })
+    .toBe("succeeded");
+  const messages = (await bot.core.openThread(id)).snapshot.transcript.filter(
+    (entry) => entry.message.role === "user",
+  );
+  expect(messages).toHaveLength(2);
+  expect(JSON.stringify(messages[1])).toContain("Scheduled review");
+}, 15000);

@@ -1,3 +1,5 @@
+import type { SchedulesController } from "@/agent/use-schedules";
+import { ScheduleSidebar } from "./schedules/schedule-sidebar";
 import { isCloudId } from "../../../src/shared/bot.ts";
 import { projectRootWorkspace } from "@/desktop/selectors";
 import { threadProjectId } from "@eta/core/shared/thread-project";
@@ -13,6 +15,8 @@ import { ThreadSearchDialog } from "./sidebar/thread-search-dialog";
 import { cn } from "@/lib/utils";
 
 interface Props {
+  schedules: SchedulesController;
+  onScheduleSaved(this: void, id: string): void;
   library: DesktopLibrary | null;
   runningThreadIds: ReadonlySet<string>;
   workspaceId: string | null;
@@ -28,6 +32,7 @@ interface Props {
 }
 
 export function DesktopSidebar(props: Props) {
+  const [scheduleView, setScheduleView] = useState(false);
   const [archived, setArchived] = useState(false);
   const sidebarWorkspace = (thread: DesktopLibrary["threads"][number]) => {
     if (thread.projectId === undefined) return thread.workspaceId;
@@ -65,13 +70,20 @@ export function DesktopSidebar(props: Props) {
   return (
     <>
       <NavigationRail
+        schedulesActive={scheduleView}
+        onSchedules={() => {
+          setScheduleView(true);
+          props.onExpand();
+        }}
         archived={archived}
         busy={props.busy}
         onHome={() => {
+          setScheduleView(false);
           setArchived(false);
           props.onExpand();
         }}
         onArchive={() => {
+          setScheduleView(false);
           setArchived((value) => !value);
           props.onExpand();
         }}
@@ -86,71 +98,84 @@ export function DesktopSidebar(props: Props) {
           props.collapsed ? "w-0" : "w-[var(--sidebar-width)]",
         )}
       >
-        <ProjectSidebar
-          archived={archived}
-          canCreate={!props.busy && !!props.library}
-          search={
-            <ThreadSearchDialog
-              library={props.library}
-              archived={archived}
-              busy={props.busy}
-              canCreate={!props.busy && !!props.library}
-              runningThreadIds={props.runningThreadIds}
-              onSelect={props.onSelect}
-              onNew={props.onNew}
-              onChoose={props.onChoose}
-              onSkills={props.onSkills}
-            />
-          }
-          onNew={props.onNew}
-        >
-          {[false, true].map((cloud) => (
-            <div key={String(cloud)}>
-              {groups.some((group) => isCloudId(group.workspace.id) === cloud) && (
-                <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">
-                  {cloud
-                    ? `云端项目${props.library?.bot?.status === "error" ? " · 离线" : ""}`
-                    : "本地项目"}
-                </p>
-              )}
-              {groups
-                .filter((group) => isCloudId(group.workspace.id) === cloud)
-                .map((group) => (
-                  <ProjectGroup
-                    key={group.workspace.id}
-                    {...group}
-                    selected={props.workspaceId === group.workspace.id}
-                    threadId={props.threadId}
-                    runningThreadIds={props.runningThreadIds}
-                    busy={props.busy}
-                    archived={archived}
-                    onSelect={props.onSelect}
-                  />
+        {scheduleView ? (
+          <ScheduleSidebar
+            library={props.library}
+            controller={props.schedules}
+            onSelect={props.onSelect}
+            onSaved={props.onScheduleSaved}
+          />
+        ) : (
+          <ProjectSidebar
+            archived={archived}
+            canCreate={!props.busy && !!props.library}
+            search={
+              <ThreadSearchDialog
+                library={props.library}
+                archived={archived}
+                busy={props.busy}
+                canCreate={!props.busy && !!props.library}
+                runningThreadIds={props.runningThreadIds}
+                onSelect={props.onSelect}
+                onNew={props.onNew}
+                onChoose={props.onChoose}
+                onSkills={props.onSkills}
+                onSchedules={() => {
+                  setScheduleView(true);
+                  props.onExpand();
+                }}
+              />
+            }
+            onNew={props.onNew}
+          >
+            {[false, true].map((cloud) => (
+              <div key={String(cloud)}>
+                {groups.some((group) => isCloudId(group.workspace.id) === cloud) && (
+                  <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">
+                    {cloud
+                      ? `云端项目${props.library?.bot?.status === "error" ? " · 离线" : ""}`
+                      : "本地项目"}
+                  </p>
+                )}
+                {groups
+                  .filter((group) => isCloudId(group.workspace.id) === cloud)
+                  .map((group) => (
+                    <ProjectGroup
+                      key={group.workspace.id}
+                      {...group}
+                      selected={props.workspaceId === group.workspace.id}
+                      threadId={props.threadId}
+                      runningThreadIds={props.runningThreadIds}
+                      busy={props.busy}
+                      archived={archived}
+                      onSelect={props.onSelect}
+                    />
+                  ))}
+              </div>
+            ))}
+            {ungrouped.length > 0 && (
+              <>
+                <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">未分组</p>
+                {ungrouped.map((thread) => (
+                  <ThreadContextMenu key={thread.id} id={thread.id}>
+                    <Button
+                      variant="ghost"
+                      size="row-compact"
+                      selected={props.threadId === thread.id}
+                      disabled={props.busy}
+                      onClick={() => props.onSelect(thread.id)}
+                    >
+                      <SlidingLabel text={thread.title || "新聊天"} />
+                    </Button>
+                  </ThreadContextMenu>
                 ))}
-            </div>
-          ))}
-          {ungrouped.length > 0 && (
-            <>
-              <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">未分组</p>
-              {ungrouped.map((thread) => (
-                <ThreadContextMenu key={thread.id} id={thread.id}>
-                  <Button
-                    variant="ghost"
-                    size="row-compact"
-                    selected={props.threadId === thread.id}
-                    disabled={props.busy}
-                    onClick={() => props.onSelect(thread.id)}
-                  >
-                    <SlidingLabel text={thread.title || "新聊天"} />
-                  </Button>
-                </ThreadContextMenu>
-              ))}
-            </>
-          )}
-          {!groups.length && (
-            <p className="px-3 py-2 text-xs text-neutral-400">打开项目，开始协作</p>
-          )}
-        </ProjectSidebar>
+              </>
+            )}
+            {!groups.length && (
+              <p className="px-3 py-2 text-xs text-neutral-400">打开项目，开始协作</p>
+            )}
+          </ProjectSidebar>
+        )}
       </div>
     </>
   );

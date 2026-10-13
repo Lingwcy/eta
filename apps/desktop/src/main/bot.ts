@@ -1,3 +1,22 @@
+import {
+  ScheduleSnapshotSchema,
+  ScheduleRequestSchema,
+  ScheduleOccurrenceSchema,
+} from "@eta/core/shared/schedules";
+import type { ScheduleSnapshot, ScheduleRequest } from "@eta/core/shared/schedules";
+import type {
+  ScheduleWriteInput,
+  ScheduleProposeInput,
+  ScheduleDecisionInput,
+  ScheduleRunInput,
+} from "@eta/core/service/schedules/management";
+import type { DesktopScheduleSnapshot } from "../shared/schedules.ts";
+import {
+  mapScheduleSnapshot,
+  mapScheduleRequest,
+  mapScheduleChange,
+  mapScheduleRun,
+} from "./schedule-identities.ts";
 import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
@@ -25,6 +44,12 @@ export class DesktopBot {
   private timer?: ReturnType<typeof setInterval>;
   private refreshing?: Promise<void>;
   private generation = 0;
+  private scheduleCache?: ScheduleSnapshot;
+  private scheduleCacheUrl?: string;
+  private scheduleError?: string;
+  private readonly scheduleListeners = new Set<() => void>();
+  private scheduleTimer?: ReturnType<typeof setInterval>;
+  private scheduleRefresh?: Promise<void>;
 
   constructor(private readonly dataRoot: string) {}
 
@@ -71,6 +96,7 @@ export class DesktopBot {
   }
 
   private publish() {
+    for (const listener of this.scheduleListeners) listener();
     for (const listener of this.listeners) listener();
   }
   private cancelStreams() {
@@ -109,6 +135,9 @@ export class DesktopBot {
     this.state = { status: "disconnected" };
     await rm(join(this.dataRoot, "bot-connection.json"), { force: true });
     await rm(join(this.dataRoot, "bot-library.json"), { force: true });
+    this.scheduleCache = undefined;
+    this.scheduleCacheUrl = undefined;
+    await rm(join(this.dataRoot, "bot-schedules.json"), { force: true });
     this.publish();
     return this.state;
   }
@@ -221,14 +250,51 @@ export class DesktopBot {
       threads: library.threads.map((thread) => this.thread(thread)),
     };
   }
+  private snapshot(value: SnapshotResponse): SnapshotResponse {
+    if (!value.snapshot) return value;
+    return {
+      ...value,
+      snapshot: {
+        ...value.snapshot,
+        transcript: value.snapshot.transcript.map((entry) => ({
+          ...entry,
+          id: this.prefix + entry.id,
+        })),
+        operation: value.snapshot.operation
+          ? {
+              ...value.snapshot.operation,
+              id: this.prefix + value.snapshot.operation.id,
+              ...(value.snapshot.operation.inputEntryId
+                ? { inputEntryId: this.prefix + value.snapshot.operation.inputEntryId }
+                : {}),
+            }
+          : null,
+        lastResult: value.snapshot.lastResult
+          ? {
+              ...value.snapshot.lastResult,
+              operationId: this.prefix + value.snapshot.lastResult.operationId,
+              ...(value.snapshot.lastResult.inputEntryId
+                ? { inputEntryId: this.prefix + value.snapshot.lastResult.inputEntryId }
+                : {}),
+            }
+          : null,
+      },
+    };
+  }
   private session(value: SessionResponse): SessionResponse {
-    return { ...value, id: this.prefix + value.id };
+    return { ...value, ...this.snapshot(value), id: this.prefix + value.id };
   }
 
-  private async response(path: string, body?: object, signal?: AbortSignal) {
+  private async response(
+    path: string,
+    body?: object,
+    signal?: AbortSignal,
+    method?: string,
+    acceptedStatuses: readonly number[] = [],
+  ) {
     if (!this.connection) throw new Error("请先连接 Bot");
     const response = await fetch(this.connection.url + path, {
-      method: body === undefined ? "GET" : "POST",
+      method: method ?? (body === undefined ? "GET" : "POST"),
       headers: {
         authorization: `Bearer ${this.connection.token}`,
         "content-type": "application/json",
@@ -237,7 +303,7 @@ export class DesktopBot {
       signal: signal ?? AbortSignal.timeout(10000),
       redirect: "error",
     });
-    if (!response.ok) {
+    if (!response.ok && !acceptedStatuses.includes(response.status)) {
       const error = (await response.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
@@ -466,7 +532,8 @@ export class DesktopBot {
                   .filter((line) => line.startsWith("data:"))
                   .map((line) => line.slice(5).trimStart())
                   .join("\n");
-                if (event === "snapshot") await onSnapshot(JSON.parse(data) as SnapshotResponse);
+                if (event === "snapshot")
+                  await onSnapshot(this.snapshot(JSON.parse(data) as SnapshotResponse));
                 if (event === "error")
                   throw new Error((JSON.parse(data) as { message: string }).message);
               }
@@ -493,11 +560,187 @@ export class DesktopBot {
     void watch().finally(() => this.streams.delete(controller));
     return () => controller.abort();
   }
+
+  private async refreshSchedules() {
+    if (
+      !this.connection ||
+      this.state.status !== "connected" ||
+      !this.capabilities.includes("schedules")
+    )
+      return;
+    if (this.scheduleRefresh) return this.scheduleRefresh;
+    const generation = this.generation;
+    const url = this.connection.url;
+    this.scheduleRefresh = (async () => {
+      const raw = await this.request<unknown>("/v1/schedules");
+      if (generation !== this.generation) return;
+      const next = Schema.decodeUnknownSync(ScheduleSnapshotSchema)(raw);
+      const changed =
+        this.scheduleCacheUrl !== url || this.scheduleCache?.revision !== next.revision;
+      const recovered = !!this.scheduleError;
+      this.scheduleError = undefined;
+      this.scheduleCache = next;
+      this.scheduleCacheUrl = url;
+      if (changed || recovered) {
+        await writeFile(
+          join(this.dataRoot, "bot-schedules.json"),
+          JSON.stringify({ url, data: next }),
+          { mode: 0o600 },
+        );
+        for (const listener of this.scheduleListeners) listener();
+      }
+    })()
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "无法读取 Bot 定时任务";
+        if (generation === this.generation && this.scheduleError !== message) {
+          this.scheduleError = message;
+          for (const listener of this.scheduleListeners) listener();
+        }
+        throw error;
+      })
+      .finally(() => {
+        this.scheduleRefresh = undefined;
+      });
+    return this.scheduleRefresh;
+  }
+  async scheduleSnapshot(): Promise<DesktopScheduleSnapshot["snapshots"][number] | undefined> {
+    if (!this.connection) return;
+    if (!this.scheduleCache) {
+      const cached = await readFile(join(this.dataRoot, "bot-schedules.json"), "utf8")
+        .then((raw) =>
+          Schema.decodeUnknownSync(
+            Schema.Struct({ url: Schema.String, data: ScheduleSnapshotSchema }),
+          )(JSON.parse(raw)),
+        )
+        .catch(() => undefined);
+      if (cached?.url === this.connection.url) {
+        this.scheduleCache = cached.data;
+        this.scheduleCacheUrl = cached.url;
+      }
+    }
+    await this.refreshSchedules().catch(() => undefined);
+    const supported = this.capabilities.includes("schedules");
+    const online = this.state.status === "connected" && !this.scheduleError;
+    return {
+      environment: {
+        id: this.prefix,
+        label: "Bot",
+        status:
+          !supported && this.state.status === "connected"
+            ? "unsupported"
+            : online
+              ? "connected"
+              : "offline",
+        ...(!supported && this.state.status === "connected"
+          ? { message: "当前 Bot 版本不支持定时任务" }
+          : !online
+            ? { message: "缓存可能过期；Bot 可能仍在执行" }
+            : {}),
+      },
+      data: mapScheduleSnapshot(
+        this.scheduleCacheUrl === this.connection.url && this.scheduleCache
+          ? this.scheduleCache
+          : { revision: 0, schedules: [], proposals: [], requests: [], lifecycleIntents: [] },
+        (id) => this.prefix + id,
+      ),
+    };
+  }
+  subscribeSchedules(listener: () => void) {
+    this.scheduleListeners.add(listener);
+    if (!this.scheduleTimer) {
+      this.scheduleTimer = setInterval(() => {
+        void this.refreshSchedules().catch(() => undefined);
+      }, 15000);
+      this.scheduleTimer.unref();
+    }
+    return () => {
+      this.scheduleListeners.delete(listener);
+      if (!this.scheduleListeners.size) {
+        clearInterval(this.scheduleTimer);
+        this.scheduleTimer = undefined;
+      }
+    };
+  }
+  private async scheduleMutation(
+    path: string,
+    body: object,
+    method = "POST",
+  ): Promise<ScheduleRequest> {
+    this.requireCapability("schedules");
+    if (this.state.status !== "connected" || this.scheduleError)
+      throw new Error("Bot 离线，无法更改定时任务；原计划可能仍在执行");
+    const response = await this.response(path, body, undefined, method, [409]);
+    const result = Schema.decodeUnknownSync(ScheduleRequestSchema)(await response.json());
+    await this.refreshSchedules().catch(() => undefined);
+    return mapScheduleRequest(result, (id) => this.prefix + id);
+  }
+  writeSchedule(input: ScheduleWriteInput) {
+    const change = mapScheduleChange(input.change, (id) => this.raw(id));
+    const path =
+      change.action === "create"
+        ? `${this.route(input.threadId)}/schedules`
+        : `/v1/schedules/${encodeURIComponent(change.scheduleId)}`;
+    if (change.action === "create") {
+      const { action: _action, ...fields } = change;
+      return this.scheduleMutation(path, { ...fields, requestId: input.requestId });
+    }
+    this.raw(input.threadId);
+    const { action, scheduleId: _scheduleId, ...body } = change;
+    return this.scheduleMutation(
+      path + (["pause", "resume"].includes(action) ? `/${action}` : ""),
+      { ...body, requestId: input.requestId },
+      action === "delete" ? "DELETE" : action === "update" ? "PATCH" : "POST",
+    );
+  }
+  proposeSchedule(input: ScheduleProposeInput) {
+    return this.scheduleMutation(`${this.route(input.threadId)}/schedule-proposals`, {
+      requestId: input.requestId,
+      change: mapScheduleChange(input.change, (id) => this.raw(id)),
+      ...(input.replaces
+        ? { replaces: { ...input.replaces, proposalId: this.raw(input.replaces.proposalId) } }
+        : {}),
+    });
+  }
+  decideSchedule(input: ScheduleDecisionInput, approved: boolean) {
+    return this.scheduleMutation(
+      `/v1/schedule-proposals/${encodeURIComponent(this.raw(input.proposalId))}/${approved ? "approve" : "reject"}`,
+      { requestId: input.requestId, contentFingerprint: input.contentFingerprint },
+    );
+  }
+  runSchedule(input: ScheduleRunInput) {
+    this.raw(input.threadId);
+    return this.scheduleMutation(
+      `/v1/schedules/${encodeURIComponent(this.raw(input.scheduleId))}/run`,
+      { requestId: input.requestId, expectedRevision: input.expectedRevision },
+    );
+  }
+  async scheduleRuns(scheduleId: string) {
+    this.requireCapability("schedules");
+    const value = await this.request<{ runs: unknown }>(
+      `/v1/schedules/${encodeURIComponent(this.raw(scheduleId))}/runs`,
+    );
+    return Schema.decodeUnknownSync(Schema.Array(ScheduleOccurrenceSchema))(value.runs).map((run) =>
+      mapScheduleRun(run, (id) => this.prefix + id),
+    );
+  }
+  async scheduleRequest(threadId: string, requestId: string) {
+    this.requireCapability("schedules");
+    this.raw(threadId);
+    const value = await this.request<unknown>(
+      `/v1/schedule-requests/${encodeURIComponent(requestId)}`,
+    );
+    return mapScheduleRequest(
+      Schema.decodeUnknownSync(ScheduleRequestSchema)(value),
+      (id) => this.prefix + id,
+    );
+  }
   close() {
     ++this.generation;
     this.cancelStreams();
     clearInterval(this.timer);
     this.listeners.clear();
+    clearInterval(this.scheduleTimer);
+    this.scheduleListeners.clear();
   }
 }
 
@@ -509,6 +752,38 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
   };
   return {
     ...local,
+    scheduleSnapshot: async (): Promise<DesktopScheduleSnapshot> => {
+      const [data, remote] = await Promise.all([local.scheduleSnapshot(), bot.scheduleSnapshot()]);
+      return {
+        snapshots: [
+          { environment: { id: "local", label: "本地", status: "connected" }, data },
+          ...(remote ? [remote] : []),
+        ],
+      };
+    },
+    writeSchedule: (input: ScheduleWriteInput) =>
+      isCloudId(input.threadId) ? bot.writeSchedule(input) : local.writeSchedule(input),
+    proposeSchedule: (input: ScheduleProposeInput) =>
+      isCloudId(input.threadId) ? bot.proposeSchedule(input) : local.proposeSchedule(input),
+    decideSchedule: (input: ScheduleDecisionInput, approved: boolean) =>
+      isCloudId(input.proposalId)
+        ? bot.decideSchedule(input, approved)
+        : local.decideSchedule(input, approved),
+    runSchedule: (input: ScheduleRunInput) =>
+      isCloudId(input.threadId) ? bot.runSchedule(input) : local.runSchedule(input),
+    scheduleRuns: (id: string) => (isCloudId(id) ? bot.scheduleRuns(id) : local.scheduleRuns(id)),
+    scheduleRequest: (threadId: string, requestId: string) =>
+      isCloudId(threadId)
+        ? bot.scheduleRequest(threadId, requestId)
+        : local.scheduleRequest(threadId, requestId),
+    subscribeSchedules: (listener: () => void) => {
+      const a = local.subscribeSchedules(listener);
+      const b = bot.subscribeSchedules(listener);
+      return () => {
+        a();
+        b();
+      };
+    },
     importBotCredentials: async () => {
       const credentials = await local.exportBotCredentials();
       if (!Object.keys(credentials).length) throw new Error("客户端没有可导入的模型凭证");

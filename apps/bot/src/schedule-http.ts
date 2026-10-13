@@ -26,7 +26,13 @@ const Create = Schema.Struct({
 });
 const Update = Schema.Struct({ ...Write.fields, patch: SchedulePatchSchema });
 const Decision = Schema.Struct({ requestId: RequestId, contentFingerprint: Schema.NonEmptyString });
-const Propose = Schema.Struct({ requestId: RequestId, change: ScheduleChangeSchema });
+const Propose = Schema.Struct({
+  requestId: RequestId,
+  change: ScheduleChangeSchema,
+  replaces: Schema.optionalKey(
+    Schema.Struct({ proposalId: Schema.NonEmptyString, contentFingerprint: Schema.NonEmptyString }),
+  ),
+});
 const ScheduleQuery = Schema.Struct({
   threadId: Schema.optionalKey(Schema.NonEmptyString),
   state: Schema.optionalKey(Schema.Literals(["active", "paused", "completed", "blocked"])),
@@ -101,6 +107,18 @@ export function mountScheduleRoutes(
     const visible = await visibility();
     return context.json({
       revision: snapshot.revision,
+      messageOrigins: snapshot.messageOrigins?.filter((origin) => {
+        const plan = snapshot.schedules.find((plan) => plan.id === origin.scheduleId);
+        return plan && visible(plan) && (!query.threadId || origin.threadId === query.threadId);
+      }),
+      occurrences: snapshot.occurrences?.filter((run) => {
+        const plan = snapshot.schedules.find((plan) => plan.id === run.scheduleId);
+        return plan && visible(plan) && (!query.threadId || run.threadId === query.threadId);
+      }),
+      proposals: snapshot.proposals.filter(
+        (proposal) =>
+          visible(proposal) && (!query.threadId || proposal.threadId === query.threadId),
+      ),
       requests: snapshot.requests.filter(
         (request) => visible(request) && (!query.threadId || request.threadId === query.threadId),
       ),
@@ -176,6 +194,7 @@ export function mountScheduleRoutes(
     const input = decode(Propose, await readBody(context.req));
     const threadId = context.req.param("id");
     await authorizeThread(threadId);
+    if (input.replaces) await proposal(input.replaces.proposalId);
     if (input.change.action !== "create") {
       const target = await schedule(input.change.scheduleId);
       if (target.threadId !== threadId)

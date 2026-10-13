@@ -52,6 +52,11 @@ export async function readOperation(
             ? "queued"
             : "running";
   return {
+    ...(input?.entry.model?.some((message) => message.role === "user")
+      ? {
+          inputEntryId: `${receipt.entry}:${input.entry.model.findIndex((message) => message.role === "user")}`,
+        }
+      : {}),
     operationId: String(receipt.id),
     kind: "run",
     startedAt: input?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.createdAt,

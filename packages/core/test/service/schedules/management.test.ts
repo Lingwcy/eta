@@ -413,3 +413,72 @@ test("atomic approval persists through close and replay without creating another
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("replacing a pending proposal preserves both immutable contents and makes old approval unusable", () => {
+  const { state, proposalId, contentFingerprint } = proposalFixture();
+  const original = structuredClone(state.proposals[proposalId]);
+  const input = {
+    threadId: "thread",
+    requestId: "replacement",
+    sourceIdentity: "root:new-call",
+    replaces: { proposalId, contentFingerprint },
+    change: { ...create, prompt: "New content" },
+  };
+  const receipt = proposeScheduleChange(state, input, catalog, 20);
+  expect(receipt.state).toBe("applied");
+  expect(receipt.proposalId).not.toBe(proposalId);
+  expect(state.proposals[proposalId]).toMatchObject({ ...original, state: "invalidated" });
+  expect(state.proposals[receipt.proposalId!].change).toEqual(input.change);
+  expect(proposeScheduleChange(state, input, catalog, 30)).toEqual(receipt);
+  expect(
+    decideScheduleProposal(
+      state,
+      { proposalId, contentFingerprint, requestId: "old-approval" },
+      true,
+      catalog,
+      30,
+    ).state,
+  ).toBe("rejected");
+  expect(Object.values(state.schedules)).toHaveLength(0);
+  const fresh = state.proposals[receipt.proposalId!];
+  expect(
+    decideScheduleProposal(
+      state,
+      {
+        proposalId: fresh.id,
+        contentFingerprint: fresh.contentFingerprint,
+        requestId: "new-approval",
+      },
+      true,
+      catalog,
+      30,
+    ).state,
+  ).toBe("applied");
+  expect(Object.values(state.schedules)[0].prompt).toBe("New content");
+  decodeScheduleStore(state);
+});
+
+test("invalid replacements and decisions already in progress never invalidate the original proposal", () => {
+  const { state, proposalId, contentFingerprint } = proposalFixture();
+  const original = structuredClone(state.proposals[proposalId]);
+  const input = {
+    threadId: "thread",
+    requestId: "wrong-fingerprint",
+    sourceIdentity: "root:new-call",
+    replaces: { proposalId, contentFingerprint: "wrong" },
+    change: create,
+  };
+  expect(proposeScheduleChange(state, input, catalog, 20).state).toBe("rejected");
+  expect(state.proposals[proposalId]).toEqual(original);
+  state.proposals[proposalId] = { ...original, decisionRequestId: "in-progress" };
+  expect(
+    proposeScheduleChange(
+      state,
+      { ...input, requestId: "racing", replaces: { proposalId, contentFingerprint } },
+      catalog,
+      20,
+    ).state,
+  ).toBe("rejected");
+  expect(state.proposals[proposalId].state).toBe("pending");
+  expect(Object.keys(state.proposals)).toHaveLength(1);
+});

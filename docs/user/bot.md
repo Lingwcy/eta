@@ -17,3 +17,11 @@
 Desktop 连接 Bot 后，可以在新聊天的工作区配置中创建服务器上的 worktree，并查看该项目所选 GitHub remote 的 PR 与 Issue。管理目录位于 workspaceRoot/.eta-worktrees，不会作为新的项目扫描。
 
 GitHub 访问使用服务器已有的 GitHub CLI 登录；公开仓库也支持匿名访问。私有仓库需要在服务器运行 gh auth login。
+
+## 定时任务
+
+支持定时任务的 Bot 可在 Desktop 的定时任务视图中管理计划，关闭 Desktop 后仍会在服务器运行，受并发上限和项目范围约束。请保持 Bot 进程运行。执行内容使用原会话的工作区、模型和审批策略，不会在客户端本机执行。
+
+Agent 提出的计划必须经可信入口批准后才生效。无 Desktop 连接时，管理员可携带访问令牌查询 `/v1/schedule-proposals`，向 `/v1/schedule-proposals/:id/approve` 或 `/reject` 提交提案的 `contentFingerprint` 与稳定 `requestId`。查询 `/v1/schedules` 获取生效计划及未决请求，结果未知时查询 `/v1/schedule-requests/:requestId`。写入结果为 `pending` 时还在核对，不代表已暂停或删除；同一请求重试必须使用相同参数和身份。
+
+忙时只补发最近一次，默认补发窗口为 24 小时，失败不自动重试。计划暂停或删除不会中止已开始的聊天任务。归档会话暂停计划，恢复不会自动重新启用。定时提案默认 24 小时过期，无人确认不会执行。

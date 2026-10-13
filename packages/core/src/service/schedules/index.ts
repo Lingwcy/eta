@@ -161,7 +161,9 @@ export class ScheduleService extends Context.Service<
         snapshot: store.read.pipe(
           Effect.map((state) => ({
             revision: state.revision,
+            messageOrigins: Object.values(state.messageOrigins ?? {}),
             schedules: Object.values(state.schedules),
+            occurrences: Object.values(state.occurrences),
             proposals: Object.values(state.proposals),
             requests: Object.values(state.requests).filter(
               (request) => request.state === "pending",

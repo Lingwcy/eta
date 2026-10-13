@@ -26,6 +26,7 @@ export function scheduleHostAdapter(
             "RecoveryRequired",
             "WorkspaceUnavailable",
             "ModelUnavailable",
+            "SandboxUnavailable",
             "RuntimeClosing",
             "InvalidInput",
             "NotFound",

@@ -6,5 +6,6 @@ export const SettingsSchema = Schema.Struct({
   ...RuntimeSettingsSchema.fields,
   agentThinkingVariant: Schema.optionalKey(Schema.Literals(agentThinkingVariants)),
   activeThreadId: Schema.optionalKey(Schema.NonEmptyString),
+  backgroundOnClose: Schema.optionalKey(Schema.Boolean),
   autoCheckUpdates: Schema.optionalKey(Schema.Boolean),
 });

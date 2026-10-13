@@ -90,6 +90,9 @@ export class ScheduleDispatcherService extends Context.Service<
               ...withoutReason,
               state: "admitted",
               operationId: result.admission.operationId,
+              ...(result.admission.inputEntryId
+                ? { inputEntryId: result.admission.inputEntryId }
+                : {}),
               admittedAt: result.admission.startedAt,
             };
           else
@@ -145,6 +148,9 @@ export class ScheduleDispatcherService extends Context.Service<
               ...withoutReason,
               state: "admitted" as const,
               operationId: found.operation.operationId,
+              ...(found.operation.inputEntryId
+                ? { inputEntryId: found.operation.inputEntryId }
+                : {}),
               admittedAt: found.operation.startedAt,
             };
             const status = found.operation.status;

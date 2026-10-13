@@ -33,7 +33,7 @@ test("sidebar tabs switch content without losing state or closing the sidebar", 
     );
   }
   function Inspector() {
-    const [value, setValue] = useState<"github" | "subagents">("github");
+    const [value, setValue] = useState<"github" | "subagents" | "schedules">("github");
     return createElement(InspectorTabs, {
       value,
       onChange: setValue,

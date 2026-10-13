@@ -185,3 +185,25 @@ test("rejects approval and lifecycle states without the matching atomic request 
     }),
   ).toThrow();
 });
+
+test("closing waits for queued writes and refuses new writes through a retained service reference", async () => {
+  const { open } = await fixture();
+  const runtime = open();
+  const store = await runtime.runPromise(ScheduleStoreService);
+  const writes = Array.from({ length: 12 }, (_, index) =>
+    Effect.runPromise(
+      store.update((state) => ({
+        ...state,
+        schedules: { ...state.schedules, [String(index)]: schedule(String(index)) },
+      })),
+    ),
+  );
+  await runtime.dispose();
+  await Promise.all(writes);
+  expect((await Effect.runPromise(Effect.flip(store.update((state) => state)))).code).toBe(
+    "RuntimeClosing",
+  );
+  const reopened = open();
+  const next = await reopened.runPromise(ScheduleStoreService);
+  expect(Object.keys((await reopened.runPromise(next.read)).schedules)).toHaveLength(12);
+});

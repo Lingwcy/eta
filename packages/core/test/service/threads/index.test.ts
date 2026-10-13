@@ -1214,7 +1214,7 @@ test("tool toggles change the model catalog for an existing thread and reenabled
         getCurrentTools(context.messages)
           .map((tool) => tool.name)
           .sort(),
-      ).toEqual(["edit", "subagent", "write"]);
+      ).toEqual(["edit", "schedule", "subagent", "write"]);
       return fauxAssistantMessage("No file read");
     },
   ]);
@@ -1231,7 +1231,7 @@ test("tool toggles change the model catalog for an existing thread and reenabled
         getCurrentTools(context.messages)
           .map((tool) => tool.name)
           .sort(),
-      ).toEqual(["bash", "edit", "read", "subagent", "write"]);
+      ).toEqual(["bash", "edit", "read", "schedule", "subagent", "write"]);
       return fauxAssistantMessage(
         fauxToolCall("read", { path: "available.txt" }, { id: "reenabled" }),
         { stopReason: "toolUse" },
@@ -1248,8 +1248,8 @@ test("tool toggles change the model catalog for an existing thread and reenabled
   provider.setResponses([
     (context) => {
       expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual([
-        "subagent",
         "schedule",
+        "subagent",
       ]);
       return fauxAssistantMessage("All tools disabled");
     },
@@ -2274,6 +2274,9 @@ test("schedule tool requires a trusted proposal decision before dispatching an o
   );
   expect(messages).toHaveLength(2);
   expect(JSON.stringify(messages[1])).toContain("Write the reminder file");
+  expect((await runtime.runPromise(schedules.runs(approved.scheduleId!)))[0].inputEntryId).toBe(
+    messages[1].id,
+  );
 }, 15000);
 
 test.each([false, true])(
@@ -2301,6 +2304,11 @@ test.each([false, true])(
           async () => (await record.subagents.list()).find((child) => child.path === path)?.status,
         )
         .toBe("completed");
+      for (const task of (await record.harness.inspect(BACKGROUND_CONTEXT)).tasks) {
+        if (task.record.kind === "eta.subagent-reporter")
+          await record.harness.waitForTask(task.record.id, BACKGROUND_CONTEXT);
+      }
+      await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
       const child = (await record.subagents.list()).find((child) => child.path === path)!;
       const conversation = (await record.harness.conversation(
         child.conversationId as typeof record.conversation.id,
