@@ -43,4 +43,24 @@ export interface SandboxApproval {
   readonly readableRoots: readonly string[];
   readonly writableRoots: readonly string[];
   readonly status: "pending" | "approved" | "denied" | "cancelled" | "consumed";
+  readonly decidedBy?: "user" | "auto";
+  readonly review?: SandboxReview;
 }
+
+export type SandboxReviewSkip =
+  | "requires-user"
+  | "reviewer-unavailable"
+  | "timeout"
+  | "invalid-output"
+  | "circuit-breaker"
+  | "interrupted";
+
+/** Automatic review of one escalation; `escalated` and `skipped` leave the decision to the user. */
+export type SandboxReview = {
+  readonly status: "reviewing" | "approved" | "denied" | "escalated" | "skipped";
+  readonly reviewer?: { readonly provider: string; readonly modelId: string };
+  readonly risk?: "low" | "medium" | "high";
+  readonly rationale?: string;
+  readonly skippedReason?: SandboxReviewSkip;
+  readonly startedAt?: number;
+};

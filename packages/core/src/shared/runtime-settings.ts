@@ -7,21 +7,32 @@ export const TitleModelSchema = Schema.NullOr(
   Schema.Struct({ provider: Schema.NonEmptyString, modelId: Schema.NonEmptyString }),
 );
 
+const ThinkingLevelSchema = Schema.Literals([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+
+/** Who decides sandbox escalations; an unset model reviews with the requesting agent's own model. */
+export const ApprovalReviewerSchema = Schema.Struct({
+  mode: Schema.Literals(["user", "auto"]),
+  model: Schema.optionalKey(TitleModelSchema),
+  thinkingLevel: Schema.optionalKey(ThinkingLevelSchema),
+});
+export type ApprovalReviewer = typeof ApprovalReviewerSchema.Type;
+
 export const RuntimeSettingsSchema = Schema.Struct({
   defaultSandboxMode: Schema.optionalKey(SandboxModeSchema),
   subagents: Schema.optionalKey(SubagentSettingsSchema),
   defaultProvider: Schema.optionalKey(Schema.NonEmptyString),
   defaultModel: Schema.optionalKey(Schema.NonEmptyString),
   titleModel: Schema.optionalKey(TitleModelSchema),
-  defaultThinkingLevel: Schema.Literals([
-    "off",
-    "minimal",
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-    "max",
-  ]),
+  approvalReviewer: Schema.optionalKey(ApprovalReviewerSchema),
+  defaultThinkingLevel: ThinkingLevelSchema,
   disabledTools: Schema.optionalKey(Schema.Array(Schema.Literals(builtinToolNames))),
   skillsEnabled: Schema.optionalKey(Schema.Boolean),
   skillDirectories: Schema.optionalKey(Schema.Array(Schema.NonEmptyString)),

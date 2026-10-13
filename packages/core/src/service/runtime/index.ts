@@ -1,5 +1,5 @@
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
-import { mkdtemp, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSubagentsExtension, SubagentsDoc } from "../../agent/extension/subagent/index.ts";
@@ -109,6 +109,14 @@ export class RuntimeRegistryService extends Context.Service<
               }
             },
             [paths.dataRoot],
+            {
+              reviewer: async () => (await Effect.runPromise(preferences.read)).approvalReviewer,
+              available: async (model) =>
+                (await models.getAvailable(model.provider)).some(
+                  (value) => value.id === model.modelId,
+                ),
+              record: (entry) => appendFile(paths.reviewLogPath, `${JSON.stringify(entry)}\n`),
+            },
           );
           registry.install(approvals.extension);
           const initialSandboxMode = initial
