@@ -46,6 +46,17 @@ The most common defect in this repo is a change that works on the path you teste
 - **Reverse states.** If you added a way in, add the way out and the way to see it. Snooze needs unsnooze. Close needs reopen. A one-way door is a bug.
 - **Docs.** Check whether the change makes existing guidance inaccurate. Apply the [documentation rules](#documentation) before adding anything.
 
+## Lessons
+
+Before changing code, read [LESSONS.md](LESSONS.md) for rules learned from
+previous fixes and the commits that support them. Apply the relevant lessons
+when implementing and reviewing a change.
+
+When a fix or review reveals a recurring mistake, update the existing lesson
+or add one with concrete evidence. Follow the review and promotion process in
+that file. Lessons observed on three separate review dates become lasting
+rules in the relevant section of this file; retain their evidence in LESSONS.md.
+
 ## Verifying
 
 - Smallest proof that the change works. `vp test run <files>` for the tests you touched, targeted lint and typecheck for the scope you changed.
