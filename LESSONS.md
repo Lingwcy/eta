@@ -56,6 +56,13 @@ inspected `a7972f252`, `d0105c5ea`, `f3a39419c`, and `9da537e31`, with
 commits, not a runtime, CI, or release audit. The lessons below do not claim
 that the rest of the history has been reviewed or that those fixes pass today.
 
+A partial review on 2026-10-13 inspected the merged PRs #1-#3
+(`110cae2`, `13dc9a4`, `3c07177`), PR #5 (`356d298..4c9df92`), and a
+full-tree source scan at `da60559`. It was a git-history and source
+review, not a CI, runtime, or release audit, and it does not advance
+this checkpoint. Its findings are recorded under
+[Release and merge discipline](#release-and-merge-discipline).
+
 ## UI scope
 
 **Exercise interactive popup content when changing compound UI components.**
@@ -157,6 +164,114 @@ model choice must still be validated as an explicit choice.**
 - Check: test default inheritance, unavailable and forbidden candidates,
   explicit selection, and the case where no candidate is usable.
 - Seen 1× (2026-10-12).
+
+## Release and merge discipline
+
+**Update and release sources must belong to the repository owner.**
+
+- Evidence: PR #1's `e9508a1` set the electron-builder publish target to
+  `owner: "XiaoMouz"` and `releaseUrl` to
+  `https://github.com/XiaoMouz/eta/releases/latest`, so installed
+  clients would have updated from a contributor's personal repository.
+  PR #3's `6599b6f` corrected both to Lingwcy, after the v0.0.4-v0.0.6
+  release commits (`41305c6`, `0938cf3`, `a2c7bac`) had already landed.
+  Whether any user installed an update from the wrong source is not
+  recorded and remains unknown.
+- Check: in any release-facing diff, search for `publish`,
+  `releaseUrl`, and `owner`, and search the whole diff for the
+  contributor's username. Any update source that is not the repository
+  owner blocks the merge.
+- Seen 1x (2026-10-13).
+
+**Supply-chain and release PRs need a minimum review: no minute-scale
+merges and no author self-merge.**
+
+- Evidence: PR #1 merged about 7 minutes after creation (`110cae2`),
+  PR #2 about 3 minutes (`13dc9a4`), and PR #3 about 1 minute; the
+  merge commit `3c07177` for PR #3 was authored by the contributor
+  themselves. All three touched auto-update, electron-builder, or
+  release workflow surfaces.
+- Check: before merging, compare the created-to-merged interval and
+  the merger's identity. A PR touching `electron-builder.config.*`,
+  release workflows, or `updater.*` must be merged by a maintainer who
+  is not the author, with a real build result recorded.
+- Seen 1x (2026-10-13).
+
+**Toolchain and dependency upgrades must state their reason and a real
+build result; an empty body does not merge.**
+
+- Evidence: PR #2's `f5d6a48` raised electron-builder from 26.15.3 to
+  26.17.0 with an empty commit body and no test changes, while the
+  lockfile left `builder-util` and `electron-publish` at 26.16.0.
+- Check: an upgrade PR records why the upgrade is needed and the
+  artifacts of one real packaging run (at minimum the produced file
+  names), and the reviewer verifies that same-family packages in the
+  lockfile moved together.
+- Seen 1x (2026-10-13).
+
+**A PR that mixes concerns, or grows past a reviewable size, must be
+split before merge.**
+
+- Evidence: PR #5 changed 103 files and +8110 lines
+  (`356d298..4c9df92`); its final commit `4c6d7ae` is titled as
+  completing worktree configuration and the GitHub sidebar and fixing
+  CI - three concerns in one title. PR #1 also mixed an unrelated
+  SIGTERM exit fix (`cddb98b`) into the auto-update PR.
+- Check: run `git diff --stat <base>...<head>` and group the files by
+  area. Touching two or more of core, UI, worktree, GitHub, and CI in
+  one PR means splitting it into independently revertible PRs.
+- Seen 1x (2026-10-13).
+
+**Do not stack an undocumented mega-commit on top of structured
+commits.**
+
+- Evidence: inside PR #5, `9ed4ddd` (no body, 39 files, +1528 lines)
+  overlapped 18 files with the six structured commits before it, and
+  `4c6d7ae` closed the branch with another 65 files and +2968 lines.
+  A regression inside either commit cannot be bisected to a step.
+- Check: compare adjacent commits' file sets while reviewing; when a
+  later commit rewrites more than roughly a third of an earlier
+  commit's files, require the history to be rewritten into bisectable
+  steps, each with a body stating the problem and the fix.
+- Seen 1x (2026-10-13).
+
+**Every capability word in a PR or commit title must be visible in
+the diff.**
+
+- Evidence: PR #1 was titled `add auto update and sign`, but the
+  baseline `98cf59c` already contained the signing and notarization
+  logic (`signedRelease`, CSC/APPLE handling) and `e9508a1` did not
+  change it. Reviewing by title overstates what was verified.
+- Check: match each title keyword against `git show --stat`. A
+  signing claim additionally requires a signed build's log or
+  artifact checksums.
+- Seen 1x (2026-10-13).
+
+**Security-sensitive features need an independent reviewer and must
+not merge on the night they are proposed.**
+
+- Evidence: PR #5's auto-review pipeline started at `6ed951f`
+  (2026-10-12 23:06) and merged at `4c9df92` (2026-10-13 05:32),
+  under 7 hours later and 3 minutes after the final push, with no
+  non-author review in the git record. The same branch had already
+  exposed a missing IPC field and six failing Linux CI tests, showing
+  author self-testing was not yet complete.
+- Check: a PR that auto-approves sandbox escapes or widens
+  permissions records a non-author review, and each failure fallback
+  (error, timeout, model unavailable, circuit breaker) names its
+  covering test before merge.
+- Seen 1x (2026-10-13).
+
+**Do not reuse one feature branch across PRs.**
+
+- Evidence: PR #2's merge `13dc9a4` still came from
+  `XiaoMouz/feat/updater`, the same branch as PR #1, although its
+  content was an electron-builder upgrade, which makes later history
+  archaeology confuse the two changes.
+- Check: a new PR gets a fresh branch named for its own concern, and
+  the reviewer confirms with `git log <prev-merge>..<head>` that the
+  branch carries only this PR's commits.
+- Seen 1x (2026-10-13).
 
 ## Promoted lessons
 
