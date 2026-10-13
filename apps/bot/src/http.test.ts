@@ -1,6 +1,18 @@
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { BotLibrary } from "@eta/core/shared/bot";
-import { mkdtemp, mkdir, readFile, rename, rm, readdir, symlink, realpath } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  readdir,
+  symlink,
+  realpath,
+  writeFile,
+} from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -664,4 +676,48 @@ test("creation uses the requested model even when the Bot default provider is un
       ({ message }) => message.role === "assistant",
     ),
   ).toBe(true);
+});
+
+test("worktrees are created inside the workspace root without becoming new projects", async () => {
+  const { bot, request, cwd, workspace } = await fixture();
+  const git = (...args: string[]) =>
+    promisify(execFile)(
+      "git",
+      ["-c", "user.name=Eta", "-c", "user.email=eta@example.com", ...args],
+      {
+        cwd,
+      },
+    );
+  await git("init", "-q", "-b", "main");
+  await writeFile(join(cwd, "README.md"), "hello\n");
+  await git("add", ".");
+  await git("commit", "-q", "-m", "init");
+  const projectId = bot.workspaceProjects.get(workspace)!;
+  const projectsBefore = await (await request("/v1/projects")).json();
+  const created = await request(`/v1/projects/${projectId}/worktrees`, {
+    baseWorkspaceId: workspace,
+    branch: { kind: "new", name: "eta/bot-task" },
+    requestId: "bot-worktree",
+  });
+  expect(created.status).toBe(201);
+  const worktree = (await created.json()) as { workspaceId: string; path: string };
+  expect(worktree.path.startsWith(join(await realpath(join(cwd, "..")), ".eta-worktrees"))).toBe(
+    true,
+  );
+  expect(await (await request("/v1/projects")).json()).toEqual(projectsBefore);
+  expect(bot.workspaceProjects.get(worktree.workspaceId)).toBe(projectId);
+  expect(await (await request(`/v1/workspaces/${worktree.workspaceId}/git`)).json()).toMatchObject({
+    status: "ready",
+    linkedWorktree: true,
+    head: { name: "eta/bot-task" },
+  });
+  expect(await (await request(`/v1/projects/${projectId}/worktrees`)).json()).toMatchObject([
+    { workspaceId: worktree.workspaceId, status: "ready" },
+  ]);
+  expect(
+    await (
+      await request(`/v1/workspaces/${worktree.workspaceId}/remove`, { requestId: "rm" })
+    ).json(),
+  ).toMatchObject({ status: "removed" });
+  expect((await request(`/v1/projects/not-a-project/worktrees`)).status).toBe(403);
 });

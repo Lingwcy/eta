@@ -63,3 +63,35 @@ export interface GitBranch {
   /** Worktree that has this branch checked out, when it is not the queried workspace. */
   readonly checkedOutAt?: string;
 }
+
+export type WorktreeStatus = "creating" | "ready" | "removing" | "removed" | "needs_reconciliation";
+
+/** A worktree workspace as Eta tracks it; removed ones keep their branch and history. */
+export interface WorktreeSummary {
+  readonly requestId: string;
+  readonly projectId: string;
+  readonly workspaceId?: string;
+  readonly path: string;
+  readonly cwd: string;
+  readonly branch: string;
+  readonly baseSha: string;
+  readonly createdBranch: boolean;
+  /** False for worktrees created outside Eta; Eta lists them but never removes them. */
+  readonly managed: boolean;
+  readonly status: WorktreeStatus;
+  readonly reason?: string;
+  readonly continues?: string;
+  readonly createdAt: number;
+  readonly removedAt?: number;
+}
+
+/** Default branch name for a new worktree: `eta/<slug>-<suffix>`, safe for `git check-ref-format`. */
+export function worktreeBranchName(title: string, suffix: string) {
+  const slug = title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+  return `eta/${slug || "work"}-${suffix}`;
+}

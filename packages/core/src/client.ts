@@ -14,6 +14,8 @@ import { ThreadService } from "./service/threads/index.ts";
 import { SkillsService } from "./service/skills/index.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
 import { GitRepositoryService } from "./service/git/index.ts";
+import { WorktreeService } from "./service/git/worktrees.ts";
+import type { CreateWorktreeInput } from "./service/git/worktrees.ts";
 import { AppPathsService } from "./platform/app-paths.ts";
 import { readReviewStats } from "./service/runtime/review-log.ts";
 
@@ -28,6 +30,7 @@ export async function createCore(options: CoreOptions) {
     const skills = await runtime.runPromise(SkillsService);
     const catalog = await runtime.runPromise(CatalogService);
     const git = await runtime.runPromise(GitRepositoryService);
+    const worktrees = await runtime.runPromise(WorktreeService);
     const paths = await runtime.runPromise(AppPathsService);
     return {
       skills: (cwd?: string) => runtime.runPromise(skills.catalog(cwd)),
@@ -44,6 +47,11 @@ export async function createCore(options: CoreOptions) {
       selectGitHubRemote: (projectId: string, remoteName: string | null) =>
         runtime.runPromise(git.selectGitHubRemote(projectId, remoteName)),
       reviewStats: () => readReviewStats(paths.reviewLogPath),
+      createWorktree: (input: CreateWorktreeInput) => runtime.runPromise(worktrees.create(input)),
+      listWorktrees: (projectId: string) => runtime.runPromise(worktrees.list(projectId)),
+      reconcileWorktrees: (projectId: string) => runtime.runPromise(worktrees.reconcile(projectId)),
+      removeWorktree: (workspaceId: string, requestId: string) =>
+        runtime.runPromise(worktrees.remove(workspaceId, requestId)),
       models: () => runtime.runPromise(models.list),
       threads: (workspaceId?: string, includeArchived?: boolean) =>
         runtime.runPromise(threads.list(workspaceId, includeArchived)),

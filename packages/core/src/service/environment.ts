@@ -16,6 +16,8 @@ export interface CoreEnvironment {
   ) => ExecutionEnv | Promise<ExecutionEnv>;
   readonly allowedSandboxModes: readonly SandboxMode[];
   readonly sandboxWorkerPath?: string;
+  /** Where Eta creates managed worktrees; defaults to `worktrees` in the data root. */
+  readonly worktreeRoot?: string;
   readonly extensions: (
     ref: EtaSessionMetadata,
     models: Models,
@@ -33,6 +35,7 @@ export class CoreEnvironmentService extends Context.Service<
       shutdown: options.shutdown ?? "preserve",
       allowedSandboxModes: options.allowedSandboxModes ?? sandboxModes,
       sandboxWorkerPath: options.sandboxWorkerPath,
+      ...(options.worktreeRoot ? { worktreeRoot: options.worktreeRoot } : {}),
       executionEnvironment:
         options.executionEnvironment ??
         ((_cwd, policy) =>

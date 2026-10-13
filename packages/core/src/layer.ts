@@ -21,6 +21,7 @@ import { ThreadService } from "./service/threads/index.ts";
 import { WorkspaceService } from "./service/workspaces/index.ts";
 import { GitRepositoryService } from "./service/git/index.ts";
 import { GitStoreService } from "./service/git/store.ts";
+import { WorktreeService } from "./service/git/worktrees.ts";
 
 export function coreFoundation(
   dataRoot: string,
@@ -48,9 +49,11 @@ export function coreDomainServices(skillLayer: ReturnType<typeof SkillsService.l
     RunSupervisorService.layer,
     ObservationService.layer,
   ).pipe(Layer.provideMerge(skills));
-  return Layer.mergeAll(ThreadService.layer, GitRepositoryService.layer).pipe(
-    Layer.provideMerge(domain),
-  );
+  return Layer.mergeAll(
+    ThreadService.layer,
+    GitRepositoryService.layer,
+    WorktreeService.layer,
+  ).pipe(Layer.provideMerge(domain));
 }
 
 export interface CoreOptions {

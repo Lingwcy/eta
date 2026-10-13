@@ -7,9 +7,43 @@ const ProjectGitSchema = Schema.Struct({
   githubRemote: Schema.optionalKey(Schema.NonEmptyString),
 });
 
+export const WorktreeStatusSchema = Schema.Literals([
+  "creating",
+  "ready",
+  "removing",
+  "removed",
+  "needs_reconciliation",
+]);
+
+/** Lifecycle receipt of a worktree workspace; Git and the filesystem are re-checked against it. */
+export const WorktreeReceiptSchema = Schema.Struct({
+  workspaceId: Schema.optionalKey(Schema.NonEmptyString),
+  projectId: Schema.NonEmptyString,
+  requestId: Schema.NonEmptyString,
+  /** Worktree root; the workspace cwd adds the project's prefix inside the repository. */
+  path: Schema.NonEmptyString,
+  prefix: Schema.String,
+  commonDir: Schema.NonEmptyString,
+  branch: Schema.NonEmptyString,
+  createdBranch: Schema.Boolean,
+  baseSha: Schema.NonEmptyString,
+  /** False for worktrees Eta found already registered; those are never removed by Eta. */
+  managed: Schema.Boolean,
+  status: WorktreeStatusSchema,
+  reason: Schema.optionalKey(Schema.String),
+  continues: Schema.optionalKey(Schema.NonEmptyString),
+  createdAt: Schema.Number,
+  removedAt: Schema.optionalKey(Schema.Number),
+});
+export type WorktreeReceipt = typeof WorktreeReceiptSchema.Type;
+
 export const GitStoreSchema = Schema.Struct({
   version: Schema.Literal(1),
   projects: Schema.Record(Schema.String, ProjectGitSchema),
+  /** Keyed by the create requestId, which stays stable across retries. */
+  worktrees: Schema.optionalKey(Schema.Record(Schema.String, WorktreeReceiptSchema)),
+  /** Fingerprints of write requests, so a reused requestId with other parameters is a conflict. */
+  requests: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 });
 export type GitStoreState = typeof GitStoreSchema.Type;
 

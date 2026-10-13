@@ -71,6 +71,8 @@ export async function createBotApplication(
         shutdown: "preserve",
         allowedSandboxModes: config.allowedSandboxModes ?? ["read-only", "workspace-write"],
         sandboxWorkerPath: existsSync(worker) ? worker : undefined,
+        // A dot directory: project discovery skips it, yet it stays inside the workspace root's scope.
+        worktreeRoot: join(config.workspaceRoot, ".eta-worktrees"),
         ...dependencies.environment,
         extensions: async (ref, models) => [
           ...((await dependencies.environment?.extensions?.(ref, models)) ?? []),
