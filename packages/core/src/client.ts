@@ -14,6 +14,8 @@ import { ThreadService } from "./service/threads/index.ts";
 import { SkillsService } from "./service/skills/index.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
 import { GitRepositoryService } from "./service/git/index.ts";
+import { AppPathsService } from "./platform/app-paths.ts";
+import { readReviewStats } from "./service/runtime/review-log.ts";
 
 /** Each invocation creates an independent service graph; the host owns its lifetime through close. */
 export async function createCore(options: CoreOptions) {
@@ -26,6 +28,7 @@ export async function createCore(options: CoreOptions) {
     const skills = await runtime.runPromise(SkillsService);
     const catalog = await runtime.runPromise(CatalogService);
     const git = await runtime.runPromise(GitRepositoryService);
+    const paths = await runtime.runPromise(AppPathsService);
     return {
       skills: (cwd?: string) => runtime.runPromise(skills.catalog(cwd)),
       projects: () => runtime.runPromise(projects.list()),
@@ -40,6 +43,7 @@ export async function createCore(options: CoreOptions) {
       gitBranches: (workspaceId: string) => runtime.runPromise(git.branches(workspaceId)),
       selectGitHubRemote: (projectId: string, remoteName: string | null) =>
         runtime.runPromise(git.selectGitHubRemote(projectId, remoteName)),
+      reviewStats: () => readReviewStats(paths.reviewLogPath),
       models: () => runtime.runPromise(models.list),
       threads: (workspaceId?: string, includeArchived?: boolean) =>
         runtime.runPromise(threads.list(workspaceId, includeArchived)),

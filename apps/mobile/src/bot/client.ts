@@ -154,11 +154,11 @@ export class BotClient {
   sandbox(id: string, mode: Configuration["sandboxMode"]) {
     return this.request(this.route(id) + "/sandbox", OpenThreadSchema, { mode });
   }
-  approve(id: string, requestId: string, approved: boolean) {
+  approve(id: string, requestId: string, approved: boolean, reuse?: "call" | "run") {
     return this.request(
       this.route(id) + `/approvals/${encodeURIComponent(requestId)}`,
       OpenThreadSchema,
-      { approved },
+      { approved, ...(reuse ? { reuse } : {}) },
     );
   }
   rename(id: string, title: string) {

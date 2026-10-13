@@ -268,11 +268,11 @@ export class DesktopBot {
     if (!this.state.library?.allowedSandboxModes?.length)
       throw new Error("当前 Bot 尚不支持沙盒，请更新 Bot 并重新连接。");
   }
-  async decideApproval(id: string, requestId: string, approved: boolean) {
+  async decideApproval(id: string, requestId: string, approved: boolean, reuse?: "call" | "run") {
     return this.session(
       await this.request<SessionResponse>(
         this.route(id) + `/approvals/${encodeURIComponent(requestId)}`,
-        { approved },
+        { approved, ...(reuse ? { reuse } : {}) },
       ),
     );
   }

@@ -1,3 +1,4 @@
+import type { ReviewStats } from "@eta/core/service/runtime/review-log";
 import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import type { BotConnection, BotState } from "./shared/bot.ts";
 import type { SubagentCommand, SubagentSummary } from "@eta/core/shared/subagents";
@@ -71,7 +72,14 @@ export interface AppInfo {
 }
 
 export interface DesktopBridge extends AgentBridge {
-  decideApproval(id: string, requestId: string, approved: boolean): Promise<SessionResponse>;
+  decideApproval(
+    id: string,
+    requestId: string,
+    approved: boolean,
+    reuse?: "call" | "run",
+  ): Promise<SessionResponse>;
+  /** Summary of this computer's automatic review log. */
+  reviewStats(): Promise<ReviewStats>;
   importBotCredentials(): Promise<{ imported: number }>;
   removeBotCredential(providerId: string): Promise<void>;
   connectBot(connection: BotConnection): Promise<BotState>;

@@ -27,6 +27,8 @@ import type { DesktopSettings } from "../shared/settings.ts";
 import { ThreadService } from "@eta/core/service/threads/index";
 import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
+import { readReviewStats } from "@eta/core/service/runtime/review-log";
+import { makeAppPaths } from "@eta/core/platform/app-paths";
 import type { StorageTarget } from "../shared/storage.ts";
 
 async function createLocalDesktopApplication(
@@ -94,6 +96,7 @@ async function createLocalDesktopApplication(
       unloadSkill: (id: string, name: string) => run(threads.unloadSkill(id, name)),
       subscribeLibrary: (listener: () => void) => catalog.subscribe(listener),
       storage: async () => scanStorage(dataRoot, await run(catalog.read)),
+      reviewStats: () => readReviewStats(makeAppPaths(dataRoot).reviewLogPath),
       revealStorage: async (target: StorageTarget) =>
         revealPath(await storageTargetPath(dataRoot, target)),
       prepareImage: async (
@@ -156,8 +159,8 @@ async function createLocalDesktopApplication(
         selectThread(threads.configure(id, provider, modelId, level)),
       configureSandbox: (id: string, mode: import("@eta/core/shared/sandbox").SandboxMode) =>
         selectThread(threads.configureSandbox(id, mode)),
-      decideApproval: (id: string, requestId: string, approved: boolean) =>
-        selectThread(threads.decideApproval(id, requestId, approved)),
+      decideApproval: (id: string, requestId: string, approved: boolean, reuse?: "call" | "run") =>
+        selectThread(threads.decideApproval(id, requestId, approved, reuse)),
       submit: (
         id: string,
         prompt: string,

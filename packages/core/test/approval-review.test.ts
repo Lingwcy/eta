@@ -143,6 +143,10 @@ test("an automatic approval runs the call once and is recorded without file cont
     },
   ]);
   expect(JSON.stringify(await log())).not.toContain("written");
+  expect((await core.openThread(thread.id)).snapshot.approvalHistory).toMatchObject([
+    { tool: "write", status: "consumed", decidedBy: "auto", review: { status: "approved" } },
+  ]);
+  expect(await core.reviewStats()).toMatchObject({ reviews: 1, approved: 1, denied: 0 });
 });
 
 test("an automatic denial blocks the call and tells the agent why", async () => {

@@ -188,8 +188,22 @@ test("HTTP exposes sandbox ceilings and scopes approvals to the owning thread", 
     code: "ENOENT",
   });
   expect(
+    (
+      await request(`/v1/threads/${id}/approvals/${approval.id}`, {
+        approved: true,
+        reuse: "forever",
+      })
+    ).status,
+  ).toBe(400);
+  expect(
     (await request(`/v1/threads/${id}/approvals/${approval.id}`, { approved: true })).status,
   ).toBe(200);
+  const status = await bot.app.request("/v1/status", {
+    headers: { authorization: "Bearer test-admin-token" },
+  });
+  expect(await status.json()).toMatchObject({
+    capabilities: expect.arrayContaining(["approval-review", "git-metadata"]),
+  });
   await expect
     .poll(async () => (await bot.core.operation(id, operation.operationId)).status, {
       timeout: 5000,

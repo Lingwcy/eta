@@ -42,6 +42,8 @@ const Message = Schema.Struct({
   ),
 });
 
+export const BOT_CAPABILITIES = ["approval-review", "git-metadata"] as const;
+
 function decode<A>(schema: Schema.ConstraintDecoder<A>, input: unknown): A {
   try {
     return Schema.decodeUnknownSync(schema, { onExcessProperty: "error" })(input);
@@ -109,7 +111,12 @@ export function createHttpApp(options: {
     }),
   );
   app.get("/v1/status", (context) =>
-    context.json({ ...controller.status(), extensions: options.extensionStatus?.() ?? {} }),
+    context.json({
+      ...controller.status(),
+      // Clients gate newer features on this list instead of probing routes.
+      capabilities: BOT_CAPABILITIES,
+      extensions: options.extensionStatus?.() ?? {},
+    }),
   );
   app.post("/v1/credentials/import", async (context) => {
     const input = decode(

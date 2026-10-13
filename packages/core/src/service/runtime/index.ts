@@ -113,7 +113,8 @@ export class RuntimeRegistryService extends Context.Service<
             },
             [paths.dataRoot],
             {
-              reviewer: async () => (await Effect.runPromise(preferences.read)).approvalReviewer,
+              reviewer: async () =>
+                (await Effect.runPromise(preferences.read)).approvalReviewer ?? undefined,
               available: async (model) =>
                 (await models.getAvailable(model.provider)).some(
                   (value) => value.id === model.modelId,

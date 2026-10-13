@@ -20,6 +20,7 @@ import { createReviewTask } from "./review.ts";
 import { gitMetadataScope } from "../git/metadata.ts";
 import type { GitMetadataScope } from "../git/metadata.ts";
 import type { ReviewOptions } from "./review.ts";
+import { defaultApprovalReviewerMode } from "../../shared/runtime-settings.ts";
 
 export { ApprovalsDoc } from "./approval-doc.ts";
 
@@ -225,7 +226,7 @@ export function createSandboxApprovals(
     }
     return false;
   };
-  const reviewerMode = async () => (await review?.reviewer())?.mode ?? "user";
+  const reviewerMode = async () => (await review?.reviewer())?.mode ?? defaultApprovalReviewerMode;
   /** Trailing automatic denials since the conversation's last other decision. */
   const denialStreak = (requests: readonly Approval[], conversationId: string) => {
     let streak = 0;
@@ -372,6 +373,15 @@ export function createSandboxApprovals(
       (await harness().snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.requests.filter(
         (request) => request.status === "pending",
       ) ?? [],
+    /** Recent decisions made without the user, so the client can show what was granted on its behalf. */
+    history: async (limit = 20) =>
+      ((await harness().snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.requests ?? [])
+        .filter(
+          (request) =>
+            request.status !== "pending" &&
+            (request.decidedBy === "auto" || request.decidedBy === "reuse"),
+        )
+        .slice(-limit),
     invalidate: async (conversationId: ConversationId) => {
       await commit(
         conversationId,

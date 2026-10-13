@@ -141,11 +141,13 @@ export function useDesktopController(
     thinking,
     approval: {
       requests: snapshot?.approvals ?? [],
+      // Automatic decisions stay visible while the run that produced them is still going.
+      history: running ? (snapshot?.approvalHistory ?? []) : [],
       busy: desktop.busy || Boolean(snapshot?.recoveryRequired),
-      onDecision: (id: string, approved: boolean) => {
+      onDecision: (id: string, approved: boolean, reuse?: "call" | "run") => {
         if (threadId)
           void desktop.act(async () => {
-            await window.eta.decideApproval(threadId, id, approved);
+            await window.eta.decideApproval(threadId, id, approved, reuse);
           });
       },
     },

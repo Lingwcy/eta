@@ -578,13 +578,13 @@ export class MobileStore {
     await client[action](id);
     if (epoch === this.epoch && view === this.view) await this.open(id);
   }
-  async approve(requestId: string, approved: boolean) {
+  async approve(requestId: string, approved: boolean, reuse?: "call" | "run") {
     const client = this.requireClient();
     const id = this.state.threadId;
     const epoch = this.epoch;
     const view = this.view;
     if (!id) return;
-    const thread = await client.approve(id, requestId, approved);
+    const thread = await client.approve(id, requestId, approved, reuse);
     if (epoch === this.epoch && view === this.view) this.useThread(thread);
   }
   async metadata(id: string, action: { title: string } | { archived: boolean }) {

@@ -57,6 +57,8 @@ export interface SnapshotTool {
 export interface AgentSnapshot {
   sandbox?: SandboxStatus;
   approvals?: readonly SandboxApproval[];
+  /** Recent automatic and reused approvals, oldest first. */
+  approvalHistory?: readonly SandboxApproval[];
   subagents?: readonly SubagentSummary[];
   activeSkills?: readonly ActiveSkill[];
   configuration: { model: { provider: string; modelId: string }; thinkingLevel: ThinkingLevel };

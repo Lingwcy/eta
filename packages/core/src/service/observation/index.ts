@@ -185,6 +185,7 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
   const snapshot: SnapshotResponse["snapshot"] = {
     sandbox: await runtime.sandbox(),
     approvals,
+    approvalHistory: await runtime.approvals.history(),
     subagents: (await runtime.subagents.list()).map((child) =>
       runtime.recoveryRequired && (child.status === "running" || child.status === "queued")
         ? { ...child, status: "paused" as const }

@@ -25,13 +25,17 @@ export const ApprovalReviewerSchema = Schema.Struct({
 });
 export type ApprovalReviewer = typeof ApprovalReviewerSchema.Type;
 
+/** Applies when `approvalReviewer` is unset; explicit choices are never rewritten when this changes. */
+export const defaultApprovalReviewerMode: ApprovalReviewer["mode"] = "user";
+
 export const RuntimeSettingsSchema = Schema.Struct({
   defaultSandboxMode: Schema.optionalKey(SandboxModeSchema),
   subagents: Schema.optionalKey(SubagentSettingsSchema),
   defaultProvider: Schema.optionalKey(Schema.NonEmptyString),
   defaultModel: Schema.optionalKey(Schema.NonEmptyString),
   titleModel: Schema.optionalKey(TitleModelSchema),
-  approvalReviewer: Schema.optionalKey(ApprovalReviewerSchema),
+  /** `null` or absent uses the product default reviewer. */
+  approvalReviewer: Schema.optionalKey(Schema.NullOr(ApprovalReviewerSchema)),
   defaultThinkingLevel: ThinkingLevelSchema,
   disabledTools: Schema.optionalKey(Schema.Array(Schema.Literals(builtinToolNames))),
   skillsEnabled: Schema.optionalKey(Schema.Boolean),

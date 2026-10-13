@@ -68,7 +68,9 @@ const Command = Schema.Union([
     id: Id,
     requestId: Id,
     approved: Schema.Boolean,
+    reuse: Schema.optionalKey(Schema.Literals(["call", "run"])),
   }),
+  Schema.Struct({ type: Schema.Literal("review-stats") }),
   Schema.Struct({ type: Schema.Literal("move-thread"), id: Id, projectId: Schema.NullOr(Id) }),
   Schema.Struct({ type: Schema.Literal("delete-thread"), id: Id }),
   Schema.Struct({ type: Schema.Literal("rename"), id: Id, title: Id }),
@@ -198,7 +200,14 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     case "configure-sandbox":
       return application.configureSandbox(command.id, command.mode);
     case "decide-approval":
-      return application.decideApproval(command.id, command.requestId, command.approved);
+      return application.decideApproval(
+        command.id,
+        command.requestId,
+        command.approved,
+        command.reuse,
+      );
+    case "review-stats":
+      return application.reviewStats();
     case "move-thread":
       return application.moveThread(command.id, command.projectId);
     case "delete-thread":
