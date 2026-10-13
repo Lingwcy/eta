@@ -81,6 +81,23 @@ async function fixture(empty = false, defaultProvider?: string) {
   return { bot, open, config, provider, request, create, cwd, workspace };
 }
 
+test("an unknown approval reviewer model fails startup instead of silently using another", async () => {
+  const { config } = await fixture();
+  await expect(
+    createBotApplication(
+      {
+        ...config,
+        dataRoot: `${config.dataRoot}-reviewer`,
+        runtime: {
+          ...config.runtime,
+          approvalReviewer: { mode: "auto", model: { provider: "bot-test", modelId: "missing" } },
+        },
+      },
+      { models: createModels() },
+    ),
+  ).rejects.toThrow("Unknown approval reviewer model bot-test/missing");
+});
+
 test("a missing sandbox returns a conflict without admitting unchecked execution", async () => {
   const { bot, open, config, cwd } = await fixture();
   await bot.close();

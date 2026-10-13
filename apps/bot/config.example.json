@@ -7,7 +7,8 @@
   "allowedSandboxModes": ["read-only", "workspace-write"],
   "runtime": {
     "defaultProvider": "anthropic",
-    "defaultThinkingLevel": "off"
+    "defaultThinkingLevel": "off",
+    "approvalReviewer": { "mode": "auto" }
   },
   "workspaceRoot": "/workspaces"
 }
