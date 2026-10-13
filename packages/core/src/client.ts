@@ -1,12 +1,22 @@
 import type { CreateThreadConfiguration } from "./agent/protocol.ts";
 import type { SandboxMode } from "./shared/sandbox.ts";
-import { ManagedRuntime } from "effect";
+import { Effect, ManagedRuntime } from "effect";
 import type { JsonValue } from "@earendil-works/chord";
 import type { ImageAttachment } from "./images/types.ts";
 import type { ThinkingLevel } from "./agent/protocol.ts";
 import type { SubagentCommand } from "./shared/subagents.ts";
 import { coreServices } from "./layer.ts";
 import type { CoreOptions } from "./layer.ts";
+import { ScheduleService } from "./service/schedules/index.ts";
+import { ScheduleStoreService } from "./service/schedules/store.ts";
+import { CoreError } from "./service/errors.ts";
+import type { Schedule, ScheduleRule, ScheduleProposal } from "./shared/schedules.ts";
+import type { ScheduleChange } from "./shared/schedules.ts";
+import type {
+  ScheduleWriteInput,
+  ScheduleProposeInput,
+  ScheduleDecisionInput,
+} from "./service/schedules/management.ts";
 import { CatalogService } from "./service/catalog/index.ts";
 import { ProjectService } from "./service/projects/index.ts";
 import { WorkspaceService } from "./service/workspaces/index.ts";
@@ -35,7 +45,137 @@ export async function createCore(options: CoreOptions) {
     const worktrees = await runtime.runPromise(WorktreeService);
     const github = await runtime.runPromise(GitHubRepositoryService);
     const paths = await runtime.runPromise(AppPathsService);
+    const schedules = await runtime.runPromise(ScheduleService);
+    const scheduleStore = await runtime.runPromise(ScheduleStoreService);
+    const scheduleThread = Effect.fn("CoreClient.scheduleThread")(function* (scheduleId: string) {
+      const schedule = (yield* scheduleStore.read).schedules[scheduleId];
+      if (!schedule) return yield* new CoreError({ code: "NotFound", message: "定时任务不存在" });
+      return schedule.threadId;
+    });
+    const changeSchedule = (input: {
+      requestId: string;
+      change: Exclude<ScheduleChange, { action: "create" }>;
+    }) =>
+      runtime.runPromise(
+        Effect.gen(function* () {
+          const threadId = yield* scheduleThread(input.change.scheduleId);
+          return yield* schedules.write({
+            threadId,
+            requestId: input.requestId,
+            change: input.change,
+          });
+        }),
+      );
     return {
+      listSchedules: (input: { threadId?: string; state?: Schedule["state"] } = {}) =>
+        runtime.runPromise(
+          schedules
+            .list(input.threadId)
+            .pipe(
+              Effect.map((values) =>
+                values.filter((schedule) => !input.state || schedule.state === input.state),
+              ),
+            ),
+        ),
+      createSchedule: (input: {
+        threadId: string;
+        name: string;
+        prompt: string;
+        rule: ScheduleRule;
+        requestId: string;
+      }) =>
+        runtime.runPromise(
+          schedules.write({
+            threadId: input.threadId,
+            requestId: input.requestId,
+            change: { action: "create", name: input.name, prompt: input.prompt, rule: input.rule },
+          }),
+        ),
+      changeSchedule: (input: ScheduleWriteInput) => runtime.runPromise(schedules.write(input)),
+      updateSchedule: (input: {
+        scheduleId: string;
+        expectedRevision: number;
+        patch: Extract<ScheduleChange, { action: "update" }>["patch"];
+        requestId: string;
+      }) =>
+        changeSchedule({
+          requestId: input.requestId,
+          change: {
+            action: "update",
+            scheduleId: input.scheduleId,
+            expectedRevision: input.expectedRevision,
+            patch: input.patch,
+          },
+        }),
+      pauseSchedule: (input: { scheduleId: string; expectedRevision: number; requestId: string }) =>
+        changeSchedule({
+          requestId: input.requestId,
+          change: {
+            action: "pause",
+            scheduleId: input.scheduleId,
+            expectedRevision: input.expectedRevision,
+          },
+        }),
+      resumeSchedule: (input: {
+        scheduleId: string;
+        expectedRevision: number;
+        requestId: string;
+      }) =>
+        changeSchedule({
+          requestId: input.requestId,
+          change: {
+            action: "resume",
+            scheduleId: input.scheduleId,
+            expectedRevision: input.expectedRevision,
+          },
+        }),
+      deleteSchedule: (input: {
+        scheduleId: string;
+        expectedRevision: number;
+        requestId: string;
+      }) =>
+        changeSchedule({
+          requestId: input.requestId,
+          change: {
+            action: "delete",
+            scheduleId: input.scheduleId,
+            expectedRevision: input.expectedRevision,
+          },
+        }),
+      runScheduleNow: (input: {
+        scheduleId: string;
+        expectedRevision: number;
+        requestId: string;
+      }) =>
+        runtime.runPromise(
+          Effect.gen(function* () {
+            const threadId = yield* scheduleThread(input.scheduleId);
+            return yield* schedules.runNow({ ...input, threadId });
+          }),
+        ),
+      listScheduleRuns: (input: { scheduleId: string }) =>
+        runtime.runPromise(schedules.runs(input.scheduleId)),
+      listScheduleProposals: (
+        input: { threadId?: string; state?: ScheduleProposal["state"] } = {},
+      ) =>
+        runtime.runPromise(
+          schedules
+            .proposals(input.threadId)
+            .pipe(
+              Effect.map((values) =>
+                values.filter((proposal) => !input.state || proposal.state === input.state),
+              ),
+            ),
+        ),
+      proposeScheduleChange: (input: ScheduleProposeInput) =>
+        runtime.runPromise(schedules.propose(input)),
+      approveScheduleProposal: (input: ScheduleDecisionInput) =>
+        runtime.runPromise(schedules.decide(input, true)),
+      rejectScheduleProposal: (input: ScheduleDecisionInput) =>
+        runtime.runPromise(schedules.decide(input, false)),
+      scheduleRequest: (input: { requestId: string }) =>
+        runtime.runPromise(schedules.request(input.requestId)),
+      subscribeSchedules: (listener: () => void) => schedules.subscribe(listener),
       githubIdentity: () => runtime.runPromise(github.identity()),
       githubQuery: (input: GitHubQuery) => runtime.runPromise(github.query(input)),
       skills: (cwd?: string) => runtime.runPromise(skills.catalog(cwd)),

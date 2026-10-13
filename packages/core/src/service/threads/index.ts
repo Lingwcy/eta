@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, DateTime, Effect, Layer, SynchronizedRef } from "effect";
 import type { OperationAdmission, SessionResponse, ThinkingLevel } from "../../agent/protocol.ts";
+import { ScheduleLifecycleService } from "../schedules/lifecycle.ts";
 import { CatalogService } from "../catalog/index.ts";
 import type { CatalogError } from "../catalog/json-store.ts";
 import { ConversationService } from "../conversations/index.ts";
@@ -111,6 +112,7 @@ export class ThreadService extends Context.Service<
     ThreadService,
     Effect.gen(function* () {
       const catalog = yield* CatalogService;
+      const schedules = yield* ScheduleLifecycleService;
       const workspaces = yield* WorkspaceService;
       const repository = yield* SessionRepositoryService;
       const registry = yield* RuntimeRegistryService;
@@ -425,71 +427,79 @@ export class ThreadService extends Context.Service<
             }),
           ),
         remove: (id) =>
-          locked(
-            Effect.gen(function* () {
-              const thread = yield* get(id);
-              const runtime = yield* registry.peek(thread.sessionRef);
-              if (
-                runtime &&
-                (runtime.running ||
-                  runtime.recoveryRequired ||
-                  (yield* adapter("无法检查任务", runtime.hasWork)))
-              )
-                return yield* new CoreError({
-                  code: "Busy",
-                  message: "请先停止未完成的任务，再删除会话",
-                });
-              yield* registry.close(thread.sessionRef);
-              const removal = yield* repository.stageRemoval(thread.sessionRef);
-              yield* catalog
-                .update((state) => ({
-                  ...state,
-                  threads: state.threads.filter((thread) => thread.id !== id),
-                }))
-                .pipe(
-                  Effect.catch((error) =>
-                    Effect.gen(function* () {
-                      yield* removal.rollback;
-                      return yield* Effect.fail(error);
-                    }),
-                  ),
-                );
-              yield* removal.commit;
-            }),
+          schedules.coordinate(
+            id,
+            "delete",
+            locked(
+              Effect.gen(function* () {
+                const thread = yield* get(id);
+                const runtime = yield* registry.peek(thread.sessionRef);
+                if (
+                  runtime &&
+                  (runtime.running ||
+                    runtime.recoveryRequired ||
+                    (yield* adapter("无法检查任务", runtime.hasWork)))
+                )
+                  return yield* new CoreError({
+                    code: "Busy",
+                    message: "请先停止未完成的任务，再删除会话",
+                  });
+                yield* registry.close(thread.sessionRef);
+                const removal = yield* repository.stageRemoval(thread.sessionRef);
+                yield* catalog
+                  .update((state) => ({
+                    ...state,
+                    threads: state.threads.filter((thread) => thread.id !== id),
+                  }))
+                  .pipe(
+                    Effect.catch((error) =>
+                      Effect.gen(function* () {
+                        yield* removal.rollback;
+                        return yield* Effect.fail(error);
+                      }),
+                    ),
+                  );
+                yield* removal.commit;
+              }),
+            ),
           ),
         rename: (id, title) =>
           !title.trim()
             ? Effect.fail(new CoreError({ code: "InvalidInput", message: "标题不能为空" }))
             : locked(change(id, (thread) => applyManualTitle(thread, title))),
         archive: (id, archived) =>
-          locked(
-            Effect.gen(function* () {
-              const existing = yield* get(id);
-              const runtime = yield* registry.peek(existing.sessionRef);
-              if (
-                archived &&
-                runtime &&
-                (runtime.running ||
-                  runtime.recoveryRequired ||
-                  (yield* adapter("无法检查任务", runtime.hasWork)))
-              )
-                return yield* new CoreError({
-                  code: "Busy",
-                  message: "请先停止未完成的任务，再归档",
+          schedules.coordinate(
+            id,
+            archived ? "archive" : "restore",
+            locked(
+              Effect.gen(function* () {
+                const existing = yield* get(id);
+                const runtime = yield* registry.peek(existing.sessionRef);
+                if (
+                  archived &&
+                  runtime &&
+                  (runtime.running ||
+                    runtime.recoveryRequired ||
+                    (yield* adapter("无法检查任务", runtime.hasWork)))
+                )
+                  return yield* new CoreError({
+                    code: "Busy",
+                    message: "请先停止未完成的任务，再归档",
+                  });
+                const now = DateTime.toEpochMillis(yield* DateTime.now);
+                const thread = yield* change(id, (thread) => {
+                  const { archivedAt: _archivedAt, ...rest } = thread;
+                  return archived ? { ...rest, archivedAt: now } : rest;
                 });
-              const now = DateTime.toEpochMillis(yield* DateTime.now);
-              const thread = yield* change(id, (thread) => {
-                const { archivedAt: _archivedAt, ...rest } = thread;
-                return archived ? { ...rest, archivedAt: now } : rest;
-              });
-              if (runtime) {
-                runtime.blockedReason = archived
-                  ? "此会话已归档，请先恢复"
-                  : yield* runs.blockedReason(runtime);
-                for (const notify of runtime.changes) notify();
-              }
-              return thread;
-            }),
+                if (runtime) {
+                  runtime.blockedReason = archived
+                    ? "此会话已归档，请先恢复"
+                    : yield* runs.blockedReason(runtime);
+                  for (const notify of runtime.changes) notify();
+                }
+                return thread;
+              }),
+            ),
           ),
         submit: (id, prompt, requestId, images) =>
           locked(

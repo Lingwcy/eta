@@ -4,6 +4,10 @@ import type { ImageProcessor } from "./images/types.ts";
 import type { CoreEnvironment } from "./service/environment.ts";
 import { CoreEnvironmentService } from "./service/environment.ts";
 import { AppPathsService } from "./platform/app-paths.ts";
+import { ScheduleStoreService } from "./service/schedules/store.ts";
+import { ScheduleGateService } from "./service/schedules/gate.ts";
+import { ScheduleLifecycleService } from "./service/schedules/lifecycle.ts";
+import { ScheduleService } from "./service/schedules/index.ts";
 import { CatalogService } from "./service/catalog/index.ts";
 import { CatalogStoreService } from "./service/catalog/json-store.ts";
 import { ConversationService } from "./service/conversations/index.ts";
@@ -32,7 +36,15 @@ export function coreFoundation(
   instructions?: (cwd: string) => Promise<string>,
 ) {
   return Layer.mergeAll(
-    CatalogService.layer.pipe(Layer.provide(CatalogStoreService.layer)),
+    ScheduleLifecycleService.layer.pipe(
+      Layer.provideMerge(
+        Layer.mergeAll(
+          CatalogService.layer.pipe(Layer.provide(CatalogStoreService.layer)),
+          ScheduleStoreService.layer,
+          ScheduleGateService.layer,
+        ),
+      ),
+    ),
     SessionRepositoryService.layer,
     AgentResourcesService.layerWith(processImage, instructions),
     CoreEnvironmentService.layer(environment),
@@ -42,10 +54,13 @@ export function coreFoundation(
 
 /** Both applications provide the same domain graph with their own models and settings adapters. */
 export function coreDomainServices(skillLayer: ReturnType<typeof SkillsService.layerWith>) {
-  const skills = Layer.mergeAll(skillLayer, ThreadTitleService.layer);
+  const skills = Layer.mergeAll(
+    skillLayer,
+    ThreadTitleService.layer,
+    ScheduleService.layer.pipe(Layer.provideMerge(WorkspaceService.layer)),
+  );
   const domain = Layer.mergeAll(
     ProjectService.layer,
-    WorkspaceService.layer,
     RuntimeRegistryService.layer,
     ConversationService.layer,
     RunSupervisorService.layer,
