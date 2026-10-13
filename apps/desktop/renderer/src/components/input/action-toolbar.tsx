@@ -8,8 +8,6 @@ import { SandboxPicker } from "./sandbox-picker";
 
 export function ActionToolbar({
   skillsControl,
-  approvalReviewerLabel,
-  onReviewerSettings,
   sandboxMode,
   allowedSandboxModes,
   sandboxDisabled,
@@ -66,11 +64,6 @@ export function ActionToolbar({
             disabledReason={sandboxDisabledReason}
             onChange={onSandboxChange}
           />
-        )}
-        {sandboxMode !== "danger-full-access" && approvalReviewerLabel && (
-          <Button variant="ghost" size="pill" onClick={onReviewerSettings} title="越界请求审批设置">
-            {approvalReviewerLabel}
-          </Button>
         )}
       </div>
       <div className="flex min-w-0 items-center gap-2.5">

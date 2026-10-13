@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { Context, DateTime, Effect, Layer } from "effect";
 import { runGit } from "../../platform/git.ts";
 import type { GitBranch, WorktreeSummary } from "../../shared/git.ts";
@@ -13,6 +13,7 @@ import { WorkspaceService } from "../workspaces/index.ts";
 import { inspectRepository, parseBranches } from "./index.ts";
 import { GitStoreService } from "./store.ts";
 import type { WorktreeReceipt } from "./store.ts";
+import { WorkspaceAccessService } from "./workspace-access.ts";
 
 export type WorktreeBranch =
   | { readonly kind: "new"; readonly name: string; readonly baseRef?: string }
@@ -99,7 +100,11 @@ export class WorktreeService extends Context.Service<
       const registry = yield* RuntimeRegistryService;
       const environment = yield* CoreEnvironmentService;
       const paths = yield* AppPathsService;
-      const managedRoot = environment.worktreeRoot ?? join(paths.dataRoot, "worktrees");
+      const access = yield* WorkspaceAccessService;
+      // The whole data directory is protected by the sandbox; managed checkouts must be its sibling.
+      const managedRoot =
+        environment.worktreeRoot ??
+        join(dirname(paths.dataRoot), `${basename(paths.dataRoot)}-worktrees`);
       const now = Effect.map(DateTime.now, DateTime.toEpochMillis);
 
       const save = (requestId: string, change: (receipt: WorktreeReceipt) => WorktreeReceipt) =>
@@ -194,6 +199,15 @@ export class WorktreeService extends Context.Service<
           const { reason: _reason, ...rest } = receipt;
           next = { ...rest, status: "ready" };
         }
+        if (next.status === "ready" && onDisk) {
+          const info = yield* Effect.promise(() =>
+            inspectRepository(join(next.path, next.prefix), next.workspaceId ?? ""),
+          );
+          if (info.status !== "ready" || info.commonDir !== next.commonDir)
+            next = { ...next, status: "needs_reconciliation", reason: "工作区的 Git 身份无法核实" };
+          else if (info.head.kind === "branch" && info.head.name !== next.branch)
+            next = { ...next, branch: info.head.name };
+        }
         if (next !== receipt) yield* save(requestId, () => next);
         return next;
       });
@@ -227,6 +241,17 @@ export class WorktreeService extends Context.Service<
           return yield* new CoreError({
             code: "InvalidInput",
             message: "仓库还没有提交，不能创建 worktree",
+          });
+        const projectRoot = (yield* workspaces.list(input.projectId)).find(
+          (workspace) => workspace.kind === "project-root",
+        );
+        const owner =
+          projectRoot &&
+          (yield* Effect.promise(() => inspectRepository(projectRoot.cwd, projectRoot.id)));
+        if (!owner || owner.status !== "ready" || owner.commonDir !== info.commonDir)
+          return yield* new CoreError({
+            code: "InvalidInput",
+            message: "来源工作区不属于此项目的 Git 仓库",
           });
         const name = input.branch.name.trim();
         yield* adapter(
@@ -418,7 +443,8 @@ export class WorktreeService extends Context.Service<
               code: "InvalidInput",
               message: "只能移除由 Eta 创建的 worktree",
             });
-          const [key, receipt] = entry;
+          const [key, savedReceipt] = entry;
+          let receipt = savedReceipt;
           const known = state.requests?.[requestId];
           const print = fingerprint({ op: "remove", workspaceId });
           if (known && known !== print)
@@ -432,10 +458,25 @@ export class WorktreeService extends Context.Service<
               code: "InvalidInput",
               message: "该 worktree 不是由 Eta 创建的，请在 Git 中自行移除",
             });
+          const release = yield* Effect.sync(() =>
+            access.reserveRemoval(join(receipt.path, receipt.prefix)),
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(release));
           if (yield* busy(workspaceId))
             return yield* new CoreError({ code: "Busy", message: "请先停止该工作区中的任务" });
           const info = yield* Effect.promise(() => inspectRepository(receipt.path, workspaceId));
           if (info.status === "ready") {
+            if (!info.linkedWorktree || info.commonDir !== receipt.commonDir)
+              return yield* new CoreError({
+                code: "WorkspaceUnavailable",
+                message: "工作区的 Git 身份已变更，请先核对工作区",
+              });
+            if (info.head.kind !== "branch")
+              return yield* new CoreError({
+                code: "InvalidInput",
+                message: "请先创建分支保留当前提交，再移除工作区",
+              });
+            receipt = { ...receipt, branch: info.head.name };
             const { staged, unstaged, untracked, conflicted } = info.changes;
             if (staged + unstaged + untracked + conflicted > 0 || info.operation)
               return yield* new CoreError({
@@ -471,8 +512,17 @@ export class WorktreeService extends Context.Service<
           const removedAt = yield* now;
           // The workspace stays in the Catalog as a tombstone so its threads remain readable.
           yield* save(key, (current) => ({ ...current, status: "removed", removedAt }));
+          for (const thread of (yield* catalog.read).threads.filter(
+            (value) => value.workspaceId === workspaceId,
+          )) {
+            const runtime = yield* registry.peek(thread.sessionRef);
+            if (runtime) {
+              runtime.blockedReason = "工作区已移除，历史仍可查看；请从保留分支开始新会话";
+              for (const notify of runtime.changes) notify();
+            }
+          }
           return summary({ ...receipt, status: "removed", removedAt }, key);
-        }),
+        }, Effect.scoped),
       });
     }),
   );

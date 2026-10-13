@@ -3,7 +3,10 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
-  resolve: { conditions: ["source"] },
+  resolve: {
+    conditions: ["source"],
+    alias: { "@": fileURLToPath(new URL("./renderer/src", import.meta.url)) },
+  },
   ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/agent", "@eta/core"] },
   test: { environment: "node", include: ["src/**/*.test.ts", "renderer/src/**/*.test.ts"] },
   pack: {

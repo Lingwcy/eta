@@ -5,6 +5,7 @@ import { CatalogService } from "../catalog/index.ts";
 import type { CatalogError } from "../catalog/json-store.ts";
 import { adapter, CoreError } from "../errors.ts";
 import type { WorkspaceMetadata } from "../../shared/workspaces.ts";
+import { WorkspaceAccessService } from "../git/workspace-access.ts";
 
 export class WorkspaceService extends Context.Service<
   WorkspaceService,
@@ -22,6 +23,7 @@ export class WorkspaceService extends Context.Service<
     WorkspaceService,
     Effect.gen(function* () {
       const catalog = yield* CatalogService;
+      const access = yield* WorkspaceAccessService;
       const get = Effect.fn("WorkspaceService.get")(function* (id: string) {
         const workspace = (yield* catalog.read).workspaces.find((value) => value.id === id);
         if (!workspace) return yield* new CoreError({ code: "NotFound", message: "工作区不存在" });
@@ -37,6 +39,9 @@ export class WorkspaceService extends Context.Service<
         get,
         validate: Effect.fn("WorkspaceService.validate")(function* (id: string) {
           const workspace = yield* get(id);
+          const reason = yield* access.reason(workspace.cwd);
+          if (reason)
+            return yield* new CoreError({ code: "WorkspaceUnavailable", message: reason });
           yield* adapter(
             "工作区目录不可用；历史仍可查看",
             async () => {

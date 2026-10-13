@@ -71,12 +71,24 @@ const Command = Schema.Union([
     reuse: Schema.optionalKey(Schema.Literals(["call", "run"])),
   }),
   Schema.Struct({ type: Schema.Literal("review-stats") }),
+  Schema.Struct({ type: Schema.Literal("github-identity"), projectId: Id }),
+  Schema.Struct({
+    type: Schema.Literal("github-query"),
+    input: Schema.Struct({
+      projectId: Id,
+      kind: Schema.Literals(["pulls", "issues"]),
+      state: Schema.Literals(["open", "closed", "all"]),
+      cursor: Schema.optionalKey(Id),
+      refresh: Schema.optionalKey(Schema.Boolean),
+    }),
+  }),
   Schema.Struct({ type: Schema.Literal("git-repository"), workspaceId: Id }),
   Schema.Struct({ type: Schema.Literal("git-branches"), workspaceId: Id }),
   Schema.Struct({
     type: Schema.Literal("select-github-remote"),
     projectId: Id,
     remoteName: Schema.NullOr(Id),
+    requestId: Schema.optionalKey(Id),
   }),
   Schema.Struct({ type: Schema.Literal("list-worktrees"), projectId: Id }),
   Schema.Struct({ type: Schema.Literal("reconcile-worktrees"), projectId: Id }),
@@ -236,12 +248,20 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       );
     case "review-stats":
       return application.reviewStats();
+    case "github-identity":
+      return application.githubIdentity(command.projectId);
+    case "github-query":
+      return application.githubQuery(command.input);
     case "git-repository":
       return application.gitRepository(command.workspaceId);
     case "git-branches":
       return application.gitBranches(command.workspaceId);
     case "select-github-remote":
-      return application.selectGitHubRemote(command.projectId, command.remoteName);
+      return application.selectGitHubRemote(
+        command.projectId,
+        command.remoteName,
+        command.requestId,
+      );
     case "list-worktrees":
       return application.listWorktrees(command.projectId);
     case "reconcile-worktrees":

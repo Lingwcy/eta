@@ -42,7 +42,13 @@ const Message = Schema.Struct({
   ),
 });
 
-export const BOT_CAPABILITIES = ["approval-review", "git-metadata", "git", "worktree"] as const;
+export const BOT_CAPABILITIES = [
+  "approval-review",
+  "git-metadata",
+  "git",
+  "worktree",
+  "github",
+] as const;
 
 function decode<A>(schema: Schema.ConstraintDecoder<A>, input: unknown): A {
   try {
@@ -182,6 +188,23 @@ export function createHttpApp(options: {
   app.get("/v1/workspaces/:id/git", async (context) =>
     context.json(await core.gitRepository(ownedWorkspace(context.req.param("id")))),
   );
+  app.get("/v1/projects/:id/github/identity", async (context) => {
+    ownedProject(context.req.param("id"));
+    return context.json(await core.githubIdentity());
+  });
+  app.post("/v1/projects/:id/github", async (context) => {
+    const projectId = ownedProject(context.req.param("id"));
+    const input = decode(
+      Schema.Struct({
+        kind: Schema.Literals(["pulls", "issues"]),
+        state: Schema.Literals(["open", "closed", "all"]),
+        cursor: Schema.optionalKey(Schema.NonEmptyString),
+        refresh: Schema.optionalKey(Schema.Boolean),
+      }),
+      await readBody(context.req),
+    );
+    return context.json(await core.githubQuery({ ...input, projectId }));
+  });
   app.get("/v1/workspaces/:id/branches", async (context) =>
     context.json(await core.gitBranches(ownedWorkspace(context.req.param("id")))),
   );
@@ -225,10 +248,15 @@ export function createHttpApp(options: {
   app.post("/v1/projects/:id/github-remote", async (context) => {
     const projectId = ownedProject(context.req.param("id"));
     const input = decode(
-      Schema.Struct({ remoteName: Schema.NullOr(Schema.NonEmptyString) }),
+      Schema.Struct({
+        remoteName: Schema.NullOr(Schema.NonEmptyString),
+        requestId: Schema.optionalKey(RequestId),
+      }),
       await readBody(context.req),
     );
-    return context.json(await core.selectGitHubRemote(projectId, input.remoteName));
+    return context.json(
+      await core.selectGitHubRemote(projectId, input.remoteName, input.requestId),
+    );
   });
   app.get("/v1/skills", async (context) => {
     const workspaceId = context.req.query("workspaceId");

@@ -128,3 +128,56 @@ test("a Bot exposes capabilities immediately and translates worktree IDs on both
     bot.close();
   }
 });
+
+test("remote GitHub queries translate IDs and cannot fall back to local execution on an older Bot", async () => {
+  const { bot, request, prefix } = await connect(true, ["git", "github"]);
+  try {
+    const repository = {
+      projectId: "project",
+      workspaceId: "workspace",
+      commonDir: "/git",
+      remote: "origin",
+      owner: "owner",
+      repo: "repo",
+    };
+    request.mockResolvedValueOnce(
+      Response.json({
+        status: "ready",
+        repository,
+        identity: { authenticated: false, source: "anonymous" },
+        items: [],
+        fetchedAt: 1,
+        stale: false,
+      }),
+    );
+    expect(
+      await bot.githubQuery({
+        projectId: prefix + "project",
+        kind: "issues",
+        state: "open",
+        cursor: "2",
+      }),
+    ).toMatchObject({
+      status: "ready",
+      repository: { projectId: prefix + "project", workspaceId: prefix + "workspace" },
+    });
+    const [url, init] = request.mock.calls[0]!;
+    expect(url).toBe("http://localhost:8080/v1/projects/project/github");
+    expect(JSON.parse(init!.body as string)).toEqual({
+      kind: "issues",
+      state: "open",
+      cursor: "2",
+    });
+  } finally {
+    bot.close();
+  }
+  const old = await connect(true);
+  try {
+    await expect(
+      old.bot.githubQuery({ projectId: old.prefix + "project", kind: "pulls", state: "open" }),
+    ).rejects.toThrow("不支持此功能");
+    expect(old.request).not.toHaveBeenCalled();
+  } finally {
+    old.bot.close();
+  }
+});

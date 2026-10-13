@@ -29,6 +29,8 @@ import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
 import { readReviewStats } from "@eta/core/service/runtime/review-log";
 import { GitRepositoryService } from "@eta/core/service/git/index";
+import { GitHubRepositoryService } from "@eta/core/service/git/github";
+import type { GitHubQuery } from "@eta/core/shared/github";
 import { WorktreeService } from "@eta/core/service/git/worktrees";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import { makeAppPaths } from "@eta/core/platform/app-paths";
@@ -59,6 +61,7 @@ async function createLocalDesktopApplication(
     const credentials = await runtime.runPromise(CredentialService);
     const models = await runtime.runPromise(ModelCatalogService);
     const git = await runtime.runPromise(GitRepositoryService);
+    const github = await runtime.runPromise(GitHubRepositoryService);
     const worktrees = await runtime.runPromise(WorktreeService);
     const catalog = await runtime.runPromise(CatalogService);
     const skills = await runtime.runPromise(SkillsService);
@@ -103,9 +106,11 @@ async function createLocalDesktopApplication(
       storage: async () => scanStorage(dataRoot, await run(catalog.read)),
       reviewStats: () => readReviewStats(makeAppPaths(dataRoot).reviewLogPath),
       gitRepository: (workspaceId: string) => run(git.repository(workspaceId)),
+      githubIdentity: (_projectId: string) => run(github.identity()),
+      githubQuery: (input: GitHubQuery) => run(github.query(input)),
       gitBranches: (workspaceId: string) => run(git.branches(workspaceId)),
-      selectGitHubRemote: (projectId: string, remoteName: string | null) =>
-        run(git.selectGitHubRemote(projectId, remoteName)),
+      selectGitHubRemote: (projectId: string, remoteName: string | null, requestId?: string) =>
+        run(git.selectGitHubRemote(projectId, remoteName, requestId)),
       listWorktrees: (projectId: string) => run(worktrees.list(projectId)),
       reconcileWorktrees: (projectId: string) => run(worktrees.reconcile(projectId)),
       createWorktree: (input: CreateWorktreeInput) => run(worktrees.create(input)),

@@ -15,6 +15,8 @@ import { SkillsService } from "./service/skills/index.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
 import { GitRepositoryService } from "./service/git/index.ts";
 import { WorktreeService } from "./service/git/worktrees.ts";
+import { GitHubRepositoryService } from "./service/git/github.ts";
+import type { GitHubQuery } from "./shared/github.ts";
 import type { CreateWorktreeInput } from "./service/git/worktrees.ts";
 import { AppPathsService } from "./platform/app-paths.ts";
 import { readReviewStats } from "./service/runtime/review-log.ts";
@@ -31,8 +33,11 @@ export async function createCore(options: CoreOptions) {
     const catalog = await runtime.runPromise(CatalogService);
     const git = await runtime.runPromise(GitRepositoryService);
     const worktrees = await runtime.runPromise(WorktreeService);
+    const github = await runtime.runPromise(GitHubRepositoryService);
     const paths = await runtime.runPromise(AppPathsService);
     return {
+      githubIdentity: () => runtime.runPromise(github.identity()),
+      githubQuery: (input: GitHubQuery) => runtime.runPromise(github.query(input)),
       skills: (cwd?: string) => runtime.runPromise(skills.catalog(cwd)),
       projects: () => runtime.runPromise(projects.list()),
       registerProject: (rootPath: string, name?: string) =>
@@ -44,8 +49,8 @@ export async function createCore(options: CoreOptions) {
         runtime.runPromise(workspaces.register(projectId, cwd)),
       gitRepository: (workspaceId: string) => runtime.runPromise(git.repository(workspaceId)),
       gitBranches: (workspaceId: string) => runtime.runPromise(git.branches(workspaceId)),
-      selectGitHubRemote: (projectId: string, remoteName: string | null) =>
-        runtime.runPromise(git.selectGitHubRemote(projectId, remoteName)),
+      selectGitHubRemote: (projectId: string, remoteName: string | null, requestId?: string) =>
+        runtime.runPromise(git.selectGitHubRemote(projectId, remoteName, requestId)),
       reviewStats: () => readReviewStats(paths.reviewLogPath),
       createWorktree: (input: CreateWorktreeInput) => runtime.runPromise(worktrees.create(input)),
       listWorktrees: (projectId: string) => runtime.runPromise(worktrees.list(projectId)),

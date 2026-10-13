@@ -1,6 +1,7 @@
 import type { ReviewStats } from "@eta/core/service/runtime/review-log";
 import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/shared/git";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
+import type { GitHubIdentity, GitHubPage, GitHubQuery } from "@eta/core/shared/github";
 import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import type { BotConnection, BotState } from "./shared/bot.ts";
 import type { SubagentCommand, SubagentSummary } from "@eta/core/shared/subagents";
@@ -74,6 +75,8 @@ export interface AppInfo {
 }
 
 export interface DesktopBridge extends AgentBridge {
+  githubIdentity(projectId: string): Promise<GitHubIdentity>;
+  githubQuery(input: GitHubQuery): Promise<GitHubPage>;
   decideApproval(
     id: string,
     requestId: string,
@@ -85,7 +88,11 @@ export interface DesktopBridge extends AgentBridge {
   /** Live repository state of a workspace in its own environment (this computer or the Bot). */
   gitRepository(workspaceId: string): Promise<GitRepositoryInfo>;
   gitBranches(workspaceId: string): Promise<readonly GitBranch[]>;
-  selectGitHubRemote(projectId: string, remoteName: string | null): Promise<GitRepositoryInfo>;
+  selectGitHubRemote(
+    projectId: string,
+    remoteName: string | null,
+    requestId?: string,
+  ): Promise<GitRepositoryInfo>;
   listWorktrees(projectId: string): Promise<readonly WorktreeSummary[]>;
   reconcileWorktrees(projectId: string): Promise<readonly WorktreeSummary[]>;
   createWorktree(input: CreateWorktreeInput): Promise<WorktreeSummary>;

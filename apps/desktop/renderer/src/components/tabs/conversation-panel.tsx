@@ -75,8 +75,6 @@ export function ConversationPanel({
                 <SubagentConversation
                   threadId={tab.threadId!}
                   library={desktop.library}
-                  approvalReviewerLabel={view.composer.approvalReviewerLabel}
-                  onReviewerSettings={view.composer.onReviewerSettings}
                   child={candidate}
                   draft={childDrafts[key] ?? ""}
                   onDraft={(draft) => setChildDrafts((current) => ({ ...current, [key]: draft }))}

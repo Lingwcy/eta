@@ -81,15 +81,17 @@ export function CommandItem({
   variant = "default",
   ...props
 }: Omit<ComponentProps<typeof Autocomplete.Item>, "className"> & {
-  variant?: "default" | "menu";
+  variant?: "default" | "menu" | "menu-detail";
 }) {
   return (
     <Autocomplete.Item
       className={cn(
         "flex items-center outline-none data-disabled:cursor-not-allowed [&_svg]:shrink-0",
-        variant === "menu"
-          ? "h-[26px] cursor-default gap-1.5 rounded-[5px] px-2 text-xs text-neutral-800 data-highlighted:bg-[#007aff] data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:stroke-[1.7]"
+        variant === "menu" || variant === "menu-detail"
+          ? "cursor-default gap-1.5 rounded-[5px] px-2 text-xs text-neutral-800 data-highlighted:bg-[#007aff] data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:stroke-[1.7]"
           : "cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-sm text-neutral-600 data-highlighted:bg-neutral-100 data-highlighted:text-neutral-900 data-disabled:opacity-40",
+        variant === "menu" && "h-[26px]",
+        variant === "menu-detail" && "min-h-[26px] py-1",
       )}
       {...props}
     />

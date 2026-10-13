@@ -56,6 +56,13 @@ test.each([
   { type: "submit", id: "thread", prompt: "Hello", requestId: "id", images: "not-an-array" },
   { type: "prepare-image", source: { path: "shot.png" }, provider: 123 },
   { type: "not-a-command" },
+  { type: "github-query", input: { projectId: "project", kind: "commits", state: "open" } },
+  { type: "github-query", input: { projectId: "project", kind: "pulls", state: "merged" } },
+  {
+    type: "github-query",
+    input: { projectId: "project", kind: "issues", state: "all", owner: "arbitrary" },
+  },
+  { type: "github-query", input: { projectId: "", kind: "issues", state: "open" } },
   { type: "storage", path: "/arbitrary-path" },
   { type: "reveal-storage", target: { kind: "configuration", id: "" } },
   { type: "reveal-storage", target: { kind: "sessions", path: "/arbitrary-path" } },

@@ -206,6 +206,7 @@ export class GitRepositoryService extends Context.Service<
     selectGitHubRemote(
       projectId: string,
       remoteName: string | null,
+      requestId?: string,
     ): Effect.Effect<GitRepositoryInfo, CoreError>;
   }
 >()("eta/core/service/git/GitRepositoryService") {
@@ -218,8 +219,41 @@ export class GitRepositoryService extends Context.Service<
         workspaceId: string,
       ) {
         const workspace = yield* workspaces.get(workspaceId);
-        const saved = (yield* store.read).projects[workspace.projectId]?.githubRemote;
-        return yield* Effect.promise(() => inspectRepository(workspace.cwd, workspace.id, saved));
+        const saved = (yield* store.read).projects[workspace.projectId];
+        let info = yield* Effect.promise(() =>
+          inspectRepository(workspace.cwd, workspace.id, saved?.githubRemote),
+        );
+        const root = (yield* workspaces.list(workspace.projectId)).find(
+          (value) => value.kind === "project-root",
+        );
+        if (info.status === "ready" && root) {
+          if (workspace.id !== root.id) {
+            const owner = yield* Effect.promise(() => inspectRepository(root.cwd, root.id));
+            if (owner.status !== "ready" || owner.commonDir !== info.commonDir)
+              return {
+                status: "unavailable",
+                workspaceId,
+                reason: "error",
+                message: "工作区不属于该项目的 Git 仓库，请单独登记项目。",
+              } satisfies GitRepositoryInfo;
+          } else if (saved?.commonDir !== info.commonDir) {
+            const commonDir = info.commonDir;
+            const changed = Boolean(saved?.commonDir);
+            yield* store.update((state) => ({
+              ...state,
+              projects: {
+                ...state.projects,
+                [workspace.projectId]: {
+                  ...(changed ? {} : state.projects[workspace.projectId]),
+                  commonDir,
+                },
+              },
+            }));
+            if (changed)
+              info = yield* Effect.promise(() => inspectRepository(workspace.cwd, workspace.id));
+          }
+        }
+        return info;
       });
       return GitRepositoryService.of({
         repository,
@@ -241,6 +275,7 @@ export class GitRepositoryService extends Context.Service<
         selectGitHubRemote: Effect.fn("GitRepositoryService.selectGitHubRemote")(function* (
           projectId: string,
           remoteName: string | null,
+          requestId?: string,
         ) {
           const root = (yield* workspaces.list(projectId)).find(
             (workspace) => workspace.kind === "project-root",
@@ -257,13 +292,26 @@ export class GitRepositoryService extends Context.Service<
               message: "该 remote 不是 GitHub 仓库",
             });
           yield* store.update((state) => {
-            const { [projectId]: _previous, ...projects } = state.projects;
+            const fingerprint = JSON.stringify({ kind: "github-remote", projectId, remoteName });
+            if (requestId && state.requests?.[requestId]) {
+              if (state.requests[requestId] !== fingerprint)
+                throw new CoreError({
+                  code: "InvalidInput",
+                  message: "该请求 ID 已用于不同的参数",
+                });
+              return state;
+            }
+            const { githubRemote: _previous, ...project } = state.projects[projectId] ?? {};
             return {
               ...state,
-              projects:
-                remoteName === null
-                  ? projects
-                  : { ...projects, [projectId]: { githubRemote: remoteName } },
+              ...(requestId ? { requests: { ...state.requests, [requestId]: fingerprint } } : {}),
+              projects: {
+                ...state.projects,
+                [projectId]: {
+                  ...project,
+                  ...(remoteName === null ? {} : { githubRemote: remoteName }),
+                },
+              },
             };
           });
           return yield* repository(root.id);

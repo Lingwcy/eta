@@ -721,3 +721,30 @@ test("worktrees are created inside the workspace root without becoming new proje
   ).toMatchObject({ status: "removed" });
   expect((await request(`/v1/projects/not-a-project/worktrees`)).status).toBe(403);
 });
+
+test("GitHub HTTP queries enforce project ownership and reject caller-supplied repositories", async () => {
+  const { bot, request } = await fixture();
+  const projectId = [...bot.workspaceProjects.values()][0]!;
+  expect(
+    (await request("/v1/projects/outside/github", { kind: "issues", state: "open" })).status,
+  ).toBe(403);
+  expect((await request("/v1/projects/outside/github/identity")).status).toBe(403);
+  expect(
+    (
+      await request(`/v1/projects/${projectId}/github`, {
+        kind: "issues",
+        state: "all",
+        owner: "outside",
+      })
+    ).status,
+  ).toBe(400);
+  const result = await request(`/v1/projects/${projectId}/github`, {
+    kind: "issues",
+    state: "open",
+  });
+  expect(result.status).toBe(200);
+  expect(await result.json()).toMatchObject({ status: "error", code: "unavailable" });
+  expect(await (await request("/v1/status")).json()).toMatchObject({
+    capabilities: expect.arrayContaining(["git", "worktree", "github"]),
+  });
+});

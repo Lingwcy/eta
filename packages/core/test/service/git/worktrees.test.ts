@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { Effect } from "effect";
-import { createModels, fauxProvider } from "@earendil-works/pi-ai";
+import {
+  createModels,
+  fauxProvider,
+  fauxAssistantMessage,
+  fauxToolCall,
+} from "@earendil-works/pi-ai";
 import { afterEach, expect, test } from "vite-plus/test";
 import { createCore } from "../../../src/client.ts";
 import type { CoreClient } from "../../../src/client.ts";
@@ -23,7 +28,9 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
-async function fixture(options: { empty?: boolean; subdirectory?: boolean } = {}) {
+async function fixture(
+  options: { empty?: boolean; subdirectory?: boolean; defaultRoot?: boolean } = {},
+) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "eta-worktrees-")));
   directories.push(directory);
   const root = join(directory, "repo");
@@ -38,10 +45,23 @@ async function fixture(options: { empty?: boolean; subdirectory?: boolean } = {}
     await git(root, "commit", "-q", "-m", "app");
   }
   const models = createModels();
-  models.setProvider(
-    fauxProvider({ provider: "core-test", models: [{ id: "one" }], tokensPerSecond: 10000 })
-      .provider,
-  );
+  const agent = fauxProvider({
+    provider: "core-test",
+    models: [{ id: "one" }],
+    tokensPerSecond: 10000,
+  });
+  const titles = fauxProvider({
+    provider: "core-test",
+    models: [{ id: "one" }],
+    tokensPerSecond: 10000,
+  });
+  models.setProvider({
+    ...agent.provider,
+    streamSimple: (model, context, options) =>
+      options?.sessionId?.endsWith(":title")
+        ? titles.provider.streamSimple(model, context, options)
+        : agent.provider.streamSimple(model, context, options),
+  });
   const core = await createCore({
     dataRoot: join(directory, "data"),
     home: directory,
@@ -50,13 +70,13 @@ async function fixture(options: { empty?: boolean; subdirectory?: boolean } = {}
     environment: {
       userAgent: "eta-core-test",
       shutdown: "preserve",
-      worktreeRoot: join(directory, "managed"),
+      ...(options.defaultRoot ? {} : { worktreeRoot: join(directory, "managed") }),
     },
   });
   clients.push(core);
   const project = await core.registerProject(options.subdirectory ? join(root, "app") : root);
   const base = (await core.workspaces(project.id))[0]!;
-  return { core, directory, root, project, base };
+  return { core, directory, root, project, base, agent };
 }
 
 test("a new worktree is an isolated checkout registered as its own workspace", async () => {
@@ -250,4 +270,117 @@ test("reconcile reports external deletion and verifies worktrees registered outs
 test("default branch names are valid Git refs", () => {
   expect(worktreeBranchName("Fix login bug!", "a1b2")).toBe("eta/fix-login-bug-a1b2");
   expect(worktreeBranchName("修复登录", "a1b2")).toBe("eta/work-a1b2");
+});
+
+test("a removed workspace remains blocked if an unrelated directory appears at its old path", async () => {
+  const { core, project, base } = await fixture();
+  const created = await core.createWorktree({
+    projectId: project.id,
+    baseWorkspaceId: base.id,
+    branch: { kind: "new", name: "eta/tombstone" },
+    requestId: "tombstone",
+  });
+  const thread = await core.createThread(created.workspaceId!);
+  await core.removeWorktree(created.workspaceId!, "remove-tombstone");
+  await mkdir(created.path);
+  expect((await core.openThread(thread.id)).snapshot.blockedReason).toContain("已移除");
+  await expect(core.submit(thread.id, "Continue")).rejects.toMatchObject({
+    code: "WorkspaceUnavailable",
+  });
+  await expect(core.createThread(created.workspaceId!)).rejects.toMatchObject({
+    code: "WorkspaceUnavailable",
+  });
+});
+
+test("an unrelated repository registered as a workspace cannot become this project's worktree base", async () => {
+  const { core, directory, project } = await fixture();
+  const other = join(directory, "unrelated");
+  await mkdir(other);
+  await git(other, "init", "-q");
+  await git(other, "commit", "--allow-empty", "-qm", "initial");
+  const workspace = await core.registerWorkspace(project.id, other);
+  expect(await core.gitRepository(workspace.id)).toMatchObject({
+    status: "unavailable",
+    message: expect.stringContaining("不属于"),
+  });
+  await expect(
+    core.createWorktree({
+      projectId: project.id,
+      baseWorkspaceId: workspace.id,
+      branch: { kind: "new", name: "eta/wrong" },
+      requestId: "wrong-repository",
+    }),
+  ).rejects.toMatchObject({ code: "InvalidInput", message: expect.stringContaining("不属于") });
+});
+
+test("a Core-created worktree supports editing and committing in the native workspace sandbox", async () => {
+  const { core, directory, root, project, base, agent } = await fixture({ defaultRoot: true });
+  const created = await core.createWorktree({
+    projectId: project.id,
+    baseWorkspaceId: base.id,
+    branch: { kind: "new", name: "eta/native" },
+    requestId: "native",
+  });
+  const thread = await core.createThread(created.workspaceId!);
+  expect(created.path.startsWith(join(directory, "data-worktrees"))).toBe(true);
+  agent.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("bash", {
+        command:
+          "echo proof > proof.txt && git add proof.txt && git -c user.name=Eta -c user.email=eta@example.com commit -qm native-proof",
+        sandbox: { gitMetadata: true, reason: "Commit this task" },
+      }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const operation = await core.submit(thread.id, "Create and commit proof.txt");
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length, {
+      timeout: 15000,
+    })
+    .toBe(1);
+  const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
+  await expect(
+    core.removeWorktree(created.workspaceId!, "busy-native-remove"),
+  ).rejects.toMatchObject({ code: "Busy" });
+  await core.decideApproval(thread.id, approval.id, true);
+  await expect
+    .poll(async () => (await core.operation(thread.id, operation.operationId)).status, {
+      timeout: 15000,
+    })
+    .toBe("completed");
+  expect(await readFile(join(created.cwd, "proof.txt"), "utf8")).toBe("proof\n");
+  expect((await git(created.cwd, "log", "-1", "--format=%s")).trim()).toBe("native-proof");
+  await expect(access(join(root, "proof.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+}, 30000);
+
+test("removal retains the live branch after external checkout and refuses detached commits", async () => {
+  const { core, project, base } = await fixture();
+  const created = await core.createWorktree({
+    projectId: project.id,
+    baseWorkspaceId: base.id,
+    branch: { kind: "new", name: "eta/original" },
+    requestId: "live-branch",
+  });
+  await git(created.cwd, "switch", "-c", "eta/current");
+  expect(await core.listWorktrees(project.id)).toMatchObject([{ branch: "eta/current" }]);
+  await git(created.cwd, "switch", "--detach");
+  await expect(core.removeWorktree(created.workspaceId!, "detached-remove")).rejects.toMatchObject({
+    message: expect.stringContaining("创建分支保留"),
+  });
+  await git(created.cwd, "switch", "eta/current");
+  expect(await core.removeWorktree(created.workspaceId!, "live-remove")).toMatchObject({
+    status: "removed",
+    branch: "eta/current",
+  });
+  expect(
+    await core.createWorktree({
+      projectId: project.id,
+      baseWorkspaceId: base.id,
+      branch: { kind: "existing", name: "eta/current" },
+      continuesWorkspaceId: created.workspaceId,
+      requestId: "live-resume",
+    }),
+  ).toMatchObject({ branch: "eta/current", status: "ready", continues: created.workspaceId });
 });

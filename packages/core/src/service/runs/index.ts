@@ -10,6 +10,7 @@ import { adapter, CoreError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
 import { normalizeThinkingLevel } from "../conversations/thinking.ts";
+import { WorkspaceAccessService } from "../git/workspace-access.ts";
 
 export class RunSupervisorService extends Context.Service<
   RunSupervisorService,
@@ -31,6 +32,7 @@ export class RunSupervisorService extends Context.Service<
     Effect.gen(function* () {
       const models = yield* ModelCatalogService;
       const resources = yield* AgentResourcesService;
+      const access = yield* WorkspaceAccessService;
       const leases = new Set<ThreadRuntime>();
       const executions = new Map<ThreadRuntime, Promise<unknown>>();
       const inputs = new Map<ThreadRuntime, Submission>();
@@ -40,6 +42,8 @@ export class RunSupervisorService extends Context.Service<
       const blockedReason = Effect.fn("RunSupervisorService.blockedReason")(function* (
         runtime: ThreadRuntime,
       ) {
+        const unavailable = yield* access.reason(runtime.ref.metadata.cwd);
+        if (unavailable) return unavailable;
         const exists = yield* adapter("无法检查工作区", async () =>
           Promise.all([stat(runtime.ref.metadata.cwd), realpath(runtime.ref.metadata.cwd)])
             .then(
@@ -105,7 +109,13 @@ export class RunSupervisorService extends Context.Service<
             normalizeThinkingLevel(runtime.conversation, models.models),
           );
       });
-      const claim = (runtime: ThreadRuntime) => {
+      const claim = async (runtime: ThreadRuntime) => {
+        const reason = await Effect.runPromise(access.reason(runtime.ref.metadata.cwd));
+        if (reason || access.removing(runtime.ref.metadata.cwd))
+          throw new CoreError({
+            code: "WorkspaceUnavailable",
+            message: reason ?? "工作区正在移除",
+          });
         if (leases.has(runtime))
           throw new CoreError({ code: "Busy", message: "此会话已有任务运行" });
         leases.add(runtime);
@@ -206,7 +216,7 @@ export class RunSupervisorService extends Context.Service<
               : images;
           const input = prepared?.length ? imageInput(prompt, prepared) : content;
           const handle = yield* adapter("无法提交消息", async () => {
-            claim(runtime);
+            await claim(runtime);
             try {
               await runtime.prepareSkills(prompt);
               const handle = await runtime.conversation.submit(
@@ -236,7 +246,7 @@ export class RunSupervisorService extends Context.Service<
           yield* ready(runtime);
           yield* adapter("无法更新工具配置", runtime.refreshTools);
           yield* adapter("无法恢复任务", async () => {
-            claim(runtime);
+            await claim(runtime);
             runtime.recoveryRequired = false;
             await runtime.subagents.wake();
             runtime.harness.resume();
@@ -249,7 +259,7 @@ export class RunSupervisorService extends Context.Service<
         stop: (runtime) =>
           adapter("无法停止任务", async () => {
             // abort also settles queued work; recovery is only resumed here to converge cancellation.
-            if (!runtime.running) claim(runtime);
+            if (!runtime.running) await claim(runtime);
             try {
               runtime.recoveryRequired = false;
               await runtime.subagents.stopAll();
@@ -268,7 +278,7 @@ export class RunSupervisorService extends Context.Service<
           yield* ready(runtime);
           yield* adapter("无法更新工具配置", runtime.refreshTools);
           yield* adapter("无法压缩上下文", async () => {
-            claim(runtime);
+            await claim(runtime);
             try {
               const task = await runtime.conversation.compact(undefined, BACKGROUND_CONTEXT);
               supervise(runtime, runtime.harness.waitForTask(task, BACKGROUND_CONTEXT));

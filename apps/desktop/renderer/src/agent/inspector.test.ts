@@ -35,3 +35,28 @@ test("an empty draft clears old thread context and closing conversations skips s
   tabs.close(saved);
   expect(inspectedConversation(tabs.getSnapshot())).toBeUndefined();
 });
+
+test("GitHub context follows execution workspace rather than thread grouping or a stale tab", async () => {
+  const { inspectedWorkspace } = await import("./inspector");
+  const tabs = setup();
+  tabs.openThread("saved", "stale");
+  const library = {
+    projects: [],
+    workspaces: [
+      {
+        id: "actual",
+        projectId: "execution",
+        cwd: "/execution",
+        kind: "worktree" as const,
+        createdAt: 1,
+      },
+    ],
+    threads: [
+      { id: "saved", workspaceId: "actual", projectId: "display", title: "Thread", createdAt: 1 },
+    ],
+  };
+  expect(inspectedWorkspace(inspectedConversation(tabs.getSnapshot()), library)).toMatchObject({
+    id: "actual",
+    projectId: "execution",
+  });
+});

@@ -13,6 +13,7 @@ import { BotConnectionSchema } from "./bot-schema.ts";
 import type { LocalDesktopApplication } from "./bootstrap.ts";
 import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/shared/git";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
+import type { GitHubIdentity, GitHubPage, GitHubQuery } from "@eta/core/shared/github";
 
 /** Remote identities never enter the local catalog, even while a Bot is unavailable. */
 export class DesktopBot {
@@ -339,17 +340,44 @@ export class DesktopBot {
     );
     return { ...info, workspaceId };
   }
+  githubIdentity(projectId: string) {
+    this.requireCapability("github");
+    return this.request<GitHubIdentity>(
+      `/v1/projects/${encodeURIComponent(this.raw(projectId))}/github/identity`,
+    );
+  }
+  async githubQuery(input: GitHubQuery): Promise<GitHubPage> {
+    this.requireCapability("github");
+    const page = await this.request<GitHubPage>(
+      `/v1/projects/${encodeURIComponent(this.raw(input.projectId))}/github`,
+      { ...input, projectId: undefined },
+    );
+    const repository = (value: NonNullable<GitHubPage["repository"]>) => ({
+      ...value,
+      projectId: this.prefix + value.projectId,
+      workspaceId: this.prefix + value.workspaceId,
+    });
+    return page.status === "ready"
+      ? { ...page, repository: repository(page.repository) }
+      : {
+          ...page,
+          ...(page.repository ? { repository: repository(page.repository) } : {}),
+          ...(page.cached
+            ? { cached: { ...page.cached, repository: repository(page.cached.repository) } }
+            : {}),
+        };
+  }
   gitBranches(workspaceId: string) {
     this.requireCapability("git");
     return this.request<GitBranch[]>(
       `/v1/workspaces/${encodeURIComponent(this.raw(workspaceId))}/branches`,
     );
   }
-  async selectGitHubRemote(projectId: string, remoteName: string | null) {
+  async selectGitHubRemote(projectId: string, remoteName: string | null, requestId?: string) {
     this.requireCapability("git");
     const info = await this.request<GitRepositoryInfo>(
       `/v1/projects/${encodeURIComponent(this.raw(projectId))}/github-remote`,
-      { remoteName },
+      { remoteName, ...(requestId ? { requestId } : {}) },
     );
     return { ...info, workspaceId: this.prefix + info.workspaceId };
   }
@@ -522,12 +550,16 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
     },
     gitRepository: (workspaceId: string) =>
       isCloudId(workspaceId) ? bot.gitRepository(workspaceId) : local.gitRepository(workspaceId),
+    githubIdentity: (projectId: string) =>
+      isCloudId(projectId) ? bot.githubIdentity(projectId) : local.githubIdentity(projectId),
+    githubQuery: (input: GitHubQuery) =>
+      isCloudId(input.projectId) ? bot.githubQuery(input) : local.githubQuery(input),
     gitBranches: (workspaceId: string) =>
       isCloudId(workspaceId) ? bot.gitBranches(workspaceId) : local.gitBranches(workspaceId),
-    selectGitHubRemote: (projectId: string, remoteName: string | null) =>
+    selectGitHubRemote: (projectId: string, remoteName: string | null, requestId?: string) =>
       isCloudId(projectId)
-        ? bot.selectGitHubRemote(projectId, remoteName)
-        : local.selectGitHubRemote(projectId, remoteName),
+        ? bot.selectGitHubRemote(projectId, remoteName, requestId)
+        : local.selectGitHubRemote(projectId, remoteName, requestId),
     listWorktrees: (projectId: string) =>
       isCloudId(projectId) ? bot.listWorktrees(projectId) : local.listWorktrees(projectId),
     reconcileWorktrees: (projectId: string) =>

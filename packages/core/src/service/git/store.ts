@@ -4,6 +4,7 @@ import { CoreError } from "../errors.ts";
 import { readJson, writeJson } from "../json-file.ts";
 
 const ProjectGitSchema = Schema.Struct({
+  commonDir: Schema.optionalKey(Schema.NonEmptyString),
   githubRemote: Schema.optionalKey(Schema.NonEmptyString),
 });
 

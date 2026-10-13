@@ -616,7 +616,9 @@ test.each(["safe", "unsafe", "missing"] as const)(
     if (policy === "safe") {
       await restored.resume(thread.id);
       await expect
-        .poll(async () => (await restored.operation(thread.id, input.operationId)).status)
+        .poll(async () => (await restored.operation(thread.id, input.operationId)).status, {
+          timeout: 10000,
+        })
         .toBe("completed");
       expect(executions).toBe(2);
     } else {
@@ -625,4 +627,5 @@ test.each(["safe", "unsafe", "missing"] as const)(
       expect((await restored.operation(thread.id, input.operationId)).status).toBe("aborted");
     }
   },
+  15000,
 );

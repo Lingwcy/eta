@@ -100,6 +100,15 @@ Most code changes do not need an internal documentation change. Agents can read 
 - Comments describe how a thing is used, and move when the code moves. To be used mostly to describe functions, not to annotate every line of behavior.
 - Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations; they peg the GPU on high-refresh displays.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.
+- Do not make unauthorized additions to finalized UI components. If required by business needs, please consult the team before proceeding—especially for complex components such as input fields and utility function calls.
+
+## UI
+
+- Follow the maintainer's supplied UI reference and existing component style across every state, including nested menus, naming, empty, loading and error states. Completing an interaction does not authorize a different visual style.
+- Compact utility popovers use the thread context menu as their reference: 12px text, roughly 26–28px rows, small icons, restrained padding and content-sized width. Inline naming stays a single compact menu row with a borderless input and a small confirmation action; do not expand it into a wide form, large outlined field, card or dialog.
+- Use shared `variant` and `size` props for this appearance. Keep explanatory paragraphs and extra actions out of compact menus unless the maintainer explicitly requests them or they are necessary to resolve an actionable error.
+- Preserve approved visibility and entry points. The composer context bar and worktree configuration belong to an unsent chat and hide after the chat starts. Do not add a persistent thread bar, workspace management dialog, Environment configuration item or project/workspace settings page without explicit approval.
+- Exercise the real popup interactions after changes; typecheck and builds alone cannot detect missing compound-component contexts. Browser or computer-use verification still requires the maintainer's explicit agreement.
 
 ## Additional tips
 

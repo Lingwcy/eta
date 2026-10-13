@@ -14,7 +14,6 @@ import { hasThreadActivity } from "./thread-activity";
 import { defaultSandboxMode, sandboxModes } from "@eta/core/shared/sandbox";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 import type { WorktreeDraft } from "@/components/input/worktree-picker";
-import { defaultApprovalReviewerMode } from "@eta/core/shared/runtime-settings";
 
 /** A mounted conversation keeps its composer when another tab becomes active. */
 export function useDesktopController(
@@ -101,6 +100,7 @@ export function useDesktopController(
         : await window.eta.registerProject(rootPath, name);
       const next = await desktop.refresh();
       const workspace = projectRootWorkspace(next.workspaces, project.id);
+      setWorktreeDraft({ enabled: false });
       navigation.tabs.updateConversation(tab.id, { workspaceId: workspace?.id ?? null });
     });
   };
@@ -194,14 +194,6 @@ export function useDesktopController(
               : {}),
           },
     composer: {
-      approvalReviewerLabel:
-        cloud && !remote?.capabilities?.includes("approval-review")
-          ? "由我审批"
-          : (modelLibrary?.settings.approvalReviewer?.mode ?? defaultApprovalReviewerMode) ===
-              "auto"
-            ? "自动审查"
-            : "由我审批",
-      onReviewerSettings: () => navigation.tabs.openSettings("permissions"),
       value: tab.draft,
       onChange: (draft: string) => navigation.tabs.updateConversation(tab.id, { draft }),
       model: mainModel,

@@ -140,6 +140,7 @@ export class ThreadService extends Context.Service<
             code: "InvalidInput",
             message: "归档会话需要先恢复，才能继续执行",
           });
+        if (execution) yield* workspaces.validate(thread.workspaceId);
         return yield* registry.acquire(thread.sessionRef);
       });
       const childRuntime = async (runtime: ThreadRuntime, path: string): Promise<ThreadRuntime> => {

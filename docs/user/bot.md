@@ -11,3 +11,9 @@
 云端会话也使用[沙盒策略](sandbox.md)。新会话默认使用工作区沙盒，审批卡片在 Desktop 和 Mobile 中显示。Bot 是否[自动审查](sandbox.md#自动审查)越界请求由 Bot 配置文件中的 `runtime.approvalReviewer` 决定，本机的审批人设置不影响 Bot。Bot 管理员决定允许的策略；默认不开放完全访问。修改本机的默认策略不会修改 Bot 的配置。
 
 连接中断时，Desktop 保留已读取的云端项目和会话目录，并尝试重新连接。也可在 Bot 设置中手动重新连接或断开连接。本期支持连接一个 Bot，Bot 不会默认创建项目。
+
+## Git 工作区与 GitHub
+
+Desktop 连接 Bot 后，可以在新聊天的工作区配置中创建服务器上的 worktree，并查看该项目所选 GitHub remote 的 PR 与 Issue。管理目录位于 workspaceRoot/.eta-worktrees，不会作为新的项目扫描。
+
+GitHub 访问使用服务器已有的 GitHub CLI 登录；公开仓库也支持匿名访问。私有仓库需要在服务器运行 gh auth login。

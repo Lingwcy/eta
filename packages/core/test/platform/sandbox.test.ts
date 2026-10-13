@@ -43,6 +43,32 @@ async function fixture(
 
 const native = await sandboxStatus({ mode: "workspace-write", workspaceRoot: process.cwd() });
 test.skipIf(!native.available)(
+  "Git remains usable when a system config exists outside the sandbox's readable roots",
+  async () => {
+    const { env, outside } = await fixture();
+    const systemConfig = join(outside, "gitconfig");
+    await writeFile(systemConfig, "[alias]\n  host-only = !echo host-config\n");
+    expect(await env.readTextFile(systemConfig, context)).toMatchObject({ ok: false });
+    let output = "";
+    const result = getOrThrow(
+      await env.exec(
+        "git init -q -b main && git status --short && git config --list",
+        {
+          env: { GIT_CONFIG_SYSTEM: systemConfig },
+          onOutput: (value) => {
+            output += value;
+          },
+        },
+        context,
+      ),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(output).toContain("?? read.txt");
+    expect(output).not.toContain("host-config");
+  },
+);
+
+test.skipIf(!native.available)(
   "native sandbox permits workspace edits and streaming reads while blocking other projects and protected paths",
   async () => {
     const { env, workspaceRoot, outside, credentials } = await fixture();
