@@ -17,6 +17,9 @@ import { SessionRepositoryService } from "../sessions/index.ts";
 import { normalizeThinkingLevel } from "../conversations/thinking.ts";
 import type { EtaSessionMetadata } from "../../shared/sessions.ts";
 import { ThreadTitleService } from "../titles/index.ts";
+import { CatalogService } from "../catalog/index.ts";
+import { ScheduleService } from "../schedules/index.ts";
+import { createScheduleExtension } from "../schedules/extension.ts";
 import { createRuntimeTools } from "./tools.ts";
 import { recoverRuntime, hasForegroundWork } from "./recovery.ts";
 import { createTitleTask, TitleDoc } from "../../agent/extension/title/task.ts";
@@ -79,6 +82,10 @@ export class RuntimeRegistryService extends Context.Service<
       const titles = yield* ThreadTitleService;
       const environment = yield* CoreEnvironmentService;
       const paths = yield* AppPathsService;
+      const catalog = yield* CatalogService;
+      const schedules = yield* ScheduleService;
+      const serviceContext = yield* Effect.context<never>();
+      const run = Effect.runPromiseWith(serviceContext);
       const opening = new Map<string, Promise<ThreadRuntime>>();
       const releasing = new Map<string, Promise<void>>();
       let closing = false;
@@ -149,7 +156,10 @@ export class RuntimeRegistryService extends Context.Service<
             resources.processImage,
           );
           registry.install({ name: "desktop-thread-title", tasks: [titleTask] });
+          const scheduled = createScheduleExtension({ ref, catalog, schedules, environment, run });
+          registry.install(scheduled.extension);
           const subagents = createSubagentsExtension({
+            excludedTools: [scheduled.tool],
             invalid: (message) => {
               throw new CoreError({ code: "InvalidInput", message });
             },
@@ -172,6 +182,7 @@ export class RuntimeRegistryService extends Context.Service<
             registry,
             harness: () => harness,
             subagents,
+            schedule: scheduled.tool,
             readSettings: () => Effect.runPromise(preferences.read),
             skillCatalog: () => Effect.runPromise(skillsService.catalog(ref.metadata.cwd)),
           });

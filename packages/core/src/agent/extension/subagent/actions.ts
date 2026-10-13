@@ -347,8 +347,8 @@ export function createSubagentActions(
             thinkingLevel: level === "off" ? null : level,
             tools:
               (command.canDelegate ?? preset?.canDelegate ?? false)
-                ? null
-                : { remove: [getTool()] },
+                ? { remove: options.excludedTools ?? [] }
+                : { remove: [getTool(), ...(options.excludedTools ?? [])] },
             instructions: `${instructions}\nYou are ${path}. ${preset?.instructions ?? "Complete the assigned task and report the result."}`,
           });
           child = {
