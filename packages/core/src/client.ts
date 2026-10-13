@@ -184,6 +184,7 @@ export async function createCore(options: CoreOptions) {
       scheduleRequest: (input: { requestId: string }) =>
         runtime.runPromise(schedules.request(input.requestId)),
       subscribeSchedules: (listener: () => void) => schedules.subscribe(listener),
+      scheduleSnapshot: () => runtime.runPromise(schedules.snapshot),
       githubIdentity: () => runtime.runPromise(github.identity()),
       githubQuery: (input: GitHubQuery) => runtime.runPromise(github.query(input)),
       skills: (cwd?: string) => runtime.runPromise(skills.catalog(cwd)),

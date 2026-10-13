@@ -84,6 +84,11 @@ function threadWorkspace(catalog: CatalogState, threadId: string) {
   if (!workspace) invalid("会话执行工作区不可用");
   return workspace.id;
 }
+function workspaceSnapshot(catalog: CatalogState, threadId: string) {
+  const workspaceId = catalog.threads.find((thread) => thread.id === threadId)?.workspaceId;
+  return workspaceId ? { workspaceId } : {};
+}
+
 function checkChange(state: ScheduleDraft, threadId: string, change: ScheduleChange, now: number) {
   if (Object.values(state.lifecycleIntents).some((intent) => intent.threadId === threadId))
     invalid("会话生命周期变更正在处理");
@@ -127,6 +132,7 @@ function applyChange(
     state.schedules[scheduleId] = {
       id: scheduleId,
       threadId: request.threadId,
+      ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
       name: change.name,
       prompt: change.prompt,
       rule: change.rule,
@@ -141,7 +147,7 @@ function applyChange(
     };
   } else {
     scheduleId = change.scheduleId;
-    const current = state.schedules[scheduleId];
+    const { blockedReason: _blockedReason, ...current } = state.schedules[scheduleId];
     const patch = change.action === "update" ? change.patch : {};
     const rule = patch.rule ?? current.rule;
     const status =
@@ -180,7 +186,14 @@ function applyChange(
         state.proposals[id] = { ...proposal, state: "invalidated", reason: "计划已变更" };
     }
   }
-  return { ...request, state: "applied" as const, scheduleId, finishedAt: now };
+  const { reason: _reason, ...confirmed } = request;
+  return {
+    ...confirmed,
+    state: "applied" as const,
+    scheduleId,
+    nextRunAt: state.schedules[scheduleId].nextRunAt,
+    finishedAt: now,
+  };
 }
 
 /** Called inside one store transaction. Admission uncertainty leaves a durable pending intention. */
@@ -196,6 +209,7 @@ export function writeScheduleChange(
   let request: ScheduleRequest = {
     requestId: input.requestId,
     threadId: input.threadId,
+    ...workspaceSnapshot(catalog, input.threadId),
     fingerprint,
     change: input.change,
     state: "pending",
@@ -236,6 +250,7 @@ export function proposeScheduleChange(
   let request: ScheduleRequest = {
     requestId: input.requestId,
     threadId: input.threadId,
+    ...workspaceSnapshot(catalog, input.threadId),
     fingerprint,
     state: "applied",
     createdAt: now,
@@ -291,6 +306,7 @@ export function decideScheduleProposal(
   let request: ScheduleRequest = {
     requestId: input.requestId,
     threadId: proposal.threadId,
+    workspaceId: proposal.workspaceId,
     fingerprint,
     proposalId: proposal.id,
     state: "pending",
@@ -422,6 +438,7 @@ export function runScheduleNow(
   let request: ScheduleRequest = {
     requestId: input.requestId,
     threadId: input.threadId,
+    ...workspaceSnapshot(catalog, input.threadId),
     fingerprint,
     state: "applied",
     createdAt: now,

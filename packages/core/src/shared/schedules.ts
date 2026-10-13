@@ -41,19 +41,21 @@ export const ScheduleRuleSchema = Schema.Union([
 ]);
 export type ScheduleRule = typeof ScheduleRuleSchema.Type;
 
+export const ScheduleNameSchema = Schema.NonEmptyString.check(Schema.isPattern(/\S/));
+export const SchedulePromptSchema = Schema.NonEmptyString.check(Schema.isPattern(/\S/));
 const Id = Schema.NonEmptyString;
 const Revision = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
 const Timestamp = ScheduleTimestampSchema;
 export const SchedulePatchSchema = Schema.Struct({
-  name: Schema.optionalKey(Schema.NonEmptyString),
-  prompt: Schema.optionalKey(Schema.NonEmptyString),
+  name: Schema.optionalKey(ScheduleNameSchema),
+  prompt: Schema.optionalKey(SchedulePromptSchema),
   rule: Schema.optionalKey(ScheduleRuleSchema),
 });
 export const ScheduleChangeSchema = Schema.Union([
   Schema.Struct({
     action: Schema.Literal("create"),
-    name: Schema.NonEmptyString,
-    prompt: Schema.NonEmptyString,
+    name: ScheduleNameSchema,
+    prompt: SchedulePromptSchema,
     rule: ScheduleRuleSchema,
   }),
   Schema.Struct({
@@ -73,8 +75,10 @@ export type ScheduleChange = typeof ScheduleChangeSchema.Type;
 export const ScheduleSchema = Schema.Struct({
   id: Id,
   threadId: Id,
-  name: Schema.NonEmptyString,
-  prompt: Schema.NonEmptyString,
+  // Retained scope identity for history after thread deletion; execution resolves the current thread.
+  workspaceId: Schema.optionalKey(Id),
+  name: ScheduleNameSchema,
+  prompt: SchedulePromptSchema,
   rule: ScheduleRuleSchema,
   state: Schema.Literals(["active", "paused", "completed"]),
   nextRunAt: Schema.NullOr(Timestamp),
@@ -96,8 +100,8 @@ export const ScheduleOccurrenceSchema = Schema.Struct({
   scheduleRevision: Revision,
   scheduledAt: Timestamp,
   source: Schema.Literals(["automatic", "manual"]),
-  name: Schema.NonEmptyString,
-  prompt: Schema.NonEmptyString,
+  name: ScheduleNameSchema,
+  prompt: SchedulePromptSchema,
   rule: ScheduleRuleSchema,
   requestId: Id,
   detectedAt: Timestamp,
@@ -137,12 +141,14 @@ export type ScheduleProposal = typeof ScheduleProposalSchema.Type;
 export const ScheduleRequestSchema = Schema.Struct({
   requestId: Id,
   threadId: Id,
+  workspaceId: Schema.optionalKey(Id),
   fingerprint: Id,
   state: Schema.Literals(["pending", "applied", "rejected"]),
   change: Schema.optionalKey(ScheduleChangeSchema),
   scheduleId: Schema.optionalKey(Id),
   proposalId: Schema.optionalKey(Id),
   occurrenceId: Schema.optionalKey(Id),
+  nextRunAt: Schema.optionalKey(Schema.NullOr(Timestamp)),
   reason: Schema.optionalKey(Schema.NonEmptyString),
   createdAt: Timestamp,
   finishedAt: Schema.optionalKey(Timestamp),
@@ -153,6 +159,7 @@ export const ScheduleLifecycleIntentSchema = Schema.Struct({
   requestId: Id,
   threadId: Id,
   action: Schema.Literals(["archive", "delete"]),
+  workspaceId: Schema.optionalKey(Id),
   phase: Schema.Literals(["prepared", "catalogApplied"]),
   createdAt: Timestamp,
 });
@@ -168,3 +175,12 @@ export const ScheduleStoreSchema = Schema.Struct({
   lifecycleIntents: Schema.Record(Id, ScheduleLifecycleIntentSchema),
 });
 export type ScheduleStoreState = typeof ScheduleStoreSchema.Type;
+
+export const ScheduleSnapshotSchema = Schema.Struct({
+  revision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  schedules: Schema.Array(ScheduleSchema),
+  proposals: Schema.Array(ScheduleProposalSchema),
+  requests: Schema.Array(ScheduleRequestSchema),
+  lifecycleIntents: Schema.Array(ScheduleLifecycleIntentSchema),
+});
+export type ScheduleSnapshot = typeof ScheduleSnapshotSchema.Type;

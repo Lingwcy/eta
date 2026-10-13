@@ -4,6 +4,7 @@ import type {
   ScheduleOccurrence,
   ScheduleProposal,
   ScheduleRequest,
+  ScheduleSnapshot,
 } from "../../shared/schedules.ts";
 import { CatalogService } from "../catalog/index.ts";
 import { CoreEnvironmentService } from "../environment.ts";
@@ -30,6 +31,7 @@ import { ScheduleStoreService } from "./store.ts";
 export class ScheduleService extends Context.Service<
   ScheduleService,
   {
+    readonly snapshot: Effect.Effect<ScheduleSnapshot, CoreError>;
     list(threadId?: string): Effect.Effect<readonly Schedule[], CoreError>;
     proposals(threadId?: string): Effect.Effect<readonly ScheduleProposal[], CoreError>;
     runs(scheduleId: string): Effect.Effect<readonly ScheduleOccurrence[], CoreError>;
@@ -156,6 +158,17 @@ export class ScheduleService extends Context.Service<
         );
       });
       return ScheduleService.of({
+        snapshot: store.read.pipe(
+          Effect.map((state) => ({
+            revision: state.revision,
+            schedules: Object.values(state.schedules),
+            proposals: Object.values(state.proposals),
+            requests: Object.values(state.requests).filter(
+              (request) => request.state === "pending",
+            ),
+            lifecycleIntents: Object.values(state.lifecycleIntents),
+          })),
+        ),
         list: (threadId) =>
           store.read.pipe(
             Effect.map((state) =>

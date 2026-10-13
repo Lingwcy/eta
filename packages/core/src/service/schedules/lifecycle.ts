@@ -196,11 +196,16 @@ export class ScheduleLifecycleService extends Context.Service<
               if (action === "restore") return yield* operation;
               const requestId = randomUUID();
               const now = DateTime.toEpochMillis(yield* DateTime.now);
+              const workspaceId = (yield* catalog.read).threads.find(
+                (thread) => thread.id === threadId,
+              )?.workspaceId;
+              const workspace = workspaceId ? { workspaceId } : {};
               yield* store.update((current) => {
                 const draft = scheduleDraft(current);
                 draft.requests[requestId] = {
                   requestId,
                   threadId,
+                  ...workspace,
                   fingerprint: scheduleFingerprint({ kind: "lifecycle", threadId, action }),
                   state: "pending",
                   createdAt: now,
@@ -209,6 +214,7 @@ export class ScheduleLifecycleService extends Context.Service<
                   requestId,
                   threadId,
                   action,
+                  ...workspace,
                   phase: "prepared",
                   createdAt: now,
                 };

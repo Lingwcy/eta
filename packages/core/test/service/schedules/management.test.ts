@@ -92,6 +92,7 @@ test("write replay precedes revision checks and conflicts never overwrite the or
 
 test("editing cancels only pending snapshots and invalidates old proposals", () => {
   const { state, scheduleId, occurrence } = fixture();
+  state.schedules[scheduleId] = { ...state.schedules[scheduleId], blockedReason: "busy" };
   state.occurrences.run = occurrence;
   state.occurrences.started = {
     ...occurrence,
@@ -128,6 +129,7 @@ test("editing cancels only pending snapshots and invalidates old proposals", () 
   );
   expect(state.schedules[scheduleId].nextRunAt).toBe(900_000);
   expect(state.schedules[scheduleId].prompt).toBe("New prompt");
+  expect(state.schedules[scheduleId].blockedReason).toBeUndefined();
   expect(state.occurrences.run.state).toBe("cancelled");
   expect(state.occurrences.run.prompt).toBe("Frozen prompt");
   expect(state.occurrences.started.state).toBe("admitted");
