@@ -116,6 +116,18 @@ export class RuntimeRegistryService extends Context.Service<
                   (value) => value.id === model.modelId,
                 ),
               record: (entry) => appendFile(paths.reviewLogPath, `${JSON.stringify(entry)}\n`),
+              tools: {
+                root: ref.metadata.cwd,
+                // A fresh read-only sandbox per review: no network, no grants, its own scratch.
+                open: async () =>
+                  environment.executionEnvironment(ref.metadata.cwd, {
+                    mode: "read-only",
+                    workspaceRoot: ref.metadata.cwd,
+                    deniedRoots: [paths.dataRoot],
+                    networkAccess: false,
+                    commandAccess: true,
+                  }),
+              },
             },
           );
           registry.install(approvals.extension);

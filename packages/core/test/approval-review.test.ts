@@ -1,4 +1,6 @@
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Effect } from "effect";
@@ -12,6 +14,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { createCore } from "../src/client.ts";
 import type { CoreClient } from "../src/client.ts";
 import type { ApprovalReviewer } from "../src/shared/runtime-settings.ts";
+import { gitCommand } from "../src/service/runtime/review-tools.ts";
 
 const clients: CoreClient[] = [];
 const directories: string[] = [];
@@ -46,12 +49,14 @@ async function fixture(
   });
   let reviews = 0;
   const requests: string[] = [];
+  const reviewRequests: string[] = [];
   const models = createModels();
   models.setProvider({
     ...agent.provider,
     streamSimple: (model, context, options) => {
       if (options?.sessionId?.endsWith(":review")) {
         reviews++;
+        reviewRequests.push(JSON.stringify(context.messages));
         return reviewer.provider.streamSimple(model, context, options);
       }
       if (options?.sessionId?.endsWith(":title"))
@@ -94,6 +99,7 @@ async function fixture(
     log,
     reviews: () => reviews,
     agentRequests: () => requests,
+    reviewRequests: () => reviewRequests,
   };
 }
 
@@ -275,4 +281,86 @@ test("the user reviewer keeps today's approval flow", async () => {
   const approval = await pending(core, thread.id);
   expect(approval.review).toBeUndefined();
   expect(reviews()).toBe(0);
+});
+
+const reviewerCalls = (...calls: ReturnType<typeof fauxToolCall>[]) =>
+  fauxAssistantMessage(calls, { stopReason: "toolUse" });
+
+test("the reviewer can read the workspace but nothing outside it", async () => {
+  const { core, agent, reviewer, cwd, directory, thread, reviewRequests } = await fixture();
+  await writeFile(join(cwd, "notes.txt"), "workspace notes for the reviewer");
+  await writeFile(join(directory, "outside.txt"), "secret outside the workspace");
+  agent.setResponses([write("reviewed.txt"), fauxAssistantMessage("Done")]);
+  reviewer.setResponses([
+    reviewerCalls(
+      fauxToolCall("read", { path: "notes.txt" }),
+      fauxToolCall("read", { path: "../outside.txt" }),
+      fauxToolCall("list", { path: "." }),
+    ),
+    verdict("approve"),
+  ]);
+  const operation = await core.submit(thread.id, "Write");
+  await settle(core, thread.id, operation.operationId);
+  const followUp = reviewRequests().at(-1)!;
+  expect(followUp).toContain("workspace notes for the reviewer");
+  expect(followUp).toContain("审查器无权访问此路径");
+  expect(followUp).not.toContain("secret outside the workspace");
+  expect(await readFile(join(cwd, "reviewed.txt"), "utf8")).toBe("written");
+});
+
+test("the reviewer's git runs read-only subcommands and rejects the rest", async () => {
+  const { core, agent, reviewer, cwd, thread, reviewRequests } = await fixture();
+  await promisify(execFile)("git", ["init", "-q"], { cwd });
+  await writeFile(join(cwd, "untracked.txt"), "new");
+  agent.setResponses([write("git.txt"), fauxAssistantMessage("Done")]);
+  reviewer.setResponses([
+    reviewerCalls(
+      fauxToolCall("git", { args: ["status", "--short"] }),
+      fauxToolCall("git", { args: ["diff", "--no-index", "/etc/hosts", "untracked.txt"] }),
+      fauxToolCall("git", { args: ["branch", "created-by-reviewer"] }),
+      fauxToolCall("git", { args: ["commit", "-m", "x"] }),
+    ),
+    verdict("approve"),
+  ]);
+  const operation = await core.submit(thread.id, "Write");
+  await settle(core, thread.id, operation.operationId);
+  const followUp = reviewRequests().at(-1)!;
+  expect(followUp).toContain("?? untracked.txt");
+  expect(followUp).toContain("不允许的 git 参数：--no-index");
+  expect(followUp).toContain("git branch 只能列出分支");
+  expect(followUp).toContain("不允许的 git 子命令：commit");
+});
+
+test("a reviewer exceeding its tool budget hands the request to the user", async () => {
+  const { core, agent, reviewer, thread } = await fixture();
+  agent.setResponses([write("budget.txt"), fauxAssistantMessage("Done")]);
+  reviewer.setResponses([
+    reviewerCalls(...Array.from({ length: 9 }, () => fauxToolCall("list", { path: "." }))),
+  ]);
+  await core.submit(thread.id, "Write");
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.[0]?.review, {
+      timeout: 10000,
+    })
+    .toMatchObject({ status: "skipped", skippedReason: "tool-budget" });
+});
+
+test("reviewer git commands neutralise repository configuration that executes code", () => {
+  const command = gitCommand(["diff", "HEAD"]);
+  for (const flag of [
+    "core.fsmonitor=false",
+    "core.hooksPath=/dev/null",
+    "--no-ext-diff",
+    "--no-textconv",
+  ])
+    expect(command).toContain(flag);
+  for (const args of [
+    ["log", "-c", "x"],
+    ["show", "--output=/tmp/x"],
+    ["diff", "-O/etc/hosts"],
+    ["status", "--git-dir=/elsewhere"],
+    ["rev-parse", "-C", "/"],
+  ])
+    expect(() => gitCommand(args)).toThrow("不允许的 git 参数");
+  expect(gitCommand(["log", "--oneline", "-n", "5", "it's"])).toContain(`'it'\\''s'`);
 });
