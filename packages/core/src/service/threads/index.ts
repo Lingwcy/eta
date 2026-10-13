@@ -190,6 +190,26 @@ export class ThreadService extends Context.Service<
         }));
         return state.threads.find((thread) => thread.id === id)!;
       });
+      const captureScheduledResults = Effect.fn("ThreadService.captureScheduledResults")(function* (
+        id: string,
+      ) {
+        const admitted = yield* schedules.admitted(id);
+        if (admitted.length === 0) return;
+        const thread = yield* get(id);
+        const runtime = yield* registry.acquire(thread.sessionRef);
+        if (
+          runtime.running ||
+          runtime.recoveryRequired ||
+          (yield* adapter("无法检查任务", runtime.hasWork))
+        )
+          return yield* new CoreError({ code: "Busy", message: "请先处理未完成的定时任务" });
+        const results = yield* adapter("无法保存定时任务执行结果", () =>
+          Promise.all(
+            admitted.map((occurrence) => readOperation(runtime, occurrence.operationId!)),
+          ),
+        );
+        yield* schedules.recordResults(id, results);
+      });
       return ThreadService.of({
         decideApproval: (id, requestId, approved, reuse) =>
           locked(
@@ -444,6 +464,7 @@ export class ThreadService extends Context.Service<
                     code: "Busy",
                     message: "请先停止未完成的任务，再删除会话",
                   });
+                yield* captureScheduledResults(id);
                 yield* registry.close(thread.sessionRef);
                 const removal = yield* repository.stageRemoval(thread.sessionRef);
                 yield* catalog
@@ -486,6 +507,7 @@ export class ThreadService extends Context.Service<
                     code: "Busy",
                     message: "请先停止未完成的任务，再归档",
                   });
+                if (archived) yield* captureScheduledResults(id);
                 const now = DateTime.toEpochMillis(yield* DateTime.now);
                 const thread = yield* change(id, (thread) => {
                   const { archivedAt: _archivedAt, ...rest } = thread;

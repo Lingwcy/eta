@@ -136,6 +136,7 @@ export class ScheduleStoreService extends Context.Service<
               const next = queue.then(async () => {
                 const previous = await load();
                 const changed = change(previous);
+                if (JSON.stringify(changed) === JSON.stringify(previous)) return previous;
                 const state = decodeScheduleStore({ ...changed, revision: previous.revision + 1 });
                 await writeJson(scheduleStorePath, state);
                 for (const listener of listeners) {

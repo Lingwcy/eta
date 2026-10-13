@@ -4,6 +4,7 @@ import type { ImageProcessor } from "./images/types.ts";
 import type { CoreEnvironment } from "./service/environment.ts";
 import { CoreEnvironmentService } from "./service/environment.ts";
 import { AppPathsService } from "./platform/app-paths.ts";
+import { ScheduleDispatcherService } from "./service/schedules/dispatcher.ts";
 import { ScheduleStoreService } from "./service/schedules/store.ts";
 import { ScheduleGateService } from "./service/schedules/gate.ts";
 import { ScheduleLifecycleService } from "./service/schedules/lifecycle.ts";
@@ -36,7 +37,7 @@ export function coreFoundation(
   instructions?: (cwd: string) => Promise<string>,
 ) {
   return Layer.mergeAll(
-    ScheduleLifecycleService.layer.pipe(
+    Layer.mergeAll(ScheduleLifecycleService.layer, ScheduleDispatcherService.layer).pipe(
       Layer.provideMerge(
         Layer.mergeAll(
           CatalogService.layer.pipe(Layer.provide(CatalogStoreService.layer)),

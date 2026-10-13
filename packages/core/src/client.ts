@@ -7,6 +7,10 @@ import type { ThinkingLevel } from "./agent/protocol.ts";
 import type { SubagentCommand } from "./shared/subagents.ts";
 import { coreServices } from "./layer.ts";
 import type { CoreOptions } from "./layer.ts";
+import {
+  ScheduleDispatcherService,
+  type ScheduleHostAdapter,
+} from "./service/schedules/dispatcher.ts";
 import { ScheduleService } from "./service/schedules/index.ts";
 import { ScheduleStoreService } from "./service/schedules/store.ts";
 import { CoreError } from "./service/errors.ts";
@@ -47,6 +51,7 @@ export async function createCore(options: CoreOptions) {
     const paths = await runtime.runPromise(AppPathsService);
     const schedules = await runtime.runPromise(ScheduleService);
     const scheduleStore = await runtime.runPromise(ScheduleStoreService);
+    const scheduler = await runtime.runPromise(ScheduleDispatcherService);
     const scheduleThread = Effect.fn("CoreClient.scheduleThread")(function* (scheduleId: string) {
       const schedule = (yield* scheduleStore.read).schedules[scheduleId];
       if (!schedule) return yield* new CoreError({ code: "NotFound", message: "定时任务不存在" });
@@ -66,7 +71,10 @@ export async function createCore(options: CoreOptions) {
           });
         }),
       );
+    let closing: Promise<void> | undefined;
     return {
+      startScheduler: (host: ScheduleHostAdapter) => runtime.runPromise(scheduler.start(host)),
+      stopScheduler: () => runtime.runPromise(scheduler.stop),
       listSchedules: (input: { threadId?: string; state?: Schedule["state"] } = {}) =>
         runtime.runPromise(
           schedules
@@ -245,7 +253,14 @@ export async function createCore(options: CoreOptions) {
         path?: string,
       ) => runtime.runPromise(threads.subscribe(id, listener, onError, path)),
       subscribeLibrary: (listener: () => void) => catalog.subscribe(listener),
-      close: () => runtime.dispose(),
+      close: () =>
+        (closing ??= (async () => {
+          try {
+            await runtime.runPromise(scheduler.stop);
+          } finally {
+            await runtime.dispose();
+          }
+        })()),
     };
   } catch (error) {
     await runtime.dispose();

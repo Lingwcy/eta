@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { Context, DateTime, Effect, Exit, Layer } from "effect";
+import type { OperationResult } from "../../agent/protocol.ts";
+import type { ScheduleOccurrence } from "../../shared/schedules.ts";
+import { finishOccurrence } from "./occurrences.ts";
 import type { CatalogState } from "../../shared/catalog.ts";
 import { CatalogService } from "../catalog/index.ts";
 import { CoreError } from "../errors.ts";
@@ -100,6 +103,11 @@ export function reconcileScheduleLifecycles(
 export class ScheduleLifecycleService extends Context.Service<
   ScheduleLifecycleService,
   {
+    admitted(threadId: string): Effect.Effect<readonly ScheduleOccurrence[], CoreError>;
+    recordResults(
+      threadId: string,
+      results: readonly OperationResult[],
+    ): Effect.Effect<void, CoreError>;
     coordinate<A, E, R>(
       threadId: string,
       action: "archive" | "delete" | "restore",
@@ -128,6 +136,44 @@ export class ScheduleLifecycleService extends Context.Service<
       });
       yield* repair();
       return ScheduleLifecycleService.of({
+        admitted: (threadId) =>
+          store.read.pipe(
+            Effect.map((state) =>
+              Object.values(state.occurrences).filter(
+                (occurrence) => occurrence.threadId === threadId && occurrence.state === "admitted",
+              ),
+            ),
+          ),
+        recordResults: (threadId, results) =>
+          Effect.gen(function* () {
+            if (
+              results.some((result) => !["completed", "failed", "aborted"].includes(result.status))
+            )
+              return yield* new CoreError({ code: "Busy", message: "请先处理未完成的定时任务" });
+            const now = DateTime.toEpochMillis(yield* DateTime.now);
+            yield* store.update((state) => {
+              const draft = scheduleDraft(state);
+              for (const occurrence of Object.values(draft.occurrences)) {
+                if (occurrence.threadId !== threadId || occurrence.state !== "admitted") continue;
+                const result = results.find(
+                  (result) => result.operationId === occurrence.operationId,
+                );
+                if (result)
+                  finishOccurrence(
+                    draft,
+                    occurrence,
+                    result.status === "completed"
+                      ? "succeeded"
+                      : result.status === "aborted"
+                        ? "cancelled"
+                        : "failed",
+                    result.endedAt ?? now,
+                    result.error,
+                  );
+              }
+              return draft;
+            });
+          }),
         coordinate: (threadId, action, operation) =>
           gate.withThread(
             threadId,
