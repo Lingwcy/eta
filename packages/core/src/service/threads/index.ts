@@ -61,6 +61,7 @@ export class ThreadService extends Context.Service<
       id: string,
       requestId: string,
       approved: boolean,
+      reuse?: "call" | "run",
     ): Effect.Effect<OpenThread, ThreadError>;
     operation(id: string, operationId: string): Effect.Effect<OperationResult, ThreadError>;
     operationByRequest(
@@ -187,7 +188,7 @@ export class ThreadService extends Context.Service<
         return state.threads.find((thread) => thread.id === id)!;
       });
       return ThreadService.of({
-        decideApproval: (id, requestId, approved) =>
+        decideApproval: (id, requestId, approved, reuse) =>
           locked(
             Effect.gen(function* () {
               const runtime = yield* runtimeFor(id, true);
@@ -209,6 +210,7 @@ export class ThreadService extends Context.Service<
                   Number(request.conversationId) as typeof runtime.conversation.id,
                   requestId,
                   approved,
+                  reuse,
                 ),
               );
               return yield* open(id);

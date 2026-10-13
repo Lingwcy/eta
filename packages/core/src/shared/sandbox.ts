@@ -43,7 +43,12 @@ export interface SandboxApproval {
   readonly readableRoots: readonly string[];
   readonly writableRoots: readonly string[];
   readonly status: "pending" | "approved" | "denied" | "cancelled" | "consumed";
-  readonly decidedBy?: "user" | "auto";
+  readonly decidedBy?: "user" | "auto" | "reuse";
+  /** Only Git-only scopes in workspace-write may be approved for the rest of the run. */
+  readonly reusable?: boolean;
+  readonly reuse?: "call" | "run";
+  /** The run-scoped approval this call reused. */
+  readonly reusedFrom?: string;
   /** Set when Core expanded `sandbox.gitMetadata`; the roots above already include the expansion. */
   readonly gitMetadata?: { commonDir: string; worktreeDir: string; branch?: string };
   readonly review?: SandboxReview;

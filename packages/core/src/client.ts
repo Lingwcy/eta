@@ -51,8 +51,8 @@ export async function createCore(options: CoreOptions) {
       openThread: (id: string) => runtime.runPromise(threads.open(id)),
       configureSandbox: (id: string, mode: SandboxMode) =>
         runtime.runPromise(threads.configureSandbox(id, mode)),
-      decideApproval: (id: string, requestId: string, approved: boolean) =>
-        runtime.runPromise(threads.decideApproval(id, requestId, approved)),
+      decideApproval: (id: string, requestId: string, approved: boolean, reuse?: "call" | "run") =>
+        runtime.runPromise(threads.decideApproval(id, requestId, approved, reuse)),
       renameThread: (id: string, title: string) => runtime.runPromise(threads.rename(id, title)),
       archiveThread: (id: string, archived: boolean) =>
         runtime.runPromise(threads.archive(id, archived)),

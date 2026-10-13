@@ -118,6 +118,17 @@ export class RunSupervisorService extends Context.Service<
         inputs.delete(runtime);
         changed(runtime);
       };
+      /** Run-scoped approvals end when the root conversation goes idle, even if background children continue. */
+      const expireRunGrants = (
+        runtime: ThreadRuntime,
+        started: Promise<unknown> = Promise.resolve(),
+      ) => {
+        // A queued submission is not yet a task, so idleness only counts once the input has been taken up.
+        void started
+          .then(() => runtime.conversation.waitForIdle(BACKGROUND_CONTEXT))
+          .then(() => runtime.approvals.expireRunGrants(runtime.conversation.id))
+          .catch((error: unknown) => Effect.runFork(Effect.logError(error)));
+      };
       const supervise = (runtime: ThreadRuntime, settled: Promise<unknown>) => {
         const execution = settled
           .catch((error: unknown) => {
@@ -208,7 +219,9 @@ export class RunSupervisorService extends Context.Service<
                 BACKGROUND_CONTEXT,
               );
               inputs.set(runtime, handle);
-              supervise(runtime, handle.wait(BACKGROUND_CONTEXT));
+              const settled = handle.wait(BACKGROUND_CONTEXT);
+              supervise(runtime, settled);
+              expireRunGrants(runtime, settled);
               return handle;
             } catch (error) {
               release(runtime);
@@ -229,6 +242,7 @@ export class RunSupervisorService extends Context.Service<
             runtime.harness.resume();
             // Background children report through durable tasks; only the root turn reserves input.
             supervise(runtime, runtime.conversation.waitForIdle(BACKGROUND_CONTEXT));
+            expireRunGrants(runtime);
             changed(runtime);
           });
         }, Effect.uninterruptible),

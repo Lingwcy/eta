@@ -14,6 +14,7 @@ import { SandboxDoc } from "./sandbox.ts";
 import { canonicalRoot } from "../../platform/sandbox/backend.ts";
 import { CoreError } from "../errors.ts";
 import { ApprovalsDoc } from "./approval-doc.ts";
+import { runGrant } from "./approval-doc.ts";
 import type { Approval } from "./approval-doc.ts";
 import { createReviewTask } from "./review.ts";
 import { gitMetadataScope } from "../git/metadata.ts";
@@ -21,6 +22,9 @@ import type { GitMetadataScope } from "../git/metadata.ts";
 import type { ReviewOptions } from "./review.ts";
 
 export { ApprovalsDoc } from "./approval-doc.ts";
+
+const sameRoots = (left: readonly string[], right: readonly string[]) =>
+  JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
 
 /** Consecutive automatic denials in one conversation before review hands every request to the user. */
 export const REVIEW_DENIAL_LIMIT = 3;
@@ -183,8 +187,17 @@ export function createSandboxApprovals(
     // Core-expanded Git roots are judged by the expansion itself; only hand-written roots go through the rules.
     const userOnly =
       (await requiresUser({ readableRoots, writableRoots })) || git?.requiresUser === true;
+    // Reuse is limited to Core's own Git expansion, so a reused grant can never carry hand-written roots.
+    const reusable =
+      mode === "workspace-write" &&
+      git?.description !== undefined &&
+      !git.requiresUser &&
+      !readableRoots.length &&
+      !writableRoots.length &&
+      !networkAccess;
     return {
       reason,
+      ...(reusable ? { reusable } : {}),
       readableRoots: [...new Set([...readableRoots, ...(git?.readableRoots ?? [])])],
       writableRoots: [...new Set([...writableRoots, ...(git?.writableRoots ?? [])])],
       networkAccess,
@@ -256,6 +269,40 @@ export function createSandboxApprovals(
             }
             const { requiresUser: userOnly, ...grant } = scope;
             const automatic = reviewTask && (await reviewerMode()) === "auto";
+            const reused =
+              grant.reusable &&
+              state?.runGrants?.find(
+                (candidate) =>
+                  candidate.conversationId === String(api.conversationId) &&
+                  candidate.revision === (sandbox?.revision ?? 0) &&
+                  sameRoots(candidate.readableRoots, grant.readableRoots) &&
+                  sameRoots(candidate.writableRoots, grant.writableRoots) &&
+                  // Switching the reviewer back to the user withdraws grants the reviewer issued.
+                  (candidate.by === "user" || automatic),
+              );
+            if (reused) {
+              await commit(
+                api.conversationId,
+                async (tx) => {
+                  (await tx.doc(ApprovalsDoc)).requests.push({
+                    id: randomUUID(),
+                    taskId: reused.taskId,
+                    toolTaskId: String(api.taskId),
+                    conversationId: String(api.conversationId),
+                    tool: call.name,
+                    args: call.arguments as JsonObject,
+                    mode,
+                    revision: sandbox?.revision ?? 0,
+                    status: "approved",
+                    decidedBy: "reuse",
+                    reusedFrom: reused.id,
+                    ...grant,
+                  });
+                },
+                context,
+              );
+              return;
+            }
             const id = randomUUID();
             let taskId: TaskId | undefined;
             await commit(
@@ -332,11 +379,28 @@ export function createSandboxApprovals(
           const doc = await tx.doc(ApprovalsDoc);
           for (const request of doc.requests)
             if (request.status === "approved") request.status = "cancelled";
+          if (doc.runGrants?.length) doc.runGrants = [];
         },
         BACKGROUND_CONTEXT,
       );
     },
-    decide: async (conversationId: ConversationId, id: string, approved: boolean) => {
+    /** Run-scoped grants end with the root run that earned them. */
+    expireRunGrants: async (conversationId: ConversationId) => {
+      await commit(
+        conversationId,
+        async (tx) => {
+          const doc = await tx.doc(ApprovalsDoc);
+          if (doc.runGrants?.length) doc.runGrants = [];
+        },
+        BACKGROUND_CONTEXT,
+      );
+    },
+    decide: async (
+      conversationId: ConversationId,
+      id: string,
+      approved: boolean,
+      reuse: "call" | "run" = "call",
+    ) => {
       let reviewed: Approval | undefined;
       await commit(
         conversationId,
@@ -349,6 +413,11 @@ export function createSandboxApprovals(
             throw new CoreError({ code: "InvalidInput", message: "审批请求已失效" });
           request.status = approved ? "approved" : "denied";
           request.decidedBy = "user";
+          if (approved && reuse === "run" && request.reusable) {
+            request.reuse = "run";
+            // Assign a new array: values pushed onto an array after assigning it are not tracked.
+            doc.runGrants = [...(doc.runGrants ?? []), runGrant(request, "user")];
+          }
           if (request.review) reviewed = JSON.parse(JSON.stringify(request)) as Approval;
         },
         BACKGROUND_CONTEXT,

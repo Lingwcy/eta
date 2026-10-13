@@ -28,7 +28,9 @@ afterEach(async () => {
 });
 
 /** A repository with a linked worktree on `eta/feature`, opened as its own project. */
-async function fixture(approvalReviewer: ApprovalReviewer | null = null, subdirectory = false) {
+async function fixture(initialReviewer: ApprovalReviewer | null = null, subdirectory = false) {
+  let approvalReviewer = initialReviewer;
+  let reviews = 0;
   const directory = await realpath(await mkdtemp(join(tmpdir(), "eta-gitmeta-")));
   directories.push(directory);
   const main = join(directory, "main");
@@ -51,23 +53,30 @@ async function fixture(approvalReviewer: ApprovalReviewer | null = null, subdire
     models: [{ id: "one" }],
     tokensPerSecond: 10000,
   });
+  const reviewer = fauxProvider({
+    provider: "core-test",
+    models: [{ id: "one" }],
+    tokensPerSecond: 10000,
+  });
   const models = createModels();
   models.setProvider({
     ...agent.provider,
     streamSimple: (model, context, options) =>
-      options?.sessionId?.endsWith(":title") || options?.sessionId?.endsWith(":review")
+      options?.sessionId?.endsWith(":title")
         ? side.provider.streamSimple(model, context, options)
-        : agent.provider.streamSimple(model, context, options),
+        : options?.sessionId?.endsWith(":review")
+          ? (reviews++, reviewer.provider.streamSimple(model, context, options))
+          : agent.provider.streamSimple(model, context, options),
   });
   const core = await createCore({
     dataRoot: join(directory, "data"),
     home: directory,
     models,
     settings: {
-      read: Effect.succeed({
-        defaultThinkingLevel: "off",
+      read: Effect.sync(() => ({
+        defaultThinkingLevel: "off" as const,
         ...(approvalReviewer ? { approvalReviewer } : {}),
-      }),
+      })),
       subscribe: () => () => {},
     },
     environment: { userAgent: "eta-core-test", shutdown: "preserve" },
@@ -77,7 +86,21 @@ async function fixture(approvalReviewer: ApprovalReviewer | null = null, subdire
   const project = await core.registerProject(cwd);
   const workspace = (await core.workspaces(project.id))[0]!;
   const thread = await core.createThread(workspace.id);
-  return { core, agent, side, main, worktree, other, cwd, thread };
+  return {
+    core,
+    agent,
+    reviewer,
+    directory,
+    main,
+    worktree,
+    other,
+    cwd,
+    thread,
+    reviews: () => reviews,
+    setReviewer: (value: ApprovalReviewer | null) => {
+      approvalReviewer = value;
+    },
+  };
 }
 
 const bash = (command: string, sandbox?: { gitMetadata: boolean; reason: string }) =>
@@ -102,6 +125,15 @@ async function pending(core: CoreClient, threadId: string) {
   return (await core.openThread(threadId)).snapshot.approvals![0]!;
 }
 
+const verdict = (reuse: "call" | "run") =>
+  fauxAssistantMessage(
+    JSON.stringify({ decision: "approve", risk: "low", rationale: "Routine commit", reuse }),
+  );
+const commitAs = (message: string, file: string) =>
+  bash(
+    `echo ${message} > ${file} && git add ${file} && git -c user.name=Eta -c user.email=eta@example.com commit -qm ${message}`,
+    { gitMetadata: true, reason: "Commit" },
+  );
 const subject = async (cwd: string) => (await git(cwd, "log", "-1", "--format=%s")).stdout.trim();
 
 test("a worktree reads its Git state freely but cannot commit without a grant", async () => {
@@ -153,18 +185,13 @@ test("an approved gitMetadata request commits without exposing config, hooks or 
 });
 
 test("automatic review approves routine worktree commits", async () => {
-  const { core, agent, side, worktree, thread } = await fixture({ mode: "auto" });
+  const { core, agent, reviewer, worktree, thread } = await fixture({ mode: "auto" });
   await writeFile(join(worktree, "new.txt"), "agent change\n");
   agent.setResponses([
     bash(commit, { gitMetadata: true, reason: "Commit the change" }),
     fauxAssistantMessage("Done"),
   ]);
-  side.setResponses([
-    fauxAssistantMessage("Title"),
-    fauxAssistantMessage(
-      JSON.stringify({ decision: "approve", risk: "low", rationale: "Routine commit" }),
-    ),
-  ]);
+  reviewer.setResponses([verdict("call")]);
   const operation = await core.submit(thread.id, "Commit");
   await settle(core, thread.id, operation.operationId);
   expect(await subject(worktree)).toBe("from-agent");
@@ -180,3 +207,68 @@ test("a project inside a main checkout hands its gitMetadata request to the user
   const approval = await pending(core, thread.id);
   expect(approval.review).toEqual({ status: "skipped", skippedReason: "requires-user" });
 });
+
+test("a user's run-wide approval covers later Git writes until the run ends", async () => {
+  const { core, agent, worktree, thread } = await fixture();
+  agent.setResponses([
+    commitAs("first", "a.txt"),
+    commitAs("second", "b.txt"),
+    fauxAssistantMessage("Done"),
+    commitAs("third", "c.txt"),
+    fauxAssistantMessage("Done"),
+  ]);
+  const first = await core.submit(thread.id, "Commit twice");
+  const approval = await pending(core, thread.id);
+  expect(approval.reusable).toBe(true);
+  await core.decideApproval(thread.id, approval.id, true, "run");
+  await settle(core, thread.id, first.operationId);
+  expect(await subject(worktree)).toBe("second");
+  await core.submit(thread.id, "Commit again");
+  await pending(core, thread.id);
+  expect(await subject(worktree)).toBe("second");
+}, 30000);
+
+test("a run grant does not cover a request with additional roots", async () => {
+  const { core, agent, directory, thread } = await fixture();
+  agent.setResponses([
+    commitAs("first", "a.txt"),
+    bash("true", { gitMetadata: true, reason: "More", writableRoots: [directory] } as never),
+    fauxAssistantMessage("Done"),
+  ]);
+  await core.submit(thread.id, "Commit");
+  const approval = await pending(core, thread.id);
+  await core.decideApproval(thread.id, approval.id, true, "run");
+  await expect
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.[0]?.writableRoots, {
+      timeout: 15000,
+    })
+    .toContain(directory);
+});
+
+test("a reviewer's run grant skips later reviews but not after switching back to the user", async () => {
+  const { core, agent, reviewer, worktree, thread, reviews, setReviewer } = await fixture({
+    mode: "auto",
+  });
+  agent.setResponses([
+    commitAs("first", "a.txt"),
+    commitAs("second", "b.txt"),
+    fauxAssistantMessage("Done"),
+  ]);
+  reviewer.setResponses([verdict("run")]);
+  const operation = await core.submit(thread.id, "Commit twice");
+  await settle(core, thread.id, operation.operationId);
+  expect(await subject(worktree)).toBe("second");
+  expect(reviews()).toBe(1);
+
+  agent.setResponses([
+    commitAs("third", "c.txt"),
+    commitAs("fourth", "d.txt"),
+    fauxAssistantMessage("Done"),
+  ]);
+  reviewer.setResponses([verdict("run")]);
+  await core.submit(thread.id, "Commit twice more");
+  await expect.poll(() => subject(worktree), { timeout: 15000 }).toBe("third");
+  setReviewer(null);
+  const approval = await pending(core, thread.id);
+  expect(approval.args).toMatchObject({ command: expect.stringContaining("fourth") });
+}, 30000);

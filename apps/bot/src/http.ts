@@ -212,9 +212,15 @@ export function createHttpApp(options: {
   app.post("/v1/threads/:id/approvals/:requestId", async (context) => {
     const id = context.req.param("id");
     await controller.authorize(id);
-    const input = decode(Schema.Struct({ approved: Schema.Boolean }), await readBody(context.req));
+    const input = decode(
+      Schema.Struct({
+        approved: Schema.Boolean,
+        reuse: Schema.optionalKey(Schema.Literals(["call", "run"])),
+      }),
+      await readBody(context.req),
+    );
     return context.json(
-      await core.decideApproval(id, context.req.param("requestId"), input.approved),
+      await core.decideApproval(id, context.req.param("requestId"), input.approved, input.reuse),
     );
   });
   app.post("/v1/threads/:id/metadata", async (context) => {
