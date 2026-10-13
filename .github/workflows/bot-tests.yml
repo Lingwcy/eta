@@ -25,6 +25,8 @@ jobs:
           cache: true
       - name: Install dependencies
         run: vp install --frozen-lockfile
+      - name: Verify desktop update source
+        run: vp test run scripts/update-source.test.ts
       - name: Build agent
         run: vp run --no-cache @eta/agent#build
       - name: Verify Core
