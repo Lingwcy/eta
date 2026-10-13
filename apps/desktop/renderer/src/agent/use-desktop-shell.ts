@@ -1,7 +1,10 @@
 import { projectRootWorkspace } from "@/desktop/selectors";
 import { useSubagents } from "./use-subagents";
-import { inspectedConversation } from "./inspector";
-import { useCallback, useState } from "react";
+import { inspectedConversation, inspectedWorkspace } from "./inspector";
+import { useCallback, useState, useEffect } from "react";
+import { useProjectGit } from "./use-project-git";
+import { GitHubClient } from "./github-client";
+import { isCloudId } from "../../../src/shared/bot.ts";
 import { useDesktopLibrary } from "./use-desktop-library";
 import { useDesktopTabs } from "./use-desktop-tabs";
 import { useDesktopShortcuts } from "./use-desktop-shortcuts";
@@ -19,9 +22,35 @@ export function useDesktopShell() {
   const [version, setVersion] = useState(0);
   const inspectorConversation = inspectedConversation(navigation.state);
   const subagents = useSubagents(inspectorConversation?.threadId, version);
-  const inspectorAvailable = subagents.length > 0;
-  const [inspectorExpanded, setInspectorExpanded] = useState(false);
+  const contextWorkspace = inspectedWorkspace(inspectorConversation, desktop.library);
+  const project = desktop.library?.projects.find(
+    (value) => value.id === contextWorkspace?.projectId,
+  );
+  const root = project && projectRootWorkspace(desktop.library?.workspaces ?? [], project.id);
+  const remote = isCloudId(project?.id);
+  const connected = !remote || desktop.library?.bot?.status === "connected";
+  const [githubClient] = useState(() => new GitHubClient(window.eta));
+  const [remoteRequests] = useState(() => new Map<string, string>());
+  const projectGit = useProjectGit(
+    root?.id,
+    connected && (!remote || Boolean(desktop.library?.bot?.capabilities?.includes("git"))),
+    version,
+  );
+  const githubSupported =
+    !remote || Boolean(desktop.library?.bot?.capabilities?.includes("github"));
+  const githubAvailable =
+    githubSupported && projectGit.info?.status === "ready" && Boolean(projectGit.info.github);
+  const [inspectorContent, setInspectorContent] = useState<"subagents" | "github">("subagents");
+  const inspectorAvailable = subagents.length > 0 || githubAvailable;
+  const [inspectorExpanded, setInspectorExpanded] = useState(true);
   const inspectorOpen = inspectorAvailable && inspectorExpanded;
+  useEffect(() => {
+    githubClient.clear();
+  }, [githubClient, desktop.library?.bot?.url, desktop.library?.bot?.status]);
+  const selectInspectorContent = (next: "github" | "subagents") => {
+    if (next === "github" ? !githubAvailable : !subagents.length) return;
+    setInspectorContent(next);
+  };
   const toggleInspector = useCallback(() => {
     if (inspectorAvailable) setInspectorExpanded((value) => !value);
   }, [inspectorAvailable]);
@@ -45,7 +74,10 @@ export function useDesktopShell() {
     const thread = desktop.library?.threads.find((thread) => thread.id === id);
     if (thread) navigation.tabs.openThread(thread.id, thread.workspaceId);
   };
-  const reconnect = () => setVersion((value) => value + 1);
+  const reconnect = () => {
+    githubClient.clear();
+    setVersion((value) => value + 1);
+  };
   const refreshAuthentication = async () => {
     await desktop.refresh();
     reconnect();
@@ -59,10 +91,35 @@ export function useDesktopShell() {
     selectedSubagents,
     selectSubagent,
     inspectorConversation,
+    contextWorkspace,
     subagents,
     inspectorAvailable,
     inspectorOpen,
     toggleInspector,
+    inspectorContent,
+    selectInspectorContent,
+    github: {
+      client: githubClient,
+      project,
+      info: projectGit.info,
+      available: githubAvailable,
+      connected,
+      refresh: () => {
+        void projectGit.refresh();
+      },
+      selectRemote: async (name: string) => {
+        if (!project) return;
+        const key = JSON.stringify([project.id, name]);
+        const requestId = remoteRequests.get(key) ?? crypto.randomUUID();
+        remoteRequests.set(key, requestId);
+        await desktop.act(async () => {
+          await window.eta.selectGitHubRemote(project.id, name, requestId);
+          remoteRequests.delete(key);
+          githubClient.clear();
+          await projectGit.refresh();
+        });
+      },
+    },
     collapsed,
     overlay: overlay || threadOverlay,
     version,

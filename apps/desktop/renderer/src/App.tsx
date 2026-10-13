@@ -4,6 +4,8 @@ import { ThreadActionsProvider } from "@/components/threads/thread-actions";
 import { useDesktopShell } from "@/agent/use-desktop-shell";
 import { DesktopTabBar } from "@/components/tabs/desktop-tab-bar";
 import { DesktopPanels } from "@/components/tabs/desktop-panels";
+import { GitHubPanel } from "@/components/projects/github-panel";
+import { InspectorTabs } from "@/components/inspector/inspector-tabs";
 
 export function App() {
   const shell = useDesktopShell();
@@ -29,18 +31,40 @@ export function App() {
           </div>
           {shell.inspectorAvailable && (
             <DesktopInspector open={shell.inspectorOpen}>
-              <SubagentControls
-                agents={shell.subagents}
-                selected={
-                  conversation?.threadId
-                    ? shell.selectedSubagents[conversation.threadId]
-                    : undefined
+              <InspectorTabs
+                value={shell.inspectorContent}
+                onChange={shell.selectInspectorContent}
+                github={
+                  shell.github.available && shell.github.project ? (
+                    <GitHubPanel
+                      key={shell.github.project.id}
+                      client={shell.github.client}
+                      projectId={shell.github.project.id}
+                      name={shell.github.project.name}
+                      info={shell.github.info}
+                      connected={shell.github.connected}
+                      onRefresh={shell.github.refresh}
+                      onRemote={shell.github.selectRemote}
+                    />
+                  ) : undefined
                 }
-                onSelect={(path) => {
-                  if (!conversation?.threadId) return;
-                  shell.selectSubagent(conversation.threadId, path);
-                  shell.navigation.tabs.select(conversation.id);
-                }}
+                subagents={
+                  shell.subagents.length > 0 ? (
+                    <SubagentControls
+                      agents={shell.subagents}
+                      selected={
+                        conversation?.threadId
+                          ? shell.selectedSubagents[conversation.threadId]
+                          : undefined
+                      }
+                      onSelect={(path) => {
+                        if (!conversation?.threadId) return;
+                        shell.selectSubagent(conversation.threadId, path);
+                        shell.navigation.tabs.select(conversation.id);
+                      }}
+                    />
+                  ) : undefined
+                }
               />
             </DesktopInspector>
           )}

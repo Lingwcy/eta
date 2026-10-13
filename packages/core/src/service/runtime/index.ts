@@ -1,5 +1,5 @@
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
-import { mkdtemp, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSubagentsExtension, SubagentsDoc } from "../../agent/extension/subagent/index.ts";
@@ -29,6 +29,7 @@ import type { SandboxMode, SandboxStatus } from "../../shared/sandbox.ts";
 import { sandboxStatus } from "../../platform/sandbox/backend.ts";
 import { createSandboxApprovals, ApprovalsDoc } from "./approvals.ts";
 import { SandboxedExecutionEnv } from "../../platform/sandbox/environment.ts";
+import { gitReadRoots } from "../git/metadata.ts";
 
 export interface ThreadRuntime {
   readonly hasWork: () => Promise<boolean>;
@@ -95,6 +96,8 @@ export class RuntimeRegistryService extends Context.Service<
         let runtimeRecord: ThreadRuntime | undefined;
         try {
           const registry = resources.registry(models);
+          // A worktree's shared Git metadata is readable without approval so status, log and diff work.
+          const gitReadable = gitReadRoots(ref.metadata.cwd).catch(() => []);
           const approvals = createSandboxApprovals(
             () => harness!,
             ref.metadata.cwd,
@@ -109,6 +112,29 @@ export class RuntimeRegistryService extends Context.Service<
               }
             },
             [paths.dataRoot],
+            {
+              reviewer: async () =>
+                (await Effect.runPromise(preferences.read)).approvalReviewer ?? undefined,
+              available: async (model) =>
+                (await models.getAvailable(model.provider)).some(
+                  (value) => value.id === model.modelId,
+                ),
+              record: (entry) => appendFile(paths.reviewLogPath, `${JSON.stringify(entry)}\n`),
+              tools: {
+                root: ref.metadata.cwd,
+                readableRoots: () => gitReadable,
+                // A fresh read-only sandbox per review: no network, no grants, its own scratch.
+                open: async () =>
+                  environment.executionEnvironment(ref.metadata.cwd, {
+                    mode: "read-only",
+                    workspaceRoot: ref.metadata.cwd,
+                    deniedRoots: [paths.dataRoot],
+                    networkAccess: false,
+                    commandAccess: true,
+                    readableRoots: await gitReadable,
+                  }),
+              },
+            },
           );
           registry.install(approvals.extension);
           const initialSandboxMode = initial
@@ -192,6 +218,7 @@ export class RuntimeRegistryService extends Context.Service<
                   taskKind === "pi.tool"
                     ? `tool:${taskId}`
                     : `${mode}:${state?.revision ?? 0}:${cwd ?? ref.metadata.cwd}`;
+                const gitRoots = await gitReadable;
                 let opening = sandboxEnvironments.get(key);
                 if (!opening) {
                   opening = Promise.resolve(
@@ -200,10 +227,10 @@ export class RuntimeRegistryService extends Context.Service<
                       workspaceRoot: ref.metadata.cwd,
                       deniedRoots: [paths.dataRoot],
                       scratchRoot,
+                      readableRoots: [...gitRoots, ...(grant?.readableRoots ?? [])],
                       ...(grant
                         ? {
                             commandAccess: grant.tool === "bash",
-                            readableRoots: grant.readableRoots,
                             writableRoots: grant.writableRoots,
                             networkAccess: mode === "workspace-write" || grant.networkAccess,
                           }
@@ -358,6 +385,7 @@ export class RuntimeRegistryService extends Context.Service<
             settingsDelivery = settingsDelivery
               .then(async () => {
                 if (record.disposed) return;
+                await approvals.withdrawAutoRunGrants(conversation.id);
                 await refreshTools();
                 await conversation.commit(async (tx) => {
                   const doc = await tx.doc(SubagentsDoc);

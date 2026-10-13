@@ -23,6 +23,7 @@ const buttonVariants = cva(
         default: "h-9 px-3",
         sm: "h-8 gap-1.5 px-2.5 text-xs",
         compact: "h-7 gap-1.5 px-2 text-xs",
+        toolbar: "h-7 gap-1 px-1 text-xs font-normal",
         pill: "h-8 gap-1.5 rounded-full px-2.5 text-[13px] font-normal",
         row: "h-auto w-full justify-start px-2 py-1.5 text-left font-normal",
         "row-sm": "h-auto w-full justify-start px-2 py-1.5 text-left text-[13px] font-normal",

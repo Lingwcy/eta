@@ -122,10 +122,15 @@ export function SubagentConversation({
               ) ?? []
             }
             busy={busy || blocked}
-            onDecision={(id, approved) => {
+            history={
+              snapshot?.approvalHistory?.filter(
+                (request) => request.conversationId === String(child.conversationId),
+              ) ?? []
+            }
+            onDecision={(id, approved, reuse) => {
               setBusy(true);
               void window.eta
-                .decideApproval(threadId, id, approved)
+                .decideApproval(threadId, id, approved, reuse)
                 .catch((error: unknown) =>
                   setError(error instanceof Error ? error.message : "审批失败"),
                 )

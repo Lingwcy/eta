@@ -71,8 +71,32 @@ const bridge: DesktopBridge = {
     }),
   openThread: (id) => invoke("eta:command", { type: "open", id }),
   configureSandbox: (id, mode) => invoke("eta:command", { type: "configure-sandbox", id, mode }),
-  decideApproval: (id, requestId, approved) =>
-    invoke("eta:command", { type: "decide-approval", id, requestId, approved }),
+  decideApproval: (id, requestId, approved, reuse) =>
+    invoke("eta:command", {
+      type: "decide-approval",
+      id,
+      requestId,
+      approved,
+      ...(reuse ? { reuse } : {}),
+    }),
+  reviewStats: () => invoke("eta:command", { type: "review-stats" }),
+  githubIdentity: (projectId) => invoke("eta:command", { type: "github-identity", projectId }),
+  githubQuery: (input) => invoke("eta:command", { type: "github-query", input }),
+  gitRepository: (workspaceId) => invoke("eta:command", { type: "git-repository", workspaceId }),
+  gitBranches: (workspaceId) => invoke("eta:command", { type: "git-branches", workspaceId }),
+  selectGitHubRemote: (projectId, remoteName, requestId) =>
+    invoke("eta:command", {
+      type: "select-github-remote",
+      projectId,
+      remoteName,
+      ...(requestId ? { requestId } : {}),
+    }),
+  listWorktrees: (projectId) => invoke("eta:command", { type: "list-worktrees", projectId }),
+  reconcileWorktrees: (projectId) =>
+    invoke("eta:command", { type: "reconcile-worktrees", projectId }),
+  createWorktree: (input) => invoke("eta:command", { type: "create-worktree", input }),
+  removeWorktree: (workspaceId, requestId) =>
+    invoke("eta:command", { type: "remove-worktree", workspaceId, requestId }),
   renameThread: (id, title) => invoke("eta:command", { type: "rename", id, title }),
   archiveThread: (id, archived) => invoke("eta:command", { type: "archive", id, archived }),
   configureThread: (id, provider, modelId, thinkingLevel) =>

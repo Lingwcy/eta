@@ -285,3 +285,51 @@ test("a separate title model persists and can be reset to follow the conversatio
     titleModel: null,
   });
 });
+
+test("reviewer choices cross IPC, publish settings changes and survive reopening or resetting", async () => {
+  const { runtime, settings, open } = await setup();
+  const application = {
+    updateSettings: (patch) => runtime.runPromise(settings.update(patch)),
+  } satisfies Pick<DesktopApplication, "updateSettings">;
+  let notifications = 0;
+  const unsubscribe = settings.subscribe(() => notifications++);
+  const choose = (approvalReviewer: unknown) =>
+    dispatchCommand(application as DesktopApplication, {
+      type: "settings",
+      patch: { approvalReviewer },
+    });
+  try {
+    await choose({ mode: "auto" });
+    expect(await runtime.runPromise(settings.read)).toMatchObject({
+      approvalReviewer: { mode: "auto" },
+    });
+    await choose({
+      mode: "auto",
+      model: { provider: "eta-test", modelId: "plain" },
+      thinkingLevel: "low",
+    });
+    await choose({ mode: "auto", model: null });
+    expect(await runtime.runPromise(settings.read)).toMatchObject({
+      approvalReviewer: { mode: "auto", model: null },
+    });
+    await choose({ mode: "user" });
+    expect(notifications).toBe(4);
+  } finally {
+    unsubscribe();
+  }
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect(await next.runPromise(restored.read)).toMatchObject({
+    approvalReviewer: { mode: "user" },
+  });
+  await dispatchCommand(
+    { updateSettings: (patch) => next.runPromise(restored.update(patch)) } as DesktopApplication,
+    { type: "settings", patch: { approvalReviewer: null } },
+  );
+  await next.dispose();
+  const final = open();
+  expect(
+    await final.runPromise((await final.runPromise(DesktopSettingsService)).read),
+  ).toMatchObject({ approvalReviewer: null });
+});

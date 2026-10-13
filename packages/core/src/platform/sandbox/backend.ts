@@ -273,6 +273,8 @@ export async function prepareSandboxLaunch(
       worker,
     ];
     const env = sanitizedEnvironment(scratch);
+    // System Git config may exist outside readable roots; Git treats EACCES as fatal.
+    if (status.backend !== "none") env.GIT_CONFIG_NOSYSTEM = "1";
     if (status.backend === "none") {
       env.HOME = homedir();
       env.USERPROFILE = homedir();

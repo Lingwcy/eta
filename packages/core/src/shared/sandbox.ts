@@ -43,4 +43,34 @@ export interface SandboxApproval {
   readonly readableRoots: readonly string[];
   readonly writableRoots: readonly string[];
   readonly status: "pending" | "approved" | "denied" | "cancelled" | "consumed";
+  readonly decidedBy?: "user" | "auto" | "reuse";
+  /** Only Git-only scopes in workspace-write may be approved for the rest of the run. */
+  readonly reusable?: boolean;
+  readonly reuse?: "call" | "run";
+  /** The run-scoped approval this call reused. */
+  readonly reusedFrom?: string;
+  /** Set when Core expanded `sandbox.gitMetadata`; the roots above already include the expansion. */
+  readonly gitMetadata?: { commonDir: string; worktreeDir: string; branch?: string };
+  readonly review?: SandboxReview;
 }
+
+export type SandboxReviewSkip =
+  | "requires-user"
+  | "reviewer-unavailable"
+  | "timeout"
+  | "invalid-output"
+  | "circuit-breaker"
+  | "tool-budget"
+  | "interrupted";
+
+/** Automatic review of one escalation; `escalated` and `skipped` leave the decision to the user. */
+export type SandboxReview = {
+  readonly status: "reviewing" | "approved" | "denied" | "escalated" | "skipped";
+  readonly reviewer?: { readonly provider: string; readonly modelId: string };
+  readonly risk?: "low" | "medium" | "high";
+  readonly rationale?: string;
+  readonly skippedReason?: SandboxReviewSkip;
+  /** What the reviewer looked at before deciding; summaries only, never tool output. */
+  readonly toolCalls?: { tool: string; summary: string }[];
+  readonly startedAt?: number;
+};

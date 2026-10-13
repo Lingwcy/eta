@@ -42,6 +42,14 @@ const Message = Schema.Struct({
   ),
 });
 
+export const BOT_CAPABILITIES = [
+  "approval-review",
+  "git-metadata",
+  "git",
+  "worktree",
+  "github",
+] as const;
+
 function decode<A>(schema: Schema.ConstraintDecoder<A>, input: unknown): A {
   try {
     return Schema.decodeUnknownSync(schema, { onExcessProperty: "error" })(input);
@@ -109,7 +117,12 @@ export function createHttpApp(options: {
     }),
   );
   app.get("/v1/status", (context) =>
-    context.json({ ...controller.status(), extensions: options.extensionStatus?.() ?? {} }),
+    context.json({
+      ...controller.status(),
+      // Clients gate newer features on this list instead of probing routes.
+      capabilities: BOT_CAPABILITIES,
+      extensions: options.extensionStatus?.() ?? {},
+    }),
   );
   app.post("/v1/credentials/import", async (context) => {
     const input = decode(
@@ -154,6 +167,97 @@ export function createHttpApp(options: {
       (await core.workspaces()).filter((workspace) => workspaceProjects.has(workspace.id)),
     ),
   );
+  const ownedWorkspace = (id: string) => {
+    if (!workspaceProjects.has(id))
+      throw new BotHttpError(
+        403,
+        "ProjectUnavailable",
+        "Workspace is outside the configured projects.",
+      );
+    return id;
+  };
+  const ownedProject = (id: string) => {
+    if (![...workspaceProjects.values()].includes(id))
+      throw new BotHttpError(
+        403,
+        "ProjectUnavailable",
+        "Project is outside the configured projects.",
+      );
+    return id;
+  };
+  app.get("/v1/workspaces/:id/git", async (context) =>
+    context.json(await core.gitRepository(ownedWorkspace(context.req.param("id")))),
+  );
+  app.get("/v1/projects/:id/github/identity", async (context) => {
+    ownedProject(context.req.param("id"));
+    return context.json(await core.githubIdentity());
+  });
+  app.post("/v1/projects/:id/github", async (context) => {
+    const projectId = ownedProject(context.req.param("id"));
+    const input = decode(
+      Schema.Struct({
+        kind: Schema.Literals(["pulls", "issues"]),
+        state: Schema.Literals(["open", "closed", "all"]),
+        cursor: Schema.optionalKey(Schema.NonEmptyString),
+        refresh: Schema.optionalKey(Schema.Boolean),
+      }),
+      await readBody(context.req),
+    );
+    return context.json(await core.githubQuery({ ...input, projectId }));
+  });
+  app.get("/v1/workspaces/:id/branches", async (context) =>
+    context.json(await core.gitBranches(ownedWorkspace(context.req.param("id")))),
+  );
+  app.get("/v1/projects/:id/worktrees", async (context) =>
+    context.json(await core.listWorktrees(ownedProject(context.req.param("id")))),
+  );
+  app.post("/v1/projects/:id/worktrees/reconcile", async (context) => {
+    const result = await core.reconcileWorktrees(ownedProject(context.req.param("id")));
+    await options.projects.refresh(true);
+    return context.json(result);
+  });
+  app.post("/v1/projects/:id/worktrees", async (context) => {
+    const projectId = ownedProject(context.req.param("id"));
+    const input = decode(
+      Schema.Struct({
+        baseWorkspaceId: Schema.NonEmptyString,
+        branch: Schema.Union([
+          Schema.Struct({
+            kind: Schema.Literal("new"),
+            name: Schema.NonEmptyString,
+            baseRef: Schema.optionalKey(Schema.NonEmptyString),
+          }),
+          Schema.Struct({ kind: Schema.Literal("existing"), name: Schema.NonEmptyString }),
+        ]),
+        requestId: RequestId,
+        continuesWorkspaceId: Schema.optionalKey(Schema.NonEmptyString),
+      }),
+      await readBody(context.req),
+    );
+    ownedWorkspace(input.baseWorkspaceId);
+    const created = await core.createWorktree({ projectId, ...input });
+    // The new workspace lives under `.eta-worktrees`, which project discovery skips but scoping includes.
+    await options.projects.refresh(true);
+    return context.json(created, 201);
+  });
+  app.post("/v1/workspaces/:id/remove", async (context) => {
+    const id = ownedWorkspace(context.req.param("id"));
+    const input = decode(Schema.Struct({ requestId: RequestId }), await readBody(context.req));
+    return context.json(await core.removeWorktree(id, input.requestId));
+  });
+  app.post("/v1/projects/:id/github-remote", async (context) => {
+    const projectId = ownedProject(context.req.param("id"));
+    const input = decode(
+      Schema.Struct({
+        remoteName: Schema.NullOr(Schema.NonEmptyString),
+        requestId: Schema.optionalKey(RequestId),
+      }),
+      await readBody(context.req),
+    );
+    return context.json(
+      await core.selectGitHubRemote(projectId, input.remoteName, input.requestId),
+    );
+  });
   app.get("/v1/skills", async (context) => {
     const workspaceId = context.req.query("workspaceId");
     const workspace = (await core.workspaces()).find(
@@ -212,9 +316,15 @@ export function createHttpApp(options: {
   app.post("/v1/threads/:id/approvals/:requestId", async (context) => {
     const id = context.req.param("id");
     await controller.authorize(id);
-    const input = decode(Schema.Struct({ approved: Schema.Boolean }), await readBody(context.req));
+    const input = decode(
+      Schema.Struct({
+        approved: Schema.Boolean,
+        reuse: Schema.optionalKey(Schema.Literals(["call", "run"])),
+      }),
+      await readBody(context.req),
+    );
     return context.json(
-      await core.decideApproval(id, context.req.param("requestId"), input.approved),
+      await core.decideApproval(id, context.req.param("requestId"), input.approved, input.reuse),
     );
   });
   app.post("/v1/threads/:id/metadata", async (context) => {

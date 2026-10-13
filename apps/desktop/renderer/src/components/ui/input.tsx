@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 type InputProps = Omit<ComponentProps<typeof BaseInput>, "className"> & {
   className?: string;
-  variant?: "default" | "compact" | "search" | "embedded" | "embedded-compact";
+  variant?: "default" | "compact" | "search" | "embedded" | "embedded-compact" | "menu";
 };
 
 export function Input({ className, variant = "default", ...props }: InputProps) {
@@ -19,6 +19,8 @@ export function Input({ className, variant = "default", ...props }: InputProps) 
         variant === "embedded" && "h-11 rounded-none border-0 focus:ring-0",
         variant === "embedded-compact" &&
           "h-8 rounded-none border-0 px-2.5 py-0 text-xs focus:ring-0",
+        variant === "menu" &&
+          "h-7 rounded-[5px] border-0 bg-transparent px-2 py-0 text-xs focus:ring-0",
         className,
       )}
       {...props}

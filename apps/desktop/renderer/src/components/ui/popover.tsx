@@ -13,7 +13,7 @@ export function PopoverContent({
 }: Omit<ComponentProps<typeof BasePopover.Popup>, "className"> & {
   variant?: "default" | "menu";
   size?: "default" | "wide";
-  side?: "top" | "bottom";
+  side?: "top" | "bottom" | "inline-end";
 }) {
   return (
     <BasePopover.Portal>

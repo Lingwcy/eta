@@ -140,7 +140,7 @@ export function normalizeTitle(text: string) {
     .slice(0, 80);
 }
 
-function sumUsage(previous: Usage | undefined, usage: Usage): Usage {
+export function sumUsage(previous: Usage | undefined, usage: Usage): Usage {
   const result = {
     input: (previous?.input ?? 0) + usage.input,
     output: (previous?.output ?? 0) + usage.output,

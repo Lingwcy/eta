@@ -27,6 +27,13 @@ import type { DesktopSettings } from "../shared/settings.ts";
 import { ThreadService } from "@eta/core/service/threads/index";
 import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
+import { readReviewStats } from "@eta/core/service/runtime/review-log";
+import { GitRepositoryService } from "@eta/core/service/git/index";
+import { GitHubRepositoryService } from "@eta/core/service/git/github";
+import type { GitHubQuery } from "@eta/core/shared/github";
+import { WorktreeService } from "@eta/core/service/git/worktrees";
+import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
+import { makeAppPaths } from "@eta/core/platform/app-paths";
 import type { StorageTarget } from "../shared/storage.ts";
 
 async function createLocalDesktopApplication(
@@ -53,6 +60,9 @@ async function createLocalDesktopApplication(
     const settings = await runtime.runPromise(DesktopSettingsService);
     const credentials = await runtime.runPromise(CredentialService);
     const models = await runtime.runPromise(ModelCatalogService);
+    const git = await runtime.runPromise(GitRepositoryService);
+    const github = await runtime.runPromise(GitHubRepositoryService);
+    const worktrees = await runtime.runPromise(WorktreeService);
     const catalog = await runtime.runPromise(CatalogService);
     const skills = await runtime.runPromise(SkillsService);
     const installationPath = join(dataRoot, "installation.json");
@@ -94,6 +104,18 @@ async function createLocalDesktopApplication(
       unloadSkill: (id: string, name: string) => run(threads.unloadSkill(id, name)),
       subscribeLibrary: (listener: () => void) => catalog.subscribe(listener),
       storage: async () => scanStorage(dataRoot, await run(catalog.read)),
+      reviewStats: () => readReviewStats(makeAppPaths(dataRoot).reviewLogPath),
+      gitRepository: (workspaceId: string) => run(git.repository(workspaceId)),
+      githubIdentity: (_projectId: string) => run(github.identity()),
+      githubQuery: (input: GitHubQuery) => run(github.query(input)),
+      gitBranches: (workspaceId: string) => run(git.branches(workspaceId)),
+      selectGitHubRemote: (projectId: string, remoteName: string | null, requestId?: string) =>
+        run(git.selectGitHubRemote(projectId, remoteName, requestId)),
+      listWorktrees: (projectId: string) => run(worktrees.list(projectId)),
+      reconcileWorktrees: (projectId: string) => run(worktrees.reconcile(projectId)),
+      createWorktree: (input: CreateWorktreeInput) => run(worktrees.create(input)),
+      removeWorktree: (workspaceId: string, requestId: string) =>
+        run(worktrees.remove(workspaceId, requestId)),
       revealStorage: async (target: StorageTarget) =>
         revealPath(await storageTargetPath(dataRoot, target)),
       prepareImage: async (
@@ -156,8 +178,8 @@ async function createLocalDesktopApplication(
         selectThread(threads.configure(id, provider, modelId, level)),
       configureSandbox: (id: string, mode: import("@eta/core/shared/sandbox").SandboxMode) =>
         selectThread(threads.configureSandbox(id, mode)),
-      decideApproval: (id: string, requestId: string, approved: boolean) =>
-        selectThread(threads.decideApproval(id, requestId, approved)),
+      decideApproval: (id: string, requestId: string, approved: boolean, reuse?: "call" | "run") =>
+        selectThread(threads.decideApproval(id, requestId, approved, reuse)),
       submit: (
         id: string,
         prompt: string,

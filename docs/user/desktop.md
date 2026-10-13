@@ -16,6 +16,20 @@ Use **Settings → Application → Storage (设置 → 应用 → 存储)** to c
 
 Back up the entire session directory, not just the main JSONL transcript. Subagents share that transcript, and task recovery also needs the adjacent state files. Reopening unfinished work requires an explicit resume or stop.
 
+## Start in a separate worktree
+
+Before sending the first message in a new chat, open the workspace configuration beside the project and enable “新 worktree”. Use its branch menu to select an existing branch or enter a new branch name. Eta creates the directory when you send; uncommitted changes in the current checkout stay there. If creation or sending fails, the draft is preserved and retries reuse the created workspace. Checked-out branches and remote-tracking branches become the base of a new local branch. Workspace configuration hides after the chat starts.
+
+See the [sandbox guide](./sandbox.md#在-worktree-中提交) for Git approvals and run-scoped grants. Closing a tab or archiving a chat keeps its worktree.
+
+Desktop stores new worktrees in a separate directory beside its protected data directory. Existing chats keep their execution directories.
+
+## Browse GitHub PRs and issues
+
+The right sidebar opens by default when it has available content. Select its GitHub tab, then choose PR or Issues in the header to browse open entries. The options menu retains repository selection, state filters, refresh and access status. The GitHub tab appears when the project has a GitHub remote and its host supports GitHub queries; the subagent tab appears when the current chat has subagents. Entries open in your external browser. Repository context follows the chat’s actual execution workspace. **Alt+←** collapses or restores the current sidebar, including from web and settings tabs.
+
+Public repositories support anonymous access. For private repositories or higher rate limits, run gh auth login locally, or on the server for Bot projects, then refresh the GitHub sidebar. This identity is separate from the model’s GitHub Copilot login. Disconnected Bot caches are marked stale; refresh and writes remain unavailable.
+
 ## Skills
 
 Skills give an agent reusable instructions. Put each skill in a folder containing `SKILL.md`:

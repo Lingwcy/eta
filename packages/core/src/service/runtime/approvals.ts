@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { access } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import type { Context } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { defineDoc, defineTask, hook, ToolTask } from "@eta/agent";
+import { defineTask, hook, ToolTask } from "@eta/agent";
 import type { ConversationId, Harness, JsonObject, TaskId, Tx } from "@eta/agent";
 import type { ToolCall } from "@earendil-works/pi-ai";
 import { Schema } from "effect";
@@ -12,19 +13,25 @@ import type { SandboxApproval } from "../../shared/sandbox.ts";
 import { SandboxDoc } from "./sandbox.ts";
 import { canonicalRoot } from "../../platform/sandbox/backend.ts";
 import { CoreError } from "../errors.ts";
+import { ApprovalsDoc } from "./approval-doc.ts";
+import { runGrant } from "./approval-doc.ts";
+import type { Approval } from "./approval-doc.ts";
+import { createReviewTask } from "./review.ts";
+import { gitMetadataScope } from "../git/metadata.ts";
+import type { GitMetadataScope } from "../git/metadata.ts";
+import type { ReviewOptions } from "./review.ts";
+import { defaultApprovalReviewerMode } from "../../shared/runtime-settings.ts";
 
-type Approval = {
-  -readonly [
-    K in keyof Omit<SandboxApproval, "args" | "readableRoots" | "writableRoots">
-  ]: SandboxApproval[K];
-} & { args: JsonObject; taskId: TaskId; readableRoots: string[]; writableRoots: string[] };
-export const ApprovalsDoc = defineDoc<{ requests: Approval[] }>({
-  kind: "eta.sandbox-approvals",
-  version: 1,
-  scope: "session",
-  initial: () => ({ requests: [] }),
-});
+export { ApprovalsDoc } from "./approval-doc.ts";
+
+const sameRoots = (left: readonly string[], right: readonly string[]) =>
+  JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
+
+/** Consecutive automatic denials in one conversation before review hands every request to the user. */
+export const REVIEW_DENIAL_LIMIT = 3;
+
 const Access = Schema.Struct({
+  gitMetadata: Schema.optionalKey(Schema.Boolean),
   networkAccess: Schema.optionalKey(Schema.Boolean),
   readableRoots: Schema.optionalKey(Schema.Array(Schema.String)),
   writableRoots: Schema.optionalKey(Schema.Array(Schema.String)),
@@ -44,7 +51,9 @@ export function createSandboxApprovals(
   workspaceRoot: string,
   release: (taskId: string) => Promise<void>,
   deniedRoots: readonly string[] = [],
+  review?: ReviewOptions,
 ) {
+  const reviewTask = review && createReviewTask(review);
   const commit = async (
     conversationId: ConversationId,
     change: (tx: Tx) => Promise<void>,
@@ -108,7 +117,9 @@ export function createSandboxApprovals(
     const readableRoots: string[] = [];
     const writableRoots: string[] = [];
     let networkAccess = false;
+    let requestedNetworkAccess = false;
     let reason = "";
+    let git: GitMetadataScope | undefined;
     const protectedRoots = await Promise.all(
       [
         ...deniedRoots,
@@ -162,25 +173,76 @@ export function createSandboxApprovals(
             ),
           )),
         );
-        networkAccess = mode === "read-only" && requested.networkAccess === true;
+        requestedNetworkAccess = requested.networkAccess === true;
+        networkAccess = mode === "read-only" && requestedNetworkAccess;
         for (const path of [...readableRoots, ...writableRoots]) assertUnprotected(path);
-        if (networkAccess || readableRoots.length || writableRoots.length)
+        if (requested.gitMetadata) git = await gitMetadataScope(await canonicalRoot(workspaceRoot));
+        if (
+          networkAccess ||
+          readableRoots.length ||
+          writableRoots.length ||
+          git?.writableRoots.length
+        )
           reason = requested.reason;
       }
     }
-    return reason
-      ? {
-          reason,
-          readableRoots: [...new Set(readableRoots)],
-          writableRoots: [...new Set(writableRoots)],
-          networkAccess,
-        }
-      : undefined;
+    if (!reason) return undefined;
+    // Core-expanded Git roots are judged by the expansion itself; only hand-written roots go through the rules.
+    const userOnly =
+      (await requiresUser({ readableRoots, writableRoots })) || git?.requiresUser === true;
+    // Reuse is limited to Core's own Git expansion, so a reused grant can never carry hand-written roots.
+    const reusable =
+      mode === "workspace-write" &&
+      git?.description !== undefined &&
+      !git.requiresUser &&
+      !readableRoots.length &&
+      !writableRoots.length &&
+      !requestedNetworkAccess;
+    return {
+      reason,
+      ...(reusable ? { reusable } : {}),
+      readableRoots: [...new Set([...readableRoots, ...(git?.readableRoots ?? [])])],
+      writableRoots: [...new Set([...writableRoots, ...(git?.writableRoots ?? [])])],
+      networkAccess,
+      ...(git?.description ? { gitMetadata: git.description } : {}),
+      requiresUser: userOnly,
+    };
+  };
+  /** Scopes that automatic review may never grant: Git metadata outside the workspace, or the whole home. */
+  const requiresUser = async (scope: { readableRoots: string[]; writableRoots: string[] }) => {
+    const home = await canonicalRoot(homedir());
+    const covers = (root: string) => root === sep || contains(root, home);
+    if ([...scope.readableRoots, ...scope.writableRoots].some(covers)) return true;
+    const workspace = await canonicalRoot(workspaceRoot);
+    for (const root of scope.writableRoots) {
+      if (root.split(sep).includes(".git")) return true;
+      // Workspace-write already exposes the workspace's own checkout; another repository's metadata is new reach.
+      if (
+        !contains(workspace, root) &&
+        (await access(join(root, ".git")).then(
+          () => true,
+          () => false,
+        ))
+      )
+        return true;
+    }
+    return false;
+  };
+  const reviewerMode = async () => (await review?.reviewer())?.mode ?? defaultApprovalReviewerMode;
+  /** Trailing automatic denials since the conversation's last other decision. */
+  const denialStreak = (requests: readonly Approval[], conversationId: string) => {
+    let streak = 0;
+    for (const request of requests.toReversed()) {
+      if (request.conversationId !== conversationId || request.status === "pending") continue;
+      if (request.status !== "denied" || request.decidedBy !== "auto") break;
+      streak++;
+    }
+    return streak;
   };
   return {
     extension: {
       name: "eta-sandbox-approvals",
-      tasks: [task],
+      tasks: reviewTask ? [task, reviewTask] : [task],
       hooks: [
         hook(ToolTask, {
           authorizeTool: async (call, api, context) => {
@@ -200,8 +262,49 @@ export function createSandboxApprovals(
             ) {
               if (previous.status === "approved") return;
               if (previous.status === "denied" || previous.status === "cancelled")
-                return { block: "此操作未获批准" };
+                return {
+                  block:
+                    previous.decidedBy === "auto" && previous.review?.rationale
+                      ? `此操作未获自动审查批准：${previous.review.rationale}`
+                      : "此操作未获批准",
+                };
               if (previous.status === "pending") return { waitFor: previous.taskId };
+            }
+            const { requiresUser: userOnly, ...grant } = scope;
+            const automatic = reviewTask && (await reviewerMode()) === "auto";
+            const reused =
+              grant.reusable &&
+              state?.runGrants?.find(
+                (candidate) =>
+                  candidate.conversationId === String(api.conversationId) &&
+                  candidate.revision === (sandbox?.revision ?? 0) &&
+                  sameRoots(candidate.readableRoots, grant.readableRoots) &&
+                  sameRoots(candidate.writableRoots, grant.writableRoots) &&
+                  // Switching the reviewer back to the user withdraws grants the reviewer issued.
+                  (candidate.by === "user" || automatic),
+              );
+            if (reused) {
+              await commit(
+                api.conversationId,
+                async (tx) => {
+                  (await tx.doc(ApprovalsDoc)).requests.push({
+                    id: randomUUID(),
+                    taskId: reused.taskId,
+                    toolTaskId: String(api.taskId),
+                    conversationId: String(api.conversationId),
+                    tool: call.name,
+                    args: call.arguments as JsonObject,
+                    mode,
+                    revision: sandbox?.revision ?? 0,
+                    status: "approved",
+                    decidedBy: "reuse",
+                    reusedFrom: reused.id,
+                    ...grant,
+                  });
+                },
+                context,
+              );
+              return;
             }
             const id = randomUUID();
             let taskId: TaskId | undefined;
@@ -214,6 +317,19 @@ export function createSandboxApprovals(
                   { requestId: id },
                   { ownership: { kind: "task", taskId: api.taskId } },
                 );
+                const skippedReason = !automatic
+                  ? undefined
+                  : userOnly
+                    ? ("requires-user" as const)
+                    : denialStreak(doc.requests, String(api.conversationId)) >= REVIEW_DENIAL_LIMIT
+                      ? ("circuit-breaker" as const)
+                      : undefined;
+                if (automatic && !skippedReason)
+                  await tx.createTask(
+                    reviewTask,
+                    { requestId: id },
+                    { ownership: { kind: "task", taskId } },
+                  );
                 doc.requests.push({
                   id,
                   taskId,
@@ -224,7 +340,14 @@ export function createSandboxApprovals(
                   mode,
                   revision: sandbox?.revision ?? 0,
                   status: "pending",
-                  ...scope,
+                  ...grant,
+                  ...(automatic
+                    ? {
+                        review: skippedReason
+                          ? { status: "skipped", skippedReason }
+                          : { status: "reviewing" },
+                      }
+                    : {}),
                 });
               },
               context,
@@ -252,6 +375,15 @@ export function createSandboxApprovals(
       (await harness().snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.requests.filter(
         (request) => request.status === "pending",
       ) ?? [],
+    /** Recent decisions made without the user, so the client can show what was granted on its behalf. */
+    history: async (limit = 20) =>
+      ((await harness().snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.requests ?? [])
+        .filter(
+          (request) =>
+            request.status !== "pending" &&
+            (request.decidedBy === "auto" || request.decidedBy === "reuse"),
+        )
+        .slice(-limit),
     invalidate: async (conversationId: ConversationId) => {
       await commit(
         conversationId,
@@ -259,11 +391,42 @@ export function createSandboxApprovals(
           const doc = await tx.doc(ApprovalsDoc);
           for (const request of doc.requests)
             if (request.status === "approved") request.status = "cancelled";
+          if (doc.runGrants?.length) doc.runGrants = [];
         },
         BACKGROUND_CONTEXT,
       );
     },
-    decide: async (conversationId: ConversationId, id: string, approved: boolean) => {
+    /** Run-scoped grants end with the root run that earned them. */
+    expireRunGrants: async (conversationId: ConversationId) => {
+      await commit(
+        conversationId,
+        async (tx) => {
+          const doc = await tx.doc(ApprovalsDoc);
+          if (doc.runGrants?.length) doc.runGrants = [];
+        },
+        BACKGROUND_CONTEXT,
+      );
+    },
+    /** Returning to manual review permanently withdraws automatic grants, even if auto is enabled again. */
+    withdrawAutoRunGrants: async (conversationId: ConversationId) => {
+      if ((await reviewerMode()) === "auto") return;
+      await commit(
+        conversationId,
+        async (tx) => {
+          const doc = await tx.doc(ApprovalsDoc);
+          if (doc.runGrants?.some((grant) => grant.by === "auto"))
+            doc.runGrants = doc.runGrants.filter((grant) => grant.by === "user");
+        },
+        BACKGROUND_CONTEXT,
+      );
+    },
+    decide: async (
+      conversationId: ConversationId,
+      id: string,
+      approved: boolean,
+      reuse: "call" | "run" = "call",
+    ) => {
+      let reviewed: Approval | undefined;
       await commit(
         conversationId,
         async (tx) => {
@@ -274,9 +437,28 @@ export function createSandboxApprovals(
           if (request.status !== "pending" || request.revision !== sandbox.revision)
             throw new CoreError({ code: "InvalidInput", message: "审批请求已失效" });
           request.status = approved ? "approved" : "denied";
+          request.decidedBy = "user";
+          if (approved && reuse === "run" && request.reusable) {
+            request.reuse = "run";
+            // Assign a new array: values pushed onto an array after assigning it are not tracked.
+            doc.runGrants = [...(doc.runGrants ?? []), runGrant(request, "user")];
+          }
+          if (request.review) reviewed = JSON.parse(JSON.stringify(request)) as Approval;
         },
         BACKGROUND_CONTEXT,
       );
+      // Final user decisions on reviewed requests are what the default-reviewer evaluation measures.
+      if (reviewed?.review)
+        await review
+          ?.record({
+            kind: "user-decision",
+            at: Date.now(),
+            requestId: reviewed.id,
+            conversationId: reviewed.conversationId,
+            approved,
+            review: reviewed.review.status,
+          })
+          .catch(() => {});
     },
   };
 }

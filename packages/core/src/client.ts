@@ -13,6 +13,13 @@ import { WorkspaceService } from "./service/workspaces/index.ts";
 import { ThreadService } from "./service/threads/index.ts";
 import { SkillsService } from "./service/skills/index.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
+import { GitRepositoryService } from "./service/git/index.ts";
+import { WorktreeService } from "./service/git/worktrees.ts";
+import { GitHubRepositoryService } from "./service/git/github.ts";
+import type { GitHubQuery } from "./shared/github.ts";
+import type { CreateWorktreeInput } from "./service/git/worktrees.ts";
+import { AppPathsService } from "./platform/app-paths.ts";
+import { readReviewStats } from "./service/runtime/review-log.ts";
 
 /** Each invocation creates an independent service graph; the host owns its lifetime through close. */
 export async function createCore(options: CoreOptions) {
@@ -24,7 +31,13 @@ export async function createCore(options: CoreOptions) {
     const models = await runtime.runPromise(ModelCatalogService);
     const skills = await runtime.runPromise(SkillsService);
     const catalog = await runtime.runPromise(CatalogService);
+    const git = await runtime.runPromise(GitRepositoryService);
+    const worktrees = await runtime.runPromise(WorktreeService);
+    const github = await runtime.runPromise(GitHubRepositoryService);
+    const paths = await runtime.runPromise(AppPathsService);
     return {
+      githubIdentity: () => runtime.runPromise(github.identity()),
+      githubQuery: (input: GitHubQuery) => runtime.runPromise(github.query(input)),
       skills: (cwd?: string) => runtime.runPromise(skills.catalog(cwd)),
       projects: () => runtime.runPromise(projects.list()),
       registerProject: (rootPath: string, name?: string) =>
@@ -34,6 +47,16 @@ export async function createCore(options: CoreOptions) {
       workspaces: (projectId?: string) => runtime.runPromise(workspaces.list(projectId)),
       registerWorkspace: (projectId: string, cwd: string) =>
         runtime.runPromise(workspaces.register(projectId, cwd)),
+      gitRepository: (workspaceId: string) => runtime.runPromise(git.repository(workspaceId)),
+      gitBranches: (workspaceId: string) => runtime.runPromise(git.branches(workspaceId)),
+      selectGitHubRemote: (projectId: string, remoteName: string | null, requestId?: string) =>
+        runtime.runPromise(git.selectGitHubRemote(projectId, remoteName, requestId)),
+      reviewStats: () => readReviewStats(paths.reviewLogPath),
+      createWorktree: (input: CreateWorktreeInput) => runtime.runPromise(worktrees.create(input)),
+      listWorktrees: (projectId: string) => runtime.runPromise(worktrees.list(projectId)),
+      reconcileWorktrees: (projectId: string) => runtime.runPromise(worktrees.reconcile(projectId)),
+      removeWorktree: (workspaceId: string, requestId: string) =>
+        runtime.runPromise(worktrees.remove(workspaceId, requestId)),
       models: () => runtime.runPromise(models.list),
       threads: (workspaceId?: string, includeArchived?: boolean) =>
         runtime.runPromise(threads.list(workspaceId, includeArchived)),
@@ -45,8 +68,8 @@ export async function createCore(options: CoreOptions) {
       openThread: (id: string) => runtime.runPromise(threads.open(id)),
       configureSandbox: (id: string, mode: SandboxMode) =>
         runtime.runPromise(threads.configureSandbox(id, mode)),
-      decideApproval: (id: string, requestId: string, approved: boolean) =>
-        runtime.runPromise(threads.decideApproval(id, requestId, approved)),
+      decideApproval: (id: string, requestId: string, approved: boolean, reuse?: "call" | "run") =>
+        runtime.runPromise(threads.decideApproval(id, requestId, approved, reuse)),
       renameThread: (id: string, title: string) => runtime.runPromise(threads.rename(id, title)),
       archiveThread: (id: string, archived: boolean) =>
         runtime.runPromise(threads.archive(id, archived)),

@@ -89,6 +89,23 @@ export const ApprovalSchema = z.object({
   networkAccess: z.boolean(),
   readableRoots: z.array(z.string()),
   writableRoots: z.array(z.string()),
+  reusable: z.boolean().optional(),
+  decidedBy: z.enum(["user", "auto", "reuse"]).optional(),
+  reusedFrom: z.string().optional(),
+  reuse: z.enum(["call", "run"]).optional(),
+  gitMetadata: z
+    .object({ commonDir: z.string(), worktreeDir: z.string(), branch: z.string().optional() })
+    .optional(),
+  review: z
+    .object({
+      status: z.string(),
+      risk: z.string().optional(),
+      rationale: z.string().optional(),
+      skippedReason: z.string().optional(),
+      reviewer: z.object({ provider: z.string(), modelId: z.string() }).optional(),
+      toolCalls: z.array(z.object({ tool: z.string(), summary: z.string() })).optional(),
+    })
+    .optional(),
 });
 export const SnapshotSchema = z.object({
   configuration: z.object({
@@ -126,6 +143,7 @@ export const SnapshotSchema = z.object({
     })
     .nullable(),
   approvals: z.array(ApprovalSchema).optional(),
+  approvalHistory: z.array(ApprovalSchema).optional(),
   sandbox: z
     .object({
       mode: SandboxModeSchema,

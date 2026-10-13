@@ -16,8 +16,14 @@ const bashSchema = Type.Object({
 				reason: Type.String({
 					minLength: 1,
 					description:
-						"Why this command needs additional access. This pauses for human approval before execution.",
+						"Why this command needs additional access. This pauses for approval before execution.",
 				}),
+				gitMetadata: Type.Optional(
+					Type.Boolean({
+						description:
+							"Request write access to this workspace's own Git metadata (index, objects, current branch ref) when it lives outside the workspace, as in a linked worktree.",
+					}),
+				),
 				networkAccess: Type.Optional(Type.Boolean()),
 				readableRoots: Type.Optional(Type.Array(Type.String())),
 				writableRoots: Type.Optional(Type.Array(Type.String())),
@@ -62,7 +68,7 @@ function validateTimeout(timeout: number | undefined): void {
 export function createBashTool(options?: BashToolOptions): ToolRegistration<typeof bashSchema> {
 	return defineTool({
 		name: "bash",
-		description: `Execute a bash command in the current working directory. Sandbox restrictions apply to the command and its descendants. Workspace-write permits network access. Access to files outside the workspace, or network access in read-only mode, requires an explicit sandbox request with the minimum required roots and a reason. Never retry a failed command blindly: it may have partially executed. Returns combined stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+		description: `Execute a bash command in the current working directory. Sandbox restrictions apply to the command and its descendants. Workspace-write permits network access. Access to files outside the workspace, or network access in read-only mode, requires an explicit sandbox request with the minimum required roots and a reason. In a Git worktree, commands that write Git state (add, commit, checkout -b) need \`sandbox: { gitMetadata: true, reason }\` instead of hand-written Git paths. Never retry a failed command blindly: it may have partially executed. Returns combined stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
 		parameters: bashSchema,
 		outputLimits: { retain: "tail" },
 		async execute(args, api, context) {

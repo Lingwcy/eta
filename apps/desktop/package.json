@@ -41,6 +41,7 @@
     "@vitejs/plugin-react": "catalog:",
     "electron": "44.4.2",
     "electron-builder": "catalog:",
+    "jsdom": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

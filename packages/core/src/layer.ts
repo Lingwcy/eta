@@ -19,6 +19,11 @@ import { SkillsService } from "./service/skills/index.ts";
 import { ThreadTitleService } from "./service/titles/index.ts";
 import { ThreadService } from "./service/threads/index.ts";
 import { WorkspaceService } from "./service/workspaces/index.ts";
+import { GitRepositoryService } from "./service/git/index.ts";
+import { GitStoreService } from "./service/git/store.ts";
+import { WorktreeService } from "./service/git/worktrees.ts";
+import { WorkspaceAccessService } from "./service/git/workspace-access.ts";
+import { GitHubRepositoryService } from "./service/git/github.ts";
 
 export function coreFoundation(
   dataRoot: string,
@@ -31,6 +36,7 @@ export function coreFoundation(
     SessionRepositoryService.layer,
     AgentResourcesService.layerWith(processImage, instructions),
     CoreEnvironmentService.layer(environment),
+    WorkspaceAccessService.layer.pipe(Layer.provideMerge(GitStoreService.layer)),
   ).pipe(Layer.provideMerge(AppPathsService.layer(dataRoot)));
 }
 
@@ -45,7 +51,11 @@ export function coreDomainServices(skillLayer: ReturnType<typeof SkillsService.l
     RunSupervisorService.layer,
     ObservationService.layer,
   ).pipe(Layer.provideMerge(skills));
-  return ThreadService.layer.pipe(Layer.provideMerge(domain));
+  return Layer.mergeAll(
+    ThreadService.layer,
+    GitHubRepositoryService.layer.pipe(Layer.provideMerge(GitRepositoryService.layer)),
+    WorktreeService.layer,
+  ).pipe(Layer.provideMerge(domain));
 }
 
 export interface CoreOptions {

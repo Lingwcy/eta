@@ -13,6 +13,7 @@ import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { hasThreadActivity } from "./thread-activity";
 import { defaultSandboxMode, sandboxModes } from "@eta/core/shared/sandbox";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
+import type { WorktreeDraft } from "@/components/input/worktree-picker";
 
 /** A mounted conversation keeps its composer when another tab becomes active. */
 export function useDesktopController(
@@ -28,6 +29,7 @@ export function useDesktopController(
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [draft] = useState(() => new DraftThread(tab.id, window.eta));
+  const [worktreeDraft, setWorktreeDraft] = useState<WorktreeDraft>({ enabled: false });
   const workspace = desktop.library?.workspaces.find(
     (workspace) => workspace.id === tab.workspaceId,
   );
@@ -98,6 +100,7 @@ export function useDesktopController(
         : await window.eta.registerProject(rootPath, name);
       const next = await desktop.refresh();
       const workspace = projectRootWorkspace(next.workspaces, project.id);
+      setWorktreeDraft({ enabled: false });
       navigation.tabs.updateConversation(tab.id, { workspaceId: workspace?.id ?? null });
     });
   };
@@ -141,11 +144,13 @@ export function useDesktopController(
     thinking,
     approval: {
       requests: snapshot?.approvals ?? [],
+      // Automatic decisions stay visible while the run that produced them is still going.
+      history: running ? (snapshot?.approvalHistory ?? []) : [],
       busy: desktop.busy || Boolean(snapshot?.recoveryRequired),
-      onDecision: (id: string, approved: boolean) => {
+      onDecision: (id: string, approved: boolean, reuse?: "call" | "run") => {
         if (threadId)
           void desktop.act(async () => {
-            await window.eta.decideApproval(threadId, id, approved);
+            await window.eta.decideApproval(threadId, id, approved, reuse);
           });
       },
     },
@@ -158,6 +163,7 @@ export function useDesktopController(
               desktop.clearError();
               setError(undefined);
               setCloudSelection(undefined);
+              setWorktreeDraft({ enabled: false });
               navigation.tabs.updateConversation(tab.id, {
                 environment: next ? "cloud" : "local",
                 workspaceId: null,
@@ -171,12 +177,21 @@ export function useDesktopController(
             busy: desktop.busy,
             library: desktop.library,
             workspaceId: tab.workspaceId,
-            onProject: (id: string | null) =>
+            onProject: (id: string | null) => {
+              setWorktreeDraft({ enabled: false });
               navigation.tabs.updateConversation(tab.id, {
                 workspaceId: id,
                 environment: isCloudId(id) ? "cloud" : "local",
-              }),
+              });
+            },
             onCreateProject: registerProject,
+            worktreeDraft,
+            onWorktreeDraft: (next: WorktreeDraft) => {
+              setWorktreeDraft(next);
+            },
+            ...(cloud && !remote?.capabilities?.includes("worktree")
+              ? { worktreeUnsupported: "当前 Bot 版本不支持 worktree，请更新 Bot 后重新连接。" }
+              : {}),
           },
     composer: {
       value: tab.draft,
@@ -254,13 +269,26 @@ export function useDesktopController(
                       defaultSandboxMode,
                   }
                 : undefined,
+              worktreeDraft.enabled && worktreeDraft.branch && workspace
+                ? {
+                    projectId: workspace.projectId,
+                    baseWorkspaceId: workspace.id,
+                    branch: worktreeDraft.branch,
+                  }
+                : undefined,
             );
-            navigation.tabs.updateConversation(tab.id, { threadId: id });
+            navigation.tabs.updateConversation(tab.id, {
+              threadId: id,
+              workspaceId: draft.persistedWorkspaceId ?? tab.workspaceId,
+            });
           }
           navigation.activity.watch(id);
         } catch (error) {
           if (!threadId && draft.persistedId)
-            navigation.tabs.updateConversation(tab.id, { threadId: draft.persistedId });
+            navigation.tabs.updateConversation(tab.id, {
+              threadId: draft.persistedId,
+              workspaceId: draft.persistedWorkspaceId ?? tab.workspaceId,
+            });
           setError(error instanceof Error ? error.message : "无法发送消息");
           throw error;
         } finally {

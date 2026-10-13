@@ -6,8 +6,10 @@ import type { ExecutionEnv } from "@eta/agent/env";
 import type { Extension } from "@eta/agent";
 import type { Models } from "@earendil-works/pi-ai";
 import type { EtaSessionMetadata } from "../shared/sessions.ts";
+import type { GitHubAdapter } from "../platform/github.ts";
 
 export interface CoreEnvironment {
+  readonly github?: GitHubAdapter;
   readonly userAgent: string;
   readonly shutdown: "preserve" | "abortForeground";
   readonly executionEnvironment: (
@@ -16,6 +18,8 @@ export interface CoreEnvironment {
   ) => ExecutionEnv | Promise<ExecutionEnv>;
   readonly allowedSandboxModes: readonly SandboxMode[];
   readonly sandboxWorkerPath?: string;
+  /** Where Eta creates managed worktrees; defaults to a sibling `<dataRoot>-worktrees` directory. */
+  readonly worktreeRoot?: string;
   readonly extensions: (
     ref: EtaSessionMetadata,
     models: Models,
@@ -30,9 +34,11 @@ export class CoreEnvironmentService extends Context.Service<
   static readonly layer = (options: Partial<CoreEnvironment> = {}) =>
     Layer.succeed(CoreEnvironmentService, {
       userAgent: options.userAgent ?? "eta",
+      github: options.github,
       shutdown: options.shutdown ?? "preserve",
       allowedSandboxModes: options.allowedSandboxModes ?? sandboxModes,
       sandboxWorkerPath: options.sandboxWorkerPath,
+      ...(options.worktreeRoot ? { worktreeRoot: options.worktreeRoot } : {}),
       executionEnvironment:
         options.executionEnvironment ??
         ((_cwd, policy) =>

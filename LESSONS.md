@@ -56,7 +56,42 @@ inspected `a7972f252`, `d0105c5ea`, `f3a39419c`, and `9da537e31`, with
 commits, not a runtime, CI, or release audit. The lessons below do not claim
 that the rest of the history has been reviewed or that those fixes pass today.
 
+## UI scope
+
+**Exercise interactive popup content when changing compound UI components.**
+
+- Evidence: on 2026-10-13, opening the worktree branch submenu threw `ComboboxGroupContext is missing` because its `CommandGroupLabel` lacked a `CommandGroup`. Typecheck and renderer build had passed; a DOM interaction test reproduced the exception and now covers opening, searching, selecting and reopening the real picker.
+- Check: preserve the library's required parent contexts and test the affected interaction, rather than static markup or callback wiring.
+- Seen: 2026-10-13.
+
+**Keep approved UI lifetimes and entry points; covering existing surfaces does not authorize adding new ones.**
+
+- Evidence: on 2026-10-13, the maintainer rejected this branch's persistent composer context after thread creation, worktree management dialog, and new project settings category. The requested worktree configuration belonged in the draft's compact gear menu; these additions were removed.
+- The same day's follow-up rejected the wide new-branch form and outlined input. Compact styling must cover naming states as well as the initial menu; naming now uses one borderless menu row. The maintainer explicitly requested the lasting constraints in [AGENTS.md](AGENTS.md#ui).
+- Check: compare the final entry points and visibility conditions with the supplied UI reference and maintainer instructions before calling frontend work complete.
+- Seen: 2026-10-13.
+
 ## Build and runtime boundaries
+
+**Include host system configuration in native sandbox regression fixtures.**
+
+- Evidence: the 2026-10-13 Bot CI runs failed six Git metadata tests on Linux. A container with `/etc/gitconfig` reproduced the same six failures: Git treats denied system configuration reads as fatal. Restricted workers now pass `GIT_CONFIG_NOSYSTEM=1` to child commands; the native sandbox regression grants no access to a fixture's system config and still verifies Git init/status succeed. The focused Linux run passed all 35 Git, sandbox and recovery tests after the fix.
+- Check: verify the environment reaches the executed command, not just the launcher; keep unrestricted execution's host configuration behavior.
+- Seen: 2026-10-13.
+
+**Exercise the default host configuration in integration tests, not only test overrides.**
+
+- Why: a fixture can bypass an incompatible product default and make a feature appear usable.
+- Evidence: the 2026-10-13 Core Git continuation found Desktop's default worktree directory inside the protected data root, while existing worktree fixtures overrode it with an unprotected sibling directory. The native worktree test now uses the default management root and verifies an agent can edit and commit there. The maintainer approved moving new worktrees beside the data directory while retaining its protection.
+- Check: cover the actual default root and sandbox policy together; keep existing thread execution directories stable when changing future defaults.
+- Seen 1× (2026-10-13).
+
+**Test a new setting through the IPC decoder and persistence, including its reset path.**
+
+- Why: renderer and storage types can accept a setting while the separately maintained IPC patch schema rejects it.
+- Evidence: on 2026-10-13, the permission settings screenshot showed “请求参数无效”. `approvalReviewer` existed in the runtime and desktop settings schemas but was absent from `main/ipc.ts`. The `reviewer choices` regression in `main/service/settings/index.test.ts` reproduced that rejection, then verified updates, subscriptions, reopening and resetting after adding the shared field schema.
+- Check: send the same payload the renderer uses through `dispatchCommand` into the real settings service; retain rejection tests for malformed values.
+- Seen 1× (2026-10-13).
 
 **Verify the runtime entry point and the packaged dependency graph when adding
 a dependency. A dev server succeeding does not prove an installed client works.**
@@ -99,6 +134,13 @@ allows native startup, before checking an operation's result.**
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.
 - Seen 1× (2026-10-12).
+
+**Propagate a shared deadline through every asynchronous stage, including tools and the final decision check.**
+
+- Why: a model timeout alone does not bound context gathering or prevent a late approval.
+- Evidence: the 2026-10-13 sandbox review follow-up found `review.ts` passing its timeout only to the model, while `tools.execute` received the original context. The focused `packages/core/test/service/runtime/review-task.test.ts` now blocks a tool, model availability and the final settings read, and verifies timeout leaves the request pending for the user.
+- Check: cancel the actual operation as well as its waiter; retain a non-cancelled context for recording the fallback and cleanup.
+- Seen 1× (2026-10-13).
 
 ## Defaults and explicit choices
 

@@ -71,3 +71,40 @@ test("a JSON response stalled after headers still times out", async () => {
   );
   await expect(client.library()).rejects.toMatchObject({ code: "Timeout" });
 });
+
+test("older and newer Bot snapshots both decode while automatic review details survive HTTP", async () => {
+  const { thread } = await import("./fixtures.test-support.ts");
+  const approval = {
+    id: "request",
+    tool: "bash",
+    args: { command: "git commit" },
+    reason: "Commit",
+    status: "consumed",
+    networkAccess: false,
+    readableRoots: ["/repo/.git"],
+    writableRoots: ["/repo/.git/objects"],
+    decidedBy: "auto",
+    reuse: "run",
+    review: {
+      status: "approved",
+      rationale: "Routine",
+      reviewer: { provider: "test", modelId: "one" },
+      toolCalls: [{ tool: "git", summary: "git status" }],
+    },
+  };
+  let response: unknown = thread;
+  const client = new BotClient({ url: "https://bot", token: "secret" }, async () => json(response));
+  expect((await client.open("thread")).snapshot.approvalHistory).toBeUndefined();
+  response = {
+    ...thread,
+    snapshot: { ...thread.snapshot, approvalHistory: [approval] },
+  };
+  const opened = await client.open("thread");
+  expect(opened.snapshot.approvalHistory).toMatchObject([
+    {
+      decidedBy: "auto",
+      reuse: "run",
+      review: { reviewer: { modelId: "one" }, toolCalls: [{ summary: "git status" }] },
+    },
+  ]);
+});

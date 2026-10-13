@@ -4,10 +4,17 @@ import { cn } from "@/lib/utils";
 
 export const Tabs = BaseTabs.Root;
 export const TabsList = BaseTabs.List;
-export function TabsTrigger(props: Omit<ComponentProps<typeof BaseTabs.Tab>, "className">) {
+export function TabsTrigger({
+  variant = "default",
+  ...props
+}: Omit<ComponentProps<typeof BaseTabs.Tab>, "className"> & { variant?: "default" | "inspector" }) {
   return (
     <BaseTabs.Tab
-      className="flex w-full shrink-0 cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm text-neutral-700 outline-none hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-40 data-active:bg-neutral-200/50 [&_svg]:shrink-0"
+      className={cn(
+        variant === "inspector"
+          ? "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[5px] text-xs text-neutral-500 outline-none hover:bg-neutral-200/50 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-40 data-active:text-neutral-800 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:stroke-[1.7]"
+          : "flex w-full shrink-0 cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm text-neutral-700 outline-none hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-40 data-active:bg-neutral-200/50 [&_svg]:shrink-0",
+      )}
       {...props}
     />
   );

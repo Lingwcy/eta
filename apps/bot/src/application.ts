@@ -53,10 +53,17 @@ export async function createBotApplication(
       : undefined;
     extensions = new BotExtensions(discord ? [discord] : []);
     const registered = extensions;
+    const models = dependencies.models ?? builtinModels({ credentials: credentials.store });
+    // A typo should fail fast; a known model without credentials yet is handled per review.
+    const reviewer = config.runtime.approvalReviewer?.model;
+    if (reviewer && !models.getModel(reviewer.provider, reviewer.modelId))
+      throw new Error(
+        `Unknown approval reviewer model ${reviewer.provider}/${reviewer.modelId}; check runtime.approvalReviewer.model.`,
+      );
     core = await createCore({
       dataRoot: config.dataRoot,
       home: config.home ?? join(config.dataRoot, "home"),
-      models: dependencies.models ?? builtinModels({ credentials: credentials.store }),
+      models,
       settings: { read: Effect.succeed(config.runtime), subscribe: () => () => {} },
       processImage,
       environment: {
@@ -64,6 +71,8 @@ export async function createBotApplication(
         shutdown: "preserve",
         allowedSandboxModes: config.allowedSandboxModes ?? ["read-only", "workspace-write"],
         sandboxWorkerPath: existsSync(worker) ? worker : undefined,
+        // A dot directory: project discovery skips it, yet it stays inside the workspace root's scope.
+        worktreeRoot: join(config.workspaceRoot, ".eta-worktrees"),
         ...dependencies.environment,
         extensions: async (ref, models) => [
           ...((await dependencies.environment?.extensions?.(ref, models)) ?? []),

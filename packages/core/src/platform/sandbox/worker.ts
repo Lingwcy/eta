@@ -86,6 +86,9 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
               PATH: process.env.PATH ?? "/usr/bin:/bin",
               HOME: process.env.HOME ?? "",
               TMPDIR: process.env.TMPDIR ?? "",
+              ...(process.env.GIT_CONFIG_NOSYSTEM
+                ? { GIT_CONFIG_NOSYSTEM: process.env.GIT_CONFIG_NOSYSTEM }
+                : {}),
               ...request.options?.env,
             },
             onOutput: (value) => send({ id: request.id, event: "output", value }),

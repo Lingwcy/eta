@@ -1,6 +1,18 @@
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { BotLibrary } from "@eta/core/shared/bot";
-import { mkdtemp, mkdir, readFile, rename, rm, readdir, symlink, realpath } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  readdir,
+  symlink,
+  realpath,
+  writeFile,
+} from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -80,6 +92,23 @@ async function fixture(empty = false, defaultProvider?: string) {
   };
   return { bot, open, config, provider, request, create, cwd, workspace };
 }
+
+test("an unknown approval reviewer model fails startup instead of silently using another", async () => {
+  const { config } = await fixture();
+  await expect(
+    createBotApplication(
+      {
+        ...config,
+        dataRoot: `${config.dataRoot}-reviewer`,
+        runtime: {
+          ...config.runtime,
+          approvalReviewer: { mode: "auto", model: { provider: "bot-test", modelId: "missing" } },
+        },
+      },
+      { models: createModels() },
+    ),
+  ).rejects.toThrow("Unknown approval reviewer model bot-test/missing");
+});
 
 test("a missing sandbox returns a conflict without admitting unchecked execution", async () => {
   const { bot, open, config, cwd } = await fixture();
@@ -188,8 +217,22 @@ test("HTTP exposes sandbox ceilings and scopes approvals to the owning thread", 
     code: "ENOENT",
   });
   expect(
+    (
+      await request(`/v1/threads/${id}/approvals/${approval.id}`, {
+        approved: true,
+        reuse: "forever",
+      })
+    ).status,
+  ).toBe(400);
+  expect(
     (await request(`/v1/threads/${id}/approvals/${approval.id}`, { approved: true })).status,
   ).toBe(200);
+  const status = await bot.app.request("/v1/status", {
+    headers: { authorization: "Bearer test-admin-token" },
+  });
+  expect(await status.json()).toMatchObject({
+    capabilities: expect.arrayContaining(["approval-review", "git-metadata"]),
+  });
   await expect
     .poll(async () => (await bot.core.operation(id, operation.operationId)).status, {
       timeout: 5000,
@@ -633,4 +676,75 @@ test("creation uses the requested model even when the Bot default provider is un
       ({ message }) => message.role === "assistant",
     ),
   ).toBe(true);
+});
+
+test("worktrees are created inside the workspace root without becoming new projects", async () => {
+  const { bot, request, cwd, workspace } = await fixture();
+  const git = (...args: string[]) =>
+    promisify(execFile)(
+      "git",
+      ["-c", "user.name=Eta", "-c", "user.email=eta@example.com", ...args],
+      {
+        cwd,
+      },
+    );
+  await git("init", "-q", "-b", "main");
+  await writeFile(join(cwd, "README.md"), "hello\n");
+  await git("add", ".");
+  await git("commit", "-q", "-m", "init");
+  const projectId = bot.workspaceProjects.get(workspace)!;
+  const projectsBefore = await (await request("/v1/projects")).json();
+  const created = await request(`/v1/projects/${projectId}/worktrees`, {
+    baseWorkspaceId: workspace,
+    branch: { kind: "new", name: "eta/bot-task" },
+    requestId: "bot-worktree",
+  });
+  expect(created.status).toBe(201);
+  const worktree = (await created.json()) as { workspaceId: string; path: string };
+  expect(worktree.path.startsWith(join(await realpath(join(cwd, "..")), ".eta-worktrees"))).toBe(
+    true,
+  );
+  expect(await (await request("/v1/projects")).json()).toEqual(projectsBefore);
+  expect(bot.workspaceProjects.get(worktree.workspaceId)).toBe(projectId);
+  expect(await (await request(`/v1/workspaces/${worktree.workspaceId}/git`)).json()).toMatchObject({
+    status: "ready",
+    linkedWorktree: true,
+    head: { name: "eta/bot-task" },
+  });
+  expect(await (await request(`/v1/projects/${projectId}/worktrees`)).json()).toMatchObject([
+    { workspaceId: worktree.workspaceId, status: "ready" },
+  ]);
+  expect(
+    await (
+      await request(`/v1/workspaces/${worktree.workspaceId}/remove`, { requestId: "rm" })
+    ).json(),
+  ).toMatchObject({ status: "removed" });
+  expect((await request(`/v1/projects/not-a-project/worktrees`)).status).toBe(403);
+});
+
+test("GitHub HTTP queries enforce project ownership and reject caller-supplied repositories", async () => {
+  const { bot, request } = await fixture();
+  const projectId = [...bot.workspaceProjects.values()][0]!;
+  expect(
+    (await request("/v1/projects/outside/github", { kind: "issues", state: "open" })).status,
+  ).toBe(403);
+  expect((await request("/v1/projects/outside/github/identity")).status).toBe(403);
+  expect(
+    (
+      await request(`/v1/projects/${projectId}/github`, {
+        kind: "issues",
+        state: "all",
+        owner: "outside",
+      })
+    ).status,
+  ).toBe(400);
+  const result = await request(`/v1/projects/${projectId}/github`, {
+    kind: "issues",
+    state: "open",
+  });
+  expect(result.status).toBe(200);
+  expect(await result.json()).toMatchObject({ status: "error", code: "unavailable" });
+  expect(await (await request("/v1/status")).json()).toMatchObject({
+    capabilities: expect.arrayContaining(["git", "worktree", "github"]),
+  });
 });
