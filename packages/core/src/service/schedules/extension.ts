@@ -2,7 +2,11 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, ROOT_CONVERSATION_ID } from "@eta/agent";
 import { DateTime, Effect, Schema } from "effect";
 import type { EtaSessionMetadata } from "../../shared/sessions.ts";
-import { MIN_SCHEDULE_INTERVAL_MS, ScheduleChangeSchema } from "../../shared/schedules.ts";
+import {
+  ScheduleChangeSchema,
+  ScheduleRuleSchema,
+  type ScheduleRule,
+} from "../../shared/schedules.ts";
 import type { CatalogService } from "../catalog/index.ts";
 import type { CoreEnvironment } from "../environment.ts";
 import { CoreError } from "../errors.ts";
@@ -13,39 +17,17 @@ import { nextScheduleSlot } from "./time.ts";
 export const SCHEDULE_TOOL_NAME = "schedule";
 const ObjectOptions = { additionalProperties: false };
 const Text = Type.String({ minLength: 1, pattern: "\\S" });
-const Timestamp = Type.Integer({ minimum: 0, maximum: 8_640_000_000_000_000 });
-const Calendar = {
-  time: Type.String({ pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" }),
-  timeZone: Type.String({ minLength: 1 }),
-};
-const Rule = Type.Union([
-  Type.Object({ type: Type.Literal("once"), at: Timestamp }, ObjectOptions),
-  Type.Object(
-    {
-      type: Type.Literal("interval"),
-      everyMs: Type.Integer({ minimum: MIN_SCHEDULE_INTERVAL_MS }),
-      anchorAt: Timestamp,
-    },
-    ObjectOptions,
-  ),
-  Type.Object({ type: Type.Literal("daily"), ...Calendar }, ObjectOptions),
-  Type.Object(
-    {
-      type: Type.Literal("weekly"),
-      ...Calendar,
-      weekdays: Type.Array(Type.Integer({ minimum: 0, maximum: 6 }), {
-        minItems: 1,
-        uniqueItems: true,
-      }),
-    },
-    ObjectOptions,
-  ),
-]);
+// JSON Schema describes structural checks; the shared decoder also validates IANA zones.
+const ruleDocument = Schema.toJsonSchemaDocument(ScheduleRuleSchema, { onExcessProperty: "error" });
+const Rule = Type.Unsafe<ScheduleRule>({
+  ...ruleDocument.schema,
+  $defs: ruleDocument.definitions,
+});
 const Target = {
   scheduleId: Type.String({ minLength: 1 }),
   expectedRevision: Type.Integer({ minimum: 1 }),
 };
-const Parameters = Type.Object(
+export const scheduleToolParameters = Type.Object(
   {
     action: Type.Union(
       (["list", "create", "update", "pause", "resume", "delete"] as const).map((action) =>
@@ -82,7 +64,7 @@ export function createScheduleExtension(options: {
     name: SCHEDULE_TOOL_NAME,
     description:
       "Manage time plans for the current root conversation. create requires name/prompt/rule; update requires scheduleId/expectedRevision/patch; pause/resume/delete require scheduleId/expectedRevision. list returns host time, schedules and pending proposals. Every write creates a proposal for trusted human confirmation, including explicit user instructions. Report successful writes as waiting for confirmation; next time is a preview until approval. Use UTC epoch milliseconds for once and interval anchors, at least 5 minutes for intervals, and HH:mm with an explicit IANA zone for daily/weekly rules. Resolve relative dates using the host time from list; ask for a specific time or zone when unclear. To revise pending content, supply replaces with its proposalId and contentFingerprint; this creates a new proposal and invalidates the old one. Approval and immediate execution belong to the client.",
-    parameters: Parameters,
+    parameters: scheduleToolParameters,
     replay: "safe",
     executionMode: "sequential",
     execute: async (args, api) => {

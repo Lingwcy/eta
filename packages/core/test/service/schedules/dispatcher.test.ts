@@ -281,7 +281,10 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   const dispatcher = await runtime.runPromise(ScheduleDispatcherService);
   const adapter = scheduleHostAdapter(
     {
-      submit: (id, prompt, requestId) => runtime.runPromise(threads.submit(id, prompt, requestId)),
+      submit: async (id, prompt, requestId) => {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        return runtime.runPromise(threads.submit(id, prompt, requestId));
+      },
       operationByRequest: (id, requestId) =>
         runtime.runPromise(threads.operationByRequest(id, requestId)),
       recovery: (id) => runtime.runPromise(threads.recovery(id)),
@@ -297,11 +300,16 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   const occurrence = (await runtime.runPromise(schedules.runs(schedule.id)))[0];
   await expect
     .poll(
-      async () =>
-        (await runtime.runPromise(threads.operation(thread.id, occurrence.operationId!))).status,
+      async () => {
+        await runtime.runPromise(dispatcher.tick(adapter, now + 100_000));
+        const current = (await runtime.runPromise(schedules.runs(schedule.id))).find(
+          (run) => run.id === occurrence.id,
+        );
+        return current?.state;
+      },
       { timeout: 10000 },
     )
-    .toBe("completed");
+    .toBe("succeeded");
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_001));
   expect((await runtime.runPromise(schedules.runs(schedule.id)))[0].state).toBe("succeeded");
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_002));
@@ -324,8 +332,17 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   )!;
   await expect
     .poll(
-      async () =>
-        (await runtime.runPromise(threads.operation(thread.id, manual.operationId!))).status,
+      async () => {
+        const before = (await runtime.runPromise(schedules.runs(schedule.id))).find(
+          (run) => run.id === manual.id,
+        );
+        if (!before?.operationId) await runtime.runPromise(dispatcher.tick(adapter, now + 100_003));
+        const current = (await runtime.runPromise(schedules.runs(schedule.id))).find(
+          (run) => run.id === manual.id,
+        );
+        if (!current?.operationId) return undefined;
+        return (await runtime.runPromise(threads.operation(thread.id, current.operationId))).status;
+      },
       { timeout: 10000 },
     )
     .toBe("completed");

@@ -235,3 +235,25 @@ test("decision replay resolves its receipt even after terminal proposal history 
   ).toBe("InvalidInput");
   expect(await runtime.runPromise(service.list())).toEqual([]);
 });
+
+test("an unavailable workspace blocks approval but still permits proposal rejection", async () => {
+  const { runtime, service, unavailable } = await fixture();
+  await runtime.runPromise(service.propose({ ...create, sourceIdentity: "root:call" }));
+  const proposal = (await runtime.runPromise(service.proposals()))[0];
+  const decision = {
+    proposalId: proposal.id,
+    contentFingerprint: proposal.contentFingerprint,
+    requestId: "approve-unavailable",
+  };
+  unavailable();
+  expect((await runtime.runPromise(Effect.flip(service.decide(decision, true)))).code).toBe(
+    "WorkspaceUnavailable",
+  );
+  expect((await runtime.runPromise(service.proposals()))[0].state).toBe("pending");
+  const rejection = await runtime.runPromise(
+    service.decide({ ...decision, requestId: "reject-unavailable" }, false),
+  );
+  expect(rejection.state).toBe("applied");
+  expect((await runtime.runPromise(service.proposals()))[0].state).toBe("rejected");
+  expect(await runtime.runPromise(service.list())).toEqual([]);
+});

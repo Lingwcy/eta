@@ -128,6 +128,7 @@ export class ScheduleService extends Context.Service<
         return yield* gate.withThread(
           threadId,
           Effect.gen(function* () {
+            // Rejection can discard proposals after workspace loss; hosts authorize the caller separately.
             if (approved) yield* validateWorkspace(threadId, input.requestId);
             const currentCatalog = yield* catalog.read;
             const now = DateTime.toEpochMillis(yield* DateTime.now);
