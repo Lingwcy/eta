@@ -174,7 +174,7 @@ export function ScheduleSidebar({
           }}
         />
       )}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" gutter="overlay">
         {(error || controller.error) && (
           <p role="alert" className="px-3 text-xs">
             {error ?? controller.error}
