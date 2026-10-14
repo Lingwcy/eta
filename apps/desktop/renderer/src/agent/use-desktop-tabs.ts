@@ -12,10 +12,7 @@ export function useDesktopTabs(library: DesktopLibrary | null) {
   const state = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
   const [recents] = useState(() => new ThreadRecents(localStorage));
   const visits = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
-  useEffect(
-    () => recents.connect(tabs, window, () => document.visibilityState !== "hidden"),
-    [recents, tabs],
-  );
+  useEffect(() => recents.connect(window), [recents]);
   const [activity] = useState(() => new ThreadActivity(window.eta));
   const runningThreadIds = useSyncExternalStore(activity.subscribe, activity.getSnapshot);
   const initialized = useRef(false);
@@ -44,7 +41,7 @@ export function useDesktopTabs(library: DesktopLibrary | null) {
       dispose();
     };
   }, [activity]);
-  return { tabs, state, activity, runningThreadIds, visits };
+  return { tabs, state, activity, runningThreadIds, visits, recordInput: recents.recordInput };
 }
 
 export type DesktopTabController = ReturnType<typeof useDesktopTabs>;

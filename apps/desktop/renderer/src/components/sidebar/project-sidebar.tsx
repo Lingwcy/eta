@@ -38,9 +38,9 @@ export function ProjectSidebar({
           <Button
             variant={recent ? "info" : "ghost-muted"}
             size="icon-xs"
-            aria-label="最近访问"
+            aria-label="最近聊天"
             aria-pressed={recent}
-            title="最近访问"
+            title="最近聊天"
             onClick={onRecent}
           >
             <Bell size={16} aria-hidden="true" />
@@ -49,7 +49,7 @@ export function ProjectSidebar({
         {search}
       </div>
       <div className="px-2 pt-2 pb-1.5 text-xs font-medium text-neutral-500">
-        {recent ? "最近访问" : archived ? "已归档" : "项目"}
+        {recent ? "最近聊天" : archived ? "已归档" : "项目"}
       </div>
       <ScrollArea className="-mr-2 flex-1">
         <nav aria-label={archived ? "归档会话" : "项目与会话"}>{children}</nav>

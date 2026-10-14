@@ -282,6 +282,7 @@ export function useDesktopController(
               workspaceId: draft.persistedWorkspaceId ?? tab.workspaceId,
             });
           }
+          navigation.recordInput(id);
           navigation.activity.watch(id);
         } catch (error) {
           if (!threadId && draft.persistedId)

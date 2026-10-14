@@ -1,5 +1,3 @@
-import type { DesktopTabs } from "./desktop-tabs";
-
 const key = "eta.thread-recents.v1";
 export interface ThreadVisit {
   threadId: string;
@@ -8,7 +6,7 @@ export interface ThreadVisit {
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-/** User navigation is separate from session modification; model activity never changes this order. */
+/** Only admitted user inputs update priority; navigation and model activity leave it unchanged. */
 export class ThreadRecents {
   private visits: readonly ThreadVisit[];
   private readonly listeners = new Set<() => void>();
@@ -57,39 +55,20 @@ export class ThreadRecents {
     this.visits = visits;
     for (const listener of this.listeners) listener();
   }
-  visit(threadId: string) {
+  recordInput = (threadId: string) => {
     const visits = this.merge([{ threadId, visitedAt: this.clock() }], this.read(), this.visits);
     this.publish(visits);
     try {
       this.storage.setItem(key, JSON.stringify({ version: 1, visits }));
     } catch {
-      /* Navigation still works without storage. */
+      /* Sending still works without storage. */
     }
-  }
-  connect(tabs: DesktopTabs, target: EventTarget, visible = () => true) {
-    let selected: string | undefined;
-    const observe = () => {
-      const tab = tabs.activeTab;
-      const identity = `${tab.id}:${tab.kind === "conversation" ? (tab.threadId ?? "") : ""}`;
-      if (selected === identity || !visible()) return;
-      selected = identity;
-      if (tab.kind === "conversation" && tab.threadId) this.visit(tab.threadId);
-    };
-    const focus = () => {
-      selected = undefined;
-      observe();
-    };
+  };
+  connect(target: EventTarget) {
     const changed = (event: Event) => {
       if ((event as StorageEvent).key === key) this.publish(this.merge(this.read(), this.visits));
     };
-    const unsubscribe = tabs.subscribe(observe);
-    target.addEventListener("focus", focus);
     target.addEventListener("storage", changed);
-    observe();
-    return () => {
-      unsubscribe();
-      target.removeEventListener("focus", focus);
-      target.removeEventListener("storage", changed);
-    };
+    return () => target.removeEventListener("storage", changed);
   }
 }

@@ -90,7 +90,7 @@ export function RecentThreads({
         );
       })}
       {!rows.length && (
-        <p className="px-2 py-3 text-xs text-neutral-400">打开聊天后，会显示在这里</p>
+        <p className="px-2 py-3 text-xs text-neutral-400">发送消息后，会显示在这里</p>
       )}
     </div>
   );

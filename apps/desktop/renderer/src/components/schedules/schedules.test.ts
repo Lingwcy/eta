@@ -29,6 +29,8 @@ import { TaskList } from "@/components/task-list";
 import { ScheduleMessages } from "./schedule-tool-notice";
 import { ThreadRecents } from "@/agent/thread-recents";
 import { DesktopTabs } from "@/agent/desktop-tabs";
+import { ThreadActivity } from "@/agent/thread-activity";
+import { useDesktopController } from "@/agent/use-desktop-controller";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { ScheduleSidebar } from "./schedule-sidebar";
 
@@ -925,7 +927,7 @@ test("project thread markers follow actual schedule creation and deletion and th
   expect(document.querySelector('[aria-label="使用 worktree"]')).not.toBeNull();
 });
 
-test("the bell switches to cross-project recents and opening a row moves it to the top", async () => {
+test("the bell shows cross-project input priority and opening a row preserves that order", async () => {
   const { runtime, threads, workspace, library, bridge } = await setup();
   Object.assign(bridge, {
     subscribeUpdate: () => () => {},
@@ -959,11 +961,13 @@ test("the bell switches to cross-project recents and opening a row moves it to t
     () => now,
   );
   const tabs = new DesktopTabs();
-  const disconnect = recents.connect(tabs, new EventTarget());
+  const disconnect = recents.connect(new EventTarget());
   cleanups.push(async () => disconnect());
   tabs.openThread(first.id, workspace.id);
+  recents.recordInput(first.id);
   now += 1000;
   tabs.openThread(second.id, otherWorkspace.id);
+  recents.recordInput(second.id);
   function Sidebar() {
     const controller = useSchedules();
     const visits = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
@@ -992,7 +996,7 @@ test("the bell switches to cross-project recents and opening a row moves it to t
   }
   await act(async () => root.render(createElement(Sidebar)));
   await act(async () =>
-    document.querySelector<HTMLButtonElement>('[aria-label="最近访问"]')!.click(),
+    document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
   );
   const rows = () =>
     [...document.querySelectorAll<HTMLButtonElement>('nav[aria-label="项目与会话"] button')].filter(
@@ -1012,6 +1016,8 @@ test("the bell switches to cross-project recents and opening a row moves it to t
   expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
   now += 1000;
   await act(async () => rows()[1].click());
+  expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
+  await act(async () => recents.recordInput(first.id));
   expect(rows().map((row) => row.title)).toEqual(["First visited", "Second visited"]);
   expect(
     new ThreadRecents({
@@ -1020,7 +1026,84 @@ test("the bell switches to cross-project recents and opening a row moves it to t
     }).getSnapshot()[0].threadId,
   ).toBe(first.id);
   await act(async () =>
-    document.querySelector<HTMLButtonElement>('[aria-label="最近访问"]')!.click(),
+    document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
   );
   expect(rows()).toEqual([]);
+});
+
+test("successful composer inputs update recents for drafts and existing chats; rejection does not", async () => {
+  const { workspace, library, bridge } = await setup();
+  let reject = true;
+  Object.assign(bridge, {
+    subscribe: () => () => {},
+    submit: async () => {
+      if (reject) throw new Error("Input rejected");
+      return { operationId: "input-admitted", kind: "run", startedAt: Date.now() };
+    },
+  });
+  const recents = new ThreadRecents({ getItem: () => null, setItem: () => {} });
+  recents.recordInput("earlier-thread");
+  const tabs = new DesktopTabs();
+  const activity = new ThreadActivity(window.eta);
+  cleanups.push(async () => activity.dispose());
+  tabs.updateConversation(tabs.activeTab.id, { workspaceId: workspace.id });
+  const desktop = {
+    library,
+    error: null,
+    busy: false,
+    mainModel: undefined,
+    selectMainModel: () => {},
+    refresh: async () => library,
+    reload: () => {},
+    act: async (action: () => Promise<void>) => {
+      await action();
+    },
+    updateSettings: async () => {},
+    clearError: () => {},
+  } satisfies DesktopLibraryController;
+  let input: ReturnType<typeof useDesktopController>["composer"];
+  function Composer() {
+    const state = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
+    const visits = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
+    const tab = state.tabs.find((tab) => tab.id === state.activeId)!;
+    if (tab.kind !== "conversation") throw new Error("Expected conversation");
+    const controller = useDesktopController(
+      tab,
+      desktop,
+      {
+        tabs,
+        state,
+        activity,
+        visits,
+        runningThreadIds: new Set(),
+        recordInput: recents.recordInput,
+      },
+      true,
+      0,
+    );
+    input = controller.composer;
+    return null;
+  }
+  await act(async () => root.render(createElement(Composer)));
+  const before = recents.getSnapshot();
+  await act(async () => {
+    await expect(input.onSubmit("First input")).rejects.toThrow("Input rejected");
+  });
+  expect(recents.getSnapshot()).toBe(before);
+  const persisted = tabs.activeTab;
+  expect(persisted.kind === "conversation" && persisted.threadId).toBeTruthy();
+  reject = false;
+  await act(async () => input.onSubmit("Retry input"));
+  expect(recents.getSnapshot()[0].threadId).toBe(
+    persisted.kind === "conversation" && persisted.threadId,
+  );
+  await act(async () => {
+    tabs.newConversation(workspace.id);
+  });
+  await act(async () => input.onSubmit("New chat input"));
+  const created = tabs.activeTab;
+  expect(created.kind === "conversation" && created.threadId).toBeTruthy();
+  expect(recents.getSnapshot()[0].threadId).toBe(
+    created.kind === "conversation" && created.threadId,
+  );
 });

@@ -10,7 +10,7 @@ Keep reference pages alongside your chats: open a web tab with **Cmd/Ctrl+T**, t
 
 **New chat (新聊天)** returns to an existing unsent chat, keeping its draft and project selection. After submitting it, you can start another chat. Switching tabs preserves each chat's draft; closing a chat tab keeps its history and lets an admitted task continue. Use **Cmd/Ctrl+W** to close a tab and **Cmd/Ctrl+Shift+T** to reopen it.
 
-Use the sidebar bell to find recently opened chats across projects. The list follows your visit order, saves it on this computer, and keeps background task updates from changing that order. Click the bell again to return to projects.
+Use the sidebar bell to find chats across projects by their latest successfully sent input. The order is saved on this computer; opening chats and background task updates leave it unchanged. Click the bell again to return to projects.
 
 Right-click a saved chat to rename it, change its project grouping, archive or restore it, open it in another Eta window, or permanently delete its local history. Changing project grouping does not change the directory where the agent executes work. **Open with (打开方式)** opens the main JSONL transcript in the default or a selected application; use a text editor to inspect it.
 
