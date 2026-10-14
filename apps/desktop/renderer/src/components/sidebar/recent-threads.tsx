@@ -52,40 +52,42 @@ export function RecentThreads({
         return (
           <section key={day}>
             <p className="px-2 pt-2 pb-1 text-xs text-neutral-400">{day}</p>
-            {group.map(({ visit, thread }) => (
-              <ThreadContextMenu key={thread.id} id={thread.id}>
-                <Button
-                  variant="ghost"
-                  size="row-sm"
-                  selected={selected === thread.id}
-                  aria-current={selected === thread.id ? "page" : undefined}
-                  title={thread.title}
-                  disabled={busy}
-                  onClick={() => onSelect(thread.id)}
-                >
-                  <span className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span
-                        className={`min-w-0 flex-1 truncate ${selected === thread.id ? "font-medium" : ""}`}
-                      >
-                        {thread.title || "新聊天"}
+            <div className="flex flex-col gap-1">
+              {group.map(({ visit, thread }) => (
+                <ThreadContextMenu key={thread.id} id={thread.id}>
+                  <Button
+                    variant="ghost"
+                    size="row-sm"
+                    selected={selected === thread.id}
+                    aria-current={selected === thread.id ? "page" : undefined}
+                    title={thread.title}
+                    disabled={busy}
+                    onClick={() => onSelect(thread.id)}
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className={`min-w-0 flex-1 truncate ${selected === thread.id ? "font-medium" : ""}`}
+                        >
+                          {thread.title || "新聊天"}
+                        </span>
+                        <span className="max-w-14 truncate text-xs text-neutral-400">
+                          {projects.get(threadProjectId(thread, library!) ?? "") ?? "未分组"}
+                        </span>
+                        <ThreadItemStatus
+                          running={running.has(thread.id)}
+                          scheduled={scheduled.has(thread.id)}
+                          worktree={worktrees.has(thread.id)}
+                        />
                       </span>
-                      <span className="max-w-14 truncate text-xs text-neutral-400">
-                        {projects.get(threadProjectId(thread, library!) ?? "") ?? "未分组"}
+                      <span className="line-clamp-2 text-xs leading-4 text-neutral-400">
+                        {previews?.get(thread.id) || scheduleTime(visit.visitedAt)}
                       </span>
-                      <ThreadItemStatus
-                        running={running.has(thread.id)}
-                        scheduled={scheduled.has(thread.id)}
-                        worktree={worktrees.has(thread.id)}
-                      />
                     </span>
-                    <span className="line-clamp-2 text-xs leading-4 text-neutral-400">
-                      {previews?.get(thread.id) || scheduleTime(visit.visitedAt)}
-                    </span>
-                  </span>
-                </Button>
-              </ThreadContextMenu>
-            ))}
+                  </Button>
+                </ThreadContextMenu>
+              ))}
+            </div>
           </section>
         );
       })}

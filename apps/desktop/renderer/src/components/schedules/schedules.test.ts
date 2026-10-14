@@ -7,6 +7,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ManagedRuntime } from "effect";
 import { createModels, fauxProvider } from "@earendil-works/pi-ai";
+import type { SessionResponse } from "@eta/core/agent/protocol";
 import { ProjectService } from "@eta/core/service/projects/index";
 import { WorkspaceService } from "@eta/core/service/workspaces/index";
 import { ThreadService } from "@eta/core/service/threads/index";
@@ -951,7 +952,7 @@ test("the bell shows cross-project input priority and opening a row preserves th
   ];
   const saved = new Map<string, string>();
   let now = Date.now();
-  const recents = new ThreadRecents(
+  let recents = new ThreadRecents(
     {
       getItem: (key) => saved.get(key) ?? null,
       setItem: (key, value) => {
@@ -1029,12 +1030,48 @@ test("the bell shows cross-project input priority and opening a row preserves th
     document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
   );
   expect(rows()).toEqual([]);
+  await act(async () => root.unmount());
+  recents = new ThreadRecents({
+    getItem: (key) => saved.get(key) ?? null,
+    setItem: (key, value) => {
+      saved.set(key, value);
+    },
+  });
+  root = createRoot(document.body.firstElementChild!);
+  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
+  );
+  expect(rows().map((row) => row.title)).toEqual(["First visited", "Second visited"]);
 });
 
 test("successful composer inputs update recents for drafts and existing chats; rejection does not", async () => {
   const { workspace, library, bridge } = await setup();
   let reject = true;
   Object.assign(bridge, {
+    // This transport fixture exercises admission; native worker startup is outside jsdom.
+    openThread: async (id: string) =>
+      ({
+        id,
+        model: {
+          provider: "schedule-ui",
+          id: "one",
+          name: "one",
+          contextWindow: 64000,
+          thinkingLevels: ["off"],
+        },
+        snapshot: {
+          configuration: {
+            model: { provider: "schedule-ui", modelId: "one" },
+            thinkingLevel: "off",
+          },
+          transcript: [],
+          operation: null,
+          lastResult: null,
+          faulted: false,
+        },
+        contextTokens: 0,
+      }) satisfies SessionResponse,
     subscribe: () => () => {},
     submit: async () => {
       if (reject) throw new Error("Input rejected");
@@ -1093,6 +1130,12 @@ test("successful composer inputs update recents for drafts and existing chats; r
   const persisted = tabs.activeTab;
   expect(persisted.kind === "conversation" && persisted.threadId).toBeTruthy();
   reject = false;
+  await expect
+    .poll(async () => {
+      await act(async () => {});
+      return Boolean(input.disabled);
+    })
+    .toBe(false);
   await act(async () => input.onSubmit("Retry input"));
   expect(recents.getSnapshot()[0].threadId).toBe(
     persisted.kind === "conversation" && persisted.threadId,
@@ -1100,9 +1143,13 @@ test("successful composer inputs update recents for drafts and existing chats; r
   await act(async () => {
     tabs.newConversation(workspace.id);
   });
+  await act(async () => root.render(createElement(Composer, { key: tabs.activeTab.id })));
   await act(async () => input.onSubmit("New chat input"));
   const created = tabs.activeTab;
   expect(created.kind === "conversation" && created.threadId).toBeTruthy();
+  expect(created.kind === "conversation" && created.threadId).not.toBe(
+    persisted.kind === "conversation" && persisted.threadId,
+  );
   expect(recents.getSnapshot()[0].threadId).toBe(
     created.kind === "conversation" && created.threadId,
   );
