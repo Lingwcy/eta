@@ -605,14 +605,18 @@ test("simultaneous open shares a single runtime; unsubscribing does not delete h
   const off1 = await runtime.runPromise(
     threads.subscribe(
       created.id,
-      () => first++,
+      () => {
+        first++;
+      },
       () => {},
     ),
   );
   const off2 = await runtime.runPromise(
     threads.subscribe(
       created.id,
-      () => second++,
+      () => {
+        second++;
+      },
       () => {},
     ),
   );
@@ -623,6 +627,148 @@ test("simultaneous open shares a single runtime; unsubscribing does not delete h
   expect(first).toBe(previous);
   off2();
   expect(await runtime.runPromise(threads.list())).toHaveLength(1);
+});
+
+test("slow snapshot consumers coalesce updates without blocking other subscribers", async () => {
+  const { runtime, threads, registry, workspace } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const slow: string[] = [];
+  const fast: string[] = [];
+  const errors: string[] = [];
+  const stopSlow = await runtime.runPromise(
+    threads.subscribe(
+      created.id,
+      async (value) => {
+        slow.push(value.snapshot.configuration.model.modelId);
+        if (slow.length === 1) {
+          entered.resolve();
+          await release.promise;
+        }
+      },
+      (message) => {
+        errors.push(message);
+      },
+    ),
+  );
+  const stopFast = await runtime.runPromise(
+    threads.subscribe(
+      created.id,
+      (value) => {
+        fast.push(value.snapshot.configuration.model.modelId);
+      },
+      (message) => {
+        errors.push(message);
+      },
+    ),
+  );
+  try {
+    await entered.promise;
+    for (let index = 0; index < 20; index++) {
+      const model = index % 2 ? "one" : "two";
+      await runtime.runPromise(threads.configure(created.id, "eta-test", model, "off"));
+      await expect.poll(() => fast.at(-1)).toBe(model);
+    }
+    await runtime.runPromise(threads.configure(created.id, "eta-test", "plain", "off"));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    await expect.poll(() => fast.at(-1)).toBe("plain");
+    expect(slow).toHaveLength(1);
+    release.resolve();
+    await expect.poll(() => slow.at(-1)).toBe("plain");
+    expect(slow).toHaveLength(2);
+    expect(errors).toEqual([]);
+  } finally {
+    stopSlow();
+    stopFast();
+    release.resolve();
+  }
+});
+
+test("unsubscribing a stalled snapshot consumer discards pending updates", async () => {
+  const { runtime, threads, registry, workspace } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const initialWatches = record.watches.size;
+  const initialChanges = record.changes.size;
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const finished = Promise.withResolvers<void>();
+  const received: string[] = [];
+  const errors: string[] = [];
+  const stop = await runtime.runPromise(
+    threads.subscribe(
+      created.id,
+      async (value) => {
+        received.push(value.snapshot.configuration.model.modelId);
+        entered.resolve();
+        await release.promise;
+        finished.resolve();
+      },
+      (message) => {
+        errors.push(message);
+      },
+    ),
+  );
+  try {
+    await entered.promise;
+    await runtime.runPromise(threads.configure(created.id, "eta-test", "two", "off"));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    stop();
+    expect(record.watches.size).toBe(initialWatches);
+    expect(record.changes.size).toBe(initialChanges);
+    release.resolve();
+    await finished.promise;
+    await runtime.runPromise(threads.configure(created.id, "eta-test", "plain", "off"));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    expect(received).toHaveLength(1);
+    expect(errors).toEqual([]);
+  } finally {
+    stop();
+    release.resolve();
+  }
+});
+
+test("rejected snapshot delivery reports an error and releases its subscription", async () => {
+  const { runtime, threads, registry, workspace } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const initialWatches = record.watches.size;
+  const initialChanges = record.changes.size;
+  const entered = Promise.withResolvers<void>();
+  const fail = Promise.withResolvers<void>();
+  const errors: string[] = [];
+  let deliveries = 0;
+  const stop = await runtime.runPromise(
+    threads.subscribe(
+      created.id,
+      async () => {
+        deliveries++;
+        entered.resolve();
+        await fail.promise;
+        throw new Error("receiver disconnected");
+      },
+      (message) => {
+        errors.push(message);
+      },
+    ),
+  );
+  try {
+    await entered.promise;
+    await runtime.runPromise(threads.configure(created.id, "eta-test", "two", "off"));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    fail.resolve();
+    await expect.poll(() => errors).toEqual(["receiver disconnected"]);
+    expect(record.watches.size).toBe(initialWatches);
+    expect(record.changes.size).toBe(initialChanges);
+    await runtime.runPromise(threads.configure(created.id, "eta-test", "plain", "off"));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    expect(deliveries).toBe(1);
+  } finally {
+    stop();
+    fail.resolve();
+  }
 });
 
 test("provider requests retain a stable session header across messages and reopen, isolated per thread", async () => {
