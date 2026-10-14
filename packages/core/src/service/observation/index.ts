@@ -15,7 +15,7 @@ export class ObservationService extends Context.Service<
     snapshot(runtime: ThreadRuntime): Effect.Effect<SnapshotResponse, CoreError>;
     subscribe(
       runtime: ThreadRuntime,
-      onSnapshot: (value: SnapshotResponse) => void,
+      onSnapshot: (value: SnapshotResponse) => void | Promise<void>,
       onError: (message: string) => void,
     ): Effect.Effect<() => void, CoreError>;
   }
@@ -38,33 +38,38 @@ export class ObservationService extends Context.Service<
           let stopped = false;
           let delivery: Promise<void> | undefined;
           let pending: ConversationView | undefined;
+          const stop = () => {
+            if (stopped) return;
+            stopped = true;
+            pending = undefined;
+            runtime.watches.delete(watch);
+            runtime.changes.delete(changed);
+            void watch.stop().catch(() => {});
+          };
           const send = (view: ConversationView) => {
+            if (stopped || runtime.disposed) return;
             pending = view;
             if (delivery) return;
-            // Full snapshots permit coalescing; never build an unbounded queue of token-sized updates.
+            // Wait for the consumer; coalesce full snapshots while a transport write is stalled.
             delivery = (async () => {
               while (pending && !stopped && !runtime.disposed) {
                 const current = pending;
                 pending = undefined;
                 const value = await project(runtime, current);
-                if (!stopped && !runtime.disposed) onSnapshot(value);
+                if (!stopped && !runtime.disposed) await onSnapshot(value);
               }
             })()
               .catch((error: unknown) => {
                 if (!stopped && !runtime.disposed) {
+                  stop();
                   try {
                     onError(error instanceof Error ? error.message : "观察失败");
-                  } catch {
-                    stopped = true;
-                    runtime.watches.delete(watch);
-                    runtime.changes.delete(changed);
-                    void watch.stop().catch(() => {});
-                  }
+                  } catch {}
                 }
               })
               .finally(() => {
                 delivery = undefined;
-                if (pending && !stopped) send(pending);
+                if (pending && !stopped && !runtime.disposed) send(pending);
               });
           };
           runtime.watches.add(watch);
@@ -76,13 +81,7 @@ export class ObservationService extends Context.Service<
             send(view);
           });
           // Return the disposer immediately; a streaming producer must not delay unwatch until idle.
-          return () => {
-            if (stopped) return;
-            stopped = true;
-            runtime.watches.delete(watch);
-            runtime.changes.delete(changed);
-            void watch.stop().catch(() => {});
-          };
+          return stop;
         }),
     }),
   );

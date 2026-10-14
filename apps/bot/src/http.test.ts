@@ -40,6 +40,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { createBotApplication } from "./application.ts";
 import type { BotApplication } from "./application.ts";
 import type { BotConfig } from "./config.ts";
+import type { SnapshotResponse } from "@eta/core/agent/protocol";
 
 const bots: BotApplication[] = [];
 const roots: string[] = [];
@@ -106,7 +107,7 @@ async function fixture(
     expect(response.status).toBe(201);
     return Schema.decodeUnknownSync(identity)(await response.json()).id;
   };
-  return { bot, open, config, provider, request, create, cwd, workspace };
+  return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
 
 test("an unknown approval reviewer model fails startup instead of silently using another", async () => {
@@ -457,6 +458,59 @@ test("disconnecting a real HTTP SSE connection releases observation without stop
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
+  }
+});
+
+test("a stalled SSE reader receives the latest snapshot without a backlog of revisions", async () => {
+  const { bot, models, create } = await fixture();
+  models.setProvider(
+    fauxProvider({
+      provider: "backpressure-test",
+      models: [{ id: "one" }, { id: "two" }, { id: "latest" }],
+    }).provider,
+  );
+  const id = await create("slow-sse-thread");
+  const observed: string[] = [];
+  const stop = await bot.core.subscribe(
+    id,
+    (value) => {
+      observed.push(value.snapshot.configuration.model.modelId);
+    },
+    (message) => {
+      throw new Error(message);
+    },
+  );
+  const abort = new AbortController();
+  const response = await bot.app.request(`/v1/threads/${id}/events`, {
+    headers: { authorization: "Bearer test-admin-token" },
+    signal: abort.signal,
+  });
+  expect(response.status).toBe(200);
+  const reader = response.body!.getReader();
+  try {
+    // Leave the SSE body unread while an independent observer confirms each revision commits.
+    for (let index = 0; index < 20; index++) {
+      const model = index % 2 ? "one" : "two";
+      await bot.core.configureThread(id, "backpressure-test", model, "off");
+      await expect.poll(() => observed.at(-1)).toBe(model);
+    }
+    await bot.core.configureThread(id, "backpressure-test", "latest", "off");
+    await expect.poll(() => observed.at(-1)).toBe("latest");
+    const snapshots: SnapshotResponse[] = [];
+    while (snapshots.at(-1)?.snapshot.configuration.model.modelId !== "latest") {
+      const chunk = await reader.read();
+      expect(chunk.done).toBe(false);
+      const data = new TextDecoder()
+        .decode(chunk.value)
+        .split("\n")
+        .find((line) => line.startsWith("data: "))!;
+      snapshots.push(JSON.parse(data.slice(6)) as SnapshotResponse);
+      expect(snapshots.length).toBeLessThanOrEqual(3);
+    }
+  } finally {
+    stop();
+    abort.abort();
+    await reader.cancel();
   }
 });
 

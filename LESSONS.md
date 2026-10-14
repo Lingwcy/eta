@@ -135,6 +135,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Carry snapshot backpressure through the consumer's asynchronous write.**
+
+- Evidence: on 2026-10-14, the Core slow-consumer regression produced 43 deliveries while its first callback was still blocked. Observation coalesced projection work but ignored the Promise returned by Bot's SSE writer. Awaiting delivery keeps one write in progress and only the newest pending view; the real Hono unread-body regression reaches the latest revision within three frames instead of replaying the backlog. Cancellation and rejected delivery tests verify subscriptions release their watches. This reproduces a queue defect; no crash-time heap snapshot was captured on eta-server.
+- Check: stall the actual transport reader as well as an asynchronous consumer, verify other subscribers keep progressing, and exercise cancellation and rejected writes.
+- Seen: 2026-10-14.
+
 **Do not let a background state machine wake itself on its own bookkeeping writes.**
 
 - Evidence: on 2026-10-13, the scheduled-task dispatcher wrote pending → dispatching → pending on a busy admission and fed both those writes and the resolved admission promise back into its wake queue. Restoring those notifications in `packages/core/test/service/schedules/dispatcher.test.ts`'s steady-busy regression reproduced 243 attempts instead of one; separating dispatcher-origin writes and only waking for late outcomes made it pass. Bot capacity tests also verify a Controller release wakes a queued task without waiting for the retry timer.
