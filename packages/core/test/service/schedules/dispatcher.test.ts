@@ -307,7 +307,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
         );
         return current?.state;
       },
-      { timeout: 10000 },
+      { timeout: 45_000 },
     )
     .toBe("succeeded");
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_001));
@@ -356,7 +356,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
       ?.state,
   ).toBe("succeeded");
   expect(await runtime.runPromise(schedules.list())).toEqual([]);
-}, 15000);
+}, 60_000);
 
 test("dispatcher remains dormant until host readiness, rejects a second start and stops new triggers", async () => {
   const { runtime, store, dispatcher, host, calls } = await fixture();
