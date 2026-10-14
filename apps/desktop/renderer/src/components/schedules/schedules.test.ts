@@ -701,6 +701,11 @@ test("sidebar filters multiple states and creates a task through its dialog with
     (item) => item.textContent === "Other project",
   )!;
   await act(async () => workspaceOption.click());
+  await click("高级");
+  await click("高级");
+  expect(document.querySelector('[aria-label="执行工作区"]')?.textContent).toContain(
+    "Other project",
+  );
 
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[aria-label="选择模型与思考级别"]')!.click(),
@@ -759,7 +764,14 @@ test("weekly creation toggles weekdays and persists the machine timezone without
       .find((item) => item.textContent === "每周")!
       .click(),
   );
-  await input(document.querySelector<HTMLInputElement>('input[type="time"]')!, "08:30");
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="选择执行时间"]')!.click(),
+  );
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="08时"]')!.click());
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="30分"]')!.click());
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="确认执行时间"]')!.click(),
+  );
   for (const label of ["星期一", "星期三", "星期五"])
     await act(async () =>
       document.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click(),

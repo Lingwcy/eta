@@ -14,6 +14,8 @@ import { ModelPicker } from "@/components/input/model-picker";
 import { defaultModel } from "@/desktop/selectors";
 import type { InputModel } from "@/components/input/types";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScheduleTimePicker } from "./schedule-time-picker";
 import { ScheduleDatePicker } from "./schedule-date-picker";
 
 const localDate = (time: number) => {
@@ -301,13 +303,7 @@ export function ScheduleForm({
               {(kind === "daily" || kind === "weekly") && (
                 <label className="flex flex-col gap-1">
                   执行时间
-                  <Input
-                    variant="compact"
-                    type="time"
-                    value={time}
-                    onChange={(event) => setTime(event.target.value)}
-                    disabled={busy}
-                  />
+                  <ScheduleTimePicker value={time} onChange={setTime} disabled={busy} />
                 </label>
               )}
             </div>
@@ -340,58 +336,55 @@ export function ScheduleForm({
               </fieldset>
             )}
           </section>
-          <div>
-            <Button
-              variant="ghost-muted"
-              size="compact"
-              aria-expanded={advanced}
-              onClick={() => setAdvanced(!advanced)}
-            >
+          <Collapsible open={advanced} onOpenChange={setAdvanced}>
+            <CollapsibleTrigger variant="ghost-muted" size="compact">
               高级 {advanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </Button>
-          </div>
-          {advanced && (
-            <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2.5">
-              {threadId ? (
-                <div className="flex items-center gap-2">
-                  {workspaceIcon(workspace)}
-                  <span>{workspaceLabel(workspace)}</span>
-                </div>
-              ) : (
-                <Select
-                  label="执行工作区"
-                  size="compact"
-                  value={workspace}
-                  options={library.workspaces.map((item) => ({
-                    value: item.id,
-                    label: workspaceLabel(item.id),
-                    icon: workspaceIcon(item.id),
-                  }))}
-                  onValueChange={setWorkspace}
-                  disabled={busy}
-                />
-              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="pt-2">
+                <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2.5">
+                  {threadId ? (
+                    <div className="flex items-center gap-2">
+                      {workspaceIcon(workspace)}
+                      <span>{workspaceLabel(workspace)}</span>
+                    </div>
+                  ) : (
+                    <Select
+                      label="执行工作区"
+                      size="compact"
+                      value={workspace}
+                      options={library.workspaces.map((item) => ({
+                        value: item.id,
+                        label: workspaceLabel(item.id),
+                        icon: workspaceIcon(item.id),
+                      }))}
+                      onValueChange={setWorkspace}
+                      disabled={busy}
+                    />
+                  )}
 
-              {!proposal && (
-                <div className="flex items-center justify-between gap-3">
-                  <span>模型与强度</span>
-                  <ModelPicker
-                    model={model}
-                    models={library.models}
-                    providers={library.providers}
-                    thinkingLevel={level}
-                    side="bottom"
-                    disabled={busy || loadingModel}
-                    onChange={(next, thinking) => {
-                      setModel(next);
-                      setLevel(thinking);
-                      setModelChanged(true);
-                    }}
-                  />
-                </div>
-              )}
-            </section>
-          )}
+                  {!proposal && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span>模型与强度</span>
+                      <ModelPicker
+                        model={model}
+                        models={library.models}
+                        providers={library.providers}
+                        thinkingLevel={level}
+                        side="bottom"
+                        disabled={busy || loadingModel}
+                        onChange={(next, thinking) => {
+                          setModel(next);
+                          setLevel(thinking);
+                          setModelChanged(true);
+                        }}
+                      />
+                    </div>
+                  )}
+                </section>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {!available && (
             <p>
