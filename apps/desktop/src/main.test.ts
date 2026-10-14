@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
     threadFile: vi.fn(),
     renameThread: vi.fn(),
     subscribeLibrary: vi.fn(),
+    subscribeSchedules: vi.fn(),
     openSkillsDirectory: vi.fn(),
     library: vi.fn(async () => ({ settings: {} })),
   },
@@ -107,6 +108,7 @@ beforeEach(async () => {
       state.libraryListener = undefined;
     };
   });
+  state.service.subscribeSchedules.mockReset().mockReturnValue(() => {});
   state.service.renameThread.mockReset().mockImplementation(async () => {
     state.libraryListener?.();
     return { id: "one", title: "Renamed" };
