@@ -161,7 +161,7 @@ try {
   stage = "replay thread after restart";
   assert.equal((await create()).id, thread.id);
   console.log(
-    "Linux container verified: native sandbox, tools, non-root persistent volumes, HTTP/SSE, scheduled tool / confirmation / real delivery, shutdown, restart and bundled images.",
+    "Linux container verified: native sandbox, tools, non-root persistent volumes, HTTP/SSE, scheduled tool / direct creation / real delivery, shutdown, restart and bundled images.",
   );
 } catch (error) {
   console.error(`Linux verification failed during ${stage}.`);

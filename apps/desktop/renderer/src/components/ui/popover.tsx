@@ -17,7 +17,7 @@ export function PopoverContent({
 }) {
   return (
     <BasePopover.Portal>
-      <BasePopover.Positioner side={side} align="start" sideOffset={8} className="z-30">
+      <BasePopover.Positioner side={side} align="start" sideOffset={8} className="z-50">
         <BasePopover.Popup
           className={cn(
             "flex max-h-[min(420px,var(--available-height))] max-w-[calc(100vw-32px)] flex-col overflow-hidden border outline-none transition-[opacity,transform] duration-150 data-starting-style:translate-y-1 data-starting-style:opacity-0 data-ending-style:translate-y-1 data-ending-style:opacity-0 motion-reduce:transition-none",

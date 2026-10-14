@@ -61,22 +61,14 @@ export function ScheduleSidebar({
   };
   const groups = controller.snapshot.snapshots
     .flatMap(({ environment, data }) => {
-      const ids = new Set([
-        ...data.schedules
-          .filter((plan) => plan.deletedAt === undefined)
-          .map((plan) => plan.threadId),
-        ...data.proposals
-          .filter((proposal) => proposal.state === "pending")
-          .map((proposal) => proposal.threadId),
-      ]);
+      const ids = new Set(
+        data.schedules.filter((plan) => plan.deletedAt === undefined).map((plan) => plan.threadId),
+      );
       return [...ids]
         .map((id) => {
           const thread = library?.threads.find((item) => item.id === id);
           const plans = data.schedules.filter(
             (plan) => plan.threadId === id && plan.deletedAt === undefined,
-          );
-          const pending = data.proposals.some(
-            (proposal) => proposal.threadId === id && proposal.state === "pending",
           );
           const next = plans
             .filter((plan) => plan.state === "active" && plan.nextRunAt !== null)
@@ -88,7 +80,6 @@ export function ScheduleSidebar({
             id,
             title: next?.name ?? plans[0]?.name ?? thread?.title ?? "新聊天",
             plans,
-            pending,
             next,
             latest,
             environment,
@@ -98,9 +89,7 @@ export function ScheduleSidebar({
               data.lifecycleIntents.some((intent) => intent.threadId === id),
           };
         })
-        .filter(
-          (group) => group.pending || group.plans.some((plan) => states.includes(plan.state)),
-        );
+        .filter((group) => group.plans.some((plan) => states.includes(plan.state)));
     })
     .toSorted((a, b) => (a.next?.nextRunAt ?? Infinity) - (b.next?.nextRunAt ?? Infinity));
   return (
@@ -198,13 +187,11 @@ export function ScheduleSidebar({
                     <span className="truncate text-xs text-neutral-500">
                       {group.next
                         ? `${scheduleTime(group.next.nextRunAt)} · ${scheduleRuleText(group.next.rule)}`
-                        : group.pending
-                          ? "待确认"
-                          : group.archived
-                            ? "已归档"
-                            : group.plans.some((plan) => plan.state === "paused")
-                              ? "已暂停"
-                              : "已完成"}
+                        : group.archived
+                          ? "已归档"
+                          : group.plans.some((plan) => plan.state === "paused")
+                            ? "已暂停"
+                            : "已完成"}
                       {group.environment.id !== "local" ? ` · ${group.environment.label}` : ""}
                       {group.plans.length > 1 ? ` · ${group.plans.length} 个计划` : ""}
                       {group.latest?.state === "admitted"

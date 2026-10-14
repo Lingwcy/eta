@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Schema } from "effect";
-import type { Schedule, ScheduleChange, ScheduleProposal } from "@eta/core/shared/schedules";
+import type { Schedule, ScheduleChange } from "@eta/core/shared/schedules";
 import { ScheduleRuleSchema } from "@eta/core/shared/schedules";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { SchedulesController } from "@/agent/use-schedules";
@@ -10,6 +10,8 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X, ChevronDown, ChevronUp, Monitor, Cloud } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { SandboxPicker } from "@/components/input/sandbox-picker";
+import { sandboxModes, type SandboxMode } from "@eta/core/shared/sandbox";
 import { ModelPicker } from "@/components/input/model-picker";
 import { defaultModel } from "@/desktop/selectors";
 import type { InputModel } from "@/components/input/types";
@@ -28,7 +30,6 @@ export function ScheduleForm({
   threadId,
   workspaceId,
   schedule,
-  proposal,
   onCancel,
   onSaved,
 }: {
@@ -37,31 +38,12 @@ export function ScheduleForm({
   threadId?: string;
   workspaceId?: string;
   schedule?: Schedule;
-  proposal?: ScheduleProposal;
   onCancel(this: void): void;
   onSaved(this: void, threadId: string): void;
 }) {
-  const change = proposal?.change;
-  const initialRule =
-    change?.action === "create"
-      ? change.rule
-      : change?.action === "update"
-        ? (change.patch.rule ?? schedule?.rule)
-        : schedule?.rule;
-  const [name, setName] = useState(
-    change?.action === "create"
-      ? change.name
-      : change?.action === "update"
-        ? (change.patch.name ?? schedule?.name ?? "")
-        : (schedule?.name ?? ""),
-  );
-  const [prompt, setPrompt] = useState(
-    change?.action === "create"
-      ? change.prompt
-      : change?.action === "update"
-        ? (change.patch.prompt ?? schedule?.prompt ?? "")
-        : (schedule?.prompt ?? ""),
-  );
+  const initialRule = schedule?.rule;
+  const [name, setName] = useState(schedule?.name ?? "");
+  const [prompt, setPrompt] = useState(schedule?.prompt ?? "");
   const [workspace, setWorkspace] = useState(workspaceId ?? library.workspaces[0]?.id ?? "");
   const [kind, setKind] = useState(initialRule?.type ?? "once");
   const [at, setAt] = useState(
@@ -86,9 +68,22 @@ export function ScheduleForm({
   );
   const [level, setLevel] = useState<ThinkingLevel>(library.settings.defaultThinkingLevel);
   const [modelChanged, setModelChanged] = useState(false);
-  const [loadingModel, setLoadingModel] = useState(!!threadId && !proposal);
+  const [sandboxMode, setSandboxMode] = useState<SandboxMode>("danger-full-access");
+  const [permissionChanged, setPermissionChanged] = useState(false);
+  const [threadModes, setThreadModes] = useState<readonly SandboxMode[]>();
+  const allowedModes =
+    threadModes ??
+    (workspace.startsWith("bot:")
+      ? (library.bot?.library?.allowedSandboxModes ?? [])
+      : sandboxModes);
+  const effectiveSandboxMode = allowedModes.includes(sandboxMode)
+    ? sandboxMode
+    : allowedModes.includes("workspace-write")
+      ? "workspace-write"
+      : (allowedModes[0] ?? sandboxMode);
+  const [loadingModel, setLoadingModel] = useState(!!threadId);
   useEffect(() => {
-    if (!threadId || proposal) return;
+    if (!threadId) return;
     let disposed = false;
     void window.eta
       .openThread(threadId)
@@ -96,6 +91,10 @@ export function ScheduleForm({
         if (disposed) return;
         setModel(session.model);
         setLevel(session.snapshot.configuration.thinkingLevel);
+        if (session.snapshot.sandbox) {
+          setSandboxMode(session.snapshot.sandbox.mode);
+          setThreadModes(session.snapshot.sandbox.allowedModes);
+        }
       })
       .catch((error: unknown) => {
         if (!disposed) setError(error instanceof Error ? error.message : "无法加载会话模型");
@@ -106,7 +105,7 @@ export function ScheduleForm({
     return () => {
       disposed = true;
     };
-  }, [threadId, proposal]);
+  }, [threadId]);
   const draft = useRef<{ workspace: string; requestId: string; threadId?: string } | undefined>(
     undefined,
   );
@@ -135,7 +134,7 @@ export function ScheduleForm({
     setBusy(true);
     setError(undefined);
     try {
-      if (!available) throw new Error("执行环境不可用，请重新连接后重试");
+      if (!available || !allowedModes.length) throw new Error("执行环境不可用，请重新连接后重试");
       if (!name.trim() || !prompt.trim()) throw new Error("请填写任务标题和执行内容");
       if (kind === "once" && !/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(at))
         throw new Error("请填写有效时间，格式为 HH:mm");
@@ -165,6 +164,7 @@ export function ScheduleForm({
                     provider: model.provider,
                     modelId: model.id,
                     thinkingLevel: level,
+                    sandboxMode: effectiveSandboxMode,
                   }
                 : undefined,
             )
@@ -173,7 +173,9 @@ export function ScheduleForm({
         await window.eta.renameThread(id, name);
       }
       const target = id;
-      if (modelChanged && model && !proposal)
+      if (!threadId || permissionChanged)
+        await window.eta.configureSandbox(target, effectiveSandboxMode);
+      if (modelChanged && model)
         await window.eta.configureThread(target, model.provider, model.id, level);
       const input: ScheduleChange = schedule
         ? {
@@ -183,29 +185,12 @@ export function ScheduleForm({
             patch: { name, prompt, rule },
           }
         : { action: "create", name, prompt, rule };
-      const key = JSON.stringify({ target, input, proposal: proposal?.id });
-      if (proposal)
-        await controller.mutate(
-          key,
-          (requestId) =>
-            window.eta.proposeSchedule({
-              threadId: target,
-              requestId,
-              sourceIdentity: "desktop:proposal-edit",
-              change: input,
-              replaces: {
-                proposalId: proposal.id,
-                contentFingerprint: proposal.contentFingerprint,
-              },
-            }),
-          target,
-        );
-      else
-        await controller.mutate(
-          key,
-          (requestId) => window.eta.writeSchedule({ threadId: target, requestId, change: input }),
-          target,
-        );
+      const key = JSON.stringify({ target, input });
+      await controller.mutate(
+        key,
+        (requestId) => window.eta.writeSchedule({ threadId: target, requestId, change: input }),
+        target,
+      );
       onSaved(target);
     } catch (error) {
       setError(error instanceof Error ? error.message : "无法保存定时任务");
@@ -231,7 +216,7 @@ export function ScheduleForm({
         >
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base font-medium">
-              {proposal ? "修改待确认提案" : schedule ? "编辑定时任务" : "设置定时任务"}
+              {schedule ? "编辑定时任务" : "设置定时任务"}
             </DialogTitle>
             <Button
               variant="ghost"
@@ -343,46 +328,61 @@ export function ScheduleForm({
             <CollapsibleContent>
               <div className="pt-2">
                 <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2.5">
-                  {threadId ? (
-                    <div className="flex items-center gap-2">
-                      {workspaceIcon(workspace)}
-                      <span>{workspaceLabel(workspace)}</span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      {threadId ? (
+                        <div className="flex items-center gap-2">
+                          {workspaceIcon(workspace)}
+                          <span>{workspaceLabel(workspace)}</span>
+                        </div>
+                      ) : (
+                        <Select
+                          label="执行工作区"
+                          variant="menu"
+                          popupSizing="content"
+                          size="compact"
+                          value={workspace}
+                          options={library.workspaces.map((item) => ({
+                            value: item.id,
+                            label: workspaceLabel(item.id),
+                            icon: workspaceIcon(item.id),
+                          }))}
+                          onValueChange={setWorkspace}
+                          disabled={busy}
+                        />
+                      )}
                     </div>
-                  ) : (
-                    <Select
-                      label="执行工作区"
-                      variant="menu"
-                      popupSizing="content"
-                      size="compact"
-                      value={workspace}
-                      options={library.workspaces.map((item) => ({
-                        value: item.id,
-                        label: workspaceLabel(item.id),
-                        icon: workspaceIcon(item.id),
-                      }))}
-                      onValueChange={setWorkspace}
-                      disabled={busy}
-                    />
-                  )}
-
-                  {!proposal && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span>模型与强度</span>
-                      <ModelPicker
-                        model={model}
-                        models={library.models}
-                        providers={library.providers}
-                        thinkingLevel={level}
-                        side="bottom"
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span className="text-neutral-500">权限</span>
+                      <SandboxPicker
+                        mode={effectiveSandboxMode}
+                        defaultMode="danger-full-access"
+                        allowedModes={allowedModes}
                         disabled={busy || loadingModel}
-                        onChange={(next, thinking) => {
-                          setModel(next);
-                          setLevel(thinking);
-                          setModelChanged(true);
+                        side="bottom"
+                        onChange={(mode) => {
+                          setSandboxMode(mode);
+                          setPermissionChanged(true);
                         }}
                       />
                     </div>
-                  )}
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>模型与强度</span>
+                    <ModelPicker
+                      model={model}
+                      models={library.models}
+                      providers={library.providers}
+                      thinkingLevel={level}
+                      side="bottom"
+                      disabled={busy || loadingModel}
+                      onChange={(next, thinking) => {
+                        setModel(next);
+                        setLevel(thinking);
+                        setModelChanged(true);
+                      }}
+                    />
+                  </div>
                 </section>
               </div>
             </CollapsibleContent>
@@ -408,8 +408,12 @@ export function ScheduleForm({
             >
               取消
             </Button>
-            <Button size="compact" type="submit" disabled={busy || !available || loadingModel}>
-              {busy ? "正在处理" : proposal ? "提出新提案" : schedule ? "保存" : "创建"}
+            <Button
+              size="compact"
+              type="submit"
+              disabled={busy || !available || loadingModel || !allowedModes.length}
+            >
+              {busy ? "正在处理" : schedule ? "保存" : "创建"}
             </Button>
           </div>
         </form>

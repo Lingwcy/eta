@@ -10,13 +10,14 @@ import { createModels, fauxProvider } from "@earendil-works/pi-ai";
 import { ProjectService } from "@eta/core/service/projects/index";
 import { WorkspaceService } from "@eta/core/service/workspaces/index";
 import { ThreadService } from "@eta/core/service/threads/index";
-import { ScheduleStoreService } from "@eta/core/service/schedules/store";
-import { scheduleDraft, settleScheduleRequests } from "@eta/core/service/schedules/management";
-import { CatalogService } from "@eta/core/service/catalog/index";
 import { ScheduleService } from "@eta/core/service/schedules/index";
 import { desktopServices } from "../../../../src/main/service/layer.ts";
 import { ModelCatalogService } from "../../../../src/main/service/models/index.ts";
 import { dispatchCommand } from "../../../../src/main/ipc.ts";
+import {
+  mapScheduleSnapshot,
+  mapScheduleRequest,
+} from "../../../../src/main/schedule-identities.ts";
 import type { DesktopApplication } from "../../../../src/main/bootstrap.ts";
 import type { DesktopBridge, DesktopLibrary } from "../../../../src/bridge.ts";
 import type { DesktopLibraryController } from "@/agent/use-desktop-library";
@@ -24,8 +25,9 @@ import { ThreadActionsProvider } from "@/components/threads/thread-actions";
 import { ThreadSearchDialog } from "@/components/sidebar/thread-search-dialog";
 import { useSchedules } from "@/agent/use-schedules";
 import { ScheduleForm } from "./schedule-form";
+import { TaskList } from "@/components/task-list";
+import { ScheduleMessages } from "./schedule-tool-notice";
 import { ScheduleSidebar } from "./schedule-sidebar";
-import { SchedulePanel } from "./schedule-panel";
 
 const cleanups: Array<() => Promise<void>> = [];
 let root: Root;
@@ -55,9 +57,11 @@ async function setup() {
   const cwd = join(path, "repo");
   await mkdir(cwd);
   const models = createModels();
-  models.setProvider(
-    fauxProvider({ provider: "schedule-ui", models: [{ id: "one" }, { id: "two" }] }).provider,
-  );
+  const provider = fauxProvider({
+    provider: "schedule-ui",
+    models: [{ id: "one" }, { id: "two" }],
+  });
+  models.setProvider(provider.provider);
   const runtime = ManagedRuntime.make(
     desktopServices(join(path, "data"), ModelCatalogService.layerWith(models)),
   );
@@ -89,6 +93,7 @@ async function setup() {
     createThread: (id, requestId, configuration) =>
       runtime.runPromise(threads.create(id, requestId, configuration)),
     openThread: (id) => runtime.runPromise(threads.open(id)),
+    configureSandbox: (id, mode) => runtime.runPromise(threads.configureSandbox(id, mode)),
     configureThread: (id, provider, modelId, level) =>
       runtime.runPromise(threads.configure(id, provider, modelId, level)),
     renameThread: (id, title) => runtime.runPromise(threads.rename(id, title)),
@@ -110,6 +115,12 @@ async function setup() {
       }),
     subscribeSchedules: (listener) => schedules.subscribe(listener),
     openThread: (id) => application.openThread(id),
+    configureSandbox: (id, mode) =>
+      dispatchCommand(application as unknown as DesktopApplication, {
+        type: "configure-sandbox",
+        id,
+        mode,
+      }),
     configureThread: (id, provider, modelId, level) =>
       application.configureThread(id, provider, modelId, level),
     createThread: (workspaceId, requestId, configuration) =>
@@ -148,6 +159,7 @@ async function setup() {
     | "subscribeSchedules"
     | "openThread"
     | "configureThread"
+    | "configureSandbox"
     | "createThread"
     | "renameThread"
     | "writeSchedule"
@@ -161,7 +173,7 @@ async function setup() {
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  return { runtime, schedules, threads, workspace, library, bridge };
+  return { runtime, schedules, threads, workspace, library, bridge, provider };
 }
 function button(text: string) {
   return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
@@ -241,259 +253,9 @@ test("creation retains its draft and reuses the same thread and request after th
   expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
   expect(await runtime.runPromise(schedules.list())).toHaveLength(1);
   expect((await runtime.runPromise(schedules.list()))[0].threadId).toBe(saved[0]);
-});
-
-test("inspector approves the exact proposal then supports pause, resume, manual execution and deletion through IPC", async () => {
-  const { runtime, schedules, threads, workspace, library } = await setup();
-  const thread = await runtime.runPromise(threads.create(workspace.id));
-  library.threads = [thread.thread];
-  const prompt = Array.from(
-    { length: 8 },
-    (_, index) => `Review step ${index + 1}: inspect repository changes and report findings.`,
-  ).join("\n");
-  await runtime.runPromise(
-    schedules.propose({
-      threadId: thread.id,
-      requestId: "proposal",
-      sourceIdentity: "root:tool",
-      change: {
-        action: "create",
-        name: "Review",
-        prompt,
-        rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
-      },
-    }),
+  expect((await runtime.runPromise(threads.open(saved[0]))).snapshot.sandbox?.mode).toBe(
+    "danger-full-access",
   );
-  function Panel() {
-    const controller = useSchedules();
-    return createElement(SchedulePanel, {
-      controller,
-      library,
-      threadId: thread.id,
-      creating: false,
-      onCreate: () => {},
-      onDone: () => {},
-    });
-  }
-  await act(async () => root.render(createElement(Panel)));
-  expect(await runtime.runPromise(schedules.list())).toEqual([]);
-  await click("查看全文");
-  await click("收起内容");
-  await click("批准");
-  await expect
-    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
-    .toBe("active");
-  await act(async () => {
-    await Promise.resolve();
-  });
-  expect((await runtime.runPromise(schedules.list()))[0].prompt).toBe(prompt);
-  await click("暂停");
-  await expect
-    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
-    .toBe("paused");
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await click("恢复");
-  await expect
-    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
-    .toBe("active");
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await click("运行一次");
-  const plan = (await runtime.runPromise(schedules.list()))[0];
-  await expect.poll(async () => (await runtime.runPromise(schedules.runs(plan.id))).length).toBe(1);
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await click("删除");
-  await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(0);
-  expect((await runtime.runPromise(threads.get(thread.id))).id).toBe(thread.id);
-});
-
-test("editing pending proposal content invalidates its old approval without activating either plan", async () => {
-  const { runtime, schedules, threads, workspace, library } = await setup();
-  const thread = await runtime.runPromise(threads.create(workspace.id));
-  library.threads = [thread.thread];
-  await runtime.runPromise(
-    schedules.propose({
-      threadId: thread.id,
-      requestId: "old",
-      sourceIdentity: "root:tool",
-      change: {
-        action: "create",
-        name: "Review",
-        prompt: "Original review",
-        rule: { type: "daily", time: "09:00", timeZone: "America/New_York" },
-      },
-    }),
-  );
-  const proposal = (await runtime.runPromise(schedules.proposals()))[0];
-  function Form() {
-    const controller = useSchedules();
-    return createElement(ScheduleForm, {
-      controller,
-      library,
-      threadId: thread.id,
-      workspaceId: workspace.id,
-      proposal,
-      onCancel: () => {},
-      onSaved: () => {},
-    });
-  }
-  await act(async () => root.render(createElement(Form)));
-  await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "New review content");
-  await click("提出新提案");
-  await expect.poll(async () => (await runtime.runPromise(schedules.proposals())).length).toBe(2);
-  const proposals = await runtime.runPromise(schedules.proposals());
-  expect(proposals.find((value) => value.id === proposal.id)?.state).toBe("invalidated");
-  expect(proposals.find((value) => value.id !== proposal.id)?.change).toMatchObject({
-    prompt: "New review content",
-    rule: { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-  });
-  expect(await runtime.runPromise(schedules.list())).toEqual([]);
-  let rejected = false;
-  await act(async () => {
-    rejected =
-      (
-        await runtime.runPromise(
-          schedules.decide(
-            {
-              proposalId: proposal.id,
-              contentFingerprint: proposal.contentFingerprint,
-              requestId: "late-approve",
-            },
-            true,
-          ),
-        )
-      ).state === "rejected";
-  });
-  expect(rejected).toBe(true);
-});
-
-test("a pending pause displays the effective active state until uncertain admission is reconciled", async () => {
-  const { runtime, schedules, threads, workspace, library } = await setup();
-  const thread = await runtime.runPromise(threads.create(workspace.id));
-  library.threads = [thread.thread];
-  const receipt = await runtime.runPromise(
-    schedules.write({
-      threadId: thread.id,
-      requestId: "create",
-      change: {
-        action: "create",
-        name: "Review",
-        prompt: "Review repository",
-        rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
-      },
-    }),
-  );
-  const plan = (await runtime.runPromise(schedules.list()))[0];
-  const store = await runtime.runPromise(ScheduleStoreService);
-  await runtime.runPromise(
-    store.update((state) => ({
-      ...state,
-      occurrences: {
-        ...state.occurrences,
-        uncertain: {
-          id: "uncertain",
-          scheduleId: receipt.scheduleId!,
-          threadId: thread.id,
-          scheduleRevision: 1,
-          scheduledAt: 300000,
-          detectedAt: 300000,
-          source: "automatic",
-          name: plan.name,
-          prompt: plan.prompt,
-          rule: plan.rule,
-          requestId: "delivery",
-          state: "dispatching",
-        },
-      },
-    })),
-  );
-  function Panel() {
-    const controller = useSchedules();
-    return createElement(SchedulePanel, {
-      controller,
-      library,
-      threadId: thread.id,
-      creating: false,
-      onCreate: () => {},
-      onDone: () => {},
-    });
-  }
-  await act(async () => root.render(createElement(Panel)));
-  await click("暂停");
-  await expect.poll(() => document.body.textContent).toContain("正在处理");
-  expect((await runtime.runPromise(schedules.list()))[0].state).toBe("active");
-  expect(document.body.textContent).toContain("Review · 已启用");
-  const catalog = await runtime.runPromise(CatalogService);
-  const stateCatalog = await runtime.runPromise(catalog.read);
-  await act(async () =>
-    runtime.runPromise(
-      store.update((state) => {
-        const draft = scheduleDraft(state);
-        draft.occurrences.uncertain = { ...draft.occurrences.uncertain, state: "pending" };
-        settleScheduleRequests(draft, thread.id, stateCatalog, Date.now());
-        return draft;
-      }),
-    ),
-  );
-  await expect.poll(() => document.body.textContent).toContain("Review · 已暂停");
-  expect(document.body.textContent).not.toContain("正在处理：");
-});
-
-test("state-change proposals describe the state action and approval preserves that action", async () => {
-  const { runtime, schedules, threads, workspace, library } = await setup();
-  const thread = await runtime.runPromise(threads.create(workspace.id));
-  library.threads = [thread.thread];
-  const created = await runtime.runPromise(
-    schedules.write({
-      threadId: thread.id,
-      requestId: "create",
-      change: {
-        action: "create",
-        name: "Review",
-        prompt: "Review repository",
-        rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
-      },
-    }),
-  );
-  await runtime.runPromise(
-    schedules.propose({
-      threadId: thread.id,
-      requestId: "pause-proposal",
-      sourceIdentity: "root:tool",
-      change: { action: "pause", scheduleId: created.scheduleId!, expectedRevision: 1 },
-    }),
-  );
-  function Panel() {
-    const controller = useSchedules();
-    return createElement(SchedulePanel, {
-      controller,
-      library,
-      threadId: thread.id,
-      creating: false,
-      onCreate: () => {},
-      onDone: () => {},
-    });
-  }
-  await act(async () => root.render(createElement(Panel)));
-  await expect
-    .poll(async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
-      return document.body.textContent;
-    })
-    .toContain("拟变更：暂停后续执行");
-  expect(button("修改")).toBeUndefined();
-  await click("批准");
-  await expect
-    .poll(async () => (await runtime.runPromise(schedules.list()))[0].state)
-    .toBe("paused");
-  expect((await runtime.runPromise(schedules.list()))[0].prompt).toBe("Review repository");
 });
 
 test("adding a plan from search closes its modal and saves against the selected existing thread", async () => {
@@ -871,6 +633,9 @@ test("sidebar task menu supports pause, resume, run, edit and delete through rea
   await expect
     .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.name)
     .toBe("Renamed review");
+  expect((await runtime.runPromise(threads.open(thread.id))).snapshot.sandbox?.mode).toBe(
+    "workspace-write",
+  );
   await openMenu();
   await select("删除");
   await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(0);
@@ -943,3 +708,118 @@ test("a grouped task menu targets the selected plan without pausing its sibling"
     (await runtime.runPromise(schedules.list())).find((plan) => plan.name === "First plan")?.state,
   ).toBe("active");
 });
+
+test.each(["local", "bot"])(
+  "the %s streamed schedule notice resolves its durable receipt and cancels the actual plan through IPC",
+  async (environment) => {
+    const { runtime, schedules, threads, workspace, bridge } = await setup();
+    const thread = await runtime.runPromise(threads.create(workspace.id));
+    const prefix = environment === "bot" ? "bot:fixture:" : "";
+    const currentThreadId = prefix + thread.id;
+    if (prefix) {
+      const snapshot = bridge.scheduleSnapshot;
+      bridge.scheduleSnapshot = async () => ({
+        snapshots: (await snapshot()).snapshots.map((entity) => ({
+          environment: { id: prefix, label: "Bot", status: "connected" },
+          data: mapScheduleSnapshot(entity.data, (id) => prefix + id),
+        })),
+      });
+      const query = bridge.scheduleRequest;
+      bridge.scheduleRequest = async (_threadId, requestId) => {
+        const result = await query(thread.id, requestId);
+        return result ? mapScheduleRequest(result, (id) => prefix + id) : undefined;
+      };
+      const write = bridge.writeSchedule;
+      bridge.writeSchedule = (input) =>
+        write({
+          ...input,
+          threadId: thread.id,
+          change:
+            input.change.action === "create"
+              ? input.change
+              : { ...input.change, scheduleId: input.change.scheduleId.slice(prefix.length) },
+        });
+    }
+    const rule = { type: "interval" as const, everyMs: 300000, anchorAt: Date.now() + 3600000 };
+    const receipt = await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: "schedule:tool:stream",
+        change: { action: "create", name: "Streamed reminder", prompt: "Review repository", rule },
+      }),
+    );
+    expect(await runtime.runPromise(schedules.proposals())).toEqual([]);
+    const tools = [
+      {
+        status: "settled" as const,
+        toolCallId: "create-plan",
+        toolName: "schedule",
+        args: { action: "create" },
+        result: {
+          content: [],
+          details: {
+            kind: "schedule",
+            threadId: thread.id,
+            requestId: receipt.requestId,
+            scheduleId: receipt.scheduleId,
+            action: "create",
+            status: "applied",
+            name: "Streamed reminder",
+            rule,
+            nextRunAt: receipt.nextRunAt ?? null,
+          },
+        },
+      },
+    ];
+    function Stream() {
+      const controller = useSchedules();
+      return createElement(ScheduleMessages, {
+        value: { threadId: currentThreadId, controller },
+        children: createElement(TaskList, { tools }),
+      });
+    }
+    await act(async () => root.render(createElement(Stream)));
+    await click("取消计划");
+    await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(0);
+    await expect.poll(() => document.body.textContent).toContain("计划已取消");
+    expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
+  },
+);
+
+test.each(["danger-full-access", "workspace-write"] as const)(
+  "scheduled task creation persists %s permissions",
+  async (mode) => {
+    const { runtime, schedules, threads, library } = await setup();
+    let saved: string | undefined;
+    function Form() {
+      const controller = useSchedules();
+      return createElement(ScheduleForm, {
+        library,
+        controller,
+        onCancel: () => {},
+        onSaved: (id) => {
+          saved = id;
+        },
+      });
+    }
+    await act(async () => root.render(createElement(Form)));
+    await input(document.querySelector<HTMLInputElement>("input")!, "Permission test");
+    await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
+    await click("高级");
+    if (mode === "workspace-write") {
+      await act(async () =>
+        document.querySelector<HTMLButtonElement>('[aria-label="沙盒策略：完全访问"]')!.click(),
+      );
+      const picker = document.querySelector('[aria-label="沙盒策略"]')!;
+      await act(async () =>
+        [...picker.querySelectorAll<HTMLButtonElement>("button")]
+          .find((button) => button.textContent?.startsWith("工作区沙盒"))!
+          .click(),
+      );
+    }
+    await click("创建");
+    await expect.poll(() => saved).toBeDefined();
+    expect((await runtime.runPromise(threads.open(saved!))).snapshot.sandbox?.mode).toBe(mode);
+    expect((await runtime.runPromise(schedules.list(saved!)))[0].name).toBe("Permission test");
+  },
+);

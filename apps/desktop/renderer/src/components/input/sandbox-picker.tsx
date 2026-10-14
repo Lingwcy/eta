@@ -20,6 +20,7 @@ const options = {
 
 export function SandboxPicker({
   mode,
+  defaultMode = "workspace-write",
   allowedModes = sandboxModes,
   disabled = false,
   disabledReason,
@@ -27,6 +28,7 @@ export function SandboxPicker({
   onChange,
 }: {
   mode: SandboxMode;
+  defaultMode?: SandboxMode;
   allowedModes?: readonly SandboxMode[];
   disabled?: boolean;
   disabledReason?: string;
@@ -78,7 +80,7 @@ export function SandboxPicker({
               <span className="min-w-0 flex-1">
                 <span className="block text-xs leading-4">
                   {sandboxLabels[value]}
-                  {value === "workspace-write" ? "（默认）" : ""}
+                  {value === defaultMode ? "（默认）" : ""}
                 </span>
                 <span className="mt-0.5 block text-[11px] leading-4 opacity-65 group-hover:opacity-90 group-focus-visible:opacity-90">
                   {allowed ? options[value].description : "当前执行环境未开放此策略"}

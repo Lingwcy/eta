@@ -1,6 +1,11 @@
+import {
+  ScheduleToolNotice,
+  scheduleToolResult,
+} from "@/components/schedules/schedule-tool-notice";
 import { useContext, useEffect, useId, useState } from "react";
 import {
   ChevronDown,
+  Clock3,
   CircleCheck,
   CircleMinus,
   CircleX,
@@ -26,6 +31,21 @@ type DetailMode = "preview" | "expanded" | "collapsed";
 
 /** New tool calls open once; result updates never override the chosen display mode. */
 export function ToolItem({ tool }: { tool: SnapshotTool }) {
+  const schedule = scheduleToolResult(tool);
+  if (schedule) return <ScheduleToolNotice result={schedule} />;
+  if (tool.toolName === "schedule" && tool.args.action !== "list" && tool.status === "running")
+    return (
+      <div className="flex items-center gap-2 py-1 text-xs text-neutral-500">
+        <Clock3 size={14} aria-hidden="true" />
+        <span>
+          正在处理定时任务{typeof tool.args.name === "string" ? ` · ${tool.args.name}` : ""}
+        </span>
+      </div>
+    );
+  return <GenericToolItem tool={tool} />;
+}
+
+function GenericToolItem({ tool }: { tool: SnapshotTool }) {
   const [mode, setMode] = useState<DetailMode>("preview");
   const animate = useContext(EntranceAnimation);
   const [entered, setEntered] = useState(!animate);

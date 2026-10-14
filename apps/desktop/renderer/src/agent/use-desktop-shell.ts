@@ -44,41 +44,15 @@ export function useDesktopShell() {
     !remote || Boolean(desktop.library?.bot?.capabilities?.includes("github"));
   const githubAvailable =
     githubSupported && projectGit.info?.status === "ready" && Boolean(projectGit.info.github);
-  const [inspectorContent, setInspectorContent] = useState<"subagents" | "github" | "schedules">(
-    "subagents",
-  );
-  const inspectedThreadId = inspectorConversation?.threadId;
-  const schedulesAvailable =
-    !!inspectedThreadId &&
-    (creatingSchedule === inspectedThreadId ||
-      schedules.snapshot.snapshots.some(
-        ({ data }) =>
-          data.schedules.some(
-            (plan) => plan.threadId === inspectedThreadId && plan.deletedAt === undefined,
-          ) ||
-          data.proposals.some(
-            (proposal) => proposal.threadId === inspectedThreadId && proposal.state === "pending",
-          ) ||
-          data.occurrences?.some(
-            (run) =>
-              run.threadId === inspectedThreadId && ["dispatching", "admitted"].includes(run.state),
-          ),
-      ));
-  const inspectorAvailable = subagents.length > 0 || githubAvailable || schedulesAvailable;
+  const [inspectorContent, setInspectorContent] = useState<"subagents" | "github">("subagents");
+  const inspectorAvailable = subagents.length > 0 || githubAvailable;
   const [inspectorExpanded, setInspectorExpanded] = useState(true);
   const inspectorOpen = inspectorAvailable && inspectorExpanded;
   useEffect(() => {
     githubClient.clear();
   }, [githubClient, desktop.library?.bot?.url, desktop.library?.bot?.status]);
-  const selectInspectorContent = (next: "github" | "subagents" | "schedules") => {
-    if (
-      next === "github"
-        ? !githubAvailable
-        : next === "subagents"
-          ? !subagents.length
-          : !schedulesAvailable
-    )
-      return;
+  const selectInspectorContent = (next: "github" | "subagents") => {
+    if (next === "github" ? !githubAvailable : !subagents.length) return;
     setInspectorContent(next);
   };
   const toggleInspector = useCallback(() => {
@@ -122,22 +96,21 @@ export function useDesktopShell() {
       setCollapsed(false);
       showScheduledTasks(navigation.tabs);
     },
-    schedulesAvailable,
     creatingSchedule,
     finishSchedule: () => setCreatingSchedule(undefined),
     addSchedule: (id: string) => {
       selectThread(id);
       setCreatingSchedule(id);
-      setInspectorContent("schedules");
-      setInspectorExpanded(true);
+      setScheduleView(true);
+      setCollapsed(false);
     },
     scheduleSaved: async (id: string) => {
       const library = await desktop.refresh();
       const thread = library.threads.find((thread) => thread.id === id);
       if (thread) navigation.tabs.openThread(id, thread.workspaceId);
       setCreatingSchedule(undefined);
-      setInspectorContent("schedules");
-      setInspectorExpanded(true);
+      setScheduleView(true);
+      setCollapsed(false);
     },
     navigation,
     browser,

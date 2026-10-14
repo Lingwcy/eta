@@ -70,9 +70,9 @@ A wait timeout does not stop a child. Stopping cancels work without producing a 
 
 ## Scheduled tasks
 
-Open **Scheduled tasks** in the sidebar and create a task with a workspace, prompt and time rule, or choose **Add scheduled task** from an existing chat’s context menu. Plans stay in that chat. Manage them in the inspector: edit, pause, resume, run once, delete and view recent results. Rules support one-time, intervals of at least five minutes, daily and weekly schedules with an explicit time zone.
+Open **Scheduled tasks** in the sidebar and create a task with a workspace, prompt and time rule, or choose **Add scheduled task** from an existing chat’s context menu. Plans stay in that chat. Manage them from the task’s sidebar menu: edit, pause, resume, run once or delete. Rules support one-time, intervals of at least five minutes, daily and weekly schedules using your computer’s time zone.
 
-Agents propose changes for your confirmation. Review the content, rule and workspace before approving; rejecting creates no plan. Editing a proposal creates a replacement and invalidates the original. Proposals expire after 24 hours. Tasks use the chat’s current model, workspace and approvals and may change files and consume model usage.
+Agents create and manage plans immediately. The tool message shows the result and lets you cancel a plan; all plans remain manageable in the sidebar. Choose the model and permissions in Advanced when creating a task; new task chats default to Full access, and you can select the workspace sandbox instead. Existing chats keep their current permissions unless you change them. Tasks use that chat’s model, workspace and approvals and may change files and consume model usage.
 
 Busy chats finish their current work first. Missed recurring slots coalesce into the latest one within a 24-hour window; failed runs do not retry automatically. Archiving pauses plans, and restoring a chat does not resume them. Closing a chat tab keeps schedules active. Pausing or deleting a plan stops future triggers; stop already-started work in the chat. Pending management requests retain the effective state until their result is confirmed.
 

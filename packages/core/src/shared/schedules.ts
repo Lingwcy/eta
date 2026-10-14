@@ -201,3 +201,17 @@ export const ScheduleSnapshotSchema = Schema.Struct({
   lifecycleIntents: Schema.Array(ScheduleLifecycleIntentSchema),
 });
 export type ScheduleSnapshot = typeof ScheduleSnapshotSchema.Type;
+
+/** Durable tool observation for the chat notice; controls resolve its request in the current thread. */
+export const ScheduleToolResultSchema = Schema.Struct({
+  kind: Schema.Literal("schedule"),
+  requestId: Id,
+  threadId: Id,
+  action: Schema.Literals(["create", "update", "pause", "resume", "delete"]),
+  status: Schema.Literals(["pending", "applied"]),
+  scheduleId: Schema.optional(Id),
+  name: Schema.optional(ScheduleNameSchema),
+  rule: Schema.optional(ScheduleRuleSchema),
+  nextRunAt: Schema.NullOr(Timestamp),
+});
+export type ScheduleToolResult = typeof ScheduleToolResultSchema.Type;

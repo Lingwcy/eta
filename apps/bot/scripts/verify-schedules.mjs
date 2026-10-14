@@ -60,13 +60,12 @@ try {
       }),
       { stopReason: "toolUse" },
     ),
-    fauxAssistantMessage("Waiting for confirmation"),
+    fauxAssistantMessage("Plan created"),
   ]);
   await bot.controller.submit(thread.id, "Plan a native scheduled task", "ordinary-request");
-  await poll(async () => (await bot.core.listScheduleProposals({ threadId: thread.id })).length, 1);
+  await poll(async () => (await bot.core.listSchedules({ threadId: thread.id })).length, 1);
   await poll(() => bot.controller.status().activeThreads.length, 0);
-  assert.deepEqual(await bot.core.listSchedules(), []);
-  const proposal = (await bot.core.listScheduleProposals({ threadId: thread.id }))[0];
+  assert.deepEqual(await bot.core.listScheduleProposals(), []);
   provider.setResponses([
     fauxAssistantMessage(
       fauxToolCall("write", { path: "scheduled.txt", content: "Native scheduled work" }),
@@ -74,18 +73,6 @@ try {
     ),
     fauxAssistantMessage("Finished native work"),
   ]);
-  const response = await bot.app.request(`/v1/schedule-proposals/${proposal.id}/approve`, {
-    method: "POST",
-    headers: {
-      authorization: "Bearer native-schedule-fixture",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      requestId: "trusted-approval",
-      contentFingerprint: proposal.contentFingerprint,
-    }),
-  });
-  assert.equal(response.status, 200);
   const schedule = (await bot.core.listSchedules())[0];
   await poll(
     async () => (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0]?.state,
@@ -113,7 +100,7 @@ try {
     "succeeded",
   );
   console.log(
-    "Native scheduled Bot verified: root tool, trusted confirmation, automatic Controller delivery, real sandbox write, stable source receipt and restart.",
+    "Native scheduled Bot verified: root tool, direct creation, automatic Controller delivery, real sandbox write, stable source receipt and restart.",
   );
 } finally {
   await bot?.close();

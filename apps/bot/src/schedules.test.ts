@@ -154,7 +154,7 @@ test("scheduled admission also obeys maxConcurrent across different projects", a
     .toBe("succeeded");
 }, 15000);
 
-test("Core scheduling boundaries reject workspaces outside Bot scope before persisting proposals", async () => {
+test("Core scheduling boundaries reject workspaces outside Bot scope before persisting plans or proposals", async () => {
   const { bot, root } = await fixture();
   const outside = join(root, "outside");
   await mkdir(outside);
@@ -175,11 +175,18 @@ test("Core scheduling boundaries reject workspaces outside Bot scope before pers
   await expect(bot.core.proposeScheduleChange(input)).rejects.toMatchObject({
     code: "WorkspaceUnavailable",
   });
+  await expect(
+    bot.core.changeSchedule({
+      threadId: thread.id,
+      requestId: "outside-write",
+      change: input.change,
+    }),
+  ).rejects.toMatchObject({ code: "WorkspaceUnavailable" });
   expect(await bot.core.listScheduleProposals({ threadId: thread.id })).toEqual([]);
   expect(await bot.core.listSchedules({ threadId: thread.id })).toEqual([]);
 });
 
-test("Bot root tool waits for authenticated HTTP confirmation before automatic Controller delivery", async () => {
+test("Bot root tool creates an active plan before automatic Controller delivery", async () => {
   const { bot, thread, fast, releaseModel } = await fixture();
   releaseModel();
   const id = await thread("Tool schedule");
@@ -197,27 +204,17 @@ test("Bot root tool waits for authenticated HTTP confirmation before automatic C
       ),
       { stopReason: "toolUse" },
     ),
-    fauxAssistantMessage("Waiting for confirmation"),
+    fauxAssistantMessage("Plan created"),
   ]);
   await bot.controller.submit(id, "Plan a review", "ordinary");
   await expect
-    .poll(async () => (await bot.core.listScheduleProposals({ threadId: id })).length, {
+    .poll(async () => (await bot.core.listSchedules({ threadId: id })).length, {
       timeout: 5000,
     })
     .toBe(1);
   await expect.poll(() => bot.controller.status().activeThreads.length).toBe(0);
-  expect(await bot.core.listSchedules({ threadId: id })).toEqual([]);
-  const proposal = (await bot.core.listScheduleProposals({ threadId: id }))[0];
+  expect(await bot.core.listScheduleProposals({ threadId: id })).toEqual([]);
   fast.setResponses([fauxAssistantMessage("Scheduled review finished")]);
-  const response = await bot.app.request(`/v1/schedule-proposals/${proposal.id}/approve`, {
-    method: "POST",
-    headers: { authorization: "Bearer schedule-test-token", "content-type": "application/json" },
-    body: JSON.stringify({
-      requestId: "approve-from-http",
-      contentFingerprint: proposal.contentFingerprint,
-    }),
-  });
-  expect(response.status).toBe(200);
   const schedule = (await bot.core.listSchedules({ threadId: id }))[0];
   await expect
     .poll(async () => (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0]?.state, {
