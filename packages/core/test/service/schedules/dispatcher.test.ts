@@ -279,11 +279,21 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
     ),
   );
   const dispatcher = await runtime.runPromise(ScheduleDispatcherService);
+  let submitPhase = "not started";
   const adapter = scheduleHostAdapter(
     {
       submit: async (id, prompt, requestId) => {
+        submitPhase = "intentional delay";
         await new Promise((resolve) => setTimeout(resolve, 1500));
-        return runtime.runPromise(threads.submit(id, prompt, requestId));
+        submitPhase = "calling Core submit";
+        try {
+          const result = await runtime.runPromise(threads.submit(id, prompt, requestId));
+          submitPhase = `Core submit returned ${result.operationId}`;
+          return result;
+        } catch (error) {
+          submitPhase = `Core submit failed: ${String(error)}`;
+          throw error;
+        }
       },
       operationByRequest: (id, requestId) =>
         runtime.runPromise(threads.operationByRequest(id, requestId)),
@@ -298,6 +308,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_000));
   const schedule = (await runtime.runPromise(schedules.list()))[0];
   const occurrence = (await runtime.runPromise(schedules.runs(schedule.id)))[0];
+  let lastObservation = "no dispatcher poll yet";
   await expect
     .poll(
       async () => {
@@ -305,11 +316,19 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
         const current = (await runtime.runPromise(schedules.runs(schedule.id))).find(
           (run) => run.id === occurrence.id,
         );
+        lastObservation = `${current?.state ?? "missing"}; reason=${current?.reason ?? "none"}; operation=${current?.operationId ?? "none"}`;
         return current?.state;
       },
       { timeout: 45_000 },
     )
-    .toBe("succeeded");
+    .toBe("succeeded")
+    .catch(async (error: unknown) => {
+      const receipt = await runtime
+        .runPromise(threads.operationByRequest(thread.id, occurrence.requestId))
+        .catch((failure: unknown) => ({ failure: String(failure) }));
+      console.error("Scheduled admission diagnostic", { submitPhase, lastObservation, receipt });
+      throw error;
+    });
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_001));
   expect((await runtime.runPromise(schedules.runs(schedule.id)))[0].state).toBe("succeeded");
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_002));
