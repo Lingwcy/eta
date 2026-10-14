@@ -12,7 +12,6 @@ import type { CoreEnvironment } from "../environment.ts";
 import { CoreError } from "../errors.ts";
 import type { ScheduleService } from "./index.ts";
 import { scheduleFingerprint } from "./management.ts";
-import { nextScheduleSlot } from "./time.ts";
 
 export const SCHEDULE_TOOL_NAME = "schedule";
 const ObjectOptions = { additionalProperties: false };
@@ -33,9 +32,6 @@ export const scheduleToolParameters = Type.Object(
       (["list", "create", "update", "pause", "resume", "delete"] as const).map((action) =>
         Type.Literal(action),
       ),
-    ),
-    replaces: Type.Optional(
-      Type.Object({ proposalId: Text, contentFingerprint: Text }, ObjectOptions),
     ),
     name: Type.Optional(Text),
     prompt: Type.Optional(Text),
@@ -63,7 +59,7 @@ export function createScheduleExtension(options: {
   const tool = defineTool({
     name: SCHEDULE_TOOL_NAME,
     description:
-      "Manage time plans for the current root conversation. create requires name/prompt/rule; update requires scheduleId/expectedRevision/patch; pause/resume/delete require scheduleId/expectedRevision. list returns host time, schedules and pending proposals. Every write creates a proposal for trusted human confirmation, including explicit user instructions. Report successful writes as waiting for confirmation; next time is a preview until approval. Use UTC epoch milliseconds for once and interval anchors, at least 5 minutes for intervals, and HH:mm with an explicit IANA zone for daily/weekly rules. Resolve relative dates using the host time from list; ask for a specific time or zone when unclear. To revise pending content, supply replaces with its proposalId and contentFingerprint; this creates a new proposal and invalidates the old one. Approval and immediate execution belong to the client.",
+      "Manage time plans for the current root conversation. Writes apply immediately without a separate approval. create requires name/prompt/rule; update requires scheduleId/expectedRevision/patch; pause/resume/delete require scheduleId/expectedRevision. list returns host time and current schedules. Use UTC epoch milliseconds for once and interval anchors, at least 5 minutes for intervals, and HH:mm for daily/weekly rules using the host IANA timeZone from list. Resolve relative dates using host time. Report applied writes accurately; pending means the host is reconciling an uncertain admission and the prior effective state remains. Immediate execution belongs to the client.",
     parameters: scheduleToolParameters,
     replay: "safe",
     executionMode: "sequential",
@@ -91,24 +87,19 @@ export function createScheduleExtension(options: {
           onExcessProperty: "error",
         })(args);
         const schedules = await options.run(options.schedules.list(thread.id));
-        const proposals = (await options.run(options.schedules.proposals(thread.id))).filter(
-          (proposal) => proposal.state === "pending" && proposal.expiresAt > epochMs,
-        );
         const details = {
           threadId: thread.id,
           workspaceId: thread.workspaceId,
           clock,
           schedules,
-          pendingProposals: proposals,
         };
         return {
           content: [{ type: "text" as const, text: JSON.stringify(details) }],
           details: { threadId: thread.id, workspaceId: thread.workspaceId, clock },
         };
       }
-      const { replaces, ...changeArgs } = args;
       const change = Schema.decodeUnknownSync(ScheduleChangeSchema, { onExcessProperty: "error" })(
-        changeArgs,
+        args,
       );
       const identity = {
         sessionId: options.ref.metadata.id,
@@ -118,60 +109,32 @@ export function createScheduleExtension(options: {
       };
       const requestId = `schedule:tool:${scheduleFingerprint(identity)}`;
       const result = await options.run(
-        options.schedules.propose({
-          threadId: thread.id,
-          change,
-          requestId,
-          sourceIdentity: JSON.stringify(identity),
-          ...(replaces ? { replaces } : {}),
-        }),
+        options.schedules.write({ threadId: thread.id, change, requestId }),
       );
       if (result.state === "rejected")
-        throw new CoreError({ code: "InvalidInput", message: result.reason ?? "无法提出计划变更" });
-      const proposal = (await options.run(options.schedules.proposals(thread.id))).find(
-        (proposal) => proposal.id === result.proposalId,
+        throw new CoreError({ code: "InvalidInput", message: result.reason ?? "无法变更计划" });
+      const schedule = (await options.run(options.schedules.list(thread.id))).find(
+        (plan) => plan.id === result.scheduleId,
       );
-      if (!proposal)
-        throw new CoreError({ code: "NotFound", message: "历史提案已裁剪，请查询当前计划" });
-      const current =
-        change.action === "create"
-          ? undefined
-          : (await options.run(options.schedules.list(thread.id))).find(
-              (schedule) => schedule.id === change.scheduleId,
-            );
-      const rule =
-        change.action === "create"
-          ? change.rule
-          : change.action === "update"
-            ? (change.patch.rule ?? current?.rule)
-            : current?.rule;
-      const previewNextRunAt =
-        proposal.state !== "pending" ||
-        change.action === "pause" ||
-        change.action === "delete" ||
-        (change.action === "update" && current?.state === "paused") ||
-        !rule
-          ? null
-          : nextScheduleSlot(rule, epochMs);
+      const name = schedule?.name ?? (change.action === "create" ? change.name : undefined);
+      const rule = schedule?.rule ?? (change.action === "create" ? change.rule : undefined);
+      const jsonRule = rule?.type === "weekly" ? { ...rule, weekdays: [...rule.weekdays] } : rule;
       const details = {
-        proposalId: proposal.id,
-        status: proposal.state,
-        contentFingerprint: proposal.contentFingerprint,
-        parameters: proposal.change,
-        workspaceId: proposal.workspaceId,
-        expiresAt: proposal.expiresAt,
-        previewNextRunAt,
+        kind: "schedule" as const,
+        requestId,
+        threadId: thread.id,
+        workspaceId: thread.workspaceId,
+        ...(result.scheduleId ? { scheduleId: result.scheduleId } : {}),
+        action: change.action,
+        status: result.state,
+        ...(name ? { name } : {}),
+        ...(jsonRule ? { rule: jsonRule } : {}),
+        nextRunAt: result.nextRunAt ?? schedule?.nextRunAt ?? null,
         clock,
         summary:
-          proposal.state === "pending"
-            ? "等待用户确认；下一次时间仅为预览"
-            : `提案状态：${proposal.state}`,
+          result.state === "pending" ? "正在核对变更结果，原计划状态保持不变" : "计划变更已生效",
       };
-      const { parameters: _parameters, ...metadata } = details;
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(details) }],
-        details: metadata,
-      };
+      return { content: [{ type: "text" as const, text: JSON.stringify(details) }], details };
     },
   });
   return { tool, extension: defineExtension({ name: "scheduled-tasks", tools: [tool] }) };

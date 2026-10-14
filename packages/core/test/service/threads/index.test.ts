@@ -2185,7 +2185,7 @@ test("shows child waiting on the original operation and stops the entire task tr
   }
 });
 
-test("schedule tool requires a trusted proposal decision before dispatching an ordinary user prompt", async () => {
+test("schedule tool applies immediately, replays once and dispatches an ordinary user prompt", async () => {
   const { runtime, threads, registry, workspace, provider } = await setup();
   const created = await runtime.runPromise(threads.create(workspace.id));
   const schedules = await runtime.runPromise(ScheduleService);
@@ -2220,21 +2220,20 @@ test("schedule tool requires a trusted proposal decision before dispatching an o
         { stopReason: "toolUse" },
       );
     },
-    fauxAssistantMessage("Waiting for confirmation"),
+    fauxAssistantMessage("Plan created"),
   ]);
   await runtime.runPromise(threads.submit(created.id, "Plan the reminder"));
   await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
-  expect(await runtime.runPromise(schedules.list())).toEqual([]);
   expect(replay).toBeDefined();
   await replay!();
-  const proposals = await runtime.runPromise(schedules.proposals(created.id));
-  expect(proposals).toHaveLength(1);
-  const proposal = proposals[0];
-  expect(proposal.state).toBe("pending");
-  expect(proposal.threadId).toBe(created.id);
+  const plans = await runtime.runPromise(schedules.list(created.id));
+  expect(plans).toHaveLength(1);
+  const plan = plans[0];
+  expect(plan.threadId).toBe(created.id);
+  expect(await runtime.runPromise(schedules.proposals(created.id))).toEqual([]);
   expect(
     JSON.stringify((await runtime.runPromise(threads.open(created.id))).snapshot.transcript),
-  ).toContain(proposal.contentFingerprint);
+  ).toContain(plan.id);
   const dispatcher = await runtime.runPromise(ScheduleDispatcherService);
   const host = scheduleHostAdapter(
     {
@@ -2245,16 +2244,6 @@ test("schedule tool requires a trusted proposal decision before dispatching an o
     },
     async () => undefined,
   );
-  await runtime.runPromise(dispatcher.tick(host, at));
-  expect(await runtime.runPromise(schedules.list())).toEqual([]);
-  await expect(readFile(join(workspace.cwd, "reminder.txt"), "utf8")).rejects.toThrow();
-  const approval = {
-    proposalId: proposal.id,
-    contentFingerprint: proposal.contentFingerprint,
-    requestId: "approve-tool",
-  };
-  const approved = await runtime.runPromise(schedules.decide(approval, true));
-  expect(await runtime.runPromise(schedules.decide(approval, true))).toEqual(approved);
   provider.setResponses([
     fauxAssistantMessage(
       fauxToolCall("write", { path: "reminder.txt", content: "Scheduled reminder" }),
@@ -2266,17 +2255,73 @@ test("schedule tool requires a trusted proposal decision before dispatching an o
   await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
   await runtime.runPromise(dispatcher.tick(host, at + 1));
   expect(await readFile(join(workspace.cwd, "reminder.txt"), "utf8")).toBe("Scheduled reminder");
-  expect((await runtime.runPromise(schedules.runs(approved.scheduleId!)))[0].state).toBe(
-    "succeeded",
-  );
+  expect((await runtime.runPromise(schedules.runs(plan.id)))[0].state).toBe("succeeded");
   const messages = (await runtime.runPromise(threads.open(created.id))).snapshot.transcript.filter(
     (entry) => entry.message.role === "user",
   );
   expect(messages).toHaveLength(2);
   expect(JSON.stringify(messages[1])).toContain("Write the reminder file");
-  expect((await runtime.runPromise(schedules.runs(approved.scheduleId!)))[0].inputEntryId).toBe(
-    messages[1].id,
+  expect((await runtime.runPromise(schedules.runs(plan.id)))[0].inputEntryId).toBe(messages[1].id);
+}, 15000);
+
+test("schedule tool updates, pauses, resumes and deletes directly in the bound thread", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const schedules = await runtime.runPromise(ScheduleService);
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await runtime.runPromise(
+    schedules.write({
+      threadId: created.id,
+      requestId: "initial",
+      change: {
+        action: "create",
+        name: "Original",
+        prompt: "Review",
+        rule: { type: "interval", everyMs: 300000, anchorAt: Date.now() + 3600000 },
+      },
+    }),
   );
+  for (const action of ["update", "pause", "resume", "delete"] as const) {
+    const plan = (await runtime.runPromise(schedules.list(created.id)))[0];
+    provider.setResponses([
+      fauxAssistantMessage(
+        fauxToolCall(
+          "schedule",
+          {
+            action,
+            scheduleId: plan.id,
+            expectedRevision: plan.revision,
+            ...(action === "update"
+              ? {
+                  patch: {
+                    name: "Updated",
+                    rule: {
+                      type: "weekly",
+                      weekdays: [1, 5],
+                      time: "08:30",
+                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    },
+                  },
+                }
+              : {}),
+          },
+          { id: `schedule-${action}` },
+        ),
+        { stopReason: "toolUse" },
+      ),
+      fauxAssistantMessage("Applied"),
+    ]);
+    await runtime.runPromise(threads.submit(created.id, action));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    const plans = await runtime.runPromise(schedules.list(created.id));
+    expect(await runtime.runPromise(schedules.proposals(created.id))).toEqual([]);
+    if (action === "delete") expect(plans).toEqual([]);
+    else {
+      expect(plans[0].name).toBe("Updated");
+      expect(plans[0].state).toBe(action === "pause" ? "paused" : "active");
+      expect(plans[0].revision).toBe(plan.revision + 1);
+    }
+  }
 }, 15000);
 
 test.each([false, true])(

@@ -26,6 +26,13 @@ export function useTabPresentations(
     items: state.tabs.map((tab) =>
       presentTab(tab, library, pages[tab.id], previews[tab.id], runningThreadIds),
     ),
+    threadPreviews: new Map(
+      [...state.closed, ...state.tabs].flatMap((tab) =>
+        tab.kind === "conversation" && tab.threadId && previews[tab.id]
+          ? [[tab.threadId, previews[tab.id]] as const]
+          : [],
+      ),
+    ),
     savePreview,
   };
 }

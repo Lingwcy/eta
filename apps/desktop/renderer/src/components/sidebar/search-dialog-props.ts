@@ -6,6 +6,7 @@ export interface SearchDialogProps {
   busy: boolean;
   canCreate: boolean;
   runningThreadIds: ReadonlySet<string>;
+  scheduledThreadIds?: ReadonlySet<string>;
   onSelect: (id: string) => void;
   onNew: () => void;
   onChoose: () => void;

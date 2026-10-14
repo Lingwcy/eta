@@ -1,3 +1,4 @@
+import { ScheduleMessages } from "@/components/schedules/schedule-tool-notice";
 import type { SchedulesController } from "@/agent/use-schedules";
 import { scheduleTime } from "@/components/schedules/format";
 import { SubagentConversation } from "@/components/subagents/subagent-conversation";
@@ -69,6 +70,10 @@ export function ConversationPanel({
       ),
     [schedules.snapshot, tab.threadId],
   );
+  const scheduleMessages = useMemo(
+    () => ({ threadId: tab.threadId ?? undefined, controller: schedules }),
+    [schedules, tab.threadId],
+  );
   const child = view.transcript.snapshot?.subagents?.find(
     (child) => child.path === selectedSubagent,
   );
@@ -110,21 +115,23 @@ export function ConversationPanel({
             );
           })}
       <div className={child ? "hidden" : "contents"}>
-        <ChatTranscript {...view.transcript} origins={origins}>
-          {view.welcome && <ChatWelcome {...view.welcome} />}
-          {view.failure && <Alert>{view.failure}</Alert>}
-          {view.recovery && <RecoveryNotice {...view.recovery} />}
-          {view.stopped && <output className="text-xs text-neutral-500">已停止生成</output>}
-          <ThinkingSlot
-            thinking={
-              view.thinking && {
-                ...view.thinking,
-                variant: desktop.library?.settings.agentThinkingVariant ?? "wave",
-                active: active && !child,
+        <ScheduleMessages value={scheduleMessages}>
+          <ChatTranscript {...view.transcript} origins={origins}>
+            {view.welcome && <ChatWelcome {...view.welcome} />}
+            {view.failure && <Alert>{view.failure}</Alert>}
+            {view.recovery && <RecoveryNotice {...view.recovery} />}
+            {view.stopped && <output className="text-xs text-neutral-500">已停止生成</output>}
+            <ThinkingSlot
+              thinking={
+                view.thinking && {
+                  ...view.thinking,
+                  variant: desktop.library?.settings.agentThinkingVariant ?? "wave",
+                  active: active && !child,
+                }
               }
-            }
-          />
-        </ChatTranscript>
+            />
+          </ChatTranscript>
+        </ScheduleMessages>
         <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
           <div className="mx-auto w-full max-w-[960px]">
             {view.composerContext && <ComposerContext {...view.composerContext} />}

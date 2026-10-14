@@ -1,10 +1,11 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { Check, ChevronDown } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface SelectProps<T extends string> {
   value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
+  options: ReadonlyArray<{ value: T; label: string; icon?: ReactNode }>;
   onValueChange: (value: T) => void;
   placeholder?: string;
   disabled?: boolean;
@@ -12,6 +13,7 @@ interface SelectProps<T extends string> {
   variant?: "default" | "menu";
   label?: string;
   panelTitle?: string;
+  popupSizing?: "trigger" | "content";
 }
 
 export function Select<T extends string>({
@@ -24,6 +26,7 @@ export function Select<T extends string>({
   variant = "default",
   label,
   panelTitle,
+  popupSizing = "trigger",
 }: SelectProps<T>) {
   return (
     <BaseSelect.Root
@@ -42,7 +45,10 @@ export function Select<T extends string>({
           variant === "menu" && "bg-[#f8f8f8] hover:bg-neutral-100",
         )}
       >
-        <BaseSelect.Value placeholder={placeholder} className="truncate" />
+        <span className="flex min-w-0 items-center gap-2">
+          {options.find((option) => option.value === value)?.icon}
+          <BaseSelect.Value placeholder={placeholder} className="truncate" />
+        </span>
         <BaseSelect.Icon>
           <ChevronDown size={15} />
         </BaseSelect.Icon>
@@ -56,7 +62,10 @@ export function Select<T extends string>({
         >
           <BaseSelect.Popup
             className={cn(
-              "max-h-[min(360px,var(--available-height))] min-w-(--anchor-width) overflow-y-auto p-1 outline-none",
+              "overflow-y-auto p-1 outline-none",
+              popupSizing === "content"
+                ? "max-h-[min(240px,var(--available-height))] w-max min-w-40 max-w-[calc(100vw-32px)]"
+                : "max-h-[min(360px,var(--available-height))] min-w-(--anchor-width)",
               variant === "menu"
                 ? "min-w-40 rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 text-xs font-normal text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] backdrop-blur-xl select-none"
                 : "rounded-xl border border-neutral-200 bg-white shadow-lg",
@@ -84,6 +93,7 @@ export function Select<T extends string>({
                   >
                     <Check size={14} />
                   </BaseSelect.ItemIndicator>
+                  {option.icon}
                   <BaseSelect.ItemText>{option.label}</BaseSelect.ItemText>
                 </BaseSelect.Item>
               ))}

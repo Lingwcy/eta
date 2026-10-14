@@ -287,6 +287,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   );
   const dispatcher = await runtime.runPromise(ScheduleDispatcherService);
   const admissionGate = Promise.withResolvers<void>();
+  cleanups.push(async () => admissionGate.resolve());
   let submitPhase = "not started";
   const adapter = scheduleHostAdapter(
     {
@@ -357,6 +358,23 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
     }),
   );
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_003));
+  await expect
+    .poll(
+      async () => {
+        let run = (await runtime.runPromise(schedules.runs(schedule.id))).find(
+          (run) => run.source === "manual",
+        );
+        if (!run?.operationId) {
+          await runtime.runPromise(dispatcher.tick(adapter, now + 100_003));
+          run = (await runtime.runPromise(schedules.runs(schedule.id))).find(
+            (run) => run.source === "manual",
+          );
+        }
+        return run?.operationId;
+      },
+      { timeout: 10000 },
+    )
+    .toBeTruthy();
   const manual = (await runtime.runPromise(schedules.runs(schedule.id))).find(
     (run) => run.source === "manual",
   )!;

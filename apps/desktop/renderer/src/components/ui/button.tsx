@@ -15,6 +15,7 @@ const buttonVariants = cva(
         menu: "cursor-default text-neutral-800 hover:bg-[#007aff] hover:text-white",
         "ghost-muted": "text-neutral-400 hover:bg-neutral-200/50 hover:text-neutral-700",
         "ghost-destructive": "text-red-600 hover:bg-red-50",
+        info: "bg-blue-100 text-blue-600 hover:bg-blue-200",
         accent: "text-[#ed714b] hover:bg-orange-50 hover:text-[#cf5530]",
         link: "text-neutral-500 underline-offset-4 hover:text-neutral-800 hover:underline",
         timeline: "group rounded-none text-neutral-300 hover:text-neutral-600",

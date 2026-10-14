@@ -2,21 +2,23 @@
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { act, createElement, useState, Fragment } from "react";
+import { act, createElement, useState, useSyncExternalStore, Fragment } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ManagedRuntime } from "effect";
 import { createModels, fauxProvider } from "@earendil-works/pi-ai";
+import type { SessionResponse } from "@eta/core/agent/protocol";
 import { ProjectService } from "@eta/core/service/projects/index";
 import { WorkspaceService } from "@eta/core/service/workspaces/index";
 import { ThreadService } from "@eta/core/service/threads/index";
-import { ScheduleStoreService } from "@eta/core/service/schedules/store";
-import { scheduleDraft, settleScheduleRequests } from "@eta/core/service/schedules/management";
-import { CatalogService } from "@eta/core/service/catalog/index";
 import { ScheduleService } from "@eta/core/service/schedules/index";
 import { desktopServices } from "../../../../src/main/service/layer.ts";
 import { ModelCatalogService } from "../../../../src/main/service/models/index.ts";
 import { dispatchCommand } from "../../../../src/main/ipc.ts";
+import {
+  mapScheduleSnapshot,
+  mapScheduleRequest,
+} from "../../../../src/main/schedule-identities.ts";
 import type { DesktopApplication } from "../../../../src/main/bootstrap.ts";
 import type { DesktopBridge, DesktopLibrary } from "../../../../src/bridge.ts";
 import type { DesktopLibraryController } from "@/agent/use-desktop-library";
@@ -24,7 +26,14 @@ import { ThreadActionsProvider } from "@/components/threads/thread-actions";
 import { ThreadSearchDialog } from "@/components/sidebar/thread-search-dialog";
 import { useSchedules } from "@/agent/use-schedules";
 import { ScheduleForm } from "./schedule-form";
-import { SchedulePanel } from "./schedule-panel";
+import { TaskList } from "@/components/task-list";
+import { ScheduleMessages } from "./schedule-tool-notice";
+import { ThreadRecents } from "@/agent/thread-recents";
+import { DesktopTabs } from "@/agent/desktop-tabs";
+import { ThreadActivity } from "@/agent/thread-activity";
+import { useDesktopController } from "@/agent/use-desktop-controller";
+import { DesktopSidebar } from "@/components/desktop-sidebar";
+import { ScheduleSidebar } from "./schedule-sidebar";
 
 const cleanups: Array<() => Promise<void>> = [];
 let root: Root;
@@ -54,7 +63,11 @@ async function setup() {
   const cwd = join(path, "repo");
   await mkdir(cwd);
   const models = createModels();
-  models.setProvider(fauxProvider({ provider: "schedule-ui", models: [{ id: "one" }] }).provider);
+  const provider = fauxProvider({
+    provider: "schedule-ui",
+    models: [{ id: "one" }, { id: "two" }],
+  });
+  models.setProvider(provider.provider);
   const runtime = ManagedRuntime.make(
     desktopServices(join(path, "data"), ModelCatalogService.layerWith(models)),
   );
@@ -83,7 +96,12 @@ async function setup() {
         },
       ],
     }),
-    createThread: (id, requestId) => runtime.runPromise(threads.create(id, requestId)),
+    createThread: (id, requestId, configuration) =>
+      runtime.runPromise(threads.create(id, requestId, configuration)),
+    openThread: (id) => runtime.runPromise(threads.open(id)),
+    configureSandbox: (id, mode) => runtime.runPromise(threads.configureSandbox(id, mode)),
+    configureThread: (id, provider, modelId, level) =>
+      runtime.runPromise(threads.configure(id, provider, modelId, level)),
     renameThread: (id, title) => runtime.runPromise(threads.rename(id, title)),
     writeSchedule: (input) => runtime.runPromise(schedules.write(input)),
     proposeSchedule: (input) => runtime.runPromise(schedules.propose(input)),
@@ -102,11 +120,21 @@ async function setup() {
         requestId,
       }),
     subscribeSchedules: (listener) => schedules.subscribe(listener),
-    createThread: (workspaceId, requestId) =>
+    openThread: (id) => application.openThread(id),
+    configureSandbox: (id, mode) =>
+      dispatchCommand(application as unknown as DesktopApplication, {
+        type: "configure-sandbox",
+        id,
+        mode,
+      }),
+    configureThread: (id, provider, modelId, level) =>
+      application.configureThread(id, provider, modelId, level),
+    createThread: (workspaceId, requestId, configuration) =>
       dispatchCommand(application as unknown as DesktopApplication, {
         type: "create",
         workspaceId,
         requestId,
+        configuration,
       }),
     renameThread: (id, title) =>
       dispatchCommand(application as unknown as DesktopApplication, { type: "rename", id, title }),
@@ -135,6 +163,9 @@ async function setup() {
     DesktopBridge,
     | "scheduleSnapshot"
     | "subscribeSchedules"
+    | "openThread"
+    | "configureThread"
+    | "configureSandbox"
     | "createThread"
     | "renameThread"
     | "writeSchedule"
@@ -148,11 +179,11 @@ async function setup() {
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  return { runtime, schedules, threads, workspace, library, bridge };
+  return { runtime, schedules, threads, workspace, library, bridge, provider };
 }
 function button(text: string) {
   return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
-    (button) => button.textContent === text,
+    (button) => button.textContent?.trim() === text.trim(),
   )!;
 }
 async function click(text: string) {
@@ -214,266 +245,23 @@ test("creation retains its draft and reuses the same thread and request after th
     "Review",
   );
   await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
-  await click("保存");
+  await click("创建");
   await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(1);
   await act(async () => {
     await Promise.resolve();
   });
   await expect.poll(() => document.body.textContent).toContain("Response lost");
   expect(document.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("Review repository");
-  await click("保存");
+  await click("创建");
   await expect.poll(() => saved.length).toBe(1);
   expect(requests).toHaveLength(1);
   expect(queries).toEqual([requests[0], requests[0]]);
   expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
   expect(await runtime.runPromise(schedules.list())).toHaveLength(1);
   expect((await runtime.runPromise(schedules.list()))[0].threadId).toBe(saved[0]);
-});
-
-test("inspector approves the exact proposal then supports pause, resume, manual execution and deletion through IPC", async () => {
-  const { runtime, schedules, threads, workspace, library } = await setup();
-  const thread = await runtime.runPromise(threads.create(workspace.id));
-  library.threads = [thread.thread];
-  await runtime.runPromise(
-    schedules.propose({
-      threadId: thread.id,
-      requestId: "proposal",
-      sourceIdentity: "root:tool",
-      change: {
-        action: "create",
-        name: "Review",
-        prompt: "Review repository",
-        rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
-      },
-    }),
+  expect((await runtime.runPromise(threads.open(saved[0]))).snapshot.sandbox?.mode).toBe(
+    "danger-full-access",
   );
-  function Panel() {
-    const controller = useSchedules();
-    return createElement(SchedulePanel, {
-      controller,
-      library,
-      threadId: thread.id,
-      creating: false,
-      onCreate: () => {},
-      onDone: () => {},
-    });
-  }
-  await act(async () => root.render(createElement(Panel)));
-  expect(await runtime.runPromise(schedules.list())).toEqual([]);
-  await click("批准");
-  await expect
-    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
-    .toBe("active");
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await click("暂停");
-  await expect
-    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
-    .toBe("paused");
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await click("恢复");
-  await expect
-    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
-    .toBe("active");
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await click("运行一次");
-  const plan = (await runtime.runPromise(schedules.list()))[0];
-  await expect.poll(async () => (await runtime.runPromise(schedules.runs(plan.id))).length).toBe(1);
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await click("删除");
-  await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(0);
-  expect((await runtime.runPromise(threads.get(thread.id))).id).toBe(thread.id);
-});
-
-test("editing pending proposal content invalidates its old approval without activating either plan", async () => {
-  const { runtime, schedules, threads, workspace, library } = await setup();
-  const thread = await runtime.runPromise(threads.create(workspace.id));
-  library.threads = [thread.thread];
-  await runtime.runPromise(
-    schedules.propose({
-      threadId: thread.id,
-      requestId: "old",
-      sourceIdentity: "root:tool",
-      change: {
-        action: "create",
-        name: "Review",
-        prompt: "Original review",
-        rule: { type: "daily", time: "09:00", timeZone: "America/New_York" },
-      },
-    }),
-  );
-  const proposal = (await runtime.runPromise(schedules.proposals()))[0];
-  function Form() {
-    const controller = useSchedules();
-    return createElement(ScheduleForm, {
-      controller,
-      library,
-      threadId: thread.id,
-      workspaceId: workspace.id,
-      proposal,
-      onCancel: () => {},
-      onSaved: () => {},
-    });
-  }
-  await act(async () => root.render(createElement(Form)));
-  await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "New review content");
-  await click("提出新提案");
-  await expect.poll(async () => (await runtime.runPromise(schedules.proposals())).length).toBe(2);
-  const proposals = await runtime.runPromise(schedules.proposals());
-  expect(proposals.find((value) => value.id === proposal.id)?.state).toBe("invalidated");
-  expect(proposals.find((value) => value.id !== proposal.id)?.change).toMatchObject({
-    prompt: "New review content",
-    rule: { timeZone: "America/New_York" },
-  });
-  expect(await runtime.runPromise(schedules.list())).toEqual([]);
-  let rejected = false;
-  await act(async () => {
-    rejected =
-      (
-        await runtime.runPromise(
-          schedules.decide(
-            {
-              proposalId: proposal.id,
-              contentFingerprint: proposal.contentFingerprint,
-              requestId: "late-approve",
-            },
-            true,
-          ),
-        )
-      ).state === "rejected";
-  });
-  expect(rejected).toBe(true);
-});
-
-test("a pending pause displays the effective active state until uncertain admission is reconciled", async () => {
-  const { runtime, schedules, threads, workspace, library } = await setup();
-  const thread = await runtime.runPromise(threads.create(workspace.id));
-  library.threads = [thread.thread];
-  const receipt = await runtime.runPromise(
-    schedules.write({
-      threadId: thread.id,
-      requestId: "create",
-      change: {
-        action: "create",
-        name: "Review",
-        prompt: "Review repository",
-        rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
-      },
-    }),
-  );
-  const plan = (await runtime.runPromise(schedules.list()))[0];
-  const store = await runtime.runPromise(ScheduleStoreService);
-  await runtime.runPromise(
-    store.update((state) => ({
-      ...state,
-      occurrences: {
-        ...state.occurrences,
-        uncertain: {
-          id: "uncertain",
-          scheduleId: receipt.scheduleId!,
-          threadId: thread.id,
-          scheduleRevision: 1,
-          scheduledAt: 300000,
-          detectedAt: 300000,
-          source: "automatic",
-          name: plan.name,
-          prompt: plan.prompt,
-          rule: plan.rule,
-          requestId: "delivery",
-          state: "dispatching",
-        },
-      },
-    })),
-  );
-  function Panel() {
-    const controller = useSchedules();
-    return createElement(SchedulePanel, {
-      controller,
-      library,
-      threadId: thread.id,
-      creating: false,
-      onCreate: () => {},
-      onDone: () => {},
-    });
-  }
-  await act(async () => root.render(createElement(Panel)));
-  await click("暂停");
-  await expect.poll(() => document.body.textContent).toContain("正在处理");
-  expect((await runtime.runPromise(schedules.list()))[0].state).toBe("active");
-  expect(document.body.textContent).toContain("Review · 已启用");
-  const catalog = await runtime.runPromise(CatalogService);
-  const stateCatalog = await runtime.runPromise(catalog.read);
-  await act(async () =>
-    runtime.runPromise(
-      store.update((state) => {
-        const draft = scheduleDraft(state);
-        draft.occurrences.uncertain = { ...draft.occurrences.uncertain, state: "pending" };
-        settleScheduleRequests(draft, thread.id, stateCatalog, Date.now());
-        return draft;
-      }),
-    ),
-  );
-  await expect.poll(() => document.body.textContent).toContain("Review · 已暂停");
-  expect(document.body.textContent).not.toContain("正在处理：");
-});
-
-test("state-change proposals describe the state action and approval preserves that action", async () => {
-  const { runtime, schedules, threads, workspace, library } = await setup();
-  const thread = await runtime.runPromise(threads.create(workspace.id));
-  library.threads = [thread.thread];
-  const created = await runtime.runPromise(
-    schedules.write({
-      threadId: thread.id,
-      requestId: "create",
-      change: {
-        action: "create",
-        name: "Review",
-        prompt: "Review repository",
-        rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
-      },
-    }),
-  );
-  await runtime.runPromise(
-    schedules.propose({
-      threadId: thread.id,
-      requestId: "pause-proposal",
-      sourceIdentity: "root:tool",
-      change: { action: "pause", scheduleId: created.scheduleId!, expectedRevision: 1 },
-    }),
-  );
-  function Panel() {
-    const controller = useSchedules();
-    return createElement(SchedulePanel, {
-      controller,
-      library,
-      threadId: thread.id,
-      creating: false,
-      onCreate: () => {},
-      onDone: () => {},
-    });
-  }
-  await act(async () => root.render(createElement(Panel)));
-  await expect
-    .poll(async () => {
-      await act(async () => {
-        await Promise.resolve();
-      });
-      return document.body.textContent;
-    })
-    .toContain("拟变更：暂停后续执行");
-  expect(button("修改")).toBeUndefined();
-  await click("批准");
-  await expect
-    .poll(async () => (await runtime.runPromise(schedules.list()))[0].state)
-    .toBe("paused");
-  expect((await runtime.runPromise(schedules.list()))[0].prompt).toBe("Review repository");
 });
 
 test("adding a plan from search closes its modal and saves against the selected existing thread", async () => {
@@ -562,15 +350,807 @@ test("adding a plan from search closes its modal and saves against the selected 
     element.textContent?.includes("添加定时任务"),
   )!;
   await act(async () => add.click());
-  await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
+  await expect.poll(() => document.querySelector('input[placeholder="搜索聊天"]')).toBeNull();
   await input(
     document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
     "Search plan",
   );
   await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review selected thread");
-  await click("保存");
+  await click("创建");
   await expect
     .poll(async () => (await runtime.runPromise(schedules.list(created.id))).length)
     .toBe(1);
   expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
+});
+
+test("sidebar filters multiple states and creates a task through its dialog with the shared model picker", async () => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const first = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [first.thread];
+  const catalog = await runtime.runPromise(ModelCatalogService);
+  library.models = await runtime.runPromise(catalog.list);
+  const alternate = library.models.find((model) => model.id === "two")!;
+  await runtime.runPromise(
+    schedules.write({
+      threadId: first.id,
+      requestId: "active",
+      change: {
+        action: "create",
+        name: "Upcoming review",
+        prompt: "Review",
+        rule: { type: "interval", everyMs: 10800000, anchorAt: Date.now() },
+      },
+    }),
+  );
+  const second = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [...library.threads, second.thread];
+  const paused = await runtime.runPromise(
+    schedules.write({
+      threadId: second.id,
+      requestId: "paused",
+      change: {
+        action: "create",
+        name: "Paused review",
+        prompt: "Review",
+        rule: { type: "daily", time: "09:00", timeZone: "America/New_York" },
+      },
+    }),
+  );
+  await runtime.runPromise(
+    schedules.write({
+      threadId: second.id,
+      requestId: "pause",
+      change: { action: "pause", scheduleId: paused.scheduleId!, expectedRevision: 1 },
+    }),
+  );
+  const projects = await runtime.runPromise(ProjectService);
+  const otherRoot = join(workspace.cwd, "..", "other-project");
+  await mkdir(otherRoot);
+  const otherProject = await runtime.runPromise(
+    projects.register({ rootPath: otherRoot, name: "Other project" }),
+  );
+  const workspaces = await runtime.runPromise(WorkspaceService);
+  const otherWorkspace = (await runtime.runPromise(workspaces.list(otherProject.id)))[0];
+  library.projects = [...library.projects, otherProject];
+  library.workspaces = [...library.workspaces, otherWorkspace];
+  let saved: string | undefined;
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(ScheduleSidebar, {
+      library,
+      controller,
+      onSelect: () => {},
+      onSaved: (id) => {
+        saved = id;
+      },
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  await expect.poll(() => document.body.textContent).toContain("Upcoming review");
+  expect(document.body.textContent).toContain("Paused review");
+  expect(document.body.textContent).toContain("每 3 小时");
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="筛选任务状态"]')!.click(),
+  );
+  const checkbox = (label: string) =>
+    [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')].find(
+      (item) => item.textContent === label,
+    )!;
+  await act(async () => checkbox("已开启").click());
+  expect(document.querySelector("nav")?.textContent).not.toContain("Upcoming review");
+  expect(document.querySelector("nav")?.textContent).toContain("Paused review");
+  await act(async () => checkbox("已开启").click());
+  expect(document.querySelector("nav")?.textContent).toContain("Upcoming review");
+  await act(async () =>
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+  );
+  await click(" 新建任务");
+  await expect
+    .poll(() => document.querySelector('[role="dialog"]')?.textContent)
+    .toContain("设置定时任务");
+  await input(
+    document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
+    "Created in dialog",
+  );
+  await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review through picker");
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="选择执行日期和时间"]')!.click(),
+  );
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="下个月"]')!.click(),
+  );
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
+  const chosenDate = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-15`;
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>(`[aria-label="${chosenDate}"]`)!.click(),
+  );
+  await input(document.querySelector<HTMLInputElement>('[aria-label="执行时刻"]')!, "14:30");
+  await click("确定");
+
+  await act(async () => button("高级")!.click());
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="执行工作区"]')!.click(),
+  );
+  const workspaceOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+    (item) => item.textContent === "Other project",
+  )!;
+  await act(async () => workspaceOption.click());
+  await click("高级");
+  await click("高级");
+  expect(document.querySelector('[aria-label="执行工作区"]')?.textContent).toContain(
+    "Other project",
+  );
+
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="选择模型与思考级别"]')!.click(),
+  );
+  await expect
+    .poll(() => document.querySelector('[aria-label="可用模型"]')?.textContent)
+    .toContain(first.model.name);
+  const option = document
+    .querySelector('[aria-label="可用模型"]')!
+    .querySelector<HTMLButtonElement>(`button[title="${alternate.provider}/${alternate.id}"]`)!;
+  await act(async () => option.click());
+  await act(async () =>
+    document
+      .querySelector<HTMLInputElement>('[aria-label="搜索模型或服务"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+  );
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("设置定时任务");
+  await click("创建");
+  await expect.poll(() => saved).toBeDefined();
+  expect((await runtime.runPromise(threads.get(saved!))).workspaceId).toBe(otherWorkspace.id);
+  const session = await runtime.runPromise(threads.open(saved!));
+  expect(session.snapshot.configuration.model).toEqual({
+    provider: alternate.provider,
+    modelId: alternate.id,
+  });
+  expect((await runtime.runPromise(schedules.list(saved!)))[0].prompt).toBe(
+    "Review through picker",
+  );
+  expect((await runtime.runPromise(schedules.list(saved!)))[0].rule).toEqual({
+    type: "once",
+    at: new Date(`${chosenDate}T14:30`).getTime(),
+  });
+  await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+test("weekly creation toggles weekdays and persists the machine timezone without a timezone field", async () => {
+  const { runtime, schedules, library } = await setup();
+  let saved: string | undefined;
+  function Form() {
+    const controller = useSchedules();
+    return createElement(ScheduleForm, {
+      library,
+      controller,
+      onCancel: () => {},
+      onSaved: (id) => {
+        saved = id;
+      },
+    });
+  }
+  await act(async () => root.render(createElement(Form)));
+  await input(document.querySelector<HTMLInputElement>("input")!, "Weekly review");
+  await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="重复"]')!.click());
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((item) => item.textContent === "每周")!
+      .click(),
+  );
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="选择执行时间"]')!.click(),
+  );
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="08时"]')!.click());
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="30分"]')!.click());
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="确认执行时间"]')!.click(),
+  );
+  for (const label of ["星期一", "星期三", "星期五"])
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click(),
+    );
+  await click("创建");
+  await expect.poll(() => saved).toBeDefined();
+  expect((await runtime.runPromise(schedules.list(saved!)))[0].rule).toEqual({
+    type: "weekly",
+    weekdays: [3, 5],
+    time: "08:30",
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+});
+
+test("sidebar task menu supports pause, resume, run, edit and delete through real IPC", async () => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [thread.thread];
+  await runtime.runPromise(
+    schedules.write({
+      threadId: thread.id,
+      requestId: "menu-plan",
+      change: {
+        action: "create",
+        name: "Menu review",
+        prompt: "Review repository",
+        rule: { type: "interval", everyMs: 10800000, anchorAt: Date.now() },
+      },
+    }),
+  );
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(ScheduleSidebar, {
+      library,
+      controller,
+      onSelect: () => {},
+      onSaved: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  const openMenu = async () => {
+    await expect
+      .poll(async () => {
+        await act(async () => {
+          await Promise.resolve();
+        });
+        return document.querySelector<HTMLButtonElement>('[aria-label$="的任务操作"]');
+      })
+      .not.toBeNull();
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[aria-label$="的任务操作"]')!.click(),
+    );
+  };
+  const select = async (label: string) => {
+    await expect
+      .poll(() =>
+        [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].some(
+          (item) => item.textContent === label && item.getAttribute("aria-disabled") !== "true",
+        ),
+      )
+      .toBe(true);
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+        .find((item) => item.textContent === label)!
+        .click(),
+    );
+  };
+  await openMenu();
+  expect(document.querySelector('[role="menu"]')?.textContent).not.toContain("分享");
+  await select("暂停");
+  await expect
+    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
+    .toBe("paused");
+  await openMenu();
+  await select("恢复");
+  await expect
+    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
+    .toBe("active");
+  await openMenu();
+  await select("立即运行");
+  const plan = (await runtime.runPromise(schedules.list()))[0];
+  await expect.poll(async () => (await runtime.runPromise(schedules.runs(plan.id))).length).toBe(1);
+  await openMenu();
+  await select("编辑");
+  await expect
+    .poll(() => document.querySelector('[role="dialog"]')?.textContent)
+    .toContain("编辑定时任务");
+  await input(document.querySelector<HTMLInputElement>("input")!, "Renamed review");
+  await click("保存");
+  await expect
+    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.name)
+    .toBe("Renamed review");
+  expect((await runtime.runPromise(threads.open(thread.id))).snapshot.sandbox?.mode).toBe(
+    "workspace-write",
+  );
+  await openMenu();
+  await select("删除");
+  await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(0);
+  expect((await runtime.runPromise(threads.get(thread.id))).id).toBe(thread.id);
+});
+
+test("a grouped task menu targets the selected plan without pausing its sibling", async () => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [thread.thread];
+  for (const name of ["First plan", "Second plan"])
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: name,
+        change: {
+          action: "create",
+          name,
+          prompt: "Review repository",
+          rule: { type: "interval", everyMs: 10800000, anchorAt: Date.now() },
+        },
+      }),
+    );
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(ScheduleSidebar, {
+      library,
+      controller,
+      onSelect: () => {},
+      onSaved: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  await expect
+    .poll(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return document.querySelector('[aria-label$="的任务操作"]');
+    })
+    .not.toBeNull();
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label$="的任务操作"]')!.click(),
+  );
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((item) => item.textContent === "Second plan")!
+      .click(),
+  );
+  await expect
+    .poll(() =>
+      [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].some(
+        (item) => item.textContent === "暂停",
+      ),
+    )
+    .toBe(true);
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((item) => item.textContent === "暂停")!
+      .click(),
+  );
+  await expect
+    .poll(
+      async () =>
+        (await runtime.runPromise(schedules.list())).find((plan) => plan.name === "Second plan")
+          ?.state,
+    )
+    .toBe("paused");
+  expect(
+    (await runtime.runPromise(schedules.list())).find((plan) => plan.name === "First plan")?.state,
+  ).toBe("active");
+});
+
+test.each(["local", "bot"])(
+  "the %s streamed schedule notice resolves its durable receipt and cancels the actual plan through IPC",
+  async (environment) => {
+    const { runtime, schedules, threads, workspace, bridge, library } = await setup();
+    const thread = await runtime.runPromise(threads.create(workspace.id));
+    const prefix = environment === "bot" ? "bot:fixture:" : "";
+    const currentThreadId = prefix + thread.id;
+    if (prefix) {
+      const snapshot = bridge.scheduleSnapshot;
+      bridge.scheduleSnapshot = async () => ({
+        snapshots: (await snapshot()).snapshots.map((entity) => ({
+          environment: { id: prefix, label: "Bot", status: "connected" },
+          data: mapScheduleSnapshot(entity.data, (id) => prefix + id),
+        })),
+      });
+      const query = bridge.scheduleRequest;
+      bridge.scheduleRequest = async (_threadId, requestId) => {
+        const result = await query(thread.id, requestId);
+        return result ? mapScheduleRequest(result, (id) => prefix + id) : undefined;
+      };
+      const write = bridge.writeSchedule;
+      bridge.writeSchedule = (input) =>
+        write({
+          ...input,
+          threadId: thread.id,
+          change:
+            input.change.action === "create"
+              ? input.change
+              : { ...input.change, scheduleId: input.change.scheduleId.slice(prefix.length) },
+        });
+    }
+    const rule = { type: "interval" as const, everyMs: 300000, anchorAt: Date.now() + 3600000 };
+    const receipt = await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: "schedule:tool:stream",
+        change: { action: "create", name: "Streamed reminder", prompt: "Review repository", rule },
+      }),
+    );
+    expect(await runtime.runPromise(schedules.proposals())).toEqual([]);
+    const tools = [
+      {
+        status: "settled" as const,
+        toolCallId: "create-plan",
+        toolName: "schedule",
+        args: { action: "create" },
+        result: {
+          content: [],
+          details: {
+            kind: "schedule",
+            threadId: thread.id,
+            requestId: receipt.requestId,
+            scheduleId: receipt.scheduleId,
+            action: "create",
+            status: "applied",
+            name: "Streamed reminder",
+            rule,
+            nextRunAt: receipt.nextRunAt ?? null,
+          },
+        },
+      },
+    ];
+    function Stream() {
+      const controller = useSchedules();
+      return createElement(ScheduleMessages, {
+        value: { threadId: currentThreadId, controller },
+        children: createElement(
+          Fragment,
+          null,
+          createElement(TaskList, { tools }),
+          createElement(ScheduleSidebar, {
+            library,
+            controller,
+            onSelect: () => {},
+            onSaved: () => {},
+          }),
+        ),
+      });
+    }
+    await act(async () => root.render(createElement(Stream)));
+    await expect
+      .poll(() =>
+        document.querySelector(
+          `[aria-label="${environment === "local" ? "本地任务" : "Bot 任务"}"]`,
+        ),
+      )
+      .not.toBeNull();
+    await click("取消计划");
+    await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(0);
+    await expect.poll(() => document.body.textContent).toContain("计划已取消");
+    await expect
+      .poll(() => document.querySelector('[aria-label="本地任务"], [aria-label="Bot 任务"]'))
+      .toBeNull();
+    expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
+  },
+);
+
+test.each(["danger-full-access", "workspace-write"] as const)(
+  "scheduled task creation persists %s permissions",
+  async (mode) => {
+    const { runtime, schedules, threads, library } = await setup();
+    let saved: string | undefined;
+    function Form() {
+      const controller = useSchedules();
+      return createElement(ScheduleForm, {
+        library,
+        controller,
+        onCancel: () => {},
+        onSaved: (id) => {
+          saved = id;
+        },
+      });
+    }
+    await act(async () => root.render(createElement(Form)));
+    await input(document.querySelector<HTMLInputElement>("input")!, "Permission test");
+    await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
+    await click("高级");
+    if (mode === "workspace-write") {
+      await act(async () =>
+        document.querySelector<HTMLButtonElement>('[aria-label="沙盒策略：完全访问"]')!.click(),
+      );
+      const picker = document.querySelector('[aria-label="沙盒策略"]')!;
+      await act(async () =>
+        [...picker.querySelectorAll<HTMLButtonElement>("button")]
+          .find((button) => button.textContent?.startsWith("工作区沙盒"))!
+          .click(),
+      );
+    }
+    await click("创建");
+    await expect.poll(() => saved).toBeDefined();
+    expect((await runtime.runPromise(threads.open(saved!))).snapshot.sandbox?.mode).toBe(mode);
+    expect((await runtime.runPromise(schedules.list(saved!)))[0].name).toBe("Permission test");
+  },
+);
+
+test("project thread markers follow actual schedule creation and deletion and the execution workspace", async () => {
+  const { runtime, schedules, threads, workspace, library, bridge } = await setup();
+  Object.assign(bridge, {
+    subscribeUpdate: () => () => {},
+    updateState: async () => ({ status: "unsupported" }),
+  });
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [{ ...thread.thread, projectId: workspace.projectId }];
+  library.workspaces = [
+    { ...workspace, kind: "worktree" },
+    { ...workspace, id: "root-display", cwd: `${workspace.cwd}-root`, kind: "project-root" },
+  ];
+  let selected: string | undefined;
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(DesktopSidebar, {
+      library,
+      schedules: controller,
+      scheduleView: false,
+      onScheduleView: () => {},
+      onScheduleSaved: () => {},
+      runningThreadIds: new Set([thread.id]),
+      workspaceId: "root-display",
+      threadId: thread.id,
+      busy: false,
+      collapsed: false,
+      onExpand: () => {},
+      onSelect: (id) => {
+        selected = id;
+      },
+      onNew: () => {},
+      onChoose: () => {},
+      onSettings: () => {},
+      onSkills: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  const projectButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (item) => item.title === `${workspace.cwd}-root`,
+  )!;
+  await act(async () => projectButton.click());
+  await expect.poll(() => document.querySelector('[aria-label="使用 worktree"]')).not.toBeNull();
+  expect(document.querySelector('[aria-label="有定时任务"]')).toBeNull();
+  let scheduleId: string | undefined;
+  await act(async () => {
+    scheduleId = (
+      await runtime.runPromise(
+        schedules.write({
+          threadId: thread.id,
+          requestId: "marker-create",
+          change: {
+            action: "create",
+            name: "Marker",
+            prompt: "Review",
+            rule: { type: "interval", everyMs: 300000, anchorAt: Date.now() + 3600000 },
+          },
+        }),
+      )
+    ).scheduleId;
+  });
+  await expect.poll(() => document.querySelector('[aria-label="有定时任务"]')).not.toBeNull();
+  const row = document.querySelector('[aria-label="有定时任务"]')!.closest("button")!;
+  expect(row.textContent).toContain("正在运行");
+  await act(async () => row.click());
+  expect(selected).toBe(thread.id);
+  await act(async () => {
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: "marker-delete",
+        change: { action: "delete", scheduleId: scheduleId!, expectedRevision: 1 },
+      }),
+    );
+  });
+  await expect.poll(() => document.querySelector('[aria-label="有定时任务"]')).toBeNull();
+  expect(document.querySelector('[aria-label="使用 worktree"]')).not.toBeNull();
+});
+
+test("the bell shows cross-project input priority and opening a row preserves that order", async () => {
+  const { runtime, threads, workspace, library, bridge } = await setup();
+  Object.assign(bridge, {
+    subscribeUpdate: () => () => {},
+    updateState: async () => ({ status: "unsupported" }),
+  });
+  const first = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.rename(first.id, "First visited"));
+  const projects = await runtime.runPromise(ProjectService);
+  const workspaces = await runtime.runPromise(WorkspaceService);
+  const otherPath = join(workspace.cwd, "other-project");
+  await mkdir(otherPath);
+  const otherProject = await runtime.runPromise(projects.register({ rootPath: otherPath }));
+  const otherWorkspace = (await runtime.runPromise(workspaces.list(otherProject.id)))[0];
+  library.projects = [...library.projects, otherProject];
+  library.workspaces = [...library.workspaces, otherWorkspace];
+  const second = await runtime.runPromise(threads.create(otherWorkspace.id));
+  await runtime.runPromise(threads.rename(second.id, "Second visited"));
+  library.threads = [
+    await runtime.runPromise(threads.get(first.id)),
+    await runtime.runPromise(threads.get(second.id)),
+  ];
+  const saved = new Map<string, string>();
+  let now = Date.now();
+  let recents = new ThreadRecents(
+    {
+      getItem: (key) => saved.get(key) ?? null,
+      setItem: (key, value) => {
+        saved.set(key, value);
+      },
+    },
+    () => now,
+  );
+  const tabs = new DesktopTabs();
+  const disconnect = recents.connect(new EventTarget());
+  cleanups.push(async () => disconnect());
+  tabs.openThread(first.id, workspace.id);
+  recents.recordInput(first.id);
+  now += 1000;
+  tabs.openThread(second.id, otherWorkspace.id);
+  recents.recordInput(second.id);
+  function Sidebar() {
+    const controller = useSchedules();
+    const visits = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
+    const state = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
+    const active = state.tabs.find((tab) => tab.id === state.activeId);
+    return createElement(DesktopSidebar, {
+      library,
+      schedules: controller,
+      visits,
+      scheduleView: false,
+      onScheduleView: () => {},
+      onScheduleSaved: () => {},
+      runningThreadIds: new Set<string>(),
+      workspaceId: workspace.id,
+      threadId: active?.kind === "conversation" ? (active.threadId ?? null) : null,
+      busy: false,
+      collapsed: false,
+      onExpand: () => {},
+      onSelect: (id) =>
+        tabs.openThread(id, library.threads.find((thread) => thread.id === id)!.workspaceId),
+      onNew: () => {},
+      onChoose: () => {},
+      onSettings: () => {},
+      onSkills: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
+  );
+  const rows = () =>
+    [...document.querySelectorAll<HTMLButtonElement>('nav[aria-label="项目与会话"] button')].filter(
+      (button) => ["First visited", "Second visited"].includes(button.title),
+    );
+  expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
+  expect(rows()[0].textContent).toContain(otherProject.name);
+  expect(rows()[1].textContent).toContain(library.projects[0].name);
+  const visitOrder = recents.getSnapshot();
+  await runtime.runPromise(threads.rename(first.id, "First visited"));
+  library.threads = [
+    await runtime.runPromise(threads.get(first.id)),
+    await runtime.runPromise(threads.get(second.id)),
+  ];
+  await act(async () => root.render(createElement(Sidebar)));
+  expect(recents.getSnapshot()).toBe(visitOrder);
+  expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
+  now += 1000;
+  await act(async () => rows()[1].click());
+  expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
+  await act(async () => recents.recordInput(first.id));
+  expect(rows().map((row) => row.title)).toEqual(["First visited", "Second visited"]);
+  expect(
+    new ThreadRecents({
+      getItem: (key) => saved.get(key) ?? null,
+      setItem: () => {},
+    }).getSnapshot()[0].threadId,
+  ).toBe(first.id);
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
+  );
+  expect(rows()).toEqual([]);
+  await act(async () => root.unmount());
+  recents = new ThreadRecents({
+    getItem: (key) => saved.get(key) ?? null,
+    setItem: (key, value) => {
+      saved.set(key, value);
+    },
+  });
+  root = createRoot(document.body.firstElementChild!);
+  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
+  );
+  expect(rows().map((row) => row.title)).toEqual(["First visited", "Second visited"]);
+});
+
+test("successful composer inputs update recents for drafts and existing chats; rejection does not", async () => {
+  const { workspace, library, bridge } = await setup();
+  let reject = true;
+  Object.assign(bridge, {
+    // This transport fixture exercises admission; native worker startup is outside jsdom.
+    openThread: async (id: string) =>
+      ({
+        id,
+        model: {
+          provider: "schedule-ui",
+          id: "one",
+          name: "one",
+          contextWindow: 64000,
+          thinkingLevels: ["off"],
+        },
+        snapshot: {
+          configuration: {
+            model: { provider: "schedule-ui", modelId: "one" },
+            thinkingLevel: "off",
+          },
+          transcript: [],
+          operation: null,
+          lastResult: null,
+          faulted: false,
+        },
+        contextTokens: 0,
+      }) satisfies SessionResponse,
+    subscribe: () => () => {},
+    submit: async () => {
+      if (reject) throw new Error("Input rejected");
+      return { operationId: "input-admitted", kind: "run", startedAt: Date.now() };
+    },
+  });
+  const recents = new ThreadRecents({ getItem: () => null, setItem: () => {} });
+  recents.recordInput("earlier-thread");
+  const tabs = new DesktopTabs();
+  const activity = new ThreadActivity(window.eta);
+  cleanups.push(async () => activity.dispose());
+  tabs.updateConversation(tabs.activeTab.id, { workspaceId: workspace.id });
+  const desktop = {
+    library,
+    error: null,
+    busy: false,
+    mainModel: undefined,
+    selectMainModel: () => {},
+    refresh: async () => library,
+    reload: () => {},
+    act: async (action: () => Promise<void>) => {
+      await action();
+    },
+    updateSettings: async () => {},
+    clearError: () => {},
+  } satisfies DesktopLibraryController;
+  let input: ReturnType<typeof useDesktopController>["composer"];
+  function Composer() {
+    const state = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
+    const visits = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
+    const tab = state.tabs.find((tab) => tab.id === state.activeId)!;
+    if (tab.kind !== "conversation") throw new Error("Expected conversation");
+    const controller = useDesktopController(
+      tab,
+      desktop,
+      {
+        tabs,
+        state,
+        activity,
+        visits,
+        runningThreadIds: new Set(),
+        recordInput: recents.recordInput,
+      },
+      true,
+      0,
+    );
+    input = controller.composer;
+    return null;
+  }
+  await act(async () => root.render(createElement(Composer)));
+  const before = recents.getSnapshot();
+  await act(async () => {
+    await expect(input.onSubmit("First input")).rejects.toThrow("Input rejected");
+  });
+  expect(recents.getSnapshot()).toBe(before);
+  const persisted = tabs.activeTab;
+  expect(persisted.kind === "conversation" && persisted.threadId).toBeTruthy();
+  reject = false;
+  await expect
+    .poll(async () => {
+      await act(async () => {});
+      return Boolean(input.disabled);
+    })
+    .toBe(false);
+  await act(async () => input.onSubmit("Retry input"));
+  expect(recents.getSnapshot()[0].threadId).toBe(
+    persisted.kind === "conversation" && persisted.threadId,
+  );
+  await act(async () => {
+    tabs.newConversation(workspace.id);
+  });
+  await act(async () => root.render(createElement(Composer, { key: tabs.activeTab.id })));
+  await act(async () => input.onSubmit("New chat input"));
+  const created = tabs.activeTab;
+  expect(created.kind === "conversation" && created.threadId).toBeTruthy();
+  expect(created.kind === "conversation" && created.threadId).not.toBe(
+    persisted.kind === "conversation" && persisted.threadId,
+  );
+  expect(recents.getSnapshot()[0].threadId).toBe(
+    created.kind === "conversation" && created.threadId,
+  );
 });
