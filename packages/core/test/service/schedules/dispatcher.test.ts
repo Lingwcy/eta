@@ -247,7 +247,14 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   const workspaces = await runtime.runPromise(WorkspaceService);
   const workspace = (await runtime.runPromise(workspaces.list(project.id)))[0];
   const threads = await runtime.runPromise(ThreadService);
-  const thread = await runtime.runPromise(threads.create(workspace.id));
+  const thread = await runtime.runPromise(
+    threads.create(workspace.id, undefined, {
+      provider: "schedule-test",
+      modelId: "one",
+      thinkingLevel: "off",
+      sandboxMode: "danger-full-access",
+    }),
+  );
   await runtime.runPromise(threads.rename(thread.id, "Scheduled thread"));
   const { ScheduleService } = await import("@eta/core/service/schedules/index");
   const schedules = await runtime.runPromise(ScheduleService);

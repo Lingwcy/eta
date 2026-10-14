@@ -164,9 +164,13 @@ allows native startup, before checking an operation's result.**
   regression now holds admission behind a test-controlled promise, verifies
   the initial dispatching state, releases admission, then polls the durable
   receipt and checks exactly one user message. The focused dispatcher test
-  passes locally. Native validation ran outside the protected `.codex` worktree
-  directory; inside it the sandbox correctly denied loading the development
-  worker.
+  then revealed a separate Linux CI constraint: the runner lacks `bwrap`, so
+  the default workspace-write mode correctly blocks Core submission with
+  `SandboxUnavailable`. Because this integration asserts scheduling and message
+  admission rather than sandbox isolation, it explicitly uses full access only
+  for its temporary test workspace. Native validation ran outside the
+  protected `.codex` worktree directory; inside it the sandbox correctly denied
+  loading the development worker.
 - Seen 1× (2026-10-12).
 
 **Propagate a shared deadline through every asynchronous stage, including tools and the final decision check.**
