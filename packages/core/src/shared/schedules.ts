@@ -17,11 +17,7 @@ const TimeZoneSchema = Schema.NonEmptyString.check(
 );
 const WeekdaysSchema = Schema.Array(
   Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 6 })),
-).check(
-  Schema.makeFilter((days) => days.length > 0 && new Set(days).size === days.length, {
-    message: "Expected distinct weekdays (0 = Sunday, 6 = Saturday)",
-  }),
-);
+).check(Schema.isMinLength(1), Schema.isUnique());
 export const ScheduleRuleSchema = Schema.Union([
   Schema.Struct({ type: Schema.Literal("once"), at: ScheduleTimestampSchema }),
   Schema.Struct({

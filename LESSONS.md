@@ -158,6 +158,20 @@ allows native startup, before checking an operation's result.**
 - Check: use the operation's completion signal rather than a fixed sleep.
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.
+- Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
+  schedule delivery test stuck before `ThreadService.submit`; the occurrence
+  remained `dispatching` and no durable receipt existed. Both a global timer and
+  Node's timer promise failed to advance under the parallel test suite. The
+  regression now holds admission behind a test-controlled promise, verifies
+  the initial dispatching state, releases admission, then polls the durable
+  receipt and checks exactly one user message. The focused dispatcher test
+  then revealed a separate Linux CI constraint: the runner lacks `bwrap`, so
+  the default workspace-write mode correctly blocks Core submission with
+  `SandboxUnavailable`. Because this integration asserts scheduling and message
+  admission rather than sandbox isolation, it explicitly uses full access only
+  for its temporary test workspace. Native validation ran outside the
+  protected `.codex` worktree directory; inside it the sandbox correctly denied
+  loading the development worker.
 - Seen: 2026-10-12, 2026-10-14.
 
 **Propagate a shared deadline through every asynchronous stage, including tools and the final decision check.**

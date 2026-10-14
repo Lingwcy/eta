@@ -247,7 +247,14 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   const workspaces = await runtime.runPromise(WorkspaceService);
   const workspace = (await runtime.runPromise(workspaces.list(project.id)))[0];
   const threads = await runtime.runPromise(ThreadService);
-  const thread = await runtime.runPromise(threads.create(workspace.id));
+  const thread = await runtime.runPromise(
+    threads.create(workspace.id, undefined, {
+      provider: "schedule-test",
+      modelId: "one",
+      thinkingLevel: "off",
+      sandboxMode: "danger-full-access",
+    }),
+  );
   await runtime.runPromise(threads.rename(thread.id, "Scheduled thread"));
   const { ScheduleService } = await import("@eta/core/service/schedules/index");
   const schedules = await runtime.runPromise(ScheduleService);
@@ -279,16 +286,23 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
     ),
   );
   const dispatcher = await runtime.runPromise(ScheduleDispatcherService);
-  let releaseAdmission!: () => void;
-  const admissionReady = new Promise<void>((resolve) => {
-    releaseAdmission = resolve;
-  });
-  cleanups.push(async () => releaseAdmission());
+  const admissionGate = Promise.withResolvers<void>();
+  cleanups.push(async () => admissionGate.resolve());
+  let submitPhase = "not started";
   const adapter = scheduleHostAdapter(
     {
       submit: async (id, prompt, requestId) => {
-        await admissionReady;
-        return runtime.runPromise(threads.submit(id, prompt, requestId));
+        submitPhase = "waiting for the test to release admission";
+        await admissionGate.promise;
+        submitPhase = "calling Core submit";
+        try {
+          const result = await runtime.runPromise(threads.submit(id, prompt, requestId));
+          submitPhase = `Core submit returned ${result.operationId}`;
+          return result;
+        } catch (error) {
+          submitPhase = `Core submit failed: ${String(error)}`;
+          throw error;
+        }
       },
       operationByRequest: (id, requestId) =>
         runtime.runPromise(threads.operationByRequest(id, requestId)),
@@ -302,28 +316,31 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   );
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_000));
   const schedule = (await runtime.runPromise(schedules.list()))[0];
-  const dispatching = (await runtime.runPromise(schedules.runs(schedule.id)))[0];
-  expect(dispatching.state).toBe("dispatching");
-  expect(dispatching.operationId).toBeUndefined();
-  releaseAdmission();
-  // A tick may finish before admission. Reconcile the durable receipt before querying its operation.
+  const occurrence = (await runtime.runPromise(schedules.runs(schedule.id)))[0];
+  expect(occurrence.state).toBe("dispatching");
+  expect(submitPhase).toBe("waiting for the test to release admission");
+  admissionGate.resolve();
+  let lastObservation = "no dispatcher poll yet";
   await expect
     .poll(
       async () => {
         await runtime.runPromise(dispatcher.tick(adapter, now + 100_000));
-        return (await runtime.runPromise(schedules.runs(schedule.id)))[0]?.operationId;
+        const current = (await runtime.runPromise(schedules.runs(schedule.id))).find(
+          (run) => run.id === occurrence.id,
+        );
+        lastObservation = `${current?.state ?? "missing"}; reason=${current?.reason ?? "none"}; operation=${current?.operationId ?? "none"}`;
+        return current?.state;
       },
-      { timeout: 10000 },
+      { timeout: 45_000 },
     )
-    .toBeTruthy();
-  const occurrence = (await runtime.runPromise(schedules.runs(schedule.id)))[0];
-  await expect
-    .poll(
-      async () =>
-        (await runtime.runPromise(threads.operation(thread.id, occurrence.operationId!))).status,
-      { timeout: 10000 },
-    )
-    .toBe("completed");
+    .toBe("succeeded")
+    .catch(async (error: unknown) => {
+      const receipt = await runtime
+        .runPromise(threads.operationByRequest(thread.id, occurrence.requestId))
+        .catch((failure: unknown) => ({ failure: String(failure) }));
+      console.error("Scheduled admission diagnostic", { submitPhase, lastObservation, receipt });
+      throw error;
+    });
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_001));
   expect((await runtime.runPromise(schedules.runs(schedule.id)))[0].state).toBe("succeeded");
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_002));
@@ -363,8 +380,17 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   )!;
   await expect
     .poll(
-      async () =>
-        (await runtime.runPromise(threads.operation(thread.id, manual.operationId!))).status,
+      async () => {
+        const before = (await runtime.runPromise(schedules.runs(schedule.id))).find(
+          (run) => run.id === manual.id,
+        );
+        if (!before?.operationId) await runtime.runPromise(dispatcher.tick(adapter, now + 100_003));
+        const current = (await runtime.runPromise(schedules.runs(schedule.id))).find(
+          (run) => run.id === manual.id,
+        );
+        if (!current?.operationId) return undefined;
+        return (await runtime.runPromise(threads.operation(thread.id, current.operationId))).status;
+      },
       { timeout: 10000 },
     )
     .toBe("completed");
@@ -378,7 +404,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
       ?.state,
   ).toBe("succeeded");
   expect(await runtime.runPromise(schedules.list())).toEqual([]);
-}, 15000);
+}, 60_000);
 
 test("dispatcher remains dormant until host readiness, rejects a second start and stops new triggers", async () => {
   const { runtime, store, dispatcher, host, calls } = await fixture();

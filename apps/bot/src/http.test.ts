@@ -1,3 +1,8 @@
+import {
+  LibrarySchema,
+  OpenThreadSchema,
+  OperationSchema,
+} from "../../mobile/src/bot/contracts.ts";
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { BotLibrary } from "@eta/core/shared/bot";
 import {
@@ -1177,3 +1182,41 @@ test("HTTP pending management preserves the active state until uncertain admissi
     release({ status: "blocked", reason: "cleanup" });
   }
 }, 15000);
+
+test("real Bot HTTP responses remain compatible with the mobile consumer contracts", async () => {
+  const { provider, request, create } = await fixture();
+  const id = await create("mobile-contract");
+  const libraryResponse = await request("/v1/library");
+  expect(libraryResponse.status).toBe(200);
+  const library = LibrarySchema.parse(await libraryResponse.json());
+  expect(library.threads.map((thread) => thread.id)).toContain(id);
+  expect(library.models.length).toBeGreaterThan(0);
+  const initialResponse = await request(`/v1/threads/${id}`);
+  expect(initialResponse.status).toBe(200);
+  const initial = OpenThreadSchema.parse(await initialResponse.json());
+  expect(initial.id).toBe(id);
+  expect(initial.snapshot.transcript).toEqual([]);
+  provider.setResponses([fauxAssistantMessage("Mobile contract proof")]);
+  const response = await request(`/v1/threads/${id}/messages`, {
+    prompt: "Verify mobile contract",
+    requestId: "mobile-contract-run",
+  });
+  expect(response.status).toBe(202);
+  const accepted = Schema.decodeUnknownSync(admission)(await response.json());
+  await expect
+    .poll(
+      async () => {
+        const result = await request(`/v1/threads/${id}/operations/${accepted.operationId}`);
+        expect(result.status).toBe(200);
+        return OperationSchema.parse(await result.json()).status;
+      },
+      { timeout: 10_000 },
+    )
+    .toBe("completed");
+  const completedResponse = await request(`/v1/threads/${id}`);
+  expect(completedResponse.status).toBe(200);
+  const completed = OpenThreadSchema.parse(await completedResponse.json());
+  expect(completed.snapshot.lastResult?.status).toBe("completed");
+  expect(completed.snapshot.transcript.some((entry) => entry.message.role === "user")).toBe(true);
+  expect(JSON.stringify(completed.snapshot.transcript)).toContain("Mobile contract proof");
+});
