@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { DateTime, Effect, Layer, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vite-plus/test";
 import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
@@ -284,7 +285,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
     {
       submit: async (id, prompt, requestId) => {
         submitPhase = "intentional delay";
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await delay(1_500);
         submitPhase = "calling Core submit";
         try {
           const result = await runtime.runPromise(threads.submit(id, prompt, requestId));
