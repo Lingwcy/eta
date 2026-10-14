@@ -1,5 +1,5 @@
 import { ThreadContextMenu } from "../threads/thread-actions";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Clock, FolderClosed, SquarePen, BookOpen } from "lucide-react";
 import { DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -11,19 +11,29 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Kbd } from "@/components/ui/kbd";
-import { RunningIndicator } from "@/components/ui/running-indicator";
+import { ThreadItemStatus } from "./thread-item-status";
 import { searchThreads } from "./search-threads";
 
 import type { SearchDialogProps } from "./search-dialog-props";
 
 export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => void }) {
   const [query, setQuery] = useState("");
+  const worktrees = useMemo(
+    () =>
+      new Set(
+        props.library?.workspaces
+          .filter((workspace) => workspace.kind === "worktree")
+          .map((workspace) => workspace.id),
+      ),
+    [props.library],
+  );
   const matches = searchThreads(props.library, query, props.archived);
   const chats = (query.trim() ? matches : matches.slice(0, 9)).map(({ thread, project }) => ({
     id: thread.id,
     label: thread.title || "新聊天",
     project,
     kind: "chat",
+    worktree: worktrees.has(thread.workspaceId),
   }));
   const actions = [
     ...(props.onSchedules
@@ -118,7 +128,11 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
                 <CommandItem value={chat} onClick={() => choose(() => props.onSelect(chat.id))}>
                   <span className="w-4 shrink-0" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate">{chat.label}</span>
-                  {props.runningThreadIds.has(chat.id) && <RunningIndicator />}
+                  <ThreadItemStatus
+                    running={props.runningThreadIds.has(chat.id)}
+                    scheduled={props.scheduledThreadIds?.has(chat.id) ?? false}
+                    worktree={chat.worktree}
+                  />
                   <span className="max-w-28 truncate text-[13px] text-neutral-400">
                     {chat.project}
                   </span>

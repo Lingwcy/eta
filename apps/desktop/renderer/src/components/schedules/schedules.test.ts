@@ -2,7 +2,7 @@
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { act, createElement, useState, Fragment } from "react";
+import { act, createElement, useState, useSyncExternalStore, Fragment } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ManagedRuntime } from "effect";
@@ -27,6 +27,9 @@ import { useSchedules } from "@/agent/use-schedules";
 import { ScheduleForm } from "./schedule-form";
 import { TaskList } from "@/components/task-list";
 import { ScheduleMessages } from "./schedule-tool-notice";
+import { ThreadRecents } from "@/agent/thread-recents";
+import { DesktopTabs } from "@/agent/desktop-tabs";
+import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { ScheduleSidebar } from "./schedule-sidebar";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -712,7 +715,7 @@ test("a grouped task menu targets the selected plan without pausing its sibling"
 test.each(["local", "bot"])(
   "the %s streamed schedule notice resolves its durable receipt and cancels the actual plan through IPC",
   async (environment) => {
-    const { runtime, schedules, threads, workspace, bridge } = await setup();
+    const { runtime, schedules, threads, workspace, bridge, library } = await setup();
     const thread = await runtime.runPromise(threads.create(workspace.id));
     const prefix = environment === "bot" ? "bot:fixture:" : "";
     const currentThreadId = prefix + thread.id;
@@ -775,13 +778,33 @@ test.each(["local", "bot"])(
       const controller = useSchedules();
       return createElement(ScheduleMessages, {
         value: { threadId: currentThreadId, controller },
-        children: createElement(TaskList, { tools }),
+        children: createElement(
+          Fragment,
+          null,
+          createElement(TaskList, { tools }),
+          createElement(ScheduleSidebar, {
+            library,
+            controller,
+            onSelect: () => {},
+            onSaved: () => {},
+          }),
+        ),
       });
     }
     await act(async () => root.render(createElement(Stream)));
+    await expect
+      .poll(() =>
+        document.querySelector(
+          `[aria-label="${environment === "local" ? "本地任务" : "Bot 任务"}"]`,
+        ),
+      )
+      .not.toBeNull();
     await click("取消计划");
     await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(0);
     await expect.poll(() => document.body.textContent).toContain("计划已取消");
+    await expect
+      .poll(() => document.querySelector('[aria-label="本地任务"], [aria-label="Bot 任务"]'))
+      .toBeNull();
     expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
   },
 );
@@ -823,3 +846,181 @@ test.each(["danger-full-access", "workspace-write"] as const)(
     expect((await runtime.runPromise(schedules.list(saved!)))[0].name).toBe("Permission test");
   },
 );
+
+test("project thread markers follow actual schedule creation and deletion and the execution workspace", async () => {
+  const { runtime, schedules, threads, workspace, library, bridge } = await setup();
+  Object.assign(bridge, {
+    subscribeUpdate: () => () => {},
+    updateState: async () => ({ status: "unsupported" }),
+  });
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [{ ...thread.thread, projectId: workspace.projectId }];
+  library.workspaces = [
+    { ...workspace, kind: "worktree" },
+    { ...workspace, id: "root-display", cwd: `${workspace.cwd}-root`, kind: "project-root" },
+  ];
+  let selected: string | undefined;
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(DesktopSidebar, {
+      library,
+      schedules: controller,
+      scheduleView: false,
+      onScheduleView: () => {},
+      onScheduleSaved: () => {},
+      runningThreadIds: new Set([thread.id]),
+      workspaceId: "root-display",
+      threadId: thread.id,
+      busy: false,
+      collapsed: false,
+      onExpand: () => {},
+      onSelect: (id) => {
+        selected = id;
+      },
+      onNew: () => {},
+      onChoose: () => {},
+      onSettings: () => {},
+      onSkills: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  const projectButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (item) => item.title === `${workspace.cwd}-root`,
+  )!;
+  await act(async () => projectButton.click());
+  await expect.poll(() => document.querySelector('[aria-label="使用 worktree"]')).not.toBeNull();
+  expect(document.querySelector('[aria-label="有定时任务"]')).toBeNull();
+  let scheduleId: string | undefined;
+  await act(async () => {
+    scheduleId = (
+      await runtime.runPromise(
+        schedules.write({
+          threadId: thread.id,
+          requestId: "marker-create",
+          change: {
+            action: "create",
+            name: "Marker",
+            prompt: "Review",
+            rule: { type: "interval", everyMs: 300000, anchorAt: Date.now() + 3600000 },
+          },
+        }),
+      )
+    ).scheduleId;
+  });
+  await expect.poll(() => document.querySelector('[aria-label="有定时任务"]')).not.toBeNull();
+  const row = document.querySelector('[aria-label="有定时任务"]')!.closest("button")!;
+  expect(row.textContent).toContain("正在运行");
+  await act(async () => row.click());
+  expect(selected).toBe(thread.id);
+  await act(async () => {
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: "marker-delete",
+        change: { action: "delete", scheduleId: scheduleId!, expectedRevision: 1 },
+      }),
+    );
+  });
+  await expect.poll(() => document.querySelector('[aria-label="有定时任务"]')).toBeNull();
+  expect(document.querySelector('[aria-label="使用 worktree"]')).not.toBeNull();
+});
+
+test("the bell switches to cross-project recents and opening a row moves it to the top", async () => {
+  const { runtime, threads, workspace, library, bridge } = await setup();
+  Object.assign(bridge, {
+    subscribeUpdate: () => () => {},
+    updateState: async () => ({ status: "unsupported" }),
+  });
+  const first = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.rename(first.id, "First visited"));
+  const projects = await runtime.runPromise(ProjectService);
+  const workspaces = await runtime.runPromise(WorkspaceService);
+  const otherPath = join(workspace.cwd, "other-project");
+  await mkdir(otherPath);
+  const otherProject = await runtime.runPromise(projects.register({ rootPath: otherPath }));
+  const otherWorkspace = (await runtime.runPromise(workspaces.list(otherProject.id)))[0];
+  library.projects = [...library.projects, otherProject];
+  library.workspaces = [...library.workspaces, otherWorkspace];
+  const second = await runtime.runPromise(threads.create(otherWorkspace.id));
+  await runtime.runPromise(threads.rename(second.id, "Second visited"));
+  library.threads = [
+    await runtime.runPromise(threads.get(first.id)),
+    await runtime.runPromise(threads.get(second.id)),
+  ];
+  const saved = new Map<string, string>();
+  let now = Date.now();
+  const recents = new ThreadRecents(
+    {
+      getItem: (key) => saved.get(key) ?? null,
+      setItem: (key, value) => {
+        saved.set(key, value);
+      },
+    },
+    () => now,
+  );
+  const tabs = new DesktopTabs();
+  const disconnect = recents.connect(tabs, new EventTarget());
+  cleanups.push(async () => disconnect());
+  tabs.openThread(first.id, workspace.id);
+  now += 1000;
+  tabs.openThread(second.id, otherWorkspace.id);
+  function Sidebar() {
+    const controller = useSchedules();
+    const visits = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
+    const state = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
+    const active = state.tabs.find((tab) => tab.id === state.activeId);
+    return createElement(DesktopSidebar, {
+      library,
+      schedules: controller,
+      visits,
+      scheduleView: false,
+      onScheduleView: () => {},
+      onScheduleSaved: () => {},
+      runningThreadIds: new Set<string>(),
+      workspaceId: workspace.id,
+      threadId: active?.kind === "conversation" ? (active.threadId ?? null) : null,
+      busy: false,
+      collapsed: false,
+      onExpand: () => {},
+      onSelect: (id) =>
+        tabs.openThread(id, library.threads.find((thread) => thread.id === id)!.workspaceId),
+      onNew: () => {},
+      onChoose: () => {},
+      onSettings: () => {},
+      onSkills: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="最近访问"]')!.click(),
+  );
+  const rows = () =>
+    [...document.querySelectorAll<HTMLButtonElement>('nav[aria-label="项目与会话"] button')].filter(
+      (button) => ["First visited", "Second visited"].includes(button.title),
+    );
+  expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
+  expect(rows()[0].textContent).toContain(otherProject.name);
+  expect(rows()[1].textContent).toContain(library.projects[0].name);
+  const visitOrder = recents.getSnapshot();
+  await runtime.runPromise(threads.rename(first.id, "First visited"));
+  library.threads = [
+    await runtime.runPromise(threads.get(first.id)),
+    await runtime.runPromise(threads.get(second.id)),
+  ];
+  await act(async () => root.render(createElement(Sidebar)));
+  expect(recents.getSnapshot()).toBe(visitOrder);
+  expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
+  now += 1000;
+  await act(async () => rows()[1].click());
+  expect(rows().map((row) => row.title)).toEqual(["First visited", "Second visited"]);
+  expect(
+    new ThreadRecents({
+      getItem: (key) => saved.get(key) ?? null,
+      setItem: () => {},
+    }).getSnapshot()[0].threadId,
+  ).toBe(first.id);
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="最近访问"]')!.click(),
+  );
+  expect(rows()).toEqual([]);
+});

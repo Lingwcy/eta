@@ -97,6 +97,8 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
             onScheduleSaved={(id) => void shell.scheduleSaved(id)}
             library={desktop.library}
             runningThreadIds={runningThreadIds}
+            visits={navigation.visits}
+            previews={shell.threadPreviews}
             workspaceId={conversation?.workspaceId ?? null}
             threadId={conversation?.threadId ?? null}
             busy={desktop.busy}

@@ -4,7 +4,7 @@ import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { SchedulesController } from "@/agent/use-schedules";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@base-ui/react/popover";
-import { Plus, ListFilter, Check } from "lucide-react";
+import { Plus, ListFilter, Check, Monitor, Cloud } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ScheduleMenu } from "./schedule-menu";
 import { ScheduleForm } from "./schedule-form";
@@ -183,7 +183,22 @@ export function ScheduleSidebar({
                   onClick={() => onSelect(group.id)}
                 >
                   <span className="flex min-w-0 flex-col gap-1 pr-6">
-                    <span className="truncate">{group.title}</span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {group.environment.id === "local" ? (
+                        <Monitor
+                          size={13}
+                          aria-label="本地任务"
+                          className="shrink-0 text-neutral-400"
+                        />
+                      ) : (
+                        <Cloud
+                          size={13}
+                          aria-label="Bot 任务"
+                          className="shrink-0 text-neutral-400"
+                        />
+                      )}
+                      <span className="truncate">{group.title}</span>
+                    </span>
                     <span className="truncate text-xs text-neutral-500">
                       {group.next
                         ? `${scheduleTime(group.next.nextRunAt)} · ${scheduleRuleText(group.next.rule)}`
@@ -192,7 +207,6 @@ export function ScheduleSidebar({
                           : group.plans.some((plan) => plan.state === "paused")
                             ? "已暂停"
                             : "已完成"}
-                      {group.environment.id !== "local" ? ` · ${group.environment.label}` : ""}
                       {group.plans.length > 1 ? ` · ${group.plans.length} 个计划` : ""}
                       {group.latest?.state === "admitted"
                         ? " · 执行中"

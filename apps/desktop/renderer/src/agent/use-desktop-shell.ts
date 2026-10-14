@@ -64,7 +64,11 @@ export function useDesktopShell() {
   const toggleSidebar = useCallback(() => setCollapsed((value) => !value), []);
   const runShortcut = useDesktopShortcuts(navigation.tabs, toggleSidebar, toggleInspector);
   const browser = useBrowserPages(navigation.tabs, navigation.state, runShortcut);
-  const { items, savePreview } = useTabPresentations(navigation, desktop.library, browser.pages);
+  const { items, savePreview, threadPreviews } = useTabPresentations(
+    navigation,
+    desktop.library,
+    browser.pages,
+  );
   const chooseProject = () =>
     void desktop.act(async () => {
       const project = await window.eta.chooseProject();
@@ -116,6 +120,7 @@ export function useDesktopShell() {
     browser,
     items,
     savePreview,
+    threadPreviews,
     selectedSubagents,
     selectSubagent,
     inspectorConversation,

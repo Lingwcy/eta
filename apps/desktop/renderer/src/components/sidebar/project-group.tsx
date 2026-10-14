@@ -5,6 +5,7 @@ import { RunningIndicator } from "@/components/ui/running-indicator";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
+import { ThreadItemStatus } from "./thread-item-status";
 import { SlidingLabel } from "./sliding-label";
 
 interface Props {
@@ -15,6 +16,8 @@ interface Props {
   threadId: string | null;
   running: boolean;
   runningThreadIds: ReadonlySet<string>;
+  scheduledThreadIds: ReadonlySet<string>;
+  worktreeThreadIds: ReadonlySet<string>;
   busy: boolean;
   archived: boolean;
   onSelect: (id: string) => void;
@@ -27,6 +30,8 @@ export function ProjectGroup({
   threadId,
   running,
   runningThreadIds,
+  scheduledThreadIds,
+  worktreeThreadIds,
   busy,
   archived,
   onSelect,
@@ -73,11 +78,11 @@ export function ProjectGroup({
               onClick={() => onSelect(thread.id)}
             >
               <SlidingLabel text={thread.title || "新聊天"} />
-              {runningThreadIds.has(thread.id) && (
-                <span className="ml-auto">
-                  <RunningIndicator />
-                </span>
-              )}
+              <ThreadItemStatus
+                running={runningThreadIds.has(thread.id)}
+                scheduled={scheduledThreadIds.has(thread.id)}
+                worktree={worktreeThreadIds.has(thread.id)}
+              />
             </Button>
           </ThreadContextMenu>
         ))}

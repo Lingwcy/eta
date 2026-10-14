@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 import { DesktopTabs } from "./desktop-tabs";
+import { ThreadRecents } from "./thread-recents";
 import { ThreadActivity } from "./thread-activity";
 import { readTabs, persistTabs } from "./tab-storage";
 
@@ -9,6 +10,12 @@ export function useDesktopTabs(library: DesktopLibrary | null) {
   const [initial] = useState(() => (windowThread ? undefined : readTabs(localStorage)));
   const [tabs] = useState(() => new DesktopTabs(undefined, initial));
   const state = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
+  const [recents] = useState(() => new ThreadRecents(localStorage));
+  const visits = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
+  useEffect(
+    () => recents.connect(tabs, window, () => document.visibilityState !== "hidden"),
+    [recents, tabs],
+  );
   const [activity] = useState(() => new ThreadActivity(window.eta));
   const runningThreadIds = useSyncExternalStore(activity.subscribe, activity.getSnapshot);
   const initialized = useRef(false);
@@ -37,7 +44,7 @@ export function useDesktopTabs(library: DesktopLibrary | null) {
       dispose();
     };
   }, [activity]);
-  return { tabs, state, activity, runningThreadIds };
+  return { tabs, state, activity, runningThreadIds, visits };
 }
 
 export type DesktopTabController = ReturnType<typeof useDesktopTabs>;
