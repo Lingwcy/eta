@@ -50,7 +50,11 @@ afterEach(async () => {
 const identity = Schema.Struct({ id: Schema.String });
 const admission = Schema.Struct({ operationId: Schema.String });
 
-async function fixture(empty = false, defaultProvider?: string) {
+async function fixture(
+  empty = false,
+  defaultProvider?: string,
+  allowedSandboxModes?: BotConfig["allowedSandboxModes"],
+) {
   const root = await mkdtemp(join(tmpdir(), "eta-bot-http-"));
   roots.push(root);
   const cwd = join(root, "workspaces", "workspace");
@@ -76,6 +80,7 @@ async function fixture(empty = false, defaultProvider?: string) {
   const config: BotConfig = {
     dataRoot: join(root, "data"),
     adminToken: "test-admin-token",
+    ...(allowedSandboxModes ? { allowedSandboxModes } : {}),
     workspaceRoot: join(root, "workspaces"),
     projects: empty ? [] : [{ key: "test", rootPath: cwd }],
     runtime: { defaultThinkingLevel: "off", ...(defaultProvider ? { defaultProvider } : {}) },
@@ -198,7 +203,10 @@ test("HTTP admission executes real tools, rejects conflicting retries and retain
 });
 
 test("HTTP exposes sandbox ceilings and scopes approvals to the owning thread", async () => {
-  const { bot, provider, request, create, cwd } = await fixture();
+  const { bot, provider, request, create, cwd } = await fixture(false, undefined, [
+    "read-only",
+    "workspace-write",
+  ]);
   const id = await create("sandbox-thread");
   const other = await create("other-thread");
   expect((await request(`/v1/threads/${id}/sandbox`, { mode: "danger-full-access" })).status).toBe(
@@ -1219,4 +1227,19 @@ test("real Bot HTTP responses remain compatible with the mobile consumer contrac
   expect(completed.snapshot.lastResult?.status).toBe("completed");
   expect(completed.snapshot.transcript.some((entry) => entry.message.role === "user")).toBe(true);
   expect(JSON.stringify(completed.snapshot.transcript)).toContain("Mobile contract proof");
+});
+
+test("default deployment advertises full access and permits switching both ways", async () => {
+  const { bot, request, create } = await fixture();
+  const library = await request("/v1/library");
+  expect(library.status).toBe(200);
+  expect(await library.json()).toMatchObject({
+    allowedSandboxModes: ["read-only", "workspace-write", "danger-full-access"],
+  });
+  const id = await create("full-access-thread");
+  expect((await bot.core.openThread(id)).snapshot.sandbox?.mode).toBe("workspace-write");
+  for (const mode of ["danger-full-access", "read-only", "workspace-write"]) {
+    expect((await request(`/v1/threads/${id}/sandbox`, { mode })).status).toBe(200);
+    expect((await bot.core.openThread(id)).snapshot.sandbox?.mode).toBe(mode);
+  }
 });

@@ -1,3 +1,4 @@
+import { sandboxModes } from "@eta/core/shared/sandbox";
 import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -71,7 +72,7 @@ export async function createBotApplication(
       environment: {
         userAgent: "eta-bot",
         shutdown: "preserve",
-        allowedSandboxModes: config.allowedSandboxModes ?? ["read-only", "workspace-write"],
+        allowedSandboxModes: config.allowedSandboxModes ?? sandboxModes,
         sandboxWorkerPath: existsSync(worker) ? worker : undefined,
         // A dot directory: project discovery skips it, yet it stays inside the workspace root's scope.
         worktreeRoot: join(config.workspaceRoot, ".eta-worktrees"),
