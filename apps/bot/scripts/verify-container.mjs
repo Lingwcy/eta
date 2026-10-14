@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,13 +18,23 @@ function docker(args, inherit = false) {
   return result.stdout?.trim() ?? "";
 }
 docker(["version", "--format", "{{.Server.Version}}"]);
+const bundled = spawnSync("vp", ["pack"], {
+  env: { ...process.env, ETA_SCHEDULE_VERIFIER: "1" },
+  cwd: fileURLToPath(new URL("../", import.meta.url)),
+  stdio: "inherit",
+});
+if (bundled.error || bundled.status !== 0)
+  throw new Error("Unable to bundle the controlled-model schedule verifier.");
 // macOS Docker VMs share the home directory; the OS temporary directory may be unmounted.
-const root = await mkdtemp(join(homedir(), ".eta-bot-container-"));
+const fixtureParent = process.env.ETA_CONTAINER_FIXTURE_ROOT ?? homedir();
+await mkdir(fixtureParent, { recursive: true });
+const root = await mkdtemp(join(fixtureParent, ".eta-bot-container-"));
 const name = `eta-bot-verification-${process.pid}-${Date.now()}`;
 const image = `${name}:test`;
 const data = `${name}-data`;
 const workspace = `${name}-workspace`;
 let reader;
+let stage = "image build";
 try {
   const config = join(root, "config.json");
   await writeFile(
@@ -71,6 +81,7 @@ try {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   };
+  stage = "container readiness";
   let url = await ready();
   assert.equal(docker(["exec", name, "id", "-u"]), "1000");
   docker(["exec", name, "test", "-w", "/workspaces"]);
@@ -85,6 +96,8 @@ try {
     `import assert from 'node:assert/strict'; import { processImage } from './dist/runtime.mjs'; const image = await processImage(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'), 'test.gif'); assert.equal(image.mimeType, 'image/png');`,
   ]);
   const headers = {
+    // Synchronous Docker commands can block past the server idle timeout; do not reuse those sockets.
+    connection: "close",
     authorization: "Bearer container-fixture-token",
     "content-type": "application/json",
   };
@@ -117,25 +130,45 @@ try {
   assert.equal(thread.snapshot.sandbox.mode, "workspace-write");
   assert.equal(thread.snapshot.sandbox.backend, "landlock");
   assert.equal(thread.snapshot.sandbox.available, true, thread.snapshot.sandbox.reason);
+  stage = "native sandbox";
   docker([
     "cp",
     fileURLToPath(new URL("./verify-sandbox.mjs", import.meta.url)),
     `${name}:/tmp/verify-sandbox.mjs`,
   ]);
   docker(["exec", name, "node", "/tmp/verify-sandbox.mjs", "/opt/eta-bot/dist"]);
+  stage = "native scheduled delivery";
+  docker([
+    "cp",
+    fileURLToPath(new URL("../node_modules/.cache/eta-schedule-verifier/", import.meta.url)),
+    `${name}:/tmp/eta-schedule-verifier`,
+  ]);
+  docker(
+    ["exec", name, "node", "/tmp/eta-schedule-verifier/verify-schedules.mjs", "/opt/eta-bot/dist"],
+    true,
+  );
+  stage = "subscribe SSE";
   reader = (await fetch(`${url}/v1/threads/${thread.id}/events`, { headers })).body.getReader();
   assert.match(new TextDecoder().decode((await reader.read()).value), /event: snapshot/);
+  stage = "graceful stop";
   docker(["stop", "--time", "15", name]);
   assert.equal(docker(["inspect", "--format", "{{.State.ExitCode}}", name]), "0");
   await reader.cancel().catch(() => {});
   reader = undefined;
+  stage = "restart";
   docker(["start", name]);
   url = await ready();
+  stage = "replay thread after restart";
   assert.equal((await create()).id, thread.id);
   console.log(
-    "Linux container verified: native sandbox, tools, non-root persistent volumes, HTTP/SSE, shutdown, restart and bundled images.",
+    "Linux container verified: native sandbox, tools, non-root persistent volumes, HTTP/SSE, scheduled tool / confirmation / real delivery, shutdown, restart and bundled images.",
   );
 } catch (error) {
+  console.error(`Linux verification failed during ${stage}.`);
+  spawnSync("docker", ["inspect", "--format", "{{json .State}}", name], {
+    cwd: repository,
+    stdio: "inherit",
+  });
   // Preserve startup and shutdown diagnostics before removing this verifier's container.
   spawnSync("docker", ["logs", name], { cwd: repository, stdio: "inherit" });
   throw error;

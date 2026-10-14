@@ -12,9 +12,27 @@ import { CatalogValidationError } from "@eta/core/service/catalog/schema";
 import { RuntimeSettingsSchema, TitleModelSchema } from "@eta/core/shared/runtime-settings";
 import { SandboxModeSchema } from "@eta/core/shared/sandbox";
 
+import {
+  ScheduleWriteInputSchema,
+  ScheduleProposeInputSchema,
+  ScheduleDecisionInputSchema,
+  ScheduleRunInputSchema,
+} from "@eta/core/service/schedules/management";
+
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
 const Command = Schema.Union([
+  Schema.Struct({ type: Schema.Literal("schedule-snapshot") }),
+  Schema.Struct({ type: Schema.Literal("schedule-write"), input: ScheduleWriteInputSchema }),
+  Schema.Struct({ type: Schema.Literal("schedule-propose"), input: ScheduleProposeInputSchema }),
+  Schema.Struct({
+    type: Schema.Literal("schedule-decide"),
+    input: ScheduleDecisionInputSchema,
+    approved: Schema.Boolean,
+  }),
+  Schema.Struct({ type: Schema.Literal("schedule-run"), input: ScheduleRunInputSchema }),
+  Schema.Struct({ type: Schema.Literal("schedule-runs"), scheduleId: Id }),
+  Schema.Struct({ type: Schema.Literal("schedule-request"), threadId: Id, requestId: Id }),
   Schema.Struct({ type: Schema.Literal("bot-import-credentials") }),
   Schema.Struct({ type: Schema.Literal("bot-remove-credential"), providerId: Id }),
   Schema.Struct({ type: Schema.Literal("bot-connect"), connection: BotConnectionSchema }),
@@ -168,6 +186,7 @@ const Command = Schema.Union([
       disabledSkills: Schema.optionalKey(Schema.Array(Id)),
       blockImages: Schema.optionalKey(Schema.Boolean),
       agentThinkingVariant: Schema.optionalKey(Schema.Literals(agentThinkingVariants)),
+      backgroundOnClose: Schema.optionalKey(Schema.Boolean),
       autoCheckUpdates: Schema.optionalKey(Schema.Boolean),
     }),
   }),
@@ -194,6 +213,20 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     throw new CoreError({ code: "InvalidInput", message: "请求参数无效" });
   }
   switch (command.type) {
+    case "schedule-snapshot":
+      return application.scheduleSnapshot();
+    case "schedule-write":
+      return application.writeSchedule(command.input);
+    case "schedule-propose":
+      return application.proposeSchedule(command.input);
+    case "schedule-decide":
+      return application.decideSchedule(command.input, command.approved);
+    case "schedule-run":
+      return application.runSchedule(command.input);
+    case "schedule-runs":
+      return application.scheduleRuns(command.scheduleId);
+    case "schedule-request":
+      return application.scheduleRequest(command.threadId, command.requestId);
     case "bot-import-credentials":
       return application.importBotCredentials();
     case "bot-remove-credential":

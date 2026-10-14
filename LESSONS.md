@@ -80,6 +80,18 @@ this checkpoint. Its findings are recorded under
 
 ## Build and runtime boundaries
 
+**Recover filesystem staging before treating a cross-store lifecycle operation as rolled back.**
+
+- Evidence: on 2026-10-13, the scheduled-task `SIGKILL at delete-intent` fixture moved a real session into `.trash` and killed the host before its Catalog replacement. The reopened Catalog still contained the thread, but opening it failed with `StorageCorrupt`. Session removal now journals before renaming and reconciles that journal against Catalog before opening threads; six real archive/delete crash windows pass, including restore-after-archive without restarting plans.
+- Check: kill the process after filesystem staging and after Catalog persistence; prove the original transcript remains accessible when the operation did not commit and that committed deletion does not resurrect it. An in-memory rollback callback cannot cover process death.
+- Seen: 2026-10-13.
+
+**Map environment entity IDs consistently in admission replies, observations and persisted provenance.**
+
+- Evidence: the 2026-10-13 source audit of `96d54e4` found prefixed cloud snapshot operation IDs paired with raw ordinary submission replies. The chat client acknowledges completion by comparing those identities, so mismatched mapping could leave its admission pending. The controlled SSE regression in `main/bot.test.ts` now drives a real `ThreadAgentClient` through the Bot transport and verifies completion clears the pending admission and preserves message provenance. The risk was found by source inspection; this does not claim a native UI reproduction.
+- Check: exercise the ordinary chat path as well as scheduled delivery when changing shared identity mapping. Request IDs, tool-call IDs and content fingerprints remain opaque.
+- Seen: 2026-10-13.
+
 **Include host system configuration in native sandbox regression fixtures.**
 
 - Evidence: the 2026-10-13 Bot CI runs failed six Git metadata tests on Linux. A container with `/etc/gitconfig` reproduced the same six failures: Git treats denied system configuration reads as fatal. Restricted workers now pass `GIT_CONFIG_NOSYSTEM=1` to child commands; the native sandbox regression grants no access to a fixture's system config and still verifies Git init/status succeed. The focused Linux run passed all 35 Git, sandbox and recovery tests after the fix.
@@ -130,6 +142,18 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Do not let a background state machine wake itself on its own bookkeeping writes.**
+
+- Evidence: on 2026-10-13, the scheduled-task dispatcher wrote pending → dispatching → pending on a busy admission and fed both those writes and the resolved admission promise back into its wake queue. Restoring those notifications in `packages/core/test/service/schedules/dispatcher.test.ts`'s steady-busy regression reproduced 243 attempts instead of one; separating dispatcher-origin writes and only waking for late outcomes made it pass. Bot capacity tests also verify a Controller release wakes a queued task without waiting for the retry timer.
+- Check: exercise the real background loop under a stable busy condition, not only a single deterministic tick. Keep host capacity and user management notifications active; ensure internal receipt changes still reach client subscribers without retriggering admission.
+- Seen: 2026-10-13.
+
+**Cover tool argument generation when mapping model activity to UI status.**
+
+- Evidence: on 2026-10-13, a Desktop session spent about 2 minutes 38 seconds generating a `write` call containing a 284-line plan. The thinking status hid on the streamed tool call, while the tool card only appeared once execution began. The `streaming tool arguments` regression in `renderer/src/agent/thinking-status.test.ts` reproduced the missing indicator and now covers partial arguments, timer continuity, execution and completion.
+- Check: treat streamed tool arguments as active model generation; keep execution, approval pauses, retries and deferred responses distinct.
+- Seen: 2026-10-13.
+
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**
 
@@ -140,6 +164,20 @@ allows native startup, before checking an operation's result.**
 - Check: use the operation's completion signal rather than a fixed sleep.
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.
+- Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
+  schedule delivery test stuck before `ThreadService.submit`; the occurrence
+  remained `dispatching` and no durable receipt existed. Both a global timer and
+  Node's timer promise failed to advance under the parallel test suite. The
+  regression now holds admission behind a test-controlled promise, verifies
+  the initial dispatching state, releases admission, then polls the durable
+  receipt and checks exactly one user message. The focused dispatcher test
+  then revealed a separate Linux CI constraint: the runner lacks `bwrap`, so
+  the default workspace-write mode correctly blocks Core submission with
+  `SandboxUnavailable`. Because this integration asserts scheduling and message
+  admission rather than sandbox isolation, it explicitly uses full access only
+  for its temporary test workspace. Native validation ran outside the
+  protected `.codex` worktree directory; inside it the sandbox correctly denied
+  loading the development worker.
 - Seen 1× (2026-10-12).
 
 **Propagate a shared deadline through every asynchronous stage, including tools and the final decision check.**

@@ -629,3 +629,83 @@ test.each(["safe", "unsafe", "missing"] as const)(
   },
   15000,
 );
+
+test("schedule management shares thread lifecycle and keeps manual delivery independent", async () => {
+  const { core, workspace } = await fixture();
+  const thread = await core.createThread(workspace.id, "schedule-thread");
+  const input = {
+    threadId: thread.id,
+    name: "Review",
+    prompt: "Review repository",
+    rule: { type: "interval" as const, everyMs: 300_000, anchorAt: 0 },
+    requestId: "schedule-create",
+  };
+  const created = await core.createSchedule(input);
+  expect(created.state).toBe("applied");
+  const scheduleId = created.scheduleId!;
+  const manual = await core.runScheduleNow({
+    scheduleId,
+    expectedRevision: 1,
+    requestId: "manual",
+  });
+  expect(manual.state).toBe("applied");
+  await core.archiveThread(thread.id, true);
+  const archived = (await core.listSchedules({ threadId: thread.id }))[0];
+  expect(archived.state).toBe("paused");
+  expect((await core.listScheduleRuns({ scheduleId }))[0].state).toBe("cancelled");
+  await core.archiveThread(thread.id, false);
+  expect((await core.listSchedules({ threadId: thread.id }))[0].state).toBe("paused");
+  expect(await core.createSchedule(input)).toEqual(created);
+  const resumed = await core.resumeSchedule({
+    scheduleId,
+    expectedRevision: archived.revision,
+    requestId: "resume",
+  });
+  expect(resumed.state).toBe("applied");
+  await core.deleteThread(thread.id);
+  expect(await core.listSchedules({ threadId: thread.id })).toEqual([]);
+  expect(await core.scheduleRequest({ requestId: "schedule-create" })).toEqual(created);
+  expect(await core.createSchedule(input)).toEqual(created);
+});
+
+test("startup repairs the Catalog-committed schedule intent before allowing unarchive", async () => {
+  const { core, open, cwd, workspace } = await fixture();
+  const thread = await core.createThread(workspace.id, "crash-thread");
+  const created = await core.createSchedule({
+    threadId: thread.id,
+    name: "Review",
+    prompt: "Review",
+    rule: { type: "interval", everyMs: 300_000, anchorAt: 0 },
+    requestId: "create",
+  });
+  await core.close();
+  const schedulesPath = join(cwd, "..", "data", "schedules.json");
+  const catalogPath = join(cwd, "..", "data", "catalog.json");
+  const state = JSON.parse(await readFile(schedulesPath, "utf8"));
+  state.requests.archive = {
+    requestId: "archive",
+    threadId: thread.id,
+    fingerprint: "archive",
+    state: "pending",
+    createdAt: 1,
+  };
+  state.lifecycleIntents.archive = {
+    requestId: "archive",
+    threadId: thread.id,
+    action: "archive",
+    phase: "prepared",
+    createdAt: 1,
+  };
+  await writeFile(schedulesPath, JSON.stringify(state));
+  const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+  catalog.threads.find((value: { id: string }) => value.id === thread.id).archivedAt = 2;
+  await writeFile(catalogPath, JSON.stringify(catalog));
+  const restarted = await open();
+  expect((await restarted.scheduleRequest({ requestId: "archive" }))?.state).toBe("applied");
+  expect((await restarted.listSchedules())[0].state).toBe("paused");
+  await restarted.archiveThread(thread.id, false);
+  const schedule = (await restarted.listSchedules())[0];
+  expect(schedule.id).toBe(created.scheduleId);
+  expect(schedule.state).toBe("paused");
+  expect(schedule.nextRunAt).toBeNull();
+});

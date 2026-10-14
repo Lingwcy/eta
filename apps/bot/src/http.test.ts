@@ -1,3 +1,8 @@
+import {
+  LibrarySchema,
+  OpenThreadSchema,
+  OperationSchema,
+} from "../../mobile/src/bot/contracts.ts";
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { BotLibrary } from "@eta/core/shared/bot";
 import {
@@ -21,7 +26,13 @@ import {
   fauxAssistantMessage,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
-import { Schema } from "effect";
+import { DateTime, Schema } from "effect";
+import {
+  ScheduleSchema,
+  ScheduleProposalSchema,
+  ScheduleRequestSchema,
+  ScheduleOccurrenceSchema,
+} from "@eta/core/shared/schedules";
 import { serve } from "@hono/node-server";
 import { defineTask } from "@eta/agent";
 import type { CoreEnvironment } from "@eta/core";
@@ -747,4 +758,465 @@ test("GitHub HTTP queries enforce project ownership and reject caller-supplied r
   expect(await (await request("/v1/status")).json()).toMatchObject({
     capabilities: expect.arrayContaining(["git", "worktree", "github"]),
   });
+});
+
+test("schedule HTTP CRUD persists idempotent receipts and manual runs without deleting its thread", async () => {
+  const { bot, config, create, provider } = await fixture();
+  const id = await create("scheduled-thread");
+  await bot.core.renameThread(id, "Scheduled thread");
+  const send = (path: string, method = "GET", body?: object) =>
+    bot.app.request(path, {
+      method,
+      headers: { authorization: `Bearer ${config.adminToken}`, "content-type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  const at = DateTime.toEpochMillis(DateTime.nowUnsafe()) + 60_000;
+  const input = {
+    requestId: "schedule/create:opaque",
+    name: "Review",
+    prompt: "Original prompt",
+    rule: { type: "once", at },
+  };
+  const response = await send(`/v1/threads/${id}/schedules`, "POST", input);
+  expect(response.status).toBe(201);
+  const created = Schema.decodeUnknownSync(ScheduleRequestSchema)(await response.json());
+  expect(created.state).toBe("applied");
+  expect(created.nextRunAt).toBe(at);
+  expect(created.requestId).toBe(input.requestId);
+  const scheduleId = created.scheduleId!;
+  const replay = await send(`/v1/threads/${id}/schedules`, "POST", input);
+  expect(await replay.json()).toEqual(created);
+  expect(
+    (await send(`/v1/threads/${id}/schedules`, "POST", { ...input, prompt: "Conflicting prompt" }))
+      .status,
+  ).toBe(400);
+  expect(
+    (
+      await send(`/v1/threads/${id}/schedules`, "POST", {
+        ...input,
+        requestId: "empty-prompt",
+        prompt: "   ",
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    (
+      await send(`/v1/threads/${id}/schedules`, "POST", {
+        ...input,
+        requestId: "empty-name",
+        name: "   ",
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    (
+      await send(`/v1/threads/${id}/schedules`, "POST", {
+        ...input,
+        requestId: "invalid",
+        rule: { type: "interval", anchorAt: 0, everyMs: 1 },
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    (
+      await send(`/v1/schedules/${scheduleId}`, "PATCH", {
+        requestId: "edit",
+        expectedRevision: 1,
+        patch: { prompt: "Edited prompt" },
+      })
+    ).status,
+  ).toBe(200);
+  const listed = Schema.decodeUnknownSync(
+    Schema.Struct({ revision: Schema.Number, schedules: Schema.Array(ScheduleSchema) }),
+  )(await (await send(`/v1/schedules?threadId=${id}`)).json());
+  expect(listed.schedules).toHaveLength(1);
+  expect(listed.schedules[0].revision).toBe(2);
+  expect(listed.schedules[0].prompt).toBe("Edited prompt");
+  expect(
+    (
+      await send(`/v1/schedules/${scheduleId}/pause`, "POST", {
+        requestId: "pause",
+        expectedRevision: 2,
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await send(`/v1/schedules/${scheduleId}/resume`, "POST", {
+        requestId: "stale",
+        expectedRevision: 2,
+      })
+    ).status,
+  ).toBe(409);
+  provider.setResponses([fauxAssistantMessage("Manual scheduled work finished")]);
+  const manualResponse = await send(`/v1/schedules/${scheduleId}/run`, "POST", {
+    requestId: "manual",
+    expectedRevision: 3,
+  });
+  expect(manualResponse.status).toBe(200);
+  const manual = Schema.decodeUnknownSync(ScheduleRequestSchema)(await manualResponse.json());
+  await expect
+    .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.state, {
+      timeout: 10000,
+    })
+    .toBe("succeeded");
+  const runs = Schema.decodeUnknownSync(
+    Schema.Struct({ runs: Schema.Array(ScheduleOccurrenceSchema) }),
+  )(await (await send(`/v1/schedules/${scheduleId}/runs`)).json());
+  expect(runs.runs).toHaveLength(1);
+  expect(runs.runs[0].id).toBe(manual.occurrenceId);
+  expect(runs.runs[0].prompt).toBe("Edited prompt");
+  expect(
+    (
+      await send(`/v1/schedules/${scheduleId}/resume`, "POST", {
+        requestId: "resume",
+        expectedRevision: 3,
+      })
+    ).status,
+  ).toBe(200);
+  const deletion = { requestId: "delete/opaque:receipt", expectedRevision: 4 };
+  const deleted = Schema.decodeUnknownSync(ScheduleRequestSchema)(
+    await (await send(`/v1/schedules/${scheduleId}`, "DELETE", deletion)).json(),
+  );
+  expect(deleted.state).toBe("applied");
+  expect(await (await send(`/v1/schedules/${scheduleId}`, "DELETE", deletion)).json()).toEqual(
+    deleted,
+  );
+  expect(
+    await (await send(`/v1/schedule-requests/${encodeURIComponent(deletion.requestId)}`)).json(),
+  ).toEqual(deleted);
+  expect((await bot.core.listSchedules()).length).toBe(0);
+  expect((await bot.core.threads()).some((thread) => thread.id === id)).toBe(true);
+  await bot.core.deleteThread(id);
+  expect(
+    await (await send(`/v1/schedule-requests/${encodeURIComponent(deletion.requestId)}`)).json(),
+  ).toEqual(deleted);
+}, 15000);
+
+test("authenticated HTTP proposals stay inactive until an exact approval and decisions replay once", async () => {
+  const { bot, request, create } = await fixture();
+  const id = await create("proposal-thread");
+  const input = {
+    requestId: "propose",
+    change: {
+      action: "create",
+      name: "Review",
+      prompt: "Proposed work",
+      rule: { type: "once", at: DateTime.toEpochMillis(DateTime.nowUnsafe()) + 60_000 },
+    },
+  };
+  const proposedResponse = await request(`/v1/threads/${id}/schedule-proposals`, input);
+  expect(proposedResponse.status).toBe(201);
+  const proposed = Schema.decodeUnknownSync(ScheduleRequestSchema)(await proposedResponse.json());
+  expect(await bot.core.listSchedules()).toEqual([]);
+  const pending = Schema.decodeUnknownSync(
+    Schema.Struct({ proposals: Schema.Array(ScheduleProposalSchema) }),
+  )(await (await request("/v1/schedule-proposals?state=pending")).json()).proposals[0];
+  expect(pending.id).toBe(proposed.proposalId);
+  expect(pending.state).toBe("pending");
+  expect(
+    (
+      await request(`/v1/schedule-proposals/${pending.id}/approve`, {
+        requestId: "wrong",
+        contentFingerprint: "wrong",
+      })
+    ).status,
+  ).toBe(409);
+  expect(await bot.core.listSchedules()).toEqual([]);
+  const approval = { requestId: "approve", contentFingerprint: pending.contentFingerprint };
+  const approvedResponse = await request(`/v1/schedule-proposals/${pending.id}/approve`, approval);
+  expect(approvedResponse.status).toBe(200);
+  const approved = Schema.decodeUnknownSync(ScheduleRequestSchema)(await approvedResponse.json());
+  expect(
+    await (await request(`/v1/schedule-proposals/${pending.id}/approve`, approval)).json(),
+  ).toEqual(approved);
+  const schedule = (await bot.core.listSchedules())[0];
+  expect(schedule.id).toBe(approved.scheduleId);
+  expect(schedule.nextRunAt).toBe(input.change.rule.at);
+  const pause = Schema.decodeUnknownSync(ScheduleRequestSchema)(
+    await (
+      await request(`/v1/threads/${id}/schedule-proposals`, {
+        requestId: "propose-pause",
+        change: { action: "pause", scheduleId: schedule.id, expectedRevision: 1 },
+      })
+    ).json(),
+  );
+  const pauseProposal = (await bot.core.listScheduleProposals()).find(
+    (proposal) => proposal.id === pause.proposalId,
+  )!;
+  expect(
+    (
+      await request(`/v1/schedule-proposals/${pauseProposal.id}/reject`, {
+        requestId: "reject",
+        contentFingerprint: pauseProposal.contentFingerprint,
+      })
+    ).status,
+  ).toBe(200);
+  expect((await bot.core.listSchedules())[0].state).toBe("active");
+  expect(
+    (await bot.core.listScheduleProposals()).find((proposal) => proposal.id === pauseProposal.id)
+      ?.state,
+  ).toBe("rejected");
+  expect((await bot.app.request("/v1/schedule-proposals")).status).toBe(401);
+});
+
+test("schedule and proposal ID routes recheck project scope instead of trusting filtered lists", async () => {
+  const { bot, open, config, cwd, create } = await fixture();
+  const id = await create("scope-thread");
+  const at = DateTime.toEpochMillis(DateTime.nowUnsafe()) + 60_000;
+  const created = await bot.core.createSchedule({
+    threadId: id,
+    requestId: "scope-create",
+    name: "Private schedule",
+    prompt: "Private scope prompt",
+    rule: { type: "once", at },
+  });
+  const proposed = await bot.core.proposeScheduleChange({
+    threadId: id,
+    requestId: "scope-propose",
+    sourceIdentity: "root:scope",
+    change: {
+      action: "create",
+      name: "Private proposal",
+      prompt: "Private proposal prompt",
+      rule: { type: "once", at },
+    },
+  });
+  const proposal = (await bot.core.listScheduleProposals())[0];
+  await bot.close();
+  const outside = join(config.dataRoot, "..", "outside");
+  await rename(cwd, outside);
+  await symlink(outside, cwd, "dir");
+  const restored = await open();
+  const send = (path: string, method = "GET", body?: object) =>
+    restored.app.request(path, {
+      method,
+      headers: { authorization: `Bearer ${config.adminToken}`, "content-type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  const schedules = Schema.decodeUnknownSync(
+    Schema.Struct({ schedules: Schema.Array(ScheduleSchema) }),
+  )(await (await send("/v1/schedules")).json());
+  const proposals = Schema.decodeUnknownSync(
+    Schema.Struct({ proposals: Schema.Array(ScheduleProposalSchema) }),
+  )(await (await send("/v1/schedule-proposals")).json());
+  expect(schedules.schedules).toEqual([]);
+  expect(proposals.proposals).toEqual([]);
+  const attempts: Array<[string, string, object?]> = [
+    [`/v1/schedules/${created.scheduleId}/runs`, "GET"],
+    [
+      `/v1/schedules/${created.scheduleId}`,
+      "PATCH",
+      { requestId: "out-edit", expectedRevision: 1, patch: { prompt: "Changed" } },
+    ],
+    [
+      `/v1/schedules/${created.scheduleId}/pause`,
+      "POST",
+      { requestId: "out-pause", expectedRevision: 1 },
+    ],
+    [
+      `/v1/schedules/${created.scheduleId}/resume`,
+      "POST",
+      { requestId: "out-resume", expectedRevision: 1 },
+    ],
+    [
+      `/v1/schedules/${created.scheduleId}/run`,
+      "POST",
+      { requestId: "out-run", expectedRevision: 1 },
+    ],
+    [
+      `/v1/schedules/${created.scheduleId}`,
+      "DELETE",
+      { requestId: "out-delete", expectedRevision: 1 },
+    ],
+    [
+      `/v1/schedule-proposals/${proposed.proposalId}/approve`,
+      "POST",
+      { requestId: "out-approve", contentFingerprint: proposal.contentFingerprint },
+    ],
+    [
+      `/v1/schedule-proposals/${proposed.proposalId}/reject`,
+      "POST",
+      { requestId: "out-reject", contentFingerprint: proposal.contentFingerprint },
+    ],
+    ["/v1/schedule-requests/scope-create", "GET"],
+    ["/v1/schedule-requests/scope-propose", "GET"],
+    [
+      `/v1/threads/${id}/schedules`,
+      "POST",
+      { requestId: "out-create", name: "Bad", prompt: "Bad", rule: { type: "once", at } },
+    ],
+    [
+      `/v1/threads/${id}/schedule-proposals`,
+      "POST",
+      {
+        requestId: "out-propose",
+        change: { action: "create", name: "Bad", prompt: "Bad", rule: { type: "once", at } },
+      },
+    ],
+  ];
+  for (const [path, method, body] of attempts) {
+    const response = await send(path, method, body);
+    expect(response.status, path).toBe(403);
+    expect(await response.text()).not.toContain("Private scope prompt");
+  }
+  expect((await restored.core.listSchedules())[0].revision).toBe(1);
+  expect((await restored.core.listScheduleProposals())[0].state).toBe("pending");
+  expect((await send("/v1/schedule-requests/missing")).status).toBe(404);
+});
+
+test("schedule SSE publishes a store revision and detaches when the client aborts", async () => {
+  const { bot, config, create } = await fixture();
+  const id = await create("events-thread");
+  const abort = new AbortController();
+  const response = await bot.app.request("/v1/schedules/events", {
+    headers: { authorization: `Bearer ${config.adminToken}` },
+    signal: abort.signal,
+  });
+  expect(response.status).toBe(200);
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  try {
+    const first = decoder.decode((await reader.read()).value);
+    expect(first).toContain("event: schedules");
+    const before = (await bot.core.scheduleSnapshot()).revision;
+    await bot.core.createSchedule({
+      threadId: id,
+      requestId: "sse-create",
+      name: "Review",
+      prompt: "Content stays out of revision events",
+      rule: { type: "once", at: DateTime.toEpochMillis(DateTime.nowUnsafe()) + 60_000 },
+    });
+    const next = decoder.decode((await reader.read()).value);
+    expect(next).toContain(`"revision":${before + 1}`);
+    expect(next).not.toContain("Content stays out");
+    abort.abort();
+    await reader.cancel();
+    // A later write exercises the detached stream path without leaving a hanging subscription.
+    const schedule = (await bot.core.listSchedules())[0];
+    await bot.core.pauseSchedule({
+      scheduleId: schedule.id,
+      expectedRevision: 1,
+      requestId: "after-abort",
+    });
+  } finally {
+    abort.abort();
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+});
+
+test("HTTP pending management preserves the active state until uncertain admission converges", async () => {
+  const { bot, request, create } = await fixture();
+  const id = await create("pending-management");
+  await bot.core.stopScheduler();
+  const { scheduleHostAdapter } = await import("@eta/core/service/schedules/host");
+  let release!: (
+    result: import("@eta/core/service/schedules/dispatcher").ScheduleAdmissionResult,
+  ) => void;
+  const admission = new Promise<
+    import("@eta/core/service/schedules/dispatcher").ScheduleAdmissionResult
+  >((resolve) => {
+    release = resolve;
+  });
+  const adapter = scheduleHostAdapter(
+    {
+      submit: (id, prompt, requestId) => bot.controller.submit(id, prompt, requestId),
+      operationByRequest: (id, requestId) => bot.core.operationByRequest(id, requestId),
+      recovery: (id) => bot.core.recovery(id),
+    },
+    async (id) => {
+      await bot.controller.authorize(id);
+      return undefined;
+    },
+  );
+  adapter.submit = async () => admission;
+  try {
+    await bot.core.startScheduler(adapter);
+    const created = await bot.core.createSchedule({
+      threadId: id,
+      requestId: "pending-create",
+      name: "Pending review",
+      prompt: "Pending prompt",
+      rule: { type: "once", at: DateTime.toEpochMillis(DateTime.nowUnsafe()) + 100 },
+    });
+    const scheduleId = created.scheduleId!;
+    await expect
+      .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.state, {
+        timeout: 5000,
+      })
+      .toBe("dispatching");
+    const pausedResponse = await request(`/v1/schedules/${scheduleId}/pause`, {
+      expectedRevision: 1,
+      requestId: "pending-pause",
+    });
+    expect(pausedResponse.status).toBe(202);
+    const pending = Schema.decodeUnknownSync(ScheduleRequestSchema)(await pausedResponse.json());
+    expect(pending.state).toBe("pending");
+    const snapshot = Schema.decodeUnknownSync(
+      Schema.Struct({
+        schedules: Schema.Array(ScheduleSchema),
+        requests: Schema.Array(ScheduleRequestSchema),
+      }),
+    )(await (await request(`/v1/schedules?threadId=${id}`)).json());
+    expect(snapshot.schedules[0].state).toBe("active");
+    expect(snapshot.requests[0].requestId).toBe("pending-pause");
+    expect(await (await request("/v1/schedule-requests/pending-pause")).json()).toEqual(pending);
+    release({ status: "blocked", reason: "busy" });
+    await expect
+      .poll(async () => (await bot.core.scheduleRequest({ requestId: "pending-pause" }))?.state, {
+        timeout: 5000,
+      })
+      .toBe("applied");
+    const applied = await bot.core.scheduleRequest({ requestId: "pending-pause" });
+    expect(applied?.reason).toBeUndefined();
+    expect(applied?.nextRunAt).toBeNull();
+    expect((await bot.core.listSchedules())[0].state).toBe("paused");
+    expect((await bot.core.scheduleSnapshot()).requests).toEqual([]);
+    expect(
+      (await bot.core.openThread(id)).snapshot.transcript.filter(
+        (entry) => entry.message.role === "user",
+      ),
+    ).toHaveLength(0);
+  } finally {
+    release({ status: "blocked", reason: "cleanup" });
+  }
+}, 15000);
+
+test("real Bot HTTP responses remain compatible with the mobile consumer contracts", async () => {
+  const { provider, request, create } = await fixture();
+  const id = await create("mobile-contract");
+  const libraryResponse = await request("/v1/library");
+  expect(libraryResponse.status).toBe(200);
+  const library = LibrarySchema.parse(await libraryResponse.json());
+  expect(library.threads.map((thread) => thread.id)).toContain(id);
+  expect(library.models.length).toBeGreaterThan(0);
+  const initialResponse = await request(`/v1/threads/${id}`);
+  expect(initialResponse.status).toBe(200);
+  const initial = OpenThreadSchema.parse(await initialResponse.json());
+  expect(initial.id).toBe(id);
+  expect(initial.snapshot.transcript).toEqual([]);
+  provider.setResponses([fauxAssistantMessage("Mobile contract proof")]);
+  const response = await request(`/v1/threads/${id}/messages`, {
+    prompt: "Verify mobile contract",
+    requestId: "mobile-contract-run",
+  });
+  expect(response.status).toBe(202);
+  const accepted = Schema.decodeUnknownSync(admission)(await response.json());
+  await expect
+    .poll(
+      async () => {
+        const result = await request(`/v1/threads/${id}/operations/${accepted.operationId}`);
+        expect(result.status).toBe(200);
+        return OperationSchema.parse(await result.json()).status;
+      },
+      { timeout: 10_000 },
+    )
+    .toBe("completed");
+  const completedResponse = await request(`/v1/threads/${id}`);
+  expect(completedResponse.status).toBe(200);
+  const completed = OpenThreadSchema.parse(await completedResponse.json());
+  expect(completed.snapshot.lastResult?.status).toBe("completed");
+  expect(completed.snapshot.transcript.some((entry) => entry.message.role === "user")).toBe(true);
+  expect(JSON.stringify(completed.snapshot.transcript)).toContain("Mobile contract proof");
 });

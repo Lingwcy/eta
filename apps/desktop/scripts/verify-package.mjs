@@ -77,6 +77,46 @@ try {
   if (process.platform !== "win32")
     assert.equal(thread.snapshot.sandbox.available, true, thread.snapshot.sandbox.reason);
   else assert.equal(thread.snapshot.sandbox.available, false);
+  const scheduled = await application.writeSchedule({
+    threadId: thread.id,
+    requestId: "packaged-schedule",
+    change: {
+      action: "create",
+      name: "Packaged plan",
+      prompt: "Review repository",
+      rule: { type: "once", at: Date.now() + 3600000 },
+    },
+  });
+  assert.equal(scheduled.state, "applied");
+  const proposed = await application.proposeSchedule({
+    threadId: thread.id,
+    requestId: "packaged-proposal",
+    sourceIdentity: "root:packaging",
+    change: {
+      action: "update",
+      scheduleId: scheduled.scheduleId,
+      expectedRevision: 1,
+      patch: { prompt: "Updated review" },
+    },
+  });
+  let snapshot = await application.scheduleSnapshot();
+  const proposal = snapshot.snapshots[0].data.proposals.find(
+    (value) => value.id === proposed.proposalId,
+  );
+  assert.equal(proposal.state, "pending");
+  assert.equal(
+    (
+      await application.decideSchedule(
+        {
+          proposalId: proposal.id,
+          contentFingerprint: proposal.contentFingerprint,
+          requestId: "packaged-approve",
+        },
+        true,
+      )
+    ).state,
+    "applied",
+  );
   await application.updateSettings({ defaultThinkingLevel: "low" });
   await application.close();
   application = await compiled.exports.createDesktopApplication(
@@ -87,9 +127,24 @@ try {
     compiled.exports.processImage,
   );
   assert.equal((await application.library()).settings.defaultThinkingLevel, "low");
+  const restored = (await application.scheduleSnapshot()).snapshots[0].data.schedules.find(
+    (value) => value.id === scheduled.scheduleId,
+  );
+  assert.equal(restored.prompt, "Updated review");
+  assert.equal(restored.revision, 2);
+  assert.equal(
+    (
+      await application.writeSchedule({
+        threadId: thread.id,
+        requestId: "packaged-pause",
+        change: { action: "pause", scheduleId: restored.id, expectedRevision: restored.revision },
+      })
+    ).state,
+    "applied",
+  );
   assert.equal((await application.library()).projects[0].id, library.projects[0].id);
   console.log(
-    "Packaged runtime verified: isolated startup, model catalog, authentication, image decoding, persistence.",
+    "Packaged runtime verified: isolated startup, model catalog, authentication, image decoding, persistence, scheduled proposals and durable plans.",
   );
 } finally {
   await application?.close();

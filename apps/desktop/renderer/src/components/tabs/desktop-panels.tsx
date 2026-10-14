@@ -53,6 +53,7 @@ export function DesktopPanels({ shell }: { shell: DesktopShell }) {
                       active={active}
                       inspectorOpen={shell.inspectorOpen}
                       library={shell.desktop.library}
+                      onSchedules={shell.showSchedules}
                       onChooseProject={shell.chooseProject}
                       busy={shell.desktop.busy}
                       act={shell.desktop.act}
@@ -61,7 +62,10 @@ export function DesktopPanels({ shell }: { shell: DesktopShell }) {
                       refreshAuthentication={shell.refreshAuthentication}
                       updateSettings={shell.desktop.updateSettings}
                       mainModel={shell.desktop.mainModel}
-                      onClose={() => tabs.close(tab.id)}
+                      onClose={() => {
+                        shell.setScheduleView(false);
+                        tabs.close(tab.id);
+                      }}
                     />
                   ) : (
                     <SettingsLoading error={shell.desktop.error} />
@@ -87,6 +91,10 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
         inspectorOpen={shell.inspectorOpen}
         sidebar={
           <DesktopSidebar
+            scheduleView={shell.scheduleView}
+            onScheduleView={shell.setScheduleView}
+            schedules={shell.schedules}
+            onScheduleSaved={(id) => void shell.scheduleSaved(id)}
             library={desktop.library}
             runningThreadIds={runningThreadIds}
             workspaceId={conversation?.workspaceId ?? null}
@@ -115,6 +123,7 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
               <ConversationPanel
                 tab={tab}
                 desktop={desktop}
+                schedules={shell.schedules}
                 navigation={navigation}
                 active={active.id === tab.id}
                 selectedSubagent={tab.threadId ? shell.selectedSubagents[tab.threadId] : undefined}

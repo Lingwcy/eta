@@ -29,6 +29,7 @@ test("derives every application storage location from one data root", async () =
     settingsPath: join(dataRoot, "settings.json"),
     reviewLogPath: join(dataRoot, "approval-reviews.jsonl"),
     gitStorePath: join(dataRoot, "git.json"),
+    scheduleStorePath: join(dataRoot, "schedules.json"),
   });
 });
 

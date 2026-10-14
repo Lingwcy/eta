@@ -1,4 +1,4 @@
-import type { Harness } from "@eta/agent";
+import type { ToolRegistration, Harness } from "@eta/agent";
 import type { clampThinkingLevel } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "../../protocol.ts";
 import type { SubagentSettings } from "../../../shared/subagents.ts";
@@ -14,5 +14,6 @@ export type SubagentOptions = {
   ) => ReturnType<typeof clampThinkingLevel>;
   instructions: () => Promise<string>;
   ready?: () => boolean;
+  excludedTools?: readonly ToolRegistration[];
   maximumImages?: (model: { provider: string; modelId: string }) => number | undefined;
 };

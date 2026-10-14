@@ -18,10 +18,12 @@ import {
 export function ChatTranscript({
   snapshot,
   running,
+  origins,
   children,
 }: {
   snapshot?: AgentSnapshot;
   running: boolean;
+  origins?: ReadonlyMap<string, string>;
   children: ReactNode;
 }) {
   const scroll = useScrollFollow();
@@ -74,6 +76,11 @@ export function ChatTranscript({
             {messages.map((entry) =>
               entry.message.role === "user" ? (
                 <div key={entry.id} data-chat-turn={entry.id}>
+                  {origins?.get(entry.id) && (
+                    <p className="mb-1 text-right text-xs text-neutral-500">
+                      {origins.get(entry.id)}
+                    </p>
+                  )}
                   <ChatMessage
                     message={entry.message}
                     tools={tools}

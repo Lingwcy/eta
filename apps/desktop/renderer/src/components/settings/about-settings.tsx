@@ -30,10 +30,14 @@ function describe(state: UpdateState | undefined) {
 
 export function AboutSettings({
   autoCheck,
+  backgroundOnClose,
+  onBackgroundChange,
   busy,
   onAutoCheckChange,
 }: {
   autoCheck: boolean;
+  backgroundOnClose: boolean;
+  onBackgroundChange(this: void, enabled: boolean): void;
   busy: boolean;
   onAutoCheckChange: (enabled: boolean) => void;
 }) {
@@ -62,6 +66,24 @@ export function AboutSettings({
           <Avatar label="Eta" fallback="η" src="./favicon.svg" variant="brand" />
         </SettingsRow>
       </SettingsSection>
+      {info?.platform === "win32" && (
+        <SettingsSection title="后台运行">
+          <SettingsRow
+            title="关闭窗口后后台运行"
+            description="保持托盘图标和定时任务运行。通过托盘退出 Eta 后停止执行；电脑睡眠期间不会执行。"
+          >
+            <Button
+              size="sm"
+              variant={backgroundOnClose ? "secondary" : "outline"}
+              disabled={busy}
+              aria-pressed={backgroundOnClose}
+              onClick={() => onBackgroundChange(!backgroundOnClose)}
+            >
+              {backgroundOnClose ? "已启用" : "已停用"}
+            </Button>
+          </SettingsRow>
+        </SettingsSection>
+      )}
       <SettingsSection title="更新">
         <SettingsRow title="软件更新" description={describe(update)}>
           {status === "downloaded" ? (

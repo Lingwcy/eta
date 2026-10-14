@@ -24,6 +24,17 @@ import { ModelCatalogService } from "./service/models/index.ts";
 import { ProjectService } from "@eta/core/service/projects/index";
 import { DesktopSettingsService } from "./service/settings/index.ts";
 import type { DesktopSettings } from "../shared/settings.ts";
+import { RunSupervisorService } from "@eta/core/service/runs/index";
+import { ScheduleService } from "@eta/core/service/schedules/index";
+import type {
+  ScheduleWriteInput,
+  ScheduleProposeInput,
+  ScheduleDecisionInput,
+  ScheduleRunInput,
+} from "@eta/core/service/schedules/management";
+import { ScheduleDispatcherService } from "@eta/core/service/schedules/dispatcher";
+import { WorkspaceService } from "@eta/core/service/workspaces/index";
+import { startDesktopScheduler } from "./schedules.ts";
 import { ThreadService } from "@eta/core/service/threads/index";
 import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
@@ -90,12 +101,30 @@ async function createLocalDesktopApplication(
       await runtime.runPromise(projects.register({ rootPath: cwd }));
     const cwdDefault = cwd;
     const run = <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect);
+    const schedules = await runtime.runPromise(ScheduleService);
+    const stopScheduler = await startDesktopScheduler({
+      threads,
+      workspaces: await runtime.runPromise(WorkspaceService),
+      dispatcher: await runtime.runPromise(ScheduleDispatcherService),
+      runs: await runtime.runPromise(RunSupervisorService),
+      run,
+    });
+    let closing: Promise<void> | undefined;
     const selectThread = async (action: ReturnType<typeof threads.open>) => {
       const opened = await run(action);
       await run(settings.update({ activeThreadId: opened.id }));
       return opened;
     };
     return {
+      scheduleSnapshot: () => run(schedules.snapshot),
+      writeSchedule: (input: ScheduleWriteInput) => run(schedules.write(input)),
+      proposeSchedule: (input: ScheduleProposeInput) => run(schedules.propose(input)),
+      decideSchedule: (input: ScheduleDecisionInput, approved: boolean) =>
+        run(schedules.decide(input, approved)),
+      runSchedule: (input: ScheduleRunInput) => run(schedules.runNow(input)),
+      scheduleRuns: (scheduleId: string) => run(schedules.runs(scheduleId)),
+      scheduleRequest: (_threadId: string, requestId: string) => run(schedules.request(requestId)),
+      subscribeSchedules: (listener: () => void) => schedules.subscribe(listener),
       subagent: (id: string, command: SubagentCommand, requestId: string) =>
         run(threads.subagent(id, command, requestId)),
       skills: (cwd?: string) => run(skills.catalog(cwd)),
@@ -205,10 +234,18 @@ async function createLocalDesktopApplication(
         onError: (message: string) => void,
         path?: string,
       ) => run(threads.subscribe(id, onSnapshot, onError, path)),
-      close: async () => {
-        await authentication.close();
-        await runtime.dispose();
-      },
+      close: () =>
+        (closing ??= (async () => {
+          try {
+            await stopScheduler();
+          } finally {
+            try {
+              await authentication.close();
+            } finally {
+              await runtime.dispose();
+            }
+          }
+        })()),
     };
   } catch (error) {
     await runtime.dispose();

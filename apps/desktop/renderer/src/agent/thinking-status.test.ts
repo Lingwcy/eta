@@ -47,6 +47,50 @@ test("an approval pause suppresses thinking and resumes the existing run afterwa
   expect(status.update("thread", snapshot())).toBe("waiting");
 });
 
+test("streaming tool arguments show thinking until execution starts and preserve the phase timer", () => {
+  const status = new ThinkingStatus();
+  const preparing = (content: string) => {
+    const message = fauxAssistantMessage([
+      { type: "text", text: "Writing the plan" },
+      { type: "toolCall", id: "write", name: "write", arguments: { content } },
+    ]);
+    return snapshot({ streamingMessage: { ...message, timestamp: 150 } });
+  };
+
+  expect(status.update("thread", preparing(""), 200)).toBe("thinking");
+  expect(status.startedAt).toBe(200);
+  expect(status.update("thread", preparing("Partial plan"), 300)).toBe("thinking");
+  expect(status.startedAt).toBe(200);
+
+  const running = snapshot({
+    ...preparing("Full plan").operation,
+    runningTools: [{ toolCallId: "write", toolName: "write", args: {}, status: "running" }],
+  });
+  expect(status.update("thread", running, 400)).toBeNull();
+  expect(status.update("thread", snapshot(), 500)).toBe("continuing");
+  expect(status.update("thread", { ...snapshot(), operation: null }, 600)).toBeNull();
+});
+
+test("tool argument generation respects approval, retry, deferred and stopping states", () => {
+  const status = new ThinkingStatus();
+  const streamingMessage = fauxAssistantMessage({
+    type: "toolCall",
+    id: "write",
+    name: "write",
+    arguments: {},
+  });
+  expect(
+    status.update("thread", snapshot({ streamingMessage, waitingForApproval: true })),
+  ).toBeNull();
+  expect(
+    status.update("thread", snapshot({ streamingMessage, retry: { attempt: 1, maxAttempts: 4 } })),
+  ).toBe("retrying");
+  expect(status.update("thread", snapshot({ streamingMessage, deferred: { pollAt: 500 } }))).toBe(
+    "deferred",
+  );
+  expect(status.update("thread", snapshot({ streamingMessage, status: "aborting" }))).toBeNull();
+});
+
 test("only an active thinking part shows reasoning, not a thinking part retained before text", () => {
   const status = new ThinkingStatus();
   const reasoning = { type: "thinking" as const, thinking: "Let me consider this" };

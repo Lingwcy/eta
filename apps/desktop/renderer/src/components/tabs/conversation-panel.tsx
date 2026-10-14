@@ -1,5 +1,7 @@
+import type { SchedulesController } from "@/agent/use-schedules";
+import { scheduleTime } from "@/components/schedules/format";
 import { SubagentConversation } from "@/components/subagents/subagent-conversation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { ConversationTab } from "@/agent/desktop-tabs";
 import type { DesktopLibraryController } from "@/agent/use-desktop-library";
 import type { DesktopTabController } from "@/agent/use-desktop-tabs";
@@ -17,6 +19,7 @@ import { ApprovalNotice } from "@/components/chat/approval-notice";
 export function ConversationPanel({
   tab,
   desktop,
+  schedules,
   navigation,
   active,
   version,
@@ -26,6 +29,7 @@ export function ConversationPanel({
 }: {
   tab: ConversationTab;
   desktop: DesktopLibraryController;
+  schedules: SchedulesController;
   navigation: DesktopTabController;
   active: boolean;
   version: number;
@@ -48,6 +52,23 @@ export function ConversationPanel({
         : content?.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
     if (text) onPreview(tab.id, text.slice(0, 600));
   }, [messages, running, onPreview, tab.id]);
+  const origins = useMemo(
+    () =>
+      new Map(
+        schedules.snapshot.snapshots.flatMap(({ data }) =>
+          (data.messageOrigins ?? data.occurrences ?? [])
+            .filter((run) => run.threadId === tab.threadId && run.inputEntryId)
+            .map(
+              (run) =>
+                [
+                  run.inputEntryId!,
+                  `定时任务 · ${run.name} · 原定 ${scheduleTime(run.scheduledAt)}`,
+                ] as const,
+            ),
+        ),
+      ),
+    [schedules.snapshot, tab.threadId],
+  );
   const child = view.transcript.snapshot?.subagents?.find(
     (child) => child.path === selectedSubagent,
   );
@@ -89,7 +110,7 @@ export function ConversationPanel({
             );
           })}
       <div className={child ? "hidden" : "contents"}>
-        <ChatTranscript {...view.transcript}>
+        <ChatTranscript {...view.transcript} origins={origins}>
           {view.welcome && <ChatWelcome {...view.welcome} />}
           {view.failure && <Alert>{view.failure}</Alert>}
           {view.recovery && <RecoveryNotice {...view.recovery} />}

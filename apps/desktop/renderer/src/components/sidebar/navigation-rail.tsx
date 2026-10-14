@@ -1,9 +1,11 @@
-import { Archive, FolderPlus, Home, Settings } from "lucide-react";
+import { Clock, Archive, FolderPlus, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { useUpdateState } from "@/agent/use-update-state";
 
 interface Props {
+  schedulesActive?: boolean;
+  onSchedules?: () => void;
   archived: boolean;
   busy: boolean;
   onHome: () => void;
@@ -15,6 +17,8 @@ interface Props {
 }
 export function NavigationRail({
   archived,
+  schedulesActive = false,
+  onSchedules,
   busy,
   onHome,
   onArchive,
@@ -32,10 +36,10 @@ export function NavigationRail({
       <Button
         variant="ghost-muted"
         size="icon"
-        selected={!archived && !settingsActive}
+        selected={!archived && !settingsActive && !schedulesActive}
         title="项目与会话"
         aria-label="项目与会话"
-        aria-pressed={!archived && !settingsActive}
+        aria-pressed={!archived && !settingsActive && !schedulesActive}
         onClick={onHome}
       >
         <Home size={21} aria-hidden="true" />
@@ -43,14 +47,26 @@ export function NavigationRail({
       <Button
         variant="ghost-muted"
         size="icon"
-        selected={archived && !settingsActive}
+        selected={archived && !settingsActive && !schedulesActive}
         title="已归档会话"
         aria-label="已归档会话"
-        aria-pressed={archived && !settingsActive}
+        aria-pressed={archived && !settingsActive && !schedulesActive}
         disabled={!onArchive}
         onClick={onArchive}
       >
         <Archive size={20} aria-hidden="true" />
+      </Button>
+      <Button
+        variant="ghost-muted"
+        size="icon"
+        title="定时任务"
+        aria-label="定时任务"
+        selected={schedulesActive}
+        aria-pressed={schedulesActive}
+        disabled={!onSchedules}
+        onClick={onSchedules}
+      >
+        <Clock size={20} aria-hidden="true" />
       </Button>
       <Button
         variant="ghost-muted"

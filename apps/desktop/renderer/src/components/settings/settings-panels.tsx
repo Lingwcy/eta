@@ -100,6 +100,8 @@ export const settingsPanels = {
   about: (props) => (
     <AboutSettings
       autoCheck={props.library.settings.autoCheckUpdates !== false}
+      backgroundOnClose={props.library.settings.backgroundOnClose === true}
+      onBackgroundChange={(backgroundOnClose) => update(props, { backgroundOnClose })}
       busy={props.busy}
       onAutoCheckChange={(autoCheckUpdates) => update(props, { autoCheckUpdates })}
     />

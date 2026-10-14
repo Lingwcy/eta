@@ -79,7 +79,8 @@ export class ThinkingStatus {
       else if (!operation.runningTools.some((tool) => tool.status === "running")) {
         if (operation.retry) phase = "retrying";
         else if (operation.deferred) phase = "deferred";
-        else if (activePart?.type === "thinking") phase = "thinking";
+        else if (activePart?.type === "thinking" || activePart?.type === "toolCall")
+          phase = "thinking";
         else if (!activePart) phase = this.responded ? "continuing" : "waiting";
       }
     }

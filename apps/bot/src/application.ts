@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { Models } from "@earendil-works/pi-ai";
-import { createCore } from "@eta/core";
+import { botScheduleAdapter } from "./schedules.ts";
+import { createCore, CoreError } from "@eta/core";
 import type { CoreEnvironment } from "@eta/core";
 import { processImage } from "@eta/core/node/images";
 import type { BotConfig } from "./config.ts";
@@ -41,6 +42,7 @@ export async function createBotApplication(
   let store: BotStore | undefined;
   let extensions: BotExtensions | undefined;
   let discord: DiscordExtension | undefined;
+  let scheduleProjects: BotProjects | undefined;
   try {
     const credentials = await credentialsRuntime.runPromise(CredentialService);
     store = new BotStore(join(config.dataRoot, "bot.sqlite"));
@@ -74,6 +76,17 @@ export async function createBotApplication(
         // A dot directory: project discovery skips it, yet it stays inside the workspace root's scope.
         worktreeRoot: join(config.workspaceRoot, ".eta-worktrees"),
         ...dependencies.environment,
+        authorizeScheduleWorkspace: async (workspaceId) => {
+          if (!scheduleProjects)
+            throw new CoreError({ code: "Busy", message: "Bot 项目扫描尚未完成" });
+          await scheduleProjects.refresh();
+          if (!scheduleProjects.workspaceProjects.has(workspaceId))
+            throw new CoreError({
+              code: "WorkspaceUnavailable",
+              message: "工作区不在 Bot 授权范围内",
+            });
+          await dependencies.environment?.authorizeScheduleWorkspace?.(workspaceId);
+        },
         extensions: async (ref, models) => [
           ...((await dependencies.environment?.extensions?.(ref, models)) ?? []),
           ...registered.runtimeExtensions(),
@@ -81,6 +94,7 @@ export async function createBotApplication(
       },
     });
     const projects = new BotProjects(core, config);
+    scheduleProjects = projects;
     await projects.refresh();
     const { projectKeys, workspaceProjects } = projects;
     const log = dependencies.log ?? (() => {});
@@ -112,6 +126,7 @@ export async function createBotApplication(
     await extensions.prepareRecovery();
     await controller.recover();
     await extensions.start();
+    await core.startScheduler(botScheduleAdapter(core, controller, projects));
     const client = core;
     const persistence = store;
     let closing: Promise<void> | undefined;
@@ -125,21 +140,28 @@ export async function createBotApplication(
       close: () =>
         (closing ??= (async () => {
           shutdown.abort();
-          await registered.stopIngress();
           try {
-            await controller.close(config.shutdownGraceMs);
+            await client.stopScheduler();
           } finally {
             try {
-              await client.close();
+              await registered.stopIngress();
             } finally {
               try {
-                await registered.close();
+                await controller.close(config.shutdownGraceMs);
               } finally {
                 try {
-                  await persistence.close();
+                  await client.close();
                 } finally {
-                  await credentialsRuntime.dispose();
-                  unlock();
+                  try {
+                    await registered.close();
+                  } finally {
+                    try {
+                      await persistence.close();
+                    } finally {
+                      await credentialsRuntime.dispose();
+                      unlock();
+                    }
+                  }
                 }
               }
             }

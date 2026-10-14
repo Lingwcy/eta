@@ -16,6 +16,7 @@ interface Props extends Omit<SettingsPanelProps, "active"> {
   inspectorOpen?: boolean;
   initialCategory?: string;
   categoryRevision?: number;
+  onSchedules?: () => void;
   onChooseProject: () => void;
   error: string | null;
   onClose: () => void;
@@ -55,6 +56,7 @@ export function DesktopSettings(props: Props) {
           <>
             <NavigationRail
               archived={false}
+              onSchedules={props.onSchedules}
               settingsActive
               busy={props.busy}
               onHome={props.onClose}

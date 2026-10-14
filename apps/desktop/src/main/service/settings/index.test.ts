@@ -333,3 +333,35 @@ test("reviewer choices cross IPC, publish settings changes and survive reopening
     await final.runPromise((await final.runPromise(DesktopSettingsService)).read),
   ).toMatchObject({ approvalReviewer: null });
 });
+
+test("Windows background preference crosses IPC and survives enabling, reopening and disabling", async () => {
+  const { runtime, settings, open } = await setup();
+  expect((await runtime.runPromise(settings.read)).backgroundOnClose).toBeUndefined();
+  const application = {
+    updateSettings: (patch) => runtime.runPromise(settings.update(patch)),
+  } satisfies Pick<DesktopApplication, "updateSettings">;
+  await dispatchCommand(application as DesktopApplication, {
+    type: "settings",
+    patch: { backgroundOnClose: true },
+  });
+  await expect(
+    dispatchCommand(application as DesktopApplication, {
+      type: "settings",
+      patch: { backgroundOnClose: "yes" },
+    }),
+  ).rejects.toMatchObject({ code: "InvalidInput" });
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect((await next.runPromise(restored.read)).backgroundOnClose).toBe(true);
+  await dispatchCommand(
+    { updateSettings: (patch) => next.runPromise(restored.update(patch)) } as DesktopApplication,
+    { type: "settings", patch: { backgroundOnClose: false } },
+  );
+  await next.dispose();
+  const final = open();
+  expect(
+    (await final.runPromise((await final.runPromise(DesktopSettingsService)).read))
+      .backgroundOnClose,
+  ).toBe(false);
+});

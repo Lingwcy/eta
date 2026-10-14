@@ -24,6 +24,7 @@ export class RunSupervisorService extends Context.Service<
     resume(runtime: ThreadRuntime): Effect.Effect<void, CoreError>;
     stop(runtime: ThreadRuntime): Effect.Effect<void, CoreError>;
     compact(runtime: ThreadRuntime): Effect.Effect<void, CoreError>;
+    subscribe(listener: () => void): () => void;
     blockedReason(runtime: ThreadRuntime): Effect.Effect<string | undefined, CoreError>;
   }
 >()("eta/core/service/runs/RunSupervisorService") {
@@ -36,8 +37,17 @@ export class RunSupervisorService extends Context.Service<
       const leases = new Set<ThreadRuntime>();
       const executions = new Map<ThreadRuntime, Promise<unknown>>();
       const inputs = new Map<ThreadRuntime, Submission>();
+      const listeners = new Set<() => void>();
+      yield* Effect.addFinalizer(() => Effect.sync(() => listeners.clear()));
       const changed = (runtime: ThreadRuntime) => {
         for (const notify of runtime.changes) notify();
+        for (const listener of listeners) {
+          try {
+            listener();
+          } catch {
+            /* Observers cannot fail an admitted run. */
+          }
+        }
       };
       const blockedReason = Effect.fn("RunSupervisorService.blockedReason")(function* (
         runtime: ThreadRuntime,
@@ -149,6 +159,12 @@ export class RunSupervisorService extends Context.Service<
         executions.set(runtime, execution);
       };
       return RunSupervisorService.of({
+        subscribe: (listener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
         blockedReason,
         submit: Effect.fn("RunSupervisorService.submit")(function* (
           runtime: ThreadRuntime,
@@ -303,6 +319,11 @@ async function admission(
       ? undefined
       : await runtime.storage.entry(receipt.entry, BACKGROUND_CONTEXT);
   return {
+    ...(entry?.entry.model?.some((message) => message.role === "user")
+      ? {
+          inputEntryId: `${receipt.entry}:${entry.entry.model.findIndex((message) => message.role === "user")}`,
+        }
+      : {}),
     operationId: String(receipt.id),
     kind: "run",
     startedAt: entry?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.createdAt,

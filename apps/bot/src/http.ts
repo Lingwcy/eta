@@ -1,3 +1,4 @@
+import { mountScheduleRoutes } from "./schedule-http.ts";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { HTTPException } from "hono/http-exception";
@@ -48,6 +49,7 @@ export const BOT_CAPABILITIES = [
   "git",
   "worktree",
   "github",
+  "schedules",
 ] as const;
 
 function decode<A>(schema: Schema.ConstraintDecoder<A>, input: unknown): A {
@@ -471,5 +473,6 @@ export function createHttpApp(options: {
       }
     });
   });
+  mountScheduleRoutes(app, { core, workspaceProjects, shutdown, decode, readBody });
   return app;
 }
