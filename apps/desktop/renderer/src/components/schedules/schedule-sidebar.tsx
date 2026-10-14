@@ -128,13 +128,6 @@ export function ScheduleSidebar({
         />
       )}
       <ScrollArea className="flex-1">
-        {controller.snapshot.snapshots
-          .filter(({ environment }) => environment.status !== "connected")
-          .map(({ environment }) => (
-            <p key={environment.id} className="px-3 py-1 text-xs text-neutral-500">
-              {environment.label} · {environment.message}
-            </p>
-          ))}
         {controller.error && (
           <p role="alert" className="px-3 text-xs">
             {controller.error}
