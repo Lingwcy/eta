@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { X, ChevronDown, ChevronUp } from "lucide-react";
+import { X, ChevronDown, ChevronUp, Monitor, Cloud } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ModelPicker } from "@/components/input/model-picker";
 import { defaultModel } from "@/desktop/selectors";
 import type { InputModel } from "@/components/input/types";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
+import { ScheduleDatePicker } from "./schedule-date-picker";
 import { scheduleRuleText } from "./format";
 
 const localDate = (time: number) => {
@@ -112,6 +113,19 @@ export function ScheduleForm({
   const draft = useRef<{ workspace: string; requestId: string; threadId?: string } | undefined>(
     undefined,
   );
+  const workspaceLabel = (id: string) => {
+    const item = library.workspaces.find((value) => value.id === id);
+    return library.projects.find((project) => project.id === item?.projectId)?.name ?? "未命名项目";
+  };
+  const workspaceIcon = (id: string) => (
+    <span role="img" aria-label={id.startsWith("bot:") ? "云端" : "本地"}>
+      {id.startsWith("bot:") ? (
+        <Cloud size={15} aria-hidden="true" />
+      ) : (
+        <Monitor size={15} aria-hidden="true" />
+      )}
+    </span>
+  );
   const available = controller.snapshot.snapshots.some(
     ({ environment, data }) =>
       environment.status === "connected" &&
@@ -126,6 +140,8 @@ export function ScheduleForm({
     try {
       if (!available) throw new Error("执行环境不可用，请重新连接后重试");
       if (!name.trim() || !prompt.trim()) throw new Error("请填写任务标题和执行内容");
+      if (kind === "once" && !/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(at))
+        throw new Error("请填写有效时间，格式为 HH:mm");
       const rule = Schema.decodeUnknownSync(ScheduleRuleSchema)(
         kind === "once"
           ? { type: kind, at: new Date(at).getTime() }
@@ -241,7 +257,7 @@ export function ScheduleForm({
           </label>
           <label>
             执行内容
-            <div className="mt-1">
+            <div className="mt-1 rounded-lg border border-neutral-200 bg-white p-3 focus-within:border-neutral-400 focus-within:ring-2 focus-within:ring-neutral-200">
               <Textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
@@ -266,12 +282,7 @@ export function ScheduleForm({
             {kind === "once" && (
               <label>
                 本机时间
-                <Input
-                  type="datetime-local"
-                  value={at}
-                  onChange={(event) => setAt(event.target.value)}
-                  disabled={busy}
-                />
+                <ScheduleDatePicker value={at} onChange={setAt} disabled={busy} />
               </label>
             )}
             {kind === "interval" && (
@@ -346,18 +357,18 @@ export function ScheduleForm({
           {advanced && (
             <section className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3">
               {threadId ? (
-                <p>
-                  执行环境：
-                  {workspace.startsWith("bot:") ? "Bot" : "本地"} ·{" "}
-                  {library.workspaces.find((item) => item.id === workspace)?.cwd ?? "工作区不可用"}
-                </p>
+                <div className="flex items-center gap-2">
+                  {workspaceIcon(workspace)}
+                  <span>{workspaceLabel(workspace)}</span>
+                </div>
               ) : (
                 <Select
                   label="执行工作区"
                   value={workspace}
                   options={library.workspaces.map((item) => ({
                     value: item.id,
-                    label: `${item.id.startsWith("bot:") ? "Bot" : "本地"} · ${item.cwd}`,
+                    label: workspaceLabel(item.id),
+                    icon: workspaceIcon(item.id),
                   }))}
                   onValueChange={setWorkspace}
                   disabled={busy}
@@ -382,11 +393,6 @@ export function ScheduleForm({
                   />
                 </div>
               )}
-              <p className="text-neutral-500">
-                {threadId
-                  ? "任务在当前会话中运行；模型与强度的修改也应用于该会话。"
-                  : "创建一个会话承载此任务，每次执行延续该会话。"}
-              </p>
             </section>
           )}
           {initialRule && <p>原规则：{scheduleRuleText(initialRule)}</p>}

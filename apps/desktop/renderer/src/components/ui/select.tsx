@@ -1,10 +1,11 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { Check, ChevronDown } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface SelectProps<T extends string> {
   value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
+  options: ReadonlyArray<{ value: T; label: string; icon?: ReactNode }>;
   onValueChange: (value: T) => void;
   placeholder?: string;
   disabled?: boolean;
@@ -42,7 +43,10 @@ export function Select<T extends string>({
           variant === "menu" && "bg-[#f8f8f8] hover:bg-neutral-100",
         )}
       >
-        <BaseSelect.Value placeholder={placeholder} className="truncate" />
+        <span className="flex min-w-0 items-center gap-2">
+          {options.find((option) => option.value === value)?.icon}
+          <BaseSelect.Value placeholder={placeholder} className="truncate" />
+        </span>
         <BaseSelect.Icon>
           <ChevronDown size={15} />
         </BaseSelect.Icon>
@@ -84,6 +88,7 @@ export function Select<T extends string>({
                   >
                     <Check size={14} />
                   </BaseSelect.ItemIndicator>
+                  {option.icon}
                   <BaseSelect.ItemText>{option.label}</BaseSelect.ItemText>
                 </BaseSelect.Item>
               ))}

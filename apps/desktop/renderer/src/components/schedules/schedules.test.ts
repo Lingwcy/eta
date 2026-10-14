@@ -628,6 +628,16 @@ test("sidebar filters multiple states and creates a task through its dialog with
       change: { action: "pause", scheduleId: paused.scheduleId!, expectedRevision: 1 },
     }),
   );
+  const projects = await runtime.runPromise(ProjectService);
+  const otherRoot = join(workspace.cwd, "..", "other-project");
+  await mkdir(otherRoot);
+  const otherProject = await runtime.runPromise(
+    projects.register({ rootPath: otherRoot, name: "Other project" }),
+  );
+  const workspaces = await runtime.runPromise(WorkspaceService);
+  const otherWorkspace = (await runtime.runPromise(workspaces.list(otherProject.id)))[0];
+  library.projects = [...library.projects, otherProject];
+  library.workspaces = [...library.workspaces, otherWorkspace];
   let saved: string | undefined;
   function Sidebar() {
     const controller = useSchedules();
@@ -668,7 +678,30 @@ test("sidebar filters multiple states and creates a task through its dialog with
     "Created in dialog",
   );
   await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review through picker");
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="选择执行日期和时间"]')!.click(),
+  );
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="下个月"]')!.click(),
+  );
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
+  const chosenDate = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-15`;
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>(`[aria-label="${chosenDate}"]`)!.click(),
+  );
+  await input(document.querySelector<HTMLInputElement>('[aria-label="执行时刻"]')!, "14:30");
+  await click("确定");
+
   await act(async () => button("高级")!.click());
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="执行工作区"]')!.click(),
+  );
+  const workspaceOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+    (item) => item.textContent === "Other project",
+  )!;
+  await act(async () => workspaceOption.click());
+
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[aria-label="选择模型与思考级别"]')!.click(),
   );
@@ -687,6 +720,7 @@ test("sidebar filters multiple states and creates a task through its dialog with
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain("设置定时任务");
   await click("创建");
   await expect.poll(() => saved).toBeDefined();
+  expect((await runtime.runPromise(threads.get(saved!))).workspaceId).toBe(otherWorkspace.id);
   const session = await runtime.runPromise(threads.open(saved!));
   expect(session.snapshot.configuration.model).toEqual({
     provider: alternate.provider,
@@ -695,5 +729,9 @@ test("sidebar filters multiple states and creates a task through its dialog with
   expect((await runtime.runPromise(schedules.list(saved!)))[0].prompt).toBe(
     "Review through picker",
   );
+  expect((await runtime.runPromise(schedules.list(saved!)))[0].rule).toEqual({
+    type: "once",
+    at: new Date(`${chosenDate}T14:30`).getTime(),
+  });
   await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
 });
