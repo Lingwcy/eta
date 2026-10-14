@@ -195,7 +195,10 @@ merges and no author self-merge.**
   the merger's identity. A PR touching `electron-builder.config.*`,
   release workflows, or `updater.*` must be merged by a maintainer who
   is not the author, with a real build result recorded.
-- Seen 1x (2026-10-13).
+  The same pattern appeared outside the supply-chain surface in
+  PR #13: created and self-merged 9 seconds apart, with an empty PR
+  body and all 17 branch commits carrying empty bodies.
+- Seen 2x (2026-10-13, 2026-10-14).
 
 **Toolchain and dependency upgrades must state their reason and a real
 build result; an empty body does not merge.**
@@ -220,7 +223,12 @@ split before merge.**
 - Check: run `git diff --stat <base>...<head>` and group the files by
   area. Touching two or more of core, UI, worktree, GitHub, and CI in
   one PR means splitting it into independently revertible PRs.
-- Seen 1x (2026-10-13).
+  PR #13 repeated the pattern at a larger scale: 95 files and +9785
+  lines across core, desktop, bot, and docs; its desktop-titled
+  commit `96d54e4` alone touched 60 files in four areas, and its
+  final commit `fb8c9a6` carried two concerns in its title and
+  overlapped 11 files with the commit 39 minutes before it.
+- Seen 2x (2026-10-13, 2026-10-14).
 
 **Do not stack an undocumented mega-commit on top of structured
 commits.**
@@ -260,7 +268,17 @@ not merge on the night they are proposed.**
   permissions records a non-author review, and each failure fallback
   (error, timeout, model unavailable, circuit breaker) names its
   covering test before merge.
-- Seen 1x (2026-10-13).
+  PR #13's scheduled-task feature carried authorization changes
+  (`5cf5f6e`, `b6856b3`) and still went from first commit (10:10) to
+  self-merge (20:28) on one day, 72 seconds after its final push,
+  with no non-author review in the git record. Its in-branch tests
+  did catch two real defects before merge (a 243-attempt scheduler
+  wake loop and a SIGKILL `StorageCorrupt` on catalog reopen), which
+  shows author testing worked but was still finding crash-level
+  defects in the final hour. The same PR also merged two
+  self-authored lessons entries (`5a81f50`, `fb8c9a6`) without any
+  review of the lessons themselves.
+- Seen 2x (2026-10-13, 2026-10-14).
 
 **Do not reuse one feature branch across PRs.**
 
