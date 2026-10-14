@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Schema } from "effect";
 import type { Schedule, ScheduleChange, ScheduleProposal } from "@eta/core/shared/schedules";
 import { ScheduleRuleSchema } from "@eta/core/shared/schedules";
@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { X, ChevronDown, ChevronUp } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ModelPicker } from "@/components/input/model-picker";
+import { defaultModel } from "@/desktop/selectors";
+import type { InputModel } from "@/components/input/types";
+import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { scheduleRuleText } from "./format";
 
 const localDate = (time: number) => {
@@ -76,6 +82,33 @@ export function ScheduleForm({
   );
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const [model, setModel] = useState<InputModel | undefined>(() =>
+    threadId ? undefined : defaultModel(library),
+  );
+  const [level, setLevel] = useState<ThinkingLevel>(library.settings.defaultThinkingLevel);
+  const [modelChanged, setModelChanged] = useState(false);
+  const [loadingModel, setLoadingModel] = useState(!!threadId && !proposal);
+  useEffect(() => {
+    if (!threadId || proposal) return;
+    let disposed = false;
+    void window.eta
+      .openThread(threadId)
+      .then((session) => {
+        if (disposed) return;
+        setModel(session.model);
+        setLevel(session.snapshot.configuration.thinkingLevel);
+      })
+      .catch((error: unknown) => {
+        if (!disposed) setError(error instanceof Error ? error.message : "无法加载会话模型");
+      })
+      .finally(() => {
+        if (!disposed) setLoadingModel(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [threadId, proposal]);
   const draft = useRef<{ workspace: string; requestId: string; threadId?: string } | undefined>(
     undefined,
   );
@@ -111,12 +144,24 @@ export function ScheduleForm({
           draft.current = { workspace, requestId: crypto.randomUUID() };
         if (!draft.current.threadId)
           draft.current.threadId = (
-            await window.eta.createThread(workspace, draft.current.requestId)
+            await window.eta.createThread(
+              workspace,
+              draft.current.requestId,
+              model
+                ? {
+                    provider: model.provider,
+                    modelId: model.id,
+                    thinkingLevel: level,
+                  }
+                : undefined,
+            )
           ).id;
         id = draft.current.threadId;
         await window.eta.renameThread(id, name);
       }
       const target = id;
+      if (modelChanged && model && !proposal)
+        await window.eta.configureThread(target, model.provider, model.id, level);
       const input: ScheduleChange = schedule
         ? {
             action: "update",
@@ -156,153 +201,222 @@ export function ScheduleForm({
     }
   };
   return (
-    <form
-      aria-label={schedule ? "编辑定时任务" : "新建定时任务"}
-      onSubmit={(event) => {
-        event.preventDefault();
-        void save();
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onCancel();
       }}
-      className="flex flex-col gap-3 px-3 py-2 text-xs"
     >
-      <p>{proposal ? "修改待确认提案" : schedule ? "编辑任务" : "新建任务"}</p>
-      <label>
-        任务标题
-        <Input
-          variant="compact"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          disabled={busy}
-        />
-      </label>
-      <label>
-        执行内容
-        <div className="mt-1">
-          <Textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            disabled={busy}
-          />
-        </div>
-      </label>
-      {threadId ? (
-        <p>
-          执行环境：
-          {workspace.startsWith("bot:") ? "Bot" : "本地"} ·{" "}
-          {library.workspaces.find((item) => item.id === workspace)?.cwd ?? "工作区不可用"}
-        </p>
-      ) : (
-        <Select
-          label="执行工作区"
-          value={workspace}
-          options={library.workspaces.map((item) => ({
-            value: item.id,
-            label: `${item.id.startsWith("bot:") ? "Bot" : "本地"} · ${item.cwd}`,
-          }))}
-          onValueChange={setWorkspace}
-          disabled={busy}
-        />
-      )}
-      <Select
-        label="时间规则"
-        value={kind}
-        options={[
-          { value: "once", label: "一次" },
-          { value: "interval", label: "间隔" },
-          { value: "daily", label: "每天" },
-          { value: "weekly", label: "每周" },
-        ]}
-        onValueChange={setKind}
-        disabled={busy}
-      />
-      {kind === "once" && (
-        <label>
-          本机时间
-          <Input
-            type="datetime-local"
-            value={at}
-            onChange={(event) => setAt(event.target.value)}
-            disabled={busy}
-          />
-        </label>
-      )}
-      {kind === "interval" && (
-        <label>
-          间隔（分钟，至少 5）
-          <Input
-            type="number"
-            min={5}
-            value={minutes}
-            onChange={(event) => setMinutes(event.target.value)}
-            disabled={busy}
-          />
-        </label>
-      )}
-      {(kind === "daily" || kind === "weekly") && (
-        <>
-          <label>
-            执行时间
-            <Input
-              type="time"
-              value={time}
-              onChange={(event) => setTime(event.target.value)}
+      <DialogContent variant="form">
+        <form
+          aria-label={schedule ? "编辑定时任务" : "新建定时任务"}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+          className="flex min-h-0 flex-col gap-4 overflow-y-auto text-xs"
+        >
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-base font-medium">
+              {proposal ? "修改待确认提案" : schedule ? "编辑定时任务" : "设置定时任务"}
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="关闭定时任务"
               disabled={busy}
-            />
-          </label>
+              onClick={onCancel}
+            >
+              <X size={16} />
+            </Button>
+          </div>
           <label>
-            IANA 时区
+            任务标题
             <Input
               variant="compact"
-              value={zone}
-              onChange={(event) => setZone(event.target.value)}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
               disabled={busy}
             />
           </label>
-        </>
-      )}
-      {kind === "weekly" && (
-        <fieldset>
-          <legend>星期</legend>
-          <div className="flex flex-wrap gap-2">
-            {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
-              <label key={day}>
-                <input
-                  type="checkbox"
-                  checked={days.includes(index)}
+          <label>
+            执行内容
+            <div className="mt-1">
+              <Textarea
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                disabled={busy}
+              />
+            </div>
+          </label>
+          <section className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3">
+            <p className="font-medium">重复</p>
+            <Select
+              label="重复"
+              value={kind}
+              options={[
+                { value: "once", label: "一次" },
+                { value: "interval", label: "按间隔" },
+                { value: "daily", label: "每天" },
+                { value: "weekly", label: "每周" },
+              ]}
+              onValueChange={setKind}
+              disabled={busy}
+            />
+            {kind === "once" && (
+              <label>
+                本机时间
+                <Input
+                  type="datetime-local"
+                  value={at}
+                  onChange={(event) => setAt(event.target.value)}
                   disabled={busy}
-                  onChange={(event) =>
-                    setDays(
-                      event.target.checked
-                        ? [...days, index].toSorted((a, b) => a - b)
-                        : days.filter((value) => value !== index),
-                    )
-                  }
                 />
-                {day}
               </label>
-            ))}
+            )}
+            {kind === "interval" && (
+              <label>
+                间隔（分钟，至少 5）
+                <Input
+                  type="number"
+                  min={5}
+                  value={minutes}
+                  onChange={(event) => setMinutes(event.target.value)}
+                  disabled={busy}
+                />
+              </label>
+            )}
+            {(kind === "daily" || kind === "weekly") && (
+              <>
+                <label>
+                  执行时间
+                  <Input
+                    type="time"
+                    value={time}
+                    onChange={(event) => setTime(event.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+                <label>
+                  IANA 时区
+                  <Input
+                    variant="compact"
+                    value={zone}
+                    onChange={(event) => setZone(event.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+              </>
+            )}
+            {kind === "weekly" && (
+              <fieldset>
+                <legend>星期</legend>
+                <div className="flex flex-wrap gap-2">
+                  {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
+                    <label key={day}>
+                      <input
+                        type="checkbox"
+                        checked={days.includes(index)}
+                        disabled={busy}
+                        onChange={(event) =>
+                          setDays(
+                            event.target.checked
+                              ? [...days, index].toSorted((a, b) => a - b)
+                              : days.filter((value) => value !== index),
+                          )
+                        }
+                      />
+                      {day}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+          </section>
+          <div>
+            <Button
+              variant="ghost-muted"
+              size="compact"
+              aria-expanded={advanced}
+              onClick={() => setAdvanced(!advanced)}
+            >
+              高级 {advanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </Button>
           </div>
-        </fieldset>
-      )}
-      {initialRule && <p>原规则：{scheduleRuleText(initialRule)}</p>}
-      <p>任务使用该会话的模型、权限及工作区，可能修改文件并消耗模型额度。</p>
-      {!available && (
-        <p>
-          {controller.snapshot.snapshots.find(({ environment }) =>
-            environment.id === "local"
-              ? !workspace.startsWith("bot:")
-              : workspace.startsWith(environment.id),
-          )?.environment.message ?? "正在加载执行环境，或当前工作区不可用"}
-        </p>
-      )}
-      {(error || controller.error) && <p role="alert">{error ?? controller.error}</p>}
-      <div className="flex gap-1">
-        <Button size="sm" type="submit" disabled={busy || !available}>
-          {busy ? "正在处理" : proposal ? "提出新提案" : "保存"}
-        </Button>
-        <Button variant="ghost" size="sm" type="button" disabled={busy} onClick={onCancel}>
-          取消
-        </Button>
-      </div>
-    </form>
+          {advanced && (
+            <section className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3">
+              {threadId ? (
+                <p>
+                  执行环境：
+                  {workspace.startsWith("bot:") ? "Bot" : "本地"} ·{" "}
+                  {library.workspaces.find((item) => item.id === workspace)?.cwd ?? "工作区不可用"}
+                </p>
+              ) : (
+                <Select
+                  label="执行工作区"
+                  value={workspace}
+                  options={library.workspaces.map((item) => ({
+                    value: item.id,
+                    label: `${item.id.startsWith("bot:") ? "Bot" : "本地"} · ${item.cwd}`,
+                  }))}
+                  onValueChange={setWorkspace}
+                  disabled={busy}
+                />
+              )}
+
+              {!proposal && (
+                <div className="flex items-center justify-between gap-3">
+                  <span>模型与强度</span>
+                  <ModelPicker
+                    model={model}
+                    models={library.models}
+                    providers={library.providers}
+                    thinkingLevel={level}
+                    side="bottom"
+                    disabled={busy || loadingModel}
+                    onChange={(next, thinking) => {
+                      setModel(next);
+                      setLevel(thinking);
+                      setModelChanged(true);
+                    }}
+                  />
+                </div>
+              )}
+              <p className="text-neutral-500">
+                {threadId
+                  ? "任务在当前会话中运行；模型与强度的修改也应用于该会话。"
+                  : "创建一个会话承载此任务，每次执行延续该会话。"}
+              </p>
+            </section>
+          )}
+          {initialRule && <p>原规则：{scheduleRuleText(initialRule)}</p>}
+
+          {!available && (
+            <p>
+              {controller.snapshot.snapshots.find(({ environment }) =>
+                environment.id === "local"
+                  ? !workspace.startsWith("bot:")
+                  : workspace.startsWith(environment.id),
+              )?.environment.message ?? "正在加载执行环境，或当前工作区不可用"}
+            </p>
+          )}
+          {(error || controller.error) && <p role="alert">{error ?? controller.error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost-muted"
+              size="compact"
+              type="button"
+              disabled={busy}
+              onClick={onCancel}
+            >
+              取消
+            </Button>
+            <Button size="compact" type="submit" disabled={busy || !available || loadingModel}>
+              {busy ? "正在处理" : proposal ? "提出新提案" : schedule ? "保存" : "创建"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

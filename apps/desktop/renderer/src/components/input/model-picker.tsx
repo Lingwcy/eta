@@ -95,7 +95,7 @@ export function ModelPicker({
         )}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner side={side} align="end" sideOffset={8} className="z-30">
+        <Popover.Positioner side={side} align="end" sideOffset={8} className="z-50">
           <Popover.Popup
             aria-label="可用模型"
             initialFocus={searchInput}

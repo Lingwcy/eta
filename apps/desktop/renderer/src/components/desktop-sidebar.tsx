@@ -103,6 +103,7 @@ export function DesktopSidebar(props: Props) {
       >
         {scheduleView ? (
           <ScheduleSidebar
+            selectedThreadId={props.threadId}
             library={props.library}
             controller={props.schedules}
             onSelect={props.onSelect}

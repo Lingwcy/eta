@@ -7,7 +7,9 @@ export function scheduleRuleText(rule: ScheduleRule) {
     case "once":
       return `一次 · ${scheduleTime(rule.at)}`;
     case "interval":
-      return `每 ${rule.everyMs / 60_000} 分钟`;
+      return rule.everyMs % 3600_000 === 0
+        ? `每 ${rule.everyMs / 3600_000} 小时`
+        : `每 ${rule.everyMs / 60_000} 分钟`;
     case "daily":
       return `每天 ${rule.time} · ${rule.timeZone}`;
     case "weekly":

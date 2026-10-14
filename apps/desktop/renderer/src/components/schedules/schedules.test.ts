@@ -24,6 +24,7 @@ import { ThreadActionsProvider } from "@/components/threads/thread-actions";
 import { ThreadSearchDialog } from "@/components/sidebar/thread-search-dialog";
 import { useSchedules } from "@/agent/use-schedules";
 import { ScheduleForm } from "./schedule-form";
+import { ScheduleSidebar } from "./schedule-sidebar";
 import { SchedulePanel } from "./schedule-panel";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -54,7 +55,9 @@ async function setup() {
   const cwd = join(path, "repo");
   await mkdir(cwd);
   const models = createModels();
-  models.setProvider(fauxProvider({ provider: "schedule-ui", models: [{ id: "one" }] }).provider);
+  models.setProvider(
+    fauxProvider({ provider: "schedule-ui", models: [{ id: "one" }, { id: "two" }] }).provider,
+  );
   const runtime = ManagedRuntime.make(
     desktopServices(join(path, "data"), ModelCatalogService.layerWith(models)),
   );
@@ -83,7 +86,11 @@ async function setup() {
         },
       ],
     }),
-    createThread: (id, requestId) => runtime.runPromise(threads.create(id, requestId)),
+    createThread: (id, requestId, configuration) =>
+      runtime.runPromise(threads.create(id, requestId, configuration)),
+    openThread: (id) => runtime.runPromise(threads.open(id)),
+    configureThread: (id, provider, modelId, level) =>
+      runtime.runPromise(threads.configure(id, provider, modelId, level)),
     renameThread: (id, title) => runtime.runPromise(threads.rename(id, title)),
     writeSchedule: (input) => runtime.runPromise(schedules.write(input)),
     proposeSchedule: (input) => runtime.runPromise(schedules.propose(input)),
@@ -102,11 +109,15 @@ async function setup() {
         requestId,
       }),
     subscribeSchedules: (listener) => schedules.subscribe(listener),
-    createThread: (workspaceId, requestId) =>
+    openThread: (id) => application.openThread(id),
+    configureThread: (id, provider, modelId, level) =>
+      application.configureThread(id, provider, modelId, level),
+    createThread: (workspaceId, requestId, configuration) =>
       dispatchCommand(application as unknown as DesktopApplication, {
         type: "create",
         workspaceId,
         requestId,
+        configuration,
       }),
     renameThread: (id, title) =>
       dispatchCommand(application as unknown as DesktopApplication, { type: "rename", id, title }),
@@ -135,6 +146,8 @@ async function setup() {
     DesktopBridge,
     | "scheduleSnapshot"
     | "subscribeSchedules"
+    | "openThread"
+    | "configureThread"
     | "createThread"
     | "renameThread"
     | "writeSchedule"
@@ -152,7 +165,7 @@ async function setup() {
 }
 function button(text: string) {
   return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
-    (button) => button.textContent === text,
+    (button) => button.textContent?.trim() === text.trim(),
   )!;
 }
 async function click(text: string) {
@@ -214,14 +227,14 @@ test("creation retains its draft and reuses the same thread and request after th
     "Review",
   );
   await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
-  await click("保存");
+  await click("创建");
   await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(1);
   await act(async () => {
     await Promise.resolve();
   });
   await expect.poll(() => document.body.textContent).toContain("Response lost");
   expect(document.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("Review repository");
-  await click("保存");
+  await click("创建");
   await expect.poll(() => saved.length).toBe(1);
   expect(requests).toHaveLength(1);
   expect(queries).toEqual([requests[0], requests[0]]);
@@ -562,15 +575,125 @@ test("adding a plan from search closes its modal and saves against the selected 
     element.textContent?.includes("添加定时任务"),
   )!;
   await act(async () => add.click());
-  await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
+  await expect.poll(() => document.querySelector('input[placeholder="搜索聊天"]')).toBeNull();
   await input(
     document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
     "Search plan",
   );
   await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review selected thread");
-  await click("保存");
+  await click("创建");
   await expect
     .poll(async () => (await runtime.runPromise(schedules.list(created.id))).length)
     .toBe(1);
   expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
+});
+
+test("sidebar filters multiple states and creates a task through its dialog with the shared model picker", async () => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const first = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [first.thread];
+  const catalog = await runtime.runPromise(ModelCatalogService);
+  library.models = await runtime.runPromise(catalog.list);
+  const alternate = library.models.find((model) => model.id === "two")!;
+  await runtime.runPromise(
+    schedules.write({
+      threadId: first.id,
+      requestId: "active",
+      change: {
+        action: "create",
+        name: "Upcoming review",
+        prompt: "Review",
+        rule: { type: "interval", everyMs: 10800000, anchorAt: Date.now() },
+      },
+    }),
+  );
+  const second = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [...library.threads, second.thread];
+  const paused = await runtime.runPromise(
+    schedules.write({
+      threadId: second.id,
+      requestId: "paused",
+      change: {
+        action: "create",
+        name: "Paused review",
+        prompt: "Review",
+        rule: { type: "daily", time: "09:00", timeZone: "America/New_York" },
+      },
+    }),
+  );
+  await runtime.runPromise(
+    schedules.write({
+      threadId: second.id,
+      requestId: "pause",
+      change: { action: "pause", scheduleId: paused.scheduleId!, expectedRevision: 1 },
+    }),
+  );
+  let saved: string | undefined;
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(ScheduleSidebar, {
+      library,
+      controller,
+      onSelect: () => {},
+      onSaved: (id) => {
+        saved = id;
+      },
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  await expect.poll(() => document.body.textContent).toContain("Upcoming review");
+  expect(document.body.textContent).toContain("Paused review");
+  expect(document.body.textContent).toContain("每 3 小时");
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="筛选任务状态"]')!.click(),
+  );
+  const checkbox = (label: string) =>
+    [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')].find(
+      (item) => item.textContent === label,
+    )!;
+  await act(async () => checkbox("已开启").click());
+  expect(document.querySelector("nav")?.textContent).not.toContain("Upcoming review");
+  expect(document.querySelector("nav")?.textContent).toContain("Paused review");
+  await act(async () => checkbox("已开启").click());
+  expect(document.querySelector("nav")?.textContent).toContain("Upcoming review");
+  await act(async () =>
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+  );
+  await click(" 新建任务");
+  await expect
+    .poll(() => document.querySelector('[role="dialog"]')?.textContent)
+    .toContain("设置定时任务");
+  await input(
+    document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
+    "Created in dialog",
+  );
+  await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review through picker");
+  await act(async () => button("高级")!.click());
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="选择模型与思考级别"]')!.click(),
+  );
+  await expect
+    .poll(() => document.querySelector('[aria-label="可用模型"]')?.textContent)
+    .toContain(first.model.name);
+  const option = document
+    .querySelector('[aria-label="可用模型"]')!
+    .querySelector<HTMLButtonElement>(`button[title="${alternate.provider}/${alternate.id}"]`)!;
+  await act(async () => option.click());
+  await act(async () =>
+    document
+      .querySelector<HTMLInputElement>('[aria-label="搜索模型或服务"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+  );
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("设置定时任务");
+  await click("创建");
+  await expect.poll(() => saved).toBeDefined();
+  const session = await runtime.runPromise(threads.open(saved!));
+  expect(session.snapshot.configuration.model).toEqual({
+    provider: alternate.provider,
+    modelId: alternate.id,
+  });
+  expect((await runtime.runPromise(schedules.list(saved!)))[0].prompt).toBe(
+    "Review through picker",
+  );
+  await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
 });
