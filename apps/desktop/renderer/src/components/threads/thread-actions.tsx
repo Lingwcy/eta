@@ -85,7 +85,15 @@ export function ThreadActionsProvider({
   );
 }
 
-export function ThreadContextMenu({ id, children }: { id?: string; children: ReactElement }) {
+export function ThreadContextMenu({
+  id,
+  children,
+  onScheduleOpen,
+}: {
+  id?: string;
+  children: ReactElement;
+  onScheduleOpen?: () => void;
+}) {
   const actions = useContext(Actions);
   const thread = actions?.desktop.library?.threads.find((thread) => thread.id === id);
   if (!actions || !thread || !actions.desktop.library) return children;
@@ -101,7 +109,13 @@ export function ThreadContextMenu({ id, children }: { id?: string; children: Rea
       <ContextMenuTrigger render={children} />
       <ContextMenuContent>
         {actions.schedule && thread.archivedAt === undefined && (
-          <ContextMenuItem disabled={desktop.busy} onClick={() => actions.schedule?.(thread.id)}>
+          <ContextMenuItem
+            disabled={desktop.busy}
+            onClick={() => {
+              onScheduleOpen?.();
+              actions.schedule?.(thread.id);
+            }}
+          >
             <Clock size={16} />
             添加定时任务
           </ContextMenuItem>

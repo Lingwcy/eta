@@ -2,7 +2,7 @@
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { act, createElement } from "react";
+import { act, createElement, useState, Fragment } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ManagedRuntime } from "effect";
@@ -19,6 +19,9 @@ import { ModelCatalogService } from "../../../../src/main/service/models/index.t
 import { dispatchCommand } from "../../../../src/main/ipc.ts";
 import type { DesktopApplication } from "../../../../src/main/bootstrap.ts";
 import type { DesktopBridge, DesktopLibrary } from "../../../../src/bridge.ts";
+import type { DesktopLibraryController } from "@/agent/use-desktop-library";
+import { ThreadActionsProvider } from "@/components/threads/thread-actions";
+import { ThreadSearchDialog } from "@/components/sidebar/thread-search-dialog";
 import { useSchedules } from "@/agent/use-schedules";
 import { ScheduleForm } from "./schedule-form";
 import { SchedulePanel } from "./schedule-panel";
@@ -28,11 +31,24 @@ let root: Root;
 afterEach(async () => {
   if (root) await act(async () => root.unmount());
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).getAnimations;
   document.body.replaceChildren();
   vi.unstubAllGlobals();
 });
 async function setup() {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  Object.defineProperty(HTMLElement.prototype, "getAnimations", {
+    configurable: true,
+    value: () => [],
+  });
   const path = await mkdtemp(join(tmpdir(), "eta-schedule-ui-"));
   cleanups.push(() => rm(path, { recursive: true, force: true }));
   const cwd = join(path, "repo");
@@ -406,4 +422,155 @@ test("a pending pause displays the effective active state until uncertain admiss
   );
   await expect.poll(() => document.body.textContent).toContain("Review · 已暂停");
   expect(document.body.textContent).not.toContain("正在处理：");
+});
+
+test("state-change proposals describe the state action and approval preserves that action", async () => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [thread.thread];
+  const created = await runtime.runPromise(
+    schedules.write({
+      threadId: thread.id,
+      requestId: "create",
+      change: {
+        action: "create",
+        name: "Review",
+        prompt: "Review repository",
+        rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
+      },
+    }),
+  );
+  await runtime.runPromise(
+    schedules.propose({
+      threadId: thread.id,
+      requestId: "pause-proposal",
+      sourceIdentity: "root:tool",
+      change: { action: "pause", scheduleId: created.scheduleId!, expectedRevision: 1 },
+    }),
+  );
+  function Panel() {
+    const controller = useSchedules();
+    return createElement(SchedulePanel, {
+      controller,
+      library,
+      threadId: thread.id,
+      creating: false,
+      onCreate: () => {},
+      onDone: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Panel)));
+  await expect
+    .poll(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return document.body.textContent;
+    })
+    .toContain("拟变更：暂停后续执行");
+  expect(button("修改")).toBeUndefined();
+  await click("批准");
+  await expect
+    .poll(async () => (await runtime.runPromise(schedules.list()))[0].state)
+    .toBe("paused");
+  expect((await runtime.runPromise(schedules.list()))[0].prompt).toBe("Review repository");
+});
+
+test("adding a plan from search closes its modal and saves against the selected existing thread", async () => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.rename(created.id, "Searchable schedule chat"));
+  library.threads = [await runtime.runPromise(threads.get(created.id))];
+  const desktop = {
+    library,
+    busy: false,
+    error: null,
+    mainModel: undefined,
+    selectMainModel: () => {},
+    refresh: async () => library,
+    reload: () => {},
+    act: async (action: () => Promise<void>) => action(),
+    updateSettings: async () => {},
+    clearError: () => {},
+  } satisfies DesktopLibraryController;
+  function Search() {
+    const [target, setTarget] = useState<string>();
+    const controller = useSchedules();
+    const children = createElement(
+      Fragment,
+      null,
+      createElement(ThreadSearchDialog, {
+        library,
+        archived: false,
+        busy: false,
+        canCreate: true,
+        runningThreadIds: new Set<string>(),
+        onSelect: () => {},
+        onNew: () => {},
+        onChoose: () => {},
+        onSkills: () => {},
+      }),
+      target
+        ? createElement(ScheduleForm, {
+            controller,
+            library,
+            threadId: target,
+            workspaceId: workspace.id,
+            onCancel: () => setTarget(undefined),
+            onSaved: () => {},
+          })
+        : null,
+    );
+    return createElement(ThreadActionsProvider, {
+      desktop,
+      onOverlay: () => {},
+      onSchedule: setTarget,
+      children,
+    });
+  }
+  await act(async () => root.render(createElement(Search)));
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('button[aria-label="搜索聊天"]')!.click(),
+  );
+  await expect
+    .poll(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return document.querySelector('[role="option"]')?.textContent;
+    })
+    .toContain("Searchable schedule chat");
+  const row = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((element) =>
+    element.textContent?.includes("Searchable schedule chat"),
+  )!;
+  await act(async () =>
+    row.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, button: 2, clientX: 10, clientY: 10 }),
+    ),
+  );
+  await expect
+    .poll(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return [...document.querySelectorAll('[role="menuitem"]')].some((element) =>
+        element.textContent?.includes("添加定时任务"),
+      );
+    })
+    .toBe(true);
+  const add = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((element) =>
+    element.textContent?.includes("添加定时任务"),
+  )!;
+  await act(async () => add.click());
+  await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
+  await input(
+    document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
+    "Search plan",
+  );
+  await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review selected thread");
+  await click("保存");
+  await expect
+    .poll(async () => (await runtime.runPromise(schedules.list(created.id))).length)
+    .toBe(1);
+  expect(await runtime.runPromise(threads.list(undefined, true))).toHaveLength(1);
 });

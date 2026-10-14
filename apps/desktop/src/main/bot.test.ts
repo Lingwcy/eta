@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vite-plus/test";
+import { ThreadAgentClient } from "../../renderer/src/agent/client.ts";
+import type { SessionResponse } from "@eta/core/agent/protocol";
 import { DesktopBot } from "./bot.ts";
 
 const roots: string[] = [];
@@ -347,6 +349,112 @@ test("older Bot schedule reads report unsupported and writes never fall back to 
     ).rejects.toThrow("不支持此功能");
     expect(request).not.toHaveBeenCalled();
   } finally {
+    bot.close();
+  }
+});
+
+test("ordinary Bot submission receipts agree with SSE snapshots and let the client finish generating", async () => {
+  const { bot, request, prefix } = await connect(true, ["schedules"]);
+  const session: SessionResponse = {
+    id: "thread",
+    model: {
+      id: "one",
+      provider: "test",
+      name: "One",
+      contextWindow: 10000,
+      thinkingLevels: ["off"],
+    },
+    contextTokens: 0,
+    snapshot: {
+      configuration: { model: { provider: "test", modelId: "one" }, thinkingLevel: "off" },
+      transcript: [],
+      operation: null,
+      lastResult: null,
+      faulted: false,
+    },
+  };
+  const ready = Promise.withResolvers<ReadableStreamDefaultController<Uint8Array>>();
+  const stream = new ReadableStream<Uint8Array>({
+    start: (controller) => ready.resolve(controller),
+  });
+  request.mockImplementation(async (input) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.endsWith("/events"))
+      return new Response(stream, { headers: { "content-type": "text/event-stream" } });
+    if (url.endsWith("/messages"))
+      return Response.json({
+        operationId: "42",
+        inputEntryId: "12:0",
+        kind: "run",
+        startedAt: 1000,
+      });
+    return Response.json(session);
+  });
+  const client = new ThreadAgentClient({
+    openThread: (id) => bot.open(id),
+    configureThread: (id, provider, modelId, level) => bot.configure(id, provider, modelId, level),
+    configureSandbox: (id, mode) => bot.configureSandbox(id, mode),
+    submit: (id, prompt, images) => bot.submit(id, prompt, "opaque-request", images),
+    stop: (id) => bot.command<void>(id, "stop"),
+    subscribe: (id, listener) => {
+      let disposed = false;
+      let unsubscribe: (() => void) | undefined;
+      void bot
+        .subscribeThread(
+          id,
+          (value) => listener({ type: "snapshot", value }),
+          (message) => listener({ type: "error", message }),
+        )
+        .then((stop) => {
+          if (disposed) stop();
+          else unsubscribe = stop;
+        });
+      return () => {
+        disposed = true;
+        unsubscribe?.();
+      };
+    },
+  });
+  try {
+    await client.connect(prefix + "thread");
+    const controller = await ready.promise;
+    await client.submit("Ordinary message");
+    expect(client.getSnapshot().admission).toMatchObject({
+      operationId: prefix + "42",
+      inputEntryId: prefix + "12:0",
+    });
+    controller.enqueue(
+      new TextEncoder().encode(
+        `event: snapshot\ndata: ${JSON.stringify({
+          ...session,
+          snapshot: {
+            ...session.snapshot,
+            transcript: [
+              {
+                id: "12:0",
+                type: "message",
+                message: { role: "user", content: "Ordinary message", timestamp: 1000 },
+              },
+            ],
+            lastResult: {
+              operationId: "42",
+              inputEntryId: "12:0",
+              kind: "run",
+              startedAt: 1000,
+              endedAt: 2000,
+              status: "completed",
+              fromTipId: null,
+              tipId: null,
+            },
+          },
+        })}\n\n`,
+      ),
+    );
+    await expect.poll(() => client.getSnapshot().admission).toBeNull();
+    expect(client.getSnapshot().observation?.snapshot.lastResult?.operationId).toBe(prefix + "42");
+    expect(client.getSnapshot().observation?.snapshot.transcript[0].id).toBe(prefix + "12:0");
+  } finally {
+    client.dispose();
     bot.close();
   }
 });

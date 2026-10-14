@@ -214,6 +214,8 @@ export function SchedulePanel({
                 : proposal.change.action === "update"
                   ? { ...current, ...proposal.change.patch }
                   : current;
+            const editableContent =
+              proposal.change.action === "create" || proposal.change.action === "update";
             const names = {
               create: "创建",
               update: "修改",
@@ -247,15 +249,24 @@ export function SchedulePanel({
                     {scheduleRuleText(current.rule)}
                   </p>
                 )}
+                {editableContent ? (
+                  <p>
+                    拟执行：{next?.name}
+                    <br />
+                    {next?.prompt}
+                    <br />
+                    {next?.rule && scheduleRuleText(next.rule)}
+                  </p>
+                ) : (
+                  <p>
+                    拟变更：
+                    {proposal.change.action === "delete"
+                      ? "删除计划，仅停止后续触发"
+                      : `${names[proposal.change.action]}后续执行`}
+                  </p>
+                )}
                 <p>
-                  拟执行：{next?.name}
-                  <br />
-                  {next?.prompt}
-                  <br />
-                  {next?.rule && scheduleRuleText(next.rule)}
-                </p>
-                <p>
-                  环境：
+                  环境：{entity?.environment.label} ·
                   {library.workspaces.find((workspace) => workspace.id === proposal.workspaceId)
                     ?.cwd ?? "工作区不可用"}
                 </p>
@@ -304,14 +315,16 @@ export function SchedulePanel({
                     >
                       拒绝
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={busy || !usable}
-                      onClick={() => setEdit({ proposal, schedule: current })}
-                    >
-                      修改
-                    </Button>
+                    {editableContent && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy || !usable}
+                        onClick={() => setEdit({ proposal, schedule: current })}
+                      >
+                        修改
+                      </Button>
+                    )}
                   </div>
                 )}
               </section>

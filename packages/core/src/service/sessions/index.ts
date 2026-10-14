@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { lstat, mkdir, realpath, rename, rm, stat, readdir } from "node:fs/promises";
+import { basename, join, relative, resolve } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { Storage } from "@eta/agent";
 import { openNodeJsonlStorage } from "@eta/agent/storage/jsonl/node";
 import { Context, DateTime, Effect, Layer, Schema } from "effect";
+import { CatalogService } from "../catalog/index.ts";
 import { AppPathsService } from "../../platform/app-paths.ts";
 import { adapter, CoreError } from "../errors.ts";
 import { readJson, writeJson } from "../json-file.ts";
@@ -14,6 +15,12 @@ const IdentitySchema = Schema.Struct({
   version: Schema.Literal(1),
   id: Schema.NonEmptyString,
   cwd: Schema.NonEmptyString,
+});
+
+const RemovalSchema = Schema.Struct({
+  version: Schema.Literal(1),
+  sessionId: Schema.NonEmptyString,
+  staged: Schema.NonEmptyString,
 });
 
 export class SessionRepositoryService extends Context.Service<
@@ -35,6 +42,59 @@ export class SessionRepositoryService extends Context.Service<
     SessionRepositoryService,
     Effect.gen(function* () {
       const { sessionsRoot } = yield* AppPathsService;
+      const catalog = yield* CatalogService;
+      const trash = join(sessionsRoot, ".trash");
+      const exists = async (path: string) =>
+        lstat(path)
+          .then(() => true)
+          .catch((error: NodeJS.ErrnoException) => {
+            if (error.code === "ENOENT") return false;
+            throw error;
+          });
+      // The rename and Catalog replacement cannot be one filesystem transaction. Journal first;
+      // recover before opening any thread, keeping old unjournaled quarantine files untouched.
+      const current = yield* catalog.read;
+      yield* adapter("无法恢复未完成的会话删除", async () => {
+        const files = await readdir(trash).catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return [];
+          throw error;
+        });
+        for (const file of files.filter((name) => name.endsWith(".removal.json"))) {
+          const journal = join(trash, file);
+          const removal = Schema.decodeUnknownSync(RemovalSchema, { onExcessProperty: "error" })(
+            await readJson(journal),
+          );
+          if (
+            basename(removal.sessionId) !== removal.sessionId ||
+            removal.sessionId === "." ||
+            removal.sessionId === ".." ||
+            removal.sessionId.includes("\\") ||
+            basename(removal.staged) !== removal.staged ||
+            removal.staged.includes("\\") ||
+            !removal.staged.startsWith(`${removal.sessionId}-`) ||
+            file !== `${removal.staged}.removal.json`
+          )
+            throw new CoreError({ code: "StorageCorrupt", message: "会话删除日志标识无效" });
+          const path = join(sessionsRoot, removal.sessionId);
+          const staged = join(trash, removal.staged);
+          const referenced = current.threads.some(
+            (thread) => thread.sessionRef.metadata.id === removal.sessionId,
+          );
+          if (referenced) {
+            const [originalExists, stagedExists] = await Promise.all([
+              exists(path),
+              exists(staged),
+            ]);
+            if (stagedExists && !originalExists) await rename(staged, path);
+            else if (stagedExists || !originalExists)
+              throw new CoreError({
+                code: "StorageCorrupt",
+                message: "会话删除暂存状态冲突，保留文件待检查",
+              });
+          } else await rm(staged, { recursive: true, force: true });
+          await rm(journal);
+        }
+      });
       const checkedPath = (ref: EtaSessionMetadata) => {
         const { id, path, storageVersion } = ref.metadata;
         if (
@@ -104,18 +164,30 @@ export class SessionRepositoryService extends Context.Service<
         stageRemoval: (ref) =>
           adapter("无法准备删除会话", async () => {
             const path = checkedPath(ref);
-            const exists = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+            const present = await lstat(path).catch((error: NodeJS.ErrnoException) => {
               if (error.code !== "ENOENT") throw error;
               return undefined;
             });
-            if (!exists) return { commit: Effect.void, rollback: Effect.void };
-            const trash = join(sessionsRoot, ".trash");
+            if (!present) return { commit: Effect.void, rollback: Effect.void };
             await mkdir(trash, { recursive: true });
-            const staged = join(trash, `${ref.metadata.id}-${randomUUID()}`);
+            const stagedName = `${ref.metadata.id}-${randomUUID()}`;
+            const staged = join(trash, stagedName);
+            const journal = join(trash, `${stagedName}.removal.json`);
+            await writeJson(journal, {
+              version: 1,
+              sessionId: ref.metadata.id,
+              staged: stagedName,
+            });
             await rename(path, staged);
             return {
-              commit: adapter("无法永久删除会话文件", () => rm(staged, { recursive: true })),
-              rollback: adapter("无法恢复会话目录", () => rename(staged, path)),
+              commit: adapter("无法永久删除会话文件", async () => {
+                await rm(staged, { recursive: true });
+                await rm(journal);
+              }),
+              rollback: adapter("无法恢复会话目录", async () => {
+                await rename(staged, path);
+                await rm(journal);
+              }),
             };
           }),
         // Recovery-friendly removal: neither a failed Catalog write nor deletion destroys the JSONL files.

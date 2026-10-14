@@ -36,17 +36,14 @@ export function coreFoundation(
   environment?: Partial<CoreEnvironment>,
   instructions?: (cwd: string) => Promise<string>,
 ) {
+  const catalog = CatalogService.layer.pipe(Layer.provide(CatalogStoreService.layer));
   return Layer.mergeAll(
     Layer.mergeAll(ScheduleLifecycleService.layer, ScheduleDispatcherService.layer).pipe(
       Layer.provideMerge(
-        Layer.mergeAll(
-          CatalogService.layer.pipe(Layer.provide(CatalogStoreService.layer)),
-          ScheduleStoreService.layer,
-          ScheduleGateService.layer,
-        ),
+        Layer.mergeAll(catalog, ScheduleStoreService.layer, ScheduleGateService.layer),
       ),
     ),
-    SessionRepositoryService.layer,
+    SessionRepositoryService.layer.pipe(Layer.provide(catalog)),
     AgentResourcesService.layerWith(processImage, instructions),
     CoreEnvironmentService.layer(environment),
     WorkspaceAccessService.layer.pipe(Layer.provideMerge(GitStoreService.layer)),

@@ -63,6 +63,7 @@ export function NavigationRail({
         aria-label="定时任务"
         selected={schedulesActive}
         aria-pressed={schedulesActive}
+        disabled={!onSchedules}
         onClick={onSchedules}
       >
         <Clock size={20} aria-hidden="true" />

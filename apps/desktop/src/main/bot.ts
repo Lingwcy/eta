@@ -23,7 +23,11 @@ import { join } from "node:path";
 import { readFile, writeFile, rm } from "node:fs/promises";
 import { Schema } from "effect";
 import type { BotLibrary } from "@eta/core/shared/bot";
-import type { SessionResponse, SnapshotResponse } from "@eta/core/agent/protocol";
+import type {
+  SessionResponse,
+  SnapshotResponse,
+  OperationAdmission,
+} from "@eta/core/agent/protocol";
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { ThreadMetadata } from "@eta/core/shared/threads";
 import type { BotConnection, BotState } from "../shared/bot.ts";
@@ -376,6 +380,20 @@ export class DesktopBot {
       action: "move",
       projectId: projectId === null ? null : this.raw(projectId),
     });
+  }
+  async submit(
+    ...args: Parameters<LocalDesktopApplication["submit"]>
+  ): Promise<OperationAdmission> {
+    const receipt = await this.command<OperationAdmission>(args[0], "messages", {
+      prompt: args[1],
+      requestId: args[2] ?? crypto.randomUUID(),
+      ...(args[3] ? { images: args[3] } : {}),
+    });
+    return {
+      ...receipt,
+      operationId: this.prefix + receipt.operationId,
+      ...(receipt.inputEntryId ? { inputEntryId: this.prefix + receipt.inputEntryId } : {}),
+    };
   }
   command<T>(id: string, action: string, body: object = {}) {
     return this.request<T>(this.route(id) + "/" + action, body);
@@ -859,13 +877,7 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
     decideApproval: (...args: Parameters<LocalDesktopApplication["decideApproval"]>) =>
       isCloudId(args[0]) ? choose(bot.decideApproval(...args)) : local.decideApproval(...args),
     submit: (...args: Parameters<LocalDesktopApplication["submit"]>) =>
-      isCloudId(args[0])
-        ? bot.command<Awaited<ReturnType<LocalDesktopApplication["submit"]>>>(args[0], "messages", {
-            prompt: args[1],
-            requestId: args[2] ?? crypto.randomUUID(),
-            ...(args[3] ? { images: args[3] } : {}),
-          })
-        : local.submit(...args),
+      isCloudId(args[0]) ? bot.submit(...args) : local.submit(...args),
     stop: (id: string) => (isCloudId(id) ? bot.command<void>(id, "stop") : local.stop(id)),
     resume: (id: string) => (isCloudId(id) ? bot.command<void>(id, "resume") : local.resume(id)),
     compact: (id: string) => (isCloudId(id) ? bot.command<void>(id, "compact") : local.compact(id)),

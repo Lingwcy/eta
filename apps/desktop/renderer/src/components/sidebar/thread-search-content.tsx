@@ -114,7 +114,7 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
           <CommandGroup>
             <CommandGroupLabel>{props.archived ? "已归档聊天" : "聊天"}</CommandGroupLabel>
             {chats.map((chat, index) => (
-              <ThreadContextMenu key={chat.id} id={chat.id}>
+              <ThreadContextMenu key={chat.id} id={chat.id} onScheduleOpen={props.onClose}>
                 <CommandItem value={chat} onClick={() => choose(() => props.onSelect(chat.id))}>
                   <span className="w-4 shrink-0" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate">{chat.label}</span>

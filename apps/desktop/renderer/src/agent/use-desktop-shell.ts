@@ -1,7 +1,7 @@
 import { useSchedules } from "./use-schedules";
 import { projectRootWorkspace } from "@/desktop/selectors";
 import { useSubagents } from "./use-subagents";
-import { inspectedConversation, inspectedWorkspace } from "./inspector";
+import { inspectedConversation, inspectedWorkspace, showScheduledTasks } from "./inspector";
 import { useCallback, useState, useEffect } from "react";
 import { useProjectGit } from "./use-project-git";
 import { GitHubClient } from "./github-client";
@@ -15,6 +15,7 @@ import { useBrowserPages } from "@/browser/use-browser-pages";
 export function useDesktopShell() {
   const desktop = useDesktopLibrary();
   const schedules = useSchedules();
+  const [scheduleView, setScheduleView] = useState(false);
   const [creatingSchedule, setCreatingSchedule] = useState<string>();
   const navigation = useDesktopTabs(desktop.library);
   const [selectedSubagents, setSelectedSubagents] = useState<Record<string, string | undefined>>(
@@ -114,6 +115,13 @@ export function useDesktopShell() {
   return {
     desktop,
     schedules,
+    scheduleView,
+    setScheduleView,
+    showSchedules: () => {
+      setScheduleView(true);
+      setCollapsed(false);
+      showScheduledTasks(navigation.tabs);
+    },
     schedulesAvailable,
     creatingSchedule,
     finishSchedule: () => setCreatingSchedule(undefined),

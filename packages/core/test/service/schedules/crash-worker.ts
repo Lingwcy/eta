@@ -1,7 +1,8 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
-import { DateTime, ManagedRuntime } from "effect";
+import { DateTime, Effect, ManagedRuntime } from "effect";
 import { testServices } from "../../support/runtime.ts";
+import { CatalogService } from "@eta/core/service/catalog/index";
 import { ProjectService } from "@eta/core/service/projects/index";
 import { WorkspaceService } from "@eta/core/service/workspaces/index";
 import { ThreadService } from "@eta/core/service/threads/index";
@@ -57,7 +58,12 @@ await runtime.runPromise(
 );
 const hold = () => new Promise<never>(() => {});
 const report = () => {
-  process.send?.({ threadId: thread.id, scheduledAt, phase });
+  process.send?.({
+    threadId: thread.id,
+    sessionPath: thread.thread.sessionRef.metadata.path,
+    scheduledAt,
+    phase,
+  });
 };
 const adapter = scheduleHostAdapter(
   {
@@ -72,7 +78,55 @@ const adapter = scheduleHostAdapter(
     return undefined;
   },
 );
-if (phase === "pending") {
+if (phase.startsWith("archive-") || phase.startsWith("delete-")) {
+  await runtime.runPromise(
+    schedules.propose({
+      threadId: thread.id,
+      requestId: "proposal",
+      sourceIdentity: "root:tool",
+      change: {
+        action: "create",
+        name: "Unapproved",
+        prompt: "Must not activate",
+        rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
+      },
+    }),
+  );
+  if (phase.endsWith("prepared")) {
+    const updateStore = store.update.bind(store);
+    store.update = (change, origin) =>
+      updateStore(change, origin).pipe(
+        Effect.tap((state) =>
+          Object.keys(state.lifecycleIntents).length
+            ? Effect.promise(async () => {
+                report();
+                return hold();
+              })
+            : Effect.void,
+        ),
+      );
+  }
+  const catalog = await runtime.runPromise(CatalogService);
+  const update = catalog.update.bind(catalog);
+  catalog.update = (change) =>
+    Effect.gen(function* () {
+      if (phase.endsWith("intent")) {
+        report();
+        yield* Effect.promise(hold);
+      }
+      const state = yield* update(change);
+      if (phase.endsWith("catalog")) {
+        report();
+        yield* Effect.promise(hold);
+      }
+      return state;
+    });
+  await runtime.runPromise(
+    phase.startsWith("archive-") ? threads.archive(thread.id, true) : threads.remove(thread.id),
+  );
+  report();
+  await hold();
+} else if (phase === "pending") {
   await runtime.runPromise(
     store.update((state) => {
       const draft = scheduleDraft(state);

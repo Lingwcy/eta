@@ -187,6 +187,7 @@ export function ScheduleForm({
       {threadId ? (
         <p>
           执行环境：
+          {workspace.startsWith("bot:") ? "Bot" : "本地"} ·{" "}
           {library.workspaces.find((item) => item.id === workspace)?.cwd ?? "工作区不可用"}
         </p>
       ) : (
@@ -284,7 +285,16 @@ export function ScheduleForm({
       )}
       {initialRule && <p>原规则：{scheduleRuleText(initialRule)}</p>}
       <p>任务使用该会话的模型、权限及工作区，可能修改文件并消耗模型额度。</p>
-      {error && <p role="alert">{error}</p>}
+      {!available && (
+        <p>
+          {controller.snapshot.snapshots.find(({ environment }) =>
+            environment.id === "local"
+              ? !workspace.startsWith("bot:")
+              : workspace.startsWith(environment.id),
+          )?.environment.message ?? "正在加载执行环境，或当前工作区不可用"}
+        </p>
+      )}
+      {(error || controller.error) && <p role="alert">{error ?? controller.error}</p>}
       <div className="flex gap-1">
         <Button size="sm" type="submit" disabled={busy || !available}>
           {busy ? "正在处理" : proposal ? "提出新提案" : "保存"}

@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import { DesktopTabs } from "./desktop-tabs";
-import { inspectedConversation } from "./inspector";
+import { inspectedConversation, showScheduledTasks } from "./inspector";
 
 function setup() {
   let id = 0;
@@ -59,4 +59,33 @@ test("GitHub context follows execution workspace rather than thread grouping or 
     id: "actual",
     projectId: "execution",
   });
+});
+
+test("scheduled-task navigation from settings and browser reuses the latest valid conversation", () => {
+  const tabs = setup();
+  tabs.openThread("saved", "workspace");
+  const conversation = tabs.activeTab.id;
+  tabs.openSettings("about");
+  const settings = tabs.activeTab.id;
+  const count = tabs.getSnapshot().tabs.length;
+  showScheduledTasks(tabs);
+  expect(tabs.activeTab.id).toBe(conversation);
+  expect(tabs.getSnapshot().tabs).toHaveLength(count);
+  expect(tabs.getSnapshot().tabs.some((tab) => tab.id === settings)).toBe(true);
+  tabs.newBrowser();
+  const browser = tabs.activeTab.id;
+  showScheduledTasks(tabs);
+  expect(tabs.activeTab.id).toBe(conversation);
+  expect(tabs.getSnapshot().tabs.some((tab) => tab.id === browser)).toBe(true);
+});
+test("scheduled-task navigation with no surviving conversation creates a draft rather than reusing a closed thread", () => {
+  const tabs = setup();
+  tabs.openThread("saved", "workspace");
+  tabs.openSettings();
+  for (const tab of tabs.getSnapshot().tabs.filter((tab) => tab.kind === "conversation"))
+    tabs.close(tab.id);
+  showScheduledTasks(tabs);
+  expect(tabs.activeTab.kind).toBe("conversation");
+  expect(tabs.activeTab).toMatchObject({ draft: "", workspaceId: null });
+  expect("threadId" in tabs.activeTab).toBe(false);
 });

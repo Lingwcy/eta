@@ -15,6 +15,8 @@ import { ThreadSearchDialog } from "./sidebar/thread-search-dialog";
 import { cn } from "@/lib/utils";
 
 interface Props {
+  scheduleView: boolean;
+  onScheduleView(this: void, value: boolean): void;
   schedules: SchedulesController;
   onScheduleSaved(this: void, id: string): void;
   library: DesktopLibrary | null;
@@ -32,7 +34,8 @@ interface Props {
 }
 
 export function DesktopSidebar(props: Props) {
-  const [scheduleView, setScheduleView] = useState(false);
+  const scheduleView = props.scheduleView;
+  const setScheduleView = props.onScheduleView;
   const [archived, setArchived] = useState(false);
   const sidebarWorkspace = (thread: DesktopLibrary["threads"][number]) => {
     if (thread.projectId === undefined) return thread.workspaceId;
