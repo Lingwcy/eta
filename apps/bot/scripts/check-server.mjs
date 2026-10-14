@@ -15,6 +15,16 @@ for (const path of ["/readyz", "/v1/status"]) {
   await response.json();
 }
 
+if (process.argv.includes("--expect-full-access")) {
+  const response = await fetch(`${base}/v1/library`, {
+    headers: { authorization: `Bearer ${config.adminToken}` },
+    signal: AbortSignal.timeout(3000),
+  });
+  assert.equal(response.status, 200);
+  const library = await response.json();
+  assert.ok(library.allowedSandboxModes?.includes("danger-full-access"));
+}
+
 // Readiness includes real restricted execution under the service account on this kernel.
 const { SandboxedExecutionEnv } = await import("../dist/runtime.mjs");
 const workspaceRoot = await mkdtemp(join(config.workspaceRoot, ".deploy-check-"));

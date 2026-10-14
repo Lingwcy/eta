@@ -5,6 +5,11 @@ on:
     workflows: [Desktop release]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      enable_full_access:
+        description: Allow clients to select full access on this deployment
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -59,6 +64,7 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ vars.ETA_SERVER_KNOWN_HOSTS }}
           SSH_HOST: ${{ vars.ETA_SERVER_HOST }}
           SSH_USER: ${{ vars.ETA_SERVER_USER }}
+          ENABLE_FULL_ACCESS: ${{ inputs.enable_full_access == true && 'true' || 'false' }}
         run: |
           set -euo pipefail
           test -n "$SSH_KEY"
@@ -77,4 +83,4 @@ jobs:
           trap 'rm -f ~/.ssh/eta-server; ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" "rm -rf -- $remote_dir" || true' EXIT
           scp "${ssh_options[@]}" /tmp/eta-bot.tar.gz /tmp/eta-bot.tar.gz.sha256 apps/bot/scripts/deploy-server.sh "$SSH_USER@$SSH_HOST:$remote_dir/"
           ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
-            "cd $remote_dir && sha256sum -c eta-bot.tar.gz.sha256 && sudo -n bash deploy-server.sh eta-bot.tar.gz $release_id"
+            "cd $remote_dir && sha256sum -c eta-bot.tar.gz.sha256 && sudo -n bash deploy-server.sh eta-bot.tar.gz $release_id $ENABLE_FULL_ACCESS"

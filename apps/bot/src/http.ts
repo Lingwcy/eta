@@ -12,7 +12,7 @@ import { BotHttpError, httpError } from "./errors.ts";
 import { BotController } from "./controller.ts";
 import { BotProjects } from "./projects.ts";
 import { BotStore } from "./store.ts";
-import { SandboxModeSchema } from "@eta/core/shared/sandbox";
+import { SandboxModeSchema, sandboxModes } from "@eta/core/shared/sandbox";
 
 const RequestId = Schema.NonEmptyString.check(Schema.isMaxLength(256));
 const Create = Schema.Struct({
@@ -291,7 +291,7 @@ export function createHttpApp(options: {
       threads,
       models: await core.models(),
       settings: config.runtime,
-      allowedSandboxModes: config.allowedSandboxModes ?? ["read-only", "workspace-write"],
+      allowedSandboxModes: config.allowedSandboxModes ?? sandboxModes,
     });
   });
   app.post("/v1/threads/:id/configure", async (context) => {

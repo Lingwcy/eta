@@ -85,7 +85,10 @@ test("deployment ceilings must include the default sandbox mode", async () => {
   for (const overrides of [
     { allowedSandboxModes: [] },
     { allowedSandboxModes: ["read-only"] },
-    { runtime: { defaultThinkingLevel: "off", defaultSandboxMode: "danger-full-access" } },
+    {
+      allowedSandboxModes: ["read-only", "workspace-write"],
+      runtime: { defaultThinkingLevel: "off", defaultSandboxMode: "danger-full-access" },
+    },
   ]) {
     const { path } = await configuration(overrides);
     await expect(loadBotConfig(path)).rejects.toThrow("default sandbox mode must be allowed");
@@ -95,4 +98,11 @@ test("deployment ceilings must include the default sandbox mode", async () => {
     runtime: { defaultThinkingLevel: "off", defaultSandboxMode: "read-only" },
   });
   expect((await loadBotConfig(path)).runtime.defaultSandboxMode).toBe("read-only");
+});
+
+test("full access can be the default unless the deployment restricts it", async () => {
+  const { path } = await configuration({
+    runtime: { defaultThinkingLevel: "off", defaultSandboxMode: "danger-full-access" },
+  });
+  expect((await loadBotConfig(path)).runtime.defaultSandboxMode).toBe("danger-full-access");
 });

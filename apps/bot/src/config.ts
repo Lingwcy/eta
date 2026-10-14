@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { Schema } from "effect";
 import { RuntimeSettingsSchema } from "@eta/core";
 import { DiscordConfigSchema } from "../extensions/discord/types.ts";
-import { SandboxModeSchema } from "@eta/core/shared/sandbox";
+import { SandboxModeSchema, sandboxModes } from "@eta/core/shared/sandbox";
 
 export const BotConfigSchema = Schema.Struct({
   dataRoot: Schema.NonEmptyString,
@@ -46,7 +46,7 @@ export async function loadBotConfig(path: string) {
     );
   }
   if (
-    !(config.allowedSandboxModes ?? ["read-only", "workspace-write"]).includes(
+    !(config.allowedSandboxModes ?? sandboxModes).includes(
       config.runtime.defaultSandboxMode ?? "workspace-write",
     )
   )

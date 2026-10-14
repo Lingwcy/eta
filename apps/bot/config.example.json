@@ -4,7 +4,7 @@
   "port": 8080,
   "adminToken": "replace-with-a-private-admin-token",
   "maxConcurrent": 1,
-  "allowedSandboxModes": ["read-only", "workspace-write"],
+  "allowedSandboxModes": ["read-only", "workspace-write", "danger-full-access"],
   "runtime": {
     "defaultProvider": "anthropic",
     "defaultThinkingLevel": "off",
