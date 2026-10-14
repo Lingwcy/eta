@@ -343,7 +343,7 @@ test("editing pending proposal content invalidates its old approval without acti
   expect(proposals.find((value) => value.id === proposal.id)?.state).toBe("invalidated");
   expect(proposals.find((value) => value.id !== proposal.id)?.change).toMatchObject({
     prompt: "New review content",
-    rule: { timeZone: "America/New_York" },
+    rule: { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
   });
   expect(await runtime.runPromise(schedules.list())).toEqual([]);
   let rejected = false;
@@ -734,4 +734,42 @@ test("sidebar filters multiple states and creates a task through its dialog with
     at: new Date(`${chosenDate}T14:30`).getTime(),
   });
   await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+test("weekly creation toggles weekdays and persists the machine timezone without a timezone field", async () => {
+  const { runtime, schedules, library } = await setup();
+  let saved: string | undefined;
+  function Form() {
+    const controller = useSchedules();
+    return createElement(ScheduleForm, {
+      library,
+      controller,
+      onCancel: () => {},
+      onSaved: (id) => {
+        saved = id;
+      },
+    });
+  }
+  await act(async () => root.render(createElement(Form)));
+  await input(document.querySelector<HTMLInputElement>("input")!, "Weekly review");
+  await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="重复"]')!.click());
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((item) => item.textContent === "每周")!
+      .click(),
+  );
+  await input(document.querySelector<HTMLInputElement>('input[type="time"]')!, "08:30");
+  for (const label of ["星期一", "星期三", "星期五"])
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click(),
+    );
+  await click("创建");
+  await expect.poll(() => saved).toBeDefined();
+  expect((await runtime.runPromise(schedules.list(saved!)))[0].rule).toEqual({
+    type: "weekly",
+    weekdays: [3, 5],
+    time: "08:30",
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
 });

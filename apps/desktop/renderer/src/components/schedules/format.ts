@@ -39,9 +39,9 @@ export function scheduleRuleText(rule: ScheduleRule) {
         ? `每 ${rule.everyMs / 3600_000} 小时`
         : `每 ${rule.everyMs / 60_000} 分钟`;
     case "daily":
-      return `每天 ${rule.time} · ${rule.timeZone}`;
+      return `每天 ${rule.time}`;
     case "weekly":
-      return `周${rule.weekdays.map((day) => weekdays[day]).join("、")} ${rule.time} · ${rule.timeZone}`;
+      return `周${rule.weekdays.map((day) => weekdays[day]).join("、")} ${rule.time}`;
   }
 }
 export const scheduleStates = { active: "已启用", paused: "已暂停", completed: "已完成" };

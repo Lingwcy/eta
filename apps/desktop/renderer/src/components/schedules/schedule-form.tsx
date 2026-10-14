@@ -15,7 +15,6 @@ import { defaultModel } from "@/desktop/selectors";
 import type { InputModel } from "@/components/input/types";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { ScheduleDatePicker } from "./schedule-date-picker";
-import { scheduleRuleText } from "./format";
 
 const localDate = (time: number) => {
   const date = new Date(time);
@@ -73,11 +72,7 @@ export function ScheduleForm({
   const [time, setTime] = useState(
     initialRule?.type === "daily" || initialRule?.type === "weekly" ? initialRule.time : "09:00",
   );
-  const [zone, setZone] = useState(
-    initialRule?.type === "daily" || initialRule?.type === "weekly"
-      ? initialRule.timeZone
-      : Intl.DateTimeFormat().resolvedOptions().timeZone,
-  );
+  const [zone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [days, setDays] = useState<readonly number[]>(
     initialRule?.type === "weekly" ? initialRule.weekdays : [1],
   );
@@ -223,14 +218,14 @@ export function ScheduleForm({
         if (!open && !busy) onCancel();
       }}
     >
-      <DialogContent variant="form">
+      <DialogContent variant="dense-form">
         <form
           aria-label={schedule ? "编辑定时任务" : "新建定时任务"}
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
-          className="flex min-h-0 flex-col gap-4 overflow-y-auto text-xs"
+          className="flex min-h-0 flex-col gap-3 overflow-y-auto text-xs"
         >
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base font-medium">
@@ -257,88 +252,89 @@ export function ScheduleForm({
           </label>
           <label>
             执行内容
-            <div className="mt-1 rounded-lg border border-neutral-200 bg-white p-3 focus-within:border-neutral-400 focus-within:ring-2 focus-within:ring-neutral-200">
+            <div className="mt-1 rounded-lg border border-neutral-200 bg-white p-2.5 focus-within:border-neutral-400 focus-within:ring-2 focus-within:ring-neutral-200">
               <Textarea
+                variant="compact"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 disabled={busy}
               />
             </div>
           </label>
-          <section className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3">
-            <p className="font-medium">重复</p>
-            <Select
-              label="重复"
-              value={kind}
-              options={[
-                { value: "once", label: "一次" },
-                { value: "interval", label: "按间隔" },
-                { value: "daily", label: "每天" },
-                { value: "weekly", label: "每周" },
-              ]}
-              onValueChange={setKind}
-              disabled={busy}
-            />
-            {kind === "once" && (
-              <label>
-                本机时间
-                <ScheduleDatePicker value={at} onChange={setAt} disabled={busy} />
-              </label>
-            )}
-            {kind === "interval" && (
-              <label>
-                间隔（分钟，至少 5）
-                <Input
-                  type="number"
-                  min={5}
-                  value={minutes}
-                  onChange={(event) => setMinutes(event.target.value)}
+          <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2.5">
+            <div className="grid grid-cols-2 items-start gap-3">
+              <label className="flex min-w-0 flex-col gap-1">
+                重复
+                <Select
+                  size="compact"
+                  label="重复"
+                  value={kind}
+                  options={[
+                    { value: "once", label: "一次" },
+                    { value: "interval", label: "按间隔" },
+                    { value: "daily", label: "每天" },
+                    { value: "weekly", label: "每周" },
+                  ]}
+                  onValueChange={setKind}
                   disabled={busy}
                 />
               </label>
-            )}
-            {(kind === "daily" || kind === "weekly") && (
-              <>
+              {kind === "once" && (
                 <label>
+                  本机时间
+                  <ScheduleDatePicker value={at} onChange={setAt} disabled={busy} />
+                </label>
+              )}
+              {kind === "interval" && (
+                <label>
+                  间隔（分钟，至少 5）
+                  <Input
+                    variant="compact"
+                    type="number"
+                    min={5}
+                    value={minutes}
+                    onChange={(event) => setMinutes(event.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+              )}
+              {(kind === "daily" || kind === "weekly") && (
+                <label className="flex flex-col gap-1">
                   执行时间
                   <Input
+                    variant="compact"
                     type="time"
                     value={time}
                     onChange={(event) => setTime(event.target.value)}
                     disabled={busy}
                   />
                 </label>
-                <label>
-                  IANA 时区
-                  <Input
-                    variant="compact"
-                    value={zone}
-                    onChange={(event) => setZone(event.target.value)}
-                    disabled={busy}
-                  />
-                </label>
-              </>
-            )}
+              )}
+            </div>
             {kind === "weekly" && (
-              <fieldset>
-                <legend>星期</legend>
-                <div className="flex flex-wrap gap-2">
+              <fieldset className="flex items-center gap-3">
+                <legend className="sr-only">星期</legend>
+                <span className="shrink-0 text-neutral-500">星期</span>
+                <div className="grid min-w-0 flex-1 grid-cols-7 gap-1">
                   {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
-                    <label key={day}>
-                      <input
-                        type="checkbox"
-                        checked={days.includes(index)}
-                        disabled={busy}
-                        onChange={(event) =>
-                          setDays(
-                            event.target.checked
-                              ? [...days, index].toSorted((a, b) => a - b)
-                              : days.filter((value) => value !== index),
-                          )
-                        }
-                      />
+                    <Button
+                      key={day}
+                      variant="ghost"
+                      size="compact"
+                      selected={days.includes(index)}
+                      aria-label={`星期${day}`}
+                      aria-pressed={days.includes(index)}
+                      disabled={busy}
+                      onClick={() =>
+                        setDays(
+                          days.includes(index)
+                            ? days.filter((value) => value !== index)
+                            : [...days, index].toSorted((a, b) => a - b),
+                        )
+                      }
+                    >
                       {day}
-                    </label>
+                    </Button>
                   ))}
                 </div>
               </fieldset>
@@ -355,7 +351,7 @@ export function ScheduleForm({
             </Button>
           </div>
           {advanced && (
-            <section className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3">
+            <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2.5">
               {threadId ? (
                 <div className="flex items-center gap-2">
                   {workspaceIcon(workspace)}
@@ -364,6 +360,7 @@ export function ScheduleForm({
               ) : (
                 <Select
                   label="执行工作区"
+                  size="compact"
                   value={workspace}
                   options={library.workspaces.map((item) => ({
                     value: item.id,
@@ -395,7 +392,6 @@ export function ScheduleForm({
               )}
             </section>
           )}
-          {initialRule && <p>原规则：{scheduleRuleText(initialRule)}</p>}
 
           {!available && (
             <p>
