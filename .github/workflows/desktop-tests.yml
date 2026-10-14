@@ -1,6 +1,9 @@
 name: Desktop tests
 
 on:
+  # The only Desktop type-check and test run; without pull_request a broken
+  # Desktop change can only fail after it has already reached main.
+  pull_request:
   workflow_call:
   push:
     branches:
