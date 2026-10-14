@@ -785,3 +785,154 @@ test("weekly creation toggles weekdays and persists the machine timezone without
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
 });
+
+test("sidebar task menu supports pause, resume, run, edit and delete through real IPC", async () => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [thread.thread];
+  await runtime.runPromise(
+    schedules.write({
+      threadId: thread.id,
+      requestId: "menu-plan",
+      change: {
+        action: "create",
+        name: "Menu review",
+        prompt: "Review repository",
+        rule: { type: "interval", everyMs: 10800000, anchorAt: Date.now() },
+      },
+    }),
+  );
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(ScheduleSidebar, {
+      library,
+      controller,
+      onSelect: () => {},
+      onSaved: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  const openMenu = async () => {
+    await expect
+      .poll(async () => {
+        await act(async () => {
+          await Promise.resolve();
+        });
+        return document.querySelector<HTMLButtonElement>('[aria-label$="的任务操作"]');
+      })
+      .not.toBeNull();
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[aria-label$="的任务操作"]')!.click(),
+    );
+  };
+  const select = async (label: string) => {
+    await expect
+      .poll(() =>
+        [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].some(
+          (item) => item.textContent === label && item.getAttribute("aria-disabled") !== "true",
+        ),
+      )
+      .toBe(true);
+    await act(async () =>
+      [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+        .find((item) => item.textContent === label)!
+        .click(),
+    );
+  };
+  await openMenu();
+  expect(document.querySelector('[role="menu"]')?.textContent).not.toContain("分享");
+  await select("暂停");
+  await expect
+    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
+    .toBe("paused");
+  await openMenu();
+  await select("恢复");
+  await expect
+    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
+    .toBe("active");
+  await openMenu();
+  await select("立即运行");
+  const plan = (await runtime.runPromise(schedules.list()))[0];
+  await expect.poll(async () => (await runtime.runPromise(schedules.runs(plan.id))).length).toBe(1);
+  await openMenu();
+  await select("编辑");
+  await expect
+    .poll(() => document.querySelector('[role="dialog"]')?.textContent)
+    .toContain("编辑定时任务");
+  await input(document.querySelector<HTMLInputElement>("input")!, "Renamed review");
+  await click("保存");
+  await expect
+    .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.name)
+    .toBe("Renamed review");
+  await openMenu();
+  await select("删除");
+  await expect.poll(async () => (await runtime.runPromise(schedules.list())).length).toBe(0);
+  expect((await runtime.runPromise(threads.get(thread.id))).id).toBe(thread.id);
+});
+
+test("a grouped task menu targets the selected plan without pausing its sibling", async () => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [thread.thread];
+  for (const name of ["First plan", "Second plan"])
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: name,
+        change: {
+          action: "create",
+          name,
+          prompt: "Review repository",
+          rule: { type: "interval", everyMs: 10800000, anchorAt: Date.now() },
+        },
+      }),
+    );
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(ScheduleSidebar, {
+      library,
+      controller,
+      onSelect: () => {},
+      onSaved: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(Sidebar)));
+  await expect
+    .poll(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return document.querySelector('[aria-label$="的任务操作"]');
+    })
+    .not.toBeNull();
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label$="的任务操作"]')!.click(),
+  );
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((item) => item.textContent === "Second plan")!
+      .click(),
+  );
+  await expect
+    .poll(() =>
+      [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].some(
+        (item) => item.textContent === "暂停",
+      ),
+    )
+    .toBe(true);
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((item) => item.textContent === "暂停")!
+      .click(),
+  );
+  await expect
+    .poll(
+      async () =>
+        (await runtime.runPromise(schedules.list())).find((plan) => plan.name === "Second plan")
+          ?.state,
+    )
+    .toBe("paused");
+  expect(
+    (await runtime.runPromise(schedules.list())).find((plan) => plan.name === "First plan")?.state,
+  ).toBe("active");
+});

@@ -13,6 +13,7 @@ interface SelectProps<T extends string> {
   variant?: "default" | "menu";
   label?: string;
   panelTitle?: string;
+  popupSizing?: "trigger" | "content";
 }
 
 export function Select<T extends string>({
@@ -25,6 +26,7 @@ export function Select<T extends string>({
   variant = "default",
   label,
   panelTitle,
+  popupSizing = "trigger",
 }: SelectProps<T>) {
   return (
     <BaseSelect.Root
@@ -60,7 +62,10 @@ export function Select<T extends string>({
         >
           <BaseSelect.Popup
             className={cn(
-              "max-h-[min(360px,var(--available-height))] min-w-(--anchor-width) overflow-y-auto p-1 outline-none",
+              "overflow-y-auto p-1 outline-none",
+              popupSizing === "content"
+                ? "max-h-[min(240px,var(--available-height))] w-max min-w-40 max-w-[calc(100vw-32px)]"
+                : "max-h-[min(360px,var(--available-height))] min-w-(--anchor-width)",
               variant === "menu"
                 ? "min-w-40 rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 text-xs font-normal text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] backdrop-blur-xl select-none"
                 : "rounded-xl border border-neutral-200 bg-white shadow-lg",

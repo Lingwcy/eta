@@ -6,6 +6,9 @@ export const ContextMenu = BaseMenu.Root;
 export const ContextMenuTrigger = BaseMenu.Trigger;
 export const ContextMenuSubmenu = BaseMenu.SubmenuRoot;
 
+export const menuPopupStyle =
+  "max-h-[var(--available-height)] w-40 overflow-y-auto rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 p-1 text-xs font-normal text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl select-none";
+
 const itemStyle =
   "flex h-[26px] cursor-default items-center gap-1.5 rounded-[5px] px-2 outline-none data-highlighted:bg-[#007aff] data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:stroke-[1.7]";
 
@@ -30,9 +33,7 @@ export function ContextMenuContent({
         }
         className="z-50"
       >
-        <BaseMenu.Popup className="max-h-[var(--available-height)] w-40 overflow-y-auto rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 p-1 text-xs font-normal text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl select-none">
-          {children}
-        </BaseMenu.Popup>
+        <BaseMenu.Popup className={menuPopupStyle}>{children}</BaseMenu.Popup>
       </BaseMenu.Positioner>
     </BaseMenu.Portal>
   );

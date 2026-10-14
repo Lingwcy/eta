@@ -351,6 +351,8 @@ export function ScheduleForm({
                   ) : (
                     <Select
                       label="执行工作区"
+                      variant="menu"
+                      popupSizing="content"
                       size="compact"
                       value={workspace}
                       options={library.workspaces.map((item) => ({

@@ -1,3 +1,4 @@
+import type { Schedule } from "@eta/core/shared/schedules";
 import { useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { SchedulesController } from "@/agent/use-schedules";
@@ -5,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Popover } from "@base-ui/react/popover";
 import { Plus, ListFilter, Check } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScheduleMenu } from "./schedule-menu";
 import { ScheduleForm } from "./schedule-form";
 import { scheduleRuleText, scheduleTime } from "./format";
 
@@ -23,6 +25,40 @@ export function ScheduleSidebar({
 }) {
   const [states, setStates] = useState(["active", "paused", "completed"]);
   const [creating, setCreating] = useState(false);
+  const [edit, setEdit] = useState<Schedule>();
+  const [acting, setActing] = useState(false);
+  const [error, setError] = useState<string>();
+  const action = async (plan: Schedule, kind: "pause" | "resume" | "run" | "edit" | "delete") => {
+    if (kind === "edit") {
+      setEdit(plan);
+      return;
+    }
+    setActing(true);
+    setError(undefined);
+    try {
+      await controller.mutate(
+        JSON.stringify([plan.id, plan.revision, kind]),
+        (requestId) =>
+          kind === "run"
+            ? window.eta.runSchedule({
+                threadId: plan.threadId,
+                requestId,
+                scheduleId: plan.id,
+                expectedRevision: plan.revision,
+              })
+            : window.eta.writeSchedule({
+                threadId: plan.threadId,
+                requestId,
+                change: { action: kind, scheduleId: plan.id, expectedRevision: plan.revision },
+              }),
+        plan.threadId,
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "无法处理定时任务");
+    } finally {
+      setActing(false);
+    }
+  };
   const groups = controller.snapshot.snapshots
     .flatMap(({ environment, data }) => {
       const ids = new Set([
@@ -57,6 +93,9 @@ export function ScheduleSidebar({
             latest,
             environment,
             archived: thread?.archivedAt !== undefined,
+            unavailable:
+              data.requests.some((request) => request.threadId === id) ||
+              data.lifecycleIntents.some((intent) => intent.threadId === id),
           };
         })
         .filter(
@@ -116,21 +155,29 @@ export function ScheduleSidebar({
           </Popover.Portal>
         </Popover.Root>
       </div>
-      {creating && library && (
+      {(creating || edit) && library && (
         <ScheduleForm
+          key={edit?.id ?? "new"}
           library={library}
           controller={controller}
-          onCancel={() => setCreating(false)}
+          schedule={edit}
+          threadId={edit?.threadId}
+          workspaceId={library.threads.find((thread) => thread.id === edit?.threadId)?.workspaceId}
+          onCancel={() => {
+            setCreating(false);
+            setEdit(undefined);
+          }}
           onSaved={(id) => {
             setCreating(false);
+            setEdit(undefined);
             onSaved(id);
           }}
         />
       )}
       <ScrollArea className="flex-1">
-        {controller.error && (
+        {(error || controller.error) && (
           <p role="alert" className="px-3 text-xs">
-            {controller.error}
+            {error ?? controller.error}
             <Button variant="ghost" size="sm" onClick={() => void controller.refresh()}>
               重试
             </Button>
@@ -139,34 +186,51 @@ export function ScheduleSidebar({
         <nav>
           {groups.map((group) => (
             <div key={group.id} className="px-2 py-1">
-              <Button
-                variant="ghost"
-                size="row-sm"
-                selected={group.id === selectedThreadId}
-                onClick={() => onSelect(group.id)}
-              >
-                <span className="flex min-w-0 flex-col gap-1">
-                  <span className="truncate">{group.title}</span>
-                  <span className="truncate text-xs text-neutral-500">
-                    {group.next
-                      ? `${scheduleTime(group.next.nextRunAt)} · ${scheduleRuleText(group.next.rule)}`
-                      : group.pending
-                        ? "待确认"
-                        : group.archived
-                          ? "已归档"
-                          : group.plans.some((plan) => plan.state === "paused")
-                            ? "已暂停"
-                            : "已完成"}
-                    {group.environment.id !== "local" ? ` · ${group.environment.label}` : ""}
-                    {group.plans.length > 1 ? ` · ${group.plans.length} 个计划` : ""}
-                    {group.latest?.state === "admitted"
-                      ? " · 执行中"
-                      : group.latest?.state === "failed"
-                        ? " · 最近失败"
-                        : ""}
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="row-sm"
+                  selected={group.id === selectedThreadId}
+                  onClick={() => onSelect(group.id)}
+                >
+                  <span className="flex min-w-0 flex-col gap-1 pr-6">
+                    <span className="truncate">{group.title}</span>
+                    <span className="truncate text-xs text-neutral-500">
+                      {group.next
+                        ? `${scheduleTime(group.next.nextRunAt)} · ${scheduleRuleText(group.next.rule)}`
+                        : group.pending
+                          ? "待确认"
+                          : group.archived
+                            ? "已归档"
+                            : group.plans.some((plan) => plan.state === "paused")
+                              ? "已暂停"
+                              : "已完成"}
+                      {group.environment.id !== "local" ? ` · ${group.environment.label}` : ""}
+                      {group.plans.length > 1 ? ` · ${group.plans.length} 个计划` : ""}
+                      {group.latest?.state === "admitted"
+                        ? " · 执行中"
+                        : group.latest?.state === "failed"
+                          ? " · 最近失败"
+                          : ""}
+                    </span>
                   </span>
-                </span>
-              </Button>
+                </Button>
+                {!!group.plans.length && (
+                  <div className="absolute top-1/2 right-1 -translate-y-1/2">
+                    <ScheduleMenu
+                      plans={group.plans}
+                      label={group.title}
+                      disabled={
+                        acting ||
+                        group.unavailable ||
+                        group.archived ||
+                        group.environment.status !== "connected"
+                      }
+                      onAction={(plan, kind) => void action(plan, kind)}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </nav>
