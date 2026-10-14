@@ -247,6 +247,10 @@ test("inspector approves the exact proposal then supports pause, resume, manual 
   const { runtime, schedules, threads, workspace, library } = await setup();
   const thread = await runtime.runPromise(threads.create(workspace.id));
   library.threads = [thread.thread];
+  const prompt = Array.from(
+    { length: 8 },
+    (_, index) => `Review step ${index + 1}: inspect repository changes and report findings.`,
+  ).join("\n");
   await runtime.runPromise(
     schedules.propose({
       threadId: thread.id,
@@ -255,7 +259,7 @@ test("inspector approves the exact proposal then supports pause, resume, manual 
       change: {
         action: "create",
         name: "Review",
-        prompt: "Review repository",
+        prompt,
         rule: { type: "interval", everyMs: 300000, anchorAt: 0 },
       },
     }),
@@ -273,6 +277,8 @@ test("inspector approves the exact proposal then supports pause, resume, manual 
   }
   await act(async () => root.render(createElement(Panel)));
   expect(await runtime.runPromise(schedules.list())).toEqual([]);
+  await click("查看全文");
+  await click("收起内容");
   await click("批准");
   await expect
     .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)
@@ -280,6 +286,7 @@ test("inspector approves the exact proposal then supports pause, resume, manual 
   await act(async () => {
     await Promise.resolve();
   });
+  expect((await runtime.runPromise(schedules.list()))[0].prompt).toBe(prompt);
   await click("暂停");
   await expect
     .poll(async () => (await runtime.runPromise(schedules.list()))[0]?.state)

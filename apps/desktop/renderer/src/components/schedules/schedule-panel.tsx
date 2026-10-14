@@ -1,3 +1,4 @@
+import { Clock3, Monitor, Cloud, Hourglass } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { Schedule, ScheduleProposal } from "@eta/core/shared/schedules";
@@ -80,7 +81,7 @@ export function SchedulePanel({
     <ScrollArea className="flex-1">
       <div className="flex items-center justify-between px-3 py-2">
         <span className="truncate text-xs">{thread?.title || "当前会话"}</span>
-        <Button variant="ghost" size="sm" disabled={busy || !usable} onClick={onCreate}>
+        <Button variant="ghost" size="compact" disabled={busy || !usable} onClick={onCreate}>
           添加任务
         </Button>
       </div>
@@ -223,59 +224,80 @@ export function SchedulePanel({
               resume: "恢复",
               delete: "删除",
             };
+            const workspace = library.workspaces.find((item) => item.id === proposal.workspaceId);
+            const project = library.projects.find((item) => item.id === workspace?.projectId);
             return (
               <section
                 key={proposal.id}
-                className="flex flex-col gap-1 border-b border-neutral-200 pb-3"
+                className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3"
               >
-                <p className="font-medium">
-                  {names[proposal.change.action]}提案 ·{" "}
-                  {valid
-                    ? "待确认"
-                    : proposal.state === "pending"
-                      ? "已过期或正在处理"
-                      : proposal.state === "approved"
-                        ? "已批准"
-                        : proposal.state === "rejected"
-                          ? "已拒绝"
-                          : "已失效"}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-neutral-400">
+                      {names[proposal.change.action]}提案
+                    </p>
+                    <p className="mt-0.5 break-words text-[13px] font-medium text-neutral-800">
+                      {next?.name ?? current?.name ?? "定时任务"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
+                    {valid
+                      ? "待确认"
+                      : proposal.state === "pending"
+                        ? "已过期或处理中"
+                        : proposal.state === "approved"
+                          ? "已批准"
+                          : proposal.state === "rejected"
+                            ? "已拒绝"
+                            : "已失效"}
+                  </span>
+                </div>
                 {current && (
-                  <p>
-                    当前：{current.name} · {scheduleStates[current.state]}
-                    <br />
-                    {current.prompt}
-                    <br />
-                    {scheduleRuleText(current.rule)}
-                  </p>
+                  <div className="flex flex-col gap-1 border-l-2 border-neutral-200 pl-2 text-neutral-500">
+                    <p>
+                      当前：{current.name} · {scheduleStates[current.state]}
+                    </p>
+                    <PromptPreview text={current.prompt} />
+                    <p>{scheduleRuleText(current.rule)}</p>
+                  </div>
                 )}
                 {editableContent ? (
-                  <p>
-                    拟执行：{next?.name}
-                    <br />
-                    {next?.prompt}
-                    <br />
-                    {next?.rule && scheduleRuleText(next.rule)}
-                  </p>
+                  <PromptPreview text={next?.prompt ?? ""} />
                 ) : (
-                  <p>
+                  <p className="text-neutral-700">
                     拟变更：
                     {proposal.change.action === "delete"
                       ? "删除计划，仅停止后续触发"
                       : `${names[proposal.change.action]}后续执行`}
                   </p>
                 )}
-                <p>
-                  环境：{entity?.environment.label} ·
-                  {library.workspaces.find((workspace) => workspace.id === proposal.workspaceId)
-                    ?.cwd ?? "工作区不可用"}
-                </p>
-                <p>确认有效期：{scheduleTime(proposal.expiresAt)}</p>
-                {proposal.reason && <p>{proposal.reason}</p>}
+                <div className="flex flex-col gap-1.5 text-[11px] text-neutral-500">
+                  {next?.rule && (
+                    <p className="flex items-center gap-1.5">
+                      <Clock3 size={13} aria-hidden="true" />
+                      <span>{scheduleRuleText(next.rule)}</span>
+                    </p>
+                  )}
+                  <p className="flex items-center gap-1.5">
+                    {entity?.environment.id === "local" ? (
+                      <Monitor size={13} aria-label="本地" />
+                    ) : (
+                      <Cloud size={13} aria-label="云端" />
+                    )}
+                    <span className="truncate">{project?.name ?? "工作区不可用"}</span>
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <Hourglass size={13} aria-hidden="true" />
+                    <span>确认截止 {scheduleTime(proposal.expiresAt)}</span>
+                  </p>
+                </div>
+                {proposal.reason && (
+                  <p className="text-[11px] text-neutral-500">{proposal.reason}</p>
+                )}
                 {valid && (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1 border-t border-neutral-100 pt-2">
                     <Button
-                      size="sm"
+                      size="compact"
                       disabled={busy || !usable}
                       onClick={() =>
                         void act(
@@ -296,7 +318,7 @@ export function SchedulePanel({
                     </Button>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="compact"
                       disabled={busy || entity?.environment.status !== "connected"}
                       onClick={() =>
                         void act(
@@ -318,7 +340,7 @@ export function SchedulePanel({
                     {editableContent && (
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="compact"
                         disabled={busy || !usable}
                         onClick={() => setEdit({ proposal, schedule: current })}
                       >
@@ -346,5 +368,31 @@ export function SchedulePanel({
         </div>
       )}
     </ScrollArea>
+  );
+}
+
+function PromptPreview({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = text.length > 80 || text.includes("\n");
+  return (
+    <div>
+      <p
+        className={`whitespace-pre-wrap break-words text-xs leading-5 text-neutral-700 ${long && !expanded ? "line-clamp-3" : ""}`}
+      >
+        {text}
+      </p>
+      {long && (
+        <div className="mt-0.5">
+          <Button
+            variant="ghost-muted"
+            size="compact"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? "收起内容" : "查看全文"}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
