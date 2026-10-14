@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { DateTime, Effect, Layer, ManagedRuntime } from "effect";
 import { afterEach, expect, test } from "vite-plus/test";
 import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
@@ -280,12 +279,13 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
     ),
   );
   const dispatcher = await runtime.runPromise(ScheduleDispatcherService);
+  const admissionGate = Promise.withResolvers<void>();
   let submitPhase = "not started";
   const adapter = scheduleHostAdapter(
     {
       submit: async (id, prompt, requestId) => {
-        submitPhase = "intentional delay";
-        await delay(1_500);
+        submitPhase = "waiting for the test to release admission";
+        await admissionGate.promise;
         submitPhase = "calling Core submit";
         try {
           const result = await runtime.runPromise(threads.submit(id, prompt, requestId));
@@ -309,6 +309,9 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   await runtime.runPromise(dispatcher.tick(adapter, now + 100_000));
   const schedule = (await runtime.runPromise(schedules.list()))[0];
   const occurrence = (await runtime.runPromise(schedules.runs(schedule.id)))[0];
+  expect(occurrence.state).toBe("dispatching");
+  expect(submitPhase).toBe("waiting for the test to release admission");
+  admissionGate.resolve();
   let lastObservation = "no dispatcher poll yet";
   await expect
     .poll(
