@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Clock,
   Archive,
   ArchiveRestore,
   ArrowUpRight,
@@ -40,16 +41,19 @@ type Edit = { kind: "rename" | "delete"; thread: ThreadMetadata };
 const Actions = createContext<{
   desktop: DesktopLibraryController;
   edit: (value: Edit) => void;
+  schedule?: (id: string) => void;
   overlay: (open: boolean) => void;
 } | null>(null);
 
 export function ThreadActionsProvider({
   desktop,
   onOverlay,
+  onSchedule,
   children,
 }: {
   desktop: DesktopLibraryController;
   onOverlay: (open: boolean) => void;
+  onSchedule?: (id: string) => void;
   children: ReactNode;
 }) {
   const [edit, setEdit] = useState<Edit | null>(null);
@@ -58,7 +62,9 @@ export function ThreadActionsProvider({
     onOverlay(menuOpen || !!edit);
   }, [menuOpen, edit, onOverlay]);
   return (
-    <Actions.Provider value={{ desktop, edit: setEdit, overlay: setMenuOpen }}>
+    <Actions.Provider
+      value={{ desktop, edit: setEdit, overlay: setMenuOpen, schedule: onSchedule }}
+    >
       {children}
       <Dialog
         open={!!edit}
@@ -79,7 +85,15 @@ export function ThreadActionsProvider({
   );
 }
 
-export function ThreadContextMenu({ id, children }: { id?: string; children: ReactElement }) {
+export function ThreadContextMenu({
+  id,
+  children,
+  onScheduleOpen,
+}: {
+  id?: string;
+  children: ReactElement;
+  onScheduleOpen?: () => void;
+}) {
   const actions = useContext(Actions);
   const thread = actions?.desktop.library?.threads.find((thread) => thread.id === id);
   if (!actions || !thread || !actions.desktop.library) return children;
@@ -94,6 +108,18 @@ export function ThreadContextMenu({ id, children }: { id?: string; children: Rea
     <ContextMenu onOpenChange={overlay}>
       <ContextMenuTrigger render={children} />
       <ContextMenuContent>
+        {actions.schedule && thread.archivedAt === undefined && (
+          <ContextMenuItem
+            disabled={desktop.busy}
+            onClick={() => {
+              onScheduleOpen?.();
+              actions.schedule?.(thread.id);
+            }}
+          >
+            <Clock size={16} />
+            添加定时任务
+          </ContextMenuItem>
+        )}
         <ContextMenuItem disabled={desktop.busy} onClick={() => edit({ kind: "rename", thread })}>
           <Pencil size={16} />
           重命名

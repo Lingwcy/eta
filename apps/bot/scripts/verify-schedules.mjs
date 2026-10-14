@@ -1,0 +1,121 @@
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
+import {
+  createModels,
+  fauxProvider,
+  fauxAssistantMessage,
+  fauxToolCall,
+} from "@earendil-works/pi-ai";
+
+// Only the controlled model is bundled here. The host, Controller, scheduler and tools come from the distribution.
+const distribution = resolve(process.argv[2]);
+const { createBotApplication } = await import(
+  pathToFileURL(join(distribution, "runtime.mjs")).href
+);
+const root = await mkdtemp(join(tmpdir(), "eta-native-scheduled-bot-"));
+let bot;
+const poll = async (read, expected) => {
+  const deadline = Date.now() + 15000;
+  while (true) {
+    const value = await read();
+    if (value === expected) return;
+    if (Date.now() >= deadline)
+      throw new Error(`Scheduled Bot verification expected ${expected}, received ${value}`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+};
+try {
+  const workspaceRoot = join(root, "workspaces");
+  await mkdir(join(workspaceRoot, "repo"), { recursive: true });
+  const provider = fauxProvider({
+    provider: "native-schedule",
+    models: [{ id: "one" }],
+    tokensPerSecond: 10000,
+  });
+  const models = createModels();
+  models.setProvider(provider.provider);
+  const config = {
+    dataRoot: join(root, "data"),
+    workspaceRoot,
+    adminToken: "native-schedule-fixture",
+    shutdownGraceMs: 0,
+    maxConcurrent: 1,
+    runtime: { defaultThinkingLevel: "off" },
+  };
+  bot = await createBotApplication(config, { models });
+  const workspace = [...bot.workspaceProjects.keys()][0];
+  const thread = await bot.core.createThread(workspace);
+  await bot.core.renameThread(thread.id, "Native schedule");
+  const at = Date.now() + 5000;
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("schedule", {
+        action: "create",
+        name: "Native proof",
+        prompt: "Write the scheduled verification file",
+        rule: { type: "interval", everyMs: 300000, anchorAt: at },
+      }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Waiting for confirmation"),
+  ]);
+  await bot.controller.submit(thread.id, "Plan a native scheduled task", "ordinary-request");
+  await poll(async () => (await bot.core.listScheduleProposals({ threadId: thread.id })).length, 1);
+  await poll(() => bot.controller.status().activeThreads.length, 0);
+  assert.deepEqual(await bot.core.listSchedules(), []);
+  const proposal = (await bot.core.listScheduleProposals({ threadId: thread.id }))[0];
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("write", { path: "scheduled.txt", content: "Native scheduled work" }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Finished native work"),
+  ]);
+  const response = await bot.app.request(`/v1/schedule-proposals/${proposal.id}/approve`, {
+    method: "POST",
+    headers: {
+      authorization: "Bearer native-schedule-fixture",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      requestId: "trusted-approval",
+      contentFingerprint: proposal.contentFingerprint,
+    }),
+  });
+  assert.equal(response.status, 200);
+  const schedule = (await bot.core.listSchedules())[0];
+  await poll(
+    async () => (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0]?.state,
+    "succeeded",
+  );
+  assert.equal(
+    await readFile(join(workspaceRoot, "repo", "scheduled.txt"), "utf8"),
+    "Native scheduled work",
+  );
+  const opened = await bot.core.openThread(thread.id);
+  const messages = opened.snapshot.transcript.filter((entry) => entry.message.role === "user");
+  assert.equal(messages.length, 2);
+  const occurrence = (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0];
+  assert.equal(occurrence.source, "automatic");
+  assert.equal(occurrence.inputEntryId, messages[1].id);
+  assert.equal(provider.state.callCount, 4);
+  await bot.core.archiveThread(thread.id, true);
+  await bot.core.archiveThread(thread.id, false);
+  assert.equal((await bot.core.listSchedules())[0].state, "paused");
+  await bot.close();
+  bot = await createBotApplication(config, { models });
+  assert.equal((await bot.core.listSchedules())[0].state, "paused");
+  assert.equal(
+    (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0].state,
+    "succeeded",
+  );
+  console.log(
+    "Native scheduled Bot verified: root tool, trusted confirmation, automatic Controller delivery, real sandbox write, stable source receipt and restart.",
+  );
+} finally {
+  await bot?.close();
+  await rm(root, { recursive: true, force: true });
+}

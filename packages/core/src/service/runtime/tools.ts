@@ -11,12 +11,14 @@ export function createRuntimeTools({
   registry,
   harness,
   subagents,
+  schedule,
   readSettings,
   skillCatalog,
 }: {
   registry: Registry;
   harness: () => Harness | undefined;
   subagents: ReturnType<typeof createSubagentsExtension>;
+  schedule: ReturnType<typeof import("../schedules/extension.ts").createScheduleExtension>["tool"];
   readSettings: () => Promise<RuntimeSettings>;
   skillCatalog: () => Promise<SkillCatalog>;
 }) {
@@ -48,7 +50,7 @@ export function createRuntimeTools({
         {
           tools:
             subagentsEnabled && settings.subagents?.mode === "orchestrator"
-              ? [subagents.tool]
+              ? [subagents.tool, schedule]
               : { remove: [subagents.updateTool] },
         },
         BACKGROUND_CONTEXT,

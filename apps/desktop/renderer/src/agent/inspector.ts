@@ -1,4 +1,4 @@
-import type { DesktopTabState, ConversationTab } from "./desktop-tabs";
+import type { DesktopTabs, DesktopTabState, ConversationTab } from "./desktop-tabs";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 
 /** Settings and browser tabs keep the most recently viewed, still-open conversation in the inspector. */
@@ -22,4 +22,11 @@ export function inspectedWorkspace(
     ? library?.threads.find((thread) => thread.id === conversation.threadId)?.workspaceId
     : conversation?.workspaceId;
   return library?.workspaces.find((workspace) => workspace.id === id);
+}
+
+/** Global schedule navigation returns to an existing chat surface, retaining settings/browser tabs. */
+export function showScheduledTasks(tabs: DesktopTabs) {
+  const conversation = inspectedConversation(tabs.getSnapshot());
+  if (conversation) tabs.select(conversation.id);
+  else tabs.newConversation();
 }

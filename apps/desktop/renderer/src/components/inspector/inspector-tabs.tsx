@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Github } from "lucide-react";
+import { Clock, Bot, Github } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsPanel } from "@/components/ui/tabs";
 
 const ToolbarContext = createContext<HTMLDivElement | null>(null);
@@ -15,19 +15,32 @@ export function InspectorTabs({
   onChange,
   github,
   subagents,
+  schedules,
 }: {
-  value: "github" | "subagents";
-  onChange: (value: "github" | "subagents") => void;
+  value: "github" | "subagents" | "schedules";
+  onChange: (value: "github" | "subagents" | "schedules") => void;
   github?: ReactNode;
   subagents?: ReactNode;
+  schedules?: ReactNode;
 }) {
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
-  const active = value === "github" && github ? "github" : subagents ? "subagents" : "github";
+  const active =
+    value === "schedules" && schedules
+      ? "schedules"
+      : value === "github" && github
+        ? "github"
+        : value === "subagents" && subagents
+          ? "subagents"
+          : schedules
+            ? "schedules"
+            : subagents
+              ? "subagents"
+              : "github";
   return (
     <Tabs
       value={active}
       onValueChange={(next) => {
-        if (next === "github" || next === "subagents") onChange(next);
+        if (next === "github" || next === "subagents" || next === "schedules") onChange(next);
       }}
       render={<div className="flex min-h-0 flex-1 flex-col" />}
     >
@@ -49,8 +62,25 @@ export function InspectorTabs({
               <Bot aria-hidden="true" />
             </TabsTrigger>
           )}
+          {schedules && (
+            <TabsTrigger
+              variant="inspector"
+              value="schedules"
+              aria-label="定时任务"
+              title="定时任务"
+            >
+              <Clock aria-hidden="true" />
+            </TabsTrigger>
+          )}
         </TabsList>
       </div>
+      {schedules && (
+        <TabsPanel value="schedules" keepMounted className="flex min-h-0 flex-1 flex-col">
+          <ToolbarContext.Provider value={active === "schedules" ? toolbar : null}>
+            {schedules}
+          </ToolbarContext.Provider>
+        </TabsPanel>
+      )}
       {github && (
         <TabsPanel value="github" keepMounted className="flex min-h-0 flex-1 flex-col">
           <ToolbarContext.Provider value={active === "github" ? toolbar : null}>

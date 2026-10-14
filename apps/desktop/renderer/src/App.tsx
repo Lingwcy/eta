@@ -1,3 +1,4 @@
+import { SchedulePanel } from "@/components/schedules/schedule-panel";
 import { DesktopInspector } from "@/components/inspector/desktop-inspector";
 import { SubagentControls } from "@/components/subagents/subagent-controls";
 import { ThreadActionsProvider } from "@/components/threads/thread-actions";
@@ -11,7 +12,11 @@ export function App() {
   const shell = useDesktopShell();
   const conversation = shell.inspectorConversation;
   return (
-    <ThreadActionsProvider desktop={shell.desktop} onOverlay={shell.setThreadOverlay}>
+    <ThreadActionsProvider
+      desktop={shell.desktop}
+      onOverlay={shell.setThreadOverlay}
+      onSchedule={shell.addSchedule}
+    >
       <div className="flex h-dvh flex-col overflow-hidden bg-[#e9e9e9] font-sans text-[#292b2e] antialiased [--rail-width:50px] [--sidebar-width:170px] min-[701px]:[--sidebar-width:190px] min-[901px]:[--sidebar-width:210px] min-[1600px]:[--sidebar-width:230px]">
         <DesktopTabBar
           state={shell.navigation.state}
@@ -45,6 +50,18 @@ export function App() {
                       connected={shell.github.connected}
                       onRefresh={shell.github.refresh}
                       onRemote={shell.github.selectRemote}
+                    />
+                  ) : undefined
+                }
+                schedules={
+                  shell.schedulesAvailable && conversation?.threadId && shell.desktop.library ? (
+                    <SchedulePanel
+                      controller={shell.schedules}
+                      library={shell.desktop.library}
+                      threadId={conversation.threadId}
+                      creating={shell.creatingSchedule === conversation.threadId}
+                      onCreate={() => shell.addSchedule(conversation.threadId!)}
+                      onDone={shell.finishSchedule}
                     />
                   ) : undefined
                 }

@@ -4,6 +4,11 @@ import type { ImageProcessor } from "./images/types.ts";
 import type { CoreEnvironment } from "./service/environment.ts";
 import { CoreEnvironmentService } from "./service/environment.ts";
 import { AppPathsService } from "./platform/app-paths.ts";
+import { ScheduleDispatcherService } from "./service/schedules/dispatcher.ts";
+import { ScheduleStoreService } from "./service/schedules/store.ts";
+import { ScheduleGateService } from "./service/schedules/gate.ts";
+import { ScheduleLifecycleService } from "./service/schedules/lifecycle.ts";
+import { ScheduleService } from "./service/schedules/index.ts";
 import { CatalogService } from "./service/catalog/index.ts";
 import { CatalogStoreService } from "./service/catalog/json-store.ts";
 import { ConversationService } from "./service/conversations/index.ts";
@@ -31,9 +36,14 @@ export function coreFoundation(
   environment?: Partial<CoreEnvironment>,
   instructions?: (cwd: string) => Promise<string>,
 ) {
+  const catalog = CatalogService.layer.pipe(Layer.provide(CatalogStoreService.layer));
   return Layer.mergeAll(
-    CatalogService.layer.pipe(Layer.provide(CatalogStoreService.layer)),
-    SessionRepositoryService.layer,
+    Layer.mergeAll(ScheduleLifecycleService.layer, ScheduleDispatcherService.layer).pipe(
+      Layer.provideMerge(
+        Layer.mergeAll(catalog, ScheduleStoreService.layer, ScheduleGateService.layer),
+      ),
+    ),
+    SessionRepositoryService.layer.pipe(Layer.provide(catalog)),
     AgentResourcesService.layerWith(processImage, instructions),
     CoreEnvironmentService.layer(environment),
     WorkspaceAccessService.layer.pipe(Layer.provideMerge(GitStoreService.layer)),
@@ -42,10 +52,13 @@ export function coreFoundation(
 
 /** Both applications provide the same domain graph with their own models and settings adapters. */
 export function coreDomainServices(skillLayer: ReturnType<typeof SkillsService.layerWith>) {
-  const skills = Layer.mergeAll(skillLayer, ThreadTitleService.layer);
+  const skills = Layer.mergeAll(
+    skillLayer,
+    ThreadTitleService.layer,
+    ScheduleService.layer.pipe(Layer.provideMerge(WorkspaceService.layer)),
+  );
   const domain = Layer.mergeAll(
     ProjectService.layer,
-    WorkspaceService.layer,
     RuntimeRegistryService.layer,
     ConversationService.layer,
     RunSupervisorService.layer,

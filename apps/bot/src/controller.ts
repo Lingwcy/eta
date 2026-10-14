@@ -13,12 +13,18 @@ export class BotController {
   private readonly threadProjects = new Map<string, string>();
   private readonly inFlight = new Set<Promise<unknown>>();
   private closing = false;
+  private readonly capacityListeners = new Set<() => void>();
   constructor(
     private readonly core: CoreClient,
     private readonly workspaceProjects: ReadonlyMap<string, string>,
     private readonly maximum: number,
     private readonly log: BotLog = () => {},
   ) {}
+
+  subscribeCapacity(listener: () => void) {
+    this.capacityListeners.add(listener);
+    return () => this.capacityListeners.delete(listener);
+  }
 
   status() {
     return {
@@ -68,9 +74,17 @@ export class BotController {
   }
 
   private release(id: string) {
-    this.active.delete(id);
+    const released = this.active.delete(id);
     this.monitors.get(id)?.();
     this.monitors.delete(id);
+    if (released)
+      for (const listener of this.capacityListeners) {
+        try {
+          listener();
+        } catch {
+          this.log({ event: "scheduler.listener-failed" });
+        }
+      }
   }
 
   private async monitor(id: string) {

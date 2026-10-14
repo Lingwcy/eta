@@ -9,6 +9,19 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 }
 
 const bridge: DesktopBridge = {
+  scheduleSnapshot: () => invoke("eta:command", { type: "schedule-snapshot" }),
+  writeSchedule: (input) => invoke("eta:command", { type: "schedule-write", input }),
+  proposeSchedule: (input) => invoke("eta:command", { type: "schedule-propose", input }),
+  decideSchedule: (input, approved) =>
+    invoke("eta:command", { type: "schedule-decide", input, approved }),
+  runSchedule: (input) => invoke("eta:command", { type: "schedule-run", input }),
+  scheduleRuns: (scheduleId) => invoke("eta:command", { type: "schedule-runs", scheduleId }),
+  scheduleRequest: (threadId, requestId) =>
+    invoke("eta:command", { type: "schedule-request", threadId, requestId }),
+  subscribeSchedules(listener) {
+    ipcRenderer.on("eta:schedules-changed", listener);
+    return () => ipcRenderer.removeListener("eta:schedules-changed", listener);
+  },
   importBotCredentials: () => invoke("eta:command", { type: "bot-import-credentials" }),
   removeBotCredential: (providerId) =>
     invoke("eta:command", { type: "bot-remove-credential", providerId }),

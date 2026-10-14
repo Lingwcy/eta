@@ -5,7 +5,22 @@ import { defineConfig } from "vite-plus";
 export default defineConfig({
   resolve: {
     conditions: ["source"],
-    alias: { "@": fileURLToPath(new URL("./renderer/src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./renderer/src", import.meta.url)),
+      // Published Chord advertises source paths but ships only dist; DOM integration tests transform host services too.
+      "@earendil-works/chord/context": fileURLToPath(
+        new URL("./node_modules/@earendil-works/chord/dist/context/index.js", import.meta.url),
+      ),
+      "@earendil-works/chord/delta": fileURLToPath(
+        new URL("./node_modules/@earendil-works/chord/dist/delta/index.js", import.meta.url),
+      ),
+      "@earendil-works/chord/node": fileURLToPath(
+        new URL("./node_modules/@earendil-works/chord/dist/node.js", import.meta.url),
+      ),
+      "@earendil-works/chord": fileURLToPath(
+        new URL("./node_modules/@earendil-works/chord/dist/index.js", import.meta.url),
+      ),
+    },
   },
   ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/agent", "@eta/core"] },
   test: { environment: "node", include: ["src/**/*.test.ts", "renderer/src/**/*.test.ts"] },

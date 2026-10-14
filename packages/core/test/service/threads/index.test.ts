@@ -21,6 +21,9 @@ import { testServices, TestSettings } from "../../support/runtime.ts";
 import { ProjectService } from "@eta/core/service/projects/index";
 import { RuntimeRegistryService } from "@eta/core/service/runtime/index";
 import { WorkspaceService } from "@eta/core/service/workspaces/index";
+import { ScheduleService } from "@eta/core/service/schedules/index";
+import { ScheduleDispatcherService } from "@eta/core/service/schedules/dispatcher";
+import { scheduleHostAdapter } from "@eta/core/service/schedules/host";
 import { ThreadService } from "@eta/core/service/threads/index";
 import { TitleDoc, TITLE_TASK_KIND } from "@eta/core/agent/extension/title/task";
 import { defaultSubagentSettings } from "@eta/core/shared/subagents";
@@ -1211,7 +1214,7 @@ test("tool toggles change the model catalog for an existing thread and reenabled
         getCurrentTools(context.messages)
           .map((tool) => tool.name)
           .sort(),
-      ).toEqual(["edit", "subagent", "write"]);
+      ).toEqual(["edit", "schedule", "subagent", "write"]);
       return fauxAssistantMessage("No file read");
     },
   ]);
@@ -1228,7 +1231,7 @@ test("tool toggles change the model catalog for an existing thread and reenabled
         getCurrentTools(context.messages)
           .map((tool) => tool.name)
           .sort(),
-      ).toEqual(["bash", "edit", "read", "subagent", "write"]);
+      ).toEqual(["bash", "edit", "read", "schedule", "subagent", "write"]);
       return fauxAssistantMessage(
         fauxToolCall("read", { path: "available.txt" }, { id: "reenabled" }),
         { stopReason: "toolUse" },
@@ -1244,7 +1247,10 @@ test("tool toggles change the model catalog for an existing thread and reenabled
   await runtime.runPromise(settings.update({ disabledTools: ["read", "write", "edit", "bash"] }));
   provider.setResponses([
     (context) => {
-      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual(["subagent"]);
+      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual([
+        "schedule",
+        "subagent",
+      ]);
       return fauxAssistantMessage("All tools disabled");
     },
   ]);
@@ -1844,7 +1850,10 @@ test("the subagent switch updates open threads, restores coding in orchestrator 
   const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
   provider.setResponses([
     (request) => {
-      expect(getCurrentTools(request.messages).map((tool) => tool.name)).toEqual(["subagent"]);
+      expect(getCurrentTools(request.messages).map((tool) => tool.name)).toEqual([
+        "subagent",
+        "schedule",
+      ]);
       expect(getCurrentSystemMessage(request.messages)?.sections?.subagents).toContain(
         "Delegate all",
       );
@@ -1894,7 +1903,10 @@ test("the subagent switch updates open threads, restores coding in orchestrator 
   await next.runPromise(restoredSettings.update({ subagents: { ...policy, enabled: true } }));
   provider.setResponses([
     (request) => {
-      expect(getCurrentTools(request.messages).map((tool) => tool.name)).toEqual(["subagent"]);
+      expect(getCurrentTools(request.messages).map((tool) => tool.name)).toEqual([
+        "subagent",
+        "schedule",
+      ]);
       expect(getCurrentSystemMessage(request.messages)?.sections?.subagents).toContain(
         "Delegate all",
       );
@@ -1967,7 +1979,7 @@ test("disabling subagents lets an existing child finish and deliver its report",
   }
 });
 
-test("orchestrator root offers only delegation while children retain coding tools and configured presets", async () => {
+test("orchestrator root offers delegation and scheduling while children retain coding tools and configured presets", async () => {
   const { runtime, threads, registry, workspace, provider } = await setup();
   const settings = await runtime.runPromise(TestSettings);
   await runtime.runPromise(
@@ -1994,7 +2006,10 @@ test("orchestrator root offers only delegation while children retain coding tool
   const created = await runtime.runPromise(threads.create(workspace.id));
   provider.setResponses([
     (context) => {
-      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual(["subagent"]);
+      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toEqual([
+        "subagent",
+        "schedule",
+      ]);
       return fauxAssistantMessage(
         fauxToolCall(
           "subagent",
@@ -2169,3 +2184,167 @@ test("shows child waiting on the original operation and stops the entire task tr
     childAnswer.resolve(fauxAssistantMessage("stopped"));
   }
 });
+
+test("schedule tool requires a trusted proposal decision before dispatching an ordinary user prompt", async () => {
+  const { runtime, threads, registry, workspace, provider } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const schedules = await runtime.runPromise(ScheduleService);
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  const extension = record.registry.snapshot().extension("scheduled-tasks")!;
+  let replay: (() => Promise<unknown>) | undefined;
+  record.registry.install({
+    ...extension,
+    tools: extension.tools!.map((tool) => ({
+      ...tool,
+      execute: async (args, api, context) => {
+        replay = () => tool.execute!(args, api, context);
+        return tool.execute!(args, api, context);
+      },
+    })),
+  });
+  const at = Date.now() + 100_000;
+  provider.setResponses([
+    (context) => {
+      expect(getCurrentTools(context.messages).map((tool) => tool.name)).toContain("schedule");
+      return fauxAssistantMessage(
+        fauxToolCall(
+          "schedule",
+          {
+            action: "create",
+            name: "Write reminder",
+            prompt: "Write the reminder file",
+            rule: { type: "once", at },
+          },
+          { id: "schedule-create" },
+        ),
+        { stopReason: "toolUse" },
+      );
+    },
+    fauxAssistantMessage("Waiting for confirmation"),
+  ]);
+  await runtime.runPromise(threads.submit(created.id, "Plan the reminder"));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  expect(await runtime.runPromise(schedules.list())).toEqual([]);
+  expect(replay).toBeDefined();
+  await replay!();
+  const proposals = await runtime.runPromise(schedules.proposals(created.id));
+  expect(proposals).toHaveLength(1);
+  const proposal = proposals[0];
+  expect(proposal.state).toBe("pending");
+  expect(proposal.threadId).toBe(created.id);
+  expect(
+    JSON.stringify((await runtime.runPromise(threads.open(created.id))).snapshot.transcript),
+  ).toContain(proposal.contentFingerprint);
+  const dispatcher = await runtime.runPromise(ScheduleDispatcherService);
+  const host = scheduleHostAdapter(
+    {
+      submit: (id, prompt, requestId) => runtime.runPromise(threads.submit(id, prompt, requestId)),
+      operationByRequest: (id, requestId) =>
+        runtime.runPromise(threads.operationByRequest(id, requestId)),
+      recovery: (id) => runtime.runPromise(threads.recovery(id)),
+    },
+    async () => undefined,
+  );
+  await runtime.runPromise(dispatcher.tick(host, at));
+  expect(await runtime.runPromise(schedules.list())).toEqual([]);
+  await expect(readFile(join(workspace.cwd, "reminder.txt"), "utf8")).rejects.toThrow();
+  const approval = {
+    proposalId: proposal.id,
+    contentFingerprint: proposal.contentFingerprint,
+    requestId: "approve-tool",
+  };
+  const approved = await runtime.runPromise(schedules.decide(approval, true));
+  expect(await runtime.runPromise(schedules.decide(approval, true))).toEqual(approved);
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("write", { path: "reminder.txt", content: "Scheduled reminder" }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Reminder saved"),
+  ]);
+  await runtime.runPromise(dispatcher.tick(host, at));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await runtime.runPromise(dispatcher.tick(host, at + 1));
+  expect(await readFile(join(workspace.cwd, "reminder.txt"), "utf8")).toBe("Scheduled reminder");
+  expect((await runtime.runPromise(schedules.runs(approved.scheduleId!)))[0].state).toBe(
+    "succeeded",
+  );
+  const messages = (await runtime.runPromise(threads.open(created.id))).snapshot.transcript.filter(
+    (entry) => entry.message.role === "user",
+  );
+  expect(messages).toHaveLength(2);
+  expect(JSON.stringify(messages[1])).toContain("Write the reminder file");
+  expect((await runtime.runPromise(schedules.runs(approved.scheduleId!)))[0].inputEntryId).toBe(
+    messages[1].id,
+  );
+}, 15000);
+
+test.each([false, true])(
+  "schedule tool stays absent from spawned and forked children with canDelegate=%s",
+  async (canDelegate) => {
+    const { runtime, threads, registry, workspace, provider } = await setup();
+    const created = await runtime.runPromise(threads.create(workspace.id));
+    provider.setResponses(Array.from({ length: 20 }, () => fauxAssistantMessage("Done")));
+    await runtime.runPromise(threads.submit(created.id, "Establish fork history"));
+    const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+    await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+    for (const fork of [false, true]) {
+      const name = fork ? "forked" : "spawned";
+      const path = fork ? `/root/${name}` : `/${name}`;
+      provider.setResponses(Array.from({ length: 20 }, () => fauxAssistantMessage("Done")));
+      await runtime.runPromise(
+        threads.subagent(
+          created.id,
+          { action: "spawn", name, fork, canDelegate, message: "Work" },
+          name,
+        ),
+      );
+      await expect
+        .poll(
+          async () => (await record.subagents.list()).find((child) => child.path === path)?.status,
+        )
+        .toBe("completed");
+      for (const task of (await record.harness.inspect(BACKGROUND_CONTEXT)).tasks) {
+        if (task.record.kind === "eta.subagent-reporter")
+          await record.harness.waitForTask(task.record.id, BACKGROUND_CONTEXT);
+      }
+      await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+      const child = (await record.subagents.list()).find((child) => child.path === path)!;
+      const conversation = (await record.harness.conversation(
+        child.conversationId as typeof record.conversation.id,
+        BACKGROUND_CONTEXT,
+      ))!;
+      const tools = (await conversation.agent(BACKGROUND_CONTEXT)).tools.map((tool) => tool.name);
+      expect(tools).not.toContain("schedule");
+      expect(tools.includes("subagent")).toBe(canDelegate);
+      // Simulate an old broad child configuration: execution must enforce the real caller identity.
+      const tool = record.registry
+        .snapshot()
+        .tools()
+        .find(({ tool }) => tool.name === "schedule")!.tool;
+      await conversation.configure({ tools: [tool] }, BACKGROUND_CONTEXT);
+      provider.setResponses([
+        fauxAssistantMessage(
+          fauxToolCall("schedule", {
+            action: "create",
+            name: "Unauthorized",
+            prompt: "Work",
+            rule: { type: "once", at: Date.now() + 100_000 },
+          }),
+          { stopReason: "toolUse" },
+        ),
+        fauxAssistantMessage("Denied"),
+      ]);
+      await conversation.submit({ type: "input", content: "Try legacy tool" }, BACKGROUND_CONTEXT);
+      await conversation.waitForIdle(BACKGROUND_CONTEXT);
+      const schedules = await runtime.runPromise(ScheduleService);
+      expect(await runtime.runPromise(schedules.proposals(created.id))).toEqual([]);
+      expect(
+        JSON.stringify(
+          (await runtime.runPromise(threads.openSubagent(created.id, path))).snapshot.transcript,
+        ),
+      ).toContain("定时任务工具仅对根会话开放");
+    }
+  },
+  15000,
+);
