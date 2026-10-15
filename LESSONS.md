@@ -139,7 +139,8 @@ and inspect every build configuration that derives those keys.**
 
 - Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
 - Check: measure real payload fields, cover initial history and live events, and retain signed originals for subsequent provider calls. Compression alone does not remove incompressible continuation data; SSE compression must flush small events and release producers when cancelled.
-  **Arm automatic-delivery fixtures after planning and worker startup have completed.**
+
+**Arm automatic-delivery fixtures after planning and worker startup have completed.**
 
 - Evidence: on 2026-10-15, PR #28's container verification failed with no schedule occurrence. Delaying submission by six seconds in the main native verifier reproduced that error: its five-second interval anchor had passed before creation, so the next slot moved five minutes ahead. The verifier and Bot tool integration now create an active agent plan safely in the future, then re-arm it after the planning turn is idle and delivery responses are installed. The same injected delay passes after this change; the CI failure's original timing remains unknown without a stored schedule diagnostic.
 - Check: keep automatic delivery and real sandbox work in the proof; do not replace them with a manual run or merely extend the completion timeout.
