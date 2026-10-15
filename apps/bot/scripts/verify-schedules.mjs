@@ -49,7 +49,8 @@ try {
   const workspace = [...bot.workspaceProjects.keys()][0];
   const thread = await bot.core.createThread(workspace);
   await bot.core.renameThread(thread.id, "Native schedule");
-  const at = Date.now() + 5000;
+  // Planning includes native worker startup; keep automatic delivery disarmed until it settles.
+  const at = Date.now() + 86400_000;
   provider.setResponses([
     fauxAssistantMessage(
       fauxToolCall("schedule", {
@@ -74,6 +75,14 @@ try {
     fauxAssistantMessage("Finished native work"),
   ]);
   const schedule = (await bot.core.listSchedules())[0];
+  assert.equal(schedule.state, "active");
+  const armed = await bot.core.updateSchedule({
+    scheduleId: schedule.id,
+    expectedRevision: schedule.revision,
+    requestId: "arm-native-delivery",
+    patch: { rule: { type: "interval", everyMs: 300000, anchorAt: Date.now() + 5000 } },
+  });
+  assert.equal(armed.state, "applied");
   await poll(
     async () => (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0]?.state,
     "succeeded",

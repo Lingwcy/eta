@@ -135,6 +135,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Arm automatic-delivery fixtures after planning and worker startup have completed.**
+
+- Evidence: on 2026-10-15, PR #28's container verification failed with no schedule occurrence. Delaying submission by six seconds in the main native verifier reproduced that error: its five-second interval anchor had passed before creation, so the next slot moved five minutes ahead. The verifier and Bot tool integration now create an active agent plan safely in the future, then re-arm it after the planning turn is idle and delivery responses are installed. The same injected delay passes after this change; the CI failure's original timing remains unknown without a stored schedule diagnostic.
+- Check: keep automatic delivery and real sandbox work in the proof; do not replace them with a manual run or merely extend the completion timeout.
+- Seen: 2026-10-15.
+
 **Carry snapshot backpressure through the consumer's asynchronous write.**
 
 - Evidence: on 2026-10-14, the Core slow-consumer regression produced 43 deliveries while its first callback was still blocked. Observation coalesced projection work but ignored the Promise returned by Bot's SSE writer. Awaiting delivery keeps one write in progress and only the newest pending view; the real Hono unread-body regression reaches the latest revision within three frames instead of replaying the backlog. Cancellation and rejected delivery tests verify subscriptions release their watches. This reproduces a queue defect; no crash-time heap snapshot was captured on eta-server.
