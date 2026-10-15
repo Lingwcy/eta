@@ -320,7 +320,18 @@ export class DesktopBot {
     return response;
   }
   async request<T>(path: string, body?: object): Promise<T> {
-    return (await this.response(path, body)).json() as Promise<T>;
+    // A restored thread includes its full history. Keep the deadline alive through body reads,
+    // while ordinary control requests retain their short timeout and SSE has its own lifetime.
+    const snapshotResponse =
+      /^\/v1\/threads\/[^/]+(?:\/(?:configure|sandbox|approvals\/[^/]+))?$/.test(path);
+    const timeout = snapshotResponse ? 120000 : 10000;
+    const signal = AbortSignal.timeout(timeout);
+    try {
+      return (await (await this.response(path, body, signal)).json()) as T;
+    } catch (error) {
+      if (signal.aborted) throw new Error("连接 Bot 超时，请检查网络后重试。", { cause: error });
+      throw error;
+    }
   }
   private route(id: string) {
     return `/v1/threads/${encodeURIComponent(this.raw(id))}`;

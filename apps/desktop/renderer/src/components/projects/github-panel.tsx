@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { InspectorToolbar } from "@/components/inspector/inspector-tabs";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Alert } from "@/components/ui/alert";
+import { ToastNotice } from "@/components/ui/toast";
 
 export function GitHubPanel({
   client,
@@ -190,14 +190,13 @@ export function GitHubPanel({
           正在读取 GitHub…
         </p>
       )}
-      {view.error && (
-        <Alert>
-          {view.error.message}
-          {view.error.retryAt
-            ? ` 可重试时间：${new Date(view.error.retryAt).toLocaleString()}`
-            : ""}
-        </Alert>
-      )}
+      <ToastNotice
+        title="GitHub 请求未完成"
+        message={
+          view.error &&
+          `${view.error.message}${view.error.retryAt ? ` 可重试时间：${new Date(view.error.retryAt).toLocaleString()}` : ""}`
+        }
+      />
       {page && (
         <>
           {!page.items.length && (

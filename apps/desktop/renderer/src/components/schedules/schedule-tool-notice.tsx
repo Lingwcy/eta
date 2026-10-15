@@ -10,6 +10,7 @@ import {
 import type { SchedulesController } from "@/agent/use-schedules";
 import { Button } from "@/components/ui/button";
 import { scheduleRuleText, scheduleTime } from "./format";
+import { ToastNotice } from "@/components/ui/toast";
 
 export const ScheduleMessages = createContext<
   { threadId?: string; controller: SchedulesController } | undefined
@@ -135,21 +136,14 @@ export function ScheduleToolNotice({ result }: { result: ScheduleToolResult }) {
           {plan?.nextRunAt ? ` · 下一次 ${scheduleTime(plan.nextRunAt)}` : ""}
         </p>
       )}
-      {error && (
-        <p role="alert" className="pl-6 text-red-600">
-          {error}
-          <Button
-            variant="ghost-muted"
-            size="compact"
-            onClick={() => {
-              setRetry((value) => value + 1);
-              void context?.controller.refresh();
-            }}
-          >
-            重试
-          </Button>
-        </p>
-      )}
+      <ToastNotice
+        message={error}
+        title="定时任务操作未完成"
+        onRetry={() => {
+          setRetry((value) => value + 1);
+          void context?.controller.refresh();
+        }}
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { SkillCatalog } from "@eta/core/skills/types";
 import type { DesktopSettings } from "../../../../src/shared/settings.ts";
 import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
+import { ToastNotice } from "@/components/ui/toast";
 import { SettingsRow, SettingsSection } from "./settings-section";
 
 export function SkillSettings({
@@ -65,7 +65,7 @@ export function SkillSettings({
   ]);
   return (
     <>
-      {error && <Alert>{error}</Alert>}
+      <ToastNotice message={error} />
       <SettingsSection title="技能">
         <SettingsRow
           title="按需加载技能"

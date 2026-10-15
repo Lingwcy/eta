@@ -145,7 +145,7 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
 function SettingsLoading({ error }: { error?: string | null }) {
   return (
     <div className="flex flex-1 items-center justify-center text-sm text-neutral-400">
-      {error ?? "正在打开设置…"}
+      {error ? "设置尚未载入" : "正在打开设置…"}
     </div>
   );
 }
