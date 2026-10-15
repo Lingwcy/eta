@@ -3,6 +3,8 @@ import type { ComponentProps } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { ChevronDown, Globe2, MessageCircle, RotateCcw, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { menuPopupStyle } from "@/components/ui/context-menu";
+import { cn } from "@/lib/utils";
 import type { DesktopTabs } from "@/agent/desktop-tabs";
 import type { TabPresentation } from "@/agent/tab-presentations";
 import { TabIcon } from "./tab-icon";
@@ -34,10 +36,10 @@ export function TabListMenu({
         <ChevronDown size={17} />
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Positioner side="bottom" align="end" sideOffset={8} className="z-50">
+        <Menu.Positioner side="bottom" align="end" sideOffset={4} className="z-50">
           <Menu.Popup
             aria-label="标签操作"
-            className="w-72 rounded-2xl border border-neutral-200 bg-white p-2 text-sm shadow-[0_12px_36px_#00000018] outline-none [-webkit-app-region:no-drag]"
+            className={cn(menuPopupStyle, "w-64 [-webkit-app-region:no-drag]")}
           >
             <MenuItem onClick={() => tabs.newConversation()}>
               <MessageCircle size={16} />
@@ -59,7 +61,7 @@ export function TabListMenu({
               重新打开关闭的标签
               <span className="ml-auto text-xs text-neutral-400">⇧⌘T</span>
             </MenuItem>
-            <Menu.Separator className="my-2 border-t border-neutral-100" />
+            <Menu.Separator className="mx-1.5 my-1 h-px bg-black/10" />
             <div className="max-h-[45vh] overflow-y-auto">
               {items.map((item) => {
                 const tab = state.tabs.find((tab) => tab.id === item.id);
@@ -70,7 +72,7 @@ export function TabListMenu({
                   >
                     <MenuItem label={item.title} onClick={() => onSelect(item.id)}>
                       <TabIcon item={item} />
-                      <span className="truncate">{item.title}</span>
+                      <span className="min-w-0 flex-1 truncate">{item.title}</span>
                       {item.id === state.activeId && (
                         <span className="ml-auto text-xs text-neutral-400">当前</span>
                       )}
@@ -90,7 +92,7 @@ function MenuItem(props: Omit<ComponentProps<typeof Menu.Item>, "className">) {
   return (
     <Menu.Item
       {...props}
-      className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-neutral-700 outline-none data-highlighted:bg-neutral-100 data-disabled:cursor-default data-disabled:opacity-40"
+      className="flex h-[26px] w-full cursor-default items-center gap-1.5 rounded-[5px] px-2 text-left text-xs text-neutral-800 outline-none data-highlighted:bg-[#007aff] data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:stroke-[1.7]"
     />
   );
 }
