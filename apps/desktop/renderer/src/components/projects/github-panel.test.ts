@@ -7,6 +7,7 @@ import type { GitHubQuery } from "@eta/core/shared/github";
 import { GitHubClient } from "@/agent/github-client";
 import { InspectorTabs } from "@/components/inspector/inspector-tabs";
 import { GitHubPanel } from "./github-panel";
+import { ToastProvider } from "@/components/ui/toast";
 let root: Root | undefined;
 afterEach(async () => {
   await act(async () => root?.unmount());
@@ -72,19 +73,23 @@ test("GitHub categories live in the header, default to open and retain options o
   root = createRoot(container);
   await act(async () =>
     root!.render(
-      createElement(InspectorTabs, {
-        value: "github",
-        onChange: () => {},
-        github: createElement(GitHubPanel, {
-          client,
-          projectId: "project",
-          name: "Repo",
-          info,
-          connected: true,
-          onRefresh: refresh,
-          onRemote: async () => {},
+      createElement(
+        ToastProvider,
+        null,
+        createElement(InspectorTabs, {
+          value: "github",
+          onChange: () => {},
+          github: createElement(GitHubPanel, {
+            client,
+            projectId: "project",
+            name: "Repo",
+            info,
+            connected: true,
+            onRefresh: refresh,
+            onRemote: async () => {},
+          }),
         }),
-      }),
+      ),
     ),
   );
   expect(query).toHaveBeenLastCalledWith({ projectId: "project", kind: "pulls", state: "open" });

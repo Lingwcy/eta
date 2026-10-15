@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ToastNotice } from "@/components/ui/toast";
 import type { BrowserTab, DesktopTabs } from "@/agent/desktop-tabs";
 import { useBrowserPage } from "@/browser/use-browser-page";
 import type { BrowserClient, BrowserViewState } from "@/browser/client";
@@ -84,17 +85,12 @@ export function BrowserPanel({
           />
         </form>
       </div>
-      {error && (
-        <div
-          role="alert"
-          className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-50 px-5 py-3 text-sm text-neutral-500"
-        >
-          <span>{error}</span>
-          <Button variant="ghost" size="sm" onClick={() => command("reload")}>
-            重试
-          </Button>
-        </div>
-      )}
+      <ToastNotice
+        message={error}
+        active={visible}
+        title="网页未能载入"
+        onRetry={() => command("reload")}
+      />
       <div ref={viewport} className="relative min-h-0 flex-1 overflow-hidden">
         {tab.url ? (
           <>

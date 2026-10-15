@@ -3,7 +3,7 @@ import type { BotState } from "../../../../src/shared/bot.ts";
 import { SettingsRow, SettingsSection } from "./settings-section";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
+import { ToastNotice } from "@/components/ui/toast";
 
 export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => Promise<void> }) {
   const [url, setUrl] = useState(bot?.url ?? "");
@@ -27,6 +27,8 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
   };
   return (
     <>
+      <ToastNotice message={error} title="Bot 操作未完成" />
+      <ToastNotice message={result} type="success" title="Bot 配置已更新" />
       <SettingsSection title="Bot 连接">
         <form
           onSubmit={(event) => {
@@ -93,7 +95,6 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
               {busy ? "处理中…" : "保存并连接"}
             </Button>
           </SettingsRow>
-          {error && <Alert>{error}</Alert>}
         </form>
       </SettingsSection>
       <SettingsSection title="Bot 配置">
@@ -130,7 +131,6 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
             </Button>
           </SettingsRow>
         ))}
-        {result && <p className="text-xs text-neutral-500">{result}</p>}
       </SettingsSection>
     </>
   );

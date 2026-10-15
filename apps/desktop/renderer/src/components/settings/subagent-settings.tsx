@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ModelPicker } from "../input/model-picker";
 import { thinkingOptions } from "../input/model-thinking";
-import { Alert } from "@/components/ui/alert";
+import { ToastNotice } from "@/components/ui/toast";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
 
 type Preset = Policy["presets"][number];
@@ -128,7 +128,7 @@ export function SubagentSettings({
   };
   return (
     <>
-      {error && <Alert>{error}</Alert>}
+      <ToastNotice message={error} />
       <SettingsSection title="首选项">
         <SettingsRow
           title="启用子智能体"

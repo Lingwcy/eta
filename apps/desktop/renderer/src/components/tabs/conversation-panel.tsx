@@ -13,7 +13,8 @@ import { ComposerContext } from "@/components/input/composer-context";
 import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { ChatWelcome } from "@/components/chat/chat-welcome";
 import { RecoveryNotice } from "@/components/chat/recovery-notice";
-import { Alert } from "@/components/ui/alert";
+import { ToastNotice, ToastScope } from "@/components/ui/toast";
+import { ThreadLoading } from "@/components/chat/thread-loading";
 import { SkillPicker } from "@/components/input/skill-picker";
 import { ApprovalNotice } from "@/components/chat/approval-notice";
 
@@ -85,7 +86,8 @@ export function ConversationPanel({
     );
   }, [child, childKey]);
   return (
-    <>
+    <ToastScope active={active}>
+      <ToastNotice message={view.failure} active={active} onRetry={view.loading?.onRetry} />
       {tab.threadId &&
         view.transcript.snapshot?.subagents
           ?.filter(
@@ -118,7 +120,7 @@ export function ConversationPanel({
         <ScheduleMessages value={scheduleMessages}>
           <ChatTranscript {...view.transcript} origins={origins}>
             {view.welcome && <ChatWelcome {...view.welcome} />}
-            {view.failure && <Alert>{view.failure}</Alert>}
+            {view.loading && <ThreadLoading {...view.loading} />}
             {view.recovery && <RecoveryNotice {...view.recovery} />}
             {view.stopped && <output className="text-xs text-neutral-500">已停止生成</output>}
             <ThinkingSlot
@@ -163,6 +165,6 @@ export function ConversationPanel({
           </div>
         </div>
       </div>
-    </>
+    </ToastScope>
   );
 }
