@@ -1863,6 +1863,9 @@ test("parent cancellation exposes stopped child and tool states live and after r
   const { runtime, threads, registry, workspace, provider, reopen } = await setup();
   const created = await runtime.runPromise(threads.create(workspace.id));
   const stopChild = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  const childResponse = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  let childRequested = false;
+  let unsubscribe = () => {};
   let rootRequests = 0;
   provider.setResponses(
     Array.from({ length: 8 }, () => (request) => {
@@ -1870,15 +1873,10 @@ test("parent cancellation exposes stopped child and tool states live and after r
         request.messages.some(
           (message) => message.role === "user" && message.content === "child-work",
         )
-      )
-        return fauxAssistantMessage(
-          fauxToolCall(
-            "bash",
-            { command: "printf 'partial child output\\n'; sleep 30" },
-            { id: "child-bash" },
-          ),
-          { stopReason: "toolUse" },
-        );
+      ) {
+        childRequested = true;
+        return childResponse.promise;
+      }
       rootRequests++;
       if (rootRequests === 1)
         return fauxAssistantMessage(
@@ -1894,34 +1892,48 @@ test("parent cancellation exposes stopped child and tool states live and after r
       return fauxAssistantMessage("Final answer after cancelling redundant work");
     }),
   );
-  await runtime.runPromise(threads.submit(created.id, "Investigate this"));
-  await expect
-    .poll(async () => {
-      const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
-      if (!(await record.subagents.list()).length) return false;
-      const child = await runtime.runPromise(threads.openSubagent(created.id, "/worker"));
-      return child.snapshot.operation?.runningTools.some(
-        (tool) => tool.toolCallId === "child-bash",
-      );
-    })
-    .toBe(true);
-  const stopped = Promise.withResolvers<void>();
-  const unsubscribe = await runtime.runPromise(
-    threads.subscribe(
-      created.id,
-      (value) => {
-        if (
-          value.snapshot.subagents?.some(
-            (child) => child.path === "/worker" && child.status === "stopped",
-          )
-        )
-          stopped.resolve();
-      },
-      (message) => stopped.reject(new Error(message)),
-      "/worker",
-    ),
-  );
   try {
+    await runtime.runPromise(threads.submit(created.id, "Investigate this"));
+    await expect.poll(() => childRequested, { timeout: 10_000 }).toBe(true);
+    const generating = await runtime.runPromise(threads.openSubagent(created.id, "/worker"));
+    expect(generating.snapshot.operation?.runningTools).toEqual([]);
+    childResponse.resolve(
+      fauxAssistantMessage(
+        fauxToolCall(
+          "bash",
+          { command: "printf 'partial child output\\n'; sleep 30" },
+          { id: "child-bash" },
+        ),
+        { stopReason: "toolUse" },
+      ),
+    );
+    await expect
+      .poll(
+        async () => {
+          const child = await runtime.runPromise(threads.openSubagent(created.id, "/worker"));
+          return child.snapshot.operation?.runningTools.some(
+            (tool) => tool.toolCallId === "child-bash",
+          );
+        },
+        { timeout: 10_000 },
+      )
+      .toBe(true);
+    const stopped = Promise.withResolvers<void>();
+    unsubscribe = await runtime.runPromise(
+      threads.subscribe(
+        created.id,
+        (value) => {
+          if (
+            value.snapshot.subagents?.some(
+              (child) => child.path === "/worker" && child.status === "stopped",
+            )
+          )
+            stopped.resolve();
+        },
+        (message) => stopped.reject(new Error(message)),
+        "/worker",
+      ),
+    );
     stopChild.resolve(
       fauxAssistantMessage(fauxToolCall("subagent", { action: "stop", path: "/worker" }), {
         stopReason: "toolUse",
@@ -1944,6 +1956,7 @@ test("parent cancellation exposes stopped child and tool states live and after r
     );
   } finally {
     unsubscribe();
+    childResponse.resolve(fauxAssistantMessage("done"));
     stopChild.resolve(fauxAssistantMessage("done"));
   }
   await runtime.dispose();
@@ -1956,7 +1969,7 @@ test("parent cancellation exposes stopped child and tool states live and after r
       ({ message }) => message.role === "toolResult" && message.toolCallId === "child-bash",
     ),
   ).toMatchObject({ toolStatus: "stopped" });
-});
+}, 30_000);
 
 test("background delegates block archive and deletion and thread stop releases their work", async () => {
   const { runtime, threads, workspace, provider } = await setup();

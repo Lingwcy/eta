@@ -159,33 +159,6 @@ and inspect every build configuration that derives those keys.**
 - Check: treat streamed tool arguments as active model generation; keep execution, approval pauses, retries and deferred responses distinct.
 - Seen: 2026-10-13.
 
-**Wait for the observable completion condition, with a bounded timeout that
-allows native startup, before checking an operation's result.**
-
-- Why: native worker startup adds latency that an in-process fake may not
-  expose. Reading the result too early confuses unfinished work with failure.
-- Evidence: `f3a39419c` gave the Core client test's completion poll a 10-second
-  timeout before reading `proof.txt`; its commit body calls out native startup.
-- Evidence: on 2026-10-14, Linux CI run `38569607843` failed the scheduled-thread integration test because it captured an occurrence before the dispatcher's one-second admission wait completed, then repeatedly queried an undefined operation ID. The test now deliberately holds admission past that window and reconciles the durable receipt before querying completion; the same boundary is checked for manual runs.
-- Check: use the operation's completion signal rather than a fixed sleep.
-  Inspect initialization, cleanup, and timeout paths. Increasing a timeout
-  alone is not evidence that a hang or flake's cause has been resolved.
-- Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
-  schedule delivery test stuck before `ThreadService.submit`; the occurrence
-  remained `dispatching` and no durable receipt existed. Both a global timer and
-  Node's timer promise failed to advance under the parallel test suite. The
-  regression now holds admission behind a test-controlled promise, verifies
-  the initial dispatching state, releases admission, then polls the durable
-  receipt and checks exactly one user message. The focused dispatcher test
-  then revealed a separate Linux CI constraint: the runner lacks `bwrap`, so
-  the default workspace-write mode correctly blocks Core submission with
-  `SandboxUnavailable`. Because this integration asserts scheduling and message
-  admission rather than sandbox isolation, it explicitly uses full access only
-  for its temporary test workspace. Native validation ran outside the
-  protected `.codex` worktree directory; inside it the sandbox correctly denied
-  loading the development worker.
-- Seen: 2026-10-12, 2026-10-14.
-
 **Propagate a shared deadline through every asynchronous stage, including tools and the final decision check.**
 
 - Why: a model timeout alone does not bound context gathering or prevent a late approval.
@@ -218,5 +191,31 @@ model choice must still be validated as an explicit choice.**
 
 ## Promoted lessons
 
-None yet. Eta's existing rules, including “Hit every surface” and focused
-verification, continue to apply without fabricated recurrence counts.
+**Wait for the observable completion condition, with a bounded timeout that
+allows native startup, before checking an operation's result.**
+
+- Promoted on 2026-10-15 to [Verifying](AGENTS.md#verifying).
+- Why: native worker startup adds latency that an in-process fake may not
+  expose. Reading the result too early confuses unfinished work with failure.
+- Evidence: `f3a39419c` gave the Core client test's completion poll a 10-second
+  timeout before reading `proof.txt`; its commit body calls out native startup.
+- Evidence: on 2026-10-14, Linux CI run `38569607843` failed the scheduled-thread integration test because it captured an occurrence before the dispatcher's one-second admission wait completed, then repeatedly queried an undefined operation ID. The test now deliberately holds admission past that window and reconciles the durable receipt before querying completion; the same boundary is checked for manual runs.
+- Check: use the operation's completion signal rather than a fixed sleep.
+  Inspect initialization, cleanup, and timeout paths. Increasing a timeout
+  alone is not evidence that a hang or flake's cause has been resolved.
+- Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
+  schedule delivery test stuck before `ThreadService.submit`; the occurrence
+  remained `dispatching` and no durable receipt existed. Both a global timer and
+  Node's timer promise failed to advance under the parallel test suite. The
+  regression now holds admission behind a test-controlled promise, verifies
+  the initial dispatching state, releases admission, then polls the durable
+  receipt and checks exactly one user message. The focused dispatcher test
+  then revealed a separate Linux CI constraint: the runner lacks `bwrap`, so
+  the default workspace-write mode correctly blocks Core submission with
+  `SandboxUnavailable`. Because this integration asserts scheduling and message
+  admission rather than sandbox isolation, it explicitly uses full access only
+  for its temporary test workspace. Native validation ran outside the
+  protected `.codex` worktree directory; inside it the sandbox correctly denied
+  loading the development worker.
+- Additional evidence: on 2026-10-15, issue #38's parent-cancellation fixture timed out before its child tool started. Injecting 1.5 seconds of child-model latency reproduced the false precondition failure and a cleanup hook timeout. Separating the controlled child response from tool readiness and moving startup inside `try/finally` lets the same delayed case pass. An injected startup assertion failure now reports only that assertion, without a cleanup timeout. This reproduces a fixture defect; the original CI run did not record enough timing to prove it was the sole cause.
+- Seen: 2026-10-12, 2026-10-14, 2026-10-15.
