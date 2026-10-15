@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DateTime, Effect, Layer, ManagedRuntime } from "effect";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
 import { AppPathsService } from "@eta/core/platform/app-paths";
 import { CatalogService } from "@eta/core/service/catalog/index";
@@ -18,6 +18,7 @@ import { scheduleDraft, writeScheduleChange } from "@eta/core/service/schedules/
 import { ThreadService } from "@eta/core/service/threads/index";
 import { ProjectService } from "@eta/core/service/projects/index";
 import { WorkspaceService } from "@eta/core/service/workspaces/index";
+import { RuntimeRegistryService } from "@eta/core/service/runtime/index";
 import type { OperationResult } from "@eta/core/agent/protocol";
 import { testServices } from "../../support/runtime.ts";
 import { catalogFixture } from "../catalog/test-fixtures.ts";
@@ -348,6 +349,29 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   const userMessages = opened.snapshot.transcript.filter((entry) => entry.message.role === "user");
   expect(userMessages).toHaveLength(1);
   expect(JSON.stringify(userMessages[0])).toContain("Review repository");
+  const registry = await runtime.runPromise(RuntimeRegistryService);
+  const record = await runtime.runPromise(registry.acquire(thread.thread.sessionRef));
+  const releaseSettlement = Promise.withResolvers<void>();
+  const submit = record.conversation.submit.bind(record.conversation);
+  const held = vi
+    .spyOn(record.conversation, "submit")
+    .mockImplementation(async (input, context) => {
+      const handle = await submit(input, context);
+      return {
+        id: handle.id,
+        status: (context) => handle.status(context),
+        abort: (context) => handle.abort(context),
+        wait: async (context) => {
+          const result = await handle.wait(context);
+          await releaseSettlement.promise;
+          return result;
+        },
+      };
+    });
+  cleanups.push(async () => {
+    releaseSettlement.resolve();
+    held.mockRestore();
+  });
   provider.setResponses([fauxAssistantMessage("Manual work finished")]);
   await runtime.runPromise(
     schedules.runNow({
@@ -398,6 +422,22 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
     (await runtime.runPromise(schedules.runs(schedule.id))).find((run) => run.id === manual.id)
       ?.state,
   ).toBe("admitted");
+  // A durable terminal receipt does not imply that the supervisor released its lease.
+  expect(record.running).toBe(true);
+  expect(await runtime.runPromise(Effect.flip(threads.remove(thread.id)))).toMatchObject({
+    code: "Busy",
+  });
+  releaseSettlement.resolve();
+  await expect
+    .poll(
+      async () => ({
+        running: record.running,
+        recoveryRequired: record.recoveryRequired,
+        pending: await record.hasWork(),
+      }),
+      { timeout: 10_000 },
+    )
+    .toEqual({ running: false, recoveryRequired: false, pending: false });
   await runtime.runPromise(threads.remove(thread.id));
   expect(
     (await runtime.runPromise(schedules.runs(schedule.id))).find((run) => run.id === manual.id)
