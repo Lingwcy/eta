@@ -110,6 +110,47 @@ async function fixture(
   return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
 
+test("HTTP history and SSE omit internal signatures while durable Core history keeps them", async () => {
+  const { bot, provider, request, create } = await fixture();
+  const answer = fauxAssistantMessage("Visible response");
+  answer.content.unshift({
+    type: "thinking",
+    thinking: "Visible reasoning",
+    thinkingSignature: "continuation-payload".repeat(10000),
+  });
+  provider.setResponses([answer]);
+  const id = await create("display-history");
+  const admitted = await request(`/v1/threads/${id}/messages`, {
+    requestId: "display-input",
+    prompt: "Hello",
+  });
+  const operation = Schema.decodeUnknownSync(admission)(await admitted.json());
+  await expect
+    .poll(async () => (await bot.core.operation(id, operation.operationId)).status)
+    .toBe("completed");
+  const history = await (await request(`/v1/threads/${id}`)).text();
+  expect(history).toContain("Visible reasoning");
+  expect(history).toContain("Visible response");
+  expect(history).not.toContain("continuation-payload");
+  const controller = new AbortController();
+  const events = await bot.app.request(`/v1/threads/${id}/events`, {
+    headers: { authorization: "Bearer test-admin-token" },
+    signal: controller.signal,
+  });
+  const reader = events.body!.getReader();
+  try {
+    const event = new TextDecoder().decode((await reader.read()).value);
+    expect(event).toContain("Visible response");
+    expect(event).not.toContain("continuation-payload");
+  } finally {
+    controller.abort();
+    await reader.cancel();
+  }
+  expect(JSON.stringify((await bot.core.openThread(id)).snapshot)).toContain(
+    "continuation-payload",
+  );
+});
+
 test("an unknown approval reviewer model fails startup instead of silently using another", async () => {
   const { config } = await fixture();
   await expect(

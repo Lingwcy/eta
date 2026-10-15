@@ -7,6 +7,7 @@ import { DesktopTabBar } from "@/components/tabs/desktop-tab-bar";
 import { DesktopPanels } from "@/components/tabs/desktop-panels";
 import { GitHubPanel } from "@/components/projects/github-panel";
 import { InspectorTabs } from "@/components/inspector/inspector-tabs";
+import { ToastNotice } from "@/components/ui/toast";
 
 export function App() {
   const shell = useDesktopShell();
@@ -17,6 +18,7 @@ export function App() {
       onOverlay={shell.setThreadOverlay}
       onSchedule={shell.addSchedule}
     >
+      <ToastNotice message={shell.desktop.error} />
       {shell.creatingSchedule && shell.desktop.library && (
         <ScheduleForm
           key={shell.creatingSchedule}

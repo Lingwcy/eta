@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Folder, ListTree, RefreshCw, SlidersHorizontal } from "lucide-react";
 import type { StorageReport, StorageTarget } from "../../../../src/shared/storage.ts";
 import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
+import { ToastNotice } from "@/components/ui/toast";
 import { SearchInput } from "@/components/ui/search-input";
 import {
   ScrollAreaRoot,
@@ -82,7 +82,7 @@ export function StorageSettings({ active }: { active: boolean }) {
   );
   return (
     <div className="space-y-4">
-      {error && <Alert>{error}</Alert>}
+      <ToastNotice message={error} />
       <div className="flex items-center gap-3">
         <h2 className="text-sm font-medium text-neutral-700">会话占用</h2>
         <span
