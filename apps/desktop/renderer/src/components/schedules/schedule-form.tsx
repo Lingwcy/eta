@@ -144,7 +144,13 @@ export function ScheduleForm({
         throw new Error("请填写有效时间，格式为 HH:mm");
       const rule = Schema.decodeUnknownSync(ScheduleRuleSchema)(
         kind === "once"
-          ? { type: kind, at: new Date(at).getTime() }
+          ? {
+              type: kind,
+              at:
+                initialRule?.type === "once" && at === localDate(initialRule.at)
+                  ? initialRule.at
+                  : new Date(at).getTime(),
+            }
           : kind === "interval"
             ? { type: kind, everyMs: Number(minutes) * 60_000, anchorAt: anchor }
             : {
