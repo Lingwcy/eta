@@ -139,7 +139,7 @@ and inspect every build configuration that derives those keys.**
 
 - Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
 - Check: measure real payload fields, cover initial history and live events, and retain signed originals for subsequent provider calls. Compression alone does not remove incompressible continuation data; SSE compression must flush small events and release producers when cancelled.
-**Arm automatic-delivery fixtures after planning and worker startup have completed.**
+  **Arm automatic-delivery fixtures after planning and worker startup have completed.**
 
 - Evidence: on 2026-10-15, PR #28's container verification failed with no schedule occurrence. Delaying submission by six seconds in the main native verifier reproduced that error: its five-second interval anchor had passed before creation, so the next slot moved five minutes ahead. The verifier and Bot tool integration now create an active agent plan safely in the future, then re-arm it after the planning turn is idle and delivery responses are installed. The same injected delay passes after this change; the CI failure's original timing remains unknown without a stored schedule diagnostic.
 - Check: keep automatic delivery and real sandbox work in the proof; do not replace them with a manual run or merely extend the completion timeout.
@@ -157,11 +157,12 @@ and inspect every build configuration that derives those keys.**
 - Check: exercise the real background loop under a stable busy condition, not only a single deterministic tick. Keep host capacity and user management notifications active; ensure internal receipt changes still reach client subscribers without retriggering admission.
 - Seen: 2026-10-13.
 
-**Cover tool argument generation when mapping model activity to UI status.**
+**Keep pending work visible through every asynchronous stage.**
 
 - Evidence: on 2026-10-13, a Desktop session spent about 2 minutes 38 seconds generating a `write` call containing a 284-line plan. The thinking status hid on the streamed tool call, while the tool card only appeared once execution began. The `streaming tool arguments` regression in `renderer/src/agent/thinking-status.test.ts` reproduced the missing indicator and now covers partial arguments, timer continuity, execution and completion.
-- Check: treat streamed tool arguments as active model generation; keep execution, approval pauses, retries and deferred responses distinct.
-- Seen: 2026-10-13.
+- Evidence: on 2026-10-15, the maintainer reported no visible response after a Bot schedule's manual run. The sidebar only disabled its menu, and Desktop ignored the existing schedule event stream in favor of 15-second polling. The `manual run shows submission immediately` DOM regression now holds the request open and checks submission, queuing, execution, success and failure; `schedule events refresh immediately` covers push updates, an overlapping stale read, reconnect and cleanup.
+- Check: treat streamed tool arguments as active model generation; distinguish submission and queuing from admitted execution. Keep approval pauses, retries and deferred responses visible, and consume available state notifications instead of waiting for a polling interval.
+- Seen: 2026-10-13, 2026-10-15.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**
