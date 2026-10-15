@@ -567,7 +567,7 @@ export class DesktopBot {
               if (done) break;
               buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
               let end: number;
-              while ((end = buffer.indexOf("\n\n")) >= 0) {
+              while (!controller.signal.aborted && (end = buffer.indexOf("\n\n")) >= 0) {
                 const block = buffer.slice(0, end);
                 buffer = buffer.slice(end + 2);
                 const event = block

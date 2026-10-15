@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ThreadAgentClient } from "../../renderer/src/agent/client.ts";
-import type { SessionResponse } from "@eta/core/agent/protocol";
+import type { SessionResponse, SnapshotResponse } from "@eta/core/agent/protocol";
 import { DesktopBot } from "./bot.ts";
 
 const roots: string[] = [];
@@ -631,3 +631,73 @@ test("manual run acknowledges the durable receipt without waiting for a slow sna
     bot.close();
   }
 });
+
+test.each(["unsubscribe", "close", "disconnect", "switch"])(
+  "%s stops buffered SSE delivery after an asynchronous consumer resumes",
+  async (action) => {
+    const { bot, request, prefix } = await connect(true, ["schedules"]);
+    const release = Promise.withResolvers<void>();
+    const received: SnapshotResponse[] = [];
+    let cancelled = false;
+    const snapshot = (sequence: number): SnapshotResponse => ({
+      contextTokens: sequence,
+      snapshot: {
+        configuration: { model: { provider: "test", modelId: "one" }, thinkingLevel: "off" },
+        transcript: [
+          {
+            id: "entry",
+            type: "message",
+            message: { role: "user", content: "old Bot", timestamp: 1 },
+          },
+        ],
+        operation: null,
+        lastResult: null,
+        faulted: false,
+      },
+    });
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            [1, 2]
+              .map((sequence) => `event: snapshot\ndata: ${JSON.stringify(snapshot(sequence))}\n\n`)
+              .join(""),
+          ),
+        );
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const original = request.getMockImplementation()!;
+    request.mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      return url.endsWith("/events") ? new Response(body) : original(input, init);
+    });
+    const onError = vi.fn();
+    const stop = await bot.subscribeThread(
+      prefix + "thread",
+      async (value) => {
+        received.push(value);
+        if (received.length === 1) await release.promise;
+      },
+      onError,
+    );
+    try {
+      await expect.poll(() => received.length).toBe(1);
+      expect(received[0]!.snapshot.transcript[0]!.id).toBe(prefix + "entry");
+      if (action === "unsubscribe") stop();
+      else if (action === "close") bot.close();
+      else if (action === "disconnect") await bot.disconnect();
+      else await bot.connect({ url: "http://localhost:8081", token: "other-token" });
+      release.resolve();
+      await expect.poll(() => cancelled).toBe(true);
+      expect(received.map((value) => value.contextTokens)).toEqual([1]);
+      expect(onError).not.toHaveBeenCalled();
+    } finally {
+      release.resolve();
+      stop();
+      bot.close();
+    }
+  },
+);
