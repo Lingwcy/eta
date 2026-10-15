@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ActionToolbar } from "./action-toolbar";
 import { PromptTextarea } from "./prompt-textarea";
+import { ToastNotice } from "@/components/ui/toast";
 import type { CompositeInputProps } from "./types";
 
 export function CompositeInput({
@@ -178,11 +179,7 @@ export function CompositeInput({
           }}
         />
       )}
-      {attachmentError && (
-        <p role="alert" className="text-xs text-red-600">
-          {attachmentError}
-        </p>
-      )}
+      <ToastNotice message={attachmentError} title="附件未能添加" />
       <PromptTextarea
         value={text}
         onChange={setText}

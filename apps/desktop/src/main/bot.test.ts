@@ -38,6 +38,46 @@ async function connect(supported: boolean, capabilities?: unknown) {
   return { bot, request, prefix };
 }
 
+test("restoring a large thread can read its body beyond the ordinary request deadline", async () => {
+  const { bot, request } = await connect(true);
+  const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+  const controllers: AbortController[] = [];
+  // Use controlled deadlines so the test exercises body cancellation without waiting two minutes.
+  const deadline = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+    const controller = new AbortController();
+    controllers.push(controller);
+    return controller.signal;
+  });
+  request.mockImplementation(
+    async (_input, init) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            streams.push(controller);
+            init?.signal?.addEventListener("abort", () => controller.error(init.signal?.reason), {
+              once: true,
+            });
+          },
+        }),
+      ),
+  );
+  try {
+    const ordinary = bot.request("/v1/library");
+    const restored = bot.request<{ history: string }>("/v1/threads/thread");
+    const timedOut = expect(ordinary).rejects.toThrow("连接 Bot 超时，请检查网络后重试。");
+    controllers[0]!.abort(new DOMException("timeout", "TimeoutError"));
+    await timedOut;
+    streams[1]!.enqueue(new TextEncoder().encode(JSON.stringify({ history: "restored" })));
+    streams[1]!.close();
+    await expect(restored).resolves.toEqual({ history: "restored" });
+    expect(deadline).toHaveBeenCalledWith(10000);
+    expect(deadline).toHaveBeenCalledWith(120000);
+    expect(request).toHaveBeenCalledTimes(2);
+  } finally {
+    bot.close();
+  }
+});
+
 test("an older Bot reports sandbox incompatibility before changing or creating remote threads", async () => {
   const { bot, request, prefix } = await connect(false);
   await expect(bot.configureSandbox(prefix + "thread", "read-only")).rejects.toThrow(

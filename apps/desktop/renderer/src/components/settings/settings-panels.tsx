@@ -26,7 +26,7 @@ export interface SettingsPanelProps {
 }
 
 function update(props: SettingsPanelProps, patch: Partial<DesktopSettings>) {
-  // Ordinary panels use the shared error banner; subagent forms also display local save errors.
+  // Settings failures use the shared notification viewport.
   void props.updateSettings(patch).catch(() => {});
 }
 

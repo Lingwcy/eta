@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AppInfo, UpdateState } from "../../../../src/bridge.ts";
 import { useUpdateState } from "@/agent/use-update-state";
-import { Alert } from "@/components/ui/alert";
+import { ToastNotice } from "@/components/ui/toast";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { SettingsRow, SettingsSection } from "./settings-section";
@@ -60,7 +60,7 @@ export function AboutSettings({
   const working = status === "checking" || status === "available" || status === "downloading";
   return (
     <>
-      {error && <Alert>{error}</Alert>}
+      <ToastNotice message={error} />
       <SettingsSection title="Eta">
         <SettingsRow title={info ? `版本 v${info.version}` : "版本"}>
           <Avatar label="Eta" fallback="η" src="./favicon.svg" variant="brand" />

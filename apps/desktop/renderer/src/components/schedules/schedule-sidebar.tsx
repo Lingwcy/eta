@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ScheduleMenu } from "./schedule-menu";
 import { ScheduleForm } from "./schedule-form";
 import { scheduleRuleText, scheduleTime } from "./format";
+import { ToastNotice } from "@/components/ui/toast";
 
 export function ScheduleSidebar({
   library,
@@ -164,14 +165,11 @@ export function ScheduleSidebar({
         />
       )}
       <ScrollArea className="flex-1" gutter="overlay">
-        {(error || controller.error) && (
-          <p role="alert" className="px-3 text-xs">
-            {error ?? controller.error}
-            <Button variant="ghost" size="sm" onClick={() => void controller.refresh()}>
-              重试
-            </Button>
-          </p>
-        )}
+        <ToastNotice
+          message={error ?? controller.error}
+          title="定时任务操作未完成"
+          onRetry={() => void controller.refresh()}
+        />
         <nav>
           {groups.map((group) => (
             <div key={group.id} className="px-2 py-1">

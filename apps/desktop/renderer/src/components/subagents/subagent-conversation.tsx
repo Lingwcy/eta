@@ -9,6 +9,7 @@ import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { CompositeInput } from "@/components/input";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { ToastNotice } from "@/components/ui/toast";
 import { subagentStatus } from "./subagent-status";
 import { ApprovalNotice } from "@/components/chat/approval-notice";
 
@@ -42,8 +43,10 @@ export function SubagentConversation({
       threadId,
       (event) => {
         if (disposed) return;
-        if (event.type === "snapshot") setObservation(event.value);
-        else setError(event.message);
+        if (event.type === "snapshot") {
+          setObservation(event.value);
+          setError(undefined);
+        } else setError(event.message);
       },
       child.path,
     );
@@ -94,6 +97,7 @@ export function SubagentConversation({
   };
   return (
     <>
+      <ToastNotice message={error ?? child.error} active={active} title="子智能体操作未完成" />
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-neutral-100 px-3 py-2">
         <Button variant="ghost" size="compact" onClick={onBack}>
           <ArrowLeft size={14} /> 主会话
@@ -106,9 +110,9 @@ export function SubagentConversation({
         </span>
       </div>
       <ChatTranscript snapshot={snapshot} running={running}>
-        {error && <Alert>{error}</Alert>}
-        {snapshot?.recoveryRequired && <Alert>请在主会话恢复或停止未完成任务。</Alert>}
-        {child.error && <Alert>{child.error}</Alert>}
+        {snapshot?.recoveryRequired && (
+          <Alert tone="warning">请在主会话恢复或停止未完成任务。</Alert>
+        )}
         {child.status === "stopped" && (
           <output className="text-xs text-neutral-500">任务已停止，未完成的工作已取消。</output>
         )}

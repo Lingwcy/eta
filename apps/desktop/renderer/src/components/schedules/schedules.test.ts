@@ -34,6 +34,7 @@ import { ThreadActivity } from "@/agent/thread-activity";
 import { useDesktopController } from "@/agent/use-desktop-controller";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { ScheduleSidebar } from "./schedule-sidebar";
+import { ToastProvider } from "@/components/ui/toast";
 
 const cleanups: Array<() => Promise<void>> = [];
 let root: Root;
@@ -239,7 +240,7 @@ test("creation retains its draft and reuses the same thread and request after th
       onSaved: (id) => saved.push(id),
     });
   }
-  await act(async () => root.render(createElement(Form)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Form))));
   await input(
     document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
     "Review",
@@ -316,7 +317,7 @@ test("adding a plan from search closes its modal and saves against the selected 
       children,
     });
   }
-  await act(async () => root.render(createElement(Search)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Search))));
   await act(async () =>
     document.querySelector<HTMLButtonElement>('button[aria-label="搜索聊天"]')!.click(),
   );
@@ -425,7 +426,7 @@ test("sidebar filters multiple states and creates a task through its dialog with
       },
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   await expect.poll(() => document.body.textContent).toContain("Upcoming review");
   expect(document.body.textContent).toContain("Paused review");
   expect(document.body.textContent).toContain("每 3 小时");
@@ -530,7 +531,7 @@ test("weekly creation toggles weekdays and persists the machine timezone without
       },
     });
   }
-  await act(async () => root.render(createElement(Form)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Form))));
   await input(document.querySelector<HTMLInputElement>("input")!, "Weekly review");
   await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
   await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="重复"]')!.click());
@@ -586,7 +587,7 @@ test("sidebar task menu supports pause, resume, run, edit and delete through rea
       onSaved: () => {},
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   const openMenu = async () => {
     await expect
       .poll(async () => {
@@ -674,7 +675,7 @@ test("a grouped task menu targets the selected plan without pausing its sibling"
       onSaved: () => {},
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   await expect
     .poll(async () => {
       await act(async () => {
@@ -794,7 +795,7 @@ test.each(["local", "bot"])(
         ),
       });
     }
-    await act(async () => root.render(createElement(Stream)));
+    await act(async () => root.render(createElement(ToastProvider, null, createElement(Stream))));
     await expect
       .poll(() =>
         document.querySelector(
@@ -828,7 +829,7 @@ test.each(["danger-full-access", "workspace-write"] as const)(
         },
       });
     }
-    await act(async () => root.render(createElement(Form)));
+    await act(async () => root.render(createElement(ToastProvider, null, createElement(Form))));
     await input(document.querySelector<HTMLInputElement>("input")!, "Permission test");
     await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
     await click("高级");
@@ -886,7 +887,7 @@ test("project thread markers follow actual schedule creation and deletion and th
       onSkills: () => {},
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   const projectButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
     (item) => item.title === `${workspace.cwd}-root`,
   )!;
@@ -995,7 +996,7 @@ test("the bell shows cross-project input priority and opening a row preserves th
       onSkills: () => {},
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
   );
@@ -1012,7 +1013,7 @@ test("the bell shows cross-project input priority and opening a row preserves th
     await runtime.runPromise(threads.get(first.id)),
     await runtime.runPromise(threads.get(second.id)),
   ];
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   expect(recents.getSnapshot()).toBe(visitOrder);
   expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
   now += 1000;
@@ -1038,7 +1039,7 @@ test("the bell shows cross-project input priority and opening a row preserves th
     },
   });
   root = createRoot(document.body.firstElementChild!);
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
   );
@@ -1121,7 +1122,7 @@ test("successful composer inputs update recents for drafts and existing chats; r
     input = controller.composer;
     return null;
   }
-  await act(async () => root.render(createElement(Composer)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Composer))));
   const before = recents.getSnapshot();
   await act(async () => {
     await expect(input.onSubmit("First input")).rejects.toThrow("Input rejected");
@@ -1143,7 +1144,11 @@ test("successful composer inputs update recents for drafts and existing chats; r
   await act(async () => {
     tabs.newConversation(workspace.id);
   });
-  await act(async () => root.render(createElement(Composer, { key: tabs.activeTab.id })));
+  await act(async () =>
+    root.render(
+      createElement(ToastProvider, null, createElement(Composer, { key: tabs.activeTab.id })),
+    ),
+  );
   await act(async () => input.onSubmit("New chat input"));
   const created = tabs.activeTab;
   expect(created.kind === "conversation" && created.threadId).toBeTruthy();

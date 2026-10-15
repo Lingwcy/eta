@@ -135,6 +135,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Keep provider continuation payloads in runtime storage, out of display snapshots.**
+
+- Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
+- Check: measure real payload fields, cover initial history and live events, and retain signed originals for subsequent provider calls. Compression alone does not remove incompressible continuation data; SSE compression must flush small events and release producers when cancelled.
+- Seen: 2026-10-15.
+
 **Carry snapshot backpressure through the consumer's asynchronous write.**
 
 - Evidence: on 2026-10-14, the Core slow-consumer regression produced 43 deliveries while its first callback was still blocked. Observation coalesced projection work but ignored the Promise returned by Bot's SSE writer. Awaiting delivery keeps one write in progress and only the newest pending view; the real Hono unread-body regression reaches the latest revision within three frames instead of replaying the backlog. Cancellation and rejected delivery tests verify subscriptions release their watches. This reproduces a queue defect; no crash-time heap snapshot was captured on eta-server.
