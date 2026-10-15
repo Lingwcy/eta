@@ -73,6 +73,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Validate SDK compatibility separately from frozen dependency resolution.**
+
+- Evidence: #29 and #54 failed Mobile CI at Expo's compatibility gate despite successful frozen installs. On 2026-10-15, main `ff2545b` reproduces the expected Expo `~57.0.30` / Router `~57.0.28` mismatch; the release commit only changes Desktop/root versions. Expo CLI reads its native-module recommendations from an online SDK API, so a lockfile does not freeze that contract. Aligning these patches makes the compatibility check pass; this does not establish that the old native app was broken.
+- Check: preserve the compatibility gate, verify the SDK's required toolchain together, and export both platforms. Keep release-age exceptions restricted to required exact versions and verify unrelated workspace importers remain unchanged; do not disable policy or force offline metadata merely to turn CI green.
+- Seen: 2026-10-15.
+
 **Parse streaming protocols independently of transport read boundaries.**
 
 - Evidence: on 2026-10-15, byte-split LF frames passed Desktop's thread and schedule subscriptions, but valid split CRLF and bare-CR frames produced six failures: no completed thread observation or schedule revision arrived. The shared Desktop parser normalized each chunk separately, losing CRLF boundaries split across reads. Incremental line-ending normalization makes all 18 Bot transport tests pass, including UTF-8, admission acknowledgement, reconnect and cancellation; Mobile's existing independent parser passes its four boundary tests unchanged. This is a controlled protocol reproduction, not a production incident or an explanation of unrelated CI failures.
