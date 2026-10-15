@@ -198,7 +198,7 @@ test("Bot root tool creates an active plan before automatic Controller delivery"
           action: "create",
           name: "Review",
           prompt: "Scheduled review",
-          rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 1500 },
+          rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 86400_000 },
         },
         { id: "plan" },
       ),
@@ -216,6 +216,15 @@ test("Bot root tool creates an active plan before automatic Controller delivery"
   expect(await bot.core.listScheduleProposals({ threadId: id })).toEqual([]);
   fast.setResponses([fauxAssistantMessage("Scheduled review finished")]);
   const schedule = (await bot.core.listSchedules({ threadId: id }))[0];
+  expect(schedule.state).toBe("active");
+  expect(
+    await bot.core.updateSchedule({
+      scheduleId: schedule.id,
+      expectedRevision: schedule.revision,
+      requestId: "arm-tool-schedule",
+      patch: { rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 1500 } },
+    }),
+  ).toMatchObject({ state: "applied" });
   await expect
     .poll(async () => (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0]?.state, {
       timeout: 8000,

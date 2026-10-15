@@ -56,7 +56,11 @@ export function ScheduleForm({
   const [time, setTime] = useState(
     initialRule?.type === "daily" || initialRule?.type === "weekly" ? initialRule.time : "09:00",
   );
-  const [zone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [zone] = useState(() =>
+    initialRule?.type === "daily" || initialRule?.type === "weekly"
+      ? initialRule.timeZone
+      : Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
   const [days, setDays] = useState<readonly number[]>(
     initialRule?.type === "weekly" ? initialRule.weekdays : [1],
   );
@@ -140,7 +144,13 @@ export function ScheduleForm({
         throw new Error("请填写有效时间，格式为 HH:mm");
       const rule = Schema.decodeUnknownSync(ScheduleRuleSchema)(
         kind === "once"
-          ? { type: kind, at: new Date(at).getTime() }
+          ? {
+              type: kind,
+              at:
+                initialRule?.type === "once" && at === localDate(initialRule.at)
+                  ? initialRule.at
+                  : new Date(at).getTime(),
+            }
           : kind === "interval"
             ? { type: kind, everyMs: Number(minutes) * 60_000, anchorAt: anchor }
             : {

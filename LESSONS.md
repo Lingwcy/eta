@@ -139,6 +139,10 @@ and inspect every build configuration that derives those keys.**
 
 - Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
 - Check: measure real payload fields, cover initial history and live events, and retain signed originals for subsequent provider calls. Compression alone does not remove incompressible continuation data; SSE compression must flush small events and release producers when cancelled.
+**Arm automatic-delivery fixtures after planning and worker startup have completed.**
+
+- Evidence: on 2026-10-15, PR #28's container verification failed with no schedule occurrence. Delaying submission by six seconds in the main native verifier reproduced that error: its five-second interval anchor had passed before creation, so the next slot moved five minutes ahead. The verifier and Bot tool integration now create an active agent plan safely in the future, then re-arm it after the planning turn is idle and delivery responses are installed. The same injected delay passes after this change; the CI failure's original timing remains unknown without a stored schedule diagnostic.
+- Check: keep automatic delivery and real sandbox work in the proof; do not replace them with a manual run or merely extend the completion timeout.
 - Seen: 2026-10-15.
 
 **Carry snapshot backpressure through the consumer's asynchronous write.**
@@ -194,6 +198,13 @@ allows native startup, before checking an operation's result.**
 - Seen 1× (2026-10-13).
 
 ## Defaults and explicit choices
+
+**Editing schedules must preserve stored timing semantics, not reconstruct unchanged values from lossy UI fields.**
+
+- Evidence: on 2026-10-14, reviewing PR #19 found that `6937c42` replaced the existing daily/weekly timezone with the machine timezone. The `editing a daily/weekly plan preserves its timezone through real IPC` regressions in `renderer/src/components/schedules/schedules.test.ts` failed before the fix: renaming a plan changed `Asia/Shanghai` to `UTC`. They now check the persisted rule and next run remain unchanged; the existing creation test still verifies the machine-timezone default.
+- Evidence: on 2026-10-15, the adjacent once-rule edit path still round-tripped epoch milliseconds through an HH:mm display. The `editing a once plan preserves its exact instant unless rescheduled` IPC regression failed because a title edit changed 09:15:42.987 to 09:15:00. Existing instants now survive metadata-only edits, while choosing a new time still reschedules.
+- Check: edit plans created by an agent or another client through the real form and persistence boundary, including non-minute timestamps and a different timezone. Cover explicit rescheduling as well as preservation; creation-only tests cannot establish that edits retain meaning.
+- Seen: 2026-10-14, 2026-10-15.
 
 **A default model fallback must honor enabled and available models; an explicit
 model choice must still be validated as an explicit choice.**

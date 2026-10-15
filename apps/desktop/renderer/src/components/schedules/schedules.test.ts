@@ -562,6 +562,106 @@ test("weekly creation toggles weekdays and persists the machine timezone without
   });
 });
 
+test.each(["daily", "weekly"] as const)(
+  "editing a %s plan preserves its timezone through real IPC",
+  async (type) => {
+    const { runtime, schedules, threads, workspace, library } = await setup();
+    const thread = await runtime.runPromise(threads.create(workspace.id));
+    const timeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone === "Asia/Shanghai"
+        ? "America/New_York"
+        : "Asia/Shanghai";
+    const rule =
+      type === "weekly"
+        ? { type, time: "09:00", timeZone, weekdays: [1, 3, 5] }
+        : { type, time: "09:00", timeZone };
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: `timezone-${type}`,
+        change: { action: "create", name: "Original", prompt: "Review repository", rule },
+      }),
+    );
+    const original = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    const saved: string[] = [];
+    function Form() {
+      const controller = useSchedules();
+      return createElement(ScheduleForm, {
+        library,
+        controller,
+        threadId: thread.id,
+        workspaceId: workspace.id,
+        schedule: original,
+        onCancel: () => {},
+        onSaved: (id) => saved.push(id),
+      });
+    }
+    await act(async () => root.render(createElement(Form)));
+    await input(document.querySelector<HTMLInputElement>("input")!, "Renamed");
+    await click("保存");
+    await expect.poll(() => saved).toEqual([thread.id]);
+    const updated = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    expect(updated.name).toBe("Renamed");
+    expect(updated.rule).toEqual(original.rule);
+    expect(updated.nextRunAt).toBe(original.nextRunAt);
+    expect(updated.revision).toBe(original.revision + 1);
+  },
+);
+
+test.each(["metadata only", "new time"] as const)(
+  "editing a once plan preserves its exact instant unless rescheduled: %s",
+  async (edit) => {
+    const { runtime, schedules, threads, workspace, library } = await setup();
+    const thread = await runtime.runPromise(threads.create(workspace.id));
+    const date = new Date(Date.now() + 86400_000);
+    date.setHours(9, 15, 42, 987);
+    const at = date.getTime();
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: "precise-once",
+        change: {
+          action: "create",
+          name: "Precise reminder",
+          prompt: "Review repository",
+          rule: { type: "once", at },
+        },
+      }),
+    );
+    const original = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    const saved: string[] = [];
+    function Form() {
+      const controller = useSchedules();
+      return createElement(ScheduleForm, {
+        library,
+        controller,
+        threadId: thread.id,
+        workspaceId: workspace.id,
+        schedule: original,
+        onCancel: () => {},
+        onSaved: (id) => saved.push(id),
+      });
+    }
+    await act(async () => root.render(createElement(Form)));
+    await input(document.querySelector<HTMLInputElement>("input")!, "Renamed reminder");
+    if (edit === "new time") {
+      await act(async () =>
+        document.querySelector<HTMLButtonElement>('[aria-label="选择执行日期和时间"]')!.click(),
+      );
+      await input(document.querySelector<HTMLInputElement>('[aria-label="执行时刻"]')!, "14:30");
+      await click("确定");
+      date.setHours(14, 30, 0, 0);
+    }
+    await click("保存");
+    await expect.poll(() => saved).toEqual([thread.id]);
+    const updated = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    expect(updated.name).toBe("Renamed reminder");
+    expect(updated.rule).toEqual({ type: "once", at: date.getTime() });
+    expect(updated.nextRunAt).toBe(date.getTime());
+    expect(updated.revision).toBe(original.revision + 1);
+  },
+);
+
 test("sidebar task menu supports pause, resume, run, edit and delete through real IPC", async () => {
   const { runtime, schedules, threads, workspace, library } = await setup();
   const thread = await runtime.runPromise(threads.create(workspace.id));
