@@ -195,11 +195,12 @@ allows native startup, before checking an operation's result.**
 
 ## Defaults and explicit choices
 
-**Apply client defaults only to new schedules; editing must preserve the stored rule's timezone.**
+**Editing schedules must preserve stored timing semantics, not reconstruct unchanged values from lossy UI fields.**
 
+- Evidence: on 2026-10-15, `editing a fractional-minute interval through real IPC` found that valid 330000ms and 480001ms intervals could not be renamed: the browser's default integer-minute step rejected both, and removing that check alone still reconstructed 480001ms as 480001.00000000006ms, rejected by the integer schema. The form now accepts fractional-minute fields and preserves unchanged integer durations; explicit 8.5-minute edits also persist correctly.
 - Evidence: on 2026-10-14, reviewing PR #19 found that `6937c42` replaced the existing daily/weekly timezone with the machine timezone. The `editing a daily/weekly plan preserves its timezone through real IPC` regressions in `renderer/src/components/schedules/schedules.test.ts` failed before the fix: renaming a plan changed `Asia/Shanghai` to `UTC`. They now check the persisted rule and next run remain unchanged; the existing creation test still verifies the machine-timezone default.
-- Check: edit a plan created by an agent or a client in another timezone, through the real form and persistence boundary. A creation-only test cannot establish that edits preserve its meaning.
-- Seen: 2026-10-14.
+- Check: edit plans created by an agent or another client through the real form and persistence boundary, including non-minute timestamps and a different timezone. Cover explicit rescheduling as well as preservation; creation-only tests cannot establish that edits retain meaning.
+- Seen: 2026-10-14, 2026-10-15.
 
 **A default model fallback must honor enabled and available models; an explicit
 model choice must still be validated as an explicit choice.**

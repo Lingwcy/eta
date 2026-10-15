@@ -146,7 +146,15 @@ export function ScheduleForm({
         kind === "once"
           ? { type: kind, at: new Date(at).getTime() }
           : kind === "interval"
-            ? { type: kind, everyMs: Number(minutes) * 60_000, anchorAt: anchor }
+            ? {
+                type: kind,
+                everyMs:
+                  initialRule?.type === "interval" &&
+                  minutes === String(initialRule.everyMs / 60_000)
+                    ? initialRule.everyMs
+                    : Number(minutes) * 60_000,
+                anchorAt: anchor,
+              }
             : {
                 type: kind,
                 time,
@@ -283,6 +291,7 @@ export function ScheduleForm({
                     variant="compact"
                     type="number"
                     min={5}
+                    step="any"
                     value={minutes}
                     onChange={(event) => setMinutes(event.target.value)}
                     disabled={busy}
