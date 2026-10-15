@@ -393,9 +393,17 @@ test("older Bot schedule reads report unsupported and writes never fall back to 
   }
 });
 
-test.each(["ordinary", "scheduled"])(
-  "%s Bot deliveries update an open thread through SSE",
-  async (delivery) => {
+test.each(
+  ["ordinary", "scheduled"].flatMap((delivery) =>
+    [
+      { framing: "LF", newline: "\n" },
+      { framing: "CRLF", newline: "\r\n" },
+      { framing: "CR", newline: "\r" },
+    ].map((framing) => ({ delivery, ...framing })),
+  ),
+)(
+  "$delivery Bot deliveries update an open thread through byte-split $framing SSE",
+  async ({ delivery, newline }) => {
     const { bot, request, prefix } = await connect(true, ["schedules"]);
     const session: SessionResponse = {
       id: "thread",
@@ -419,10 +427,15 @@ test.each(["ordinary", "scheduled"])(
     const stream = new ReadableStream<Uint8Array>({
       start: (controller) => ready.resolve(controller),
     });
-    request.mockImplementation(async (input) => {
+    request.mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.endsWith("/events"))
+      if (url.endsWith("/events")) {
+        const controller = await ready.promise;
+        init?.signal?.addEventListener("abort", () => controller.error(new Error("aborted")), {
+          once: true,
+        });
         return new Response(stream, { headers: { "content-type": "text/event-stream" } });
+      }
       if (url.endsWith("/messages"))
         return Response.json({
           operationId: "42",
@@ -462,44 +475,46 @@ test.each(["ordinary", "scheduled"])(
       await client.connect(prefix + "thread");
       const controller = await ready.promise;
       if (delivery === "ordinary") {
-        await client.submit("Ordinary message");
+        await client.submit("Ordinary message 你好");
         expect(client.getSnapshot().admission).toMatchObject({
           operationId: prefix + "42",
           inputEntryId: prefix + "12:0",
         });
       }
-      controller.enqueue(
-        new TextEncoder().encode(
-          `event: snapshot\ndata: ${JSON.stringify({
-            ...session,
-            snapshot: {
-              ...session.snapshot,
-              transcript: [
-                {
-                  id: "12:0",
-                  type: "message",
-                  message: { role: "user", content: "Ordinary message", timestamp: 1000 },
-                },
-              ],
-              lastResult: {
-                operationId: "42",
-                inputEntryId: "12:0",
-                kind: "run",
-                startedAt: 1000,
-                endedAt: 2000,
-                status: "completed",
-                fromTipId: null,
-                tipId: null,
+      const bytes = new TextEncoder().encode(
+        `event: snapshot\ndata: ${JSON.stringify({
+          ...session,
+          snapshot: {
+            ...session.snapshot,
+            transcript: [
+              {
+                id: "12:0",
+                type: "message",
+                message: { role: "user", content: "Ordinary message 你好", timestamp: 1000 },
               },
+            ],
+            lastResult: {
+              operationId: "42",
+              inputEntryId: "12:0",
+              kind: "run",
+              startedAt: 1000,
+              endedAt: 2000,
+              status: "completed",
+              fromTipId: null,
+              tipId: null,
             },
-          })}\n\n`,
-        ),
+          },
+        })}\n\n`.replaceAll("\n", newline),
       );
+      for (const byte of bytes) controller.enqueue(Uint8Array.of(byte));
       await expect
         .poll(() => client.getSnapshot().observation?.snapshot.lastResult?.operationId)
         .toBe(prefix + "42");
       expect(client.getSnapshot().admission).toBeNull();
       expect(client.getSnapshot().observation?.snapshot.transcript[0].id).toBe(prefix + "12:0");
+      expect(client.getSnapshot().observation?.snapshot.transcript[0].message.content).toBe(
+        "Ordinary message 你好",
+      );
     } finally {
       client.dispose();
       bot.close();
@@ -507,7 +522,11 @@ test.each(["ordinary", "scheduled"])(
   },
 );
 
-test("schedule events refresh immediately, recover after reconnect and release the stream", async () => {
+test.each([
+  { framing: "LF", newline: "\n" },
+  { framing: "CRLF", newline: "\r\n" },
+  { framing: "CR", newline: "\r" },
+])("schedule events refresh and reconnect on byte-split $framing", async ({ newline }) => {
   const { bot, request } = await connect(true, ["schedules"]);
   let revision = 1;
   let heldSnapshot: Promise<Response> | undefined;
@@ -552,12 +571,12 @@ test("schedule events refresh immediately, recover after reconnect and release t
   const stop = bot.subscribeSchedules(() => {
     void bot.scheduleSnapshot().then((snapshot) => revisions.push(snapshot!.data.revision));
   });
-  const publish = () =>
-    streams
-      .at(-1)!
-      .enqueue(
-        new TextEncoder().encode(`event: schedules\ndata: ${JSON.stringify({ revision })}\n\n`),
-      );
+  const publish = () => {
+    const bytes = new TextEncoder().encode(
+      `event: schedules\ndata: ${JSON.stringify({ revision })}\n\n`.replaceAll("\n", newline),
+    );
+    for (const byte of bytes) streams.at(-1)!.enqueue(Uint8Array.of(byte));
+  };
   try {
     publish();
     await expect.poll(() => revisions).toContain(1);

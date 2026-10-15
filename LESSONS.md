@@ -73,6 +73,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Parse streaming protocols independently of transport read boundaries.**
+
+- Evidence: on 2026-10-15, byte-split LF frames passed Desktop's thread and schedule subscriptions, but valid split CRLF and bare-CR frames produced six failures: no completed thread observation or schedule revision arrived. The shared Desktop parser normalized each chunk separately, losing CRLF boundaries split across reads. Incremental line-ending normalization makes all 18 Bot transport tests pass, including UTF-8, admission acknowledgement, reconnect and cancellation; Mobile's existing independent parser passes its four boundary tests unchanged. This is a controlled protocol reproduction, not a production incident or an explanation of unrelated CI failures.
+- Check: feed valid frames across arbitrary byte boundaries, including UTF-8 and line endings, on every consumer of a shared parser. Do not assume a server's usual LF output or a whole-frame mock covers the wire protocol.
+- Seen: 2026-10-15.
+
 **Recover filesystem staging before treating a cross-store lifecycle operation as rolled back.**
 
 - Evidence: on 2026-10-13, the scheduled-task `SIGKILL at delete-intent` fixture moved a real session into `.trash` and killed the host before its Catalog replacement. The reopened Catalog still contained the thread, but opening it failed with `StorageCorrupt`. Session removal now journals before renaming and reconciles that journal against Catalog before opening threads; six real archive/delete crash windows pass, including restore-after-archive without restarting plans.
