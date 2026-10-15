@@ -54,6 +54,7 @@ export class DesktopBot {
   private readonly scheduleListeners = new Set<() => void>();
   private scheduleTimer?: ReturnType<typeof setInterval>;
   private scheduleRefresh?: Promise<void>;
+  private stopScheduleEvents?: () => void;
 
   constructor(private readonly dataRoot: string) {}
 
@@ -100,10 +101,13 @@ export class DesktopBot {
   }
 
   private publish() {
+    this.watchScheduleEvents();
     for (const listener of this.scheduleListeners) listener();
     for (const listener of this.listeners) listener();
   }
   private cancelStreams() {
+    this.stopScheduleEvents?.();
+    this.stopScheduleEvents = undefined;
     for (const controller of this.streams) controller.abort();
     this.streams.clear();
   }
@@ -532,6 +536,21 @@ export class DesktopBot {
     path?: string,
   ) {
     const route = this.route(id) + "/events" + (path ? `?path=${encodeURIComponent(path)}` : "");
+    return this.subscribeEvents(
+      route,
+      async (event, data) => {
+        if (event === "snapshot")
+          await onSnapshot(this.snapshot(JSON.parse(data) as SnapshotResponse));
+      },
+      onError,
+    );
+  }
+
+  private subscribeEvents(
+    route: string,
+    onEvent: (event: string | undefined, data: string) => void | Promise<void>,
+    onError: (message: string) => void,
+  ) {
     const controller = new AbortController();
     this.streams.add(controller);
     const watch = async () => {
@@ -561,8 +580,7 @@ export class DesktopBot {
                   .filter((line) => line.startsWith("data:"))
                   .map((line) => line.slice(5).trimStart())
                   .join("\n");
-                if (event === "snapshot")
-                  await onSnapshot(this.snapshot(JSON.parse(data) as SnapshotResponse));
+                await onEvent(event, data);
                 if (event === "error")
                   throw new Error((JSON.parse(data) as { message: string }).message);
               }
@@ -590,14 +608,46 @@ export class DesktopBot {
     return () => controller.abort();
   }
 
-  private async refreshSchedules() {
+  private watchScheduleEvents() {
+    if (
+      !this.scheduleListeners.size ||
+      !this.connection ||
+      !this.capabilities.includes("schedules")
+    ) {
+      this.stopScheduleEvents?.();
+      this.stopScheduleEvents = undefined;
+      return;
+    }
+    if (this.stopScheduleEvents) return;
+    this.stopScheduleEvents = this.subscribeEvents(
+      "/v1/schedules/events",
+      async (event, data) => {
+        if (event !== "schedules") return;
+        const { revision } = JSON.parse(data) as { revision: number };
+        if (revision !== this.scheduleCache?.revision || this.scheduleError)
+          await this.refreshSchedules(true);
+        // Scheduled submissions also change thread metadata in the library.
+        void this.refresh(true);
+      },
+      () => {
+        // Keep the last snapshot; the stream reconnects and polling remains a fallback.
+      },
+    );
+  }
+
+  private async refreshSchedules(force = false) {
     if (
       !this.connection ||
       this.state.status !== "connected" ||
       !this.capabilities.includes("schedules")
     )
       return;
-    if (this.scheduleRefresh) return this.scheduleRefresh;
+    if (this.scheduleRefresh) {
+      await this.scheduleRefresh;
+      if (!force) return;
+      await this.refreshSchedules();
+      return;
+    }
     const generation = this.generation;
     const url = this.connection.url;
     this.scheduleRefresh = (async () => {
@@ -676,6 +726,7 @@ export class DesktopBot {
   }
   subscribeSchedules(listener: () => void) {
     this.scheduleListeners.add(listener);
+    this.watchScheduleEvents();
     if (!this.scheduleTimer) {
       this.scheduleTimer = setInterval(() => {
         void this.refreshSchedules().catch(() => undefined);
@@ -687,6 +738,7 @@ export class DesktopBot {
       if (!this.scheduleListeners.size) {
         clearInterval(this.scheduleTimer);
         this.scheduleTimer = undefined;
+        this.watchScheduleEvents();
       }
     };
   }
@@ -700,7 +752,7 @@ export class DesktopBot {
       throw new Error("Bot 离线，无法更改定时任务；原计划可能仍在执行");
     const response = await this.response(path, body, undefined, method, [409]);
     const result = Schema.decodeUnknownSync(ScheduleRequestSchema)(await response.json());
-    await this.refreshSchedules().catch(() => undefined);
+    void this.refreshSchedules(true).catch(() => undefined);
     return mapScheduleRequest(result, (id) => this.prefix + id);
   }
   writeSchedule(input: ScheduleWriteInput) {
