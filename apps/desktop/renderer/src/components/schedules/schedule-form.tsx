@@ -56,7 +56,11 @@ export function ScheduleForm({
   const [time, setTime] = useState(
     initialRule?.type === "daily" || initialRule?.type === "weekly" ? initialRule.time : "09:00",
   );
-  const [zone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [zone] = useState(() =>
+    initialRule?.type === "daily" || initialRule?.type === "weekly"
+      ? initialRule.timeZone
+      : Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
   const [days, setDays] = useState<readonly number[]>(
     initialRule?.type === "weekly" ? initialRule.weekdays : [1],
   );
