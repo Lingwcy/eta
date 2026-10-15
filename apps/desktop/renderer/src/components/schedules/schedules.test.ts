@@ -561,6 +561,52 @@ test("weekly creation toggles weekdays and persists the machine timezone without
   });
 });
 
+test.each(["daily", "weekly"] as const)(
+  "editing a %s plan preserves its timezone through real IPC",
+  async (type) => {
+    const { runtime, schedules, threads, workspace, library } = await setup();
+    const thread = await runtime.runPromise(threads.create(workspace.id));
+    const timeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone === "Asia/Shanghai"
+        ? "America/New_York"
+        : "Asia/Shanghai";
+    const rule =
+      type === "weekly"
+        ? { type, time: "09:00", timeZone, weekdays: [1, 3, 5] }
+        : { type, time: "09:00", timeZone };
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: `timezone-${type}`,
+        change: { action: "create", name: "Original", prompt: "Review repository", rule },
+      }),
+    );
+    const original = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    const saved: string[] = [];
+    function Form() {
+      const controller = useSchedules();
+      return createElement(ScheduleForm, {
+        library,
+        controller,
+        threadId: thread.id,
+        workspaceId: workspace.id,
+        schedule: original,
+        onCancel: () => {},
+        onSaved: (id) => saved.push(id),
+      });
+    }
+    await act(async () => root.render(createElement(Form)));
+    await input(document.querySelector<HTMLInputElement>("input")!, "Renamed");
+    await click("保存");
+    await expect.poll(() => saved).toEqual([thread.id]);
+    const updated = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    expect(updated.name).toBe("Renamed");
+    expect(updated.rule).toEqual(original.rule);
+    expect(updated.nextRunAt).toBe(original.nextRunAt);
+    expect(updated.revision).toBe(original.revision + 1);
+  },
+);
+
 test("sidebar task menu supports pause, resume, run, edit and delete through real IPC", async () => {
   const { runtime, schedules, threads, workspace, library } = await setup();
   const thread = await runtime.runPromise(threads.create(workspace.id));

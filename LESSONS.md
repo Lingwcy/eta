@@ -189,6 +189,12 @@ allows native startup, before checking an operation's result.**
 
 ## Defaults and explicit choices
 
+**Apply client defaults only to new schedules; editing must preserve the stored rule's timezone.**
+
+- Evidence: on 2026-10-14, reviewing PR #19 found that `6937c42` replaced the existing daily/weekly timezone with the machine timezone. The `editing a daily/weekly plan preserves its timezone through real IPC` regressions in `renderer/src/components/schedules/schedules.test.ts` failed before the fix: renaming a plan changed `Asia/Shanghai` to `UTC`. They now check the persisted rule and next run remain unchanged; the existing creation test still verifies the machine-timezone default.
+- Check: edit a plan created by an agent or a client in another timezone, through the real form and persistence boundary. A creation-only test cannot establish that edits preserve its meaning.
+- Seen: 2026-10-14.
+
 **A default model fallback must honor enabled and available models; an explicit
 model choice must still be validated as an explicit choice.**
 
