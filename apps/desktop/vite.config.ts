@@ -23,6 +23,17 @@ export default defineConfig({
       "@earendil-works/chord": fileURLToPath(
         new URL("./node_modules/@earendil-works/chord/dist/index.js", import.meta.url),
       ),
+      ...Object.fromEntries(
+        ["portable", "source", "declarations", "index"].map((entry) => [
+          `@earendil-works/pi-codemode${entry === "index" ? "" : `/${entry}`}`,
+          fileURLToPath(
+            new URL(
+              `../../packages/core/node_modules/@earendil-works/pi-codemode/dist/${entry}.js`,
+              import.meta.url,
+            ),
+          ),
+        ]),
+      ),
     },
   },
   ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/agent", "@eta/core"] },

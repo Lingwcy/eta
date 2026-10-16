@@ -117,23 +117,6 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: send the same payload the renderer uses through `dispatchCommand` into the real settings service; retain rejection tests for malformed values.
 - Seen 1× (2026-10-13).
 
-**Verify the runtime entry point and the packaged dependency graph when adding
-a dependency. A dev server succeeding does not prove an installed client works.**
-
-- Why: source aliases, prebuilt workspace output, and Node loading TypeScript
-  directly impose different requirements. Local build artifacts can hide a
-  missing packaged dependency.
-- Evidence: `8ed84475f` introduced the sandbox. `f3a39419c` replaced constructor
-  parameter properties in `SandboxedExecutionEnv` with erasable TypeScript for
-  direct Node loading. `9da537e31` added the missing `@eta/agent/env` source
-  alias to the desktop build; its commit body identifies reliance on Agent
-  prebuilt output in a clean environment.
-- Additional evidence: on 2026-10-15, PR #60's Desktop CI reached tests after installing Pi 1.3.0 but three integration suites failed to import `@earendil-works/chord/output`. Desktop's existing aliases sent published Chord to `dist` but omitted the new subpath; builds and typechecks had passed. The same five failing suites reproduce the omissions locally and cover the fix.
-- Check: trace the actual worker/runtime entry and workspace subpath exports.
-  Run the affected package verification in a clean build context when changing
-  packaging; report separately whether an installed client was exercised.
-- Seen: 2026-10-12, 2026-10-15.
-
 **Normalize filesystem paths before using them as module names or build keys,
 and inspect every build configuration that derives those keys.**
 
@@ -222,6 +205,25 @@ model choice must still be validated as an explicit choice.**
 - Seen 1× (2026-10-12).
 
 ## Promoted lessons
+
+**Verify the runtime entry point and the packaged dependency graph when adding
+a dependency. A dev server succeeding does not prove an installed client works.**
+
+- Promoted on 2026-10-16 to [Verifying](AGENTS.md#verifying).
+- Why: source aliases, prebuilt workspace output, and Node loading TypeScript
+  directly impose different requirements. Local build artifacts can hide a
+  missing packaged dependency.
+- Evidence: `8ed84475f` introduced the sandbox. `f3a39419c` replaced constructor
+  parameter properties in `SandboxedExecutionEnv` with erasable TypeScript for
+  direct Node loading. `9da537e31` added the missing `@eta/agent/env` source
+  alias to the desktop build; its commit body identifies reliance on Agent
+  prebuilt output in a clean environment.
+- Additional evidence: on 2026-10-15, PR #60's Desktop CI reached tests after installing Pi 1.3.0 but three integration suites failed to import `@earendil-works/chord/output`. Desktop's existing aliases sent published Chord to `dist` but omitted the new subpath; builds and typechecks had passed. The same five failing suites reproduce the omissions locally and cover the fix.
+- Additional evidence: on 2026-10-16, PR #70's Desktop CI failed to import `@earendil-works/pi-codemode` in the schedules DOM integration suite. Its `source` condition pointed at files absent from the published package, while Node tests and packaged builds passed. The same failure reproduces locally; resolving the package and its used subpaths to published `dist` entries lets the existing real-service DOM tests load.
+- Check: trace the actual worker/runtime entry and workspace subpath exports.
+  Run the affected package verification in a clean build context when changing
+  packaging; report separately whether an installed client was exercised.
+- Seen: 2026-10-12, 2026-10-15, 2026-10-16.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**
