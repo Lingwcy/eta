@@ -94,7 +94,7 @@ export function createScheduleExtension(options: {
           schedules,
         };
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(details) }],
+          output: [{ type: "text" as const, text: JSON.stringify(details) }],
           details: { threadId: thread.id, workspaceId: thread.workspaceId, clock },
         };
       }
@@ -134,7 +134,7 @@ export function createScheduleExtension(options: {
         summary:
           result.state === "pending" ? "正在核对变更结果，原计划状态保持不变" : "计划变更已生效",
       };
-      return { content: [{ type: "text" as const, text: JSON.stringify(details) }], details };
+      return { output: [{ type: "text" as const, text: JSON.stringify(details) }], details };
     },
   });
   return { tool, extension: defineExtension({ name: "scheduled-tasks", tools: [tool] }) };

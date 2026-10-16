@@ -128,10 +128,11 @@ a dependency. A dev server succeeding does not prove an installed client works.*
   direct Node loading. `9da537e31` added the missing `@eta/agent/env` source
   alias to the desktop build; its commit body identifies reliance on Agent
   prebuilt output in a clean environment.
+- Additional evidence: on 2026-10-15, PR #60's Desktop CI reached tests after installing Pi 1.3.0 but three integration suites failed to import `@earendil-works/chord/output`. Desktop's existing aliases sent published Chord to `dist` but omitted the new subpath; builds and typechecks had passed. The same five failing suites reproduce the omissions locally and cover the fix.
 - Check: trace the actual worker/runtime entry and workspace subpath exports.
   Run the affected package verification in a clean build context when changing
   packaging; report separately whether an installed client was exercised.
-- Seen 1× (2026-10-12).
+- Seen: 2026-10-12, 2026-10-15.
 
 **Normalize filesystem paths before using them as module names or build keys,
 and inspect every build configuration that derives those keys.**
@@ -144,6 +145,12 @@ and inspect every build configuration that derives those keys.**
   sibling configurations. A macOS build does not establish Windows packaging
   correctness; state which platform actually ran.
 - Seen 1× (2026-10-12).
+
+**Merge dependency versions, the lockfile, and installation policy together.**
+
+- Evidence: on 2026-10-15, PR #60's merge `7abce4c9e` kept the Expo lockfile updates from `d7950fd7e` but restored older release-age exceptions. Bot, Desktop and Mobile CI all stopped during installation; `vp install --frozen-lockfile` reproduced rejection of `@expo/cli@57.0.31` and `@expo/router-server@57.0.13` locally. Restoring main's exact-version exceptions preserves both the Expo update and Pi 1.3.0.
+- Check: after resolving dependency merges, compare the manifest, lockfile and exact-version exceptions from both parents, then run the frozen installation used by CI. A successful install before the merge does not validate the merged graph.
+- Seen: 2026-10-15.
 
 ## Asynchronous verification
 
@@ -225,6 +232,7 @@ allows native startup, before checking an operation's result.**
 - Evidence: `f3a39419c` gave the Core client test's completion poll a 10-second
   timeout before reading `proof.txt`; its commit body calls out native startup.
 - Evidence: on 2026-10-14, Linux CI run `38569607843` failed the scheduled-thread integration test because it captured an occurrence before the dispatcher's one-second admission wait completed, then repeatedly queried an undefined operation ID. The test now deliberately holds admission past that window and reconciles the durable receipt before querying completion; the same boundary is checked for manual runs.
+- Evidence: on 2026-10-15, PR #60 CI run `38844172790` exposed the same stale receipt in the SIGKILL `pending` recovery test. Holding reopened admission behind a controlled promise reproduces `InvalidInput` locally; reconciling and re-reading the occurrence before polling its operation fixes the failure. Both `pending` and `dispatching` recovery now exercise delayed admission.
 - Check: use the operation's completion signal rather than a fixed sleep.
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.

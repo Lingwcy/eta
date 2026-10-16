@@ -9,6 +9,7 @@ const files: Record<string, string> = {
   "amazon-bedrock": "bedrock-color.svg",
   "ant-ling": "ant-ling.png",
   anthropic: "anthropic.svg",
+  azure: "azure-color.svg",
   "azure-openai-responses": "azure-color.svg",
   baseten: "baseten.svg",
   cerebras: "cerebras-color.svg",

@@ -21,7 +21,7 @@ async function fixture(content?: string) {
   return { path, credentials: await readAgentCredentials(path) };
 }
 
-test("pi API key makes the configured OpenCode model available without env authentication", async () => {
+test("pi API key makes OpenCode models available without env authentication", async () => {
   const content = JSON.stringify({ "opencode-go": { type: "api_key", key: "test-only-key" } });
   const { path, credentials } = await fixture(content);
   const models = builtinModels({
@@ -29,11 +29,9 @@ test("pi API key makes the configured OpenCode model available without env authe
     authContext: { env: async () => undefined, fileExists: async () => false },
   });
   expect((await models.getAuth("opencode-go"))?.auth.apiKey).toBe("test-only-key");
-  expect(await models.getAvailable()).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ provider: "opencode-go", id: "deepseek-v4-flash" }),
-    ]),
-  );
+  const configured = models.getModels("opencode-go");
+  expect(configured.length).toBeGreaterThan(0);
+  expect(await models.getAvailable()).toEqual(expect.arrayContaining([...configured]));
   expect(await readFile(path, "utf8")).toBe(content);
 });
 
