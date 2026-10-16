@@ -1,6 +1,6 @@
 import { AgentDoc, NestedCallDoc, defineDoc } from "@eta/agent";
 import type { ConversationId, Tx } from "@eta/agent";
-import { createCodemodeExtension } from "@eta/agent/codemode";
+import { CodemodeRunDoc, createCodemodeExtension } from "@eta/agent/codemode";
 import { CodemodeSandbox, loadQuickJSWasm } from "@earendil-works/pi-codemode";
 import type { CodemodeRunOptions } from "@earendil-works/pi-codemode";
 import type { AgentMode } from "../../shared/runtime-settings.ts";
@@ -75,6 +75,11 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
         const maximumImages = model?.inputLimits?.images?.maxPerMessage ?? 16;
         let imageCount = 0;
         const result = await tool.execute(input, api, context);
+        // Use the admitted declaration, not today's registry or the shape of a valid JSON value.
+        const run = await api.snapshot(CodemodeRunDoc, api.taskId, context);
+        const structuredTools = new Set(
+          run?.start?.tools.filter((tool) => tool.structured).map((tool) => tool.name),
+        );
         // Read the durable nested results, including when upstream already committed its outcome
         // before a restart. Schema-less image results are intentionally text-only inside scripts.
         const calls =
@@ -88,8 +93,10 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
           const nested = await api.snapshot(NestedCallDoc, api.taskId, `c${call.id}`, context);
           const value = nested?.result?.structuredOutput;
           const content = Array.isArray(value) ? value : [value];
-          const source =
-            typeof value === "string"
+          const structured = typeof call.name === "string" && structuredTools.has(call.name);
+          const source = structured
+            ? (JSON.stringify(value) ?? "")
+            : typeof value === "string"
               ? value
               : Predicate.isObject(value) && !("type" in value)
                 ? JSON.stringify(value)

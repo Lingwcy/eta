@@ -1,12 +1,15 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
+import { defineTool } from "@eta/agent";
+import type { JsonValue } from "@earendil-works/chord";
 import {
   createModels,
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
+  Type,
 } from "@earendil-works/pi-ai";
 import { getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { afterEach, expect, test } from "vite-plus/test";
@@ -358,6 +361,67 @@ test.each([false, true])(
   },
   30000,
 );
+
+test("nested previews preserve structured JSON values without interpreting content-like records", async () => {
+  const values: JsonValue[] = [
+    0,
+    false,
+    null,
+    [],
+    [1, 2],
+    { type: "record", count: 7 },
+    { type: "text", text: "A structured record, not a display block" },
+    [{ type: "text", text: "A structured array, not display content" }],
+    "",
+    "plain string",
+  ];
+  const tool = defineTool({
+    name: "structured_preview",
+    description: "Return a structured JSON value",
+    parameters: Type.Object({ index: Type.Integer({ minimum: 0, maximum: values.length - 1 }) }),
+    structuredOutputSchema: Type.Unknown(),
+    execute: async ({ index }) => ({ structuredOutput: values[index]! }),
+  });
+  const f = await fixture({}, undefined, {
+    extensions: () => [{ name: "structured-preview-test", tools: [tool] }],
+  });
+  f.provider.setResponses([
+    script(`
+      const expected = ${JSON.stringify(values)};
+      const actual = await Promise.all(expected.map((_, index) => tools.structured_preview({index})));
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) throw Error("Bridge lost JSON");
+      text("All structured values intact");
+    `),
+    fauxAssistantMessage("Checked previews"),
+  ]);
+  const opened = await f.run();
+  const result = opened.snapshot.transcript.find(
+    ({ message }) => message.role === "toolResult" && message.toolName === "codemode",
+  )?.message;
+  if (result?.role !== "toolResult") throw Error("Missing Code mode result");
+  expect(result.isError, JSON.stringify(result)).toBe(false);
+  const details = Schema.decodeUnknownSync(
+    Schema.Struct({
+      calls: Schema.Array(
+        Schema.Struct({
+          result: Schema.Struct({
+            content: Schema.Array(
+              Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }),
+            ),
+          }),
+        }),
+      ),
+    }),
+  )(result.details);
+  expect(details.calls).toHaveLength(values.length);
+  for (const [index, call] of details.calls.entries()) {
+    expect(
+      call.result.content,
+      `Missing structured preview for ${JSON.stringify(values[index])}`,
+    ).toHaveLength(1);
+    expect(JSON.parse(call.result.content[0]!.text)).toEqual(values[index]);
+  }
+}, 20000);
 
 test("structured tool failures remain inspectable and oversized script output spills to a file", async () => {
   const f = await fixture();
