@@ -350,7 +350,8 @@ export class ScheduleDispatcherService extends Context.Service<
                   1_000,
                   Math.min(
                     hasPending ? 15_000 : 60_000,
-                    ...times.filter((time) => time > now).map((time) => time - now),
+                    // A deadline can pass during tick; it must still bound the next sleep.
+                    ...times.map((time) => time - now),
                   ),
                 );
                 yield* Effect.raceFirst(Effect.sleep(delay), Queue.take(signals));
