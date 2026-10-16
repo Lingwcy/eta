@@ -33,12 +33,21 @@ import { sandboxStatus } from "../../platform/sandbox/backend.ts";
 import { createSandboxApprovals, ApprovalsDoc } from "./approvals.ts";
 import { SandboxedExecutionEnv } from "../../platform/sandbox/environment.ts";
 import { gitReadRoots } from "../git/metadata.ts";
+import {
+  configureAgentMode,
+  inheritAgentMode,
+  runtimeCodemode,
+  RuntimeCodemodeSandbox,
+} from "./codemode.ts";
+import { defaultAgentMode } from "../../shared/runtime-settings.ts";
+import { pathToFileURL } from "node:url";
 
 export interface ThreadRuntime {
   readonly hasWork: () => Promise<boolean>;
   readonly subagents: ReturnType<typeof createSubagentsExtension>;
   readonly refreshTools: () => Promise<void>;
   readonly prepareSkills: (prompt: string) => Promise<void>;
+  readonly prepareMode: () => Promise<void>;
   readonly harness: Harness;
   readonly registry: Registry;
   readonly storage: Storage;
@@ -101,8 +110,17 @@ export class RuntimeRegistryService extends Context.Service<
         const sandboxEnvironments = new Map<string, Promise<ExecutionEnv>>();
         let harness: Harness | undefined;
         let runtimeRecord: ThreadRuntime | undefined;
+        const codemode = new RuntimeCodemodeSandbox(
+          environment.codemodeAssets
+            ? {
+                workerUrl: pathToFileURL(environment.codemodeAssets.worker),
+                wasmPath: environment.codemodeAssets.wasm,
+              }
+            : undefined,
+        );
         try {
           const registry = resources.registry(models);
+          registry.install(runtimeCodemode(codemode));
           // A worktree's shared Git metadata is readable without approval so status, log and diff work.
           const gitReadable = gitReadRoots(ref.metadata.cwd).catch(() => []);
           const approvals = createSandboxApprovals(
@@ -159,6 +177,7 @@ export class RuntimeRegistryService extends Context.Service<
           const scheduled = createScheduleExtension({ ref, catalog, schedules, environment, run });
           registry.install(scheduled.extension);
           const subagents = createSubagentsExtension({
+            inheritExecution: inheritAgentMode,
             excludedTools: [scheduled.tool],
             invalid: (message) => {
               throw new CoreError({ code: "InvalidInput", message });
@@ -289,6 +308,14 @@ export class RuntimeRegistryService extends Context.Service<
             },
             refreshTools,
             prepareSkills: (prompt) => tools.prepareSkills(conversation, prompt),
+            prepareMode: async () => {
+              const settings = await Effect.runPromise(preferences.read);
+              await conversation.commit(
+                (tx) =>
+                  configureAgentMode(tx, conversation.id, settings.agentMode ?? defaultAgentMode),
+                BACKGROUND_CONTEXT,
+              );
+            },
             conversation,
             titleTask,
             storage,
@@ -437,6 +464,7 @@ export class RuntimeRegistryService extends Context.Service<
               try {
                 await harness!.close(BACKGROUND_CONTEXT);
               } finally {
+                await codemode.close();
                 await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
                 await rm(scratchRoot, { recursive: true, force: true });
               }
@@ -448,6 +476,7 @@ export class RuntimeRegistryService extends Context.Service<
         } catch (error) {
           if (harness) await harness.close(BACKGROUND_CONTEXT);
           else await storage.close(BACKGROUND_CONTEXT);
+          await codemode.close();
           await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
           await rm(scratchRoot, { recursive: true, force: true });
           throw error;

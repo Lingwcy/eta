@@ -44,6 +44,7 @@ test.each([
   { maxConcurrent: 33 },
   { shutdownGraceMs: -1 },
   { runtime: { defaultThinkingLevel: "off", updateChannel: "secret-value" } },
+  { runtime: { defaultThinkingLevel: "off", agentMode: "invalid" } },
   { credentials: { anthropic: "ETA_TEST_KEY" } },
 ])(
   "invalid deployment configuration is rejected without echoing its contents: %j",
@@ -51,6 +52,14 @@ test.each([
     const { path } = await configuration({ ...overrides, adminToken: "secret-value" });
     await expect(loadBotConfig(path)).rejects.toThrow("Bot configuration is unreadable or invalid");
     await expect(loadBotConfig(path)).rejects.not.toThrow("secret-value");
+  },
+);
+
+test.each(["standard", "codemode"])(
+  "Bot runtime preserves the explicit %s mode",
+  async (agentMode) => {
+    const { path } = await configuration({ runtime: { defaultThinkingLevel: "off", agentMode } });
+    expect((await loadBotConfig(path)).runtime.agentMode).toBe(agentMode);
   },
 );
 

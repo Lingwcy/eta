@@ -46,6 +46,7 @@ const Message = Schema.Struct({
 });
 
 export const BOT_CAPABILITIES = [
+  "agent-mode",
   "approval-review",
   "git-metadata",
   "git",

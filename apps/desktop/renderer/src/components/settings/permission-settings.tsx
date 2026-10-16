@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SettingsSection, SettingsRow } from "./settings-section";
 import { SandboxPicker } from "@/components/input/sandbox-picker";
 import { ModelPicker } from "../input/model-picker";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
-import { defaultApprovalReviewerMode as DEFAULT_REVIEWER_MODE } from "@eta/core/shared/runtime-settings";
-import type { ApprovalReviewer } from "@eta/core/shared/runtime-settings";
+import {
+  defaultAgentMode,
+  defaultApprovalReviewerMode as DEFAULT_REVIEWER_MODE,
+} from "@eta/core/shared/runtime-settings";
+import type { AgentMode, ApprovalReviewer } from "@eta/core/shared/runtime-settings";
 import type { ReviewStats } from "@eta/core/service/runtime/review-log";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 
@@ -126,6 +130,8 @@ export function PermissionSettings({
   onSandboxChange,
   reviewer,
   onReviewerChange,
+  agentMode,
+  onAgentModeChange,
 }: {
   library: DesktopLibrary;
   blockImages: boolean;
@@ -136,9 +142,39 @@ export function PermissionSettings({
   onSandboxChange: (mode: SandboxMode) => void;
   reviewer: ApprovalReviewer | null | undefined;
   onReviewerChange: (reviewer: ApprovalReviewer | null) => void;
+  agentMode: AgentMode;
+  onAgentModeChange: (mode: AgentMode) => void;
 }) {
   return (
     <>
+      <SettingsSection title="Agent 模式">
+        <SettingsRow
+          title="本地工具调用模式"
+          description="Code mode 使用 JavaScript 组合调用已启用的工具。切换从下一轮新任务生效，执行中和待恢复的任务保持原模式。"
+        >
+          <SegmentedControl
+            aria-label="本地工具调用模式"
+            value={agentMode}
+            options={[
+              { value: "codemode", label: "Code mode" },
+              { value: "standard", label: "普通模式" },
+            ]}
+            disabled={busy}
+            onValueChange={onAgentModeChange}
+          />
+        </SettingsRow>
+        {library.bot?.status === "connected" && (
+          <SettingsRow title="Bot 工具调用模式" description="由 Bot 的运行时配置决定。">
+            <span className="text-xs text-neutral-500">
+              {library.bot.capabilities?.includes("agent-mode")
+                ? (library.bot.library?.settings.agentMode ?? defaultAgentMode) === "codemode"
+                  ? "Code mode"
+                  : "普通模式"
+                : "当前 Bot 版本不支持模式切换"}
+            </span>
+          </SettingsRow>
+        )}
+      </SettingsSection>
       <SettingsSection title="代理沙盒">
         <SettingsRow
           title="新会话默认策略"

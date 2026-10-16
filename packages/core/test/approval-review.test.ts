@@ -72,6 +72,7 @@ async function fixture(
     models,
     settings: {
       read: Effect.succeed({
+        agentMode: "standard" as const,
         defaultThinkingLevel: "off",
         ...(approvalReviewer ? { approvalReviewer } : {}),
       }),

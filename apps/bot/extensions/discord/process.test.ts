@@ -37,6 +37,7 @@ const Status = Schema.Struct({
 });
 const History = Schema.Struct({
   snapshot: Schema.Struct({
+    configuration: Schema.Struct({ agentMode: Schema.String }),
     transcript: Schema.Array(Schema.Struct({ message: Schema.Struct({ role: Schema.String }) })),
   }),
 });
@@ -132,6 +133,7 @@ test.each(["create", "thread", "execute", "result", "send", "stop"])(
       const history = Schema.decodeUnknownSync(History)(
         await (await fetch(`${restored.base}/v1/threads/${issue.etaThreadId}`, { headers })).json(),
       );
+      expect(history.snapshot.configuration.agentMode).toBe("codemode");
       expect(
         history.snapshot.transcript.filter(({ message }) => message.role === "user"),
       ).toHaveLength(1);

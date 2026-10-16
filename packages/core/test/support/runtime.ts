@@ -28,7 +28,7 @@ export function testServices(
       const path = join(dataRoot, "test-settings.json");
       const initial = yield* Effect.promise(async () =>
         Schema.decodeUnknownSync(RuntimeSettingsSchema)(
-          (await readJson(path)) ?? { defaultThinkingLevel: "off" },
+          (await readJson(path)) ?? { agentMode: "standard" as const, defaultThinkingLevel: "off" },
         ),
       );
       const state = yield* SynchronizedRef.make(initial);
