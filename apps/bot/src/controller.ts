@@ -175,6 +175,10 @@ export class BotController {
   }
 
   resume(id: string) {
+    return this.resumeAdmission(id);
+  }
+
+  private resumeAdmission(id: string, onSupersededFailure?: () => void) {
     return this.track(
       (async () => {
         const lease = await this.claim(id);
@@ -194,6 +198,8 @@ export class BotController {
           }
           await this.monitor(id, lease);
         } catch (error) {
+          // A current failure also releases its lease; report ownership before cleanup.
+          if (this.active.get(id) !== lease) onSupersededFailure?.();
           this.release(id, lease);
           throw error;
         }
@@ -280,10 +286,14 @@ export class BotController {
     // oxlint-disable-next-line unicorn/no-useless-spread
     for (const id of [...this.recoveryQueue]) {
       this.recoveryQueue.delete(id);
+      let superseded = false;
       try {
-        await this.resume(id);
+        await this.resumeAdmission(id, () => {
+          superseded = true;
+        });
         this.recoveryQueue.delete(id);
       } catch (error) {
+        if (superseded) continue;
         if (error instanceof BotHttpError && error.code === "Busy") {
           this.recoveryQueue.add(id);
           continue;

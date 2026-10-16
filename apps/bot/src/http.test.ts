@@ -26,7 +26,7 @@ import {
   fauxAssistantMessage,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
-import { DateTime, Schema } from "effect";
+import { DateTime, Effect, Schema } from "effect";
 import {
   ScheduleSchema,
   ScheduleProposalSchema,
@@ -35,7 +35,7 @@ import {
 } from "@eta/core/shared/schedules";
 import { serve } from "@hono/node-server";
 import { defineTask } from "@eta/agent";
-import type { CoreEnvironment } from "@eta/core";
+import { createCore, type CoreEnvironment } from "@eta/core";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BotController } from "./controller.ts";
 import { createBotApplication } from "./application.ts";
@@ -651,6 +651,103 @@ test.each(["completed", "failed"] as const)(
     }
   },
   15000,
+);
+
+test.each(["stopped", "current"] as const)(
+  "a %s recovery attempt only blocks its checkout while it still owns admission",
+  async (attempt) => {
+    const { bot, config, models, provider, create } = await fixture();
+    const id = await create("interrupted-recovery");
+    const other = await create("after-recovery-stop");
+    let firstEntered = false;
+    const firstModel = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+    provider.setResponses([
+      (_context, options) => {
+        firstEntered = true;
+        options?.signal?.addEventListener(
+          "abort",
+          () => firstModel.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+          { once: true },
+        );
+        return firstModel.promise;
+      },
+    ]);
+    let core: Awaited<ReturnType<typeof createCore>> | undefined;
+    let controller: BotController | undefined;
+    let recovering: Promise<void> | undefined;
+    let resumedModelEntered = false;
+    const resumedModel = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+    let resumeReturned = false;
+    const failResume = Promise.withResolvers<void>();
+    try {
+      await bot.controller.submit(id, "Interrupted work", "interrupted-input");
+      await expect.poll(() => firstEntered, { timeout: 5000 }).toBe(true);
+      await bot.close();
+      core = await createCore({
+        dataRoot: config.dataRoot,
+        home: join(config.dataRoot, "home"),
+        models,
+        settings: { read: Effect.succeed(config.runtime), subscribe: () => () => {} },
+        environment: { shutdown: "preserve" },
+      });
+      const client = core;
+      expect((await client.recovery(id)).required).toBe(true);
+      provider.setResponses([
+        (_context, options) => {
+          resumedModelEntered = true;
+          options?.signal?.addEventListener(
+            "abort",
+            () => resumedModel.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+            { once: true },
+          );
+          return resumedModel.promise;
+        },
+      ]);
+      controller = new BotController(
+        {
+          ...client,
+          resume: async (threadId) => {
+            await client.resume(threadId);
+            resumeReturned = true;
+            await failResume.promise;
+            throw new Error("Recovery resume failed");
+          },
+        },
+        bot.workspaceProjects,
+        2,
+      );
+      recovering = controller.recover();
+      await expect.poll(() => resumeReturned, { timeout: 5000 }).toBe(true);
+      await expect.poll(() => resumedModelEntered, { timeout: 5000 }).toBe(true);
+      if (attempt === "stopped") {
+        await controller.stop(id);
+        expect((await client.recovery(id)).pending).toBe(false);
+      }
+      failResume.resolve();
+      await recovering;
+      if (attempt === "current") {
+        expect(controller.status().blocked[id]).toBe("Recovery resume failed");
+        await expect(controller.submit(other, "New work", "after-stop")).rejects.toMatchObject({
+          code: "Busy",
+        });
+        await controller.stop(id);
+      }
+      provider.setResponses([fauxAssistantMessage("Checkout available")]);
+      await expect(controller.submit(other, "New work", "after-stop")).resolves.toMatchObject({
+        kind: "run",
+      });
+      expect(controller.status().blocked).toEqual({});
+      await controller.stop(other);
+    } finally {
+      firstModel.resolve(fauxAssistantMessage("Cleanup"));
+      resumedModel.resolve(fauxAssistantMessage("Cleanup"));
+      failResume.resolve();
+      await recovering;
+      await controller?.close(0);
+      await core?.close();
+    }
+  },
+  30000,
 );
 
 test("blocked recovery reserves a checkout until a maintainer stops its task", async () => {
