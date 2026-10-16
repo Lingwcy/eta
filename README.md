@@ -27,7 +27,7 @@ Connect an AI account or bring your own API key, choose a project folder, and de
 
 ### Cloud — Eta Bot
 
-Run Eta on your own server and reach the same agent from Desktop or mobile. Deploy the Bot with Docker:
+Run Eta on your own server and reach the same agent from Desktop or mobile. Before the first run, copy `apps/bot/config.example.json` to `apps/bot/config.json` and set a private administrator token; project directories live under `apps/bot/workspaces`. Deploy the Bot with Docker:
 
 ```sh
 docker compose -f apps/bot/compose.example.yaml up --build -d

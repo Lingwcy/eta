@@ -27,7 +27,7 @@ Eta 把自然语言指令变成实际成果：理解代码、修改文档、整�
 
 ### 云端 —— Eta Bot
 
-把 Eta 部署在自己的服务器上，用桌面端或手机端连接同一个 Agent。用 Docker 部署 Bot：
+把 Eta 部署在自己的服务器上，用桌面端或手机端连接同一个 Agent。首次启动前，先把 `apps/bot/config.example.json` 复制为 `apps/bot/config.json` 并填入私有的管理员令牌；项目目录位于 `apps/bot/workspaces`。用 Docker 部署 Bot：
 
 ```sh
 docker compose -f apps/bot/compose.example.yaml up --build -d
