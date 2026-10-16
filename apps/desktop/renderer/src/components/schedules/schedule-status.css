@@ -1,0 +1,19 @@
+@keyframes schedule-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.schedule-running-light {
+  animation: schedule-breathe 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-running-light {
+    animation: none;
+  }
+}
