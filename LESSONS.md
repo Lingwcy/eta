@@ -146,7 +146,8 @@ and inspect every build configuration that derives those keys.**
 **Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
 
 - Evidence: on 2026-10-16, #57 holds a real Core recovery result across stop and resubmit of the same Bot thread. The old successful check releases the replacement's checkout reservation and admits a competing writer; an old failed check marks the replacement blocked. Two native regressions reproduce both outcomes before the fix and verify current completion still releases capacity afterward.
-- Check: carry a per-claim identity across awaits, validate it before releasing or changing state, and dispose late subscription setup instead of overwriting a new monitor. Exercise stop/resubmit while a previous check is pending; unsubscribing alone cannot retract an already running callback.
+- Additional evidence: on 2026-10-16, #76 preserves real unfinished work, reopens Core, resumes it and explicitly stops it before injecting a late resume failure. The outer recovery queue still re-blocked the idle checkout despite the inner lease guard; another thread received Busy. Reporting superseded ownership before cleanup prevents this, while a current-failure control still reserves the checkout until stop.
+- Check: carry a per-claim identity across awaits, validate it before releasing or changing state, and dispose late subscription setup instead of overwriting a new monitor. Apply this to outer recovery/error queues too, before cleanup erases ownership evidence. Exercise stop/resubmit while previous work is pending; unsubscribing alone cannot retract an already running callback.
 - Seen: 2026-10-16.
 
 **Keep provider continuation payloads in runtime storage, out of display snapshots.**
