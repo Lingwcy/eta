@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       enable_full_access:
-        description: Allow clients to select full access on this deployment
+        description: Allow danger-full-access (false removes it from the deployed allowlist)
         type: boolean
         default: false
 
@@ -56,7 +56,7 @@ jobs:
           vp run @eta/bot#verify-package
       - name: Package distribution
         run: |
-          tar -czf /tmp/eta-bot.tar.gz -C apps/bot dist scripts/eta-bot.service scripts/check-server.mjs
+          tar -czf /tmp/eta-bot.tar.gz -C apps/bot dist scripts/eta-bot.service scripts/check-server.mjs scripts/apply-sandbox-modes.cjs
           (cd /tmp && sha256sum eta-bot.tar.gz > eta-bot.tar.gz.sha256)
       - name: Deploy and verify on eta-server
         env:
