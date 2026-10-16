@@ -502,6 +502,31 @@ test("dispatcher remains dormant until host readiness, rejects a second start an
   expect(calls).toHaveLength(1);
 });
 
+test("a deadline crossed during a pass wakes delivery without another notification", async () => {
+  const { runtime, store, dispatcher, host, calls } = await fixture();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(0);
+  const update = store.update.bind(store);
+  let passes = 0;
+  const writes = vi.spyOn(store, "update").mockImplementation((change, origin) =>
+    update(change, origin).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          // Drain the creation notification, then cross the deadline after discovery.
+          if (origin === "dispatcher" && ++passes === 2) clock.mockReturnValue(200);
+        }),
+      ),
+    ),
+  );
+  try {
+    await runtime.runPromise(dispatcher.start(host));
+    await expect.poll(() => calls.length, { timeout: 4000 }).toBe(1);
+  } finally {
+    await runtime.runPromise(dispatcher.stop);
+    writes.mockRestore();
+    clock.mockRestore();
+  }
+}, 10_000);
+
 test("a schedule update after start wakes delivery without a manual tick", async () => {
   const { runtime, store, dispatcher, host, calls } = await fixture();
   const initial = Object.values((await runtime.runPromise(store.read)).schedules)[0];

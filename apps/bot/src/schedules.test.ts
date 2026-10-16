@@ -8,7 +8,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { createBotApplication, type BotApplication } from "./application.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -204,53 +204,69 @@ test("Core scheduling boundaries reject workspaces outside Bot scope before pers
   expect(await bot.core.listSchedules({ threadId: thread.id })).toEqual([]);
 });
 
-test("Bot root tool creates an active plan before automatic Controller delivery", async () => {
-  const { bot, thread, fast, releaseModel } = await fixture();
-  releaseModel();
-  const id = await thread("Tool schedule");
-  fast.setResponses([
-    fauxAssistantMessage(
-      fauxToolCall(
-        "schedule",
-        {
-          action: "create",
-          name: "Review",
-          prompt: "Scheduled review",
-          rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 86400_000 },
-        },
-        { id: "plan" },
+test.each(["immediate", "delayed"])(
+  "Bot root tool creates an active plan before automatic Controller delivery (%s arming)",
+  async (arming) => {
+    const { bot, thread, fast, releaseModel } = await fixture();
+    releaseModel();
+    const id = await thread("Tool schedule");
+    fast.setResponses([
+      fauxAssistantMessage(
+        fauxToolCall(
+          "schedule",
+          {
+            action: "create",
+            name: "Review",
+            prompt: "Scheduled review",
+            rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 86400_000 },
+          },
+          { id: "plan" },
+        ),
+        { stopReason: "toolUse" },
       ),
-      { stopReason: "toolUse" },
-    ),
-    fauxAssistantMessage("Plan created"),
-  ]);
-  await bot.controller.submit(id, "Plan a review", "ordinary");
-  await expect
-    .poll(async () => (await bot.core.listSchedules({ threadId: id })).length, {
-      timeout: 5000,
-    })
-    .toBe(1);
-  await expect.poll(() => bot.controller.status().activeThreads.length).toBe(0);
-  expect(await bot.core.listScheduleProposals({ threadId: id })).toEqual([]);
-  fast.setResponses([fauxAssistantMessage("Scheduled review finished")]);
-  const schedule = (await bot.core.listSchedules({ threadId: id }))[0];
-  expect(schedule.state).toBe("active");
-  expect(
-    await bot.core.updateSchedule({
-      scheduleId: schedule.id,
-      expectedRevision: schedule.revision,
-      requestId: "arm-tool-schedule",
-      patch: { rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 1500 } },
-    }),
-  ).toMatchObject({ state: "applied" });
-  await expect
-    .poll(async () => (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0]?.state, {
-      timeout: 8000,
-    })
-    .toBe("succeeded");
-  const messages = (await bot.core.openThread(id)).snapshot.transcript.filter(
-    (entry) => entry.message.role === "user",
-  );
-  expect(messages).toHaveLength(2);
-  expect(JSON.stringify(messages[1])).toContain("Scheduled review");
-}, 15000);
+      fauxAssistantMessage("Plan created"),
+    ]);
+    await bot.controller.submit(id, "Plan a review", "ordinary");
+    await expect
+      .poll(async () => (await bot.core.listSchedules({ threadId: id })).length, {
+        timeout: 5000,
+      })
+      .toBe(1);
+    await expect.poll(() => bot.controller.status().activeThreads.length).toBe(0);
+    expect(await bot.core.listScheduleProposals({ threadId: id })).toEqual([]);
+    fast.setResponses([fauxAssistantMessage("Scheduled review finished")]);
+    const schedule = (await bot.core.listSchedules({ threadId: id }))[0];
+    expect(schedule.state).toBe("active");
+    const realNow = Date.now.bind(Date);
+    const now = realNow();
+    const anchorAt = now + 1500;
+    // Persist the chosen slot before the scheduler's clock can pass it under host load.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      if (arming === "delayed")
+        await expect.poll(realNow, { timeout: 5000 }).toBeGreaterThan(anchorAt);
+      expect(
+        await bot.core.updateSchedule({
+          scheduleId: schedule.id,
+          expectedRevision: schedule.revision,
+          requestId: "arm-tool-schedule",
+          patch: { rule: { type: "interval", everyMs: 300_000, anchorAt } },
+        }),
+      ).toMatchObject({ state: "applied" });
+      expect((await bot.core.listSchedules({ threadId: id }))[0]?.nextRunAt).toBe(anchorAt);
+    } finally {
+      clock.mockRestore();
+    }
+    await expect
+      .poll(() => scheduledRunState(bot, id, schedule.id), {
+        timeout: 8000,
+      })
+      .toMatchObject({ state: "succeeded" });
+    const messages = (await bot.core.openThread(id)).snapshot.transcript.filter(
+      (entry) => entry.message.role === "user",
+    );
+    expect(messages).toHaveLength(2);
+    expect(JSON.stringify(messages[1])).toContain("Scheduled review");
+  },
+  15000,
+);
