@@ -502,6 +502,69 @@ test("dispatcher remains dormant until host readiness, rejects a second start an
   expect(calls).toHaveLength(1);
 });
 
+test("a schedule update after start wakes delivery without a manual tick", async () => {
+  const { runtime, store, dispatcher, host, calls } = await fixture();
+  const initial = Object.values((await runtime.runPromise(store.read)).schedules)[0];
+  const futureNow = DateTime.toEpochMillis(DateTime.nowUnsafe());
+  await runtime.runPromise(
+    store.update((state) => {
+      const draft = scheduleDraft(state);
+      writeScheduleChange(
+        draft,
+        {
+          threadId: "thread",
+          requestId: "move-future",
+          change: {
+            action: "update",
+            scheduleId: initial.id,
+            expectedRevision: initial.revision,
+            patch: { rule: { type: "once", at: futureNow + 60_000 } },
+          },
+        },
+        catalogFixture(),
+        futureNow,
+      );
+      return draft;
+    }),
+  );
+
+  await runtime.runPromise(dispatcher.start(host));
+  try {
+    // Let the immediate start tick finish and enter its future-schedule sleep.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calls).toHaveLength(0);
+
+    const armNow = DateTime.toEpochMillis(DateTime.nowUnsafe());
+    await runtime.runPromise(
+      store.update((state) => {
+        const draft = scheduleDraft(state);
+        const current = draft.schedules[initial.id];
+        writeScheduleChange(
+          draft,
+          {
+            threadId: "thread",
+            requestId: "arm-after-start",
+            change: {
+              action: "update",
+              scheduleId: initial.id,
+              expectedRevision: current.revision,
+              patch: { rule: { type: "once", at: armNow + 200 } },
+            },
+          },
+          catalogFixture(),
+          armNow,
+        );
+        return draft;
+      }),
+    );
+
+    await expect.poll(() => calls.length, { timeout: 5000 }).toBe(1);
+    expect(calls[0]).toMatchObject({ threadId: "thread", prompt: "Saved prompt" });
+  } finally {
+    await runtime.runPromise(dispatcher.stop);
+  }
+});
+
 test("busy admission does not wake itself continuously from its own receipt writes", async () => {
   const { runtime, store, dispatcher, host, calls } = await fixture();
   const now = DateTime.toEpochMillis(DateTime.nowUnsafe());

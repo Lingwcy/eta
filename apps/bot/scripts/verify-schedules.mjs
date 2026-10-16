@@ -106,9 +106,20 @@ try {
         const schedules = await bot.core.listSchedules({ threadId: thread.id });
         const currentSchedule = schedules.find((entry) => entry.id === schedule.id);
         const runs = await bot.core.listScheduleRuns({ scheduleId: schedule.id });
+        const state = await bot.core.scheduleSnapshot();
+        const pendingRequests = state.requests
+          .filter((request) => request.threadId === thread.id)
+          .map((request) => ({ action: request.change?.action, createdAt: request.createdAt }));
+        const lifecycleIntents = state.lifecycleIntents
+          .filter((intent) => intent.threadId === thread.id)
+          .map((intent) => ({ action: intent.action, createdAt: intent.createdAt }));
         // Whitelist state and timing metadata; do not emit the schedule prompt or transcript.
         return {
           observedAt: new Date().toISOString(),
+          pendingManagement: {
+            requests: pendingRequests,
+            lifecycleIntents,
+          },
           schedule: currentSchedule
             ? {
                 id: currentSchedule.id,
