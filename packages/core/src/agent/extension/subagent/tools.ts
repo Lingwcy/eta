@@ -69,7 +69,7 @@ export function createSubagentTools(
       if (args.action === "spawn" && (args.wait ?? (await settings()).mode !== "orchestrator")) {
         const path = (await state(context))!.requests[`tool:${api.taskId}`]!;
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: JSON.stringify(await wait(path, api.conversationId, args.timeoutMs, context)),
@@ -78,7 +78,7 @@ export function createSubagentTools(
         };
       }
       return {
-        content: [
+        output: [
           {
             type: "text",
             text:
@@ -97,7 +97,7 @@ export function createSubagentTools(
     parameters: Type.Object({ message: Type.String({ minLength: 1, maxLength: 8000 }) }),
     replay: "safe",
     execute: async (args, api, context) => ({
-      content: [
+      output: [
         {
           type: "text",
           text: await execute(
