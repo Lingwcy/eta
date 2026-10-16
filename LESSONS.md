@@ -147,6 +147,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
+
+- Evidence: on 2026-10-16, #57 holds a real Core recovery result across stop and resubmit of the same Bot thread. The old successful check releases the replacement's checkout reservation and admits a competing writer; an old failed check marks the replacement blocked. Two native regressions reproduce both outcomes before the fix and verify current completion still releases capacity afterward.
+- Check: carry a per-claim identity across awaits, validate it before releasing or changing state, and dispose late subscription setup instead of overwriting a new monitor. Exercise stop/resubmit while a previous check is pending; unsubscribing alone cannot retract an already running callback.
+- Seen: 2026-10-16.
+
 **Keep provider continuation payloads in runtime storage, out of display snapshots.**
 
 - Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
