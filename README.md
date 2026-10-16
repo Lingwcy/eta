@@ -23,11 +23,13 @@ Download an installer from [GitHub Releases](https://github.com/Lingwcy/eta/rele
 | macOS — Intel         | `Eta-<version>-mac-x64.dmg`   |
 | Windows — x64         | `Eta-<version>-win-x64.exe`   |
 
+The Windows x64 installer is currently unsigned; SmartScreen may warn on first launch. Local command execution requires Git for Windows (including Git Bash), and restricted sandbox execution is not supported on Windows. See the [release notes](docs/release.md) and [sandbox guide](docs/user/sandbox.md).
+
 Connect an AI account or bring your own API key, choose a project folder, and describe the work. See [Working with Eta](docs/user/desktop.md) for chats, projects, skills, subagents, and scheduled tasks.
 
 ### Cloud — Eta Bot
 
-Run Eta on your own server and reach the same agent from Desktop or mobile. Deploy the Bot with Docker:
+Run Eta on your own server and reach the same agent from Desktop or mobile. Before the first run, copy `apps/bot/config.example.json` to `apps/bot/config.json` and set a private administrator token; project directories live under `apps/bot/workspaces`. Deploy the Bot with Docker:
 
 ```sh
 docker compose -f apps/bot/compose.example.yaml up --build -d
