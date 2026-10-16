@@ -1,7 +1,7 @@
 import { settingsPanels } from "./settings/settings-panels";
 import type { SettingsPanelProps } from "./settings/settings-panels";
 import { useEffect, useState } from "react";
-import { Alert } from "@/components/ui/alert";
+import { ToastScope } from "@/components/ui/toast";
 import { Tabs, TabsPanel } from "@/components/ui/tabs";
 import { DesktopLayout } from "./desktop-layout";
 import { NavigationRail } from "./sidebar/navigation-rail";
@@ -76,15 +76,12 @@ export function DesktopSettings(props: Props) {
             .map((item) => (
               <TabsPanel key={item.id} value={item.id}>
                 <SettingsPage title={item.id === "storage" ? undefined : item.title}>
-                  {props.error && (
-                    <div className="mb-4">
-                      <Alert>{props.error}</Alert>
-                    </div>
-                  )}
-                  {settingsPanels[item.id]({
-                    ...props,
-                    active: props.active !== false && category === item.id,
-                  })}
+                  <ToastScope active={props.active !== false && category === item.id}>
+                    {settingsPanels[item.id]({
+                      ...props,
+                      active: props.active !== false && category === item.id,
+                    })}
+                  </ToastScope>
                 </SettingsPage>
               </TabsPanel>
             ))}

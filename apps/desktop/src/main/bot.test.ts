@@ -38,6 +38,46 @@ async function connect(supported: boolean, capabilities?: unknown) {
   return { bot, request, prefix };
 }
 
+test("restoring a large thread can read its body beyond the ordinary request deadline", async () => {
+  const { bot, request } = await connect(true);
+  const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+  const controllers: AbortController[] = [];
+  // Use controlled deadlines so the test exercises body cancellation without waiting two minutes.
+  const deadline = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+    const controller = new AbortController();
+    controllers.push(controller);
+    return controller.signal;
+  });
+  request.mockImplementation(
+    async (_input, init) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            streams.push(controller);
+            init?.signal?.addEventListener("abort", () => controller.error(init.signal?.reason), {
+              once: true,
+            });
+          },
+        }),
+      ),
+  );
+  try {
+    const ordinary = bot.request("/v1/library");
+    const restored = bot.request<{ history: string }>("/v1/threads/thread");
+    const timedOut = expect(ordinary).rejects.toThrow("连接 Bot 超时，请检查网络后重试。");
+    controllers[0]!.abort(new DOMException("timeout", "TimeoutError"));
+    await timedOut;
+    streams[1]!.enqueue(new TextEncoder().encode(JSON.stringify({ history: "restored" })));
+    streams[1]!.close();
+    await expect(restored).resolves.toEqual({ history: "restored" });
+    expect(deadline).toHaveBeenCalledWith(10000);
+    expect(deadline).toHaveBeenCalledWith(120000);
+    expect(request).toHaveBeenCalledTimes(2);
+  } finally {
+    bot.close();
+  }
+});
+
 test("an older Bot reports sandbox incompatibility before changing or creating remote threads", async () => {
   const { bot, request, prefix } = await connect(false);
   await expect(bot.configureSandbox(prefix + "thread", "read-only")).rejects.toThrow(
@@ -353,78 +393,95 @@ test("older Bot schedule reads report unsupported and writes never fall back to 
   }
 });
 
-test("ordinary Bot submission receipts agree with SSE snapshots and let the client finish generating", async () => {
-  const { bot, request, prefix } = await connect(true, ["schedules"]);
-  const session: SessionResponse = {
-    id: "thread",
-    model: {
-      id: "one",
-      provider: "test",
-      name: "One",
-      contextWindow: 10000,
-      thinkingLevels: ["off"],
-    },
-    contextTokens: 0,
-    snapshot: {
-      configuration: { model: { provider: "test", modelId: "one" }, thinkingLevel: "off" },
-      transcript: [],
-      operation: null,
-      lastResult: null,
-      faulted: false,
-    },
-  };
-  const ready = Promise.withResolvers<ReadableStreamDefaultController<Uint8Array>>();
-  const stream = new ReadableStream<Uint8Array>({
-    start: (controller) => ready.resolve(controller),
-  });
-  request.mockImplementation(async (input) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (url.endsWith("/events"))
-      return new Response(stream, { headers: { "content-type": "text/event-stream" } });
-    if (url.endsWith("/messages"))
-      return Response.json({
-        operationId: "42",
-        inputEntryId: "12:0",
-        kind: "run",
-        startedAt: 1000,
-      });
-    return Response.json(session);
-  });
-  const client = new ThreadAgentClient({
-    openThread: (id) => bot.open(id),
-    configureThread: (id, provider, modelId, level) => bot.configure(id, provider, modelId, level),
-    configureSandbox: (id, mode) => bot.configureSandbox(id, mode),
-    submit: (id, prompt, images) => bot.submit(id, prompt, "opaque-request", images),
-    stop: (id) => bot.command<void>(id, "stop"),
-    subscribe: (id, listener) => {
-      let disposed = false;
-      let unsubscribe: (() => void) | undefined;
-      void bot
-        .subscribeThread(
-          id,
-          (value) => listener({ type: "snapshot", value }),
-          (message) => listener({ type: "error", message }),
-        )
-        .then((stop) => {
-          if (disposed) stop();
-          else unsubscribe = stop;
-        });
-      return () => {
-        disposed = true;
-        unsubscribe?.();
-      };
-    },
-  });
-  try {
-    await client.connect(prefix + "thread");
-    const controller = await ready.promise;
-    await client.submit("Ordinary message");
-    expect(client.getSnapshot().admission).toMatchObject({
-      operationId: prefix + "42",
-      inputEntryId: prefix + "12:0",
+test.each(
+  ["ordinary", "scheduled"].flatMap((delivery) =>
+    [
+      { framing: "LF", newline: "\n" },
+      { framing: "CRLF", newline: "\r\n" },
+      { framing: "CR", newline: "\r" },
+    ].map((framing) => ({ delivery, ...framing })),
+  ),
+)(
+  "$delivery Bot deliveries update an open thread through byte-split $framing SSE",
+  async ({ delivery, newline }) => {
+    const { bot, request, prefix } = await connect(true, ["schedules"]);
+    const session: SessionResponse = {
+      id: "thread",
+      model: {
+        id: "one",
+        provider: "test",
+        name: "One",
+        contextWindow: 10000,
+        thinkingLevels: ["off"],
+      },
+      contextTokens: 0,
+      snapshot: {
+        configuration: { model: { provider: "test", modelId: "one" }, thinkingLevel: "off" },
+        transcript: [],
+        operation: null,
+        lastResult: null,
+        faulted: false,
+      },
+    };
+    const ready = Promise.withResolvers<ReadableStreamDefaultController<Uint8Array>>();
+    const stream = new ReadableStream<Uint8Array>({
+      start: (controller) => ready.resolve(controller),
     });
-    controller.enqueue(
-      new TextEncoder().encode(
+    request.mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/events")) {
+        const controller = await ready.promise;
+        init?.signal?.addEventListener("abort", () => controller.error(new Error("aborted")), {
+          once: true,
+        });
+        return new Response(stream, { headers: { "content-type": "text/event-stream" } });
+      }
+      if (url.endsWith("/messages"))
+        return Response.json({
+          operationId: "42",
+          inputEntryId: "12:0",
+          kind: "run",
+          startedAt: 1000,
+        });
+      return Response.json(session);
+    });
+    const client = new ThreadAgentClient({
+      openThread: (id) => bot.open(id),
+      configureThread: (id, provider, modelId, level) =>
+        bot.configure(id, provider, modelId, level),
+      configureSandbox: (id, mode) => bot.configureSandbox(id, mode),
+      submit: (id, prompt, images) => bot.submit(id, prompt, "opaque-request", images),
+      stop: (id) => bot.command<void>(id, "stop"),
+      subscribe: (id, listener) => {
+        let disposed = false;
+        let unsubscribe: (() => void) | undefined;
+        void bot
+          .subscribeThread(
+            id,
+            (value) => listener({ type: "snapshot", value }),
+            (message) => listener({ type: "error", message }),
+          )
+          .then((stop) => {
+            if (disposed) stop();
+            else unsubscribe = stop;
+          });
+        return () => {
+          disposed = true;
+          unsubscribe?.();
+        };
+      },
+    });
+    try {
+      await client.connect(prefix + "thread");
+      const controller = await ready.promise;
+      if (delivery === "ordinary") {
+        await client.submit("Ordinary message 你好");
+        expect(client.getSnapshot().admission).toMatchObject({
+          operationId: prefix + "42",
+          inputEntryId: prefix + "12:0",
+        });
+      }
+      const bytes = new TextEncoder().encode(
         `event: snapshot\ndata: ${JSON.stringify({
           ...session,
           snapshot: {
@@ -433,7 +490,7 @@ test("ordinary Bot submission receipts agree with SSE snapshots and let the clie
               {
                 id: "12:0",
                 type: "message",
-                message: { role: "user", content: "Ordinary message", timestamp: 1000 },
+                message: { role: "user", content: "Ordinary message 你好", timestamp: 1000 },
               },
             ],
             lastResult: {
@@ -447,14 +504,149 @@ test("ordinary Bot submission receipts agree with SSE snapshots and let the clie
               tipId: null,
             },
           },
-        })}\n\n`,
-      ),
+        })}\n\n`.replaceAll("\n", newline),
+      );
+      for (const byte of bytes) controller.enqueue(Uint8Array.of(byte));
+      await expect
+        .poll(() => client.getSnapshot().observation?.snapshot.lastResult?.operationId)
+        .toBe(prefix + "42");
+      expect(client.getSnapshot().admission).toBeNull();
+      expect(client.getSnapshot().observation?.snapshot.transcript[0].id).toBe(prefix + "12:0");
+      expect(client.getSnapshot().observation?.snapshot.transcript[0].message.content).toBe(
+        "Ordinary message 你好",
+      );
+    } finally {
+      client.dispose();
+      bot.close();
+    }
+  },
+);
+
+test.each([
+  { framing: "LF", newline: "\n" },
+  { framing: "CRLF", newline: "\r\n" },
+  { framing: "CR", newline: "\r" },
+])("schedule events refresh and reconnect on byte-split $framing", async ({ newline }) => {
+  const { bot, request } = await connect(true, ["schedules"]);
+  let revision = 1;
+  let heldSnapshot: Promise<Response> | undefined;
+  const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+  let aborted = 0;
+  const original = request.getMockImplementation()!;
+  request.mockImplementation(async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.endsWith("/v1/schedules/events"))
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            streams.push(controller);
+            init?.signal?.addEventListener(
+              "abort",
+              () => {
+                aborted++;
+                controller.error(new Error("aborted"));
+              },
+              { once: true },
+            );
+          },
+        }),
+      );
+    if (url.endsWith("/v1/schedules")) {
+      if (heldSnapshot) {
+        const response = heldSnapshot;
+        heldSnapshot = undefined;
+        return response;
+      }
+      return Response.json({
+        revision,
+        schedules: [],
+        proposals: [],
+        requests: [],
+        lifecycleIntents: [],
+      });
+    }
+    return original(input, init);
+  });
+  const revisions: number[] = [];
+  const stop = bot.subscribeSchedules(() => {
+    void bot.scheduleSnapshot().then((snapshot) => revisions.push(snapshot!.data.revision));
+  });
+  const publish = () => {
+    const bytes = new TextEncoder().encode(
+      `event: schedules\ndata: ${JSON.stringify({ revision })}\n\n`.replaceAll("\n", newline),
     );
-    await expect.poll(() => client.getSnapshot().admission).toBeNull();
-    expect(client.getSnapshot().observation?.snapshot.lastResult?.operationId).toBe(prefix + "42");
-    expect(client.getSnapshot().observation?.snapshot.transcript[0].id).toBe(prefix + "12:0");
+    for (const byte of bytes) streams.at(-1)!.enqueue(Uint8Array.of(byte));
+  };
+  try {
+    publish();
+    await expect.poll(() => revisions).toContain(1);
+    const previous = Promise.withResolvers<Response>();
+    heldSnapshot = previous.promise;
+    const stale = bot.scheduleSnapshot();
+    revision = 2;
+    publish();
+    previous.resolve(
+      Response.json({
+        revision: 1,
+        schedules: [],
+        proposals: [],
+        requests: [],
+        lifecycleIntents: [],
+      }),
+    );
+    await stale;
+    await expect.poll(() => revisions).toContain(2);
+    streams[0]!.close();
+    await expect.poll(() => streams.length, { timeout: 4000 }).toBe(2);
+    revision = 3;
+    publish();
+    await expect.poll(() => revisions).toContain(3);
+    stop();
+    await expect.poll(() => aborted).toBe(2);
+    expect(streams.length).toBe(2);
   } finally {
-    client.dispose();
+    stop();
+    bot.close();
+  }
+});
+
+test("manual run acknowledges the durable receipt without waiting for a slow snapshot refresh", async () => {
+  const { bot, request, prefix } = await connect(true, ["schedules"]);
+  const snapshot = Promise.withResolvers<Response>();
+  request.mockImplementation(async (input) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.endsWith("/run"))
+      return Response.json({
+        requestId: "manual",
+        threadId: "thread",
+        fingerprint: "opaque",
+        state: "applied",
+        scheduleId: "plan",
+        occurrenceId: "run",
+        createdAt: 1,
+      });
+    return snapshot.promise;
+  });
+  try {
+    await expect(
+      bot.runSchedule({
+        threadId: prefix + "thread",
+        scheduleId: prefix + "plan",
+        requestId: "manual",
+        expectedRevision: 1,
+      }),
+    ).resolves.toMatchObject({ occurrenceId: prefix + "run", state: "applied" });
+  } finally {
+    snapshot.resolve(
+      Response.json({
+        revision: 1,
+        schedules: [],
+        proposals: [],
+        requests: [],
+        lifecycleIntents: [],
+      }),
+    );
+    await bot.scheduleSnapshot();
     bot.close();
   }
 });

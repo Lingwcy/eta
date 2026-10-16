@@ -73,6 +73,18 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Validate SDK compatibility separately from frozen dependency resolution.**
+
+- Evidence: #29 and #54 failed Mobile CI at Expo's compatibility gate despite successful frozen installs. On 2026-10-15, main `ff2545b` reproduces the expected Expo `~57.0.30` / Router `~57.0.28` mismatch; the release commit only changes Desktop/root versions. Expo CLI reads its native-module recommendations from an online SDK API, so a lockfile does not freeze that contract. Aligning these patches makes the compatibility check pass; this does not establish that the old native app was broken.
+- Check: preserve the compatibility gate, verify the SDK's required toolchain together, and export both platforms. Keep release-age exceptions restricted to required exact versions and verify unrelated workspace importers remain unchanged; do not disable policy or force offline metadata merely to turn CI green.
+- Seen: 2026-10-15.
+
+**Parse streaming protocols independently of transport read boundaries.**
+
+- Evidence: on 2026-10-15, byte-split LF frames passed Desktop's thread and schedule subscriptions, but valid split CRLF and bare-CR frames produced six failures: no completed thread observation or schedule revision arrived. The shared Desktop parser normalized each chunk separately, losing CRLF boundaries split across reads. Incremental line-ending normalization makes all 18 Bot transport tests pass, including UTF-8, admission acknowledgement, reconnect and cancellation; Mobile's existing independent parser passes its four boundary tests unchanged. This is a controlled protocol reproduction, not a production incident or an explanation of unrelated CI failures.
+- Check: feed valid frames across arbitrary byte boundaries, including UTF-8 and line endings, on every consumer of a shared parser. Do not assume a server's usual LF output or a whole-frame mock covers the wire protocol.
+- Seen: 2026-10-15.
+
 **Recover filesystem staging before treating a cross-store lifecycle operation as rolled back.**
 
 - Evidence: on 2026-10-13, the scheduled-task `SIGKILL at delete-intent` fixture moved a real session into `.trash` and killed the host before its Catalog replacement. The reopened Catalog still contained the thread, but opening it failed with `StorageCorrupt`. Session removal now journals before renaming and reconciles that journal against Catalog before opening threads; six real archive/delete crash windows pass, including restore-after-archive without restarting plans.
@@ -135,6 +147,16 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Keep provider continuation payloads in runtime storage, out of display snapshots.**
+
+- Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
+- Check: measure real payload fields, cover initial history and live events, and retain signed originals for subsequent provider calls. Compression alone does not remove incompressible continuation data; SSE compression must flush small events and release producers when cancelled.
+  **Arm automatic-delivery fixtures after planning and worker startup have completed.**
+
+- Evidence: on 2026-10-15, PR #28's container verification failed with no schedule occurrence. Delaying submission by six seconds in the main native verifier reproduced that error: its five-second interval anchor had passed before creation, so the next slot moved five minutes ahead. The verifier and Bot tool integration now create an active agent plan safely in the future, then re-arm it after the planning turn is idle and delivery responses are installed. The same injected delay passes after this change; the CI failure's original timing remains unknown without a stored schedule diagnostic.
+- Check: keep automatic delivery and real sandbox work in the proof; do not replace them with a manual run or merely extend the completion timeout.
+- Seen: 2026-10-15.
+
 **Carry snapshot backpressure through the consumer's asynchronous write.**
 
 - Evidence: on 2026-10-14, the Core slow-consumer regression produced 43 deliveries while its first callback was still blocked. Observation coalesced projection work but ignored the Promise returned by Bot's SSE writer. Awaiting delivery keeps one write in progress and only the newest pending view; the real Hono unread-body regression reaches the latest revision within three frames instead of replaying the backlog. Cancellation and rejected delivery tests verify subscriptions release their watches. This reproduces a queue defect; no crash-time heap snapshot was captured on eta-server.
@@ -147,11 +169,12 @@ and inspect every build configuration that derives those keys.**
 - Check: exercise the real background loop under a stable busy condition, not only a single deterministic tick. Keep host capacity and user management notifications active; ensure internal receipt changes still reach client subscribers without retriggering admission.
 - Seen: 2026-10-13.
 
-**Cover tool argument generation when mapping model activity to UI status.**
+**Keep pending work visible through every asynchronous stage.**
 
 - Evidence: on 2026-10-13, a Desktop session spent about 2 minutes 38 seconds generating a `write` call containing a 284-line plan. The thinking status hid on the streamed tool call, while the tool card only appeared once execution began. The `streaming tool arguments` regression in `renderer/src/agent/thinking-status.test.ts` reproduced the missing indicator and now covers partial arguments, timer continuity, execution and completion.
-- Check: treat streamed tool arguments as active model generation; keep execution, approval pauses, retries and deferred responses distinct.
-- Seen: 2026-10-13.
+- Evidence: on 2026-10-15, the maintainer reported no visible response after a Bot schedule's manual run. The sidebar only disabled its menu, and Desktop ignored the existing schedule event stream in favor of 15-second polling. The `manual run shows submission immediately` DOM regression now holds the request open and checks submission, queuing, execution, success and failure; `schedule events refresh immediately` covers push updates, an overlapping stale read, reconnect and cleanup.
+- Check: treat streamed tool arguments as active model generation; distinguish submission and queuing from admitted execution. Keep approval pauses, retries and deferred responses visible, and consume available state notifications instead of waiting for a polling interval.
+- Seen: 2026-10-13, 2026-10-15.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**
@@ -188,6 +211,13 @@ allows native startup, before checking an operation's result.**
 - Seen 1× (2026-10-13).
 
 ## Defaults and explicit choices
+
+**Editing schedules must preserve stored timing semantics, not reconstruct unchanged values from lossy UI fields.**
+
+- Evidence: on 2026-10-14, reviewing PR #19 found that `6937c42` replaced the existing daily/weekly timezone with the machine timezone. The `editing a daily/weekly plan preserves its timezone through real IPC` regressions in `renderer/src/components/schedules/schedules.test.ts` failed before the fix: renaming a plan changed `Asia/Shanghai` to `UTC`. They now check the persisted rule and next run remain unchanged; the existing creation test still verifies the machine-timezone default.
+- Evidence: on 2026-10-15, the adjacent once-rule edit path still round-tripped epoch milliseconds through an HH:mm display. The `editing a once plan preserves its exact instant unless rescheduled` IPC regression failed because a title edit changed 09:15:42.987 to 09:15:00. Existing instants now survive metadata-only edits, while choosing a new time still reschedules.
+- Check: edit plans created by an agent or another client through the real form and persistence boundary, including non-minute timestamps and a different timezone. Cover explicit rescheduling as well as preservation; creation-only tests cannot establish that edits retain meaning.
+- Seen: 2026-10-14, 2026-10-15.
 
 **A default model fallback must honor enabled and available models; an explicit
 model choice must still be validated as an explicit choice.**

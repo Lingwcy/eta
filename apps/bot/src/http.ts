@@ -3,6 +3,8 @@ import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { HTTPException } from "hono/http-exception";
 import { bodyLimit } from "hono/body-limit";
+import { compressEvents, compressJson } from "./compression.ts";
+import { displaySnapshot } from "./snapshot.ts";
 import { streamSSE } from "hono/streaming";
 import { SubagentCommandSchema } from "@eta/core/shared/subagent-schema";
 import { Schema } from "effect";
@@ -85,6 +87,7 @@ export function createHttpApp(options: {
 }) {
   const { config, core, controller, store, workspaceProjects, shutdown } = options;
   const app = new Hono();
+  app.use("/v1/*", compressJson, compressEvents);
   app.onError((error, context) => {
     if (error instanceof HTTPException && error.status === 401)
       return context.json(
@@ -306,14 +309,16 @@ export function createHttpApp(options: {
       await readBody(context.req),
     );
     return context.json(
-      await core.configureThread(id, input.provider, input.modelId, input.thinkingLevel),
+      displaySnapshot(
+        await core.configureThread(id, input.provider, input.modelId, input.thinkingLevel),
+      ),
     );
   });
   app.post("/v1/threads/:id/sandbox", async (context) => {
     const id = context.req.param("id");
     await controller.authorize(id);
     const input = decode(Schema.Struct({ mode: SandboxModeSchema }), await readBody(context.req));
-    return context.json(await core.configureSandbox(id, input.mode));
+    return context.json(displaySnapshot(await core.configureSandbox(id, input.mode)));
   });
   app.post("/v1/threads/:id/approvals/:requestId", async (context) => {
     const id = context.req.param("id");
@@ -326,7 +331,9 @@ export function createHttpApp(options: {
       await readBody(context.req),
     );
     return context.json(
-      await core.decideApproval(id, context.req.param("requestId"), input.approved, input.reuse),
+      displaySnapshot(
+        await core.decideApproval(id, context.req.param("requestId"), input.approved, input.reuse),
+      ),
     );
   });
   app.post("/v1/threads/:id/metadata", async (context) => {
@@ -403,10 +410,10 @@ export function createHttpApp(options: {
       () =>
         core.createThread(input.workspaceId, `http:create:${input.requestId}`, input.configuration),
     );
-    return context.json(result, 201);
+    return context.json(displaySnapshot(result), 201);
   });
   app.get("/v1/threads/:id", async (context) =>
-    context.json(await controller.authorize(context.req.param("id"))),
+    context.json(displaySnapshot(await controller.authorize(context.req.param("id")))),
   );
   app.post("/v1/threads/:id/messages", async (context) => {
     const id = context.req.param("id");
@@ -455,7 +462,10 @@ export function createHttpApp(options: {
           id,
           async (snapshot) => {
             if (!signal.aborted)
-              await stream.writeSSE({ event: "snapshot", data: JSON.stringify(snapshot) });
+              await stream.writeSSE({
+                event: "snapshot",
+                data: JSON.stringify(displaySnapshot(snapshot)),
+              });
           },
           (message) => {
             void stream

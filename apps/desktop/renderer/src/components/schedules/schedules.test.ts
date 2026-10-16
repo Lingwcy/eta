@@ -34,6 +34,7 @@ import { ThreadActivity } from "@/agent/thread-activity";
 import { useDesktopController } from "@/agent/use-desktop-controller";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { ScheduleSidebar } from "./schedule-sidebar";
+import { ToastProvider } from "@/components/ui/toast";
 
 const cleanups: Array<() => Promise<void>> = [];
 let root: Root;
@@ -239,7 +240,7 @@ test("creation retains its draft and reuses the same thread and request after th
       onSaved: (id) => saved.push(id),
     });
   }
-  await act(async () => root.render(createElement(Form)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Form))));
   await input(
     document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
     "Review",
@@ -316,7 +317,7 @@ test("adding a plan from search closes its modal and saves against the selected 
       children,
     });
   }
-  await act(async () => root.render(createElement(Search)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Search))));
   await act(async () =>
     document.querySelector<HTMLButtonElement>('button[aria-label="搜索聊天"]')!.click(),
   );
@@ -425,7 +426,7 @@ test("sidebar filters multiple states and creates a task through its dialog with
       },
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   await expect.poll(() => document.body.textContent).toContain("Upcoming review");
   expect(document.body.textContent).toContain("Paused review");
   expect(document.body.textContent).toContain("每 3 小时");
@@ -530,7 +531,7 @@ test("weekly creation toggles weekdays and persists the machine timezone without
       },
     });
   }
-  await act(async () => root.render(createElement(Form)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Form))));
   await input(document.querySelector<HTMLInputElement>("input")!, "Weekly review");
   await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
   await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="重复"]')!.click());
@@ -561,6 +562,106 @@ test("weekly creation toggles weekdays and persists the machine timezone without
   });
 });
 
+test.each(["daily", "weekly"] as const)(
+  "editing a %s plan preserves its timezone through real IPC",
+  async (type) => {
+    const { runtime, schedules, threads, workspace, library } = await setup();
+    const thread = await runtime.runPromise(threads.create(workspace.id));
+    const timeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone === "Asia/Shanghai"
+        ? "America/New_York"
+        : "Asia/Shanghai";
+    const rule =
+      type === "weekly"
+        ? { type, time: "09:00", timeZone, weekdays: [1, 3, 5] }
+        : { type, time: "09:00", timeZone };
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: `timezone-${type}`,
+        change: { action: "create", name: "Original", prompt: "Review repository", rule },
+      }),
+    );
+    const original = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    const saved: string[] = [];
+    function Form() {
+      const controller = useSchedules();
+      return createElement(ScheduleForm, {
+        library,
+        controller,
+        threadId: thread.id,
+        workspaceId: workspace.id,
+        schedule: original,
+        onCancel: () => {},
+        onSaved: (id) => saved.push(id),
+      });
+    }
+    await act(async () => root.render(createElement(Form)));
+    await input(document.querySelector<HTMLInputElement>("input")!, "Renamed");
+    await click("保存");
+    await expect.poll(() => saved).toEqual([thread.id]);
+    const updated = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    expect(updated.name).toBe("Renamed");
+    expect(updated.rule).toEqual(original.rule);
+    expect(updated.nextRunAt).toBe(original.nextRunAt);
+    expect(updated.revision).toBe(original.revision + 1);
+  },
+);
+
+test.each(["metadata only", "new time"] as const)(
+  "editing a once plan preserves its exact instant unless rescheduled: %s",
+  async (edit) => {
+    const { runtime, schedules, threads, workspace, library } = await setup();
+    const thread = await runtime.runPromise(threads.create(workspace.id));
+    const date = new Date(Date.now() + 86400_000);
+    date.setHours(9, 15, 42, 987);
+    const at = date.getTime();
+    await runtime.runPromise(
+      schedules.write({
+        threadId: thread.id,
+        requestId: "precise-once",
+        change: {
+          action: "create",
+          name: "Precise reminder",
+          prompt: "Review repository",
+          rule: { type: "once", at },
+        },
+      }),
+    );
+    const original = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    const saved: string[] = [];
+    function Form() {
+      const controller = useSchedules();
+      return createElement(ScheduleForm, {
+        library,
+        controller,
+        threadId: thread.id,
+        workspaceId: workspace.id,
+        schedule: original,
+        onCancel: () => {},
+        onSaved: (id) => saved.push(id),
+      });
+    }
+    await act(async () => root.render(createElement(Form)));
+    await input(document.querySelector<HTMLInputElement>("input")!, "Renamed reminder");
+    if (edit === "new time") {
+      await act(async () =>
+        document.querySelector<HTMLButtonElement>('[aria-label="选择执行日期和时间"]')!.click(),
+      );
+      await input(document.querySelector<HTMLInputElement>('[aria-label="执行时刻"]')!, "14:30");
+      await click("确定");
+      date.setHours(14, 30, 0, 0);
+    }
+    await click("保存");
+    await expect.poll(() => saved).toEqual([thread.id]);
+    const updated = (await runtime.runPromise(schedules.list(thread.id)))[0];
+    expect(updated.name).toBe("Renamed reminder");
+    expect(updated.rule).toEqual({ type: "once", at: date.getTime() });
+    expect(updated.nextRunAt).toBe(date.getTime());
+    expect(updated.revision).toBe(original.revision + 1);
+  },
+);
+
 test("sidebar task menu supports pause, resume, run, edit and delete through real IPC", async () => {
   const { runtime, schedules, threads, workspace, library } = await setup();
   const thread = await runtime.runPromise(threads.create(workspace.id));
@@ -586,7 +687,7 @@ test("sidebar task menu supports pause, resume, run, edit and delete through rea
       onSaved: () => {},
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   const openMenu = async () => {
     await expect
       .poll(async () => {
@@ -674,7 +775,7 @@ test("a grouped task menu targets the selected plan without pausing its sibling"
       onSaved: () => {},
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   await expect
     .poll(async () => {
       await act(async () => {
@@ -794,7 +895,7 @@ test.each(["local", "bot"])(
         ),
       });
     }
-    await act(async () => root.render(createElement(Stream)));
+    await act(async () => root.render(createElement(ToastProvider, null, createElement(Stream))));
     await expect
       .poll(() =>
         document.querySelector(
@@ -828,7 +929,7 @@ test.each(["danger-full-access", "workspace-write"] as const)(
         },
       });
     }
-    await act(async () => root.render(createElement(Form)));
+    await act(async () => root.render(createElement(ToastProvider, null, createElement(Form))));
     await input(document.querySelector<HTMLInputElement>("input")!, "Permission test");
     await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
     await click("高级");
@@ -886,7 +987,7 @@ test("project thread markers follow actual schedule creation and deletion and th
       onSkills: () => {},
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   const projectButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
     (item) => item.title === `${workspace.cwd}-root`,
   )!;
@@ -995,7 +1096,7 @@ test("the bell shows cross-project input priority and opening a row preserves th
       onSkills: () => {},
     });
   }
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
   );
@@ -1012,7 +1113,7 @@ test("the bell shows cross-project input priority and opening a row preserves th
     await runtime.runPromise(threads.get(first.id)),
     await runtime.runPromise(threads.get(second.id)),
   ];
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   expect(recents.getSnapshot()).toBe(visitOrder);
   expect(rows().map((row) => row.title)).toEqual(["Second visited", "First visited"]);
   now += 1000;
@@ -1038,7 +1139,7 @@ test("the bell shows cross-project input priority and opening a row preserves th
     },
   });
   root = createRoot(document.body.firstElementChild!);
-  await act(async () => root.render(createElement(Sidebar)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
   );
@@ -1121,7 +1222,7 @@ test("successful composer inputs update recents for drafts and existing chats; r
     input = controller.composer;
     return null;
   }
-  await act(async () => root.render(createElement(Composer)));
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Composer))));
   const before = recents.getSnapshot();
   await act(async () => {
     await expect(input.onSubmit("First input")).rejects.toThrow("Input rejected");
@@ -1143,7 +1244,11 @@ test("successful composer inputs update recents for drafts and existing chats; r
   await act(async () => {
     tabs.newConversation(workspace.id);
   });
-  await act(async () => root.render(createElement(Composer, { key: tabs.activeTab.id })));
+  await act(async () =>
+    root.render(
+      createElement(ToastProvider, null, createElement(Composer, { key: tabs.activeTab.id })),
+    ),
+  );
   await act(async () => input.onSubmit("New chat input"));
   const created = tabs.activeTab;
   expect(created.kind === "conversation" && created.threadId).toBeTruthy();
@@ -1153,4 +1258,91 @@ test("successful composer inputs update recents for drafts and existing chats; r
   expect(recents.getSnapshot()[0].threadId).toBe(
     created.kind === "conversation" && created.threadId,
   );
+});
+
+test("manual run shows submission immediately and follows queued, running and terminal states", async () => {
+  const { runtime, schedules, threads, workspace, library, bridge } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [thread.thread];
+  await runtime.runPromise(
+    schedules.write({
+      threadId: thread.id,
+      requestId: "status-plan",
+      change: {
+        action: "create",
+        name: "Status review",
+        prompt: "Review",
+        rule: { type: "once", at: Date.now() + 86400_000 },
+      },
+    }),
+  );
+  let snapshot = await bridge.scheduleSnapshot();
+  let changed = () => {};
+  bridge.scheduleSnapshot = async () => snapshot;
+  bridge.subscribeSchedules = (listener) => {
+    changed = listener;
+    return () => {};
+  };
+  const release = Promise.withResolvers<void>();
+  const run = bridge.runSchedule;
+  bridge.runSchedule = async (input) => {
+    await release.promise;
+    const receipt = await run(input);
+    snapshot = {
+      snapshots: [
+        { ...snapshot.snapshots[0]!, data: await runtime.runPromise(schedules.snapshot) },
+      ],
+    };
+    return receipt;
+  };
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(ScheduleSidebar, {
+      library,
+      controller,
+      onSelect: () => {},
+      onSaved: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
+  await expect.poll(() => document.querySelector('[aria-label$="的任务操作"]')).not.toBeNull();
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label$="的任务操作"]')!.click(),
+  );
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((item) => item.textContent === "立即运行")!
+      .click(),
+  );
+  expect(document.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe("正在提交");
+  expect(document.body.textContent).toContain("正在提交");
+  await act(async () => release.resolve());
+  await expect
+    .poll(() => document.querySelector('[role="status"]')?.getAttribute("aria-label"))
+    .toBe("等待执行");
+  for (const [state, label, color] of [
+    ["admitted", "执行中", "bg-blue-500"],
+    ["succeeded", "执行成功", "bg-green-500"],
+    ["failed", "会话错误", "bg-red-500"],
+    ["cancelled", undefined, undefined],
+  ] as const) {
+    const environment = snapshot.snapshots[0]!;
+    snapshot = {
+      snapshots: [
+        {
+          ...environment,
+          data: {
+            ...environment.data,
+            occurrences: environment.data.occurrences!.map((run) => ({ ...run, state })),
+          },
+        },
+      ],
+    };
+    await act(async () => changed());
+    await expect
+      .poll(() => document.querySelector('[role="status"]')?.getAttribute("aria-label"))
+      .toBe(label);
+    if (color)
+      expect(document.querySelector('[role="status"]')?.classList.contains(color)).toBe(true);
+  }
 });

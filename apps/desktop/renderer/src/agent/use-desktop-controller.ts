@@ -106,8 +106,12 @@ export function useDesktopController(
   };
   return {
     transcript: { snapshot, running },
+    loading:
+      threadId && !snapshot
+        ? { loading: agent.connection === "connecting", onRetry: reconnect }
+        : null,
     welcome:
-      !hasMessages && !running
+      !hasMessages && !running && (!threadId || !!snapshot)
         ? {
             projectName: project?.name,
             connecting: !!threadId && agent.connection === "connecting",
@@ -118,7 +122,6 @@ export function useDesktopController(
         ? (remote?.message ?? "Bot 未连接，请在设置中重新连接")
         : undefined) ??
       error ??
-      desktop.error ??
       agent.error ??
       snapshot?.blockedReason ??
       (!operation ? snapshot?.lastResult?.error?.message : undefined) ??
