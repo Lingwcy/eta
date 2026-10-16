@@ -109,13 +109,14 @@ async function armScheduleSoon(bot: BotApplication, threadId: string, scheduleId
   });
 }
 
-/** One value for the capacity polls, so a failed wait reports the occurrence and its next slot. */
+/** One value for capacity polls, so failure output includes the occurrence, next slot, and Controller state. */
 async function scheduledRunState(bot: BotApplication, threadId: string, scheduleId: string) {
   const [run] = await bot.core.listScheduleRuns({ scheduleId });
   return {
     reason: run?.reason,
     state: run?.state,
     nextRunAt: (await bot.core.listSchedules({ threadId }))[0]?.nextRunAt,
+    activeThreads: bot.controller.status().activeThreads,
   };
 }
 
