@@ -232,6 +232,7 @@ allows native startup, before checking an operation's result.**
 - Evidence: `f3a39419c` gave the Core client test's completion poll a 10-second
   timeout before reading `proof.txt`; its commit body calls out native startup.
 - Evidence: on 2026-10-14, Linux CI run `38569607843` failed the scheduled-thread integration test because it captured an occurrence before the dispatcher's one-second admission wait completed, then repeatedly queried an undefined operation ID. The test now deliberately holds admission past that window and reconciles the durable receipt before querying completion; the same boundary is checked for manual runs.
+- Evidence: on 2026-10-15, PR #60 CI run `38844172790` exposed the same stale receipt in the SIGKILL `pending` recovery test. Holding reopened admission behind a controlled promise reproduces `InvalidInput` locally; reconciling and re-reading the occurrence before polling its operation fixes the failure. Both `pending` and `dispatching` recovery now exercise delayed admission.
 - Check: use the operation's completion signal rather than a fixed sleep.
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.
