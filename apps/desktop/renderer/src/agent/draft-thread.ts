@@ -1,4 +1,4 @@
-import { LocalizedError } from "@/i18n/messages";
+import { LocalizedError } from "../../../src/shared/i18n/messages.ts";
 import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import type { ImageAttachment } from "@eta/core/images/types";
 import type { DesktopBridge } from "../../../src/bridge.ts";
