@@ -145,6 +145,12 @@ and inspect every build configuration that derives those keys.**
   correctness; state which platform actually ran.
 - Seen 1× (2026-10-12).
 
+**Merge dependency versions, the lockfile, and installation policy together.**
+
+- Evidence: on 2026-10-15, PR #60's merge `7abce4c9e` kept the Expo lockfile updates from `d7950fd7e` but restored older release-age exceptions. Bot, Desktop and Mobile CI all stopped during installation; `vp install --frozen-lockfile` reproduced rejection of `@expo/cli@57.0.31` and `@expo/router-server@57.0.13` locally. Restoring main's exact-version exceptions preserves both the Expo update and Pi 1.3.0.
+- Check: after resolving dependency merges, compare the manifest, lockfile and exact-version exceptions from both parents, then run the frozen installation used by CI. A successful install before the merge does not validate the merged graph.
+- Seen: 2026-10-15.
+
 ## Asynchronous verification
 
 **Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
