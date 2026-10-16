@@ -6,6 +6,7 @@ import type { AgentSnapshot, SnapshotTool } from "@eta/core/agent/protocol";
 import { TaskList } from "@/components/task-list";
 import { MessageUsage } from "./message-usage";
 import { ThinkingMessage } from "./thinking-message";
+import { toolsForMessage } from "@/agent/selectors";
 
 export function ChatMessage({
   message,
@@ -28,7 +29,10 @@ export function ChatMessage({
     typeof message.content === "string"
       ? []
       : message.content.filter((content) => content.type === "toolCall");
-  const messageTools = tools.filter((tool) => calls.some((call) => call.id === tool.toolCallId));
+  const messageTools = toolsForMessage(
+    tools,
+    calls.map((call) => call.id),
+  );
   const thinking =
     message.role === "assistant"
       ? message.content

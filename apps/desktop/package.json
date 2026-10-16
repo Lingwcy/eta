@@ -6,7 +6,7 @@
   "main": "dist/electron/main.cjs",
   "scripts": {
     "build:renderer": "vp build --config renderer/vite.config.ts",
-    "build:electron": "tsc --noEmit && vp pack && node ../../scripts/build-sandbox.mjs dist/electron",
+    "build:electron": "tsc --noEmit && vp pack && node ../../scripts/build-sandbox.mjs dist/electron && node ../../scripts/build-codemode.mjs dist/electron",
     "build": "vp run build:renderer && vp run build:electron",
     "package:mac": "vp run build && node scripts/prepare-package.mjs && node scripts/verify-package.mjs && electron-builder --config electron-builder.config.cjs --mac --publish never",
     "package:win": "vp run build && node scripts/prepare-package.mjs && node scripts/verify-package.mjs && electron-builder --config electron-builder.config.cjs --win --x64 --publish never",

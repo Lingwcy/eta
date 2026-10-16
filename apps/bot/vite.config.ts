@@ -41,6 +41,7 @@ export default defineConfig({
             main: "src/main.ts",
             runtime: "src/runtime.ts",
             "sandbox-worker": "../../packages/core/src/platform/sandbox/worker.ts",
+            "codemode-worker": "../../packages/core/src/service/runtime/codemode-worker.ts",
           },
           format: "esm",
           outExtensions: () => ({ js: ".mjs" }),
@@ -54,6 +55,9 @@ export default defineConfig({
                 ),
                 "@eta/agent$": fileURLToPath(
                   new URL("../../packages/agent/src/index.ts", import.meta.url),
+                ),
+                "@eta/agent/codemode$": fileURLToPath(
+                  new URL("../../packages/agent/src/codemode/index.ts", import.meta.url),
                 ),
                 "@eta/agent/env$": fileURLToPath(
                   new URL("../../packages/agent/src/env/index.ts", import.meta.url),
@@ -78,6 +82,10 @@ export default defineConfig({
               "effect/**",
               "@earendil-works/pi-ai",
               "@earendil-works/pi-ai/**",
+              "@earendil-works/pi-codemode",
+              "@earendil-works/pi-codemode/**",
+              "quickjs-wasi",
+              "quickjs-wasi/**",
               "@earendil-works/chord",
               "@earendil-works/chord/**",
               "@cf-wasm/photon/**",

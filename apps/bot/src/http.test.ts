@@ -85,7 +85,11 @@ async function fixture(
     ...(allowedSandboxModes ? { allowedSandboxModes } : {}),
     workspaceRoot: join(root, "workspaces"),
     projects: empty ? [] : [{ key: "test", rootPath: cwd }],
-    runtime: { defaultThinkingLevel: "off", ...(defaultProvider ? { defaultProvider } : {}) },
+    runtime: {
+      agentMode: "standard" as const,
+      defaultThinkingLevel: "off",
+      ...(defaultProvider ? { defaultProvider } : {}),
+    },
   };
   const open = async (environment?: Partial<CoreEnvironment>) => {
     const bot = await createBotApplication(config, {
@@ -293,7 +297,7 @@ test("HTTP exposes sandbox ceilings and scopes approvals to the owning thread", 
     headers: { authorization: "Bearer test-admin-token" },
   });
   expect(await status.json()).toMatchObject({
-    capabilities: expect.arrayContaining(["approval-review", "git-metadata"]),
+    capabilities: expect.arrayContaining(["agent-mode", "approval-review", "git-metadata"]),
   });
   await expect
     .poll(async () => (await bot.core.operation(id, operation.operationId)).status, {

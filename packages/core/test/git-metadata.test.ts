@@ -77,6 +77,7 @@ async function fixture(initialReviewer: ApprovalReviewer | null = null, subdirec
     models,
     settings: {
       read: Effect.sync(() => ({
+        agentMode: "standard" as const,
         defaultThinkingLevel: "off" as const,
         ...(approvalReviewer ? { approvalReviewer } : {}),
       })),

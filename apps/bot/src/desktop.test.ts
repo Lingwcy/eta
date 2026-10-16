@@ -50,7 +50,11 @@ async function fixture(defaultProvider?: string) {
       adminToken: "remote-secret",
       workspaceRoot: join(root, "workspaces"),
       projects: [{ key: "cloud", rootPath: cwd }],
-      runtime: { defaultThinkingLevel: "off", ...(defaultProvider ? { defaultProvider } : {}) },
+      runtime: {
+        agentMode: "standard" as const,
+        defaultThinkingLevel: "off",
+        ...(defaultProvider ? { defaultProvider } : {}),
+      },
     },
     { models },
   );

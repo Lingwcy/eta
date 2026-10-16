@@ -8,6 +8,7 @@ import { adapter, CoreError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
 import { SubagentsDoc, SubagentEventEntry } from "../../agent/extension/subagent/index.ts";
 import { SkillsDoc, skillSummary } from "../skills/extension.ts";
+import { AgentModeDoc } from "../runtime/codemode.ts";
 
 export class ObservationService extends Context.Service<
   ObservationService,
@@ -197,6 +198,9 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     configuration: {
       model: agent.model ?? { provider: "", modelId: "" },
       thinkingLevel: agent.thinkingLevel ?? "off",
+      agentMode:
+        (await runtime.harness.snapshot(AgentModeDoc, runtime.conversation.id, BACKGROUND_CONTEXT))
+          ?.mode ?? "standard",
     },
     transcript,
     operation: live.run
@@ -208,24 +212,41 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
           ...(waiting ? { waitingForSubagents: true } : {}),
           ...(approvals.length ? { waitingForApproval: true } : {}),
           fromTipId: null,
-          runningTools: (live.tools ?? [])
-            .filter((tool) => tool.status !== "done")
+          runningTools: [...(live.tools ?? []), ...(live.nestedTools ?? [])]
+            .filter((tool) => tool.status !== "done" || "parentCallId" in tool)
             .map((tool) => {
               const call = transcript
                 .flatMap(({ message }) => (message.role === "assistant" ? message.content : []))
                 .find((part) => part.type === "toolCall" && part.id === tool.callId);
+              const output = tool.output ?? ("summary" in tool ? tool.summary?.error : undefined);
               return {
-                status: approvals.some((request) => request.toolTaskId === String(tool.taskId))
-                  ? "waiting"
-                  : "running",
+                status:
+                  tool.status === "done"
+                    ? "settled"
+                    : approvals.some((request) => request.toolTaskId === String(tool.taskId))
+                      ? "waiting"
+                      : "running",
+                ...("summary" in tool ? { isError: tool.summary?.isError } : {}),
                 toolCallId: tool.callId,
+                ...(tool.taskId === undefined ? {} : { taskId: String(tool.taskId) }),
+                ...("parentCallId" in tool
+                  ? {
+                      parentToolCallId: tool.parentCallId,
+                      parentTaskId: String(tool.parentTaskId),
+                    }
+                  : {}),
                 toolName: tool.name,
-                args: call?.type === "toolCall" ? call.arguments : {},
-                ...(tool.output === undefined
+                args:
+                  "arguments" in tool
+                    ? tool.arguments
+                    : call?.type === "toolCall"
+                      ? call.arguments
+                      : {},
+                ...(output === undefined && tool.details === undefined
                   ? {}
                   : {
                       result: {
-                        content: [{ type: "text", text: tool.output }],
+                        content: output === undefined ? [] : [{ type: "text", text: output }],
                         details: tool.details,
                       },
                     }),
