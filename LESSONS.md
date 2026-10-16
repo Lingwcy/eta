@@ -157,7 +157,8 @@ and inspect every build configuration that derives those keys.**
 
 - Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
 - Check: measure real payload fields, cover initial history and live events, and retain signed originals for subsequent provider calls. Compression alone does not remove incompressible continuation data; SSE compression must flush small events and release producers when cancelled.
-  **Arm automatic-delivery fixtures after planning and worker startup have completed.**
+
+**Arm automatic-delivery fixtures after planning and worker startup have completed.**
 
 - Evidence: on 2026-10-15, PR #28's container verification failed with no schedule occurrence. Delaying submission by six seconds in the main native verifier reproduced that error: its five-second interval anchor had passed before creation, so the next slot moved five minutes ahead. The verifier and Bot tool integration now create an active agent plan safely in the future, then re-arm it after the planning turn is idle and delivery responses are installed. The same injected delay passes after this change; the CI failure's original timing remains unknown without a stored schedule diagnostic.
 - Check: keep automatic delivery and real sandbox work in the proof; do not replace them with a manual run or merely extend the completion timeout.
@@ -181,33 +182,6 @@ and inspect every build configuration that derives those keys.**
 - Evidence: on 2026-10-15, the maintainer reported no visible response after a Bot schedule's manual run. The sidebar only disabled its menu, and Desktop ignored the existing schedule event stream in favor of 15-second polling. The `manual run shows submission immediately` DOM regression now holds the request open and checks submission, queuing, execution, success and failure; `schedule events refresh immediately` covers push updates, an overlapping stale read, reconnect and cleanup.
 - Check: treat streamed tool arguments as active model generation; distinguish submission and queuing from admitted execution. Keep approval pauses, retries and deferred responses visible, and consume available state notifications instead of waiting for a polling interval.
 - Seen: 2026-10-13, 2026-10-15.
-
-**Wait for the observable completion condition, with a bounded timeout that
-allows native startup, before checking an operation's result.**
-
-- Why: native worker startup adds latency that an in-process fake may not
-  expose. Reading the result too early confuses unfinished work with failure.
-- Evidence: `f3a39419c` gave the Core client test's completion poll a 10-second
-  timeout before reading `proof.txt`; its commit body calls out native startup.
-- Evidence: on 2026-10-14, Linux CI run `38569607843` failed the scheduled-thread integration test because it captured an occurrence before the dispatcher's one-second admission wait completed, then repeatedly queried an undefined operation ID. The test now deliberately holds admission past that window and reconciles the durable receipt before querying completion; the same boundary is checked for manual runs.
-- Check: use the operation's completion signal rather than a fixed sleep.
-  Inspect initialization, cleanup, and timeout paths. Increasing a timeout
-  alone is not evidence that a hang or flake's cause has been resolved.
-- Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
-  schedule delivery test stuck before `ThreadService.submit`; the occurrence
-  remained `dispatching` and no durable receipt existed. Both a global timer and
-  Node's timer promise failed to advance under the parallel test suite. The
-  regression now holds admission behind a test-controlled promise, verifies
-  the initial dispatching state, releases admission, then polls the durable
-  receipt and checks exactly one user message. The focused dispatcher test
-  then revealed a separate Linux CI constraint: the runner lacks `bwrap`, so
-  the default workspace-write mode correctly blocks Core submission with
-  `SandboxUnavailable`. Because this integration asserts scheduling and message
-  admission rather than sandbox isolation, it explicitly uses full access only
-  for its temporary test workspace. Native validation ran outside the
-  protected `.codex` worktree directory; inside it the sandbox correctly denied
-  loading the development worker.
-- Seen: 2026-10-12, 2026-10-14.
 
 **Propagate a shared deadline through every asynchronous stage, including tools and the final decision check.**
 
@@ -241,5 +215,32 @@ model choice must still be validated as an explicit choice.**
 
 ## Promoted lessons
 
-None yet. Eta's existing rules, including “Hit every surface” and focused
-verification, continue to apply without fabricated recurrence counts.
+**Wait for the observable completion condition, with a bounded timeout that
+allows native startup, before checking an operation's result.**
+
+- Promoted on 2026-10-15 to [Verifying](AGENTS.md#verifying).
+- Why: native worker startup adds latency that an in-process fake may not
+  expose. Reading the result too early confuses unfinished work with failure.
+- Evidence: `f3a39419c` gave the Core client test's completion poll a 10-second
+  timeout before reading `proof.txt`; its commit body calls out native startup.
+- Evidence: on 2026-10-14, Linux CI run `38569607843` failed the scheduled-thread integration test because it captured an occurrence before the dispatcher's one-second admission wait completed, then repeatedly queried an undefined operation ID. The test now deliberately holds admission past that window and reconciles the durable receipt before querying completion; the same boundary is checked for manual runs.
+- Check: use the operation's completion signal rather than a fixed sleep.
+  Inspect initialization, cleanup, and timeout paths. Increasing a timeout
+  alone is not evidence that a hang or flake's cause has been resolved.
+- Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
+  schedule delivery test stuck before `ThreadService.submit`; the occurrence
+  remained `dispatching` and no durable receipt existed. Both a global timer and
+  Node's timer promise failed to advance under the parallel test suite. The
+  regression now holds admission behind a test-controlled promise, verifies
+  the initial dispatching state, releases admission, then polls the durable
+  receipt and checks exactly one user message. The focused dispatcher test
+  then revealed a separate Linux CI constraint: the runner lacks `bwrap`, so
+  the default workspace-write mode correctly blocks Core submission with
+  `SandboxUnavailable`. Because this integration asserts scheduling and message
+  admission rather than sandbox isolation, it explicitly uses full access only
+  for its temporary test workspace. Native validation ran outside the
+  protected `.codex` worktree directory; inside it the sandbox correctly denied
+  loading the development worker.
+- Additional evidence: on 2026-10-15, issue #38's parent-cancellation fixture timed out before its child tool started. Injecting 1.5 seconds of child-model latency reproduced the false precondition failure and a cleanup hook timeout. Separating the controlled child response from tool readiness and moving startup inside `try/finally` lets the same delayed case pass. An injected startup assertion failure now reports only that assertion, without a cleanup timeout. This reproduces a fixture defect; the original CI run did not record enough timing to prove it was the sole cause.
+- Additional evidence: on 2026-10-15, #41 was reproduced by holding `Submission.wait` after its durable terminal receipt was visible. The dispatcher integration's immediate deletion then failed with `Busy`. PR #43 verifies deletion stays blocked while the supervisor lease is held, releases the controlled gate, and waits for running/recovery/foreground-work to clear before deleting. This proves a fixture assumption is invalid without weakening production deletion guards; it does not identify every historical CI failure's timing.
+- Seen: 2026-10-12, 2026-10-14, 2026-10-15.
