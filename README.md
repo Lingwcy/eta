@@ -55,13 +55,13 @@ Eta ships with a real permission system. Each chat runs under one of three polic
 
 This monorepo contains the Eta clients and the shared core they all run on.
 
-| Part              | Description                                                                  |
-| ----------------- | ---------------------------------------------------------------------------- |
-| **apps/desktop**  | Electron client for macOS and Windows — the full local agent experience      |
-| **apps/bot**      | Self-hosted cloud server hosting the agent over HTTP/SSE, with Discord intake |
-| **apps/mobile**   | iOS and Android companion for a deployed Bot                                 |
-| **packages/core** | Shared core: projects, durable threads, sandboxing, scheduling, approvals    |
-| **packages/agent** | Agent runtime with tool calling and session management                      |
+| Part               | Description                                                                   |
+| ------------------ | ----------------------------------------------------------------------------- |
+| **apps/desktop**   | Electron client for macOS and Windows — the full local agent experience       |
+| **apps/bot**       | Self-hosted cloud server hosting the agent over HTTP/SSE, with Discord intake |
+| **apps/mobile**    | iOS and Android companion for a deployed Bot                                  |
+| **packages/core**  | Shared core: projects, durable threads, sandboxing, scheduling, approvals     |
+| **packages/agent** | Agent runtime with tool calling and session management                        |
 
 Eta's agent runtime is built on [Pi](https://github.com/earendil-works/pi), the minimal, extensible agent harness from Earendil Works.
 
