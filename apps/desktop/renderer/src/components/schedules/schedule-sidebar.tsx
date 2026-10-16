@@ -10,6 +10,7 @@ import { ScheduleMenu } from "./schedule-menu";
 import { ScheduleForm } from "./schedule-form";
 import { scheduleRuleText, scheduleTime } from "./format";
 import { ToastNotice } from "@/components/ui/toast";
+import "./schedule-status.css";
 
 export function ScheduleSidebar({
   library,
@@ -28,6 +29,7 @@ export function ScheduleSidebar({
   const [creating, setCreating] = useState(false);
   const [edit, setEdit] = useState<Schedule>();
   const [acting, setActing] = useState(false);
+  const [submittingRun, setSubmittingRun] = useState<string>();
   const [error, setError] = useState<string>();
   const action = async (plan: Schedule, kind: "pause" | "resume" | "run" | "edit" | "delete") => {
     if (kind === "edit") {
@@ -35,6 +37,7 @@ export function ScheduleSidebar({
       return;
     }
     setActing(true);
+    if (kind === "run") setSubmittingRun(plan.threadId);
     setError(undefined);
     try {
       await controller.mutate(
@@ -58,6 +61,7 @@ export function ScheduleSidebar({
       setError(error instanceof Error ? error.message : "无法处理定时任务");
     } finally {
       setActing(false);
+      setSubmittingRun(undefined);
     }
   };
   const groups = controller.snapshot.snapshots
@@ -74,15 +78,26 @@ export function ScheduleSidebar({
           const next = plans
             .filter((plan) => plan.state === "active" && plan.nextRunAt !== null)
             .toSorted((a, b) => a.nextRunAt! - b.nextRunAt!)[0];
-          const latest = data.occurrences
-            ?.filter((run) => run.threadId === id)
-            .toSorted((a, b) => b.scheduledAt - a.scheduledAt)[0];
+          const runs = data.occurrences?.filter((run) => run.threadId === id) ?? [];
+          const latest = runs.toSorted((a, b) => b.scheduledAt - a.scheduledAt)[0];
+          const status =
+            submittingRun === id
+              ? "正在提交"
+              : runs.some((run) => run.state === "admitted")
+                ? "执行中"
+                : runs.some((run) => ["pending", "dispatching"].includes(run.state))
+                  ? "等待执行"
+                  : latest?.state === "succeeded"
+                    ? "执行成功"
+                    : latest?.state === "failed"
+                      ? "会话错误"
+                      : undefined;
           return {
             id,
             title: next?.name ?? plans[0]?.name ?? thread?.title ?? "新聊天",
             plans,
             next,
-            latest,
+            status,
             environment,
             archived: thread?.archivedAt !== undefined,
             unavailable:
@@ -206,14 +221,26 @@ export function ScheduleSidebar({
                             ? "已暂停"
                             : "已完成"}
                       {group.plans.length > 1 ? ` · ${group.plans.length} 个计划` : ""}
-                      {group.latest?.state === "admitted"
-                        ? " · 执行中"
-                        : group.latest?.state === "failed"
-                          ? " · 最近失败"
-                          : ""}
+                      {group.status ? ` · ${group.status}` : ""}
                     </span>
                   </span>
                 </Button>
+                {group.status && (
+                  <span
+                    role="status"
+                    aria-label={group.status}
+                    title={group.status}
+                    className={`absolute top-1.5 right-2 size-1.5 rounded-full ${
+                      group.status === "执行中"
+                        ? "schedule-running-light bg-blue-500"
+                        : group.status === "执行成功"
+                          ? "bg-green-500"
+                          : group.status === "会话错误"
+                            ? "bg-red-500"
+                            : "bg-neutral-400"
+                    }`}
+                  />
+                )}
                 {!!group.plans.length && (
                   <div className="absolute top-1/2 right-1 -translate-y-1/2">
                     <ScheduleMenu

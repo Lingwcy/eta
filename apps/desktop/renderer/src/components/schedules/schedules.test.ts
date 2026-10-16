@@ -1259,3 +1259,90 @@ test("successful composer inputs update recents for drafts and existing chats; r
     created.kind === "conversation" && created.threadId,
   );
 });
+
+test("manual run shows submission immediately and follows queued, running and terminal states", async () => {
+  const { runtime, schedules, threads, workspace, library, bridge } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [thread.thread];
+  await runtime.runPromise(
+    schedules.write({
+      threadId: thread.id,
+      requestId: "status-plan",
+      change: {
+        action: "create",
+        name: "Status review",
+        prompt: "Review",
+        rule: { type: "once", at: Date.now() + 86400_000 },
+      },
+    }),
+  );
+  let snapshot = await bridge.scheduleSnapshot();
+  let changed = () => {};
+  bridge.scheduleSnapshot = async () => snapshot;
+  bridge.subscribeSchedules = (listener) => {
+    changed = listener;
+    return () => {};
+  };
+  const release = Promise.withResolvers<void>();
+  const run = bridge.runSchedule;
+  bridge.runSchedule = async (input) => {
+    await release.promise;
+    const receipt = await run(input);
+    snapshot = {
+      snapshots: [
+        { ...snapshot.snapshots[0]!, data: await runtime.runPromise(schedules.snapshot) },
+      ],
+    };
+    return receipt;
+  };
+  function Sidebar() {
+    const controller = useSchedules();
+    return createElement(ScheduleSidebar, {
+      library,
+      controller,
+      onSelect: () => {},
+      onSaved: () => {},
+    });
+  }
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
+  await expect.poll(() => document.querySelector('[aria-label$="的任务操作"]')).not.toBeNull();
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[aria-label$="的任务操作"]')!.click(),
+  );
+  await act(async () =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((item) => item.textContent === "立即运行")!
+      .click(),
+  );
+  expect(document.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe("正在提交");
+  expect(document.body.textContent).toContain("正在提交");
+  await act(async () => release.resolve());
+  await expect
+    .poll(() => document.querySelector('[role="status"]')?.getAttribute("aria-label"))
+    .toBe("等待执行");
+  for (const [state, label, color] of [
+    ["admitted", "执行中", "bg-blue-500"],
+    ["succeeded", "执行成功", "bg-green-500"],
+    ["failed", "会话错误", "bg-red-500"],
+    ["cancelled", undefined, undefined],
+  ] as const) {
+    const environment = snapshot.snapshots[0]!;
+    snapshot = {
+      snapshots: [
+        {
+          ...environment,
+          data: {
+            ...environment.data,
+            occurrences: environment.data.occurrences!.map((run) => ({ ...run, state })),
+          },
+        },
+      ],
+    };
+    await act(async () => changed());
+    await expect
+      .poll(() => document.querySelector('[role="status"]')?.getAttribute("aria-label"))
+      .toBe(label);
+    if (color)
+      expect(document.querySelector('[role="status"]')?.classList.contains(color)).toBe(true);
+  }
+});
