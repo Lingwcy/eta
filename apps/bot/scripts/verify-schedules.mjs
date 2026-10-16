@@ -53,11 +53,13 @@ try {
   const at = Date.now() + 86400_000;
   provider.setResponses([
     fauxAssistantMessage(
-      fauxToolCall("schedule", {
-        action: "create",
-        name: "Native proof",
-        prompt: "Write the scheduled verification file",
-        rule: { type: "interval", everyMs: 300000, anchorAt: at },
+      fauxToolCall("codemode", {
+        code: `text(await tools.schedule(${JSON.stringify({
+          action: "create",
+          name: "Native proof",
+          prompt: "Write the scheduled verification file",
+          rule: { type: "interval", everyMs: 300000, anchorAt: at },
+        })}));`,
       }),
       { stopReason: "toolUse" },
     ),
@@ -69,7 +71,9 @@ try {
   assert.deepEqual(await bot.core.listScheduleProposals(), []);
   provider.setResponses([
     fauxAssistantMessage(
-      fauxToolCall("write", { path: "scheduled.txt", content: "Native scheduled work" }),
+      fauxToolCall("codemode", {
+        code: 'await tools.write({path:"scheduled.txt",content:"Native scheduled work"});',
+      }),
       { stopReason: "toolUse" },
     ),
     fauxAssistantMessage("Finished native work"),
@@ -92,6 +96,7 @@ try {
     "Native scheduled work",
   );
   const opened = await bot.core.openThread(thread.id);
+  assert.equal(opened.snapshot.configuration.agentMode, "codemode");
   const messages = opened.snapshot.transcript.filter((entry) => entry.message.role === "user");
   assert.equal(messages.length, 2);
   const occurrence = (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0];

@@ -9,6 +9,7 @@ import type {
 } from "@earendil-works/pi-ai";
 import type { ActiveSkill } from "../skills/types.ts";
 import type { SandboxApproval, SandboxMode, SandboxStatus } from "../shared/sandbox.ts";
+import type { AgentMode } from "../shared/runtime-settings.ts";
 
 export type ThinkingLevel = ModelThinkingLevel | "off";
 
@@ -50,6 +51,9 @@ export interface RecoveryState {
 export interface SnapshotTool {
   status: "running" | "waiting" | "settled" | "stopped" | "incomplete";
   toolCallId: string;
+  taskId?: string;
+  parentToolCallId?: string;
+  parentTaskId?: string;
   toolName: string;
   args: Record<string, unknown>;
   result?: { content: ToolResultMessage["content"]; details?: unknown };
@@ -63,7 +67,11 @@ export interface AgentSnapshot {
   approvalHistory?: readonly SandboxApproval[];
   subagents?: readonly SubagentSummary[];
   activeSkills?: readonly ActiveSkill[];
-  configuration: { model: { provider: string; modelId: string }; thinkingLevel: ThinkingLevel };
+  configuration: {
+    model: { provider: string; modelId: string };
+    thinkingLevel: ThinkingLevel;
+    agentMode?: AgentMode;
+  };
   transcript: { id: string; type: "message"; message: Message; toolStatus?: "stopped" }[];
   operation:
     | (Omit<OperationAdmission, "operationId"> & {

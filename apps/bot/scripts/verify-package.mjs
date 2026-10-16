@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { verifyCli } from "./verify-cli.mjs";
 import { verifyDiscord } from "./verify-discord.mjs";
+import { verifyCodemode } from "../../../scripts/verify-codemode.mjs";
 
 // Load only the compiled distribution outside the workspace and without a provider network.
 const temporary = await mkdtemp(join(tmpdir(), "eta-bot-package-"));
@@ -18,7 +19,7 @@ try {
   globalThis.fetch = () => {
     throw new Error("Package verification must remain offline.");
   };
-  const { createBotApplication, processImage, DiscordSdk } = await import(
+  const { createBotApplication, processImage, DiscordSdk, RuntimeCodemodeSandbox } = await import(
     pathToFileURL(join(isolated, "runtime.mjs")).href
   );
   const image = await processImage(
@@ -29,6 +30,7 @@ try {
   assert.ok(image.data.length > 0);
   const workspace = join(temporary, "workspaces", "test");
   await mkdir(workspace, { recursive: true });
+  await verifyCodemode(RuntimeCodemodeSandbox, isolated, workspace, "mjs");
   const config = {
     dataRoot: join(temporary, "data"),
     adminToken: "offline-admin-token",
@@ -90,7 +92,7 @@ try {
   await verifyCli(isolated, temporary, config, fetch);
   await verifyDiscord(DiscordSdk);
   console.log(
-    "Bot distribution verified: isolated startup, HTTP, images, schedule persistence, restart, CLI shutdown and real Discord SDK against a local Gateway/REST fixture.",
+    "Bot distribution verified: isolated Code mode worker/WASM/tool bridge and cancellation, startup, HTTP, images, schedule persistence, restart, CLI shutdown and real Discord SDK against a local Gateway/REST fixture.",
   );
 } finally {
   await application?.close();

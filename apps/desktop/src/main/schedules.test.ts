@@ -58,7 +58,9 @@ test("Desktop main dispatches and records work without a renderer, then stops fu
   cleanups.push(stop);
   provider.setResponses([
     fauxAssistantMessage(
-      fauxToolCall("write", { path: "background.txt", content: "Main process work" }),
+      fauxToolCall("codemode", {
+        code: 'await tools.write({path:"background.txt",content:"Main process work"});',
+      }),
       { stopReason: "toolUse" },
     ),
     fauxAssistantMessage("Saved"),

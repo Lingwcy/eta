@@ -407,6 +407,7 @@ export function createSubagentActions(
           doc.requests[requestId] = child.path;
           return child.path;
         }
+        await options.inheritExecution?.(tx, actor, child.conversationId);
         const reporter = await tx.createTask(
           Reporter,
           {

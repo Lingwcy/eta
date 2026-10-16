@@ -19,7 +19,9 @@ export function TaskList({ tools, className }: TaskListProps) {
       )}
     >
       {tools.map((tool) => (
-        <ToolItem key={tool.toolCallId} tool={tool} />
+        <div key={tool.toolCallId} className={tool.parentToolCallId ? "ml-4 min-w-0" : "min-w-0"}>
+          <ToolItem tool={tool} />
+        </div>
       ))}
     </div>
   );

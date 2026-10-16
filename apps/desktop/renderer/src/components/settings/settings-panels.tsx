@@ -13,6 +13,7 @@ import { SkillSettings } from "./skill-settings";
 import { StorageSettings } from "./storage-settings";
 import { AboutSettings } from "./about-settings";
 import { AuthenticationSettings } from "./authentication/authentication-settings";
+import { defaultAgentMode } from "@eta/core/shared/runtime-settings";
 
 export interface SettingsPanelProps {
   library: DesktopLibrary;
@@ -70,6 +71,8 @@ export const settingsPanels = {
   ),
   permissions: (props) => (
     <PermissionSettings
+      agentMode={props.library.settings.agentMode ?? defaultAgentMode}
+      onAgentModeChange={(agentMode) => update(props, { agentMode })}
       library={props.library}
       active={props.active}
       reviewer={props.library.settings.approvalReviewer}
