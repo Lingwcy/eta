@@ -55,13 +55,13 @@ Eta 内置完整的权限系统。每个会话运行在三档策略之一——*
 
 本仓库包含 Eta 的各端应用与它们共享的核心。
 
-| 部分               | 说明                                                 |
-| ------------------ | ---------------------------------------------------- |
-| **apps/desktop**   | macOS 与 Windows 的 Electron 客户端，完整的本地 Agent 体验 |
+| 部分               | 说明                                                        |
+| ------------------ | ----------------------------------------------------------- |
+| **apps/desktop**   | macOS 与 Windows 的 Electron 客户端，完整的本地 Agent 体验  |
 | **apps/bot**       | 自托管云端服务，通过 HTTP/SSE 托管 Agent，支持 Discord 接入 |
-| **apps/mobile**    | iOS 与 Android 手机端，连接已部署的 Bot             |
-| **packages/core**  | 共享核心：项目、持久会话、沙盒、定时任务、审批       |
-| **packages/agent** | Agent 运行时：工具调用与会话管理                     |
+| **apps/mobile**    | iOS 与 Android 手机端，连接已部署的 Bot                     |
+| **packages/core**  | 共享核心：项目、持久会话、沙盒、定时任务、审批              |
+| **packages/agent** | Agent 运行时：工具调用与会话管理                            |
 
 Eta 的 Agent 运行时基于 Earendil Works 的 [Pi](https://github.com/earendil-works/pi) —— 一个极简、可扩展的 Agent 框架。
 
