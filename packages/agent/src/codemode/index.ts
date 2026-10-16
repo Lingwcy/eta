@@ -3,6 +3,7 @@ export {
 	CODEMODE_TOOL_NAME,
 	type CodemodeGlobal,
 	type CodemodeNestedCall,
+	CodemodeRunDoc,
 	CodemodeStoreDoc,
 	type CodemodeToolDetails,
 	type CodemodeToolInput,

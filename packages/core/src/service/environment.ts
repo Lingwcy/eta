@@ -19,6 +19,7 @@ export interface CoreEnvironment {
   ) => ExecutionEnv | Promise<ExecutionEnv>;
   readonly allowedSandboxModes: readonly SandboxMode[];
   readonly sandboxWorkerPath?: string;
+  readonly codemodeAssets?: { worker: string; wasm: string };
   /** Where Eta creates managed worktrees; defaults to a sibling `<dataRoot>-worktrees` directory. */
   readonly worktreeRoot?: string;
   readonly extensions: (
@@ -40,6 +41,7 @@ export class CoreEnvironmentService extends Context.Service<
       shutdown: options.shutdown ?? "preserve",
       allowedSandboxModes: options.allowedSandboxModes ?? sandboxModes,
       sandboxWorkerPath: options.sandboxWorkerPath,
+      codemodeAssets: options.codemodeAssets,
       ...(options.worktreeRoot ? { worktreeRoot: options.worktreeRoot } : {}),
       executionEnvironment:
         options.executionEnvironment ??

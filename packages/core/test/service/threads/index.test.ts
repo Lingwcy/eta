@@ -471,6 +471,7 @@ test("model switches persist supported levels and send the same effort shown in 
   const next = reopen();
   const restored = await next.runPromise(ThreadService);
   expect((await next.runPromise(restored.open(created.id))).snapshot.configuration).toEqual({
+    agentMode: "standard",
     model: { provider: "eta-test", modelId: "two" },
     thinkingLevel: "off",
   });
@@ -2190,6 +2191,7 @@ test("orchestrator root offers delegation and scheduling while children retain c
   await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
   const child = await runtime.runPromise(threads.openSubagent(created.id, "/research"));
   expect(child.snapshot.configuration).toEqual({
+    agentMode: "standard",
     model: { provider: "eta-test", modelId: "two" },
     thinkingLevel: "high",
   });

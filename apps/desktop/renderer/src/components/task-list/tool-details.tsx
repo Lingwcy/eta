@@ -52,7 +52,9 @@ export function ToolDetails({ tool }: { tool: SnapshotTool }) {
           <span>参数</span>
         )}
         <pre className="mt-1 font-mono text-xs/5 whitespace-pre-wrap break-words">
-          {JSON.stringify(tool.args, null, 2)}
+          {tool.toolName === "codemode" && typeof tool.args.code === "string"
+            ? tool.args.code
+            : JSON.stringify(tool.args, null, 2)}
         </pre>
       </ToolBranch>
       {hasOutput && (
