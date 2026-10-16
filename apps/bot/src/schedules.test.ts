@@ -81,7 +81,8 @@ async function approvedSchedule(bot: BotApplication, threadId: string) {
       action: "create",
       name: "Review",
       prompt: "Scheduled review",
-      rule: { type: "once", at: now + 200 },
+      // #51: approval latency can outlast a near-future slot, so create far out and arm later.
+      rule: { type: "once", at: now + 60_000 },
     },
   });
   const proposal = (await bot.core.listScheduleProposals({ threadId }))[0];
@@ -96,17 +97,39 @@ async function approvedSchedule(bot: BotApplication, threadId: string) {
   return approved.scheduleId!;
 }
 
+/** Arm a near-future slot after approval so setup latency cannot decide whether it is ever due. */
+async function armScheduleSoon(bot: BotApplication, threadId: string, scheduleId: string) {
+  const [schedule] = await bot.core.listSchedules({ threadId });
+  if (!schedule) throw new Error("Approved schedule is missing");
+  await bot.core.updateSchedule({
+    scheduleId,
+    expectedRevision: schedule.revision,
+    requestId: "arm",
+    patch: { rule: { type: "once", at: DateTime.toEpochMillis(DateTime.nowUnsafe()) + 500 } },
+  });
+}
+
+/** One value for capacity polls, so failure output includes the occurrence, next slot, and Controller state. */
+async function scheduledRunState(bot: BotApplication, threadId: string, scheduleId: string) {
+  const [run] = await bot.core.listScheduleRuns({ scheduleId });
+  return {
+    reason: run?.reason,
+    state: run?.state,
+    nextRunAt: (await bot.core.listSchedules({ threadId }))[0]?.nextRunAt,
+    activeThreads: bot.controller.status().activeThreads,
+  };
+}
+
 test("automatic scheduling respects same-project exclusion and wakes when Controller releases capacity", async () => {
   const { bot, thread, releaseModel } = await fixture(4);
   const ordinary = await thread("Ordinary work");
   const scheduled = await thread("Scheduled work");
   await bot.controller.submit(ordinary, "Keep running ordinary work", "ordinary");
   const scheduleId = await approvedSchedule(bot, scheduled);
+  await armScheduleSoon(bot, scheduled, scheduleId);
   await expect
-    .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.reason, {
-      timeout: 5000,
-    })
-    .toBe("busy");
+    .poll(() => scheduledRunState(bot, scheduled, scheduleId), { timeout: 5000 })
+    .toMatchObject({ reason: "busy" });
   expect(
     (await bot.core.openThread(scheduled)).snapshot.transcript.filter(
       (entry) => entry.message.role === "user",
@@ -116,10 +139,8 @@ test("automatic scheduling respects same-project exclusion and wakes when Contro
   releaseModel();
   await bot.controller.stop(ordinary);
   await expect
-    .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.state, {
-      timeout: 5000,
-    })
-    .toBe("succeeded");
+    .poll(() => scheduledRunState(bot, scheduled, scheduleId), { timeout: 5000 })
+    .toMatchObject({ state: "succeeded" });
   expect(
     (await bot.core.openThread(scheduled)).snapshot.transcript.filter(
       (entry) => entry.message.role === "user",
@@ -139,19 +160,16 @@ test("scheduled admission also obeys maxConcurrent across different projects", a
   await bot.core.renameThread(scheduled, "Other project scheduled work");
   await bot.controller.submit(ordinary, "Hold all capacity", "ordinary");
   const scheduleId = await approvedSchedule(bot, scheduled);
+  await armScheduleSoon(bot, scheduled, scheduleId);
   await expect
-    .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.reason, {
-      timeout: 5000,
-    })
-    .toBe("busy");
+    .poll(() => scheduledRunState(bot, scheduled, scheduleId), { timeout: 5000 })
+    .toMatchObject({ reason: "busy" });
   expect(bot.controller.status().activeThreads).toEqual([ordinary]);
   releaseModel();
   await bot.controller.stop(ordinary);
   await expect
-    .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.state, {
-      timeout: 5000,
-    })
-    .toBe("succeeded");
+    .poll(() => scheduledRunState(bot, scheduled, scheduleId), { timeout: 5000 })
+    .toMatchObject({ state: "succeeded" });
 }, 15000);
 
 test("Core scheduling boundaries reject workspaces outside Bot scope before persisting plans or proposals", async () => {
