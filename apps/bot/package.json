@@ -13,7 +13,7 @@
     "verify-container": "node scripts/verify-container.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^1.0.2",
+    "@earendil-works/pi-ai": "1.3.0",
     "@eta/agent": "workspace:*",
     "@eta/core": "workspace:*",
     "@hono/node-server": "catalog:",

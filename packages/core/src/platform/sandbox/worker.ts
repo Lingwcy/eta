@@ -1,6 +1,6 @@
 import { NodeExecutionEnv } from "@eta/agent/env/node";
 import { getOrThrow } from "@eta/agent/env";
-import type { TextLineReader } from "@eta/agent/env";
+import type { BinaryReader, DirReader, FileWatcher, TextLineReader } from "@eta/agent/env";
 import { Schema } from "effect";
 import { BACKGROUND_CONTEXT, withAbortSignal } from "@earendil-works/chord/context";
 import { RequestSchema } from "./protocol.ts";
@@ -8,6 +8,9 @@ import type { WorkerMessage, WorkerRequest } from "./protocol.ts";
 
 const env = new NodeExecutionEnv({ cwd: process.cwd(), detachedCommands: false });
 const readers = new Map<number, TextLineReader>();
+const binaryReaders = new Map<number, BinaryReader>();
+const dirReaders = new Map<number, DirReader>();
+const watchers = new Map<number, FileWatcher>();
 const invocations = new Map<number, AbortController>();
 let readerSequence = 0;
 const send = (message: WorkerMessage) => process.send?.(message);
@@ -42,8 +45,74 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
     case "closeReader": {
       await readers.get(request.reader!)?.close(context);
       readers.delete(request.reader!);
+      await binaryReaders.get(request.reader!)?.close(context);
+      binaryReaders.delete(request.reader!);
+      await dirReaders.get(request.reader!)?.close(context);
+      dirReaders.delete(request.reader!);
       return;
     }
+    case "openBinaryReader": {
+      const reader = getOrThrow(await env.openBinaryReader(path(), request.options, context));
+      const id = ++readerSequence;
+      binaryReaders.set(id, reader);
+      return id;
+    }
+    case "binaryInfo":
+      return getOrThrow(await binaryReaders.get(request.reader!)!.info(context));
+    case "binaryRead":
+      return Buffer.from(
+        getOrThrow(
+          await binaryReaders.get(request.reader!)!.read(request.offset!, request.length!, context),
+        ),
+      ).toString("base64");
+    case "scanLines":
+      return getOrThrow(
+        await binaryReaders
+          .get(request.reader!)!
+          .scanLines(
+            { startLine: request.options!.startLine!, endLine: request.options?.endLine },
+            context,
+          ),
+      );
+    case "openDirReader": {
+      const reader = getOrThrow(await env.openDirReader(path(), context));
+      const id = ++readerSequence;
+      dirReaders.set(id, reader);
+      return id;
+    }
+    case "readDir":
+      return getOrThrow(
+        await dirReaders.get(request.reader!)!.next(request.options!.maxEntries!, context),
+      );
+    case "watch": {
+      const watcher = getOrThrow(
+        await env.watch(
+          request.targets!,
+          (change) =>
+            send({
+              id: request.id,
+              event: "watch",
+              change:
+                "error" in change
+                  ? {
+                      error: {
+                        code: change.error.code,
+                        message: change.error.message,
+                        ...(change.error.path ? { path: change.error.path } : {}),
+                      },
+                    }
+                  : change,
+            }),
+          context,
+        ),
+      );
+      watchers.set(request.id, watcher);
+      return { id: request.id, mode: watcher.mode };
+    }
+    case "closeWatcher":
+      await watchers.get(request.reader!)?.close(context);
+      watchers.delete(request.reader!);
+      return;
     case "readTextLines":
       return getOrThrow(await env.readTextLines(path(), request.options, context));
     case "readBinaryFile":
@@ -77,7 +146,7 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
     case "exec":
       return getOrThrow(
         await env.exec(
-          path(),
+          request.command ?? path(),
           {
             ...request.options,
             inheritEnv: false,
@@ -91,7 +160,8 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
                 : {}),
               ...request.options?.env,
             },
-            onOutput: (value) => send({ id: request.id, event: "output", value }),
+            onOutput: (value, _context, outputInfo) =>
+              send({ id: request.id, event: "output", value, outputInfo }),
           },
           context,
         ),
@@ -100,6 +170,12 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
       await env.cleanup(context);
       for (const reader of readers.values()) await reader.close(context);
       readers.clear();
+      for (const reader of binaryReaders.values()) await reader.close(context);
+      binaryReaders.clear();
+      for (const reader of dirReaders.values()) await reader.close(context);
+      dirReaders.clear();
+      for (const watcher of watchers.values()) await watcher.close(context);
+      watchers.clear();
       return;
     }
     case "cancel":

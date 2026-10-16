@@ -51,9 +51,9 @@ allowBuilds:
   msgpackr-extract: true
   protobufjs: true
 minimumReleaseAgeExclude:
-  - "@earendil-works/chord@1.0.0 || 1.0.2"
-  - "@earendil-works/pi-ai@1.0.0 || 1.0.2"
-  - "@earendil-works/pi-telemetry@1.0.0 || 1.0.2"
+  - "@earendil-works/chord@1.0.0 || 1.0.2 || 1.3.0"
+  - "@earendil-works/pi-ai@1.0.0 || 1.0.2 || 1.3.0"
+  - "@earendil-works/pi-telemetry@1.0.0 || 1.0.2 || 1.3.0"
   - "@expo/cli@57.0.31"
   - "@expo/fingerprint@0.20.14"
   - "@expo/inline-modules@0.1.8"
@@ -72,4 +72,5 @@ minimumReleaseAgeExclude:
   - expo-asset@57.0.20
   - expo-constants@57.0.22
   - expo-linking@57.0.13
+  - "@earendil-works/pi-codemode@1.3.0"
   - "@expo/router-server@57.0.13"
