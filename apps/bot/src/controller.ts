@@ -3,7 +3,7 @@ import type { CoreClient, OperationAdmission, ImageAttachment } from "@eta/core"
 import { BotHttpError } from "./errors.ts";
 import type { BotLog } from "./log.ts";
 
-type AdmissionLease = { projectId: string };
+type AdmissionLease = { projectId: string; stopResult?: Promise<boolean> };
 
 /** Serialize writers to a checkout while allowing unrelated projects to run concurrently. */
 export class BotController {
@@ -56,7 +56,7 @@ export class BotController {
     if (previous !== message) this.log({ event: "thread.blocked", threadId: id });
   }
 
-  private async claim(id: string) {
+  private async claim(id: string): Promise<AdmissionLease> {
     if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
     const view = await this.authorize(id);
     if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
@@ -198,9 +198,11 @@ export class BotController {
           }
           await this.monitor(id, lease);
         } catch (error) {
-          // A current failure also releases its lease; report ownership before cleanup.
-          if (this.active.get(id) !== lease) onSupersededFailure?.();
-          this.release(id, lease);
+          // A stop may supersede this failure, but it owns the lease until Core confirms stop.
+          const stopSucceeded = lease.stopResult ? await lease.stopResult : false;
+          const superseded = this.active.get(id) !== lease || stopSucceeded;
+          if (superseded) onSupersededFailure?.();
+          if (!stopSucceeded) this.release(id, lease);
           throw error;
         }
       })(),
@@ -244,7 +246,15 @@ export class BotController {
     await this.authorize(id);
     this.recoveryQueue.delete(id);
     const lease = this.active.get(id);
-    await this.core.stop(id);
+    const stopResult = Promise.withResolvers<boolean>();
+    if (lease) lease.stopResult = stopResult.promise;
+    try {
+      await this.core.stop(id);
+      stopResult.resolve(true);
+    } catch (error) {
+      stopResult.resolve(false);
+      throw error;
+    }
     this.log({ event: "thread.stopped", threadId: id });
     if (this.active.get(id) === lease) {
       this.release(id, lease);
