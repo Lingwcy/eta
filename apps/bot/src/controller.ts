@@ -3,7 +3,7 @@ import type { CoreClient, OperationAdmission, ImageAttachment } from "@eta/core"
 import { BotHttpError } from "./errors.ts";
 import type { BotLog } from "./log.ts";
 
-type AdmissionLease = { projectId: string };
+type AdmissionLease = { projectId: string; stopResult?: Promise<boolean> };
 
 /** Serialize writers to a checkout while allowing unrelated projects to run concurrently. */
 export class BotController {
@@ -56,7 +56,7 @@ export class BotController {
     if (previous !== message) this.log({ event: "thread.blocked", threadId: id });
   }
 
-  private async claim(id: string) {
+  private async claim(id: string): Promise<AdmissionLease> {
     if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
     const view = await this.authorize(id);
     if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
@@ -175,6 +175,10 @@ export class BotController {
   }
 
   resume(id: string) {
+    return this.resumeAdmission(id);
+  }
+
+  private resumeAdmission(id: string, onSupersededFailure?: () => void) {
     return this.track(
       (async () => {
         const lease = await this.claim(id);
@@ -194,7 +198,11 @@ export class BotController {
           }
           await this.monitor(id, lease);
         } catch (error) {
-          this.release(id, lease);
+          // A stop may supersede this failure, but it owns the lease until Core confirms stop.
+          const stopSucceeded = lease.stopResult ? await lease.stopResult : false;
+          const superseded = this.active.get(id) !== lease || stopSucceeded;
+          if (superseded) onSupersededFailure?.();
+          if (!stopSucceeded) this.release(id, lease);
           throw error;
         }
       })(),
@@ -238,7 +246,15 @@ export class BotController {
     await this.authorize(id);
     this.recoveryQueue.delete(id);
     const lease = this.active.get(id);
-    await this.core.stop(id);
+    const stopResult = Promise.withResolvers<boolean>();
+    if (lease) lease.stopResult = stopResult.promise;
+    try {
+      await this.core.stop(id);
+      stopResult.resolve(true);
+    } catch (error) {
+      stopResult.resolve(false);
+      throw error;
+    }
     this.log({ event: "thread.stopped", threadId: id });
     if (this.active.get(id) === lease) {
       this.release(id, lease);
@@ -280,10 +296,14 @@ export class BotController {
     // oxlint-disable-next-line unicorn/no-useless-spread
     for (const id of [...this.recoveryQueue]) {
       this.recoveryQueue.delete(id);
+      let superseded = false;
       try {
-        await this.resume(id);
+        await this.resumeAdmission(id, () => {
+          superseded = true;
+        });
         this.recoveryQueue.delete(id);
       } catch (error) {
+        if (superseded) continue;
         if (error instanceof BotHttpError && error.code === "Busy") {
           this.recoveryQueue.add(id);
           continue;
