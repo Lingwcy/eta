@@ -10,6 +10,8 @@
 
 云端会话也使用[沙盒策略](sandbox.md)。新会话默认使用工作区沙盒，审批卡片在 Desktop 和 Mobile 中显示。Bot 是否[自动审查](sandbox.md#自动审查)越界请求由 Bot 配置文件中的 `runtime.approvalReviewer` 决定，本机的审批人设置不影响 Bot。Bot 管理员通过配置文件中的 `allowedSandboxModes` 决定允许的策略；不设置时三种模式都允许，包括完全访问。修改本机的默认策略不会修改 Bot 的配置。
 
+Bot 默认使用 Code mode 组合调用工具。管理员可将 `runtime.agentMode` 设为 `"standard"` 使用普通模式，或设为 `"codemode"` 恢复 Code mode；修改配置后重启 Bot。新任务使用当前配置，恢复未完成任务时保留其原模式。Desktop 的权限页显示 Bot 实际配置，本机的 Agent 模式选择不影响 Bot。
+
 连接中断时，Desktop 保留已读取的云端项目和会话目录，并尝试重新连接。也可在 Bot 设置中手动重新连接或断开连接。本期支持连接一个 Bot，Bot 不会默认创建项目。
 
 ## Git 工作区与 GitHub

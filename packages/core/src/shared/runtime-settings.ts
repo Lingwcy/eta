@@ -28,7 +28,12 @@ export type ApprovalReviewer = typeof ApprovalReviewerSchema.Type;
 /** Applies when `approvalReviewer` is unset; explicit choices are never rewritten when this changes. */
 export const defaultApprovalReviewerMode: ApprovalReviewer["mode"] = "user";
 
+export const AgentModeSchema = Schema.Literals(["standard", "codemode"]);
+export type AgentMode = typeof AgentModeSchema.Type;
+export const defaultAgentMode: AgentMode = "codemode";
+
 export const RuntimeSettingsSchema = Schema.Struct({
+  agentMode: Schema.optionalKey(AgentModeSchema),
   defaultSandboxMode: Schema.optionalKey(SandboxModeSchema),
   subagents: Schema.optionalKey(SubagentSettingsSchema),
   defaultProvider: Schema.optionalKey(Schema.NonEmptyString),

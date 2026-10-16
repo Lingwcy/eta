@@ -73,6 +73,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Distinguish structured tool values from display content using the admitted contract.**
+
+- Evidence: on 2026-10-16, #72's native Code mode regression executes ten valid JSON values through a declared structured tool. The script receives the original values, but nested previews drop scalars and arrays or misinterpret records containing `type` as display blocks. Reading the persisted run's structured-tool declarations preserves JSON values while retaining schema-less text/image handling.
+- Check: cover falsy values, arrays and content-like business records, not only object-shaped success results. Use the durable declaration rather than a current registration that may have changed after admission; preserve preview budgets and keep image payloads out of schema-less text previews.
+- Seen: 2026-10-16.
+
 **Validate SDK compatibility separately from frozen dependency resolution.**
 
 - Evidence: #29 and #54 failed Mobile CI at Expo's compatibility gate despite successful frozen installs. On 2026-10-15, main `ff2545b` reproduces the expected Expo `~57.0.30` / Router `~57.0.28` mismatch; the release commit only changes Desktop/root versions. Expo CLI reads its native-module recommendations from an online SDK API, so a lockfile does not freeze that contract. Aligning these patches makes the compatibility check pass; this does not establish that the old native app was broken.
@@ -116,23 +122,6 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Evidence: on 2026-10-13, the permission settings screenshot showed “请求参数无效”. `approvalReviewer` existed in the runtime and desktop settings schemas but was absent from `main/ipc.ts`. The `reviewer choices` regression in `main/service/settings/index.test.ts` reproduced that rejection, then verified updates, subscriptions, reopening and resetting after adding the shared field schema.
 - Check: send the same payload the renderer uses through `dispatchCommand` into the real settings service; retain rejection tests for malformed values.
 - Seen 1× (2026-10-13).
-
-**Verify the runtime entry point and the packaged dependency graph when adding
-a dependency. A dev server succeeding does not prove an installed client works.**
-
-- Why: source aliases, prebuilt workspace output, and Node loading TypeScript
-  directly impose different requirements. Local build artifacts can hide a
-  missing packaged dependency.
-- Evidence: `8ed84475f` introduced the sandbox. `f3a39419c` replaced constructor
-  parameter properties in `SandboxedExecutionEnv` with erasable TypeScript for
-  direct Node loading. `9da537e31` added the missing `@eta/agent/env` source
-  alias to the desktop build; its commit body identifies reliance on Agent
-  prebuilt output in a clean environment.
-- Additional evidence: on 2026-10-15, PR #60's Desktop CI reached tests after installing Pi 1.3.0 but three integration suites failed to import `@earendil-works/chord/output`. Desktop's existing aliases sent published Chord to `dist` but omitted the new subpath; builds and typechecks had passed. The same five failing suites reproduce the omissions locally and cover the fix.
-- Check: trace the actual worker/runtime entry and workspace subpath exports.
-  Run the affected package verification in a clean build context when changing
-  packaging; report separately whether an installed client was exercised.
-- Seen: 2026-10-12, 2026-10-15.
 
 **Normalize filesystem paths before using them as module names or build keys,
 and inspect every build configuration that derives those keys.**
@@ -222,6 +211,25 @@ model choice must still be validated as an explicit choice.**
 - Seen 1× (2026-10-12).
 
 ## Promoted lessons
+
+**Verify the runtime entry point and the packaged dependency graph when adding
+a dependency. A dev server succeeding does not prove an installed client works.**
+
+- Promoted on 2026-10-16 to [Verifying](AGENTS.md#verifying).
+- Why: source aliases, prebuilt workspace output, and Node loading TypeScript
+  directly impose different requirements. Local build artifacts can hide a
+  missing packaged dependency.
+- Evidence: `8ed84475f` introduced the sandbox. `f3a39419c` replaced constructor
+  parameter properties in `SandboxedExecutionEnv` with erasable TypeScript for
+  direct Node loading. `9da537e31` added the missing `@eta/agent/env` source
+  alias to the desktop build; its commit body identifies reliance on Agent
+  prebuilt output in a clean environment.
+- Additional evidence: on 2026-10-15, PR #60's Desktop CI reached tests after installing Pi 1.3.0 but three integration suites failed to import `@earendil-works/chord/output`. Desktop's existing aliases sent published Chord to `dist` but omitted the new subpath; builds and typechecks had passed. The same five failing suites reproduce the omissions locally and cover the fix.
+- Additional evidence: on 2026-10-16, PR #70's Desktop CI failed to import `@earendil-works/pi-codemode` in the schedules DOM integration suite. Its `source` condition pointed at files absent from the published package, while Node tests and packaged builds passed. The same failure reproduces locally; resolving the package and its used subpaths to published `dist` entries lets the existing real-service DOM tests load.
+- Check: trace the actual worker/runtime entry and workspace subpath exports.
+  Run the affected package verification in a clean build context when changing
+  packaging; report separately whether an installed client was exercised.
+- Seen: 2026-10-12, 2026-10-15, 2026-10-16.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**

@@ -53,6 +53,8 @@ This example requires an installed skill named `better-readme`; it is not bundle
 
 Eta offers the agent skill names and descriptions first. The agent loads full instructions when relevant and reads supporting files only as needed. Activated instructions stay with the conversation across restarts and context compaction. To load an updated version, remove the loaded skill in the composer first, then select it again. Skills use the tools and dependencies already available in your environment; they do not grant extra permissions.
 
+Choose the tool calling mode in **Settings → App → Permissions → Agent mode**. Code mode is the default: the agent combines enabled tools in JavaScript. Standard mode lets the model call tools directly. Both share tool permissions, approvals and the system sandbox. Changes apply to the next new task in any chat; running and recoverable tasks keep their original mode, including their subagents. If Code mode cannot run, switch to Standard mode and start a new task.
+
 ## Subagents
 
 Subagents let the main agent delegate work to child conversations. Once work is delegated, open the right sidebar with **Alt+←**, then select a task to read its conversation and reported progress. Send a message while it is working to adjust its direction or ask for a summary; messaging a settled or paused task continues the same conversation.

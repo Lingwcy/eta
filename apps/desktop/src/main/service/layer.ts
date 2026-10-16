@@ -27,6 +27,13 @@ export function desktopServices(
         userAgent: "eta-desktop",
         shutdown: "abortForeground",
         sandboxWorkerPath: worker && existsSync(worker) ? worker : undefined,
+        codemodeAssets:
+          worker && existsSync(worker)
+            ? {
+                worker: join(worker, "..", "codemode-worker.cjs"),
+                wasm: join(worker, "..", "quickjs.wasm"),
+              }
+            : undefined,
       }),
     ),
   );
