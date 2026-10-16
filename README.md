@@ -23,6 +23,8 @@ Download an installer from [GitHub Releases](https://github.com/Lingwcy/eta/rele
 | macOS — Intel         | `Eta-<version>-mac-x64.dmg`   |
 | Windows — x64         | `Eta-<version>-win-x64.exe`   |
 
+The Windows x64 installer is currently unsigned; SmartScreen may warn on first launch. Local command execution requires Git for Windows (including Git Bash), and restricted sandbox execution is not supported on Windows. See the [release notes](docs/release.md) and [sandbox guide](docs/user/sandbox.md).
+
 Connect an AI account or bring your own API key, choose a project folder, and describe the work. See [Working with Eta](docs/user/desktop.md) for chats, projects, skills, subagents, and scheduled tasks.
 
 ### Cloud — Eta Bot

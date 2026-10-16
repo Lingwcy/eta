@@ -23,6 +23,8 @@ Eta 把自然语言指令变成实际成果：理解代码、修改文档、整�
 | macOS — Intel         | `Eta-<version>-mac-x64.dmg`   |
 | Windows — x64         | `Eta-<version>-win-x64.exe`   |
 
+Windows x64 安装包目前未签名，首次安装可能出现 SmartScreen 提示。Windows 命令执行工具需安装 Git for Windows（含 Git Bash）；当前 Windows 不支持受限沙盒执行。详见[发布说明](docs/release.md)和[沙盒指南](docs/user/sandbox.md)。
+
 连接 AI 账户或填入自己的 API Key，选择项目文件夹，然后描述要做的工作。会话、项目、技能、子智能体和定时任务的用法见[桌面端指南](docs/user/desktop.zh-CN.md)。
 
 ### 云端 —— Eta Bot
