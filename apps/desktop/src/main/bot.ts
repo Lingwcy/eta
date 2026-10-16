@@ -561,11 +561,19 @@ export class DesktopBot {
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
+          let skipLF = false;
           try {
             while (!controller.signal.aborted) {
               const { value, done } = await reader.read();
               if (done) break;
-              buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+              const chunk = decoder.decode(value, { stream: true });
+              if (!chunk) continue;
+              // A CR is a complete line ending; swallow its optional LF even across reads.
+              buffer += (skipLF && chunk.startsWith("\n") ? chunk.slice(1) : chunk).replace(
+                /\r\n|\r/g,
+                "\n",
+              );
+              skipLF = chunk.endsWith("\r");
               let end: number;
               while (!controller.signal.aborted && (end = buffer.indexOf("\n\n")) >= 0) {
                 const block = buffer.slice(0, end);

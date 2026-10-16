@@ -36,7 +36,8 @@ import {
 import { serve } from "@hono/node-server";
 import { defineTask } from "@eta/agent";
 import type { CoreEnvironment } from "@eta/core";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { BotController } from "./controller.ts";
 import { createBotApplication } from "./application.ts";
 import type { BotApplication } from "./application.ts";
 import type { BotConfig } from "./config.ts";
@@ -554,6 +555,99 @@ test("a stalled SSE reader receives the latest snapshot without a backlog of rev
     await reader.cancel();
   }
 });
+
+test.each(["completed", "failed"] as const)(
+  "an old recovery check (%s) cannot change a replacement admission",
+  async (outcome) => {
+    const { bot, provider, workspace, create } = await fixture();
+    const id = await create(`old-check-${outcome}`);
+    const other = await create(`competing-${outcome}`);
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const modelEntered = Promise.withResolvers<void>();
+    const finishModel = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+    const checks: Array<() => Promise<void>> = [];
+    let hold = false;
+    // Drive monitor callbacks explicitly; native execution and all non-interval timers stay real.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const controller = new BotController(
+      {
+        ...bot.core,
+        subscribe: async (threadId, listener) => {
+          checks.push(async () => {
+            await listener(await bot.core.openThread(threadId));
+          });
+          return () => {};
+        },
+        recovery: async (threadId) => {
+          const state = await bot.core.recovery(threadId);
+          if (hold && threadId === id) {
+            hold = false;
+            entered.resolve();
+            await release.promise;
+            if (outcome === "failed") throw new Error("Old recovery inspection failed");
+          }
+          return state;
+        },
+      },
+      new Map([[workspace, bot.workspaceProjects.get(workspace)!]]),
+      2,
+    );
+    try {
+      provider.setResponses([fauxAssistantMessage("First work completed")]);
+      await controller.submit(id, "First work", "first-admission");
+      await expect.poll(async () => (await bot.core.recovery(id)).pending).toBe(false);
+      hold = true;
+      const checking = checks[0]!();
+      await entered.promise;
+      await controller.stop(id);
+      provider.setResponses([
+        (_context, options) => {
+          modelEntered.resolve();
+          options?.signal?.addEventListener(
+            "abort",
+            () => finishModel.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+            { once: true },
+          );
+          return finishModel.promise;
+        },
+      ]);
+      const replacement = await controller.submit(id, "Replacement work", "second-admission");
+      await modelEntered.promise;
+      release.resolve();
+      await checking;
+      expect((await bot.core.operation(id, replacement.operationId)).status).toBe("running");
+      await expect(controller.submit(other, "Competing work", "competitor")).rejects.toMatchObject({
+        code: "Busy",
+      });
+      expect(controller.status()).toEqual({
+        activeThreads: [id],
+        pendingRecovery: [],
+        blocked: {},
+      });
+      finishModel.resolve(fauxAssistantMessage("Replacement completed"));
+      await expect.poll(async () => (await bot.core.recovery(id)).pending).toBe(false);
+      await checks[1]!();
+      expect(controller.status().activeThreads).toEqual([]);
+      await expect(controller.submit(other, "Competing work", "competitor")).resolves.toMatchObject(
+        {
+          kind: "run",
+        },
+      );
+    } finally {
+      release.resolve();
+      finishModel.resolve(fauxAssistantMessage("Cleanup"));
+      try {
+        await controller.stop(id);
+        await controller.stop(other);
+        await controller.close(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  },
+  15000,
+);
 
 test("blocked recovery reserves a checkout until a maintainer stops its task", async () => {
   const { bot, open, provider, workspace } = await fixture();

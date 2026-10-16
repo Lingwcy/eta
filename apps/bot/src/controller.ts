@@ -3,9 +3,11 @@ import type { CoreClient, OperationAdmission, ImageAttachment } from "@eta/core"
 import { BotHttpError } from "./errors.ts";
 import type { BotLog } from "./log.ts";
 
+type AdmissionLease = { projectId: string };
+
 /** Serialize writers to a checkout while allowing unrelated projects to run concurrently. */
 export class BotController {
-  private readonly active = new Map<string, string>();
+  private readonly active = new Map<string, AdmissionLease>();
   private readonly monitors = new Map<string, () => void>();
   private readonly recoveryQueue = new Set<string>();
   private readonly blocked = new Map<string, string>();
@@ -62,7 +64,7 @@ export class BotController {
     if (
       this.active.has(id) ||
       this.active.size >= this.maximum ||
-      [...this.active.values()].includes(project) ||
+      [...this.active.values()].some((lease) => lease.projectId === project) ||
       [...this.blockedProjects].some(([thread, root]) => thread !== id && root === project)
     )
       throw new BotHttpError(
@@ -70,10 +72,14 @@ export class BotController {
         "Busy",
         "The project is already executing work or the concurrency limit was reached.",
       );
-    this.active.set(id, project);
+    // Object identity separates successive admissions of the same thread.
+    const lease = { projectId: project };
+    this.active.set(id, lease);
+    return lease;
   }
 
-  private release(id: string) {
+  private release(id: string, lease: AdmissionLease | undefined) {
+    if (!lease || this.active.get(id) !== lease) return;
     const released = this.active.delete(id);
     this.monitors.get(id)?.();
     this.monitors.delete(id);
@@ -87,26 +93,28 @@ export class BotController {
       }
   }
 
-  private async monitor(id: string) {
+  private async monitor(id: string, lease: AdmissionLease) {
+    const current = () => !this.closing && this.active.get(id) === lease;
+    if (!current()) return;
     let checking = false;
     const check = async () => {
-      if (this.closing || checking || !this.active.has(id)) return;
+      if (!current() || checking) return;
       checking = true;
       try {
         const state = await this.core.recovery(id);
-        if (!this.closing && !state.pending) {
-          this.release(id);
+        if (current() && !state.pending) {
+          this.release(id, lease);
           await this.pumpRecovery();
         }
       } catch (error) {
-        if (!this.closing)
+        if (current())
           this.block(id, error instanceof Error ? error.message : "Recovery inspection failed.");
       } finally {
         checking = false;
       }
     };
     const stop = await this.core.subscribe(id, check, (message) => {
-      this.block(id, message);
+      if (current()) this.block(id, message);
     });
     // Host tasks can settle without changing the UI snapshot. Inspect their durable state as well.
     const timer = setInterval(() => {
@@ -117,7 +125,7 @@ export class BotController {
       clearInterval(timer);
       stop();
     };
-    if (this.closing || !this.active.has(id)) dispose();
+    if (!current()) dispose();
     else this.monitors.set(id, dispose);
   }
 
@@ -143,7 +151,7 @@ export class BotController {
             kind: existing.kind,
             startedAt: existing.startedAt,
           };
-        await this.claim(id);
+        const lease = await this.claim(id);
         try {
           const admission = await this.core.submit(id, prompt, requestId, images);
           this.log({
@@ -152,12 +160,14 @@ export class BotController {
             requestId,
             operationId: admission.operationId,
           });
-          this.blocked.delete(id);
-          this.blockedProjects.delete(id);
-          await this.monitor(id);
+          if (this.active.get(id) === lease) {
+            this.blocked.delete(id);
+            this.blockedProjects.delete(id);
+          }
+          await this.monitor(id, lease);
           return admission;
         } catch (error) {
-          this.release(id);
+          this.release(id, lease);
           throw error;
         }
       })(),
@@ -167,7 +177,7 @@ export class BotController {
   resume(id: string) {
     return this.track(
       (async () => {
-        await this.claim(id);
+        const lease = await this.claim(id);
         this.recoveryQueue.delete(id);
         try {
           if ((await this.core.recovery(id)).blockedTasks.length)
@@ -178,11 +188,13 @@ export class BotController {
             );
           await this.core.resume(id);
           this.log({ event: "thread.resumed", threadId: id });
-          this.blocked.delete(id);
-          this.blockedProjects.delete(id);
-          await this.monitor(id);
+          if (this.active.get(id) === lease) {
+            this.blocked.delete(id);
+            this.blockedProjects.delete(id);
+          }
+          await this.monitor(id, lease);
         } catch (error) {
-          this.release(id);
+          this.release(id, lease);
           throw error;
         }
       })(),
@@ -192,11 +204,11 @@ export class BotController {
   compact(id: string) {
     return this.track(
       (async () => {
-        await this.claim(id);
+        const lease = await this.claim(id);
         try {
           await this.core.compact(id);
         } finally {
-          this.release(id);
+          this.release(id, lease);
           await this.pumpRecovery();
         }
       })(),
@@ -209,13 +221,13 @@ export class BotController {
         await this.authorize(id);
         if (!["spawn", "send", "resume"].includes(command.action) || this.active.has(id))
           return this.core.subagent(id, command, requestId);
-        await this.claim(id);
+        const lease = await this.claim(id);
         try {
           const result = await this.core.subagent(id, command, requestId);
-          await this.monitor(id);
+          await this.monitor(id, lease);
           return result;
         } catch (error) {
-          this.release(id);
+          this.release(id, lease);
           throw error;
         }
       })(),
@@ -225,11 +237,14 @@ export class BotController {
   async stop(id: string) {
     await this.authorize(id);
     this.recoveryQueue.delete(id);
+    const lease = this.active.get(id);
     await this.core.stop(id);
     this.log({ event: "thread.stopped", threadId: id });
-    this.release(id);
-    this.blocked.delete(id);
-    this.blockedProjects.delete(id);
+    if (this.active.get(id) === lease) {
+      this.release(id, lease);
+      this.blocked.delete(id);
+      this.blockedProjects.delete(id);
+    }
     await this.pumpRecovery();
   }
 
@@ -286,9 +301,9 @@ export class BotController {
     await Promise.allSettled(this.inFlight);
     const deadline = Date.now() + graceMs;
     while (this.active.size && Date.now() < deadline) {
-      for (const id of this.active.keys()) {
+      for (const [id, lease] of this.active) {
         const state = await this.core.recovery(id).catch(() => undefined);
-        if (state && !state.pending) this.release(id);
+        if (state && !state.pending) this.release(id, lease);
       }
       if (this.active.size)
         await new Promise<void>((resolve) =>
