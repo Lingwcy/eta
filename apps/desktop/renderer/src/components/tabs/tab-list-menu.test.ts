@@ -211,8 +211,9 @@ test("the menu supports ArrowDown, Enter and Escape keyboard interactions", asyn
       new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }),
     );
   });
+  expect(trigger().getAttribute("aria-expanded")).toBe("false");
   const popup = document.querySelector<HTMLElement>('[role="menu"][aria-label="标签操作"]');
-  expect(popup?.hasAttribute("data-closed")).toBe(true);
+  expect(popup === null || popup.hasAttribute("data-closed")).toBe(true);
 });
 
 test("reopening a closed tab is enabled only when there is a closed tab", async () => {
