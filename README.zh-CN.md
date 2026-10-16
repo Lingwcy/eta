@@ -23,11 +23,13 @@ Eta 把自然语言指令变成实际成果：理解代码、修改文档、整�
 | macOS — Intel         | `Eta-<version>-mac-x64.dmg`   |
 | Windows — x64         | `Eta-<version>-win-x64.exe`   |
 
+Windows x64 安装包目前未签名，首次安装可能出现 SmartScreen 提示。Windows 命令执行工具需安装 Git for Windows（含 Git Bash）；当前 Windows 不支持受限沙盒执行。详见[发布说明](docs/release.md)和[沙盒指南](docs/user/sandbox.md)。
+
 连接 AI 账户或填入自己的 API Key，选择项目文件夹，然后描述要做的工作。会话、项目、技能、子智能体和定时任务的用法见[桌面端指南](docs/user/desktop.zh-CN.md)。
 
 ### 云端 —— Eta Bot
 
-把 Eta 部署在自己的服务器上，用桌面端或手机端连接同一个 Agent。用 Docker 部署 Bot：
+把 Eta 部署在自己的服务器上，用桌面端或手机端连接同一个 Agent。首次启动前，先把 `apps/bot/config.example.json` 复制为 `apps/bot/config.json` 并填入私有的管理员令牌；项目目录位于 `apps/bot/workspaces`。用 Docker 部署 Bot：
 
 ```sh
 docker compose -f apps/bot/compose.example.yaml up --build -d
@@ -55,13 +57,13 @@ Eta 内置完整的权限系统。每个会话运行在三档策略之一——*
 
 本仓库包含 Eta 的各端应用与它们共享的核心。
 
-| 部分               | 说明                                                 |
-| ------------------ | ---------------------------------------------------- |
-| **apps/desktop**   | macOS 与 Windows 的 Electron 客户端，完整的本地 Agent 体验 |
+| 部分               | 说明                                                        |
+| ------------------ | ----------------------------------------------------------- |
+| **apps/desktop**   | macOS 与 Windows 的 Electron 客户端，完整的本地 Agent 体验  |
 | **apps/bot**       | 自托管云端服务，通过 HTTP/SSE 托管 Agent，支持 Discord 接入 |
-| **apps/mobile**    | iOS 与 Android 手机端，连接已部署的 Bot             |
-| **packages/core**  | 共享核心：项目、持久会话、沙盒、定时任务、审批       |
-| **packages/agent** | Agent 运行时：工具调用与会话管理                     |
+| **apps/mobile**    | iOS 与 Android 手机端，连接已部署的 Bot                     |
+| **packages/core**  | 共享核心：项目、持久会话、沙盒、定时任务、审批              |
+| **packages/agent** | Agent 运行时：工具调用与会话管理                            |
 
 Eta 的 Agent 运行时基于 Earendil Works 的 [Pi](https://github.com/earendil-works/pi) —— 一个极简、可扩展的 Agent 框架。
 
