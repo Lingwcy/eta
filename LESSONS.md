@@ -245,6 +245,7 @@ allows native startup, before checking an operation's result.**
 - Check: use the operation's completion signal rather than a fixed sleep.
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.
+- Additional evidence: on 2026-10-16, PR #81's Linux CI failed the normal-shutdown test while waiting for a native child's PID with the default poll deadline. Injecting 1.5 seconds of model latency reproduces that assertion; bounded native-startup and process-exit waits pass the same delayed case while retaining the real child, shutdown and durable aborted-receipt checks. Disposal now runs in `finally` when startup assertions fail. This demonstrates the fixture's short readiness assumption, not the unrecorded startup timing of the original CI failure.
 - Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
   schedule delivery test stuck before `ThreadService.submit`; the occurrence
   remained `dispatching` and no durable receipt existed. Both a global timer and
