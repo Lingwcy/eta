@@ -45,7 +45,7 @@ async function fixture(maximum = 1) {
     workspaceRoot,
     adminToken: "schedule-test-token",
     maxConcurrent: maximum,
-    runtime: { defaultThinkingLevel: "off" as const },
+    runtime: { agentMode: "standard" as const, defaultThinkingLevel: "off" as const },
   };
   const open = async () => {
     const bot = await createBotApplication(config, { models });

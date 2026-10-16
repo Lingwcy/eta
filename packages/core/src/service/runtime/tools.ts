@@ -23,6 +23,7 @@ export function createRuntimeTools({
   skillCatalog: () => Promise<SkillCatalog>;
 }) {
   const codingTools = registry.snapshot().extension("coding-tools")!;
+  const codemode = registry.snapshot().extension("codemode")!.tools![0]!;
   let skills = createSkillsExtension(
     { directories: [], skills: [], issues: [] },
     { defaultThinkingLevel: "off" },
@@ -50,7 +51,7 @@ export function createRuntimeTools({
         {
           tools:
             subagentsEnabled && settings.subagents?.mode === "orchestrator"
-              ? [subagents.tool, schedule]
+              ? [codemode, subagents.tool, schedule]
               : { remove: [subagents.updateTool] },
         },
         BACKGROUND_CONTEXT,

@@ -156,7 +156,9 @@ test("Gateway filtering and deduplication create one issue, run a real tool and 
   const { app, port, provider, cwd, finished } = await fixture();
   provider.setResponses([
     fauxAssistantMessage(
-      fauxToolCall("write", { path: "discord-proof.txt", content: "Discord investigation" }),
+      fauxToolCall("codemode", {
+        code: 'text(await tools.write({path:"discord-proof.txt",content:"Discord investigation"}));',
+      }),
       { stopReason: "toolUse" },
     ),
     fauxAssistantMessage("Investigation complete"),
@@ -169,6 +171,9 @@ test("Gateway filtering and deduplication create one issue, run a real tool and 
   await finished(app, "102");
   expect(await readFile(join(cwd, "discord-proof.txt"), "utf8")).toBe("Discord investigation");
   const issue = app.discord!.store.issue("102")!;
+  expect((await app.core.openThread(issue.etaThreadId!)).snapshot.configuration.agentMode).toBe(
+    "codemode",
+  );
   expect(await app.core.threads()).toHaveLength(1);
   expect(port.ensureCalls).toBe(1);
   await port.emit(message("103", "Additional detail", issue.discordThreadId!));

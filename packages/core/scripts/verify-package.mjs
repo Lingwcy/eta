@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SandboxedExecutionEnv } from "../dist/platform/sandbox/environment.mjs";
+import { RuntimeCodemodeSandbox } from "../dist/service/runtime/codemode.mjs";
+import { verifyCodemode } from "../../../scripts/verify-codemode.mjs";
 
 const root = await mkdtemp(join(tmpdir(), "eta-core-package-"));
 const workspaceRoot = join(root, "project");
@@ -12,6 +14,12 @@ const outside = join(root, "outside.txt");
 const environments = [];
 try {
   await mkdir(workspaceRoot);
+  await verifyCodemode(
+    RuntimeCodemodeSandbox,
+    fileURLToPath(new URL("../dist/sandbox/", import.meta.url)),
+    workspaceRoot,
+    "mjs",
+  );
   await writeFile(outside, "protected");
   const env = await SandboxedExecutionEnv.open({ mode: "workspace-write", workspaceRoot });
   environments.push(env);

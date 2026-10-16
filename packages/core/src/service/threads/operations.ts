@@ -14,7 +14,23 @@ const ToolIntent = Schema.Struct({
   phase: Schema.Literal("execute"),
   replay: Schema.Literals(["safe", "unsafe"]),
 });
-const ToolInput = Schema.Struct({ assistant: Schema.Number, callId: Schema.String });
+const ToolInput = Schema.Struct({
+  kind: Schema.optionalKey(Schema.Literal("model")),
+  assistant: Schema.Number,
+  callId: Schema.String,
+});
+const NestedToolInput = Schema.Struct({
+  kind: Schema.Literal("nested"),
+  parent: Schema.String,
+  parentCallId: Schema.String,
+  key: Schema.String,
+  call: Schema.Struct({
+    type: Schema.Literal("toolCall"),
+    id: Schema.String,
+    name: Schema.NonEmptyString,
+    arguments: Schema.Record(Schema.String, Schema.Unknown),
+  }),
+});
 
 /** An older input remains addressable after later turns and process restarts. */
 export async function readOperation(
@@ -76,24 +92,31 @@ export async function readRecovery(runtime: ThreadRuntime): Promise<RecoveryStat
   let unsafeTool = false;
   for (const { record } of inspection.tasks) {
     if (record.kind !== "pi.tool" || !Schema.is(ToolIntent)(record.state.checkpoint)) continue;
-    if (record.state.checkpoint.replay !== "safe" || !Schema.is(ToolInput)(record.input)) {
+    if (record.state.checkpoint.replay !== "safe") {
       unsafeTool = true;
       break;
     }
-    const input = record.input;
-    const entry = await runtime.storage.entry(input.assistant as EntryId, BACKGROUND_CONTEXT);
-    const call = entry?.entry.model
-      ?.flatMap((message) => (message.role === "assistant" ? message.content : []))
-      .find((part) => part.type === "toolCall" && part.id === input.callId);
+    let toolName: string | undefined;
+    if (Schema.is(ToolInput)(record.input)) {
+      const input = record.input;
+      const entry = await runtime.storage.entry(input.assistant as EntryId, BACKGROUND_CONTEXT);
+      const call = entry?.entry.model
+        ?.flatMap((message) => (message.role === "assistant" ? message.content : []))
+        .find((part) => part.type === "toolCall" && part.id === input.callId);
+      if (call?.type === "toolCall") toolName = call.name;
+    } else if (Schema.is(NestedToolInput)(record.input)) {
+      toolName = record.input.call.name;
+    }
+    if (toolName === undefined) {
+      unsafeTool = true;
+      break;
+    }
     const conversation = await runtime.harness.conversation(
       record.conversationId,
       BACKGROUND_CONTEXT,
     );
     const agent = await conversation?.agent(BACKGROUND_CONTEXT);
-    if (
-      call?.type !== "toolCall" ||
-      agent?.tools.find((tool) => tool.name === call.name)?.replay !== "safe"
-    ) {
+    if (agent?.tools.find((tool) => tool.name === toolName)?.replay !== "safe") {
       unsafeTool = true;
       break;
     }
