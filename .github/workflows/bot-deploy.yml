@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       enable_full_access:
-        description: Allow danger-full-access (false removes it from the deployed allowlist)
+        description: Allow danger-full-access (false removes it and restricts the default sandbox mode)
         type: boolean
         default: false
 
