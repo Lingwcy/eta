@@ -517,6 +517,57 @@ test("sidebar filters multiple states and creates a task through its dialog with
   await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
 });
 
+test.each([
+  { everyMs: 330_000, minutes: undefined },
+  { everyMs: 480_001, minutes: undefined },
+  { everyMs: 480_001, minutes: "8.5" },
+])("editing a fractional-minute interval through real IPC: %j", async ({ everyMs, minutes }) => {
+  const { runtime, schedules, threads, workspace, library } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  const anchorAt = Date.now() + 86400_000;
+  await runtime.runPromise(
+    schedules.write({
+      threadId: thread.id,
+      requestId: "fractional-interval",
+      change: {
+        action: "create",
+        name: "Interval reminder",
+        prompt: "Review repository",
+        rule: { type: "interval", everyMs, anchorAt },
+      },
+    }),
+  );
+  const original = (await runtime.runPromise(schedules.list(thread.id)))[0];
+  const saved: string[] = [];
+  function Form() {
+    const controller = useSchedules();
+    return createElement(ScheduleForm, {
+      library,
+      controller,
+      threadId: thread.id,
+      workspaceId: workspace.id,
+      schedule: original,
+      onCancel: () => {},
+      onSaved: (id) => saved.push(id),
+    });
+  }
+  await act(async () => root.render(createElement(Form)));
+  await input(document.querySelector<HTMLInputElement>('input:not([type="number"])')!, "Renamed");
+  const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+  if (minutes !== undefined) await input(field, minutes);
+  expect(field.validity.valid).toBe(true);
+  await click("保存");
+  await expect.poll(() => saved).toEqual([thread.id]);
+  const updated = (await runtime.runPromise(schedules.list(thread.id)))[0];
+  expect(updated.name).toBe("Renamed");
+  expect(updated.rule).toEqual({
+    type: "interval",
+    everyMs: minutes === undefined ? everyMs : 510_000,
+    anchorAt,
+  });
+  expect(updated.nextRunAt).toBe(original.nextRunAt);
+});
+
 test("weekly creation toggles weekdays and persists the machine timezone without a timezone field", async () => {
   const { runtime, schedules, library } = await setup();
   let saved: string | undefined;
