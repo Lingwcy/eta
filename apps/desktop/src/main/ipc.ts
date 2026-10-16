@@ -176,6 +176,7 @@ const Command = Schema.Union([
       defaultModel: Schema.optionalKey(Id),
       titleModel: Schema.optionalKey(TitleModelSchema),
       approvalReviewer: RuntimeSettingsSchema.fields.approvalReviewer,
+      agentMode: RuntimeSettingsSchema.fields.agentMode,
       defaultThinkingLevel: Schema.optionalKey(
         Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
       ),

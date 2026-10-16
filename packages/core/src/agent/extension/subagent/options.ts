@@ -1,4 +1,4 @@
-import type { ToolRegistration, Harness } from "@eta/agent";
+import type { ToolRegistration, Harness, Tx, ConversationId } from "@eta/agent";
 import type { clampThinkingLevel } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "../../protocol.ts";
 import type { SubagentSettings } from "../../../shared/subagents.ts";
@@ -16,4 +16,5 @@ export type SubagentOptions = {
   ready?: () => boolean;
   excludedTools?: readonly ToolRegistration[];
   maximumImages?: (model: { provider: string; modelId: string }) => number | undefined;
+  inheritExecution?: (tx: Tx, parent: ConversationId, child: ConversationId) => Promise<void>;
 };

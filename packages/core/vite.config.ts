@@ -10,7 +10,12 @@ export default defineConfig({
     {
       entry: Object.fromEntries(
         globSync("src/**/*.ts")
-          .filter((path) => !path.endsWith(".test.ts") && !path.endsWith("sandbox/worker.ts"))
+          .filter(
+            (path) =>
+              !path.endsWith(".test.ts") &&
+              !path.endsWith("sandbox/worker.ts") &&
+              !path.endsWith("codemode-worker.ts"),
+          )
           .map((path) => [relative("src", path).replaceAll("\\", "/").replace(/\.ts$/, ""), path]),
       ),
       format: "esm",
@@ -18,13 +23,27 @@ export default defineConfig({
       dts: { generator: "tsgo" },
     },
     {
-      entry: { worker: "src/platform/sandbox/worker.ts" },
+      entry: {
+        worker: "src/platform/sandbox/worker.ts",
+        "codemode-worker": "src/service/runtime/codemode-worker.ts",
+      },
       outDir: "dist/sandbox",
       clean: false,
       format: "esm",
       outExtensions: () => ({ js: ".mjs" }),
       dts: false,
-      deps: { alwaysBundle: ["@eta/agent/**", "@earendil-works/chord/**", "effect", "effect/**"] },
+      deps: {
+        alwaysBundle: [
+          "@earendil-works/pi-codemode/**",
+          "@earendil-works/pi-codemode",
+          "quickjs-wasi",
+          "quickjs-wasi/**",
+          "@eta/agent/**",
+          "@earendil-works/chord/**",
+          "effect",
+          "effect/**",
+        ],
+      },
     },
   ],
 });
