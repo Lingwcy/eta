@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import { messageText } from "@eta/core/agent/message-text";
 import type { AgentSnapshot } from "@eta/core/agent/protocol";
 
@@ -14,7 +15,12 @@ export function getChatTurns(
   const turns: ChatTurn[] = [];
   for (const { id, message } of messages) {
     const text = messageText(message);
-    if (message.role === "user") turns.push({ id, title: text.trim() || "附件消息", preview: "" });
+    if (message.role === "user")
+      turns.push({
+        id,
+        title: text.trim() || t("chat:chatTurns.messageWithAttachments"),
+        preview: "",
+      });
     else if (text && turns.length) {
       const turn = turns[turns.length - 1];
       if (turn) turn.preview = `${turn.preview}${turn.preview ? "\n" : ""}${text}`.slice(0, 500);

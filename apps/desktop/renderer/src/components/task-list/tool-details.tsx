@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import type { ReactNode } from "react";
 import { FileCode2 } from "lucide-react";
 import type { SnapshotTool } from "@eta/core/agent/protocol";
@@ -27,6 +29,7 @@ function ToolBranch({ children, continued = false }: { children: ReactNode; cont
 }
 
 export function ToolDetails({ tool }: { tool: SnapshotTool }) {
+  useTranslation();
   const resource = typeof tool.args.path === "string" ? tool.args.path : undefined;
   const output = tool.result?.content
     .filter((part) => part.type === "text")
@@ -39,7 +42,7 @@ export function ToolDetails({ tool }: { tool: SnapshotTool }) {
       <ToolBranch continued={hasOutput}>
         {resource ? (
           <div className="flex min-w-0 items-center gap-1">
-            <span>文件</span>
+            <span>{t("chat:toolDetails.file")}</span>
             <span
               className="inline-flex min-w-0 items-center gap-1 rounded-md border border-(--task-border)/50 bg-(--task-chip-bg) px-1.5 py-0.5 text-(--task-primary)"
               title={resource}
@@ -49,7 +52,7 @@ export function ToolDetails({ tool }: { tool: SnapshotTool }) {
             </span>
           </div>
         ) : (
-          <span>参数</span>
+          <span>{t("chat:toolDetails.arguments")}</span>
         )}
         <pre className="mt-1 font-mono text-xs/5 whitespace-pre-wrap break-words">
           {tool.toolName === "codemode" && typeof tool.args.code === "string"
@@ -73,7 +76,7 @@ export function ToolDetails({ tool }: { tool: SnapshotTool }) {
             <img
               key={index}
               src={`data:${image.mimeType};base64,${image.data}`}
-              alt={`${tool.toolName} 图片结果`}
+              alt={t("chat:toolDetails.imageResult", { toolName: tool.toolName })}
               className="mt-2 max-h-64 max-w-full rounded-lg object-contain"
             />
           ))}

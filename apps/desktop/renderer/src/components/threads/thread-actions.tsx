@@ -1,3 +1,7 @@
+import { renderMessage } from "@/i18n/messages";
+import { describeError, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { isCloudId, sameEnvironment } from "../../../../src/shared/bot.ts";
 import {
   createContext,
@@ -94,6 +98,7 @@ export function ThreadContextMenu({
   children: ReactElement;
   onScheduleOpen?: () => void;
 }) {
+  useTranslation();
   const actions = useContext(Actions);
   const thread = actions?.desktop.library?.threads.find((thread) => thread.id === id);
   if (!actions || !thread || !actions.desktop.library) return children;
@@ -117,17 +122,17 @@ export function ThreadContextMenu({
             }}
           >
             <Clock size={16} />
-            添加定时任务
+            {t("chat:threadActions.addScheduledTask")}
           </ContextMenuItem>
         )}
         <ContextMenuItem disabled={desktop.busy} onClick={() => edit({ kind: "rename", thread })}>
           <Pencil size={16} />
-          重命名
+          {t("chat:threadActions.rename")}
         </ContextMenuItem>
         <ContextMenuSubmenu>
           <ContextMenuSubmenuTrigger disabled={desktop.busy}>
             <FolderSymlink size={16} />
-            项目
+            {t("chat:threadActions.projects")}
           </ContextMenuSubmenuTrigger>
           <ContextMenuContent submenu>
             {library.projects
@@ -148,7 +153,7 @@ export function ThreadContextMenu({
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={() => run(() => window.eta.moveThread(thread.id, null))}>
                   <FolderMinus size={16} />
-                  从项目中移除
+                  {t("chat:threadActions.removeFromProject")}
                 </ContextMenuItem>
               </>
             )}
@@ -160,31 +165,33 @@ export function ThreadContextMenu({
           onClick={() => run(() => window.eta.openThreadWindow(thread.id))}
         >
           <AppWindow size={16} />
-          在新窗口中打开
+          {t("chat:threadActions.openInNewWindow")}
         </ContextMenuItem>
         <ContextMenuSubmenu>
           <ContextMenuSubmenuTrigger disabled={desktop.busy || isCloudId(thread.id)}>
             <ArrowUpRight size={16} />
-            打开方式
+            {t("chat:threadActions.openWith")}
           </ContextMenuSubmenuTrigger>
           <ContextMenuContent submenu>
             <ContextMenuItem
               onClick={() => run(() => window.eta.openThreadFile(thread.id, "default"))}
             >
               <FileText size={16} />
-              系统默认应用
+              {t("chat:threadActions.systemDefaultApp")}
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => run(() => window.eta.openThreadFile(thread.id, "reveal"))}
             >
               <Folder size={16} />
-              {navigator.userAgent.includes("Mac") ? "在 Finder 中查看" : "在文件管理器中查看"}
+              {navigator.userAgent.includes("Mac")
+                ? t("chat:threadActions.showInFinder")
+                : t("chat:threadActions.showInFileManager")}
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => run(() => window.eta.openThreadFile(thread.id, "choose"))}
             >
               <ArrowUpRight size={16} />
-              选择其他应用…
+              {t("chat:threadActions.chooseAnotherApp")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenuSubmenu>
@@ -196,7 +203,9 @@ export function ThreadContextMenu({
           }
         >
           {thread.archivedAt === undefined ? <Archive size={16} /> : <ArchiveRestore size={16} />}
-          {thread.archivedAt === undefined ? "归档" : "恢复"}
+          {thread.archivedAt === undefined
+            ? t("chat:threadActions.archive")
+            : t("chat:threadActions.resume")}
         </ContextMenuItem>
         <ContextMenuItem
           destructive
@@ -204,7 +213,7 @@ export function ThreadContextMenu({
           onClick={() => edit({ kind: "delete", thread })}
         >
           <Trash2 size={16} />
-          永久删除
+          {t("chat:threadActions.deletePermanently")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -220,9 +229,10 @@ function ThreadEditForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  useTranslation();
   const [title, setTitle] = useState(edit.thread.title);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const deleting = edit.kind === "delete";
   const save = async () => {
     if (busy || (!deleting && !title.trim())) return;
@@ -234,7 +244,7 @@ function ThreadEditForm({
       onSaved();
       onClose();
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(describeError(error, String(error)));
     } finally {
       setBusy(false);
     }
@@ -249,19 +259,26 @@ function ThreadEditForm({
         }}
       >
         <DialogTitle className="text-lg font-semibold">
-          {deleting ? "永久删除会话？" : "重命名会话"}
+          {deleting
+            ? t("chat:threadActions.deleteChatPermanently")
+            : t("chat:threadActions.renameChat")}
         </DialogTitle>
         {deleting ? (
           <p className="text-sm text-neutral-500">
-            “{edit.thread.title}”的会话记录与子任务数据将被删除，无法恢复。项目文件会保留。
+            {t("navigation:threadActions.deleteDescription", { title: edit.thread.title })}
           </p>
         ) : (
-          <Input aria-label="会话名称" value={title} onValueChange={setTitle} disabled={busy} />
+          <Input
+            aria-label={t("chat:threadActions.chatName")}
+            value={title}
+            onValueChange={setTitle}
+            disabled={busy}
+          />
         )}
-        {error && <Alert>{error}</Alert>}
+        {error && <Alert>{renderMessage(error)}</Alert>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" disabled={busy} onClick={onClose}>
-            取消
+            {t("chat:threadActions.cancel")}
           </Button>
           <Button
             variant={deleting ? "ghost-destructive" : "default"}
@@ -269,7 +286,11 @@ function ThreadEditForm({
             type="submit"
             disabled={busy || (!deleting && !title.trim())}
           >
-            {busy ? "处理中…" : deleting ? "永久删除" : "保存"}
+            {busy
+              ? t("chat:threadActions.processing")
+              : deleting
+                ? t("chat:threadActions.deletePermanently")
+                : t("chat:threadActions.save")}
           </Button>
         </div>
       </form>

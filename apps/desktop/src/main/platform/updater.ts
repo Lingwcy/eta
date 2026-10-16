@@ -1,3 +1,4 @@
+import { LocalizedError } from "../../shared/i18n/messages.ts";
 import type { AppUpdater } from "electron-updater";
 import type { UpdateState } from "../../bridge.ts";
 
@@ -84,7 +85,8 @@ export function createUpdater(options: {
     state: () => state,
     check,
     install() {
-      if (!backend || state.status !== "downloaded") throw new Error("没有可安装的更新");
+      if (!backend || state.status !== "downloaded")
+        throw new LocalizedError("errors:updater.thereIsNoUpdateToInstall");
       backend.quitAndInstall();
     },
     setAutoCheck: (enabled: boolean) => schedule(Boolean(backend) && enabled),

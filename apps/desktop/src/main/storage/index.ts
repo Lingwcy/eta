@@ -1,3 +1,4 @@
+import { LocalizedError } from "../../shared/i18n/messages.ts";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { threadProjectId } from "@eta/core/shared/thread-project";
@@ -47,7 +48,8 @@ export async function scanStorage(root: string, catalog: CatalogState): Promise<
   };
   const names = await (async () => {
     const info = await lstat(report.paths.sessions);
-    if (info.isSymbolicLink()) throw new Error("会话总目录不能是符号链接");
+    if (info.isSymbolicLink())
+      throw new LocalizedError("errors:index.theSessionRootDirectoryCannotBeASymbolic");
     return readdir(report.paths.sessions);
   })().catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "ENOENT") throw error;
@@ -89,9 +91,9 @@ export async function storageTargetPath(root: string, target: StorageTarget) {
       target.id === ".." ||
       target.id.includes("\\"))
   )
-    throw new Error("存储条目无效");
+    throw new LocalizedError("errors:index.invalidStorageItem");
   if (target.kind === "configuration" && !["settings.json", "catalog.json"].includes(target.id))
-    throw new Error("配置文件无效");
+    throw new LocalizedError("errors:index.invalidConfigurationFile");
   const path =
     target.kind === "sessions"
       ? join(root, "sessions")
@@ -102,6 +104,6 @@ export async function storageTargetPath(root: string, target: StorageTarget) {
   const actualPath = await realpath(path);
   const distance = relative(actualRoot, actualPath);
   if (distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance))
-    throw new Error("存储条目不在应用数据目录中");
+    throw new LocalizedError("errors:index.theStorageItemIsOutsideTheApplicationData");
   return actualPath;
 }

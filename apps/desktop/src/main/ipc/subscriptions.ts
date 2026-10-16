@@ -1,3 +1,4 @@
+import { LocalizedError } from "../../shared/i18n/messages.ts";
 import { ipcMain } from "electron";
 import type { AgentEvent } from "../../bridge.ts";
 import type { DesktopApplication } from "../bootstrap.ts";
@@ -36,7 +37,11 @@ export function createAgentSubscriptions(service: () => Pick<DesktopApplication,
         event.sender.send("agent:event", {
           sessionId: typeof rawId === "string" ? rawId : "",
           subscriptionId: typeof rawSubscriptionId === "string" ? rawSubscriptionId : "",
-          event: { type: "error", message: error instanceof Error ? error.message : String(error) },
+          event: {
+            type: "error",
+            message: error instanceof Error ? error.message : String(error),
+            ...(error instanceof LocalizedError ? { localization: error.reference } : {}),
+          },
         });
         return;
       }
@@ -76,7 +81,11 @@ export function createAgentSubscriptions(service: () => Pick<DesktopApplication,
           else watch.unsubscribe = unsubscribe;
         })
         .catch((error: unknown) => {
-          send({ type: "error", message: error instanceof Error ? error.message : String(error) });
+          send({
+            type: "error",
+            message: error instanceof Error ? error.message : String(error),
+            ...(error instanceof LocalizedError ? { localization: error.reference } : {}),
+          });
           if (sessions?.get(subscriptionId)?.token === watch.token)
             stopWatching(contents.id, subscriptionId);
         });

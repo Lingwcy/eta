@@ -1,3 +1,7 @@
+import { renderMessage } from "@/i18n/messages";
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useEffect, useState } from "react";
 import { BookOpen, X } from "lucide-react";
 import type { ActiveSkill, SkillCatalog } from "@eta/core/skills/types";
@@ -24,9 +28,10 @@ export function SkillPicker({
   onSelect: (name: string) => void;
   onSettings: () => void;
 }) {
+  useTranslation();
   const [open, setOpen] = useState(false);
   const [catalog, setCatalog] = useState<SkillCatalog>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -55,7 +60,8 @@ export function SkillPicker({
         if (!cancelled) setCatalog(value);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setError(error instanceof Error ? error.message : "无法发现技能");
+        if (!cancelled)
+          setError(describeError(error, localizedMessage("chat:skillPicker.cannotDiscoverSkills")));
       });
     const unsubscribe = window.eta.subscribeLibrary(() => setRevision((value) => value + 1));
     return () => {
@@ -71,16 +77,16 @@ export function SkillPicker({
             variant="ghost-muted"
             size="icon-xs"
             disabled={disabled}
-            aria-label="选择技能"
-            title="选择技能 · Cmd/Ctrl+Shift+K"
+            aria-label={t("chat:skillPicker.chooseASkill")}
+            title={t("chat:skillPicker.chooseASkillCmdCtrlShiftK")}
           />
         }
       >
         <BookOpen size={17} aria-hidden="true" />
       </PopoverTrigger>
-      <PopoverContent variant="menu" aria-label="选择技能">
+      <PopoverContent variant="menu" aria-label={t("chat:skillPicker.chooseASkill")}>
         <div className="flex h-7 shrink-0 items-center justify-between pl-2">
-          <span className="text-xs font-medium">技能</span>
+          <span className="text-xs font-medium">{t("chat:skillPicker.skills")}</span>
           <Button
             variant="link"
             size="compact"
@@ -89,7 +95,7 @@ export function SkillPicker({
               onSettings();
             }}
           >
-            管理
+            {t("chat:skillPicker.manage")}
           </Button>
         </div>
         <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
@@ -98,20 +104,26 @@ export function SkillPicker({
             {activeSkills.map((skill) => (
               <div key={skill.id} className="flex items-center gap-1">
                 <span className="min-w-0 flex-1 truncate px-2 text-xs" title={skill.directory}>
-                  {skill.name} · 已加载
+                  {skill.name}
+                  {t("chat:skillPicker.loaded")}
                 </span>
                 <Button
                   variant="ghost-destructive"
                   size="icon-tiny"
                   disabled={disabled || busy || !threadId}
-                  aria-label={`移除已加载技能 ${skill.name}`}
+                  aria-label={t("chat:skillPicker.removeLoadedSkill", { name: skill.name })}
                   onClick={() => {
                     if (!threadId) return;
                     setBusy(true);
                     void window.eta
                       .unloadSkill(threadId, skill.name)
                       .catch((error: unknown) => {
-                        setError(error instanceof Error ? error.message : "无法移除技能");
+                        setError(
+                          describeError(
+                            error,
+                            localizedMessage("chat:skillPicker.cannotRemoveTheSkill"),
+                          ),
+                        );
                       })
                       .finally(() => setBusy(false));
                   }}
@@ -142,15 +154,19 @@ export function SkillPicker({
                   </span>
                 </Button>
               ))}
-            {!catalog && !error && <p className="p-2 text-xs text-neutral-500">正在发现技能…</p>}
+            {!catalog && !error && (
+              <p className="p-2 text-xs text-neutral-500">
+                {t("chat:skillPicker.discoveringSkills")}
+              </p>
+            )}
             {catalog && !catalog.skills.some((skill) => skill.enabled) && (
               <p className="p-2 text-xs text-neutral-500">
-                没有已启用的技能。可以在设置中添加技能目录。
+                {t("chat:skillPicker.noEnabledSkillsAddSkillDirectoriesIn")}
               </p>
             )}
             {error && (
               <p role="alert" className="p-2 text-xs text-red-600">
-                {error}
+                {renderMessage(error)}
               </p>
             )}
           </div>

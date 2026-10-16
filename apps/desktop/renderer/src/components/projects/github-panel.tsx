@@ -1,3 +1,6 @@
+import { localizedMessage } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t, currentFormatLocale } from "@/i18n";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { GitRepositoryInfo } from "@eta/core/shared/git";
 import type { GitHubKind, GitHubState } from "@eta/core/shared/github";
@@ -25,6 +28,7 @@ export function GitHubPanel({
   onRefresh: () => void;
   onRemote: (remote: string) => Promise<void>;
 }) {
+  useTranslation();
   const saved = client.filters.get(projectId);
   const [kind, setKind] = useState<GitHubKind>(saved?.kind ?? "pulls");
   const [filters, setFilters] = useState<Record<GitHubKind, GitHubState>>({
@@ -102,7 +106,7 @@ export function GitHubPanel({
         </Button>
         <Popover>
           <PopoverTrigger
-            aria-label="GitHub 列表选项"
+            aria-label={t("inspector:githubPanel.githubListOptions")}
             render={<Button variant="ghost-muted" size="icon-tiny" />}
           >
             <MoreHorizontal size={14} aria-hidden="true" />
@@ -111,22 +115,22 @@ export function GitHubPanel({
             variant="menu"
             side="bottom"
             initialFocus={false}
-            aria-label="GitHub 列表选项"
+            aria-label={t("inspector:githubPanel.githubListOptions")}
           >
             <div className="flex flex-col gap-1 px-2 py-1">
               <p className="text-xs text-neutral-500">GitHub · {name}</p>
               {remotes.length > 0 && (
                 <label className="text-xs">
-                  浏览仓库
+                  {t("inspector:githubPanel.browseRepository")}
                   <select
                     className="max-w-full bg-transparent text-xs outline-none"
-                    aria-label="GitHub remote"
+                    aria-label={t("inspector:githubPanel.remote")}
                     value={selection?.remote ?? ""}
                     disabled={!connected || view.loading}
                     onChange={(event) => void onRemote(event.target.value)}
                   >
                     <option value="" disabled>
-                      选择 remote
+                      {t("inspector:githubPanel.chooseRemote")}
                     </option>
                     {remotes.map((remote) => (
                       <option key={remote.name} value={remote.name}>
@@ -137,11 +141,13 @@ export function GitHubPanel({
                 </label>
               )}
               {!selection && (
-                <p className="text-xs text-neutral-500">请选择要查看的 GitHub 仓库。</p>
+                <p className="text-xs text-neutral-500">
+                  {t("inspector:githubPanel.chooseAGithubRepositoryToBrowse")}
+                </p>
               )}
               <select
                 className="bg-transparent text-xs outline-none"
-                aria-label="GitHub 状态筛选"
+                aria-label={t("inspector:githubPanel.githubStateFilter")}
                 value={state}
                 onChange={(event) =>
                   setFilters((current) => ({
@@ -150,9 +156,9 @@ export function GitHubPanel({
                   }))
                 }
               >
-                <option value="open">Open</option>
-                <option value="closed">Closed / Merged</option>
-                <option value="all">全部</option>
+                <option value="open">{t("inspector:githubPanel.open")}</option>
+                <option value="closed">{t("inspector:githubPanel.closedFilter")}</option>
+                <option value="all">{t("inspector:githubPanel.all")}</option>
               </select>
               <div className="flex gap-1">
                 <Button
@@ -164,16 +170,16 @@ export function GitHubPanel({
                     if (selection) void client.load(key, { ...query, refresh: true });
                   }}
                 >
-                  刷新
+                  {t("inspector:githubPanel.refresh")}
                 </Button>
               </div>
               {page && (
                 <p className="text-[11px] text-neutral-500">
                   {page.identity.login
-                    ? `GitHub：${page.identity.login}`
-                    : "匿名访问；登录 GitHub CLI 可提高额度"}{" "}
-                  · {new Date(page.fetchedAt).toLocaleTimeString()}
-                  {page.stale || !connected ? " · 已过期" : ""}
+                    ? t("inspector:githubPanel.identity", { login: page.identity.login })
+                    : t("inspector:githubPanel.anonymousAccessSignInWithGithubCli")}{" "}
+                  · {new Date(page.fetchedAt).toLocaleTimeString(currentFormatLocale())}
+                  {page.stale || !connected ? t("inspector:githubPanel.stale") : ""}
                 </p>
               )}
             </div>
@@ -182,27 +188,32 @@ export function GitHubPanel({
       </InspectorToolbar>
       {!connected && (
         <p role="status" className="text-xs text-neutral-500">
-          Bot 未连接，缓存可能已过期。
+          {t("inspector:githubPanel.botIsDisconnectedTheCacheMayBe")}
         </p>
       )}
       {view.loading && (
         <p role="status" className="text-xs text-neutral-500">
-          正在读取 GitHub…
+          {t("inspector:githubPanel.readingGithub")}
         </p>
       )}
       <ToastNotice
-        title="GitHub 请求未完成"
+        title={localizedMessage("inspector:githubPanel.theGithubRequestCouldNotBeCompleted")}
         message={
           view.error &&
-          `${view.error.message}${view.error.retryAt ? ` 可重试时间：${new Date(view.error.retryAt).toLocaleString()}` : ""}`
+          `${view.error.message}${view.error.retryAt ? t("inspector:githubPanel.retryAfter", { value1: new Date(view.error.retryAt).toLocaleString(currentFormatLocale()) }) : ""}`
         }
       />
       {page && (
         <>
           {!page.items.length && (
             <p className="text-xs text-neutral-500">
-              当前 {state} 筛选下没有{kind === "pulls" ? " PR" : " Issue"}
-              {page.nextCursor ? "；后续页仍可继续加载" : ""}。
+              {t("inspector:githubPanel.empty", {
+                state: t(`inspector:githubPanel.state.${state}`),
+                kind: kind === "pulls" ? "PR" : "Issues",
+                more: page.nextCursor
+                  ? t("inspector:githubPanel.morePagesMayStillBeAvailable")
+                  : "",
+              })}
             </p>
           )}
           {page.items.map((item) => (
@@ -216,9 +227,9 @@ export function GitHubPanel({
                 #{item.number} {item.title}
               </a>
               <p className="text-[11px] text-neutral-500">
-                {item.state}
-                {item.draft ? " · Draft" : ""} · {item.author} ·{" "}
-                {new Date(item.updatedAt).toLocaleDateString()}
+                {t(`inspector:githubPanel.state.${item.state}`)}
+                {item.draft ? t("inspector:githubPanel.draft") : ""} · {item.author} ·{" "}
+                {new Date(item.updatedAt).toLocaleDateString(currentFormatLocale())}
               </p>
               {item.head && (
                 <p className="break-all text-[11px] text-neutral-500">
@@ -237,7 +248,7 @@ export function GitHubPanel({
               disabled={!connected || view.loading || limited}
               onClick={() => void client.load(key, { ...query, cursor: page!.nextCursor }, true)}
             >
-              加载更多
+              {t("inspector:githubPanel.loadMore")}
             </Button>
           )}
         </>

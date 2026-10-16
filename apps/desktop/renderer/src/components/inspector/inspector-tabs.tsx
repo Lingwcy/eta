@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Bot, Github } from "lucide-react";
@@ -21,6 +23,7 @@ export function InspectorTabs({
   github?: ReactNode;
   subagents?: ReactNode;
 }) {
+  useTranslation();
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const active =
     value === "github" && github
@@ -40,7 +43,10 @@ export function InspectorTabs({
     >
       <div className="flex h-8 shrink-0 items-center justify-between gap-1 px-2">
         <div ref={setToolbar} className="flex min-w-0 flex-1 items-center gap-0.5" />
-        <TabsList aria-label="右侧栏功能" className="flex items-center gap-1">
+        <TabsList
+          aria-label={t("inspector:inspectorTabs.sidebarFeatures")}
+          className="flex items-center gap-1"
+        >
           {github && (
             <TabsTrigger variant="inspector" value="github" aria-label="GitHub" title="GitHub">
               <Github aria-hidden="true" />
@@ -50,8 +56,8 @@ export function InspectorTabs({
             <TabsTrigger
               variant="inspector"
               value="subagents"
-              aria-label="子智能体"
-              title="子智能体"
+              aria-label={t("inspector:inspectorTabs.subagents")}
+              title={t("inspector:inspectorTabs.subagents")}
             >
               <Bot aria-hidden="true" />
             </TabsTrigger>

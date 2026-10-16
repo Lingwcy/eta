@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { settingsPanels } from "./settings/settings-panels";
 import type { SettingsPanelProps } from "./settings/settings-panels";
 import { useEffect, useState } from "react";
@@ -10,6 +11,7 @@ import { SettingsPage } from "./settings/settings-page";
 import type { SettingsItem } from "./settings/settings-categories";
 import { settingsGroups } from "./settings/settings-categories";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { Message } from "@/i18n/messages";
 
 interface Props extends Omit<SettingsPanelProps, "active"> {
   active?: boolean;
@@ -18,10 +20,11 @@ interface Props extends Omit<SettingsPanelProps, "active"> {
   categoryRevision?: number;
   onSchedules?: () => void;
   onChooseProject: () => void;
-  error: string | null;
+  error: Message | null;
   onClose: () => void;
 }
 export function DesktopSettings(props: Props) {
+  useTranslation();
   const [category, setCategory] = useState(
     props.initialCategory ??
       (props.library.credentials.find(
@@ -71,7 +74,7 @@ export function DesktopSettings(props: Props) {
         }
       >
         <ScrollArea className="flex-1">
-          {settingsGroups
+          {settingsGroups()
             .flatMap<SettingsItem>((group) => group.items)
             .map((item) => (
               <TabsPanel key={item.id} value={item.id}>

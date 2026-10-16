@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { Dialog } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
@@ -14,6 +16,7 @@ export function Sheet({
   title: string;
   children: ReactNode;
 }) {
+  useTranslation();
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -22,7 +25,13 @@ export function Sheet({
           <div className="flex items-center justify-between border-b border-neutral-100 px-6 py-4">
             <Dialog.Title className="font-semibold text-neutral-800">{title}</Dialog.Title>
             <Dialog.Close
-              render={<Button variant="ghost-muted" size="icon-xs" aria-label="关闭设置" />}
+              render={
+                <Button
+                  variant="ghost-muted"
+                  size="icon-xs"
+                  aria-label={t("common:sheet.closeSettings")}
+                />
+              }
             >
               <X size={17} />
             </Dialog.Close>

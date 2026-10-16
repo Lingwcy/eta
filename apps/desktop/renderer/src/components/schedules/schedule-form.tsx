@@ -1,3 +1,7 @@
+import { renderMessage } from "@/i18n/messages";
+import { LocalizedError, describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useEffect, useRef, useState } from "react";
 import { Schema } from "effect";
 import type { Schedule, ScheduleChange } from "@eta/core/shared/schedules";
@@ -41,6 +45,7 @@ export function ScheduleForm({
   onCancel(this: void): void;
   onSaved(this: void, threadId: string): void;
 }) {
+  useTranslation();
   const initialRule = schedule?.rule;
   const [name, setName] = useState(schedule?.name ?? "");
   const [prompt, setPrompt] = useState(schedule?.prompt ?? "");
@@ -64,7 +69,7 @@ export function ScheduleForm({
   const [days, setDays] = useState<readonly number[]>(
     initialRule?.type === "weekly" ? initialRule.weekdays : [1],
   );
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const [busy, setBusy] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [model, setModel] = useState<InputModel | undefined>(() =>
@@ -101,7 +106,10 @@ export function ScheduleForm({
         }
       })
       .catch((error: unknown) => {
-        if (!disposed) setError(error instanceof Error ? error.message : "无法加载会话模型");
+        if (!disposed)
+          setError(
+            describeError(error, localizedMessage("schedules:scheduleForm.cannotLoadTheChatModel")),
+          );
       })
       .finally(() => {
         if (!disposed) setLoadingModel(false);
@@ -115,10 +123,20 @@ export function ScheduleForm({
   );
   const workspaceLabel = (id: string) => {
     const item = library.workspaces.find((value) => value.id === id);
-    return library.projects.find((project) => project.id === item?.projectId)?.name ?? "未命名项目";
+    return (
+      library.projects.find((project) => project.id === item?.projectId)?.name ??
+      t("schedules:scheduleForm.unnamedProject")
+    );
   };
   const workspaceIcon = (id: string) => (
-    <span role="img" aria-label={id.startsWith("bot:") ? "云端" : "本地"}>
+    <span
+      role="img"
+      aria-label={
+        id.startsWith("bot:")
+          ? t("schedules:scheduleForm.cloud")
+          : t("schedules:scheduleForm.local")
+      }
+    >
       {id.startsWith("bot:") ? (
         <Cloud size={15} aria-hidden="true" />
       ) : (
@@ -134,14 +152,23 @@ export function ScheduleForm({
         : workspace.startsWith(environment.id)) &&
       (!threadId || !data.lifecycleIntents.some((intent) => intent.threadId === threadId)),
   );
+  const environment = controller.snapshot.snapshots.find(({ environment }) =>
+    environment.id === "local"
+      ? !workspace.startsWith("bot:")
+      : workspace.startsWith(environment.id),
+  )?.environment;
   const save = async () => {
     setBusy(true);
     setError(undefined);
     try {
-      if (!available || !allowedModes.length) throw new Error("执行环境不可用，请重新连接后重试");
-      if (!name.trim() || !prompt.trim()) throw new Error("请填写任务标题和执行内容");
+      if (!available || !allowedModes.length)
+        throw new LocalizedError(
+          "schedules:scheduleForm.theEnvironmentIsUnavailableReconnectAndTry",
+        );
+      if (!name.trim() || !prompt.trim())
+        throw new LocalizedError("schedules:scheduleForm.enterATaskTitleAndInstructions");
       if (kind === "once" && !/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(at))
-        throw new Error("请填写有效时间，格式为 HH:mm");
+        throw new LocalizedError("schedules:scheduleForm.enterAValidTimeInHhMm");
       const rule = Schema.decodeUnknownSync(ScheduleRuleSchema)(
         kind === "once"
           ? {
@@ -211,7 +238,9 @@ export function ScheduleForm({
       );
       onSaved(target);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "无法保存定时任务");
+      setError(
+        describeError(error, localizedMessage("schedules:scheduleForm.cannotSaveTheScheduledTask")),
+      );
     } finally {
       setBusy(false);
     }
@@ -225,7 +254,11 @@ export function ScheduleForm({
     >
       <DialogContent variant="dense-form">
         <form
-          aria-label={schedule ? "编辑定时任务" : "新建定时任务"}
+          aria-label={
+            schedule
+              ? t("schedules:scheduleForm.editScheduledTask")
+              : t("schedules:scheduleForm.newScheduledTask")
+          }
           onSubmit={(event) => {
             event.preventDefault();
             void save();
@@ -234,12 +267,14 @@ export function ScheduleForm({
         >
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base font-medium">
-              {schedule ? "编辑定时任务" : "设置定时任务"}
+              {schedule
+                ? t("schedules:scheduleForm.editScheduledTask")
+                : t("schedules:scheduleForm.setUpScheduledTask")}
             </DialogTitle>
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="关闭定时任务"
+              aria-label={t("schedules:scheduleForm.closeScheduledTask")}
               disabled={busy}
               onClick={onCancel}
             >
@@ -247,7 +282,7 @@ export function ScheduleForm({
             </Button>
           </div>
           <label>
-            任务标题
+            {t("schedules:scheduleForm.taskTitle")}
             <Input
               variant="compact"
               value={name}
@@ -256,7 +291,7 @@ export function ScheduleForm({
             />
           </label>
           <label>
-            执行内容
+            {t("schedules:scheduleForm.instructions")}
             <div className="mt-1 rounded-lg border border-neutral-200 bg-white p-2.5 focus-within:border-neutral-400 focus-within:ring-2 focus-within:ring-neutral-200">
               <Textarea
                 variant="compact"
@@ -269,16 +304,16 @@ export function ScheduleForm({
           <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2.5">
             <div className="grid grid-cols-2 items-start gap-3">
               <label className="flex min-w-0 flex-col gap-1">
-                重复
+                {t("schedules:scheduleForm.repeat")}
                 <Select
                   size="compact"
-                  label="重复"
+                  label={t("schedules:scheduleForm.repeat")}
                   value={kind}
                   options={[
-                    { value: "once", label: "一次" },
-                    { value: "interval", label: "按间隔" },
-                    { value: "daily", label: "每天" },
-                    { value: "weekly", label: "每周" },
+                    { value: "once", label: t("schedules:scheduleForm.once") },
+                    { value: "interval", label: t("schedules:scheduleForm.atAnInterval") },
+                    { value: "daily", label: t("schedules:scheduleForm.daily") },
+                    { value: "weekly", label: t("schedules:scheduleForm.weekly") },
                   ]}
                   onValueChange={setKind}
                   disabled={busy}
@@ -286,13 +321,13 @@ export function ScheduleForm({
               </label>
               {kind === "once" && (
                 <label>
-                  本机时间
+                  {t("schedules:scheduleForm.localTime")}
                   <ScheduleDatePicker value={at} onChange={setAt} disabled={busy} />
                 </label>
               )}
               {kind === "interval" && (
                 <label>
-                  间隔（分钟，至少 5）
+                  {t("schedules:scheduleForm.intervalMinutesAtLeast5")}
                   <Input
                     variant="compact"
                     type="number"
@@ -306,23 +341,33 @@ export function ScheduleForm({
               )}
               {(kind === "daily" || kind === "weekly") && (
                 <label className="flex flex-col gap-1">
-                  执行时间
+                  {t("schedules:scheduleForm.runTime")}
                   <ScheduleTimePicker value={time} onChange={setTime} disabled={busy} />
                 </label>
               )}
             </div>
             {kind === "weekly" && (
               <fieldset className="flex items-center gap-3">
-                <legend className="sr-only">星期</legend>
-                <span className="shrink-0 text-neutral-500">星期</span>
+                <legend className="sr-only">{t("schedules:scheduleForm.daysOfTheWeek")}</legend>
+                <span className="shrink-0 text-neutral-500">
+                  {t("schedules:scheduleForm.daysOfTheWeek")}
+                </span>
                 <div className="grid min-w-0 flex-1 grid-cols-7 gap-1">
-                  {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
+                  {[
+                    t("schedules:scheduleForm.sun"),
+                    t("schedules:scheduleForm.mon"),
+                    t("schedules:scheduleForm.tue"),
+                    t("schedules:scheduleForm.wed"),
+                    t("schedules:scheduleForm.thu"),
+                    t("schedules:scheduleForm.fri"),
+                    t("schedules:scheduleForm.sat"),
+                  ].map((day, index) => (
                     <Button
                       key={day}
                       variant="ghost"
                       size="compact"
                       selected={days.includes(index)}
-                      aria-label={`星期${day}`}
+                      aria-label={t("schedules:scheduleForm.label", { day: day })}
                       aria-pressed={days.includes(index)}
                       disabled={busy}
                       onClick={() =>
@@ -342,7 +387,8 @@ export function ScheduleForm({
           </section>
           <Collapsible open={advanced} onOpenChange={setAdvanced}>
             <CollapsibleTrigger variant="ghost-muted" size="compact">
-              高级 {advanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {t("schedules:scheduleForm.advanced")}
+              {advanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="pt-2">
@@ -356,7 +402,7 @@ export function ScheduleForm({
                         </div>
                       ) : (
                         <Select
-                          label="执行工作区"
+                          label={t("schedules:scheduleForm.executionWorkspace")}
                           variant="menu"
                           popupSizing="content"
                           size="compact"
@@ -372,7 +418,9 @@ export function ScheduleForm({
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <span className="text-neutral-500">权限</span>
+                      <span className="text-neutral-500">
+                        {t("schedules:scheduleForm.permissions")}
+                      </span>
                       <SandboxPicker
                         mode={effectiveSandboxMode}
                         defaultMode="danger-full-access"
@@ -387,7 +435,7 @@ export function ScheduleForm({
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span>模型与强度</span>
+                    <span>{t("schedules:scheduleForm.modelAndThinkingLevel")}</span>
                     <ModelPicker
                       model={model}
                       models={library.models}
@@ -409,14 +457,15 @@ export function ScheduleForm({
 
           {!available && (
             <p>
-              {controller.snapshot.snapshots.find(({ environment }) =>
-                environment.id === "local"
-                  ? !workspace.startsWith("bot:")
-                  : workspace.startsWith(environment.id),
-              )?.environment.message ?? "正在加载执行环境，或当前工作区不可用"}
+              {(environment?.messageKey
+                ? t(environment.messageKey, { defaultValue: environment.message ?? "" })
+                : environment?.message) ??
+                t("schedules:scheduleForm.loadingTheEnvironmentOrTheWorkspaceIs")}
             </p>
           )}
-          {(error || controller.error) && <p role="alert">{error ?? controller.error}</p>}
+          {(error || controller.error) && (
+            <p role="alert">{renderMessage(error ?? controller.error)}</p>
+          )}
           <div className="flex justify-end gap-2">
             <Button
               variant="ghost-muted"
@@ -425,14 +474,18 @@ export function ScheduleForm({
               disabled={busy}
               onClick={onCancel}
             >
-              取消
+              {t("schedules:scheduleForm.cancel")}
             </Button>
             <Button
               size="compact"
               type="submit"
               disabled={busy || !available || loadingModel || !allowedModes.length}
             >
-              {busy ? "正在处理" : schedule ? "保存" : "创建"}
+              {busy
+                ? t("schedules:scheduleForm.processing")
+                : schedule
+                  ? t("schedules:scheduleForm.save")
+                  : t("schedules:scheduleForm.create")}
             </Button>
           </div>
         </form>

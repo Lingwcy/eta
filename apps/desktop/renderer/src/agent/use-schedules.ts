@@ -1,3 +1,5 @@
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { t } from "@/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DesktopScheduleSnapshot } from "../../../src/shared/schedules.ts";
 import type { ScheduleRequest } from "@eta/core/shared/schedules";
@@ -5,7 +7,7 @@ import type { ScheduleRequest } from "@eta/core/shared/schedules";
 /** One store subscription serves sidebar, inspector and chat origins without renderer polling. */
 export function useSchedules() {
   const [snapshot, setSnapshot] = useState<DesktopScheduleSnapshot>({ snapshots: [] });
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const active = useRef(true);
   const loading = useRef<Promise<void> | undefined>(undefined);
   const again = useRef(false);
@@ -25,7 +27,10 @@ export function useSchedules() {
             setError(undefined);
           }
         } catch (error) {
-          if (active.current) setError(error instanceof Error ? error.message : "无法读取定时任务");
+          if (active.current)
+            setError(
+              describeError(error, localizedMessage("chat:useSchedules.cannotReadScheduledTasks")),
+            );
         }
       } while (again.current && active.current);
     })().finally(() => {
@@ -64,7 +69,8 @@ export function useSchedules() {
     }
     await refresh();
     if (result.state !== "pending") requests.current.delete(key);
-    if (result.state === "rejected") throw new Error(result.reason ?? "定时任务请求被拒绝");
+    if (result.state === "rejected")
+      throw new Error(result.reason ?? t("chat:useSchedules.theScheduledTaskRequestWasRejected"));
     return result;
   };
   return { snapshot, error, refresh, mutate };

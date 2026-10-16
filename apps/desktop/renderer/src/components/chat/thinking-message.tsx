@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useId, useState } from "react";
 import { Brain, ChevronDown, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +16,7 @@ import { useScrollFollow } from "./use-scroll-follow";
 
 /** Keeps the chosen open state when a streamed thought becomes saved history. */
 export function ThinkingMessage({ text, active }: { text: string; active: boolean }) {
+  useTranslation();
   const [mode, setMode] = useState<"preview" | "expanded" | "collapsed">("preview");
   const open = mode !== "collapsed";
   const expanded = mode === "expanded";
@@ -25,10 +28,16 @@ export function ThinkingMessage({ text, active }: { text: string; active: boolea
           <CollapsibleTrigger
             variant="ghost-muted"
             size="row-sm"
-            aria-label={`${open ? "收起" : "展开"}思考内容`}
+            aria-label={t("chat:thinkingMessage.thinkingContent", {
+              value1: open ? t("chat:thinkingMessage.collapse") : t("chat:thinkingMessage.expand"),
+            })}
           >
             <Brain size={16} aria-hidden="true" />
-            <span className="min-w-0 flex-1 text-left">{active ? "正在思考" : "思考内容"}</span>
+            <span className="min-w-0 flex-1 text-left">
+              {active
+                ? t("chat:thinkingMessage.thinking")
+                : t("chat:thinkingMessage.thinkingContent2")}
+            </span>
             {active && <RunningIndicator />}
             <ChevronDown
               size={15}
@@ -45,8 +54,16 @@ export function ThinkingMessage({ text, active }: { text: string; active: boolea
           size="icon-xs"
           aria-controls={detailsId}
           aria-pressed={expanded}
-          aria-label={expanded ? "返回思考预览" : "展开思考详情"}
-          title={expanded ? "返回预览" : "展开详情"}
+          aria-label={
+            expanded
+              ? t("chat:thinkingMessage.returnToThinkingPreview")
+              : t("chat:thinkingMessage.expandThinkingDetails")
+          }
+          title={
+            expanded
+              ? t("chat:thinkingMessage.backToPreview")
+              : t("chat:thinkingMessage.expandDetails")
+          }
           onClick={() => setMode(expanded ? "preview" : "expanded")}
         >
           {expanded ? (
@@ -65,6 +82,7 @@ export function ThinkingMessage({ text, active }: { text: string; active: boolea
 
 /** Only explicit detail mode accepts wheel input; the preview follows output programmatically. */
 function ThinkingOutput({ text, expanded }: { text: string; expanded: boolean }) {
+  useTranslation();
   const scroll = useScrollFollow();
   const content = <div className="py-1 text-xs/5 whitespace-pre-wrap break-words">{text}</div>;
   return (
@@ -74,7 +92,7 @@ function ThinkingOutput({ text, expanded }: { text: string; expanded: boolean })
           <ScrollAreaViewport
             ref={scroll.viewport}
             onScroll={scroll.onScroll}
-            aria-label="思考内容"
+            aria-label={t("chat:thinkingMessage.thinkingContent2")}
             className="max-h-60"
           >
             <ScrollAreaContent ref={scroll.content}>{content}</ScrollAreaContent>

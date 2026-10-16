@@ -1,3 +1,6 @@
+import type { Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { lazy, Suspense } from "react";
 import type { DesktopShell } from "@/agent/use-desktop-shell";
 import { DesktopLayout } from "@/components/desktop-layout";
@@ -142,10 +145,13 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
   );
 }
 
-function SettingsLoading({ error }: { error?: string | null }) {
+function SettingsLoading({ error }: { error?: Message | null }) {
+  useTranslation();
   return (
     <div className="flex flex-1 items-center justify-center text-sm text-neutral-400">
-      {error ? "设置尚未载入" : "正在打开设置…"}
+      {error
+        ? t("navigation:desktopPanels.settingsAreNotLoadedYet")
+        : t("navigation:desktopPanels.openingSettings")}
     </div>
   );
 }

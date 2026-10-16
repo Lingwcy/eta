@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { Cloud, Laptop, Check } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,18 +18,19 @@ export function EnvironmentPicker({
   onChange: (cloud: boolean) => void;
   onSettings: () => void;
 }) {
+  useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         disabled={disabled}
         render={<Button variant="ghost" size="pill" selected={open} />}
-        aria-label="选择执行位置"
+        aria-label={t("chat:environmentPicker.chooseWhereToRun")}
       >
         {cloud ? <Cloud size={18} /> : <Laptop size={18} />}
-        {cloud ? "Bot" : "此计算机"}
+        {cloud ? "Bot" : t("chat:environmentPicker.thisComputer")}
       </PopoverTrigger>
-      <PopoverContent variant="menu" aria-label="选择执行位置">
+      <PopoverContent variant="menu" aria-label={t("chat:environmentPicker.chooseWhereToRun")}>
         <Button
           variant="menu"
           size="menu-item"
@@ -37,7 +40,8 @@ export function EnvironmentPicker({
           }}
         >
           <Laptop size={17} />
-          此计算机{!cloud && <Check size={16} />}
+          {t("chat:environmentPicker.thisComputer")}
+          {!cloud && <Check size={16} />}
         </Button>
         <Button
           variant="menu"
@@ -60,7 +64,7 @@ export function EnvironmentPicker({
               setOpen(false);
             }}
           >
-            连接 Bot…
+            {t("chat:environmentPicker.connectToBot")}
           </Button>
         )}
       </PopoverContent>

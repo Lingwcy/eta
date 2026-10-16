@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Button as BaseButton } from "@base-ui/react/button";
@@ -20,7 +22,7 @@ export function ModelPicker({
   thinkingLevel = "off",
   showThinking = true,
   defaultOption,
-  placeholder = "选择模型",
+  placeholder = t("chat:modelPicker.chooseAModel"),
   side = "top",
   disabled,
   onChange,
@@ -43,6 +45,7 @@ export function ModelPicker({
   onChange?: (model: InputModel, level: ThinkingLevel) => void;
   onSettings?: () => void;
 }) {
+  useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [providerId, setProviderId] = useState<string | null>(model?.provider ?? null);
@@ -55,7 +58,7 @@ export function ModelPicker({
   const level = resolveThinkingLevel(model, thinkingLevel);
   const thinkingLabel =
     !selection && showThinking && model?.thinkingLevels.some((value) => value !== "off")
-      ? thinkingOptions.find((option) => option.value === level)?.label
+      ? thinkingOptions().find((option) => option.value === level)?.label
       : undefined;
   return (
     <Popover.Root
@@ -73,7 +76,13 @@ export function ModelPicker({
     >
       <Popover.Trigger
         disabled={disabled}
-        aria-label={selection ? "选择启用的模型" : showThinking ? "选择模型与思考级别" : "选择模型"}
+        aria-label={
+          selection
+            ? t("chat:modelPicker.chooseEnabledModels")
+            : showThinking
+              ? t("chat:modelPicker.chooseAModelAndThinkingLevel")
+              : t("chat:modelPicker.chooseAModel")
+        }
         title={model ? `${model.provider}/${model.id}` : placeholder}
         className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent bg-transparent px-2.5 text-[13px] font-normal text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0"
       >
@@ -97,18 +106,18 @@ export function ModelPicker({
       <Popover.Portal>
         <Popover.Positioner side={side} align="end" sideOffset={8} className="z-50">
           <Popover.Popup
-            aria-label="可用模型"
+            aria-label={t("chat:modelPicker.availableModels")}
             initialFocus={searchInput}
             className="flex h-[min(288px,var(--available-height))] max-h-[calc(100dvh-32px)] w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[20px] border border-neutral-200 bg-white p-1 shadow-lg outline-none"
           >
             <nav
-              aria-label="模型服务"
+              aria-label={t("chat:modelPicker.modelProviders")}
               className="w-10 shrink-0 overflow-y-auto rounded-2xl bg-neutral-50 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <BaseButton
-                aria-label="所有模型"
+                aria-label={t("chat:modelPicker.allModels")}
                 aria-pressed={activeProvider === null || Boolean(query.trim())}
-                title="所有模型"
+                title={t("chat:modelPicker.allModels")}
                 onClick={() => {
                   setProviderId(null);
                   setQuery("");
@@ -145,13 +154,15 @@ export function ModelPicker({
             </nav>
             <div className="flex min-w-0 flex-1 flex-col pl-1.5">
               <div className="flex h-8 shrink-0 items-center gap-2 pr-2 pl-1.5">
-                {!query && <span className="text-xs text-neutral-400">模型</span>}
+                {!query && (
+                  <span className="text-xs text-neutral-400">{t("chat:modelPicker.models")}</span>
+                )}
                 <div className="relative min-w-0 flex-1">
                   <input
                     ref={searchInput}
                     type="search"
-                    aria-label="搜索模型或服务"
-                    placeholder="快速搜索"
+                    aria-label={t("chat:modelPicker.searchModelsOrProviders")}
+                    placeholder={t("chat:modelPicker.quickSearch")}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     className="h-7 w-full min-w-0 bg-transparent pr-5 text-xs text-neutral-900 outline-none placeholder:text-neutral-400 [&::-webkit-search-cancel-button]:hidden"
@@ -288,7 +299,9 @@ export function ModelPicker({
                   })}
                   {!visible.length && (
                     <p className="px-3 py-10 text-center text-xs text-neutral-400">
-                      {models.length ? "没有匹配的模型" : "请先连接模型服务"}
+                      {models.length
+                        ? t("chat:modelPicker.noMatchingModels")
+                        : t("chat:modelPicker.connectAModelProviderFirst")}
                     </p>
                   )}
                 </div>
@@ -304,7 +317,7 @@ export function ModelPicker({
                       onSettings?.();
                     }}
                   >
-                    连接模型服务
+                    {t("chat:modelPicker.connectAModelProvider")}
                   </Button>
                 </div>
               )}

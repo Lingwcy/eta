@@ -1,3 +1,4 @@
+import { describeError, type Message } from "@/i18n/messages";
 import type { DesktopBridge, DesktopLibrary } from "../../../src/bridge.ts";
 import type { DesktopSettings } from "../../../src/shared/settings.ts";
 
@@ -5,7 +6,7 @@ type LibraryBridge = Pick<DesktopBridge, "library" | "subscribeLibrary" | "updat
 
 /** Mutations own their refresh; library notifications during a mutation are covered by that read. */
 export class DesktopLibraryClient {
-  private state: { library: DesktopLibrary | null; error: string | null; busy: boolean } = {
+  private state: { library: DesktopLibrary | null; error: Message | null; busy: boolean } = {
     library: null,
     error: null,
     busy: false,
@@ -86,8 +87,7 @@ export class DesktopLibraryClient {
   }
 
   private reportError = (error: unknown) => {
-    if (this.mounted)
-      this.update({ error: error instanceof Error ? error.message : String(error) });
+    if (this.mounted) this.update({ error: describeError(error, String(error)) });
   };
 
   private update(patch: Partial<typeof this.state>) {

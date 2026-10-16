@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { Check, LogOut } from "lucide-react";
 import type { AuthProvider, LoginMethod } from "../../../../../src/authentication.ts";
 import type { DesktopLibrary } from "../../../../../src/bridge.ts";
@@ -19,8 +21,13 @@ export function ProviderList({
   onLogin: (provider: string) => void;
   onRemove: (provider: string) => void;
 }) {
+  useTranslation();
   if (!providers.length)
-    return <p className="py-10 text-center text-sm text-neutral-400">没有匹配的服务</p>;
+    return (
+      <p className="py-10 text-center text-sm text-neutral-400">
+        {t("settings:providerList.noMatchingProviders")}
+      </p>
+    );
   return (
     <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white divide-y divide-neutral-100">
       {providers.map((provider) => {
@@ -40,20 +47,27 @@ export function ProviderList({
                 {connected && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                     <Check size={10} />
-                    已连接
+                    {t("settings:providerList.connected")}
                   </span>
                 )}
               </div>
               <p className="mt-1 text-xs/5 text-neutral-500">
                 {connected
-                  ? `${count} 个可用模型`
+                  ? t("settings:providerList.availableModels", { count: count })
                   : credential
-                    ? `当前通过${credential.type === "oauth" ? "账户" : "API Key"}连接，成功后将切换登录方式`
+                    ? t("settings:providerList.currentlyConnectedViaSuccessfulSignInWill", {
+                        value1:
+                          credential.type === "oauth"
+                            ? t("settings:providerList.account")
+                            : "API Key",
+                      })
                     : ambient
-                      ? `环境配置可用 · ${count} 个模型`
+                      ? t("settings:providerList.environmentConfigurationAvailableModels", {
+                          count: count,
+                        })
                       : method === "oauth"
                         ? provider.accountLabel
-                        : "使用你自己的 API Key 连接"}
+                        : t("settings:providerList.connectWithYourOwnApiKey")}
               </p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -61,8 +75,8 @@ export function ProviderList({
                 <Button
                   variant="ghost-muted"
                   size="icon-sm"
-                  aria-label={`断开 ${provider.name}`}
-                  title="断开连接"
+                  aria-label={t("settings:providerList.disconnect", { name: provider.name })}
+                  title={t("settings:providerList.disconnect2")}
                   onClick={() => onRemove(provider.id)}
                   disabled={busy}
                 >
@@ -75,7 +89,11 @@ export function ProviderList({
                 disabled={busy}
                 onClick={() => onLogin(provider.id)}
               >
-                {connected ? (method === "oauth" ? "重新登录" : "更新配置") : "连接"}
+                {connected
+                  ? method === "oauth"
+                    ? t("settings:providerList.signInAgain")
+                    : t("settings:providerList.updateConfiguration")
+                  : t("settings:providerList.connect")}
               </Button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { LocalizedError } from "../shared/i18n/messages.ts";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -12,18 +13,23 @@ export async function readAgentCredentials(path = join(homedir(), ".pi", "agent"
     content = await readFile(path, "utf8");
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return store;
-    throw new Error(`无法读取 ${path}`);
+    throw new LocalizedError("errors:agentcredentials.cannotRead", { value1: path });
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
     // JSON parser errors may quote the file's secret contents.
-    throw new Error(`${path} 不是有效的 JSON`);
+    throw new LocalizedError("errors:agentcredentials.isNotValidJson", { value1: path });
   }
-  if (!isRecord(parsed)) throw new Error(`${path} 必须是 JSON 对象`);
+  if (!isRecord(parsed))
+    throw new LocalizedError("errors:agentcredentials.mustBeAJsonObject", { value1: path });
   for (const [provider, credential] of Object.entries(parsed)) {
-    if (!isCredential(credential)) throw new Error(`${path} 中 ${provider} 的认证格式无效`);
+    if (!isCredential(credential))
+      throw new LocalizedError("errors:agentcredentials.invalidCredentialFormatForIn", {
+        value1: path,
+        value2: provider,
+      });
     await store.modify(provider, async () => credential);
   }
   return store;

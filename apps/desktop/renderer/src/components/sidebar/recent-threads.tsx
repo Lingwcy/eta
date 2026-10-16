@@ -1,3 +1,6 @@
+import { threadTitle } from "@/i18n/thread-title";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { ThreadVisit } from "@/agent/thread-recents";
 import { threadProjectId } from "@eta/core/shared/thread-project";
@@ -11,7 +14,11 @@ export function recentDay(time: number, now: number) {
   const today = new Date(now);
   const day = (value: Date) => Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());
   const distance = (day(today) - day(date)) / 86400_000;
-  return distance === 0 ? "今天" : distance === 1 ? "昨天" : "更早";
+  return distance === 0
+    ? t("navigation:recentThreads.today")
+    : distance === 1
+      ? t("navigation:recentThreads.yesterday")
+      : t("navigation:recentThreads.earlier");
 }
 
 export function RecentThreads({
@@ -37,6 +44,7 @@ export function RecentThreads({
   busy: boolean;
   onSelect: (id: string) => void;
 }) {
+  useTranslation();
   const threads = new Map(library?.threads.map((thread) => [thread.id, thread]));
   const projects = new Map(library?.projects.map((project) => [project.id, project.name]));
   const rows = visits.flatMap((visit) => {
@@ -46,11 +54,15 @@ export function RecentThreads({
   const now = Date.now();
   return (
     <div>
-      {["今天", "昨天", "更早"].map((day) => {
+      {[
+        t("navigation:recentThreads.today"),
+        t("navigation:recentThreads.yesterday"),
+        t("navigation:recentThreads.earlier"),
+      ].map((day, index) => {
         const group = rows.filter(({ visit }) => recentDay(visit.visitedAt, now) === day);
         if (!group.length) return null;
         return (
-          <section key={day}>
+          <section key={index}>
             <p className="px-2 pt-2 pb-1 text-xs text-neutral-400">{day}</p>
             <div className="flex flex-col gap-1">
               {group.map(({ visit, thread }) => (
@@ -69,10 +81,11 @@ export function RecentThreads({
                         <span
                           className={`min-w-0 flex-1 truncate ${selected === thread.id ? "font-medium" : ""}`}
                         >
-                          {thread.title || "新聊天"}
+                          {threadTitle(thread)}
                         </span>
                         <span className="max-w-14 truncate text-xs text-neutral-400">
-                          {projects.get(threadProjectId(thread, library!) ?? "") ?? "未分组"}
+                          {projects.get(threadProjectId(thread, library!) ?? "") ??
+                            t("navigation:recentThreads.ungrouped")}
                         </span>
                         <ThreadItemStatus
                           running={running.has(thread.id)}
@@ -92,7 +105,9 @@ export function RecentThreads({
         );
       })}
       {!rows.length && (
-        <p className="px-2 py-3 text-xs text-neutral-400">发送消息后，会显示在这里</p>
+        <p className="px-2 py-3 text-xs text-neutral-400">
+          {t("navigation:recentThreads.sentMessagesWillAppearHere")}
+        </p>
       )}
     </div>
   );

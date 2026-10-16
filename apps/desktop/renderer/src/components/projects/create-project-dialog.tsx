@@ -1,3 +1,7 @@
+import { renderMessage } from "@/i18n/messages";
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useRef, useState } from "react";
 import { FolderClosed, FolderPlus, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogClose } from "@/components/ui/dialog";
@@ -52,11 +56,12 @@ function CreateProjectForm({
   onCreate: (rootPath: string, name: string) => Promise<void>;
   onBusyChange: (busy: boolean) => void;
 }) {
+  useTranslation();
   const [name, setName] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
   const [rootPath, setRootPath] = useState<string | null>(cloud ? (cloudRoot ?? null) : null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Message | null>(null);
   const addFolder = async () => {
     setBusy(true);
     onBusyChange(true);
@@ -67,7 +72,12 @@ function CreateProjectForm({
       setRootPath(path);
       setName((current) => current || path.split(/[\\/]/).filter(Boolean).at(-1) || "");
     } catch (error) {
-      setError(error instanceof Error ? error.message : "无法选择文件夹");
+      setError(
+        describeError(
+          error,
+          localizedMessage("navigation:createProjectDialog.cannotChooseAFolder"),
+        ),
+      );
     } finally {
       setBusy(false);
       onBusyChange(false);
@@ -82,7 +92,12 @@ function CreateProjectForm({
       await onCreate(rootPath ?? "", name.trim());
       onClose();
     } catch (error) {
-      setError(error instanceof Error ? error.message : "无法创建项目");
+      setError(
+        describeError(
+          error,
+          localizedMessage("navigation:createProjectDialog.cannotCreateTheProject"),
+        ),
+      );
     } finally {
       setBusy(false);
       onBusyChange(false);
@@ -99,12 +114,18 @@ function CreateProjectForm({
       >
         <div className="flex items-center justify-between gap-4">
           <DialogTitle className="text-sm font-medium text-neutral-900">
-            {cloud ? "创建云端项目" : "创建项目"}
+            {cloud
+              ? t("navigation:createProjectDialog.createCloudProject")
+              : t("navigation:createProjectDialog.createProject")}
           </DialogTitle>
           <DialogClose
             disabled={busy}
             render={
-              <Button variant="ghost" size="icon-xs" aria-label="关闭创建项目">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={t("navigation:createProjectDialog.closeProjectCreation")}
+              >
                 <X size={14} aria-hidden="true" />
               </Button>
             }
@@ -114,8 +135,8 @@ function CreateProjectForm({
           variant="compact"
           ref={nameInput}
           icon={<FolderClosed size={16} />}
-          aria-label="项目名称"
-          placeholder="项目名称"
+          aria-label={t("navigation:createProjectDialog.projectName")}
+          placeholder={t("navigation:createProjectDialog.projectName")}
           value={name}
           onValueChange={setName}
           disabled={busy}
@@ -123,12 +144,13 @@ function CreateProjectForm({
         />
         {cloud ? (
           <p className="text-xs text-neutral-500">
-            在 Bot 工作空间根目录下新建同名文件夹{cloudRoot ? `：${cloudRoot}` : ""}
+            {t("navigation:createProjectDialog.createAFolderWithThisNameUnder")}
+            {cloudRoot ? t("navigation:createProjectDialog.cloudRoot", { path: cloudRoot }) : ""}
           </p>
         ) : (
           <section className="flex flex-col gap-1.5" aria-labelledby="project-source-label">
             <h2 id="project-source-label" className="text-xs font-medium text-neutral-800">
-              源文件夹
+              {t("navigation:createProjectDialog.sourceFolder")}
             </h2>
             <div className="flex min-w-0 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-2">
               {rootPath ? (
@@ -139,7 +161,9 @@ function CreateProjectForm({
                   </span>
                 </div>
               ) : (
-                <p className="min-w-0 flex-1 text-xs text-neutral-500">在此电脑上添加文件夹</p>
+                <p className="min-w-0 flex-1 text-xs text-neutral-500">
+                  {t("navigation:createProjectDialog.addAFolderOnThisComputer")}
+                </p>
               )}
               <Button
                 variant="secondary"
@@ -148,22 +172,26 @@ function CreateProjectForm({
                 onClick={() => void addFolder()}
               >
                 <FolderPlus size={14} aria-hidden="true" />
-                {rootPath ? "更换文件夹" : "添加"}
+                {rootPath
+                  ? t("navigation:createProjectDialog.changeFolder")
+                  : t("navigation:createProjectDialog.add")}
               </Button>
             </div>
           </section>
         )}
-        {error && <Alert>{error}</Alert>}
+        {error && <Alert>{renderMessage(error)}</Alert>}
         <div className="mt-1 flex justify-end gap-2">
           <Button variant="ghost-muted" size="compact" disabled={busy} onClick={onClose}>
-            取消
+            {t("navigation:createProjectDialog.cancel")}
           </Button>
           <Button
             size="compact"
             type="submit"
             disabled={busy || (!cloud && !rootPath) || !name.trim()}
           >
-            {busy ? "请稍候…" : "创建项目"}
+            {busy
+              ? t("navigation:createProjectDialog.pleaseWait")
+              : t("navigation:createProjectDialog.createProject")}
           </Button>
         </div>
       </form>

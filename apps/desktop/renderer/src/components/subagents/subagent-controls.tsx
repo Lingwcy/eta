@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import type { ReactNode } from "react";
 import { Check, CircleDot, Clock3, CirclePause, CircleAlert, CircleMinus } from "lucide-react";
 import type { SubagentSummary } from "@eta/core/shared/subagents";
@@ -26,11 +28,12 @@ export function SubagentControls({
   selected?: string;
   onSelect: (path: string) => void;
 }) {
+  useTranslation();
   const renderNodes = (nodes: SubagentNode[], nested = false): ReactNode => (
     <ul className={nested ? "ml-2 min-w-0 list-none p-0" : "min-w-0 list-none p-0"}>
       {nodes.map(({ agent: child, children }, index) => {
         const StatusIcon = statusIcons[child.status];
-        const label = `${child.path} · ${subagentStatus[child.status]}${child.progress ? ` · ${child.progress.message}` : ""}`;
+        const label = `${child.path} · ${subagentStatus()[child.status]}${child.progress ? ` · ${child.progress.message}` : ""}`;
         return (
           <li key={child.path} className={nested ? "relative min-w-0 pl-4" : "min-w-0"}>
             {nested && (
@@ -67,7 +70,7 @@ export function SubagentControls({
                   className="flex shrink-0 items-center gap-1 text-xs text-neutral-400"
                   aria-hidden="true"
                 >
-                  {child.status === "stopped" && subagentStatus.stopped}
+                  {child.status === "stopped" && subagentStatus().stopped}
                   <StatusIcon size={13} />
                 </span>
               </Button>
@@ -80,7 +83,7 @@ export function SubagentControls({
   );
   return (
     <ScrollArea gutter="overlay" className="flex-1">
-      <nav aria-label="子智能体" className="p-2">
+      <nav aria-label={t("inspector:subagentControls.subagents")} className="p-2">
         {renderNodes(subagentTree(agents))}
       </nav>
     </ScrollArea>

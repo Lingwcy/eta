@@ -1225,7 +1225,7 @@ test("SIGKILL during streaming reopens paused and explicit resume settles the sa
 }, 15000);
 
 test("normal shutdown settles a running tool, cleans its child process and preserves an aborted receipt", async () => {
-  const { cwd, runtime, threads, registry, workspace, provider, reopen } = await setup();
+  const { cwd, runtime, threads, workspace, provider, reopen } = await setup();
   const pidPath = join(cwd, "child.pid");
   provider.setResponses([
     fauxAssistantMessage(
@@ -1240,29 +1240,38 @@ test("normal shutdown settles a running tool, cleans its child process and prese
     ),
   ]);
   const created = await runtime.runPromise(threads.create(workspace.id));
-  await runtime.runPromise(threads.submit(created.id, "Start a long-running tool"));
-  await expect.poll(() => readFile(pidPath, "utf8").catch(() => "")).not.toBe("");
-  const pid = Number(await readFile(pidPath, "utf8"));
-  expect(pid).toBeGreaterThan(0);
-  expect(() => process.kill(pid, 0)).not.toThrow();
-  await runtime.dispose();
+  let pid = 0;
+  try {
+    await runtime.runPromise(threads.submit(created.id, "Start a long-running tool"));
+    // Submission precedes model generation and native worker/child startup.
+    await expect
+      .poll(() => readFile(pidPath, "utf8").catch(() => ""), { timeout: 10_000 })
+      .toMatch(/^\d+$/);
+    pid = Number(await readFile(pidPath, "utf8"));
+    expect(pid).toBeGreaterThan(0);
+    expect(() => process.kill(pid, 0)).not.toThrow();
+  } finally {
+    await runtime.dispose();
+  }
   await expect
-    .poll(() => {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch {
-        return false;
-      }
-    })
+    .poll(
+      () => {
+        try {
+          process.kill(pid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 10_000 },
+    )
     .toBe(false);
   const next = reopen();
   const other = await next.runPromise(ThreadService);
   const restored = await next.runPromise(other.open(created.id));
   expect(restored.snapshot.recoveryRequired).toBe(false);
   expect(restored.snapshot.lastResult?.status).toBe("aborted");
-  void registry;
-});
+}, 30_000);
 
 test("image attachments and read images survive restart; disabling reading only changes provider input", async () => {
   const { runtime, threads, registry, provider, cwd, workspace, reopen } = await setup(true);

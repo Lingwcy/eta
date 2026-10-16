@@ -1,7 +1,9 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { FileSearch, FilePlus2, FilePenLine, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { BuiltinToolName } from "@eta/core/tools";
-import { builtinTools } from "../../../../src/tools.ts";
+import { builtinToolNames } from "@eta/core/tools";
 import { SettingsSection, SettingsRow } from "./settings-section";
 
 const icons = { read: FileSearch, write: FilePlus2, edit: FilePenLine, bash: Terminal };
@@ -15,10 +17,16 @@ export function ToolSettings({
   busy: boolean;
   onChange: (disabled: BuiltinToolName[]) => void;
 }) {
+  useTranslation();
   return (
     <>
-      <SettingsSection title="系统工具">
-        {builtinTools.map((tool) => {
+      <SettingsSection title={t("settings:toolSettings.systemTools")}>
+        {builtinToolNames.map((id) => {
+          const tool = {
+            id,
+            name: t(`settings:tools.${id}.name`),
+            description: t(`settings:tools.${id}.description`),
+          };
           const Icon = icons[tool.id];
           const enabled = !disabledTools.includes(tool.id);
           return (
@@ -32,7 +40,7 @@ export function ToolSettings({
                 variant={enabled ? "secondary" : "outline"}
                 size="sm"
                 disabled={busy}
-                aria-label={`${tool.name}（${tool.id}）`}
+                aria-label={t("settings:toolSettings.toolLabel", { name: tool.name, id: tool.id })}
                 aria-pressed={enabled}
                 onClick={() =>
                   onChange(
@@ -42,14 +50,17 @@ export function ToolSettings({
                   )
                 }
               >
-                {enabled ? "已启用" : "已停用"}
+                {enabled ? t("settings:toolSettings.enabled") : t("settings:toolSettings.disabled")}
               </Button>
             </SettingsRow>
           );
         })}
       </SettingsSection>
-      <SettingsSection title="外部工具">
-        <SettingsRow title="暂无外部工具" description="外部工具接入尚未开放。">
+      <SettingsSection title={t("settings:toolSettings.externalTools")}>
+        <SettingsRow
+          title={t("settings:toolSettings.noExternalToolsYet")}
+          description={t("settings:toolSettings.externalToolIntegrationIsNotAvailableYet")}
+        >
           {null}
         </SettingsRow>
       </SettingsSection>

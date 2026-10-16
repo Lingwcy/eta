@@ -234,6 +234,7 @@ a dependency. A dev server succeeding does not prove an installed client works.*
   prebuilt output in a clean environment.
 - Additional evidence: on 2026-10-15, PR #60's Desktop CI reached tests after installing Pi 1.3.0 but three integration suites failed to import `@earendil-works/chord/output`. Desktop's existing aliases sent published Chord to `dist` but omitted the new subpath; builds and typechecks had passed. The same five failing suites reproduce the omissions locally and cover the fix.
 - Additional evidence: on 2026-10-16, PR #70's Desktop CI failed to import `@earendil-works/pi-codemode` in the schedules DOM integration suite. Its `source` condition pointed at files absent from the published package, while Node tests and packaged builds passed. The same failure reproduces locally; resolving the package and its used subpaths to published `dist` entries lets the existing real-service DOM tests load.
+- Additional evidence: on 2026-10-16, PR #81's Bot build failed because its Desktop integration imports `DraftThread`, whose new localized error import used a renderer-only `@/` alias. Bot typecheck reproduces TS2307 even though Desktop CI passes. Importing the shared error contract directly avoids pulling renderer translation initialization into the reused draft logic; verify both host builds and the Desktop/Bot integration when changing such imports.
 - Check: trace the actual worker/runtime entry and workspace subpath exports.
   Run the affected package verification in a clean build context when changing
   packaging; report separately whether an installed client was exercised.
@@ -252,6 +253,7 @@ allows native startup, before checking an operation's result.**
 - Check: use the operation's completion signal rather than a fixed sleep.
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.
+- Additional evidence: on 2026-10-16, PR #81's Linux CI failed the normal-shutdown test while waiting for a native child's PID with the default poll deadline. Injecting 1.5 seconds of model latency reproduces that assertion; bounded native-startup and process-exit waits pass the same delayed case while retaining the real child, shutdown and durable aborted-receipt checks. Disposal now runs in `finally` when startup assertions fail. This demonstrates the fixture's short readiness assumption, not the unrecorded startup timing of the original CI failure.
 - Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
   schedule delivery test stuck before `ThreadService.submit`; the occurrence
   remained `dispatching` and no durable receipt existed. Both a global timer and

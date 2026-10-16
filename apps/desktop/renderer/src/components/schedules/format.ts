@@ -1,29 +1,38 @@
+import { t, currentFormatLocale } from "@/i18n";
 import type { ScheduleRule } from "@eta/core/shared/schedules";
-const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+const weekdays = () => [
+  t("schedules:format.sun"),
+  t("schedules:format.mon"),
+  t("schedules:format.tue"),
+  t("schedules:format.wed"),
+  t("schedules:format.thu"),
+  t("schedules:format.fri"),
+  t("schedules:format.sat"),
+];
 const calendarDay = (date: Date) =>
   Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400_000;
 export function scheduleTime(value: number | null, now = Date.now()) {
-  if (value === null) return "无后续执行";
+  if (value === null) return t("schedules:format.noFutureRuns");
   const date = new Date(value);
   const today = new Date(now);
   const distance = calendarDay(date) - calendarDay(today);
   const relative = new Map([
-    [-2, "前天"],
-    [-1, "昨天"],
-    [0, "今天"],
-    [1, "明天"],
-    [2, "后天"],
+    [-2, t("schedules:format.theDayBeforeYesterday")],
+    [-1, t("schedules:format.yesterday")],
+    [0, t("schedules:format.today")],
+    [1, t("schedules:format.tomorrow")],
+    [2, t("schedules:format.theDayAfterTomorrow")],
   ]);
   const label =
     relative.get(distance) ??
     (Math.abs(distance) < 7
-      ? `周${weekdays[date.getDay()]}`
-      : date.toLocaleDateString("zh-CN", {
+      ? t("schedules:format.label", { value1: weekdays()[date.getDay()] })
+      : date.toLocaleDateString(currentFormatLocale(), {
           ...(date.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}),
           month: "numeric",
           day: "numeric",
         }));
-  const time = date.toLocaleTimeString("zh-CN", {
+  const time = date.toLocaleTimeString(currentFormatLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
@@ -33,24 +42,31 @@ export function scheduleTime(value: number | null, now = Date.now()) {
 export function scheduleRuleText(rule: ScheduleRule) {
   switch (rule.type) {
     case "once":
-      return `一次 · ${scheduleTime(rule.at)}`;
+      return t("schedules:format.once", { value1: scheduleTime(rule.at) });
     case "interval":
       return rule.everyMs % 3600_000 === 0
-        ? `每 ${rule.everyMs / 3600_000} 小时`
-        : `每 ${rule.everyMs / 60_000} 分钟`;
+        ? t("schedules:format.everyHours", { count: rule.everyMs / 3600_000 })
+        : t("schedules:format.everyMinutes", { count: rule.everyMs / 60_000 });
     case "daily":
-      return `每天 ${rule.time}`;
+      return t("schedules:format.dailyAt", { time: rule.time });
     case "weekly":
-      return `周${rule.weekdays.map((day) => weekdays[day]).join("、")} ${rule.time}`;
+      return t("schedules:format.weeklyOnAt", {
+        value1: rule.weekdays.map((day) => weekdays()[day]).join(t("schedules:format.separator")),
+        time: rule.time,
+      });
   }
 }
-export const scheduleStates = { active: "已启用", paused: "已暂停", completed: "已完成" };
-export const runStates = {
-  pending: "等待投递",
-  dispatching: "核对提交",
-  admitted: "已开始",
-  succeeded: "成功",
-  failed: "失败",
-  cancelled: "已取消",
-  skipped: "已跳过",
-};
+export const scheduleStates = () => ({
+  active: t("schedules:format.enabled"),
+  paused: t("schedules:format.paused"),
+  completed: t("schedules:format.completed"),
+});
+export const runStates = () => ({
+  pending: t("schedules:format.waitingForDelivery"),
+  dispatching: t("schedules:format.reconcilingSubmission"),
+  admitted: t("schedules:format.started"),
+  succeeded: t("schedules:format.succeeded"),
+  failed: t("schedules:format.failed"),
+  cancelled: t("schedules:format.cancelled"),
+  skipped: t("schedules:format.skipped"),
+});

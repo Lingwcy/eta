@@ -1,3 +1,6 @@
+import { localizedMessage } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,6 +30,7 @@ export function BrowserPanel({
   visible: boolean;
   tabs: DesktopTabs;
 }) {
+  useTranslation();
   const { address, setAddress, addressInput, viewport, ready, navigate, command, page, error } =
     useBrowserPage(tab, visible, client, state);
   return (
@@ -36,7 +40,7 @@ export function BrowserPanel({
           <Button
             variant="ghost-muted"
             size="icon-sm"
-            aria-label="网页后退"
+            aria-label={t("browser:browserPanel.goBack")}
             disabled={!page?.canGoBack}
             onClick={() => command("back")}
           >
@@ -45,7 +49,7 @@ export function BrowserPanel({
           <Button
             variant="ghost-muted"
             size="icon-sm"
-            aria-label="网页前进"
+            aria-label={t("browser:browserPanel.goForward")}
             disabled={!page?.canGoForward}
             onClick={() => command("forward")}
           >
@@ -54,7 +58,11 @@ export function BrowserPanel({
           <Button
             variant="ghost-muted"
             size="icon-sm"
-            aria-label={page?.loading ? "停止加载" : "刷新网页"}
+            aria-label={
+              page?.loading
+                ? t("browser:browserPanel.stopLoading")
+                : t("browser:browserPanel.reloadPage")
+            }
             disabled={!ready}
             onClick={() => command(page?.loading ? "stop" : "reload")}
           >
@@ -76,8 +84,8 @@ export function BrowserPanel({
           <input
             ref={addressInput}
             id={`browser-address-${tab.id}`}
-            aria-label="网址或搜索内容"
-            placeholder="搜索，或输入网址"
+            aria-label={t("browser:browserPanel.urlOrSearchQuery")}
+            placeholder={t("browser:browserPanel.searchOrEnterAUrl")}
             value={address}
             onChange={(event) => setAddress(event.target.value)}
             onFocus={(event) => event.target.select()}
@@ -88,7 +96,7 @@ export function BrowserPanel({
       <ToastNotice
         message={error}
         active={visible}
-        title="网页未能载入"
+        title={localizedMessage("browser:browserPanel.thePageCouldNotBeLoaded")}
         onRetry={() => command("reload")}
       />
       <div ref={viewport} className="relative min-h-0 flex-1 overflow-hidden">
@@ -99,7 +107,7 @@ export function BrowserPanel({
             )}
             {!ready && (
               <div className="flex h-full items-center justify-center text-sm text-neutral-400">
-                正在打开网页…
+                {t("browser:browserPanel.openingPage")}
               </div>
             )}
           </>
@@ -108,16 +116,20 @@ export function BrowserPanel({
             <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-neutral-100">
               <Globe2 size={28} strokeWidth={1.4} className="text-neutral-500" />
             </div>
-            <h1 className="text-xl font-medium tracking-tight text-neutral-800">从这里开始</h1>
-            <p className="mt-2 text-sm text-neutral-400">浏览网页，或打开一个新的工作标签。</p>
+            <h1 className="text-xl font-medium tracking-tight text-neutral-800">
+              {t("browser:browserPanel.startHere")}
+            </h1>
+            <p className="mt-2 text-sm text-neutral-400">
+              {t("browser:browserPanel.browseTheWebOrOpenANew")}
+            </p>
             <div className="mt-8 flex items-center gap-3">
               <Button variant="secondary" size="sm" onClick={() => tabs.newConversation()}>
                 <MessageCircle size={15} />
-                新聊天
+                {t("browser:browserPanel.newChat")}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => tabs.openSettings()}>
                 <Settings2 size={15} />
-                设置
+                {t("browser:browserPanel.settings")}
               </Button>
             </div>
           </div>

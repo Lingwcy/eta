@@ -50,6 +50,7 @@ export class DesktopAuthentication {
         method,
         status: "running",
         message: "准备连接…",
+        messageKey: "settings:login.preparing",
         links: [],
       },
       controller: new AbortController(),
@@ -68,7 +69,13 @@ export class DesktopAuthentication {
       )
       .then(
         () => {
-          flow.state = { ...flow.state, status: "completed", message: "已连接", prompt: undefined };
+          flow.state = {
+            ...flow.state,
+            status: "completed",
+            message: "已连接",
+            messageKey: "settings:login.connected",
+            prompt: undefined,
+          };
         },
         () => {
           flow.state = {
@@ -77,6 +84,9 @@ export class DesktopAuthentication {
             message: flow.controller.signal.aborted
               ? "已取消登录"
               : "登录未完成，请检查授权或配置后重试。",
+            messageKey: flow.controller.signal.aborted
+              ? "settings:login.cancelled"
+              : "settings:login.failed",
             prompt: undefined,
           };
         },
@@ -186,26 +196,43 @@ export class DesktopAuthentication {
 
   private notify(flow: Flow, event: AuthEvent) {
     if (flow.controller.signal.aborted) return;
-    let links: { url: string; label?: string }[] = [];
+    let links: LoginState["links"] = [];
     switch (event.type) {
       case "auth_url":
-        links = [{ url: this.webUrl(event.url), label: "在浏览器中继续" }];
-        flow.state = { ...flow.state, message: event.instructions ?? "请在浏览器中完成授权" };
+        links = [
+          {
+            url: this.webUrl(event.url),
+            label: "在浏览器中继续",
+            labelKey: "settings:login.continueInBrowser",
+          },
+        ];
+        flow.state = {
+          ...flow.state,
+          message: event.instructions ?? "请在浏览器中完成授权",
+          messageKey: event.instructions ? undefined : "settings:login.authorize",
+        };
         break;
       case "device_code":
-        links = [{ url: this.webUrl(event.verificationUri), label: "打开授权页面" }];
+        links = [
+          {
+            url: this.webUrl(event.verificationUri),
+            label: "打开授权页面",
+            labelKey: "settings:login.openAuthorization",
+          },
+        ];
         flow.state = {
           ...flow.state,
           deviceCode: event.userCode,
           message: "在授权页面输入下方设备码",
+          messageKey: "settings:login.deviceCode",
         };
         break;
       case "info":
         links = (event.links ?? []).map((link) => ({ ...link, url: this.webUrl(link.url) }));
-        flow.state = { ...flow.state, message: event.message };
+        flow.state = { ...flow.state, message: event.message, messageKey: undefined };
         break;
       case "progress":
-        flow.state = { ...flow.state, message: event.message };
+        flow.state = { ...flow.state, message: event.message, messageKey: undefined };
     }
     const known = new Set(flow.state.links.map((link) => link.url));
     flow.state = {
@@ -217,7 +244,11 @@ export class DesktopAuthentication {
       if (link)
         void this.openExternal(link.url).catch(() => {
           if (flow.state.status === "running")
-            flow.state = { ...flow.state, message: "请点击下方按钮打开授权页面" };
+            flow.state = {
+              ...flow.state,
+              message: "请点击下方按钮打开授权页面",
+              messageKey: "settings:login.openManually",
+            };
         });
     }
   }

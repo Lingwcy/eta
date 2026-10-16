@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t, currentFormatLocale } from "@/i18n";
 import { useId, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,6 +19,7 @@ export function ScheduleDatePicker({
   onChange: (value: string) => void;
   disabled: boolean;
 }) {
+  useTranslation();
   const timeId = useId();
   const [open, setOpen] = useState(false);
   const selected = new Date(`${value.split("T")[0]}T12:00:00`);
@@ -38,11 +41,15 @@ export function ScheduleDatePicker({
     >
       <Popover.Trigger
         disabled={disabled}
-        aria-label="选择执行日期和时间"
+        aria-label={t("schedules:scheduleDatePicker.chooseARunDateAndTime")}
         render={<Button variant="outline" size="row-sm" />}
       >
         <span className="flex-1">
-          {selected.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}{" "}
+          {selected.toLocaleDateString(currentFormatLocale(), {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}{" "}
           {value.split("T")[1]}
         </span>
         <CalendarDays size={15} aria-hidden="true" />
@@ -50,33 +57,44 @@ export function ScheduleDatePicker({
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="end" sideOffset={5} className="z-50">
           <Popover.Popup
-            aria-label="执行日期"
+            aria-label={t("schedules:scheduleDatePicker.runDate")}
             className="w-64 max-w-[calc(100vw-32px)] rounded-xl border border-black/12 bg-white p-2 text-xs shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none"
           >
             <div className="mb-1 flex items-center justify-between">
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label="上个月"
+                aria-label={t("schedules:scheduleDatePicker.previousMonth")}
                 onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
               >
                 <ChevronLeft size={14} />
               </Button>
               <span aria-live="polite">
-                {month.getFullYear()}年{month.getMonth() + 1}月
+                {month.toLocaleDateString(currentFormatLocale(), {
+                  year: "numeric",
+                  month: "long",
+                })}
               </span>
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label="下个月"
+                aria-label={t("schedules:scheduleDatePicker.nextMonth")}
                 onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
               >
                 <ChevronRight size={14} />
               </Button>
             </div>
             <div className="grid grid-cols-7 gap-0.5">
-              {["日", "一", "二", "三", "四", "五", "六"].map((day) => (
-                <span key={day} className="py-1 text-center text-neutral-400">
+              {[
+                t("schedules:scheduleDatePicker.sun"),
+                t("schedules:scheduleDatePicker.mon"),
+                t("schedules:scheduleDatePicker.tue"),
+                t("schedules:scheduleDatePicker.wed"),
+                t("schedules:scheduleDatePicker.thu"),
+                t("schedules:scheduleDatePicker.fri"),
+                t("schedules:scheduleDatePicker.sat"),
+              ].map((day, index) => (
+                <span key={index} className="py-1 text-center text-neutral-400">
                   {day}
                 </span>
               ))}
@@ -100,11 +118,11 @@ export function ScheduleDatePicker({
             </div>
             <div className="mt-2 flex items-center gap-2 border-t border-neutral-100 pt-2">
               <label htmlFor={timeId} className="shrink-0 text-neutral-500">
-                时间
+                {t("schedules:scheduleDatePicker.time")}
               </label>
               <Input
                 id={timeId}
-                aria-label="执行时刻"
+                aria-label={t("schedules:scheduleDatePicker.runTime")}
                 variant="compact"
                 inputMode="numeric"
                 placeholder="09:00"
@@ -114,7 +132,7 @@ export function ScheduleDatePicker({
                 onChange={(event) => onChange(`${value.split("T")[0]}T${event.target.value}`)}
               />
               <Button size="compact" onClick={() => setOpen(false)}>
-                确定
+                {t("schedules:scheduleDatePicker.confirm")}
               </Button>
             </div>
           </Popover.Popup>

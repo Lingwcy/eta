@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import type { ContextIndicatorProps } from "./types";
 
@@ -11,6 +13,7 @@ export function ContextIndicator({
   className,
   onClick,
 }: ContextIndicatorProps) {
+  useTranslation();
   // 将百分比严格限制在 0 至 100 之间
   const clampedPercentage = Math.min(100, Math.max(0, percentage));
   const radius = 6;
@@ -24,8 +27,12 @@ export function ContextIndicator({
       variant="ghost-muted"
       size="compact"
       className={className}
-      title={`上下文窗口用量: ${clampedPercentage}%`}
-      aria-label={`上下文窗口用量: ${clampedPercentage}%`}
+      title={t("chat:contextIndicator.contextWindowUsage", {
+        clampedPercentage: clampedPercentage,
+      })}
+      aria-label={t("chat:contextIndicator.contextWindowUsage", {
+        clampedPercentage: clampedPercentage,
+      })}
     >
       <svg
         className="size-3.5 sm:size-4 -rotate-90 text-neutral-600 shrink-0"

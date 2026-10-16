@@ -26,15 +26,18 @@ import type { BrowserCommand, BrowserEvent, BrowserState } from "./browser/proto
 import type { StorageReport, StorageTarget } from "./shared/storage.ts";
 import type { SkillCatalog } from "@eta/core/skills/types";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
+import type { MessageReference } from "./shared/i18n/messages.ts";
+import type { AppLocale } from "./shared/i18n/locales.ts";
 
 export type AgentEvent =
   | { type: "snapshot"; value: SnapshotResponse }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; localization?: MessageReference };
 
 export interface CommandErrorDto {
   code: string;
   message: string;
   retryable: boolean;
+  localization?: MessageReference;
 }
 export type CommandReply<A> = { ok: true; value: A } | { ok: false; error: CommandErrorDto };
 
@@ -79,6 +82,7 @@ export type UpdateState =
   | { status: "error"; message: string; releaseUrl: string };
 
 export interface AppInfo {
+  locale?: AppLocale;
   platform?: string;
   version: string;
 }

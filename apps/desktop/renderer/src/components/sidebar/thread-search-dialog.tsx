@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { lazy, Suspense, useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,12 +11,18 @@ const ThreadSearchContent = lazy(() =>
 );
 
 export function ThreadSearchDialog(props: SearchDialogProps) {
+  useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant="ghost-muted" size="icon-xs" title="搜索聊天" aria-label="搜索聊天" />
+          <Button
+            variant="ghost-muted"
+            size="icon-xs"
+            title={t("navigation:threadSearchDialog.searchChats")}
+            aria-label={t("navigation:threadSearchDialog.searchChats")}
+          />
         }
       >
         <Search size={16} aria-hidden="true" />
@@ -23,8 +31,12 @@ export function ThreadSearchDialog(props: SearchDialogProps) {
         <Suspense
           fallback={
             <DialogContent>
-              <DialogTitle className="sr-only">搜索聊天</DialogTitle>
-              <p className="p-4 text-sm text-neutral-400">正在加载搜索…</p>
+              <DialogTitle className="sr-only">
+                {t("navigation:threadSearchDialog.searchChats")}
+              </DialogTitle>
+              <p className="p-4 text-sm text-neutral-400">
+                {t("navigation:threadSearchDialog.loadingSearch")}
+              </p>
             </DialogContent>
           }
         >

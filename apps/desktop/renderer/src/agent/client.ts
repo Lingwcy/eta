@@ -1,3 +1,4 @@
+import { LocalizedError, describeError, type Message } from "@/i18n/messages";
 import type { ImageAttachment } from "@eta/core/images/types";
 import type { OperationAdmission } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
@@ -11,7 +12,7 @@ export interface AgentClientState {
   submitting: boolean;
   stopping: boolean;
   admission: OperationAdmission | null;
-  error: string | null;
+  error: Message | null;
 }
 
 export const initialAgentState: AgentClientState = {
@@ -53,7 +54,7 @@ export class ThreadAgentClient {
         if (event.type === "snapshot") {
           this.observe(event.value);
         } else {
-          this.update({ connection: "error", error: event.message });
+          this.update({ connection: "error", error: event.localization ?? event.message });
         }
       });
       this.update({ connection: "connected" });
@@ -64,7 +65,7 @@ export class ThreadAgentClient {
 
   async configure(provider: string, modelId: string, thinkingLevel: ThinkingLevel) {
     const sessionId = this.state.session?.id;
-    if (!sessionId || this.disposed) throw new Error("会话尚未打开");
+    if (!sessionId || this.disposed) throw new LocalizedError("chat:client.theChatIsNotOpenYet");
     const session = await this.bridge.configureThread(sessionId, provider, modelId, thinkingLevel);
     if (this.disposed || this.state.session?.id !== session.id) return;
     const observation = this.state.observation;
@@ -82,7 +83,7 @@ export class ThreadAgentClient {
 
   async configureSandbox(mode: SandboxMode) {
     const sessionId = this.state.session?.id;
-    if (!sessionId || this.disposed) throw new Error("会话尚未打开");
+    if (!sessionId || this.disposed) throw new LocalizedError("chat:client.theChatIsNotOpenYet");
     const session = await this.bridge.configureSandbox(sessionId, mode);
     if (this.disposed || this.state.session?.id !== session.id) return;
     const observation = this.state.observation;
@@ -107,9 +108,9 @@ export class ThreadAgentClient {
       this.state.observation?.snapshot.recoveryRequired ||
       this.state.observation?.snapshot.blockedReason
     )
-      throw new Error("Agent 尚未就绪");
+      throw new LocalizedError("chat:client.theAgentIsNotReadyYet");
     const sessionId = this.state.session?.id;
-    if (!sessionId) throw new Error("会话尚未打开");
+    if (!sessionId) throw new LocalizedError("chat:client.theChatIsNotOpenYet");
     this.update({ submitting: true, error: null });
     try {
       const admission = await this.bridge.submit(sessionId, prompt, ...(images ? [images] : []));
@@ -171,5 +172,5 @@ export class ThreadAgentClient {
 }
 
 function message(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+  return describeError(error, String(error));
 }

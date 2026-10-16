@@ -1,3 +1,4 @@
+import { LocalizedError } from "./shared/i18n/messages.ts";
 import { createBackgroundResidence } from "./main/platform/background.ts";
 import { resolve } from "node:path";
 import { app, BrowserWindow, dialog, shell, Tray, Menu, nativeImage } from "electron";
@@ -11,6 +12,8 @@ import type { Updater } from "./main/platform/updater.ts";
 import { applicationIconPath, createDesktopWindows } from "./main/windows.ts";
 import { createAgentSubscriptions } from "./main/ipc/subscriptions.ts";
 import { registerDesktopIpc } from "./main/ipc/handlers.ts";
+import { mainI18n, t, errorMessage } from "./main/i18n.ts";
+import { defaultLocale } from "./shared/i18n/locales.ts";
 
 let agentService: DesktopApplication | undefined;
 let updater: Updater | undefined;
@@ -19,8 +22,8 @@ let ready = false;
 let startup: Promise<void> | undefined;
 
 function service() {
-  if (quitting) throw new Error("RuntimeClosing: Eta 正在退出");
-  if (!agentService) throw new Error("Agent 尚未就绪");
+  if (quitting) throw new LocalizedError("errors:main.etaIsShuttingDown");
+  if (!agentService) throw new LocalizedError("errors:main.theAgentIsNotReadyYet");
   return agentService;
 }
 
@@ -36,18 +39,21 @@ const background = createBackgroundResidence({
   windowCount: () => BrowserWindow.getAllWindows().length,
   createTray: (open, quit) => {
     const icon = nativeImage.createFromPath(applicationIconPath());
-    if (icon.isEmpty()) throw new Error("无法加载后台托盘图标");
+    if (icon.isEmpty()) throw new LocalizedError("errors:main.cannotLoadTheBackgroundTrayIcon");
     const tray = new Tray(icon.resize({ width: 16, height: 16 }));
-    tray.setToolTip("Eta · 后台运行");
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        { label: "打开 Eta", click: open },
-        { type: "separator" },
-        { label: "退出 Eta", click: quit },
-      ]),
-    );
+    const refresh = () => {
+      tray.setToolTip(t("native:background.tooltip"));
+      tray.setContextMenu(
+        Menu.buildFromTemplate([
+          { label: t("native:background.open"), click: open },
+          { type: "separator" },
+          { label: t("native:background.quit"), click: quit },
+        ]),
+      );
+    };
+    refresh();
     tray.on("double-click", open);
-    return tray;
+    return { destroy: () => tray.destroy(), refresh };
   },
 });
 let backgroundRevision = 0;
@@ -56,8 +62,11 @@ function refreshBackground() {
   void agentService
     ?.library()
     .then(({ settings }) => {
-      if (!quitting && revision === backgroundRevision)
+      if (!quitting && revision === backgroundRevision) {
+        void mainI18n.changeLanguage(settings.locale ?? defaultLocale);
         background.configure(settings.backgroundOnClose === true);
+        background.refresh();
+      }
     })
     .catch((error: unknown) => console.error("Eta background setting failed", error));
 }
@@ -155,7 +164,9 @@ if (!app.requestSingleInstanceLock()) {
       });
 
       // 7. 标记就绪状态；若启动过程中未收到退出信号，则打开初始窗口
-      background.configure((await agentService.library()).settings.backgroundOnClose === true);
+      const initialSettings = (await agentService.library()).settings;
+      await mainI18n.changeLanguage(initialSettings.locale ?? defaultLocale);
+      background.configure(initialSettings.backgroundOnClose === true);
       ready = true;
       if (!quitting) openWindow();
 
@@ -167,7 +178,7 @@ if (!app.requestSingleInstanceLock()) {
     })
     .catch((error: unknown) => {
       // 启动阶段致命异常兜底：弹窗提示用户并退出应用，防止出现僵尸进程
-      dialog.showErrorBox("Eta 启动失败", error instanceof Error ? error.message : String(error));
+      dialog.showErrorBox(t("native:startup.failed"), errorMessage(error));
       app.quit();
     });
 }

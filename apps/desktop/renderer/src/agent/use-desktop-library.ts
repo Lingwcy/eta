@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
+import { i18n } from "@/i18n";
+import { defaultLocale } from "../../../src/shared/i18n/locales.ts";
 import { DesktopLibraryClient } from "@/desktop/library-client";
 import type { ModelSelection } from "@/desktop/selectors";
 
@@ -6,6 +8,13 @@ import type { ModelSelection } from "@/desktop/selectors";
 export function useDesktopLibrary() {
   const [client] = useState(() => new DesktopLibraryClient(window.eta));
   const state = useSyncExternalStore(client.subscribe, client.getSnapshot);
+  const locale = state.library?.settings.locale ?? defaultLocale;
+  const loaded = state.library !== null;
+  useLayoutEffect(() => {
+    if (!loaded) return;
+    void i18n.changeLanguage(locale);
+    document.documentElement.lang = locale;
+  }, [locale, loaded]);
   const [mainModel, setMainModel] = useState<ModelSelection>();
   const selectMainModel = useCallback((model: ModelSelection | undefined) => {
     setMainModel((current) =>

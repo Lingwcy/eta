@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useState } from "react";
 import { Bookmark } from "lucide-react";
 import { MessageMarkdown } from "./message-markdown";
@@ -18,6 +20,7 @@ export function ChatNavigation({
   activeId: string | undefined;
   onNavigate: (id: string) => void;
 }) {
+  useTranslation();
   const [hovered, setHovered] = useState<number | null>(null);
   if (turns.length < 2) return null;
   return (
@@ -29,7 +32,7 @@ export function ChatNavigation({
       {({ payload }) => (
         <>
           <nav
-            aria-label="会话导航"
+            aria-label={t("chat:chatNavigation.chatNavigation")}
             onPointerLeave={() => setHovered(null)}
             onBlur={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget)) setHovered(null);
@@ -50,7 +53,10 @@ export function ChatNavigation({
                     <Button
                       variant="timeline"
                       size="tick"
-                      aria-label={`跳到第 ${index + 1} 轮：${turn.title}`}
+                      aria-label={t("chat:chatNavigation.jumpToTurn", {
+                        value1: index + 1,
+                        title: turn.title,
+                      })}
                       aria-current={turn.id === activeId ? "location" : undefined}
                       onClick={() => onNavigate(turn.id)}
                     >
@@ -81,7 +87,9 @@ export function ChatNavigation({
                     <Bookmark size={14} className="shrink-0 text-neutral-400" aria-hidden="true" />
                   </div>
                   <div className="mt-1.5 line-clamp-4 text-xs/5 break-words text-neutral-500 [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
-                    <MessageMarkdown text={payload.preview || "等待响应…"} />
+                    <MessageMarkdown
+                      text={payload.preview || t("chat:chatNavigation.waitingForAResponse")}
+                    />
                   </div>
                 </Reveal>
               )}

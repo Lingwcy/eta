@@ -1,15 +1,16 @@
+import { t } from "@/i18n";
 import { useEffect, useMemo, useState } from "react";
 import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { ThinkingStatus } from "./thinking-status";
 
-const labels = {
-  waiting: "等待首次响应",
-  continuing: "等待下一步响应",
-  thinking: "正在思考",
-  retrying: "正在重试响应",
-  deferred: "等待后台响应",
-  subagents: "等待子智能体",
-};
+const labels = () => ({
+  waiting: t("chat:useThinkingStatus.waitingForTheFirstResponse"),
+  continuing: t("chat:useThinkingStatus.waitingForTheNextResponse"),
+  thinking: t("chat:useThinkingStatus.thinking"),
+  retrying: t("chat:useThinkingStatus.retryingTheResponse"),
+  deferred: t("chat:useThinkingStatus.waitingForABackgroundResponse"),
+  subagents: t("chat:useThinkingStatus.waitingForSubagents"),
+});
 
 /** Brief phases are suppressed; visible phase changes keep the indicator mounted. */
 export function useThinkingStatus(threadId: string | null, snapshot?: AgentSnapshot) {
@@ -35,6 +36,6 @@ export function useThinkingStatus(threadId: string | null, snapshot?: AgentSnaps
     return () => window.clearTimeout(timer);
   }, [phase, runKey, shownRun]);
   return phase && shownRun === runKey
-    ? { label: labels[phase], startedAt, waiting: phase !== "thinking" }
+    ? { label: labels()[phase], startedAt, waiting: phase !== "thinking" }
     : null;
 }

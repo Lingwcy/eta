@@ -1,3 +1,6 @@
+import { threadTitle } from "@/i18n/thread-title";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { ThreadContextMenu } from "../threads/thread-actions";
 import { useMemo, useState } from "react";
 import { Clock, FolderClosed, SquarePen, BookOpen } from "lucide-react";
@@ -17,6 +20,7 @@ import { searchThreads } from "./search-threads";
 import type { SearchDialogProps } from "./search-dialog-props";
 
 export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => void }) {
+  useTranslation();
   const [query, setQuery] = useState("");
   const worktrees = useMemo(
     () =>
@@ -30,7 +34,7 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
   const matches = searchThreads(props.library, query, props.archived);
   const chats = (query.trim() ? matches : matches.slice(0, 9)).map(({ thread, project }) => ({
     id: thread.id,
-    label: thread.title || "新聊天",
+    label: threadTitle(thread),
     project,
     kind: "chat",
     worktree: worktrees.has(thread.workspaceId),
@@ -40,7 +44,7 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
       ? [
           {
             id: "schedules",
-            label: "定时任务",
+            label: t("navigation:threadSearchContent.scheduledTasks"),
             kind: "action",
             icon: Clock,
             shortcut: "",
@@ -51,7 +55,7 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
       : []),
     {
       id: "skills",
-      label: "技能设置",
+      label: t("navigation:threadSearchContent.skillSettings"),
       kind: "action",
       icon: BookOpen,
       shortcut: "",
@@ -60,7 +64,7 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
     },
     {
       id: "new",
-      label: "新聊天",
+      label: t("navigation:threadSearchContent.newChat"),
       kind: "action",
       icon: SquarePen,
       shortcut: "⌘N",
@@ -69,7 +73,7 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
     },
     {
       id: "choose",
-      label: "打开文件夹",
+      label: t("navigation:threadSearchContent.openFolder"),
       kind: "action",
       icon: FolderClosed,
       shortcut: "⌘O",
@@ -78,8 +82,13 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
     },
   ].filter((action) => !query.trim() || action.label.includes(query.trim()));
   const groups = [
-    { label: props.archived ? "已归档聊天" : "聊天", items: chats },
-    { label: "快捷操作", items: actions },
+    {
+      label: props.archived
+        ? t("navigation:threadSearchContent.archivedChats")
+        : t("navigation:threadSearchContent.chat"),
+      items: chats,
+    },
+    { label: t("navigation:threadSearchContent.quickActions"), items: actions },
   ];
   const choose = (action: () => void) => {
     props.onClose();
@@ -108,7 +117,9 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
         }
       }}
     >
-      <DialogTitle className="sr-only">搜索聊天</DialogTitle>
+      <DialogTitle className="sr-only">
+        {t("navigation:threadSearchContent.searchChats")}
+      </DialogTitle>
       <Command
         items={groups}
         mode="none"
@@ -119,10 +130,17 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
         onValueChange={setQuery}
         itemToStringValue={(item) => item.label}
       >
-        <CommandInput aria-label="搜索聊天" placeholder="搜索聊天" />
+        <CommandInput
+          aria-label={t("navigation:threadSearchContent.searchChats")}
+          placeholder={t("navigation:threadSearchContent.searchChats")}
+        />
         <CommandList>
           <CommandGroup>
-            <CommandGroupLabel>{props.archived ? "已归档聊天" : "聊天"}</CommandGroupLabel>
+            <CommandGroupLabel>
+              {props.archived
+                ? t("navigation:threadSearchContent.archivedChats")
+                : t("navigation:threadSearchContent.chat")}
+            </CommandGroupLabel>
             {chats.map((chat, index) => (
               <ThreadContextMenu key={chat.id} id={chat.id} onScheduleOpen={props.onClose}>
                 <CommandItem value={chat} onClick={() => choose(() => props.onSelect(chat.id))}>
@@ -142,13 +160,17 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
             ))}
             {!chats.length && (
               <p className="px-6 py-3 text-sm text-neutral-400">
-                {query.trim() ? "没有找到匹配的聊天" : "没有聊天记录"}
+                {query.trim()
+                  ? t("navigation:threadSearchContent.noMatchingChatsFound")
+                  : t("navigation:threadSearchContent.noChatHistory")}
               </p>
             )}
           </CommandGroup>
           {actions.length > 0 && (
             <CommandGroup>
-              <CommandGroupLabel>快捷操作</CommandGroupLabel>
+              <CommandGroupLabel>
+                {t("navigation:threadSearchContent.quickActions")}
+              </CommandGroupLabel>
               {actions.map((action) => (
                 <CommandItem
                   key={action.id}

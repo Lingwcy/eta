@@ -1,3 +1,4 @@
+import { LocalizedError } from "../shared/i18n/messages.ts";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -38,7 +39,7 @@ export async function readAgentSettings(
     throw new Error(`${path} 不是有效的 JSON`, { cause: error });
   }
   if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error(`${path} 必须是 JSON 对象`);
+    throw new LocalizedError("errors:agentsettings.mustBeAJsonObject", { value1: path });
 
   const fields = value as Record<string, unknown>;
   const settings: AgentSettings = {};
@@ -46,13 +47,18 @@ export async function readAgentSettings(
     if (!(key in fields)) continue;
     const selected = fields[key];
     if (typeof selected !== "string" || !selected.trim())
-      throw new Error(`${path} 中的 ${key} 必须是非空字符串`);
+      throw new LocalizedError("errors:agentsettings.inMustBeANonEmptyString", {
+        value1: path,
+        value2: key,
+      });
     settings[key] = selected.trim();
   }
   if ("defaultThinkingLevel" in value) {
     const level = value.defaultThinkingLevel;
     if (typeof level !== "string" || !thinkingLevels.has(level as ThinkingLevel))
-      throw new Error(`${path} 中的 defaultThinkingLevel 无效`);
+      throw new LocalizedError("errors:agentsettings.invalidDefaultthinkinglevelIn", {
+        value1: path,
+      });
     settings.defaultThinkingLevel = level as ThinkingLevel;
   }
   return settings;

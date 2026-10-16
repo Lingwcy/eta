@@ -1,3 +1,4 @@
+import type { MessageKey } from "./shared/i18n/messages.ts";
 export type LoginMethod = "oauth" | "api_key";
 
 export interface AuthProvider {
@@ -22,7 +23,8 @@ export interface LoginState {
   method: LoginMethod;
   status: "running" | "completed" | "cancelled" | "failed";
   message: string;
+  messageKey?: MessageKey;
   prompt?: LoginPrompt;
-  links: { url: string; label?: string }[];
+  links: { url: string; label?: string; labelKey?: MessageKey }[];
   deviceCode?: string;
 }

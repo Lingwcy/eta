@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -26,6 +28,7 @@ function ReviewerSettings({
   active: boolean;
   onChange: (reviewer: ApprovalReviewer | null) => void;
 }) {
+  useTranslation();
   const [stats, setStats] = useState<ReviewStats>();
   useEffect(() => {
     if (active) void window.eta.reviewStats().then(setStats, () => setStats(undefined));
@@ -37,13 +40,18 @@ function ReviewerSettings({
   );
   const choose = (next: ApprovalReviewer["mode"]) => onChange({ ...reviewer, mode: next });
   return (
-    <SettingsSection title="越界请求审批">
+    <SettingsSection title={t("settings:permissionSettings.approvalForAccessOutsideTheSandbox")}>
       <SettingsRow
-        title="审批人"
+        title={t("settings:permissionSettings.approver")}
         description={
           reviewer
-            ? "代理请求沙盒外的访问时由谁决定。自动审查只决定是否批准，不会扩大权限；拿不准或高风险的请求仍会交给你。"
-            : `当前使用默认值（${DEFAULT_REVIEWER_MODE === "auto" ? "自动审查" : "我"}）。代理请求沙盒外的访问时由谁决定。`
+            ? t("settings:permissionSettings.whoDecidesWhenTheAgentRequestsAccess")
+            : t("settings:permissionSettings.usingTheDefaultWhoDecidesWhenThe", {
+                value1:
+                  DEFAULT_REVIEWER_MODE === "auto"
+                    ? t("settings:permissionSettings.automaticReview")
+                    : t("settings:permissionSettings.me"),
+              })
         }
       >
         <div className="flex items-center gap-1">
@@ -54,7 +62,7 @@ function ReviewerSettings({
             disabled={busy}
             onClick={() => choose("user")}
           >
-            我
+            {t("settings:permissionSettings.me")}
           </Button>
           <Button
             variant="outline"
@@ -63,22 +71,25 @@ function ReviewerSettings({
             disabled={busy}
             onClick={() => choose("auto")}
           >
-            自动审查
+            {t("settings:permissionSettings.automaticReview")}
           </Button>
           {reviewer && (
             <Button variant="link" size="sm" disabled={busy} onClick={() => onChange(null)}>
-              恢复默认
+              {t("settings:permissionSettings.resetToDefault")}
             </Button>
           )}
         </div>
       </SettingsRow>
       {mode === "auto" && (
         <SettingsRow
-          title="审查模型"
+          title={t("settings:permissionSettings.reviewModel")}
           description={
             selected && !model
-              ? `${selected.provider}/${selected.modelId} 当前不可用，请求会转交给你。`
-              : "默认使用发起请求的会话自己的模型。Bot 会话由 Bot 配置文件决定。"
+              ? t("settings:permissionSettings.isUnavailableRequestsWillGoToYou", {
+                  provider: selected.provider,
+                  modelId: selected.modelId,
+                })
+              : t("settings:permissionSettings.usesTheRequestingChatSModelBy")
           }
         >
           <div className="max-w-64">
@@ -89,10 +100,15 @@ function ReviewerSettings({
               showThinking={false}
               side="bottom"
               placeholder={
-                selected ? `${selected.provider}/${selected.modelId}（不可用）` : undefined
+                selected
+                  ? t("settings:permissionSettings.unavailable", {
+                      provider: selected.provider,
+                      modelId: selected.modelId,
+                    })
+                  : undefined
               }
               defaultOption={{
-                label: "与会话相同",
+                label: t("settings:permissionSettings.sameAsChat"),
                 selected: !selected,
                 onSelect: () => onChange({ ...reviewer, mode, model: null }),
               }}
@@ -110,8 +126,15 @@ function ReviewerSettings({
       )}
       {stats && stats.reviews > 0 && (
         <SettingsRow
-          title="近期自动审查"
-          description={`最近 ${stats.reviews} 次：批准 ${stats.approved}，拒绝 ${stats.denied}，转交 ${stats.escalated + stats.skipped}（其中你批准了 ${stats.escalatedApproved}），平均 ${(stats.averageMs / 1000).toFixed(1)} 秒。`}
+          title={t("settings:permissionSettings.recentAutomaticReviews")}
+          description={t("settings:permissionSettings.lastReviewsApprovedDeniedReferredToYou", {
+            reviews: stats.reviews,
+            approved: stats.approved,
+            denied: stats.denied,
+            value4: stats.escalated + stats.skipped,
+            escalatedApproved: stats.escalatedApproved,
+            value6: (stats.averageMs / 1000).toFixed(1),
+          })}
         >
           {null}
         </SettingsRow>
@@ -145,40 +168,44 @@ export function PermissionSettings({
   agentMode: AgentMode;
   onAgentModeChange: (mode: AgentMode) => void;
 }) {
+  useTranslation();
   return (
     <>
-      <SettingsSection title="Agent 模式">
+      <SettingsSection title={t("settings:permissionSettings.agentMode")}>
         <SettingsRow
-          title="本地工具调用模式"
-          description="Code mode 使用 JavaScript 组合调用已启用的工具。切换从下一轮新任务生效，执行中和待恢复的任务保持原模式。"
+          title={t("settings:permissionSettings.localToolCallingMode")}
+          description={t("settings:permissionSettings.codeModeCombinesEnabledToolsUsingJavascript")}
         >
           <SegmentedControl
-            aria-label="本地工具调用模式"
+            aria-label={t("settings:permissionSettings.localToolCallingMode")}
             value={agentMode}
             options={[
               { value: "codemode", label: "Code mode" },
-              { value: "standard", label: "普通模式" },
+              { value: "standard", label: t("settings:permissionSettings.standardMode") },
             ]}
             disabled={busy}
             onValueChange={onAgentModeChange}
           />
         </SettingsRow>
         {library.bot?.status === "connected" && (
-          <SettingsRow title="Bot 工具调用模式" description="由 Bot 的运行时配置决定。">
+          <SettingsRow
+            title={t("settings:permissionSettings.botToolCallingMode")}
+            description={t("settings:permissionSettings.determinedByTheBotRuntimeConfiguration")}
+          >
             <span className="text-xs text-neutral-500">
               {library.bot.capabilities?.includes("agent-mode")
                 ? (library.bot.library?.settings.agentMode ?? defaultAgentMode) === "codemode"
                   ? "Code mode"
-                  : "普通模式"
-                : "当前 Bot 版本不支持模式切换"}
+                  : t("settings:permissionSettings.standardMode")
+                : t("settings:permissionSettings.thisBotVersionDoesNotSupportMode")}
             </span>
           </SettingsRow>
         )}
       </SettingsSection>
-      <SettingsSection title="代理沙盒">
+      <SettingsSection title={t("settings:permissionSettings.agentSandbox")}>
         <SettingsRow
-          title="新会话默认策略"
-          description="仅影响之后创建的本机会话。已有会话可在输入框切换，需先停止当前任务和子智能体。"
+          title={t("settings:permissionSettings.defaultPolicyForNewChats")}
+          description={t("settings:permissionSettings.onlyAffectsLocalChatsCreatedLaterChange")}
         >
           <SandboxPicker
             mode={sandboxMode}
@@ -196,26 +223,30 @@ export function PermissionSettings({
         onChange={onReviewerChange}
       />
       {library.bot?.status === "connected" && (
-        <SettingsSection title="Bot 越界请求审批">
+        <SettingsSection
+          title={t("settings:permissionSettings.botApprovalForAccessOutsideTheSandbox")}
+        >
           <SettingsRow
-            title="审批人"
-            description="由 Bot 配置文件的 runtime.approvalReviewer 决定。"
+            title={t("settings:permissionSettings.approver")}
+            description={t(
+              "settings:permissionSettings.determinedByRuntimeApprovalreviewerInTheBot",
+            )}
           >
             <span className="text-xs text-neutral-500">
               {library.bot.capabilities?.includes("approval-review")
                 ? (library.bot.library?.settings.approvalReviewer?.mode ??
                     DEFAULT_REVIEWER_MODE) === "auto"
-                  ? "自动审查"
-                  : "我"
-                : "当前 Bot 版本不支持自动审查"}
+                  ? t("settings:permissionSettings.automaticReview")
+                  : t("settings:permissionSettings.me")
+                : t("settings:permissionSettings.thisBotVersionDoesNotSupportAutomatic")}
             </span>
           </SettingsRow>
         </SettingsSection>
       )}
-      <SettingsSection title="图片读取">
+      <SettingsSection title={t("settings:permissionSettings.imageAccess")}>
         <SettingsRow
-          title="允许模型读取图片"
-          description="关闭后仅发送文字占位符，图片仍保留在会话中。"
+          title={t("settings:permissionSettings.allowTheModelToReadImages")}
+          description={t("settings:permissionSettings.whenOffOnlyTextPlaceholdersAreSent")}
         >
           <Button
             variant="outline"
@@ -224,7 +255,9 @@ export function PermissionSettings({
             disabled={busy}
             onClick={() => onAllowImagesChange(blockImages)}
           >
-            {blockImages ? "已关闭" : "已开启"}
+            {blockImages
+              ? t("settings:permissionSettings.off")
+              : t("settings:permissionSettings.on")}
           </Button>
         </SettingsRow>
       </SettingsSection>

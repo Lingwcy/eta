@@ -1,3 +1,7 @@
+import { renderMessage } from "@/i18n/messages";
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useState } from "react";
 import type { BotState } from "../../../../src/shared/bot.ts";
 import { SettingsRow, SettingsSection } from "./settings-section";
@@ -6,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { ToastNotice } from "@/components/ui/toast";
 
 export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => Promise<void> }) {
+  useTranslation();
   const [url, setUrl] = useState(bot?.url ?? "");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<string>();
-  const [error, setError] = useState<string>();
+  const [result, setResult] = useState<Message>();
+  const [error, setError] = useState<Message>();
   const act = async (action: () => Promise<unknown>) => {
     setBusy(true);
     setError(undefined);
@@ -20,16 +25,23 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
       setToken("");
       await refresh();
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Bot 连接失败");
+      setError(describeError(error, localizedMessage("settings:botSettings.botConnectionFailed")));
     } finally {
       setBusy(false);
     }
   };
   return (
     <>
-      <ToastNotice message={error} title="Bot 操作未完成" />
-      <ToastNotice message={result} type="success" title="Bot 配置已更新" />
-      <SettingsSection title="Bot 连接">
+      <ToastNotice
+        message={error}
+        title={localizedMessage("settings:botSettings.theBotActionCouldNotBeCompleted")}
+      />
+      <ToastNotice
+        message={result}
+        type="success"
+        title={localizedMessage("settings:botSettings.botConfigurationUpdated")}
+      />
+      <SettingsSection title={t("settings:botSettings.botConnection")}>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -37,12 +49,12 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
           }}
         >
           <SettingsRow
-            title="服务器地址"
-            description="填写已部署的 Eta Bot 地址。连接后，可选择云端项目并在 Bot 上执行任务。"
+            title={t("settings:botSettings.serverAddress")}
+            description={t("settings:botSettings.enterYourDeployedEtaBotAddressOnce")}
           >
             <div className="w-64">
               <Input
-                aria-label="Bot 服务器地址"
+                aria-label={t("settings:botSettings.botServerAddress")}
                 placeholder="https://bot.example.com"
                 value={url}
                 onValueChange={setUrl}
@@ -50,13 +62,20 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
               />
             </div>
           </SettingsRow>
-          <SettingsRow title="访问令牌" description="使用 Bot 部署时配置的管理员令牌。">
+          <SettingsRow
+            title={t("settings:botSettings.accessToken")}
+            description={t("settings:botSettings.useTheAdministratorTokenConfiguredWhenDeploying")}
+          >
             <div className="w-64">
               <Input
                 type="password"
                 autoComplete="off"
-                aria-label="Bot 访问令牌"
-                placeholder={bot?.url ? "输入令牌以更换连接" : "管理员令牌"}
+                aria-label={t("settings:botSettings.botAccessToken")}
+                placeholder={
+                  bot?.url
+                    ? t("settings:botSettings.enterATokenToChangeTheConnection")
+                    : t("settings:botSettings.administratorToken")
+                }
                 value={token}
                 onValueChange={setToken}
                 disabled={busy}
@@ -64,11 +83,14 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
             </div>
           </SettingsRow>
           <SettingsRow
-            title="连接状态"
+            title={t("settings:botSettings.connectionStatus")}
             description={
               bot?.status === "connected"
-                ? `已连接 · ${bot.library?.projects.length ?? 0} 个云端项目`
-                : (bot?.message ?? "未连接")
+                ? t("settings:botSettings.connectedCloudProjects", {
+                    count: bot.library?.projects.length ?? 0,
+                  })
+                : (renderMessage(bot?.localization ?? bot?.message) ??
+                  t("settings:botSettings.disconnected"))
             }
           >
             {bot?.url && (
@@ -79,7 +101,7 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
                   disabled={busy}
                   onClick={() => void act(() => window.eta.reconnectBot())}
                 >
-                  重新连接
+                  {t("settings:botSettings.reconnect")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -87,20 +109,22 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
                   disabled={busy}
                   onClick={() => void act(() => window.eta.disconnectBot())}
                 >
-                  断开连接
+                  {t("settings:botSettings.disconnect")}
                 </Button>
               </>
             )}
             <Button size="sm" type="submit" disabled={busy || !url.trim() || !token.trim()}>
-              {busy ? "处理中…" : "保存并连接"}
+              {busy
+                ? t("settings:botSettings.processing")
+                : t("settings:botSettings.saveAndConnect")}
             </Button>
           </SettingsRow>
         </form>
       </SettingsSection>
-      <SettingsSection title="Bot 配置">
+      <SettingsSection title={t("settings:botSettings.botConfiguration")}>
         <SettingsRow
-          title="模型凭证"
-          description="将客户端保存的 API Key 和 OAuth 凭证复制到 Bot。重复导入会更新相同服务商的凭证。"
+          title={t("settings:botSettings.modelCredentials")}
+          description={t("settings:botSettings.copyApiKeysAndOauthCredentialsSaved")}
         >
           <Button
             size="sm"
@@ -108,11 +132,17 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
             onClick={() =>
               void act(async () => {
                 const value = await window.eta.importBotCredentials();
-                setResult(`已导入 ${value.imported} 个服务商的凭证`);
+                setResult(
+                  localizedMessage("settings:botSettings.importedCredentialsForProviders", {
+                    count: value.imported,
+                  }),
+                );
               })
             }
           >
-            {busy ? "处理中…" : "导入客户端凭证"}
+            {busy
+              ? t("settings:botSettings.processing")
+              : t("settings:botSettings.importClientCredentials")}
           </Button>
         </SettingsRow>
         {bot?.library?.credentials?.map((credential) => (
@@ -127,7 +157,7 @@ export function BotSettings({ bot, refresh }: { bot?: BotState; refresh: () => P
               disabled={busy || bot?.status !== "connected"}
               onClick={() => void act(() => window.eta.removeBotCredential(credential.providerId))}
             >
-              移除
+              {t("settings:botSettings.remove")}
             </Button>
           </SettingsRow>
         ))}

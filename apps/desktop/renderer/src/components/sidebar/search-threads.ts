@@ -1,3 +1,5 @@
+import { threadTitle } from "@/i18n/thread-title";
+import { t } from "@/i18n";
 import { isCloudId } from "../../../../src/shared/bot.ts";
 import { threadProjectId } from "@eta/core/shared/thread-project";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
@@ -12,17 +14,24 @@ export function searchThreads(library: DesktopLibrary | null, query: string, arc
     .filter((thread) => (thread.archivedAt !== undefined) === archived)
     .map((thread) => {
       const workspace = workspaces.get(thread.workspaceId);
-      const name = projects.get(threadProjectId(thread, library) ?? "") ?? "未分组";
+      const name =
+        projects.get(threadProjectId(thread, library) ?? "") ??
+        t("navigation:searchThreads.ungrouped");
       const project =
         thread.projectId === undefined && workspace?.kind === "worktree"
           ? `${name} · ${workspace.cwd.split("/").at(-1)}`
           : name;
-      return { thread, project: isCloudId(thread.id) ? `云端 · ${project}` : project };
+      return {
+        thread,
+        project: isCloudId(thread.id)
+          ? t("navigation:searchThreads.cloud", { project: project })
+          : project,
+      };
     })
     .filter(
       ({ thread, project }) =>
         !search ||
-        thread.title.toLocaleLowerCase().includes(search) ||
+        threadTitle(thread).toLocaleLowerCase().includes(search) ||
         project.toLocaleLowerCase().includes(search),
     )
     .toSorted(

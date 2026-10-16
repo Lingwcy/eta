@@ -1,6 +1,8 @@
+import { LocalizedError } from "../shared/i18n/messages.ts";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, shell } from "electron";
+import { t, errorMessage } from "./i18n.ts";
 import type { WebContents } from "electron";
 import { createWindowBrowser } from "./browser/electron.ts";
 import type { BrowserManager } from "./browser/manager.ts";
@@ -75,10 +77,7 @@ export function createDesktopWindows(
       const protocol = new URL(url).protocol;
       if (protocol === "https:" || protocol === "http:" || protocol === "mailto:") {
         void shell.openExternal(url).catch((error: unknown) => {
-          dialog.showErrorBox(
-            "无法打开链接",
-            error instanceof Error ? error.message : String(error),
-          );
+          dialog.showErrorBox(t("native:window.openLinkFailed"), errorMessage(error));
         });
       }
       return { action: "deny" };
@@ -103,17 +102,15 @@ export function createDesktopWindows(
     if (threadId) url.searchParams.set("thread", threadId);
     const loaded = currentWindow.loadURL(url.href);
     void loaded.catch((error: unknown) => {
-      dialog.showErrorBox(
-        "Eta 页面加载失败",
-        error instanceof Error ? error.message : String(error),
-      );
+      dialog.showErrorBox(t("native:window.loadFailed"), errorMessage(error));
       currentWindow.close();
     });
   }
 
   const browserFor = (sender: WebContents) => {
     const current = BrowserWindow.fromWebContents(sender);
-    if (closing() || !current || current.isDestroyed()) throw new Error("浏览器窗口不可用");
+    if (closing() || !current || current.isDestroyed())
+      throw new LocalizedError("errors:windows.theBrowserWindowIsUnavailable");
     let browser = browsers.get(sender.id);
     if (!browser) {
       browser = createWindowBrowser(current);

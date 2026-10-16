@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import {
   ScheduleToolNotice,
   scheduleToolResult,
@@ -31,6 +33,7 @@ type DetailMode = "preview" | "expanded" | "collapsed";
 
 /** New tool calls open once; result updates never override the chosen display mode. */
 export function ToolItem({ tool }: { tool: SnapshotTool }) {
+  useTranslation();
   const schedule = scheduleToolResult(tool);
   if (schedule) return <ScheduleToolNotice result={schedule} />;
   if (tool.toolName === "schedule" && tool.args.action !== "list" && tool.status === "running")
@@ -38,7 +41,8 @@ export function ToolItem({ tool }: { tool: SnapshotTool }) {
       <div className="flex items-center gap-2 py-1 text-xs text-neutral-500">
         <Clock3 size={14} aria-hidden="true" />
         <span>
-          正在处理定时任务{typeof tool.args.name === "string" ? ` · ${tool.args.name}` : ""}
+          {t("chat:toolItem.processingScheduledTask")}
+          {typeof tool.args.name === "string" ? ` · ${tool.args.name}` : ""}
         </span>
       </div>
     );
@@ -46,6 +50,7 @@ export function ToolItem({ tool }: { tool: SnapshotTool }) {
 }
 
 function GenericToolItem({ tool }: { tool: SnapshotTool }) {
+  useTranslation();
   const [mode, setMode] = useState<DetailMode>("preview");
   const animate = useContext(EntranceAnimation);
   const [entered, setEntered] = useState(!animate);
@@ -69,16 +74,16 @@ function GenericToolItem({ tool }: { tool: SnapshotTool }) {
         : CircleCheck;
   const Icon = toolIcons[tool.toolName as keyof typeof toolIcons] ?? Wrench;
   const label = failed
-    ? `${tool.toolName} · 失败`
+    ? t("chat:toolItem.failed", { toolName: tool.toolName })
     : waiting
-      ? `${tool.toolName} · 等待批准`
+      ? t("chat:toolItem.awaitingApproval", { toolName: tool.toolName })
       : tool.status === "settled"
-        ? `${tool.toolName} · 已完成`
+        ? t("chat:toolItem.completed", { toolName: tool.toolName })
         : running
-          ? `正在执行 ${tool.toolName}`
+          ? t("chat:toolItem.running", { toolName: tool.toolName })
           : tool.status === "stopped"
-            ? `${tool.toolName} · 已停止`
-            : `${tool.toolName} · 无结果记录`;
+            ? t("chat:toolItem.stopped", { toolName: tool.toolName })
+            : t("chat:toolItem.noResultRecorded", { toolName: tool.toolName });
   return (
     <Reveal>
       <Collapsible open={open} onOpenChange={(next) => setMode(next ? "preview" : "collapsed")}>
@@ -87,7 +92,10 @@ function GenericToolItem({ tool }: { tool: SnapshotTool }) {
             <CollapsibleTrigger
               variant="ghost-muted"
               size="row-sm"
-              aria-label={`${open ? "全部收起" : "展开"} ${tool.toolName} 详情`}
+              aria-label={t("chat:toolItem.details", {
+                value1: open ? t("chat:toolItem.collapseAll") : t("chat:toolItem.expand"),
+                toolName: tool.toolName,
+              })}
             >
               <Icon size={16} aria-hidden="true" />
               <span className={cn("min-w-0 flex-1 truncate", failed && "text-red-600")}>
@@ -117,8 +125,12 @@ function GenericToolItem({ tool }: { tool: SnapshotTool }) {
             size="icon-xs"
             aria-controls={detailsId}
             aria-pressed={expanded}
-            aria-label={expanded ? `返回 ${tool.toolName} 预览` : `展开 ${tool.toolName} 详情`}
-            title={expanded ? "返回预览" : "展开详情"}
+            aria-label={
+              expanded
+                ? t("chat:toolItem.backToPreview", { toolName: tool.toolName })
+                : t("chat:toolItem.expandDetails", { toolName: tool.toolName })
+            }
+            title={expanded ? t("chat:toolItem.backToPreview2") : t("chat:toolItem.expandDetails2")}
             onClick={() => setMode(expanded ? "preview" : "expanded")}
           >
             {expanded ? (

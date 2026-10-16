@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { Textarea } from "@/components/ui/textarea";
 import type { PromptTextareaProps } from "./types";
 
@@ -10,6 +12,7 @@ export function PromptTextarea({
   minRows = 2,
   className,
 }: PromptTextareaProps) {
+  useTranslation();
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 拦截非输入法合成状态下的纯 Enter 按键进行提交
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -30,7 +33,7 @@ export function PromptTextarea({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={className}
-        aria-label="Prompt 消息输入框"
+        aria-label={t("chat:promptTextarea.promptMessageInput")}
       />
     </div>
   );

@@ -1,6 +1,29 @@
 import { expect, test, vi } from "vite-plus/test";
 import { createBackgroundResidence } from "./background.ts";
 
+test("refreshing localized tray text preserves residency with no windows", () => {
+  const refresh = vi.fn();
+  const destroy = vi.fn();
+  const quit = vi.fn();
+  const background = createBackgroundResidence({
+    platform: "win32",
+    createTray: () => ({ refresh, destroy }),
+    open: () => {},
+    quit,
+    windowCount: () => 0,
+  });
+  background.configure(true);
+  background.refresh();
+  background.refresh();
+  expect(refresh).toHaveBeenCalledTimes(2);
+  expect(background.keepRunning()).toBe(true);
+  expect(quit).not.toHaveBeenCalled();
+  expect(destroy).not.toHaveBeenCalled();
+  background.dispose();
+  background.refresh();
+  expect(refresh).toHaveBeenCalledTimes(2);
+});
+
 test("Windows defaults to exit, requires a visible tray to stay alive, and has a reversible setting", () => {
   const destroy = vi.fn();
   const quit = vi.fn();

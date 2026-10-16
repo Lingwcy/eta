@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { DesktopSettings } from "../../../../src/shared/settings.ts";
 import { ModelPicker } from "../input/model-picker";
@@ -12,15 +14,16 @@ export function ConversationSettings({
   busy: boolean;
   onTitleModelChange: (model: DesktopSettings["titleModel"]) => void;
 }) {
+  useTranslation();
   const selected = library.settings.titleModel;
   const model = library.models.find(
     (model) => model.provider === selected?.provider && model.id === selected.modelId,
   );
   return (
-    <SettingsSection title="会话标题">
+    <SettingsSection title={t("settings:conversationSettings.chatTitles")}>
       <SettingsRow
-        title="标题生成模型"
-        description="首次发送后自动生成标题。默认使用该对话的模型，也可指定其他模型；手动修改的标题会保留。"
+        title={t("settings:conversationSettings.titleGenerationModel")}
+        description={t("settings:conversationSettings.generateATitleAfterTheFirstMessage")}
       >
         <div className="max-w-64">
           <ModelPicker
@@ -30,10 +33,15 @@ export function ConversationSettings({
             showThinking={false}
             side="bottom"
             placeholder={
-              selected ? `${selected.provider}/${selected.modelId}（不可用）` : undefined
+              selected
+                ? t("settings:conversationSettings.unavailable", {
+                    provider: selected.provider,
+                    modelId: selected.modelId,
+                  })
+                : undefined
             }
             defaultOption={{
-              label: "跟随对话模型",
+              label: t("settings:conversationSettings.useTheChatModel"),
               selected: !selected,
               onSelect: () => onTitleModelChange(null),
             }}

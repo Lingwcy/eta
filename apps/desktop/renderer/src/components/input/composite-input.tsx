@@ -1,3 +1,6 @@
+import { LocalizedError, describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { ImageAttachments, type AttachmentItem } from "./image-attachments";
 import { extractImagePaths } from "./image-paths";
 import type { ImageSource } from "@eta/core/images/types";
@@ -13,7 +16,7 @@ export function CompositeInput({
   defaultValue = "",
   onChange,
   onSubmit,
-  placeholder = "Hi, what do you need today?",
+  placeholder = t("chat:compositeInput.placeholder"),
   disabled = false,
   submitDisabled = false,
   isRunning = false,
@@ -22,10 +25,11 @@ export function CompositeInput({
   cwd,
   ...toolbar
 }: CompositeInputProps) {
+  useTranslation();
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [submitting, setSubmitting] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
-  const [attachmentError, setAttachmentError] = useState<string>();
+  const [attachmentError, setAttachmentError] = useState<Message>();
   const [dragging, setDragging] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
@@ -47,7 +51,10 @@ export function CompositeInput({
     const queued = files.map((file) => ({ file, id: crypto.randomUUID() }));
     setAttachments((items) => [
       ...items,
-      ...queued.map(({ file, id }) => ({ id, name: file.name || "粘贴图片" })),
+      ...queued.map(({ file, id }) => ({
+        id,
+        name: file.name || t("chat:compositeInput.pastedImage"),
+      })),
     ]);
     for (const { file, id } of queued) {
       if (!mounted.current) return;
@@ -55,24 +62,32 @@ export function CompositeInput({
         !file.type.startsWith("image/") &&
         !/\.(png|jpe?g|webp|gif|bmp|avif|heic|heif|tiff?)$/i.test(file.name)
       ) {
-        setAttachmentError("目前仅支持图片附件");
+        setAttachmentError(
+          localizedMessage("chat:compositeInput.onlyImageAttachmentsAreSupported"),
+        );
         setAttachments((items) =>
-          items.map((item) => (item.id === id ? { ...item, error: "目前仅支持图片附件" } : item)),
+          items.map((item) =>
+            item.id === id
+              ? { ...item, error: t("chat:compositeInput.onlyImageAttachmentsAreSupported") }
+              : item,
+          ),
         );
         continue;
       }
       try {
-        if (file.size > 32 * 1024 * 1024) throw new Error("图片文件超过 32 MiB");
+        if (file.size > 32 * 1024 * 1024)
+          throw new LocalizedError("chat:compositeInput.theImageFileExceeds32Mib");
         const data = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () =>
             typeof reader.result === "string"
               ? resolve(reader.result.split(",")[1])
-              : reject(new Error("无法读取图片"));
-          reader.onerror = () => reject(new Error("无法读取图片"));
+              : reject(new LocalizedError("chat:compositeInput.cannotReadTheImage"));
+          reader.onerror = () =>
+            reject(new LocalizedError("chat:compositeInput.cannotReadTheImage"));
           reader.readAsDataURL(file);
         });
-        const source = { data, name: file.name || "粘贴图片.png" };
+        const source = { data, name: file.name || t("chat:compositeInput.pastedImagePng") };
         const image = await prepare(source);
         if (mounted.current)
           setAttachments((items) =>
@@ -80,7 +95,10 @@ export function CompositeInput({
           );
       } catch (error) {
         if (mounted.current) {
-          const message = error instanceof Error ? error.message : "图片处理失败";
+          const message = describeError(
+            error,
+            localizedMessage("chat:compositeInput.imageProcessingFailed"),
+          );
           setAttachmentError(message);
           setAttachments((items) =>
             items.map((item) => (item.id === id ? { ...item, error: message } : item)),
@@ -116,13 +134,17 @@ export function CompositeInput({
       for (const path of paths) images.push(await prepare({ path }));
       const maxPerMessage = toolbar.model?.inputLimits?.images?.maxPerMessage;
       if (maxPerMessage && images.length > maxPerMessage)
-        throw new Error(`当前模型每条消息最多支持 ${maxPerMessage} 张图片`);
+        throw new LocalizedError("chat:compositeInput.thisModelSupportsUpToImagesPer", {
+          count: maxPerMessage,
+        });
       await onSubmit(prompt, images.length ? images : undefined);
       setText("");
       setAttachments([]);
     } catch (error) {
       if (mounted.current)
-        setAttachmentError(error instanceof Error ? error.message : "无法发送消息");
+        setAttachmentError(
+          describeError(error, localizedMessage("chat:compositeInput.cannotSendTheMessage")),
+        );
     } finally {
       sending.current = false;
       if (mounted.current) setSubmitting(false);
@@ -179,7 +201,10 @@ export function CompositeInput({
           }}
         />
       )}
-      <ToastNotice message={attachmentError} title="附件未能添加" />
+      <ToastNotice
+        message={attachmentError}
+        title={localizedMessage("chat:compositeInput.theAttachmentCouldNotBeAdded")}
+      />
       <PromptTextarea
         value={text}
         onChange={setText}

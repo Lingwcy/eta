@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { ScheduleMessages } from "@/components/schedules/schedule-tool-notice";
 import type { SchedulesController } from "@/agent/use-schedules";
 import { scheduleTime } from "@/components/schedules/format";
@@ -39,6 +41,7 @@ export function ConversationPanel({
   selectedSubagent?: string;
   onRoot: () => void;
 }) {
+  const { i18n } = useTranslation();
   const view = useDesktopController(tab, desktop, navigation, active, version);
   const [visitedChildren, setVisitedChildren] = useState<ReadonlySet<string>>(new Set());
   const [childDrafts, setChildDrafts] = useState<Record<string, string>>({});
@@ -64,12 +67,15 @@ export function ConversationPanel({
               (run) =>
                 [
                   run.inputEntryId!,
-                  `定时任务 · ${run.name} · 原定 ${scheduleTime(run.scheduledAt)}`,
+                  t("navigation:conversationPanel.scheduledTaskScheduledFor", {
+                    name: run.name,
+                    value2: scheduleTime(run.scheduledAt),
+                  }),
                 ] as const,
             ),
         ),
       ),
-    [schedules.snapshot, tab.threadId],
+    [schedules.snapshot, tab.threadId, i18n.language],
   );
   const scheduleMessages = useMemo(
     () => ({ threadId: tab.threadId ?? undefined, controller: schedules }),
@@ -122,7 +128,11 @@ export function ConversationPanel({
             {view.welcome && <ChatWelcome {...view.welcome} />}
             {view.loading && <ThreadLoading {...view.loading} />}
             {view.recovery && <RecoveryNotice {...view.recovery} />}
-            {view.stopped && <output className="text-xs text-neutral-500">已停止生成</output>}
+            {view.stopped && (
+              <output className="text-xs text-neutral-500">
+                {t("navigation:conversationPanel.generationStopped")}
+              </output>
+            )}
             <ThinkingSlot
               thinking={
                 view.thinking && {

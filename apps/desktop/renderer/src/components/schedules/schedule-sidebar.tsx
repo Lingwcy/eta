@@ -1,3 +1,7 @@
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { threadTitle } from "@/i18n/thread-title";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import type { Schedule } from "@eta/core/shared/schedules";
 import { useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
@@ -25,12 +29,13 @@ export function ScheduleSidebar({
   onSelect(this: void, id: string): void;
   onSaved(this: void, id: string): void;
 }) {
+  useTranslation();
   const [states, setStates] = useState(["active", "paused", "completed"]);
   const [creating, setCreating] = useState(false);
   const [edit, setEdit] = useState<Schedule>();
   const [acting, setActing] = useState(false);
   const [submittingRun, setSubmittingRun] = useState<string>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const action = async (plan: Schedule, kind: "pause" | "resume" | "run" | "edit" | "delete") => {
     if (kind === "edit") {
       setEdit(plan);
@@ -58,11 +63,23 @@ export function ScheduleSidebar({
         plan.threadId,
       );
     } catch (error) {
-      setError(error instanceof Error ? error.message : "无法处理定时任务");
+      setError(
+        describeError(
+          error,
+          localizedMessage("schedules:scheduleSidebar.cannotProcessTheScheduledTask"),
+        ),
+      );
     } finally {
       setActing(false);
       setSubmittingRun(undefined);
     }
+  };
+  const statusLabels = {
+    submitting: t("schedules:scheduleSidebar.submitting"),
+    running: t("schedules:scheduleSidebar.running"),
+    waiting: t("schedules:scheduleSidebar.waitingToRun"),
+    succeeded: t("schedules:scheduleSidebar.runSucceeded"),
+    failed: t("schedules:scheduleSidebar.chatError"),
   };
   const groups = controller.snapshot.snapshots
     .flatMap(({ environment, data }) => {
@@ -82,22 +99,22 @@ export function ScheduleSidebar({
           const latest = runs.toSorted((a, b) => b.scheduledAt - a.scheduledAt)[0];
           const status =
             submittingRun === id
-              ? "正在提交"
+              ? "submitting"
               : runs.some((run) => run.state === "admitted")
-                ? "执行中"
+                ? "running"
                 : runs.some((run) => ["pending", "dispatching"].includes(run.state))
-                  ? "等待执行"
+                  ? "waiting"
                   : latest?.state === "succeeded"
-                    ? "执行成功"
+                    ? "succeeded"
                     : latest?.state === "failed"
-                      ? "会话错误"
+                      ? "failed"
                       : undefined;
           return {
             id,
-            title: next?.name ?? plans[0]?.name ?? thread?.title ?? "新聊天",
+            title: next?.name ?? plans[0]?.name ?? threadTitle(thread),
             plans,
             next,
-            status,
+            status: status as keyof typeof statusLabels | undefined,
             environment,
             archived: thread?.archivedAt !== undefined,
             unavailable:
@@ -110,20 +127,25 @@ export function ScheduleSidebar({
     .toSorted((a, b) => (a.next?.nextRunAt ?? Infinity) - (b.next?.nextRunAt ?? Infinity));
   return (
     <aside
-      aria-label="定时任务"
+      aria-label={t("schedules:scheduleSidebar.scheduledTasks")}
       className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-neutral-100 bg-[#f8f8f8] py-2"
     >
       <div className="px-2 py-1">
         <Button variant="ghost" size="row-sm" disabled={!library} onClick={() => setCreating(true)}>
-          <Plus size={16} /> 新建任务
+          <Plus size={16} />
+          {t("schedules:scheduleSidebar.newTask")}
         </Button>
       </div>
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-xs text-neutral-500">即将执行</span>
+        <span className="text-xs text-neutral-500">{t("schedules:scheduleSidebar.upcoming")}</span>
         <Popover.Root>
           <Popover.Trigger
             render={
-              <Button variant="ghost" size="icon-xs" aria-label="筛选任务状态">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={t("schedules:scheduleSidebar.filterTaskStatus")}
+              >
                 <ListFilter size={15} />
               </Button>
             }
@@ -131,11 +153,13 @@ export function ScheduleSidebar({
           <Popover.Portal>
             <Popover.Positioner side="bottom" align="end" sideOffset={4} className="z-50">
               <Popover.Popup className="min-w-40 rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 p-1 text-xs shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl">
-                <p className="px-2 py-1 text-neutral-500">筛选依据</p>
+                <p className="px-2 py-1 text-neutral-500">
+                  {t("schedules:scheduleSidebar.filterBy")}
+                </p>
                 {[
-                  ["active", "已开启"],
-                  ["paused", "已暂停"],
-                  ["completed", "已完成"],
+                  ["active", t("schedules:scheduleSidebar.on")],
+                  ["paused", t("schedules:scheduleSidebar.paused")],
+                  ["completed", t("schedules:scheduleSidebar.completed")],
                 ].map(([value, label]) => (
                   <Button
                     key={value}
@@ -182,7 +206,7 @@ export function ScheduleSidebar({
       <ScrollArea className="flex-1" gutter="overlay">
         <ToastNotice
           message={error ?? controller.error}
-          title="定时任务操作未完成"
+          title={localizedMessage("schedules:scheduleSidebar.theScheduledTaskActionCouldNotBe")}
           onRetry={() => void controller.refresh()}
         />
         <nav>
@@ -200,13 +224,13 @@ export function ScheduleSidebar({
                       {group.environment.id === "local" ? (
                         <Monitor
                           size={13}
-                          aria-label="本地任务"
+                          aria-label={t("schedules:scheduleSidebar.localTask")}
                           className="shrink-0 text-neutral-400"
                         />
                       ) : (
                         <Cloud
                           size={13}
-                          aria-label="Bot 任务"
+                          aria-label={t("schedules:scheduleSidebar.botTask")}
                           className="shrink-0 text-neutral-400"
                         />
                       )}
@@ -216,26 +240,28 @@ export function ScheduleSidebar({
                       {group.next
                         ? `${scheduleTime(group.next.nextRunAt)} · ${scheduleRuleText(group.next.rule)}`
                         : group.archived
-                          ? "已归档"
+                          ? t("schedules:scheduleSidebar.archived")
                           : group.plans.some((plan) => plan.state === "paused")
-                            ? "已暂停"
-                            : "已完成"}
-                      {group.plans.length > 1 ? ` · ${group.plans.length} 个计划` : ""}
-                      {group.status ? ` · ${group.status}` : ""}
+                            ? t("schedules:scheduleSidebar.paused")
+                            : t("schedules:scheduleSidebar.completed")}
+                      {group.plans.length > 1
+                        ? t("schedules:scheduleSidebar.schedules", { count: group.plans.length })
+                        : ""}
+                      {group.status ? ` · ${statusLabels[group.status]}` : ""}
                     </span>
                   </span>
                 </Button>
                 {group.status && (
                   <span
                     role="status"
-                    aria-label={group.status}
-                    title={group.status}
+                    aria-label={statusLabels[group.status]}
+                    title={statusLabels[group.status]}
                     className={`absolute top-1.5 right-2 size-1.5 rounded-full ${
-                      group.status === "执行中"
+                      group.status === "running"
                         ? "schedule-running-light bg-blue-500"
-                        : group.status === "执行成功"
+                        : group.status === "succeeded"
                           ? "bg-green-500"
-                          : group.status === "会话错误"
+                          : group.status === "failed"
                             ? "bg-red-500"
                             : "bg-neutral-400"
                     }`}
@@ -260,7 +286,11 @@ export function ScheduleSidebar({
             </div>
           ))}
         </nav>
-        {!groups.length && <p className="px-3 py-2 text-xs text-neutral-400">暂无符合条件的任务</p>}
+        {!groups.length && (
+          <p className="px-3 py-2 text-xs text-neutral-400">
+            {t("schedules:scheduleSidebar.noTasksMatchTheseFilters")}
+          </p>
+        )}
       </ScrollArea>
     </aside>
   );

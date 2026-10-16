@@ -107,6 +107,7 @@ export default defineConfig({
         "@earendil-works/chord/**",
         "electron-updater",
         "electron-updater/**",
+        "i18next",
       ],
       neverBundle: ["electron"],
     },

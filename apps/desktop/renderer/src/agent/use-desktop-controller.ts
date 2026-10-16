@@ -1,3 +1,5 @@
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { t } from "@/i18n";
 import { isCloudId } from "../../../src/shared/bot.ts";
 import { defaultModel, projectRootWorkspace } from "@/desktop/selectors";
 import type { ImageAttachment } from "@eta/core/images/types";
@@ -27,7 +29,7 @@ export function useDesktopController(
   const reconnect = () => setLocalVersion((value) => value + 1);
   const agent = useThreadAgent(tab.threadId ?? null, version + localVersion, active);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const [draft] = useState(() => new DraftThread(tab.id, window.eta));
   const [worktreeDraft, setWorktreeDraft] = useState<WorktreeDraft>({ enabled: false });
   const workspace = desktop.library?.workspaces.find(
@@ -73,17 +75,17 @@ export function useDesktopController(
   const backgroundWork = Boolean(snapshot && !running && hasThreadActivity(snapshot));
   const sandboxDisabledReason =
     cloud && remote?.status !== "connected"
-      ? "Bot 未连接，请在设置中重新连接后切换策略。"
+      ? t("chat:useDesktopController.botIsDisconnectedReconnectInSettingsBefore")
       : cloud && !remote?.library?.allowedSandboxModes?.length
-        ? "当前 Bot 尚不支持沙盒，请更新 Bot 并重新连接。"
+        ? t("chat:useDesktopController.thisBotDoesNotSupportSandboxingUpdate")
         : running || backgroundWork
-          ? "请先停止线程和子智能体，再切换策略。"
+          ? t("chat:useDesktopController.stopTheThreadAndItsSubagentsBefore")
           : snapshot?.recoveryRequired
-            ? "请先恢复或停止当前任务，再切换策略。"
+            ? t("chat:useDesktopController.resumeOrStopTheCurrentTaskBefore")
             : tab.threadId && agent.connection !== "connected"
-              ? "会话连接尚未就绪，请重新打开会话后切换策略。"
+              ? t("chat:useDesktopController.theChatConnectionIsNotReadyReopen")
               : desktop.busy || pending
-                ? "正在保存更改，请稍后切换策略。"
+                ? t("chat:useDesktopController.savingChangesWaitBeforeChangingThePolicy")
                 : undefined;
   const threadId = tab.threadId;
   const hasMessages =
@@ -119,13 +121,15 @@ export function useDesktopController(
         : null,
     failure:
       (cloud && remote?.status !== "connected"
-        ? (remote?.message ?? "Bot 未连接，请在设置中重新连接")
+        ? (remote?.message ?? t("chat:useDesktopController.botIsDisconnectedReconnectInSettings"))
         : undefined) ??
       error ??
       agent.error ??
       snapshot?.blockedReason ??
       (!operation ? snapshot?.lastResult?.error?.message : undefined) ??
-      (snapshot?.faulted ? "Agent 已发生错误，请新建会话。" : undefined),
+      (snapshot?.faulted
+        ? t("chat:useDesktopController.theAgentEncounteredAnErrorStartA")
+        : undefined),
     recovery:
       snapshot?.recoveryRequired && threadId
         ? {
@@ -193,7 +197,11 @@ export function useDesktopController(
               setWorktreeDraft(next);
             },
             ...(cloud && !remote?.capabilities?.includes("worktree")
-              ? { worktreeUnsupported: "当前 Bot 版本不支持 worktree，请更新 Bot 后重新连接。" }
+              ? {
+                  worktreeUnsupported: t(
+                    "chat:useDesktopController.thisBotVersionDoesNotSupportWorktrees",
+                  ),
+                }
               : {}),
           },
     composer: {
@@ -293,7 +301,12 @@ export function useDesktopController(
               threadId: draft.persistedId,
               workspaceId: draft.persistedWorkspaceId ?? tab.workspaceId,
             });
-          setError(error instanceof Error ? error.message : "无法发送消息");
+          setError(
+            describeError(
+              error,
+              localizedMessage("chat:useDesktopController.cannotSendTheMessage"),
+            ),
+          );
           throw error;
         } finally {
           setPending(false);
@@ -317,7 +330,7 @@ export function useDesktopController(
             !!snapshot?.blockedReason ||
             !!snapshot?.recoveryRequired)),
       onSettings: (category?: string) => navigation.tabs.openSettings(category),
-      placeholder: "随心输入",
+      placeholder: t("chat:useDesktopController.askAnything"),
     },
   };
 }

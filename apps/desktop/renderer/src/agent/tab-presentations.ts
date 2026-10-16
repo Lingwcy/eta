@@ -1,3 +1,5 @@
+import { threadTitle } from "@/i18n/thread-title";
+import { t } from "@/i18n";
 import { isCloudId } from "../../../src/shared/bot.ts";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 import type { BrowserViewState } from "@/browser/client";
@@ -26,20 +28,26 @@ export function presentTab(
     case "settings":
       return {
         ...identity,
-        title: "设置",
+        title: t("navigation:tabPresentations.settings"),
         subtitle: "Eta",
-        text: "管理账户、API Key、工具和图片权限。",
+        text: t("navigation:tabPresentations.manageAccountsApiKeysToolsAndImage"),
       };
     case "browser": {
       const page = browser?.page;
-      const hostname = tab.url ? new URL(tab.url).hostname : "网页";
+      const hostname = tab.url
+        ? new URL(tab.url).hostname
+        : t("navigation:tabPresentations.webPage");
       return {
         ...identity,
-        title: page?.title || tab.title || hostname,
-        subtitle: tab.url ? hostname : "新标签页",
+        title: !tab.url
+          ? t("navigation:tabPresentations.newTab")
+          : page?.title || tab.title || hostname,
+        subtitle: tab.url ? hostname : t("navigation:tabPresentations.newTab"),
         favicon: page?.favicon,
         preview: page?.preview,
-        text: tab.url ? "选择标签，继续浏览此网页。" : "输入网址或搜索内容，开始浏览。",
+        text: tab.url
+          ? t("navigation:tabPresentations.selectATabToContinueBrowsing")
+          : t("navigation:tabPresentations.enterAUrlOrSearchToStart"),
       };
     }
     case "conversation": {
@@ -48,13 +56,17 @@ export function presentTab(
       const project = library?.projects.find((project) => project.id === workspace?.projectId);
       return {
         ...identity,
-        title: thread?.title || "新聊天",
+        title: threadTitle(thread),
         subtitle: tab.threadId
-          ? `${isCloudId(tab.threadId) ? "云端 · " : ""}${project?.name ?? "聊天"}`
+          ? `${isCloudId(tab.threadId) ? t("navigation:tabPresentations.cloud") : ""}${project?.name ?? t("navigation:tabPresentations.chat")}`
           : tab.environment === "cloud" || isCloudId(tab.workspaceId)
-            ? "云端草稿"
-            : "草稿",
-        text: tab.draft || preview || thread?.title || "选择项目，开始新的聊天。",
+            ? t("navigation:tabPresentations.cloudDraft")
+            : t("navigation:tabPresentations.draft"),
+        text:
+          tab.draft ||
+          preview ||
+          (thread ? threadTitle(thread) : undefined) ||
+          t("navigation:tabPresentations.chooseAProjectToStartANew"),
         running: tab.threadId !== undefined && running.has(tab.threadId),
       };
     }
