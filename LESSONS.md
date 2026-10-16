@@ -128,10 +128,11 @@ a dependency. A dev server succeeding does not prove an installed client works.*
   direct Node loading. `9da537e31` added the missing `@eta/agent/env` source
   alias to the desktop build; its commit body identifies reliance on Agent
   prebuilt output in a clean environment.
+- Additional evidence: on 2026-10-15, PR #60's Desktop CI reached tests after installing Pi 1.3.0 but three integration suites failed to import `@earendil-works/chord/output`. Desktop's existing aliases sent published Chord to `dist` but omitted the new subpath; builds and typechecks had passed. The same five failing suites reproduce the omissions locally and cover the fix.
 - Check: trace the actual worker/runtime entry and workspace subpath exports.
   Run the affected package verification in a clean build context when changing
   packaging; report separately whether an installed client was exercised.
-- Seen 1× (2026-10-12).
+- Seen: 2026-10-12, 2026-10-15.
 
 **Normalize filesystem paths before using them as module names or build keys,
 and inspect every build configuration that derives those keys.**
