@@ -11,6 +11,8 @@ import { CatalogStorageError } from "@eta/core/service/catalog/json-store";
 import { CatalogValidationError } from "@eta/core/service/catalog/schema";
 import { RuntimeSettingsSchema, TitleModelSchema } from "@eta/core/shared/runtime-settings";
 import { SandboxModeSchema } from "@eta/core/shared/sandbox";
+import { SettingsSchema } from "../shared/settings-schema.ts";
+import { LocalizedError } from "../shared/i18n/messages.ts";
 
 import {
   ScheduleWriteInputSchema,
@@ -170,6 +172,7 @@ const Command = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("settings"),
     patch: Schema.Struct({
+      locale: SettingsSchema.fields.locale,
       defaultSandboxMode: Schema.optionalKey(SandboxModeSchema),
       subagents: Schema.optionalKey(SubagentSettingsSchema),
       defaultProvider: Schema.optionalKey(Id),
@@ -371,6 +374,7 @@ export async function commandReply<A>(action: () => Promise<A>): Promise<Command
           "StorageUnavailable",
           "RuntimeClosing",
         ].includes(code),
+        ...(error instanceof LocalizedError ? { localization: error.reference } : {}),
       },
     };
   }

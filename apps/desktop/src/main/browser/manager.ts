@@ -1,3 +1,4 @@
+import { LocalizedError } from "../../shared/i18n/messages.ts";
 import { browserAddress } from "../../browser/protocol.ts";
 import type {
   BrowserBounds,
@@ -35,7 +36,7 @@ export class BrowserManager {
 
   private snapshot(id: string): BrowserState {
     const record = this.pages.get(id);
-    if (!record) throw new Error("网页标签已经关闭");
+    if (!record) throw new LocalizedError("errors:manager.theBrowserTabIsClosed");
     return {
       ...record.page.state(),
       ...(record.error ? { error: record.error } : {}),
@@ -49,7 +50,7 @@ export class BrowserManager {
   }
 
   async command(command: BrowserCommand): Promise<BrowserState | null> {
-    if (this.disposed) throw new Error("浏览器窗口已经关闭");
+    if (this.disposed) throw new LocalizedError("errors:manager.theBrowserWindowIsClosed");
     const { id } = command;
     if (command.type === "create") {
       if (!this.pages.has(id)) {
@@ -65,7 +66,7 @@ export class BrowserManager {
     // Late ResizeObserver/disposer messages are harmless after a tab was closed.
     if (!record && (command.type === "close" || command.type === "hide" || command.type === "show"))
       return null;
-    if (!record) throw new Error("网页标签不存在");
+    if (!record) throw new LocalizedError("errors:manager.theBrowserTabDoesNotExist");
     const { page } = record;
     switch (command.type) {
       case "navigate":

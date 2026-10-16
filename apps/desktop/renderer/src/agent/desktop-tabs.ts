@@ -118,7 +118,7 @@ export class DesktopTabs {
   }
 
   newBrowser(url = "") {
-    return this.add({ id: this.makeId(), kind: "browser", url, title: "新标签页" });
+    return this.add({ id: this.makeId(), kind: "browser", url, title: "" });
   }
 
   openSettings(category?: string) {

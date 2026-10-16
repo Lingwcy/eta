@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { ThreadContextMenu } from "../threads/thread-actions";
 import type { ComponentProps } from "react";
 import { Menu } from "@base-ui/react/menu";
@@ -24,13 +26,19 @@ export function TabListMenu({
   onSelect: (id: string) => void;
   triggerId: string;
 }) {
+  useTranslation();
   const state = tabs.getSnapshot();
   return (
     <Menu.Root open={open} onOpenChange={onOpenChange} triggerId={triggerId} modal={false}>
       <Menu.Trigger
         id={triggerId}
         render={
-          <Button variant="ghost-muted" size="icon-xs" aria-label="标签列表" title="标签列表" />
+          <Button
+            variant="ghost-muted"
+            size="icon-xs"
+            aria-label={t("navigation:tabListMenu.tabList")}
+            title={t("navigation:tabListMenu.tabList")}
+          />
         }
       >
         <ChevronDown size={17} />
@@ -38,27 +46,27 @@ export function TabListMenu({
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={4} className="z-50">
           <Menu.Popup
-            aria-label="标签操作"
+            aria-label={t("navigation:tabListMenu.tabActions")}
             className={cn(menuPopupStyle, "w-64 [-webkit-app-region:no-drag]")}
           >
             <MenuItem onClick={() => tabs.newConversation()}>
               <MessageCircle size={16} />
-              新聊天
+              {t("navigation:tabListMenu.newChat")}
               <span className="ml-auto text-xs text-neutral-400">⌘N</span>
             </MenuItem>
             <MenuItem onClick={() => tabs.newBrowser()}>
               <Globe2 size={16} />
-              新网页标签
+              {t("navigation:tabListMenu.newBrowserTab")}
               <span className="ml-auto text-xs text-neutral-400">⌘T</span>
             </MenuItem>
             <MenuItem onClick={() => tabs.openSettings()}>
               <Settings2 size={16} />
-              设置
+              {t("navigation:tabListMenu.settings")}
               <span className="ml-auto text-xs text-neutral-400">⌘,</span>
             </MenuItem>
             <MenuItem disabled={!state.closed.length} onClick={() => tabs.reopen()}>
               <RotateCcw size={16} />
-              重新打开关闭的标签
+              {t("navigation:tabListMenu.reopenClosedTab")}
               <span className="ml-auto text-xs text-neutral-400">⇧⌘T</span>
             </MenuItem>
             <Menu.Separator className="mx-1.5 my-1 h-px bg-black/10" />
@@ -74,7 +82,9 @@ export function TabListMenu({
                       <TabIcon item={item} />
                       <span className="min-w-0 flex-1 truncate">{item.title}</span>
                       {item.id === state.activeId && (
-                        <span className="ml-auto text-xs text-neutral-400">当前</span>
+                        <span className="ml-auto text-xs text-neutral-400">
+                          {t("navigation:tabListMenu.current")}
+                        </span>
                       )}
                     </MenuItem>
                   </ThreadContextMenu>

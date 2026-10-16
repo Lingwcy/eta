@@ -1,3 +1,6 @@
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useEffect, useState } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { SkillCatalog } from "@eta/core/skills/types";
@@ -17,9 +20,10 @@ export function SkillSettings({
   active: boolean;
   onChange: (patch: Partial<DesktopSettings>) => Promise<void>;
 }) {
+  useTranslation();
   const [cwd, setCwd] = useState("");
   const [catalog, setCatalog] = useState<SkillCatalog>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
   const [openingDirectory, setOpeningDirectory] = useState<string>();
@@ -31,7 +35,12 @@ export function SkillSettings({
       await window.eta.openSkillsDirectory(path, cwd || undefined);
       setRevision((value) => value + 1);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "无法打开技能目录");
+      setError(
+        describeError(
+          error,
+          localizedMessage("settings:skillSettings.cannotOpenTheSkillDirectory"),
+        ),
+      );
     } finally {
       setOpeningDirectory(undefined);
     }
@@ -47,7 +56,10 @@ export function SkillSettings({
         if (!cancelled) setCatalog(value);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setError(error instanceof Error ? error.message : "无法读取技能");
+        if (!cancelled)
+          setError(
+            describeError(error, localizedMessage("settings:skillSettings.cannotReadSkills")),
+          );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -66,10 +78,10 @@ export function SkillSettings({
   return (
     <>
       <ToastNotice message={error} />
-      <SettingsSection title="技能">
+      <SettingsSection title={t("settings:skillSettings.skills")}>
         <SettingsRow
-          title="按需加载技能"
-          description="先向 agent 提供名称和描述，使用时再加载技能说明及所需资源。"
+          title={t("settings:skillSettings.loadSkillsOnDemand")}
+          description={t("settings:skillSettings.provideTheAgentWithNamesAndDescriptions")}
         >
           <Button
             size="sm"
@@ -78,20 +90,22 @@ export function SkillSettings({
             aria-pressed={settings.skillsEnabled !== false}
             onClick={() => void onChange({ skillsEnabled: settings.skillsEnabled === false })}
           >
-            {settings.skillsEnabled !== false ? "已启用" : "已停用"}
+            {settings.skillsEnabled !== false
+              ? t("settings:skillSettings.enabled")
+              : t("settings:skillSettings.disabled")}
           </Button>
         </SettingsRow>
         <SettingsRow
-          title="查看范围"
-          description="用户技能来自 ~/.agents/skills，项目技能来自项目中的 .agents/skills。"
+          title={t("settings:skillSettings.scope")}
+          description={t("settings:skillSettings.userSkillsComeFromAgentsSkillsProject")}
         >
           <select
-            aria-label="技能项目范围"
+            aria-label={t("settings:skillSettings.skillProjectScope")}
             value={cwd}
             onChange={(event) => setCwd(event.target.value)}
             className="max-w-56 rounded-lg border border-neutral-200 px-2 py-1.5 text-xs"
           >
-            <option value="">用户与自定义目录</option>
+            <option value="">{t("settings:skillSettings.userAndCustomDirectories")}</option>
             {library.workspaces.map((workspace) => (
               <option key={workspace.id} value={workspace.cwd}>
                 {workspace.cwd}
@@ -100,8 +114,8 @@ export function SkillSettings({
           </select>
         </SettingsRow>
         <SettingsRow
-          title="刷新技能目录"
-          description="目录改动在下一次请求前重新发现；已加载的技能说明保留到移除为止。"
+          title={t("settings:skillSettings.refreshSkillDirectories")}
+          description={t("settings:skillSettings.directoryChangesAreDiscoveredBeforeTheNext")}
         >
           <Button
             variant="outline"
@@ -109,26 +123,34 @@ export function SkillSettings({
             disabled={loading}
             onClick={() => setRevision((value) => value + 1)}
           >
-            {loading ? "正在刷新…" : "刷新"}
+            {loading ? t("settings:skillSettings.refreshing") : t("settings:skillSettings.refresh")}
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <SettingsSection title="技能目录">
+      <SettingsSection title={t("settings:skillSettings.skillDirectories")}>
         {catalog?.directories.map(({ path, source, configuredPaths }) => (
           <SettingsRow
             key={path}
             title={path}
-            description={{ user: "用户目录", custom: "自定义目录", project: "项目目录" }[source]}
+            description={
+              {
+                user: t("settings:skillSettings.userDirectory"),
+                custom: t("settings:skillSettings.customDirectory"),
+                project: t("settings:skillSettings.projectDirectory"),
+              }[source]
+            }
           >
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 disabled={busy || loading || Boolean(openingDirectory)}
-                aria-label={`打开技能目录 ${path}`}
+                aria-label={t("settings:skillSettings.openSkillDirectory", { path: path })}
                 onClick={() => void openDirectory(path)}
               >
-                {openingDirectory === path ? "正在打开…" : "打开目录"}
+                {openingDirectory === path
+                  ? t("settings:skillSettings.opening")
+                  : t("settings:skillSettings.openDirectory")}
               </Button>
               {configuredPaths && (
                 <Button
@@ -143,15 +165,15 @@ export function SkillSettings({
                     })
                   }
                 >
-                  移除自定义配置
+                  {t("settings:skillSettings.removeCustomConfiguration")}
                 </Button>
               )}
             </div>
           </SettingsRow>
         ))}
         <SettingsRow
-          title="添加技能目录"
-          description="选择包含技能文件夹的目录，也可以直接选择单个技能文件夹。打开尚不存在的目录时会自动创建。"
+          title={t("settings:skillSettings.addASkillDirectory")}
+          description={t("settings:skillSettings.chooseADirectoryContainingSkillFoldersOr")}
         >
           <Button
             variant="outline"
@@ -167,15 +189,20 @@ export function SkillSettings({
                     });
                 })
                 .catch((error: unknown) =>
-                  setError(error instanceof Error ? error.message : "无法添加目录"),
+                  setError(
+                    describeError(
+                      error,
+                      localizedMessage("settings:skillSettings.cannotAddTheDirectory"),
+                    ),
+                  ),
                 );
             }}
           >
-            添加目录
+            {t("settings:skillSettings.addDirectory")}
           </Button>
         </SettingsRow>
       </SettingsSection>
-      <SettingsSection title="可用技能">
+      <SettingsSection title={t("settings:skillSettings.availableSkills")}>
         {catalog?.skills.map((skill) => (
           <SettingsRow
             key={skill.id}
@@ -188,7 +215,7 @@ export function SkillSettings({
                 {skill.shadowedBy && (
                   <>
                     <br />
-                    已被 {skill.shadowedBy} 覆盖
+                    {t("settings:skillSettings.overriddenBy", { path: skill.shadowedBy })}
                   </>
                 )}
                 {skill.compatibility && (
@@ -205,7 +232,7 @@ export function SkillSettings({
               size="sm"
               disabled={busy || settings.skillsEnabled === false || Boolean(skill.shadowedBy)}
               aria-pressed={skill.enabled}
-              aria-label={`${skill.enabled ? "停用" : "启用"} ${skill.name}`}
+              aria-label={`${skill.enabled ? t("settings:skillSettings.disable") : t("settings:skillSettings.enable")} ${skill.name}`}
               onClick={() =>
                 void onChange({
                   disabledSkills: skill.enabled
@@ -214,14 +241,22 @@ export function SkillSettings({
                 })
               }
             >
-              {skill.shadowedBy ? "已覆盖" : skill.enabled ? "已启用" : "已停用"}
+              {skill.shadowedBy
+                ? t("settings:skillSettings.overridden")
+                : skill.enabled
+                  ? t("settings:skillSettings.enabled")
+                  : t("settings:skillSettings.disabled")}
             </Button>
           </SettingsRow>
         ))}
         {!catalog?.skills.length && (
           <SettingsRow
-            title={loading ? "正在发现技能…" : "未发现技能"}
-            description="把包含 SKILL.md 的技能文件夹放入技能目录。"
+            title={
+              loading
+                ? t("settings:skillSettings.discoveringSkills")
+                : t("settings:skillSettings.noSkillsFound")
+            }
+            description={t("settings:skillSettings.placeSkillFoldersContainingSkillMdIn")}
           >
             {null}
           </SettingsRow>

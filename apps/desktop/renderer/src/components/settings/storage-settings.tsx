@@ -1,3 +1,6 @@
+import { describeError, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t, currentFormatLocale } from "@/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Folder, ListTree, RefreshCw, SlidersHorizontal } from "lucide-react";
 import type { StorageReport, StorageTarget } from "../../../../src/shared/storage.ts";
@@ -11,19 +14,20 @@ import {
   ScrollAreaScrollbar,
 } from "@/components/ui/scroll-area";
 
-const sizes = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
+const sizes = () => new Intl.NumberFormat(currentFormatLocale(), { maximumFractionDigits: 1 });
 function bytes(value: number | null) {
-  if (value === null) return "无法统计";
+  if (value === null) return t("settings:storageSettings.cannotCalculate");
   const units = ["B", "KB", "MB", "GB", "TB"];
   const unit =
     value > 0 ? Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1) : 0;
-  return `${sizes.format(value / 1024 ** unit)} ${units[unit]}`;
+  return `${sizes().format(value / 1024 ** unit)} ${units[unit]}`;
 }
 const batchSize = 30;
 
 export function StorageSettings({ active }: { active: boolean }) {
+  useTranslation();
   const [report, setReport] = useState<StorageReport>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const [query, setQuery] = useState("");
@@ -41,7 +45,7 @@ export function StorageSettings({ active }: { active: boolean }) {
         if (!cancelled) setReport(next);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setError(error instanceof Error ? error.message : String(error));
+        if (!cancelled) setError(describeError(error, String(error)));
       })
       .finally(() => {
         if (!cancelled) setBusy(false);
@@ -59,14 +63,14 @@ export function StorageSettings({ active }: { active: boolean }) {
     try {
       await window.eta.revealStorage(target);
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(describeError(error, String(error)));
     }
   };
   const finder = navigator.userAgent.includes("Mac")
-    ? "在 Finder 中查看"
+    ? t("settings:storageSettings.showInFinder")
     : navigator.userAgent.includes("Windows")
-      ? "在资源管理器中查看"
-      : "在文件管理器中查看";
+      ? t("settings:storageSettings.showInFileExplorer")
+      : t("settings:storageSettings.showInFileManager");
   const sessions = useMemo(
     () =>
       (report?.sessions ?? [])
@@ -84,22 +88,32 @@ export function StorageSettings({ active }: { active: boolean }) {
     <div className="space-y-4">
       <ToastNotice message={error} />
       <div className="flex items-center gap-3">
-        <h2 className="text-sm font-medium text-neutral-700">会话占用</h2>
+        <h2 className="text-sm font-medium text-neutral-700">
+          {t("settings:storageSettings.sessionStorage")}
+        </h2>
         <span
           className="text-lg font-semibold tabular-nums text-neutral-800"
-          title={report?.issues.length ? "仅计入成功读取的会话文件" : undefined}
+          title={
+            report?.issues.length
+              ? t("settings:storageSettings.onlyIncludesSessionFilesThatCouldBe")
+              : undefined
+          }
         >
-          {report ? bytes(report.sessionBytes) : busy ? "统计中…" : "—"}
+          {report
+            ? bytes(report.sessionBytes)
+            : busy
+              ? t("settings:storageSettings.calculating")
+              : "—"}
         </span>
         <span className="flex-1 text-xs text-neutral-400">
-          {report && `${report.sessions.length} 个会话`}
+          {report && t("settings:storageSettings.sessions", { count: report.sessions.length })}
         </span>
         <Button
           variant="ghost-muted"
           size="icon-xs"
           disabled={busy}
-          aria-label="刷新会话占用"
-          title="刷新"
+          aria-label={t("settings:storageSettings.refreshSessionStorage")}
+          title={t("settings:storageSettings.refresh")}
           onClick={() => setRevision((value) => value + 1)}
         >
           <RefreshCw size={14} />
@@ -109,13 +123,13 @@ export function StorageSettings({ active }: { active: boolean }) {
         <div className="space-y-1">
           {[
             {
-              label: "会话目录",
+              label: t("settings:storageSettings.sessionDirectory"),
               path: report.paths.sessions,
               icon: Folder,
               target: { kind: "sessions" } as const,
             },
             {
-              label: "模型配置",
+              label: t("settings:storageSettings.modelConfiguration"),
               path: report.paths.modelConfiguration,
               icon: SlidersHorizontal,
               target: { kind: "configuration", id: "settings.json" } as const,
@@ -149,20 +163,20 @@ export function StorageSettings({ active }: { active: boolean }) {
         <div className="flex items-center gap-2 border-b border-neutral-100 p-2">
           <div className="min-w-0 flex-1">
             <SearchInput
-              placeholder="搜索会话或项目"
-              aria-label="搜索本地会话"
+              placeholder={t("settings:storageSettings.searchSessionsOrProjects")}
+              aria-label={t("settings:storageSettings.searchLocalSessions")}
               value={query}
               onValueChange={setQuery}
             />
           </div>
           <select
-            aria-label="会话排序"
+            aria-label={t("settings:storageSettings.sortSessions")}
             value={sort}
             onChange={(event) => setSort(event.target.value)}
             className="cursor-pointer rounded-md bg-transparent px-2 py-1.5 text-xs text-neutral-600 outline-none focus-visible:ring-2 focus-visible:ring-neutral-300"
           >
-            <option value="size">占用大小</option>
-            <option value="name">名称</option>
+            <option value="size">{t("settings:storageSettings.size")}</option>
+            <option value="name">{t("settings:storageSettings.name")}</option>
           </select>
         </div>
         <ScrollAreaRoot className="h-[min(420px,50vh)]">
@@ -181,16 +195,19 @@ export function StorageSettings({ active }: { active: boolean }) {
                   type="button"
                   disabled={session.bytes === null}
                   title={finder}
-                  aria-label={`${finder}：${session.title || "未命名会话"}`}
+                  aria-label={t("settings:storageSettings.revealSession", {
+                    action: finder,
+                    title: session.title || t("settings:storageSettings.unnamedSession"),
+                  })}
                   onClick={() => void reveal({ kind: "session", id: session.id })}
                   className="flex w-full cursor-pointer items-center gap-4 border-b border-neutral-100 px-3 py-2.5 text-left outline-none last:border-0 hover:bg-neutral-50 focus-visible:bg-neutral-100 disabled:cursor-default"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-neutral-800">
-                      {session.title || "未命名会话"}
+                      {session.title || t("settings:storageSettings.unnamedSession")}
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-neutral-400">
-                      {session.project ?? "未关联项目"}
+                      {session.project ?? t("settings:storageSettings.noProject")}
                     </span>
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-neutral-500">
@@ -200,7 +217,9 @@ export function StorageSettings({ active }: { active: boolean }) {
               ))}
               {!sessions.length && (
                 <p className="py-12 text-center text-xs text-neutral-400">
-                  {busy && !report ? "正在读取会话…" : "没有匹配的会话"}
+                  {busy && !report
+                    ? t("settings:storageSettings.readingSessions")
+                    : t("settings:storageSettings.noMatchingSessions")}
                 </p>
               )}
             </ScrollAreaContent>

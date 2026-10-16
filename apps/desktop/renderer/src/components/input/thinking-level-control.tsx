@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Slider } from "@base-ui/react/slider";
@@ -16,7 +18,8 @@ export function ThinkingLevelControl({
   disabled: boolean;
   onChange: (level: ThinkingLevel) => void;
 }) {
-  const options = thinkingOptions.filter((option) => levels.includes(option.value));
+  useTranslation();
+  const options = thinkingOptions().filter((option) => levels.includes(option.value));
   const current = Math.max(
     0,
     options.findIndex((option) => option.value === level),
@@ -35,8 +38,10 @@ export function ThinkingLevelControl({
     >
       <Popover.Trigger
         disabled={disabled || options.length < 2}
-        aria-label={`思考级别：${options[current]?.label}`}
-        title="调整思考级别"
+        aria-label={t("chat:thinkingLevelControl.thinkingLevel", {
+          value1: options[current]?.label,
+        })}
+        title={t("chat:thinkingLevelControl.adjustThinkingLevel")}
         className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-0.5 rounded-full bg-neutral-200/70 px-2 text-[11px] text-neutral-600 outline-none hover:bg-neutral-200 focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:cursor-default"
       >
         {options[current]?.label}
@@ -49,17 +54,19 @@ export function ThinkingLevelControl({
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="end" sideOffset={8} className="z-50">
           <Popover.Popup
-            aria-label="调整思考级别"
+            aria-label={t("chat:thinkingLevelControl.adjustThinkingLevel")}
             initialFocus={thumb}
             className="w-[244px] max-w-[calc(100vw-32px)] rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg outline-none"
           >
             <div className="mb-2.5 flex items-baseline gap-1.5 text-[13px]">
-              <span className="text-neutral-500">思考级别</span>
+              <span className="text-neutral-500">
+                {t("chat:thinkingLevelControl.thinkingLevel2")}
+              </span>
               <span className="font-medium text-neutral-900">{options[preview]?.label}</span>
             </div>
             <div className="mb-1.5 flex justify-between text-[11px] text-neutral-400">
-              <span>更快</span>
-              <span>更深入</span>
+              <span>{t("chat:thinkingLevelControl.faster")}</span>
+              <span>{t("chat:thinkingLevelControl.deeper")}</span>
             </div>
             <Slider.Root
               min={0}
@@ -92,7 +99,7 @@ export function ThinkingLevelControl({
                 </Slider.Track>
                 <Slider.Thumb
                   inputRef={thumb}
-                  getAriaLabel={() => "思考级别"}
+                  getAriaLabel={() => t("chat:thinkingLevelControl.thinkingLevel2")}
                   getAriaValueText={(_formatted, index) => options[index]?.label ?? ""}
                   className="h-7 w-6 rounded-lg border border-neutral-300 bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
                 />

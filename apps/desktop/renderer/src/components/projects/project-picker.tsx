@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { isCloudId } from "../../../../src/shared/bot.ts";
 import { useEffect, useState } from "react";
 import { Check, FolderClosed, Plus } from "lucide-react";
@@ -26,6 +28,7 @@ export function ProjectPicker({
   onSelect: (id: string | null) => void;
   onCreate: (rootPath: string, name: string) => Promise<void>;
 }) {
+  useTranslation();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
@@ -49,7 +52,7 @@ export function ProjectPicker({
     .filter((workspace) => isCloudId(workspace.id) === cloud)
     .map((workspace) => ({
       id: workspace.id,
-      label: `${library?.projects.find((project) => project.id === workspace.projectId)?.name ?? "项目"}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split(/[\\/]/).at(-1)}` : ""}`,
+      label: `${library?.projects.find((project) => project.id === workspace.projectId)?.name ?? t("navigation:projectPicker.projects")}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split(/[\\/]/).at(-1)}` : ""}`,
       cwd: workspace.cwd,
     }))
     .filter((option) =>
@@ -72,15 +75,17 @@ export function ProjectPicker({
             openOnHover
             delay={120}
             closeDelay={180}
-            aria-label="选择项目"
+            aria-label={t("navigation:projectPicker.chooseAProject")}
             aria-keyshortcuts="Control+Alt+Shift+O Meta+Alt+Shift+O"
             aria-description={cwd}
             render={<Button variant="ghost" size="pill" selected={open} />}
           >
             <FolderClosed size={17} aria-hidden="true" />
-            <span className="max-w-40 truncate">{projectName ?? "选择项目"}</span>
+            <span className="max-w-40 truncate">
+              {projectName ?? t("navigation:projectPicker.chooseAProject")}
+            </span>
           </PopoverTrigger>
-          <PopoverContent variant="menu" aria-label="选择项目">
+          <PopoverContent variant="menu" aria-label={t("navigation:projectPicker.chooseAProject")}>
             <Command
               items={options}
               mode="none"
@@ -91,7 +96,11 @@ export function ProjectPicker({
               onValueChange={setQuery}
               itemToStringValue={(option) => option.label}
             >
-              <CommandInput variant="menu-search" aria-label="搜索项目" placeholder="搜索项目" />
+              <CommandInput
+                variant="menu-search"
+                aria-label={t("navigation:projectPicker.searchProjects")}
+                placeholder={t("navigation:projectPicker.searchProjects")}
+              />
               <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
               <CommandList size="menu">
                 {options.map((option) => (
@@ -113,7 +122,11 @@ export function ProjectPicker({
                 ))}
                 {!options.length && (
                   <p className="px-2 py-3 text-xs text-neutral-400">
-                    {query ? "没有匹配的项目" : cloud ? "还没有云端项目" : "还没有项目"}
+                    {query
+                      ? t("navigation:projectPicker.noMatchingProjects")
+                      : cloud
+                        ? t("navigation:projectPicker.noCloudProjectsYet")
+                        : t("navigation:projectPicker.noProjectsYet")}
                   </p>
                 )}
               </CommandList>
@@ -130,7 +143,9 @@ export function ProjectPicker({
                 }}
               >
                 <Plus size={18} aria-hidden="true" />
-                {cloud ? "新建云端项目" : "新建本地项目"}
+                {cloud
+                  ? t("navigation:projectPicker.newCloudProject")
+                  : t("navigation:projectPicker.newLocalProject")}
               </Button>
             </div>
           </PopoverContent>

@@ -1,3 +1,4 @@
+import { LocalizedError } from "../../shared/i18n/messages.ts";
 import { isCloudId } from "../../shared/bot.ts";
 import { app, dialog, ipcMain, shell } from "electron";
 import type { DesktopApplication } from "../bootstrap.ts";
@@ -9,6 +10,8 @@ import type { DesktopSettings } from "../../shared/settings.ts";
 import { decodeBrowserCommand } from "../browser/electron.ts";
 import type { createDesktopWindows } from "../windows.ts";
 import { sessionId } from "./validation.ts";
+import { mainI18n, t } from "../i18n.ts";
+import { defaultLocale } from "../../shared/i18n/locales.ts";
 
 export function registerDesktopIpc({
   service,
@@ -34,6 +37,7 @@ export function registerDesktopIpc({
       ) {
         // dispatchCommand 已校验命令，settings 命令一定返回最新的设置
         updater()?.setAutoCheck((value as DesktopSettings).autoCheckUpdates !== false);
+        await mainI18n.changeLanguage((value as DesktopSettings).locale ?? defaultLocale);
         notifyLibrary();
       }
       return value;
@@ -43,14 +47,16 @@ export function registerDesktopIpc({
   // 关于页：版本信息与更新生命周期
   ipcMain.handle("eta:update", (_event, action: unknown) =>
     commandReply(async () => {
-      if (action === "app-info") return { version: app.getVersion(), platform: process.platform };
+      if (action === "app-info")
+        return { version: app.getVersion(), platform: process.platform, locale: mainI18n.language };
       if (action === "release-page") return shell.openExternal(releaseUrl);
       const currentUpdater = updater();
-      if (!currentUpdater) throw new Error("更新服务尚未就绪");
+      if (!currentUpdater)
+        throw new LocalizedError("errors:handlers.theUpdateServiceIsNotReadyYet");
       if (action === "state") return currentUpdater.state();
       if (action === "check") return currentUpdater.check();
       if (action === "install") return currentUpdater.install();
-      throw new Error("更新操作无效");
+      throw new LocalizedError("errors:handlers.invalidUpdateAction");
     }),
   );
 
@@ -79,13 +85,16 @@ export function registerDesktopIpc({
         return;
       }
       // 弹出文件选择框，让用户选择一个应用来打开文件
-      if (mode !== "choose") throw new Error("打开方式无效");
+      if (mode !== "choose") throw new LocalizedError("errors:handlers.invalidOpenMethod");
       const result = await dialog.showOpenDialog({
-        title: "选择打开会话记录的应用",
+        title: t("native:dialog.chooseApplication"),
         ...(process.platform === "darwin"
-          ? { defaultPath: "/Applications", filters: [{ name: "应用", extensions: ["app"] }] }
+          ? {
+              defaultPath: "/Applications",
+              filters: [{ name: t("native:dialog.application"), extensions: ["app"] }],
+            }
           : process.platform === "win32"
-            ? { filters: [{ name: "应用", extensions: ["exe"] }] }
+            ? { filters: [{ name: t("native:dialog.application"), extensions: ["exe"] }] }
             : {}),
         properties: ["openFile"],
       });

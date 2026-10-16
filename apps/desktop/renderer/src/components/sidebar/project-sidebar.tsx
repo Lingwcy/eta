@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { type ReactNode } from "react";
 import { SquarePen, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,13 +24,14 @@ export function ProjectSidebar({
   recent = false,
   onRecent,
 }: Props) {
+  useTranslation();
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-neutral-100 bg-[#f8f8f8] px-2 pt-2 pb-2">
       <div className="flex items-center gap-1 pb-2">
         <div className="min-w-0 flex-1">
           <Button variant="ghost" size="row-compact" onClick={onNew} disabled={!canCreate}>
             <SquarePen size={19} aria-hidden="true" />
-            新聊天
+            {t("navigation:projectSidebar.newChat")}
             <span className="ml-auto hidden min-[901px]:block">
               <Kbd>⌘ N</Kbd>
             </span>
@@ -38,9 +41,9 @@ export function ProjectSidebar({
           <Button
             variant={recent ? "info" : "ghost-muted"}
             size="icon-xs"
-            aria-label="最近聊天"
+            aria-label={t("navigation:projectSidebar.recentChats")}
             aria-pressed={recent}
-            title="最近聊天"
+            title={t("navigation:projectSidebar.recentChats")}
             onClick={onRecent}
           >
             <Bell size={16} aria-hidden="true" />
@@ -49,10 +52,22 @@ export function ProjectSidebar({
         {search}
       </div>
       <div className="px-2 pt-2 pb-1.5 text-xs font-medium text-neutral-500">
-        {recent ? "最近聊天" : archived ? "已归档" : "项目"}
+        {recent
+          ? t("navigation:projectSidebar.recentChats")
+          : archived
+            ? t("navigation:projectSidebar.archived")
+            : t("navigation:projectSidebar.projects")}
       </div>
       <ScrollArea className="-mr-2 flex-1">
-        <nav aria-label={archived ? "归档会话" : "项目与会话"}>{children}</nav>
+        <nav
+          aria-label={
+            archived
+              ? t("navigation:projectSidebar.archivedChats")
+              : t("navigation:projectSidebar.projectsAndChats")
+          }
+        >
+          {children}
+        </nav>
       </ScrollArea>
     </aside>
   );

@@ -1,10 +1,19 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { Toast } from "@base-ui/react/toast";
 import { CircleAlert, CircleCheck, Info, X } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { Button } from "./button";
+import { localizedMessage, renderMessage, type Message } from "@/i18n/messages";
 
 const Notices = createContext<Map<string, string> | null>(null);
 const NoticeVisibility = createContext(true);
+const defaultTitle = localizedMessage("common:toast.theActionCouldNotBeCompleted");
+
+function LocalizedNotice({ message }: { message: Message }) {
+  useTranslation();
+  return renderMessage(message);
+}
 
 export function ToastScope({ active, children }: { active: boolean; children: ReactNode }) {
   const parent = useContext(NoticeVisibility);
@@ -25,11 +34,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 function ToastViewport() {
+  useTranslation();
   const { toasts } = Toast.useToastManager();
   return (
     <Toast.Portal>
       <Toast.Viewport
-        aria-label="通知"
+        aria-label={t("common:toast.notifications")}
         className="pointer-events-none fixed top-14 right-4 z-[100] flex w-[360px] max-w-[calc(100vw-32px)] flex-col gap-2 outline-none"
       >
         {toasts.map((toast) => {
@@ -54,7 +64,7 @@ function ToastViewport() {
                   )}
                 </div>
                 <Toast.Close
-                  aria-label="关闭通知"
+                  aria-label={t("common:toast.closeNotification")}
                   render={<Button variant="ghost-muted" size="icon-tiny" />}
                 >
                   <X size={12} aria-hidden="true" />
@@ -71,13 +81,13 @@ function ToastViewport() {
 /** Report each error episode once; background views wait until they become visible. */
 export function ToastNotice({
   message,
-  title = "操作未完成",
+  title = defaultTitle,
   type = "error",
   active = true,
   onRetry,
 }: {
-  message?: string | null;
-  title?: string;
+  message?: Message | null;
+  title?: Message;
   type?: "error" | "success" | "info";
   active?: boolean;
   onRetry?: () => void;
@@ -87,7 +97,7 @@ export function ToastNotice({
   const visible = useContext(NoticeVisibility);
   const latest = useRef({ manager, onRetry });
   latest.current = { manager, onRetry };
-  const shown = useRef<string | undefined>(undefined);
+  const shown = useRef<Message | undefined>(undefined);
   useEffect(() => {
     if (!message) {
       shown.current = undefined;
@@ -96,17 +106,17 @@ export function ToastNotice({
     if (!active || !visible || shown.current === message) return;
     shown.current = message;
     const { manager } = latest.current;
-    const key = `${type}:${message}`;
+    const key = `${type}:${JSON.stringify(message)}`;
     if (notices?.has(key)) return;
     const id = manager.add({
-      title,
-      description: message,
+      title: <LocalizedNotice message={title} />,
+      description: <LocalizedNotice message={message} />,
       type,
       onClose: () => notices?.delete(key),
       ...(latest.current.onRetry
         ? {
             actionProps: {
-              children: "重试",
+              children: <LocalizedNotice message={localizedMessage("common:toast.retry")} />,
               onClick: () => {
                 manager.close(id);
                 latest.current.onRetry?.();

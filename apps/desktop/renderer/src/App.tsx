@@ -8,8 +8,10 @@ import { DesktopPanels } from "@/components/tabs/desktop-panels";
 import { GitHubPanel } from "@/components/projects/github-panel";
 import { InspectorTabs } from "@/components/inspector/inspector-tabs";
 import { ToastNotice } from "@/components/ui/toast";
+import { useTranslation } from "react-i18next";
 
 export function App() {
+  useTranslation();
   const shell = useDesktopShell();
   const conversation = shell.inspectorConversation;
   return (

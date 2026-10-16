@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { DesktopBridge } from "../../../src/bridge.ts";
 import type { GitHubQuery, GitHubPage } from "@eta/core/shared/github";
 
@@ -81,7 +82,7 @@ export class GitHubClient {
               error: {
                 status: "error",
                 code: "network",
-                message: "无法连接宿主，请重新连接后刷新。",
+                message: t("chat:githubClient.cannotConnectToTheHostReconnectAnd"),
               },
               loading: false,
             });

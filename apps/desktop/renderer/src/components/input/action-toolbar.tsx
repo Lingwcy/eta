@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { ArrowUp, Square, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -32,15 +34,18 @@ export function ActionToolbar({
   disabled = false,
   className,
 }: ActionToolbarProps) {
+  useTranslation();
   const percentage = contextWindow
     ? Math.min(100, Math.round((contextTokens / contextWindow) * 100))
     : 0;
   const showStop = isRunning && (!allowSubmitWhileRunning || !hasContent);
-  const actionLabel = showStop ? "停止生成" : "发送消息";
+  const actionLabel = showStop
+    ? t("chat:actionToolbar.stopGeneration")
+    : t("chat:actionToolbar.sendMessage");
   return (
     <footer
       className={cn("flex items-center justify-between gap-2 select-none", className)}
-      aria-label="消息操作栏"
+      aria-label={t("chat:actionToolbar.messageActions")}
     >
       <div className="flex items-center gap-1">
         {skillsControl}
@@ -50,8 +55,8 @@ export function ActionToolbar({
             size="icon-xs"
             onClick={onAttach}
             disabled={disabled || (isRunning && !allowSubmitWhileRunning)}
-            aria-label="添加图片"
-            title="添加图片"
+            aria-label={t("chat:actionToolbar.addImages")}
+            title={t("chat:actionToolbar.addImages")}
           >
             <Paperclip size={17} aria-hidden="true" />
           </Button>

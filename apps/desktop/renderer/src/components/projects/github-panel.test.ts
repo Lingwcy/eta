@@ -105,7 +105,7 @@ test("GitHub categories live in the header, default to open and retain options o
   await act(async () =>
     document.querySelector<HTMLButtonElement>('button[aria-label="GitHub 列表选项"]')!.click(),
   );
-  expect(document.querySelector('select[aria-label="GitHub remote"]')).not.toBeNull();
+  expect(document.querySelector('select[aria-label="GitHub 远端仓库"]')).not.toBeNull();
   expect(
     document.querySelector<HTMLSelectElement>('select[aria-label="GitHub 状态筛选"]')!.value,
   ).toBe("open");

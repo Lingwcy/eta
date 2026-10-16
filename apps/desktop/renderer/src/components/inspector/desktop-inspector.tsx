@@ -1,12 +1,15 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /** A desktop-wide content slot; opening it shares layout space with every main tab. */
 export function DesktopInspector({ open, children }: { open: boolean; children: ReactNode }) {
+  useTranslation();
   return (
     <aside
       id="desktop-inspector"
-      aria-label="右侧栏"
+      aria-label={t("inspector:desktopInspector.rightSidebar")}
       aria-hidden={!open}
       inert={!open}
       className={cn(

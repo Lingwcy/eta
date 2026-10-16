@@ -1,3 +1,6 @@
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { isCloudId } from "../../../../src/shared/bot.ts";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { ImageAttachment } from "@eta/core/images/types";
@@ -32,8 +35,9 @@ export function SubagentConversation({
   onBack: () => void;
   library: DesktopLibrary | null;
 }) {
+  useTranslation();
   const [observation, setObservation] = useState<SnapshotResponse>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!active) return;
@@ -89,7 +93,9 @@ export function SubagentConversation({
         ...(images?.length ? { images } : {}),
       });
     } catch (error) {
-      setError(error instanceof Error ? error.message : "操作失败");
+      setError(
+        describeError(error, localizedMessage("inspector:subagentConversation.operationFailed")),
+      );
       throw error;
     } finally {
       setBusy(false);
@@ -97,24 +103,35 @@ export function SubagentConversation({
   };
   return (
     <>
-      <ToastNotice message={error ?? child.error} active={active} title="子智能体操作未完成" />
+      <ToastNotice
+        message={error ?? child.error}
+        active={active}
+        title={localizedMessage(
+          "inspector:subagentConversation.theSubagentActionCouldNotBeCompleted",
+        )}
+      />
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-neutral-100 px-3 py-2">
         <Button variant="ghost" size="compact" onClick={onBack}>
-          <ArrowLeft size={14} /> 主会话
+          <ArrowLeft size={14} />
+          {t("inspector:subagentConversation.mainChat")}
         </Button>
         <span className="min-w-0 flex-1 truncate text-xs text-neutral-600" title={child.path}>
           {child.path}
         </span>
         <span role="status" className="shrink-0 text-xs text-neutral-500">
-          {subagentStatus[child.status]}
+          {subagentStatus()[child.status]}
         </span>
       </div>
       <ChatTranscript snapshot={snapshot} running={running}>
         {snapshot?.recoveryRequired && (
-          <Alert tone="warning">请在主会话恢复或停止未完成任务。</Alert>
+          <Alert tone="warning">
+            {t("inspector:subagentConversation.resumeOrStopTheUnfinishedTaskIn")}
+          </Alert>
         )}
         {child.status === "stopped" && (
-          <output className="text-xs text-neutral-500">任务已停止，未完成的工作已取消。</output>
+          <output className="text-xs text-neutral-500">
+            {t("inspector:subagentConversation.theTaskHasStoppedUnfinishedWorkWas")}
+          </output>
         )}
       </ChatTranscript>
       <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
@@ -136,7 +153,12 @@ export function SubagentConversation({
               void window.eta
                 .decideApproval(threadId, id, approved, reuse)
                 .catch((error: unknown) =>
-                  setError(error instanceof Error ? error.message : "审批失败"),
+                  setError(
+                    describeError(
+                      error,
+                      localizedMessage("inspector:subagentConversation.approvalFailed"),
+                    ),
+                  ),
                 )
                 .finally(() => setBusy(false));
             }}
@@ -164,10 +186,10 @@ export function SubagentConversation({
             disabled={busy || blocked || !observation || !enabled}
             placeholder={
               !enabled
-                ? "子智能体已关闭，可在设置中重新启用"
+                ? t("inspector:subagentConversation.subagentsAreOffEnableThemAgainIn")
                 : running
-                  ? "调整当前任务，或请求汇报已有结果…"
-                  : "调整工作方向…"
+                  ? t("inspector:subagentConversation.adjustTheTaskOrRequestTheResults")
+                  : t("inspector:subagentConversation.adjustTheDirection")
             }
             onSubmit={async (text, images) => {
               await act("send", text, images);

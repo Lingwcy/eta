@@ -1,3 +1,4 @@
+import { LocalizedError } from "@/i18n/messages";
 import type { ImageAttachment } from "@eta/core/images/types";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
@@ -33,7 +34,7 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
   const configure = useCallback(
     async (provider: string, modelId: string, thinkingLevel: ThinkingLevel) => {
       if (!client || client.getSnapshot().session?.id !== threadId)
-        throw new Error("请先创建或选择会话");
+        throw new LocalizedError("chat:useThreadAgent.createOrSelectAChatFirst");
       await client.configure(provider, modelId, thinkingLevel);
     },
     [client, threadId],
@@ -41,7 +42,7 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
   const submit = useCallback(
     async (text: string, images?: readonly ImageAttachment[]) => {
       if (!client || client.getSnapshot().session?.id !== threadId)
-        throw new Error("请先创建或选择会话");
+        throw new LocalizedError("chat:useThreadAgent.createOrSelectAChatFirst");
       await client.submit(text, images);
     },
     [client, threadId],
@@ -49,7 +50,7 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
   const configureSandbox = useCallback(
     async (mode: SandboxMode) => {
       if (!client || client.getSnapshot().session?.id !== threadId)
-        throw new Error("请先创建或选择会话");
+        throw new LocalizedError("chat:useThreadAgent.createOrSelectAChatFirst");
       await client.configureSandbox(mode);
     },
     [client, threadId],

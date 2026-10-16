@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import "./agent-thinking.css";
@@ -222,6 +224,7 @@ function ThinkingLabel({
   startedAt?: number;
   active: boolean;
 }) {
+  useTranslation();
   const [mountedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
 
@@ -237,7 +240,7 @@ function ThinkingLabel({
   return (
     <>
       <span className={cn("text-sm font-medium", shimmer && "eta-agent-thinking-label")}>
-        {waiting && elapsed >= 30 ? `${label}（耗时较长）` : label}
+        {waiting && elapsed >= 30 ? t("chat:index.takingLongerThanUsual", { label: label }) : label}
       </span>
       {showTimer && (
         <span aria-hidden className="font-mono text-xs text-neutral-400 tabular-nums">
@@ -272,7 +275,7 @@ function useThinkingActivity(active: boolean) {
 
 export function AgentThinking({
   variant = "wave",
-  label = "正在思考",
+  label = t("chat:index.thinking"),
   tone,
   shimmer = true,
   showTimer = true,
@@ -281,6 +284,8 @@ export function AgentThinking({
   waiting = false,
   active = true,
 }: AgentThinkingProps) {
+  useTranslation();
+
   const { animated, ticking } = useThinkingActivity(active);
   const color = TONE_COLORS[tone ?? VARIANT_TONE[variant]];
 

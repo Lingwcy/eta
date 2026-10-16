@@ -1,3 +1,6 @@
+import { threadTitle } from "@/i18n/thread-title";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { ThreadContextMenu } from "../threads/thread-actions";
 import { useState } from "react";
 import { FolderClosed, FolderOpen } from "lucide-react";
@@ -36,6 +39,7 @@ export function ProjectGroup({
   archived,
   onSelect,
 }: Props) {
+  useTranslation();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const showAll = expanded;
@@ -77,7 +81,7 @@ export function ProjectGroup({
               disabled={busy}
               onClick={() => onSelect(thread.id)}
             >
-              <SlidingLabel text={thread.title || "新聊天"} />
+              <SlidingLabel text={threadTitle(thread)} />
               <ThreadItemStatus
                 running={runningThreadIds.has(thread.id)}
                 scheduled={scheduledThreadIds.has(thread.id)}
@@ -94,12 +98,16 @@ export function ProjectGroup({
             aria-expanded={showAll}
             onClick={() => setExpanded((value) => !value)}
           >
-            {showAll ? "收起显示" : "展开显示"}
+            {showAll
+              ? t("navigation:projectGroup.showLess")
+              : t("navigation:projectGroup.showMore")}
           </Button>
         )}
         {selected && !threads.length && (
           <p className="py-2 pr-2 pl-8 text-xs/6 text-neutral-400">
-            {archived ? "没有归档会话" : "开始你的第一个聊天"}
+            {archived
+              ? t("navigation:projectGroup.noArchivedChats")
+              : t("navigation:projectGroup.startYourFirstChat")}
           </p>
         )}
       </CollapsibleContent>

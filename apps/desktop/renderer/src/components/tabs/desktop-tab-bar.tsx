@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { ThreadContextMenu } from "../threads/thread-actions";
 import { lazy, Suspense, useEffect, useId, useState } from "react";
 import { PreviewCard } from "@base-ui/react/preview-card";
@@ -35,6 +37,7 @@ export function DesktopTabBar({
   onOverlay: (open: boolean) => void;
   onPreview: (id: string) => void;
 }) {
+  useTranslation();
   const [handle] = useState(() => PreviewCard.createHandle<TabPresentation>());
   const [previewOpen, setPreviewOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -81,8 +84,8 @@ export function DesktopTabBar({
             <Button
               variant="ghost-muted"
               size="icon-xs"
-              aria-label="返回上一个标签"
-              title="后退"
+              aria-label={t("navigation:desktopTabBar.goToThePreviousTab")}
+              title={t("navigation:desktopTabBar.back")}
               disabled={state.historyIndex === 0}
               onClick={() => tabs.navigate(-1)}
             >
@@ -91,8 +94,8 @@ export function DesktopTabBar({
             <Button
               variant="ghost-muted"
               size="icon-xs"
-              aria-label="前进到下一个标签"
-              title="前进"
+              aria-label={t("navigation:desktopTabBar.goToTheNextTab")}
+              title={t("navigation:desktopTabBar.forward")}
               disabled={state.historyIndex >= state.history.length - 1}
               onClick={() => tabs.navigate(1)}
             >
@@ -101,8 +104,12 @@ export function DesktopTabBar({
             <Button
               variant="ghost-muted"
               size="icon-xs"
-              aria-label={collapsed ? "显示侧栏" : "隐藏侧栏"}
-              title="切换侧栏 (⌘B)"
+              aria-label={
+                collapsed
+                  ? t("navigation:desktopTabBar.showSidebar")
+                  : t("navigation:desktopTabBar.hideSidebar")
+              }
+              title={t("navigation:desktopTabBar.toggleSidebarB")}
               aria-expanded={!collapsed}
               onClick={onToggle}
             >
@@ -125,7 +132,7 @@ export function DesktopTabBar({
       ) : (
         <div
           role="tablist"
-          aria-label="打开的标签"
+          aria-label={t("navigation:desktopTabBar.openTabs")}
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 pl-1 [scrollbar-width:none] [-webkit-app-region:drag]"
           onKeyDown={(event) => {
             const index = state.tabs.findIndex((tab) => tab.id === state.activeId);
@@ -219,8 +226,8 @@ export function DesktopTabBar({
                   >
                     <button
                       type="button"
-                      aria-label={`关闭 ${item.title}`}
-                      title="关闭标签 (⌘W)"
+                      aria-label={t("navigation:desktopTabBar.close", { title: item.title })}
+                      title={t("navigation:desktopTabBar.closeTabW")}
                       tabIndex={-1}
                       onClick={() => {
                         setPreviewOpen(false);
@@ -241,8 +248,8 @@ export function DesktopTabBar({
         <Button
           variant="ghost-muted"
           size="icon-xs"
-          aria-label="新建网页标签"
-          title="新标签页 (⌘T)"
+          aria-label={t("navigation:desktopTabBar.newBrowserTab")}
+          title={t("navigation:desktopTabBar.newTabT")}
           onClick={() => tabs.newBrowser()}
         >
           <Plus size={20} />
@@ -253,8 +260,8 @@ export function DesktopTabBar({
               id={menuTriggerId}
               variant="ghost-muted"
               size="icon-xs"
-              aria-label="标签列表"
-              title="标签列表"
+              aria-label={t("navigation:desktopTabBar.tabList")}
+              title={t("navigation:desktopTabBar.tabList")}
               aria-expanded={listOpen}
               onClick={() => {
                 setPreviewOpen(false);
@@ -283,8 +290,12 @@ export function DesktopTabBar({
           <Button
             variant="ghost-muted"
             size="icon-xs"
-            aria-label={inspectorOpen ? "隐藏右侧栏" : "显示右侧栏"}
-            title="右侧栏 (Alt+←)"
+            aria-label={
+              inspectorOpen
+                ? t("navigation:desktopTabBar.hideRightSidebar")
+                : t("navigation:desktopTabBar.showRightSidebar")
+            }
+            title={t("navigation:desktopTabBar.rightSidebarAlt")}
             aria-expanded={inspectorOpen}
             aria-controls="desktop-inspector"
             onClick={onToggleInspector}
@@ -310,13 +321,13 @@ export function DesktopTabBar({
                   <PreviewCard.Popup className="w-64 max-w-[calc(100vw-32px)] overflow-hidden rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 p-2 text-xs text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl [-webkit-app-region:no-drag]">
                     <p className="truncate font-medium">{payload.title}</p>
                     <p className="mt-0.5 truncate text-[11px] text-neutral-400">
-                      {payload.running ? "正在执行 · " : ""}
+                      {payload.running ? t("navigation:desktopTabBar.running") : ""}
                       {payload.subtitle}
                     </p>
                     {payload.preview ? (
                       <img
                         src={payload.preview}
-                        alt={`${payload.title} 的页面预览`}
+                        alt={t("navigation:desktopTabBar.pagePreviewFor", { title: payload.title })}
                         className="mt-2 aspect-video w-full rounded-[5px] object-cover object-top"
                       />
                     ) : (

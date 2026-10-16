@@ -52,6 +52,8 @@ export const settingsPanels = {
       active={props.active}
       busy={props.busy}
       onVariantChange={(agentThinkingVariant) => update(props, { agentThinkingVariant })}
+      locale={props.library.settings.locale}
+      onLocaleChange={(locale) => update(props, { locale })}
     />
   ),
   subagents: (props) => (

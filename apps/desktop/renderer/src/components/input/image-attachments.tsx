@@ -1,13 +1,16 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { X, ImageIcon, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageAttachment, ImageSource } from "@eta/core/images/types";
+import { renderMessage, type Message } from "@/i18n/messages";
 
 export interface AttachmentItem {
   id: string;
   name: string;
   image?: ImageAttachment;
   source?: ImageSource;
-  error?: string;
+  error?: Message;
 }
 
 export function ImageAttachments({
@@ -19,13 +22,14 @@ export function ImageAttachments({
   disabled: boolean;
   onRemove: (id: string) => void;
 }) {
+  useTranslation();
   return (
-    <ul className="flex flex-wrap gap-2" aria-label="图片附件">
+    <ul className="flex flex-wrap gap-2" aria-label={t("chat:imageAttachments.imageAttachments")}>
       {items.map((item) => (
         <li
           key={item.id}
           className="relative size-16 overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50"
-          title={item.error ?? item.name}
+          title={renderMessage(item.error) ?? item.name}
         >
           {item.image ? (
             <img
@@ -36,7 +40,7 @@ export function ImageAttachments({
           ) : (
             <div
               className="flex size-full items-center justify-center"
-              aria-label={item.error ?? "正在处理图片"}
+              aria-label={renderMessage(item.error) ?? t("chat:imageAttachments.processingImage")}
             >
               {item.error ? (
                 <ImageIcon size={20} className="text-red-500" />
@@ -51,7 +55,7 @@ export function ImageAttachments({
               size="icon-tiny"
               disabled={disabled}
               onClick={() => onRemove(item.id)}
-              aria-label={`移除 ${item.name}`}
+              aria-label={t("chat:imageAttachments.remove", { name: item.name })}
             >
               <X size={13} />
             </Button>

@@ -1,3 +1,6 @@
+import { threadTitle } from "@/i18n/thread-title";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import type { ThreadVisit } from "@/agent/thread-recents";
 import { RecentThreads } from "./sidebar/recent-threads";
 import type { SchedulesController } from "@/agent/use-schedules";
@@ -39,6 +42,7 @@ interface Props {
 }
 
 export function DesktopSidebar(props: Props) {
+  useTranslation();
   const scheduleView = props.scheduleView;
   const setScheduleView = props.onScheduleView;
   const [archived, setArchived] = useState(false);
@@ -81,7 +85,7 @@ export function DesktopSidebar(props: Props) {
   const groups =
     props.library?.workspaces.map((workspace) => {
       const project = props.library?.projects.find((project) => project.id === workspace.projectId);
-      const name = `${project?.name ?? "项目"}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split("/").at(-1)}` : ""}`;
+      const name = `${project?.name ?? t("navigation:desktopSidebar.projects")}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split("/").at(-1)}` : ""}`;
       const threads =
         props.library?.threads
           .filter(
@@ -186,8 +190,13 @@ export function DesktopSidebar(props: Props) {
                     {groups.some((group) => isCloudId(group.workspace.id) === cloud) && (
                       <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">
                         {cloud
-                          ? `云端项目${props.library?.bot?.status === "error" ? " · 离线" : ""}`
-                          : "本地项目"}
+                          ? t("navigation:desktopSidebar.cloudProjects", {
+                              value1:
+                                props.library?.bot?.status === "error"
+                                  ? t("navigation:desktopSidebar.offline")
+                                  : "",
+                            })
+                          : t("navigation:desktopSidebar.localProjects")}
                       </p>
                     )}
                     {groups
@@ -210,7 +219,9 @@ export function DesktopSidebar(props: Props) {
                 ))}
                 {ungrouped.length > 0 && (
                   <>
-                    <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">未分组</p>
+                    <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">
+                      {t("navigation:desktopSidebar.ungrouped")}
+                    </p>
                     {ungrouped.map((thread) => (
                       <ThreadContextMenu key={thread.id} id={thread.id}>
                         <Button
@@ -220,7 +231,7 @@ export function DesktopSidebar(props: Props) {
                           disabled={props.busy}
                           onClick={() => props.onSelect(thread.id)}
                         >
-                          <SlidingLabel text={thread.title || "新聊天"} />
+                          <SlidingLabel text={threadTitle(thread)} />
                           <ThreadItemStatus
                             running={props.runningThreadIds.has(thread.id)}
                             scheduled={scheduledThreadIds.has(thread.id)}
@@ -232,7 +243,9 @@ export function DesktopSidebar(props: Props) {
                   </>
                 )}
                 {!groups.length && (
-                  <p className="px-3 py-2 text-xs text-neutral-400">打开项目，开始协作</p>
+                  <p className="px-3 py-2 text-xs text-neutral-400">
+                    {t("navigation:desktopSidebar.openAProjectToStartWorkingTogether")}
+                  </p>
                 )}
               </>
             )}

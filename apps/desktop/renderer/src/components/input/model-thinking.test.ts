@@ -32,7 +32,7 @@ test("picker options and model switching agree with the provider capability poli
   });
   const [plain, basic, extended] = models.getModels().map(toAgentModel);
   expect(
-    thinkingOptions
+    thinkingOptions()
       .filter((option) => plain!.thinkingLevels.includes(option.value))
       .map((option) => option.value),
   ).toEqual(["off"]);
@@ -42,7 +42,7 @@ test("picker options and model switching agree with the provider capability poli
   expect(resolveThinkingLevel(extended, "medium")).toBe("high");
   expect(resolveThinkingLevel(extended, "max")).toBe("max");
   for (const model of models.getModels()) {
-    for (const { value } of thinkingOptions) {
+    for (const { value } of thinkingOptions()) {
       expect(resolveThinkingLevel(toAgentModel(model), value)).toBe(
         clampThinkingLevel(model, value),
       );

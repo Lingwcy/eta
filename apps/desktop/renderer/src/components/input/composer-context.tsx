@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { EnvironmentPicker } from "./environment-picker";
 import { WorktreePicker } from "./worktree-picker";
 import type { WorktreeDraft } from "./worktree-picker";
@@ -42,6 +44,7 @@ export function ComposerContext({
   onProject: (id: string | null) => void;
   onCreateProject: (rootPath: string, name: string) => Promise<void>;
 }) {
+  useTranslation();
   return (
     <div className="mx-5 -mb-1 flex h-[38px] items-center gap-3 rounded-t-2xl bg-neutral-200/60 px-3 pb-1 text-[13px] text-neutral-500 min-[701px]:mx-7 min-[901px]:gap-5">
       <EnvironmentPicker
@@ -54,7 +57,7 @@ export function ComposerContext({
       <Suspense
         fallback={
           <Button variant="ghost" size="pill" disabled>
-            {projectName ?? "选择项目"}
+            {projectName ?? t("chat:composerContext.chooseAProject")}
           </Button>
         }
       >

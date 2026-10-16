@@ -1,3 +1,4 @@
+import { LocalizedError } from "@/i18n/messages";
 import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import type { ImageAttachment } from "@eta/core/images/types";
 import type { DesktopBridge } from "../../../src/bridge.ts";
@@ -32,8 +33,10 @@ export class DraftThread {
     worktree?: Omit<CreateWorktreeInput, "requestId">,
   ) {
     if (this.pending) return this.pending;
-    if (!prompt.trim() && !images?.length) return Promise.reject(new Error("请输入消息"));
-    if (!workspaceId) return Promise.reject(new Error("请先选择项目"));
+    if (!prompt.trim() && !images?.length)
+      return Promise.reject(new LocalizedError("chat:draftThread.enterAMessage"));
+    if (!workspaceId)
+      return Promise.reject(new LocalizedError("chat:draftThread.chooseAProjectFirst"));
     if (
       this.workspaceId &&
       this.workspaceId !== workspaceId &&
@@ -41,7 +44,9 @@ export class DraftThread {
         this.worktree?.key !== JSON.stringify(worktree) ||
         this.worktree.workspaceId !== this.workspaceId)
     )
-      return Promise.reject(new Error("已创建的会话不能切换项目"));
+      return Promise.reject(
+        new LocalizedError("chat:draftThread.anExistingChatCannotSwitchProjects"),
+      );
     this.pending = this.send(workspaceId, prompt.trim(), images, configuration, worktree).finally(
       () => {
         this.pending = undefined;
@@ -58,7 +63,8 @@ export class DraftThread {
     worktree?: Omit<CreateWorktreeInput, "requestId">,
   ) {
     if (worktree && !this.threadId) {
-      if (!this.bridge.createWorktree) throw new Error("此执行环境不支持 worktree");
+      if (!this.bridge.createWorktree)
+        throw new LocalizedError("chat:draftThread.thisEnvironmentDoesNotSupportWorktrees");
       const key = JSON.stringify(worktree);
       if (this.worktree?.key !== key) this.worktree = { key, requestId: crypto.randomUUID() };
       const receipt = this.worktree;
@@ -67,7 +73,8 @@ export class DraftThread {
           ...worktree,
           requestId: receipt.requestId,
         });
-        if (!created.workspaceId) throw new Error("worktree 尚未就绪，请稍后重试");
+        if (!created.workspaceId)
+          throw new LocalizedError("chat:draftThread.theWorktreeIsNotReadyTryAgain");
         receipt.workspaceId = created.workspaceId;
       }
       workspaceId = receipt.workspaceId;

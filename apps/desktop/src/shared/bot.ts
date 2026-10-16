@@ -1,3 +1,4 @@
+import type { MessageReference } from "./i18n/messages.ts";
 import type { BotLibrary } from "@eta/core/shared/bot";
 
 export interface BotConnection {
@@ -8,6 +9,7 @@ export interface BotState {
   status: "disconnected" | "connected" | "error";
   url?: string;
   message?: string;
+  localization?: MessageReference;
   library?: BotLibrary;
   /** Features the connected Bot declares in `/v1/status`; empty for Bots that predate the list. */
   capabilities?: readonly string[];

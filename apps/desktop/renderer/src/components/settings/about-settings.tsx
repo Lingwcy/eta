@@ -1,3 +1,6 @@
+import { describeError, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useEffect, useState } from "react";
 import type { AppInfo, UpdateState } from "../../../../src/bridge.ts";
 import { useUpdateState } from "@/agent/use-update-state";
@@ -10,21 +13,26 @@ function describe(state: UpdateState | undefined) {
   switch (state?.status) {
     case undefined:
     case "idle":
-      return "尚未检查更新";
+      return t("settings:aboutSettings.updatesHaveNotBeenCheckedYet");
     case "unsupported":
-      return "开发模式下不可用";
+      return t("settings:aboutSettings.unavailableInDevelopmentMode");
     case "checking":
-      return "正在检查更新…";
+      return t("settings:aboutSettings.checkingForUpdates");
     case "not-available":
-      return "已是最新版本";
+      return t("settings:aboutSettings.youAreUpToDate");
     case "available":
-      return `发现新版本 v${state.version}，准备下载…`;
+      return t("settings:aboutSettings.newVersionVFoundPreparingDownload", {
+        version: state.version,
+      });
     case "downloading":
-      return `正在下载 v${state.version} · ${state.percent}%`;
+      return t("settings:aboutSettings.downloadingV", {
+        version: state.version,
+        percent: state.percent,
+      });
     case "downloaded":
-      return `v${state.version} 已下载，重启后完成安装`;
+      return t("settings:aboutSettings.vDownloadedRestartToInstall", { version: state.version });
     case "error":
-      return "更新失败";
+      return t("settings:aboutSettings.updateFailed");
   }
 }
 
@@ -41,9 +49,10 @@ export function AboutSettings({
   busy: boolean;
   onAutoCheckChange: (enabled: boolean) => void;
 }) {
+  useTranslation();
   const [info, setInfo] = useState<AppInfo>();
   const [update, setUpdate] = useUpdateState();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   useEffect(() => {
     void window.eta.appInfo().then(setInfo, (error: unknown) => setError(String(error)));
   }, []);
@@ -52,7 +61,7 @@ export function AboutSettings({
     try {
       await action();
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(describeError(error, String(error)));
     }
   };
   const status = update?.status;
@@ -62,15 +71,21 @@ export function AboutSettings({
     <>
       <ToastNotice message={error} />
       <SettingsSection title="Eta">
-        <SettingsRow title={info ? `版本 v${info.version}` : "版本"}>
+        <SettingsRow
+          title={
+            info
+              ? t("settings:aboutSettings.versionV", { version: info.version })
+              : t("settings:aboutSettings.version")
+          }
+        >
           <Avatar label="Eta" fallback="η" src="./favicon.svg" variant="brand" />
         </SettingsRow>
       </SettingsSection>
       {info?.platform === "win32" && (
-        <SettingsSection title="后台运行">
+        <SettingsSection title={t("settings:aboutSettings.runInBackground")}>
           <SettingsRow
-            title="关闭窗口后后台运行"
-            description="保持托盘图标和定时任务运行。通过托盘退出 Eta 后停止执行；电脑睡眠期间不会执行。"
+            title={t("settings:aboutSettings.keepRunningAfterClosingTheWindow")}
+            description={t("settings:aboutSettings.keepTheTrayIconAndScheduledTasks")}
           >
             <Button
               size="sm"
@@ -79,16 +94,21 @@ export function AboutSettings({
               aria-pressed={backgroundOnClose}
               onClick={() => onBackgroundChange(!backgroundOnClose)}
             >
-              {backgroundOnClose ? "已启用" : "已停用"}
+              {backgroundOnClose
+                ? t("settings:aboutSettings.enabled")
+                : t("settings:aboutSettings.disabled")}
             </Button>
           </SettingsRow>
         </SettingsSection>
       )}
-      <SettingsSection title="更新">
-        <SettingsRow title="软件更新" description={describe(update)}>
+      <SettingsSection title={t("settings:aboutSettings.updates")}>
+        <SettingsRow
+          title={t("settings:aboutSettings.softwareUpdates")}
+          description={describe(update)}
+        >
           {status === "downloaded" ? (
             <Button size="sm" onClick={() => void run(() => window.eta.installUpdate())}>
-              重启并安装
+              {t("settings:aboutSettings.restartAndInstall")}
             </Button>
           ) : (
             <Button
@@ -97,22 +117,25 @@ export function AboutSettings({
               disabled={unsupported || working}
               onClick={() => void run(() => window.eta.checkForUpdates().then(setUpdate))}
             >
-              检查更新
+              {t("settings:aboutSettings.checkForUpdates")}
             </Button>
           )}
         </SettingsRow>
         {update?.status === "error" && (
-          <SettingsRow title="无法自动更新" description={update.message}>
+          <SettingsRow
+            title={t("settings:aboutSettings.cannotUpdateAutomatically")}
+            description={update.message}
+          >
             <Button
               size="sm"
               variant="outline"
               onClick={() => void run(() => window.eta.openReleasePage())}
             >
-              前往下载页
+              {t("settings:aboutSettings.goToDownloads")}
             </Button>
           </SettingsRow>
         )}
-        <SettingsRow title="自动检查更新">
+        <SettingsRow title={t("settings:aboutSettings.checkForUpdatesAutomatically")}>
           <Button
             size="sm"
             variant={autoCheck ? "secondary" : "outline"}
@@ -120,7 +143,7 @@ export function AboutSettings({
             aria-pressed={autoCheck}
             onClick={() => onAutoCheckChange(!autoCheck)}
           >
-            {autoCheck ? "已启用" : "已停用"}
+            {autoCheck ? t("settings:aboutSettings.enabled") : t("settings:aboutSettings.disabled")}
           </Button>
         </SettingsRow>
       </SettingsSection>

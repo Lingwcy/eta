@@ -1,3 +1,6 @@
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { defaultModel } from "@/desktop/selectors";
 import type { ModelSelection } from "@/desktop/selectors";
 import { useEffect, useState } from "react";
@@ -72,6 +75,7 @@ export function SubagentSettings({
   busy: boolean;
   onChange: (subagents: Policy) => Promise<void>;
 }) {
+  useTranslation();
   const policy = library.settings.subagents ?? defaultSubagentSettings;
   const enabled = policy.enabled !== false;
   const fallback = defaultModel(library);
@@ -93,7 +97,7 @@ export function SubagentSettings({
           (model) => model.provider === models[0]!.provider && model.id === models[0]!.modelId,
         )?.name ?? models[0]!.modelId)
       : models.length
-        ? `${models.length} 个模型`
+        ? t("settings:subagentSettings.models", { count: models.length })
         : empty;
   const [editing, setEditing] = useState<string>();
   const [name, setName] = useState("");
@@ -101,7 +105,7 @@ export function SubagentSettings({
   const [canDelegate, setCanDelegate] = useState(false);
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("off");
   const [models, setModels] = useState<Preset["models"]>([]);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const [saving, setSaving] = useState(false);
   const locked = busy || saving;
   const configurationLocked = locked || !enabled;
@@ -111,7 +115,7 @@ export function SubagentSettings({
     try {
       await onChange(next);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "保存失败");
+      setError(describeError(error, localizedMessage("settings:subagentSettings.saveFailed")));
       throw error;
     } finally {
       setSaving(false);
@@ -129,38 +133,44 @@ export function SubagentSettings({
   return (
     <>
       <ToastNotice message={error} />
-      <SettingsSection title="首选项">
+      <SettingsSection title={t("settings:subagentSettings.preferences")}>
         <SettingsRow
-          title="启用子智能体"
-          description="允许智能体委派任务。关闭后已有任务继续收尾，历史仍可查看和停止。"
+          title={t("settings:subagentSettings.enableSubagents")}
+          description={t("settings:subagentSettings.allowAgentsToDelegateTasksTurningThis")}
         >
           <Switch
-            aria-label="启用子智能体"
+            aria-label={t("settings:subagentSettings.enableSubagents")}
             checked={enabled}
             disabled={locked}
             onCheckedChange={(enabled) => void save({ ...policy, enabled }).catch(() => {})}
           />
         </SettingsRow>
       </SettingsSection>
-      <SettingsSection title="委派设置">
-        <SettingsRow title="工作模式" description="按需委派，或由主线程专注交流与编排。">
+      <SettingsSection title={t("settings:subagentSettings.delegationSettings")}>
+        <SettingsRow
+          title={t("settings:subagentSettings.workMode")}
+          description={t("settings:subagentSettings.delegateOnDemandOrLetTheMain")}
+        >
           <Select
-            label="子智能体工作模式"
-            panelTitle="工作模式"
+            label={t("settings:subagentSettings.subagentWorkMode")}
+            panelTitle={t("settings:subagentSettings.workMode")}
             size="compact"
             variant="menu"
             value={policy.mode}
             options={[
-              { value: "opportunistic", label: "按需" },
-              { value: "orchestrator", label: "编排" },
+              { value: "opportunistic", label: t("settings:subagentSettings.onDemand") },
+              { value: "orchestrator", label: t("settings:subagentSettings.orchestration") },
             ]}
             disabled={configurationLocked}
             onValueChange={(mode) => void save({ ...policy, mode }).catch(() => {})}
           />
         </SettingsRow>
-        <SettingsRow title="最大嵌套深度" description="主线程为第 0 层，设为 0 可停用创建。">
+        <SettingsRow
+          title={t("settings:subagentSettings.maximumNestingDepth")}
+          description={t("settings:subagentSettings.theMainThreadIsLevel0Set")}
+        >
           <SettingsNumber
-            label="最大嵌套深度"
+            label={t("settings:subagentSettings.maximumNestingDepth")}
             value={policy.maxDepth}
             minimum={0}
             maximum={10}
@@ -168,9 +178,12 @@ export function SubagentSettings({
             onChange={(maxDepth) => void save({ ...policy, maxDepth }).catch(() => {})}
           />
         </SettingsRow>
-        <SettingsRow title="同时执行数量" description="每个会话单独计算，超出数量的任务排队。">
+        <SettingsRow
+          title={t("settings:subagentSettings.concurrentTasks")}
+          description={t("settings:subagentSettings.countedSeparatelyForEachChatAdditionalTasks")}
+        >
           <SettingsNumber
-            label="同时执行的子智能体数量"
+            label={t("settings:subagentSettings.numberOfConcurrentSubagents")}
             value={policy.maxConcurrent}
             minimum={1}
             maximum={32}
@@ -178,7 +191,10 @@ export function SubagentSettings({
             onChange={(maxConcurrent) => void save({ ...policy, maxConcurrent }).catch(() => {})}
           />
         </SettingsRow>
-        <SettingsRow title="启用模型" description="默认仅使用当前主模型，可在此启用其他模型。">
+        <SettingsRow
+          title={t("settings:subagentSettings.enabledModels")}
+          description={t("settings:subagentSettings.usesOnlyTheCurrentMainModelBy")}
+        >
           {Boolean(policy.allowedModels?.length) && (
             <Button
               variant="link"
@@ -189,7 +205,7 @@ export function SubagentSettings({
                 void save(rest).catch(() => {});
               }}
             >
-              跟随主模型
+              {t("settings:subagentSettings.useTheMainModel")}
             </Button>
           )}
           <ModelPicker
@@ -200,10 +216,12 @@ export function SubagentSettings({
             showThinking={false}
             selection={{
               models: enabledModels,
-              label: modelLabel(enabledModels, "选择模型"),
+              label: modelLabel(enabledModels, t("settings:subagentSettings.chooseAModel")),
               onChange: (allowedModels) => {
                 if (!allowedModels.length) {
-                  setError("至少保留一个启用模型。");
+                  setError(
+                    localizedMessage("settings:subagentSettings.keepAtLeastOneModelEnabled"),
+                  );
                   return;
                 }
                 void save({ ...policy, allowedModels }).catch(() => {});
@@ -212,22 +230,27 @@ export function SubagentSettings({
           />
         </SettingsRow>
       </SettingsSection>
-      <SettingsSection title="智能体预设">
-        <SettingsRow title="预设配置" description="为不同任务保存指令、思考级别和候选模型。">
+      <SettingsSection title={t("settings:subagentSettings.agentPresets")}>
+        <SettingsRow
+          title={t("settings:subagentSettings.presetConfiguration")}
+          description={t(
+            "settings:subagentSettings.saveInstructionsThinkingLevelsAndCandidateModels",
+          )}
+        >
           <Button
             variant="ghost"
             size="compact"
             disabled={configurationLocked}
             onClick={() => edit()}
           >
-            添加预设
+            {t("settings:subagentSettings.addPreset")}
           </Button>
         </SettingsRow>
         {policy.presets.map((preset) => (
           <SettingsRow
             key={preset.name}
             title={preset.name}
-            description={`${thinkingOptions.find((option) => option.value === preset.thinkingLevel)?.label ?? preset.thinkingLevel} · ${modelLabel(preset.models, "跟随主模型")}`}
+            description={`${thinkingOptions().find((option) => option.value === preset.thinkingLevel)?.label ?? preset.thinkingLevel} · ${modelLabel(preset.models, t("settings:subagentSettings.useTheMainModel"))}`}
           >
             <Button
               variant="ghost"
@@ -235,7 +258,7 @@ export function SubagentSettings({
               disabled={configurationLocked}
               onClick={() => edit(preset)}
             >
-              编辑
+              {t("settings:subagentSettings.edit")}
             </Button>
             <Button
               variant="ghost-destructive"
@@ -248,7 +271,7 @@ export function SubagentSettings({
                 }).catch(() => {})
               }
             >
-              删除
+              {t("settings:subagentSettings.delete")}
             </Button>
           </SettingsRow>
         ))}
@@ -275,38 +298,38 @@ export function SubagentSettings({
             <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
               <Input
                 variant="compact"
-                aria-label="预设名称"
-                placeholder="预设名称，如 quick 或 reviewer"
+                aria-label={t("settings:subagentSettings.presetName")}
+                placeholder={t("settings:subagentSettings.presetNameSuchAsQuickOrReviewer")}
                 value={name}
                 onValueChange={setName}
                 disabled={configurationLocked}
               />
               <Select
-                label="预设思考级别"
-                panelTitle="思考级别"
+                label={t("settings:subagentSettings.presetThinkingLevel")}
+                panelTitle={t("settings:subagentSettings.thinkingLevel")}
                 size="compact"
                 variant="menu"
                 value={thinkingLevel}
-                options={thinkingOptions}
+                options={thinkingOptions()}
                 onValueChange={setThinkingLevel}
                 disabled={configurationLocked}
               />
             </div>
             <div className="mb-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
               <Textarea
-                aria-label="预设任务指令"
-                placeholder="任务职责和约束"
+                aria-label={t("settings:subagentSettings.presetInstructions")}
+                placeholder={t("settings:subagentSettings.taskResponsibilitiesAndConstraints")}
                 value={instructions}
                 onChange={(event) => setInstructions(event.target.value)}
                 disabled={configurationLocked}
               />
             </div>
             <SettingsRow
-              title="允许继续委派"
-              description="为需要协调其他智能体的预设开启；执行任务的预设默认直接完成工作。"
+              title={t("settings:subagentSettings.allowFurtherDelegation")}
+              description={t("settings:subagentSettings.enableForPresetsThatCoordinateOtherAgents")}
             >
               <Switch
-                aria-label="允许预设继续委派"
+                aria-label={t("settings:subagentSettings.allowThePresetToDelegateFurther")}
                 checked={canDelegate}
                 disabled={configurationLocked}
                 onCheckedChange={setCanDelegate}
@@ -319,7 +342,11 @@ export function SubagentSettings({
                 showThinking={false}
                 side="bottom"
                 disabled={configurationLocked}
-                selection={{ models, label: modelLabel(models, "跟随主模型"), onChange: setModels }}
+                selection={{
+                  models,
+                  label: modelLabel(models, t("settings:subagentSettings.useTheMainModel")),
+                  onChange: setModels,
+                }}
               />
               <div className="flex gap-1">
                 <Button
@@ -328,10 +355,10 @@ export function SubagentSettings({
                   disabled={locked}
                   onClick={() => setEditing(undefined)}
                 >
-                  取消
+                  {t("settings:subagentSettings.cancel")}
                 </Button>
                 <Button type="submit" size="compact" disabled={configurationLocked || !name.trim()}>
-                  保存
+                  {t("settings:subagentSettings.save")}
                 </Button>
               </div>
             </div>

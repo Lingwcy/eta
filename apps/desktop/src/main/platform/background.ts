@@ -1,7 +1,7 @@
 /** A visible tray is required before Windows can remain alive after the last window closes. */
 export function createBackgroundResidence(options: {
   platform: string;
-  createTray(open: () => void, quit: () => void): { destroy(): void };
+  createTray(open: () => void, quit: () => void): { destroy(): void; refresh?(): void };
   open(this: void): void;
   quit(this: void): void;
   windowCount(): number;
@@ -22,6 +22,9 @@ export function createBackgroundResidence(options: {
       return (
         !disposed && (options.platform === "darwin" || (options.platform === "win32" && !!tray))
       );
+    },
+    refresh() {
+      if (!disposed) tray?.refresh?.();
     },
     dispose() {
       disposed = true;

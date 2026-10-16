@@ -1,9 +1,10 @@
+import { describeError, type Message } from "@/i18n/messages";
 import type { DesktopBridge } from "../../../src/bridge.ts";
 import type { BrowserCommand, BrowserEvent, BrowserState } from "../../../src/browser/protocol.ts";
 
 export interface BrowserViewState {
   page?: BrowserState;
-  error?: string;
+  error?: Message;
 }
 
 /** IPC failures belong here; page components only manage their mounted viewport. */
@@ -43,7 +44,7 @@ export class BrowserClient {
   }
 
   private fail(id: string, error: unknown) {
-    this.update(id, { error: error instanceof Error ? error.message : String(error) });
+    this.update(id, { error: describeError(error, String(error)) });
   }
 
   retain(ids: ReadonlySet<string>) {

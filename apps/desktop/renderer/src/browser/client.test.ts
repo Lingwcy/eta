@@ -1,3 +1,4 @@
+import { renderMessage } from "@/i18n/messages";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BrowserClient } from "./client";
 import { BrowserManager } from "../../../src/main/browser/manager.ts";
@@ -60,7 +61,7 @@ test("invalid input is visible on a blank tab; retrying normalizes the address a
   expect(await client.command({ type: "create", id: "tab", url: "javascript:alert(1)" })).toBe(
     false,
   );
-  expect(client.getSnapshot().tab?.error).toContain("http 和 https");
+  expect(renderMessage(client.getSnapshot().tab?.error)).toContain("http 和 https");
   expect(pages.size).toBe(0);
   expect(await client.command({ type: "create", id: "tab", url: "example.com" })).toBe(true);
   expect(client.getSnapshot().tab).toMatchObject({

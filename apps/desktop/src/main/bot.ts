@@ -1,3 +1,4 @@
+import { LocalizedError, localizedMessage } from "../shared/i18n/messages.ts";
 import {
   ScheduleSnapshotSchema,
   ScheduleRequestSchema,
@@ -79,12 +80,14 @@ export class DesktopBot {
         ...this.state,
         status: "error",
         message: error instanceof Error ? error.message : "无法读取 Bot 连接",
+        localization: error instanceof LocalizedError ? error.reference : undefined,
       };
     }
   }
 
   private use(connection: BotConnection) {
-    if (!URL.canParse(connection.url)) throw new Error("请输入有效的 Bot HTTP 或 HTTPS 地址");
+    if (!URL.canParse(connection.url))
+      throw new LocalizedError("errors:bot.enterAValidBotHttpOrHttpsAddress");
     const url = new URL(connection.url);
     if (
       !["http:", "https:"].includes(url.protocol) ||
@@ -93,11 +96,16 @@ export class DesktopBot {
       url.search ||
       url.hash
     )
-      throw new Error("请输入有效的 Bot HTTP 或 HTTPS 地址");
-    if (!connection.token.trim()) throw new Error("请输入 Bot 访问令牌");
+      throw new LocalizedError("errors:bot.enterAValidBotHttpOrHttpsAddress");
+    if (!connection.token.trim()) throw new LocalizedError("errors:bot.enterTheBotAccessToken");
     this.connection = { url: url.href.replace(/\/+$/, ""), token: connection.token.trim() };
     this.prefix = `bot:${createHash("sha256").update(this.connection.url).digest("hex").slice(0, 16)}:`;
-    this.state = { status: "error", url: this.connection.url, message: "尚未连接" };
+    this.state = {
+      status: "error",
+      url: this.connection.url,
+      message: "尚未连接",
+      localization: localizedMessage("settings:bot.notConnected"),
+    };
   }
 
   private publish() {
@@ -211,6 +219,7 @@ export class DesktopBot {
           ...this.state,
           status: "error",
           message: error instanceof Error ? error.message : "Bot 连接失败",
+          localization: error instanceof LocalizedError ? error.reference : undefined,
         };
         const changed = JSON.stringify(next) !== JSON.stringify(this.state);
         this.state = next;
@@ -231,7 +240,7 @@ export class DesktopBot {
   }
   private raw(id: string) {
     if (!this.connection || !id.startsWith(this.prefix))
-      throw new Error("此云端项目或会话所属的 Bot 未连接，请在设置中连接原来的 Bot");
+      throw new LocalizedError("errors:bot.theBotForThisCloudProjectOrChat");
     return id.slice(this.prefix.length);
   }
   private thread(value: ThreadMetadata): ThreadMetadata {
@@ -300,7 +309,7 @@ export class DesktopBot {
     method?: string,
     acceptedStatuses: readonly number[] = [],
   ) {
-    if (!this.connection) throw new Error("请先连接 Bot");
+    if (!this.connection) throw new LocalizedError("errors:bot.connectToABotFirst");
     const response = await fetch(this.connection.url + path, {
       method: method ?? (body === undefined ? "GET" : "POST"),
       headers: {
@@ -375,7 +384,7 @@ export class DesktopBot {
   }
   private requireSandbox() {
     if (!this.state.library?.allowedSandboxModes?.length)
-      throw new Error("当前 Bot 尚不支持沙盒，请更新 Bot 并重新连接。");
+      throw new LocalizedError("errors:bot.thisBotDoesNotSupportSandboxingUpdateIt");
   }
   async decideApproval(id: string, requestId: string, approved: boolean, reuse?: "call" | "run") {
     return this.session(
@@ -430,7 +439,7 @@ export class DesktopBot {
   }
   private requireCapability(name: string) {
     if (!this.capabilities.includes(name))
-      throw new Error("当前 Bot 版本不支持此功能，请更新 Bot 后重新连接。");
+      throw new LocalizedError("errors:bot.thisBotVersionDoesNotSupportThisFeature");
   }
   async gitRepository(workspaceId: string): Promise<GitRepositoryInfo> {
     this.requireCapability("git");
@@ -557,7 +566,8 @@ export class DesktopBot {
       while (!controller.signal.aborted) {
         try {
           const response = await this.response(route, undefined, controller.signal);
-          if (!response.body) throw new Error("Bot 未提供实时消息流");
+          if (!response.body)
+            throw new LocalizedError("errors:bot.theBotDidNotProvideALiveMessage");
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
@@ -596,7 +606,8 @@ export class DesktopBot {
           } finally {
             await reader.cancel().catch(() => {});
           }
-          if (!controller.signal.aborted) throw new Error("Bot 连接中断，正在重连");
+          if (!controller.signal.aborted)
+            throw new LocalizedError("errors:bot.theBotConnectionWasInterruptedReconnecting");
         } catch (error) {
           if (controller.signal.aborted) break;
           onError(error instanceof Error ? error.message : "Bot 连接失败");
@@ -719,9 +730,15 @@ export class DesktopBot {
               ? "connected"
               : "offline",
         ...(!supported && this.state.status === "connected"
-          ? { message: "当前 Bot 版本不支持定时任务" }
+          ? {
+              message: "当前 Bot 版本不支持定时任务",
+              messageKey: "schedules:environment.unsupported" as const,
+            }
           : !online
-            ? { message: "缓存可能过期；Bot 可能仍在执行" }
+            ? {
+                message: "缓存可能过期；Bot 可能仍在执行",
+                messageKey: "schedules:environment.offline" as const,
+              }
             : {}),
       },
       data: mapScheduleSnapshot(
@@ -757,7 +774,7 @@ export class DesktopBot {
   ): Promise<ScheduleRequest> {
     this.requireCapability("schedules");
     if (this.state.status !== "connected" || this.scheduleError)
-      throw new Error("Bot 离线，无法更改定时任务；原计划可能仍在执行");
+      throw new LocalizedError("errors:bot.theBotIsOfflineScheduledTasksCannotBe");
     const response = await this.response(path, body, undefined, method, [409]);
     const result = Schema.decodeUnknownSync(ScheduleRequestSchema)(await response.json());
     void this.refreshSchedules(true).catch(() => undefined);
@@ -875,7 +892,8 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
     },
     importBotCredentials: async () => {
       const credentials = await local.exportBotCredentials();
-      if (!Object.keys(credentials).length) throw new Error("客户端没有可导入的模型凭证");
+      if (!Object.keys(credentials).length)
+        throw new LocalizedError("errors:bot.thereAreNoClientModelCredentialsToImport");
       const result = await bot.request<{ imported: number }>("/v1/credentials/import", {
         credentials,
       });
@@ -960,12 +978,14 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
         : local.archiveThread(id, archived),
     moveThread: (id: string, projectId: string | null) => {
       if (projectId !== null && isCloudId(id) !== isCloudId(projectId))
-        return Promise.reject(new Error("会话只能在同一执行环境内调整项目"));
+        return Promise.reject(new LocalizedError("errors:bot.aChatCanOnlyMoveBetweenProjectsIn"));
       return isCloudId(id) ? bot.move(id, projectId) : local.moveThread(id, projectId);
     },
     deleteThread: (id: string) => (isCloudId(id) ? bot.remove(id) : local.deleteThread(id)),
     threadFile: (id: string) =>
-      isCloudId(id) ? Promise.reject(new Error("云端会话文件保存在 Bot 上")) : local.threadFile(id),
+      isCloudId(id)
+        ? Promise.reject(new LocalizedError("errors:bot.cloudChatFilesAreStoredOnTheBot"))
+        : local.threadFile(id),
     subagent: (...args: Parameters<LocalDesktopApplication["subagent"]>) =>
       isCloudId(args[0])
         ? bot.command<Awaited<ReturnType<LocalDesktopApplication["subagent"]>>>(

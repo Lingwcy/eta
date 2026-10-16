@@ -4,6 +4,10 @@ English · [简体中文](desktop.zh-CN.md)
 
 For installation and your first task, see the [README](../../README.md).
 
+## Interface language
+
+Use **Settings → Application → Appearance → 语言 / Language** to choose **简体中文** or **English**. Changes apply immediately to all Eta windows and persist after restarting. This changes the interface language; existing chat content and the agent's response language are unaffected.
+
 ## Chats and local data
 
 Keep reference pages alongside your chats: open a web tab with **Cmd/Ctrl+T**, then enter a URL or search in its address bar.
@@ -20,7 +24,7 @@ Back up the entire session directory, not just the main JSONL transcript. Subage
 
 ## Start in a separate worktree
 
-Before sending the first message in a new chat, open the workspace configuration beside the project and enable “新 worktree”. Use its branch menu to select an existing branch or enter a new branch name. Eta creates the directory when you send; uncommitted changes in the current checkout stay there. If creation or sending fails, the draft is preserved and retries reuse the created workspace. Checked-out branches and remote-tracking branches become the base of a new local branch. Workspace configuration hides after the chat starts.
+Before sending the first message in a new chat, open the workspace configuration beside the project and enable **New worktree**. Use its branch menu to select an existing branch or enter a new branch name. Eta creates the directory when you send; uncommitted changes in the current checkout stay there. If creation or sending fails, the draft is preserved and retries reuse the created workspace. Checked-out branches and remote-tracking branches become the base of a new local branch. Workspace configuration hides after the chat starts.
 
 See the [sandbox guide](./sandbox.md#在-worktree-中提交) for Git approvals and run-scoped grants. Closing a tab or archiving a chat keeps its worktree.
 

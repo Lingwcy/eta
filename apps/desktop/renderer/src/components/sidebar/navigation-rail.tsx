@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { Clock, Archive, FolderPlus, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -26,19 +28,20 @@ export function NavigationRail({
   onSettings,
   settingsActive = false,
 }: Props) {
+  useTranslation();
   const [update] = useUpdateState();
   const updateReady = update?.status === "downloaded";
   return (
     <nav
       className="flex w-[var(--rail-width)] shrink-0 flex-col items-center gap-3 py-2"
-      aria-label="主导航"
+      aria-label={t("navigation:navigationRail.mainNavigation")}
     >
       <Button
         variant="ghost-muted"
         size="icon"
         selected={!archived && !settingsActive && !schedulesActive}
-        title="项目与会话"
-        aria-label="项目与会话"
+        title={t("navigation:navigationRail.projectsAndChats")}
+        aria-label={t("navigation:navigationRail.projectsAndChats")}
         aria-pressed={!archived && !settingsActive && !schedulesActive}
         onClick={onHome}
       >
@@ -48,8 +51,8 @@ export function NavigationRail({
         variant="ghost-muted"
         size="icon"
         selected={archived && !settingsActive && !schedulesActive}
-        title="已归档会话"
-        aria-label="已归档会话"
+        title={t("navigation:navigationRail.archivedChats")}
+        aria-label={t("navigation:navigationRail.archivedChats")}
         aria-pressed={archived && !settingsActive && !schedulesActive}
         disabled={!onArchive}
         onClick={onArchive}
@@ -59,8 +62,8 @@ export function NavigationRail({
       <Button
         variant="ghost-muted"
         size="icon"
-        title="定时任务"
-        aria-label="定时任务"
+        title={t("navigation:navigationRail.scheduledTasks")}
+        aria-label={t("navigation:navigationRail.scheduledTasks")}
         selected={schedulesActive}
         aria-pressed={schedulesActive}
         disabled={!onSchedules}
@@ -71,8 +74,8 @@ export function NavigationRail({
       <Button
         variant="ghost-muted"
         size="icon"
-        title="打开项目目录"
-        aria-label="打开项目目录"
+        title={t("navigation:navigationRail.openProjectFolder")}
+        aria-label={t("navigation:navigationRail.openProjectFolder")}
         disabled={busy}
         onClick={onChoose}
       >
@@ -84,8 +87,16 @@ export function NavigationRail({
         <Button
           variant="ghost-muted"
           size="icon"
-          title={updateReady ? "设置 / 有可安装的更新" : "设置 / 模型与认证"}
-          aria-label={updateReady ? "设置 / 有可安装的更新" : "设置 / 模型与认证"}
+          title={
+            updateReady
+              ? t("navigation:navigationRail.settingsUpdateReadyToInstall")
+              : t("navigation:navigationRail.settingsModelsAndAuthentication")
+          }
+          aria-label={
+            updateReady
+              ? t("navigation:navigationRail.settingsUpdateReadyToInstall")
+              : t("navigation:navigationRail.settingsModelsAndAuthentication")
+          }
           selected={settingsActive}
           aria-pressed={settingsActive}
           onClick={() => onSettings(updateReady ? "about" : undefined)}

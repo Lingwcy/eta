@@ -1,3 +1,6 @@
+import { describeError, localizedMessage, type Message } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { createContext, useContext, useEffect, useState } from "react";
 import { Clock3 } from "lucide-react";
 import { Schema } from "effect";
@@ -26,12 +29,13 @@ export function scheduleToolResult(tool: SnapshotTool) {
 }
 
 export function ScheduleToolNotice({ result }: { result: ScheduleToolResult }) {
+  useTranslation();
   const context = useContext(ScheduleMessages);
   const [scheduleId, setScheduleId] = useState<string>();
   const [receiptState, setReceiptState] = useState<ScheduleRequest["state"]>();
   const [busy, setBusy] = useState(false);
   const [cancelled, setCancelled] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Message>();
   const [retry, setRetry] = useState(0);
   const threadId = context?.threadId;
   const scoped = context?.controller.snapshot.snapshots.find(
@@ -53,11 +57,20 @@ export function ScheduleToolNotice({ result }: { result: ScheduleToolResult }) {
         if (!disposed && receipt?.threadId === threadId) {
           setScheduleId(receipt.scheduleId);
           setReceiptState(receipt.state);
-          if (receipt.state === "rejected") setError(receipt.reason ?? "计划变更未生效");
+          if (receipt.state === "rejected")
+            setError(
+              receipt.reason ?? t("schedules:scheduleToolNotice.theScheduleChangeDidNotTakeEffect"),
+            );
         }
       })
       .catch((error: unknown) => {
-        if (!disposed) setError(error instanceof Error ? error.message : "无法读取计划记录");
+        if (!disposed)
+          setError(
+            describeError(
+              error,
+              localizedMessage("schedules:scheduleToolNotice.cannotReadTheScheduleRecord"),
+            ),
+          );
       });
     return () => {
       disposed = true;
@@ -93,17 +106,22 @@ export function ScheduleToolNotice({ result }: { result: ScheduleToolResult }) {
       );
       if (receipt.state === "applied") setCancelled(true);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "无法取消计划");
+      setError(
+        describeError(
+          error,
+          localizedMessage("schedules:scheduleToolNotice.cannotCancelTheSchedule"),
+        ),
+      );
     } finally {
       setBusy(false);
     }
   };
   const labels = {
-    create: "已创建定时任务",
-    update: "已修改定时任务",
-    pause: "已暂停定时任务",
-    resume: "已恢复定时任务",
-    delete: "已取消定时任务",
+    create: t("schedules:scheduleToolNotice.scheduledTaskCreated"),
+    update: t("schedules:scheduleToolNotice.scheduledTaskUpdated"),
+    pause: t("schedules:scheduleToolNotice.scheduledTaskPaused"),
+    resume: t("schedules:scheduleToolNotice.scheduledTaskResumed"),
+    delete: t("schedules:scheduleToolNotice.scheduledTaskCancelled"),
   };
   return (
     <div className="flex flex-col gap-1 py-1 text-xs text-neutral-500">
@@ -111,11 +129,11 @@ export function ScheduleToolNotice({ result }: { result: ScheduleToolResult }) {
         <Clock3 size={14} aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">
           {deleted
-            ? "计划已取消"
+            ? t("schedules:scheduleToolNotice.scheduleCancelled")
             : receiptState === "rejected"
-              ? "计划变更未生效"
+              ? t("schedules:scheduleToolNotice.theScheduleChangeDidNotTakeEffect")
               : (receiptState ?? result.status) === "pending"
-                ? "正在处理计划变更"
+                ? t("schedules:scheduleToolNotice.processingTheScheduleChange")
                 : labels[result.action]}
           {shownName ? ` · ${shownName}` : ""}
         </span>
@@ -126,19 +144,23 @@ export function ScheduleToolNotice({ result }: { result: ScheduleToolResult }) {
             disabled={busy || !plan || pending || entity?.environment.status !== "connected"}
             onClick={() => void cancel()}
           >
-            {busy || pending ? "正在处理" : "取消计划"}
+            {busy || pending
+              ? t("schedules:scheduleToolNotice.processing")
+              : t("schedules:scheduleToolNotice.cancelSchedule")}
           </Button>
         )}
       </div>
       {!deleted && shownRule && (
         <p className="pl-6">
           {scheduleRuleText(shownRule)}
-          {plan?.nextRunAt ? ` · 下一次 ${scheduleTime(plan.nextRunAt)}` : ""}
+          {plan?.nextRunAt
+            ? t("schedules:scheduleToolNotice.next", { value1: scheduleTime(plan.nextRunAt) })
+            : ""}
         </p>
       )}
       <ToastNotice
         message={error}
-        title="定时任务操作未完成"
+        title={localizedMessage("schedules:scheduleToolNotice.theScheduledTaskActionCouldNotBe")}
         onRetry={() => {
           setRetry((value) => value + 1);
           void context?.controller.refresh();

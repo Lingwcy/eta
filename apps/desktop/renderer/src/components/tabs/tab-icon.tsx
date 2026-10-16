@@ -1,9 +1,17 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { Globe2, MessageCircle, Settings2 } from "lucide-react";
 import type { TabPresentation } from "@/agent/tab-presentations";
 
 export function TabIcon({ item }: { item: TabPresentation }) {
+  useTranslation();
   if (item.running)
-    return <span className="size-2 shrink-0 rounded-full bg-[#ed714b]" aria-label="正在执行" />;
+    return (
+      <span
+        className="size-2 shrink-0 rounded-full bg-[#ed714b]"
+        aria-label={t("navigation:tabIcon.running")}
+      />
+    );
   if (item.kind === "browser" && item.favicon)
     return (
       <img

@@ -1,3 +1,4 @@
+import { LocalizedError } from "../shared/i18n/messages.ts";
 import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import { DesktopBot, withBot } from "./bot.ts";
 import type { SubagentCommand } from "@eta/core/shared/subagents";
@@ -52,14 +53,14 @@ async function createLocalDesktopApplication(
   cwd: string,
   dataRoot: string,
   openExternal: (url: string) => Promise<void> = async () => {
-    throw new Error("浏览器不可用");
+    throw new LocalizedError("errors:bootstrap.theBrowserIsUnavailable");
   },
   processImage?: ImageProcessor,
   revealPath: (path: string) => void = () => {
-    throw new Error("文件管理器不可用");
+    throw new LocalizedError("errors:bootstrap.theFileManagerIsUnavailable");
   },
   openDirectory: (path: string) => Promise<void> = async () => {
-    throw new Error("文件管理器不可用");
+    throw new LocalizedError("errors:bootstrap.theFileManagerIsUnavailable");
   },
 ) {
   registerBundledOAuthFlows();
@@ -153,7 +154,8 @@ async function createLocalDesktopApplication(
         provider?: string,
         modelId?: string,
       ) => {
-        if (!processImage) throw new Error("图片处理不可用");
+        if (!processImage)
+          throw new LocalizedError("errors:bootstrap.imageProcessingIsUnavailable");
         let bytes: Uint8Array;
         let name: string;
         if ("path" in source) {
@@ -163,14 +165,16 @@ async function createLocalDesktopApplication(
               ? join(process.env.HOME ?? "", source.path.slice(2))
               : source.path,
           );
-          if ((await stat(path)).size > 32 * 1024 * 1024) throw new Error("图片文件超过 32 MiB");
+          if ((await stat(path)).size > 32 * 1024 * 1024)
+            throw new LocalizedError("errors:bootstrap.theImageFileExceeds32Mib");
           bytes = await readFile(path);
           name = basename(path);
         } else {
           bytes = Buffer.from(source.data, "base64");
           name = source.name;
         }
-        if (bytes.length > 32 * 1024 * 1024) throw new Error("图片文件超过 32 MiB");
+        if (bytes.length > 32 * 1024 * 1024)
+          throw new LocalizedError("errors:bootstrap.theImageFileExceeds32Mib");
         const model = provider && modelId ? models.models.getModel(provider, modelId) : undefined;
         return processImage(bytes, name, model?.inputLimits?.images?.resize);
       },

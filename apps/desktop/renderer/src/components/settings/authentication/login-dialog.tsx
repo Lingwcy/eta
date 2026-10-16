@@ -1,3 +1,6 @@
+import { renderMessage } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useState } from "react";
 import { Check, Copy, ExternalLink, LoaderCircle, KeyRound, X } from "lucide-react";
 import type { LoginPrompt } from "../../../../../src/authentication.ts";
@@ -18,6 +21,7 @@ function LoginPromptForm({
   busy: boolean;
   onAnswer: (id: string, value: string) => Promise<void>;
 }) {
+  useTranslation();
   const [value, setValue] = useState("");
   return (
     <form
@@ -56,7 +60,7 @@ function LoginPromptForm({
       )}
       <div className="flex justify-end">
         <Button type="submit" disabled={busy || (prompt.type === "select" && !value)}>
-          {busy ? "正在提交…" : "继续"}
+          {busy ? t("settings:loginDialog.submitting") : t("settings:loginDialog.continue")}
         </Button>
       </div>
     </form>
@@ -70,6 +74,7 @@ export function LoginDialog({
   auth: ReturnType<typeof useAuthentication>;
   name: string;
 }) {
+  useTranslation();
   const login = auth.login;
   const [copied, setCopied] = useState<string | null>(null);
   return (
@@ -85,17 +90,20 @@ export function LoginDialog({
             {login && <ProviderLogo id={login.provider} name={name} />}
             <div>
               <DialogTitle className="text-xl font-semibold text-neutral-900">
-                连接 {name}
+                {t("settings:loginDialog.connect")}
+                {name}
               </DialogTitle>
               <p className="mt-1 text-sm text-neutral-500">
-                {login?.method === "oauth" ? "使用你的账户继续" : "配置 API Key 与服务访问参数"}
+                {login?.method === "oauth"
+                  ? t("settings:loginDialog.continueWithYourAccount")
+                  : t("settings:loginDialog.configureYourApiKeyAndProviderParameters")}
               </p>
             </div>
           </div>
           <Button
             variant="ghost-muted"
             size="icon-xs"
-            aria-label="关闭并取消登录"
+            aria-label={t("settings:loginDialog.closeAndCancelSignIn")}
             onClick={() => void auth.close()}
             disabled={auth.busy}
           >
@@ -105,7 +113,7 @@ export function LoginDialog({
         <div className="min-h-0 overflow-y-auto">
           {auth.error && (
             <div className="mb-4">
-              <Alert>{auth.error}</Alert>
+              <Alert>{renderMessage(auth.error)}</Alert>
             </div>
           )}
           {login?.status === "completed" ? (
@@ -113,14 +121,24 @@ export function LoginDialog({
               <span className="flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
                 <Check size={24} />
               </span>
-              <p className="text-lg font-semibold">连接成功</p>
-              <p className="text-sm text-neutral-500">模型已加入可用列表，可以开始聊天。</p>
-              <Button onClick={() => void auth.close()}>完成</Button>
+              <p className="text-lg font-semibold">
+                {t("settings:loginDialog.connectedSuccessfully")}
+              </p>
+              <p className="text-sm text-neutral-500">
+                {t("settings:loginDialog.modelsHaveBeenAddedToTheAvailable")}
+              </p>
+              <Button onClick={() => void auth.close()}>{t("settings:loginDialog.done")}</Button>
             </div>
           ) : login?.status === "failed" || login?.status === "cancelled" ? (
             <div className="flex flex-col gap-4">
-              <Alert>{login.message}</Alert>
-              <Button onClick={() => void auth.close()}>返回设置</Button>
+              <Alert>
+                {login.messageKey
+                  ? t(login.messageKey, { defaultValue: login.message })
+                  : login.message}
+              </Alert>
+              <Button onClick={() => void auth.close()}>
+                {t("settings:loginDialog.backToSettings")}
+              </Button>
             </div>
           ) : (
             <div className="flex flex-col gap-5">
@@ -134,7 +152,9 @@ export function LoginDialog({
                       className="mt-1 shrink-0 animate-spin motion-reduce:animate-none"
                     />
                   )}
-                  {login.message}
+                  {login.messageKey
+                    ? t(login.messageKey, { defaultValue: login.message })
+                    : login.message}
                 </p>
               )}
               {login?.deviceCode && (
@@ -145,7 +165,7 @@ export function LoginDialog({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="复制设备码"
+                    aria-label={t("settings:loginDialog.copyDeviceCode")}
                     onClick={() =>
                       void navigator.clipboard
                         .writeText(login.deviceCode ?? "")
@@ -161,12 +181,14 @@ export function LoginDialog({
                 <div key={link.url} className="flex items-center gap-2">
                   <Button variant="outline" onClick={() => void auth.openLink(link.url)}>
                     <ExternalLink size={15} />
-                    {link.label ?? "打开授权链接"}
+                    {link.labelKey
+                      ? t(link.labelKey, { defaultValue: link.label ?? "" })
+                      : (link.label ?? t("settings:loginDialog.openAuthorizationLink"))}
                   </Button>
                   <Button
                     variant="ghost-muted"
                     size="icon-sm"
-                    aria-label="复制授权链接"
+                    aria-label={t("settings:loginDialog.copyAuthorizationLink")}
                     onClick={() =>
                       void navigator.clipboard
                         .writeText(link.url)
@@ -187,7 +209,7 @@ export function LoginDialog({
                 />
               )}
               <p className="text-xs/5 text-neutral-400">
-                凭据仅保存在此电脑。取消登录不会替换已保存的连接。
+                {t("settings:loginDialog.credentialsAreSavedOnlyOnThisComputer")}
               </p>
             </div>
           )}

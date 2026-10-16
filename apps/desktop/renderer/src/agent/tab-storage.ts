@@ -33,7 +33,7 @@ function readTab(value: unknown): DesktopTab | undefined {
         id: value.id,
         kind: value.kind,
         url,
-        title: typeof value.title === "string" ? value.title : "新标签页",
+        title: typeof value.title === "string" ? value.title : "",
       };
     }
     case "settings":

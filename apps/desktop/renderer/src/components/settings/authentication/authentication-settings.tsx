@@ -1,3 +1,6 @@
+import { renderMessage } from "@/i18n/messages";
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { useState } from "react";
 import type { DesktopLibrary } from "../../../../../src/bridge.ts";
 import type { LoginMethod } from "../../../../../src/authentication.ts";
@@ -17,6 +20,7 @@ export interface AuthenticationSettingsProps {
 }
 
 export function AuthenticationSettings(props: AuthenticationSettingsProps) {
+  useTranslation();
   const [query, setQuery] = useState("");
   const auth = useAuthentication(props.refresh);
   const providers = props.library.providers.filter((provider) =>
@@ -44,13 +48,13 @@ export function AuthenticationSettings(props: AuthenticationSettingsProps) {
     <div>
       {auth.error && !auth.login && (
         <div className="mb-4">
-          <Alert>{auth.error}</Alert>
+          <Alert>{renderMessage(auth.error)}</Alert>
         </div>
       )}
       <div className="mb-4">
         <SearchInput
-          aria-label="搜索模型服务"
-          placeholder="搜索服务名称"
+          aria-label={t("settings:authenticationSettings.searchModelProviders")}
+          placeholder={t("settings:authenticationSettings.searchProviderNames")}
           value={query}
           onValueChange={setQuery}
         />
@@ -73,7 +77,7 @@ export function AuthenticationSettings(props: AuthenticationSettingsProps) {
         auth={auth}
         name={
           props.library.providers.find((provider) => provider.id === auth.login?.provider)?.name ??
-          "模型服务"
+          t("settings:authenticationSettings.modelProviders")
         }
       />
     </div>

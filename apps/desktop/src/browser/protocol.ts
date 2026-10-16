@@ -1,3 +1,4 @@
+import { LocalizedError } from "../shared/i18n/messages.ts";
 export interface BrowserState {
   id: string;
   url: string;
@@ -42,10 +43,10 @@ export type BrowserEvent =
 /** Address-bar inputs can be URLs or a search; only web URLs enter guest contents. */
 export function browserAddress(input: string) {
   const text = input.trim();
-  if (!text) throw new Error("请输入网址或搜索内容");
+  if (!text) throw new LocalizedError("errors:protocol.enterAUrlOrSearchQuery");
   if (/^https?:\/\//i.test(text)) return new URL(text).href;
   if (/^[a-z][\w+.-]*:/i.test(text) && !/^[\w.-]+:\d+(?:\/|$)/.test(text))
-    throw new Error("浏览器仅支持 http 和 https 网址");
+    throw new LocalizedError("errors:protocol.theBrowserOnlySupportsHttpAndHttpsUrls");
   if (
     !/\s/.test(text) &&
     (/^(?:localhost|\[[\da-f:]+\])(?::\d+)?(?:\/|$)/i.test(text) ||

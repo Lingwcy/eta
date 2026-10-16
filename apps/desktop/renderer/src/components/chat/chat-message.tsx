@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "@/i18n";
 import { messageText } from "@eta/core/agent/message-text";
 import { memo } from "react";
 import { EntranceAnimation, Reveal } from "@/components/ui/reveal";
@@ -19,6 +21,7 @@ export function ChatMessage({
   streaming?: boolean;
   animate?: boolean;
 }) {
+  useTranslation();
   if (message.role !== "user" && message.role !== "assistant") return null;
   const text = messageText(message);
   const images =
@@ -62,7 +65,7 @@ export function ChatMessage({
                 <img
                   key={index}
                   src={`data:${image.mimeType};base64,${image.data}`}
-                  alt={`附件图片 ${index + 1}`}
+                  alt={t("chat:chatMessage.attachedImage", { value1: index + 1 })}
                   className="max-h-56 max-w-full rounded-2xl border border-neutral-200 object-contain"
                 />
               ))}

@@ -47,6 +47,62 @@ async function setup() {
   return { directory, open, runtime, settings };
 }
 
+test("locale crosses IPC, persists, broadcasts and returns to the Chinese default", async () => {
+  const { directory, runtime, settings, open } = await setup();
+  const application = {
+    updateSettings: (patch) => runtime.runPromise(settings.update(patch)),
+  } satisfies Pick<DesktopApplication, "updateSettings">;
+  expect((await runtime.runPromise(settings.read)).locale).toBeUndefined();
+  let notifications = 0;
+  const unsubscribe = settings.subscribe(() => notifications++);
+  try {
+    for (const locale of ["en", "zh-CN", "en"]) {
+      await dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { locale },
+      });
+      expect((await runtime.runPromise(settings.read)).locale).toBe(locale);
+    }
+    for (const locale of ["fr", "", null, false]) {
+      await expect(
+        dispatchCommand(application as DesktopApplication, { type: "settings", patch: { locale } }),
+      ).rejects.toMatchObject({ code: "InvalidInput" });
+    }
+    expect(notifications).toBe(3);
+  } finally {
+    unsubscribe();
+  }
+  await runtime.dispose();
+  const restored = open();
+  expect(
+    (await restored.runPromise((await restored.runPromise(DesktopSettingsService)).read)).locale,
+  ).toBe("en");
+  await restored.dispose();
+  await rm(join(directory, "settings.json"));
+  const reset = open();
+  expect(
+    (await reset.runPromise((await reset.runPromise(DesktopSettingsService)).read)).locale,
+  ).toBeUndefined();
+});
+
+test("failed locale persistence leaves the confirmed language and subscribers unchanged", async () => {
+  const { directory, runtime, settings } = await setup();
+  await runtime.runPromise(settings.update({ locale: "en" }));
+  let notifications = 0;
+  const unsubscribe = settings.subscribe(() => notifications++);
+  try {
+    await rm(directory, { recursive: true });
+    await writeFile(directory, "not a directory");
+    await expect(runtime.runPromise(settings.update({ locale: "zh-CN" }))).rejects.toMatchObject({
+      code: "StorageUnavailable",
+    });
+    expect((await runtime.runPromise(settings.read)).locale).toBe("en");
+    expect(notifications).toBe(0);
+  } finally {
+    unsubscribe();
+  }
+});
+
 test("agent mode crosses IPC, rejects invalid values, persists and resets to the product default", async () => {
   const { directory, runtime, settings, open } = await setup();
   expect((await runtime.runPromise(settings.read)).agentMode ?? defaultAgentMode).toBe("codemode");

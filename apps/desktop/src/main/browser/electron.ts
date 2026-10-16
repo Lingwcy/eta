@@ -50,7 +50,7 @@ export function createWindowBrowser(window: BrowserWindow) {
     const contents = view.webContents;
     window.contentView.addChildView(view);
     let url = "";
-    let title = "新标签页";
+    let title = "";
     let favicon: string | undefined;
     let loading = false;
     let error: string | undefined;

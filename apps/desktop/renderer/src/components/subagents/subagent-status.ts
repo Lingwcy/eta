@@ -1,8 +1,9 @@
-export const subagentStatus = {
-  running: "运行中",
-  queued: "排队中",
-  paused: "已暂停",
-  completed: "已完成",
-  failed: "出错",
-  stopped: "已停止",
-};
+import { t } from "@/i18n";
+export const subagentStatus = () => ({
+  running: t("inspector:subagentStatus.running"),
+  queued: t("inspector:subagentStatus.queued"),
+  paused: t("inspector:subagentStatus.paused"),
+  completed: t("inspector:subagentStatus.completed"),
+  failed: t("inspector:subagentStatus.error"),
+  stopped: t("inspector:subagentStatus.stopped"),
+});
