@@ -155,11 +155,18 @@ and inspect every build configuration that derives those keys.**
 - Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
 - Check: measure real payload fields, cover initial history and live events, and retain signed originals for subsequent provider calls. Compression alone does not remove incompressible continuation data; SSE compression must flush small events and release producers when cancelled.
 
+**Keep deadlines that become due during an asynchronous pass in the next wake calculation.**
+
+- Evidence: on 2026-10-16, the controlled dispatcher regression advances its clock after discovery but before sleep calculation. Filtering out the now-due schedule leaves no wake deadline and delays delivery by the 60-second idle fallback. Keeping that deadline lets the existing one-second minimum trigger automatic delivery without a new notification. The delayed-arming Bot integration exercises the same boundary with a real Controller; the original #81 CI failure did not record enough timing to identify its exact boundary.
+- Check: move time across a deadline inside a pass, drain pre-existing notifications, and verify delivery without manually ticking or publishing a new event. Preserve the minimum polling delay so due deadlines cannot create a busy loop.
+- Seen: 2026-10-16.
+
 **Arm automatic-delivery fixtures after planning and worker startup have completed.**
 
 - Evidence: on 2026-10-15, PR #28's container verification failed with no schedule occurrence. Delaying submission by six seconds in the main native verifier reproduced that error: its five-second interval anchor had passed before creation, so the next slot moved five minutes ahead. The verifier and Bot tool integration now create an active agent plan safely in the future, then re-arm it after the planning turn is idle and delivery responses are installed. The same injected delay passes after this change; the CI failure's original timing remains unknown without a stored schedule diagnostic.
+- Additional evidence: on 2026-10-16, PR #81's Bot CI failed the root-tool automatic-delivery poll. Holding re-arming until its selected slot passes reproduces a `nextRunAt` exactly five minutes later. Freezing the schedule clock only until the arm is durably persisted, restoring it in `finally`, and checking the exact slot lets both immediate and delayed arming retain real automatic Controller delivery. Re-arming itself has latency; merely moving it after planning does not make a short interval anchor deterministic. The original CI run did not record the slot, so its precise timing remains unknown.
 - Check: keep automatic delivery and real sandbox work in the proof; do not replace them with a manual run or merely extend the completion timeout.
-- Seen: 2026-10-15.
+- Seen: 2026-10-15, 2026-10-16.
 
 **Carry snapshot backpressure through the consumer's asynchronous write.**
 
