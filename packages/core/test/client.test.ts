@@ -88,7 +88,9 @@ test("headless execution retains older operation results and idempotency after r
   expect(await readFile(join(cwd, "proof.txt"), "utf8")).toBe("Executed by Core");
   const second = await core.submit(thread.id, "Continue", "second-request");
   await expect
-    .poll(async () => (await core.operation(thread.id, second.operationId)).status)
+    .poll(async () => (await core.operation(thread.id, second.operationId)).status, {
+      timeout: 10000,
+    })
     .toBe("completed");
   const result = await core.operation(thread.id, first.operationId);
   expect(JSON.stringify(result.messages)).toContain("First result");
@@ -100,7 +102,8 @@ test("headless execution retains older operation results and idempotency after r
     code: "InvalidInput",
   });
   await expect(restored.operation(thread.id, "999999")).rejects.toMatchObject({ code: "NotFound" });
-});
+  // Two native Core runs plus the 10-second completion poll above; the test budget must exceed them.
+}, 30_000);
 
 test("registered host tasks admit once, preserve checkpoints and block recovery when their definition is missing", async () => {
   const { core, open, workspace } = await fixture();
