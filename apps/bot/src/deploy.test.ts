@@ -94,6 +94,20 @@ test("an empty explicit allowlist is rejected without changing the config", asyn
   expect(await readdir(directory)).toEqual(["config.json"]);
 });
 
+test("an unsupported allowlist is rejected without changing the config", async () => {
+  const original = { allowedSandboxModes: ["danger-full-access", "unrestricted"] };
+  const { directory, path } = await prepareConfig(original);
+  let failure: unknown;
+  try {
+    execFileSync(process.execPath, [configEditor, path, "false"]);
+  } catch (error) {
+    failure = error;
+  }
+  expect((failure as { stderr: Buffer }).stderr.toString()).toContain("unsupported sandbox mode");
+  expect(JSON.parse(await readFile(path, "utf8"))).toEqual(original);
+  expect(await readdir(directory)).toEqual(["config.json"]);
+});
+
 test("atomic replacement preserves the config file's private mode", async () => {
   const { directory, path } = await prepareConfig({ allowedSandboxModes: ["workspace-write"] });
   await chmod(path, 0o600);

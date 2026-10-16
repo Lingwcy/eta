@@ -16,6 +16,8 @@ const {
 const { basename, dirname, join } = require("node:path");
 const { randomUUID } = require("node:crypto");
 
+const supportedSandboxModes = new Set(["read-only", "workspace-write", "danger-full-access"]);
+
 function configureSandboxModes(config, enableFullAccess) {
   if (typeof config !== "object" || config === null || Array.isArray(config)) {
     throw new TypeError("Bot config must be a JSON object");
@@ -27,6 +29,9 @@ function configureSandboxModes(config, enableFullAccess) {
   const configuredModes = config.allowedSandboxModes ?? ["read-only", "workspace-write"];
   if (!Array.isArray(configuredModes) || configuredModes.some((mode) => typeof mode !== "string")) {
     throw new TypeError("allowedSandboxModes must be an array of strings");
+  }
+  if (configuredModes.some((mode) => !supportedSandboxModes.has(mode))) {
+    throw new TypeError("allowedSandboxModes contains an unsupported sandbox mode");
   }
 
   const modes = new Set(configuredModes);
