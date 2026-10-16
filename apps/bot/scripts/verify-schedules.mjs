@@ -17,13 +17,24 @@ const { createBotApplication } = await import(
 );
 const root = await mkdtemp(join(tmpdir(), "eta-native-scheduled-bot-"));
 let bot;
-const poll = async (read, expected) => {
+const poll = async (read, expected, { onTimeout } = {}) => {
   const deadline = Date.now() + 15000;
   while (true) {
     const value = await read();
     if (value === expected) return;
-    if (Date.now() >= deadline)
-      throw new Error(`Scheduled Bot verification expected ${expected}, received ${value}`);
+    if (Date.now() >= deadline) {
+      let diagnosticSuffix = "";
+      if (onTimeout) {
+        try {
+          diagnosticSuffix = `; diagnostics=${JSON.stringify(await onTimeout())}`;
+        } catch (error) {
+          diagnosticSuffix = `; diagnosticsError=${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+      throw new Error(
+        `Scheduled Bot verification expected ${expected}, received ${value}${diagnosticSuffix}`,
+      );
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 };
@@ -90,6 +101,44 @@ try {
   await poll(
     async () => (await bot.core.listScheduleRuns({ scheduleId: schedule.id }))[0]?.state,
     "succeeded",
+    {
+      onTimeout: async () => {
+        const schedules = await bot.core.listSchedules({ threadId: thread.id });
+        const currentSchedule = schedules.find((entry) => entry.id === schedule.id);
+        const runs = await bot.core.listScheduleRuns({ scheduleId: schedule.id });
+        // Whitelist state and timing metadata; do not emit the schedule prompt or transcript.
+        return {
+          observedAt: new Date().toISOString(),
+          schedule: currentSchedule
+            ? {
+                id: currentSchedule.id,
+                state: currentSchedule.state,
+                revision: currentSchedule.revision,
+                rule: currentSchedule.rule,
+                nextRunAt: currentSchedule.nextRunAt,
+                consumedThrough: currentSchedule.consumedThrough,
+                blockedReason: currentSchedule.blockedReason,
+                updatedAt: currentSchedule.updatedAt,
+              }
+            : null,
+          occurrenceCount: runs.length,
+          recentOccurrences: runs.slice(0, 3).map((run) => ({
+            id: run.id,
+            scheduleRevision: run.scheduleRevision,
+            scheduledAt: run.scheduledAt,
+            source: run.source,
+            detectedAt: run.detectedAt,
+            admittedAt: run.admittedAt,
+            operationId: run.operationId,
+            inputEntryId: run.inputEntryId,
+            finishedAt: run.finishedAt,
+            state: run.state,
+            reason: run.reason,
+          })),
+          activeThreads: bot.controller.status().activeThreads,
+        };
+      },
+    },
   );
   assert.equal(
     await readFile(join(workspaceRoot, "repo", "scheduled.txt"), "utf8"),
