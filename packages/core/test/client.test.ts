@@ -53,7 +53,7 @@ async function fixture() {
       home: directory,
       models,
       settings: {
-        read: Effect.succeed({ defaultThinkingLevel: "off" }),
+        read: Effect.succeed({ agentMode: "standard", defaultThinkingLevel: "off" }),
         subscribe: () => () => {},
       },
       environment: { userAgent: "eta-core-test", shutdown: "preserve", ...environment },

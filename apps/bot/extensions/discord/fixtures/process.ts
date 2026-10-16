@@ -122,7 +122,9 @@ provider.setResponses(
     ? [fauxAssistantMessage("Recovered customer reply")]
     : [
         fauxAssistantMessage(
-          fauxToolCall("write", { path: "crash-proof.txt", content: "Investigated before reply" }),
+          fauxToolCall("codemode", {
+            code: 'text(await tools.write({path:"crash-proof.txt",content:"Investigated before reply"}));',
+          }),
           { stopReason: "toolUse" },
         ),
         final,

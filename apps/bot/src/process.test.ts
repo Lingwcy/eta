@@ -63,7 +63,7 @@ test("SIGKILL releases the writer lock and a fresh Bot process resumes persisted
         adminToken: "process-test-token",
         workspaceRoot: "workspaces",
         projects: [{ key: "test", rootPath: "workspaces/workspace" }],
-        runtime: { defaultThinkingLevel: "off" },
+        runtime: { agentMode: "standard" as const, defaultThinkingLevel: "off" },
       }),
     );
     const first = await start("hold");

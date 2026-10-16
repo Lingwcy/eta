@@ -74,6 +74,12 @@ export async function createBotApplication(
         shutdown: "preserve",
         allowedSandboxModes: config.allowedSandboxModes ?? sandboxModes,
         sandboxWorkerPath: existsSync(worker) ? worker : undefined,
+        codemodeAssets: existsSync(worker)
+          ? {
+              worker: fileURLToPath(new URL("./codemode-worker.mjs", import.meta.url)),
+              wasm: fileURLToPath(new URL("./quickjs.wasm", import.meta.url)),
+            }
+          : undefined,
         // A dot directory: project discovery skips it, yet it stays inside the workspace root's scope.
         worktreeRoot: join(config.workspaceRoot, ".eta-worktrees"),
         ...dependencies.environment,

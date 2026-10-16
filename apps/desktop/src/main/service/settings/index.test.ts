@@ -11,6 +11,7 @@ import { agentThinkingVariants } from "../../../appearance.ts";
 import { dispatchCommand } from "../../ipc.ts";
 import type { DesktopApplication } from "../../bootstrap.ts";
 import { defaultSubagentSettings } from "@eta/core/shared/subagents";
+import { defaultAgentMode } from "@eta/core/shared/runtime-settings";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];
@@ -45,6 +46,45 @@ async function setup() {
   const settings = await runtime.runPromise(DesktopSettingsService);
   return { directory, open, runtime, settings };
 }
+
+test("agent mode crosses IPC, rejects invalid values, persists and resets to the product default", async () => {
+  const { directory, runtime, settings, open } = await setup();
+  expect((await runtime.runPromise(settings.read)).agentMode ?? defaultAgentMode).toBe("codemode");
+  const application = {
+    updateSettings: (patch) => runtime.runPromise(settings.update(patch)),
+  } satisfies Pick<DesktopApplication, "updateSettings">;
+  let notifications = 0;
+  const unsubscribe = settings.subscribe(() => notifications++);
+  try {
+    for (const agentMode of ["standard", "codemode", "standard"]) {
+      await dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { agentMode },
+      });
+      expect((await runtime.runPromise(settings.read)).agentMode).toBe(agentMode);
+    }
+    for (const agentMode of ["invalid", null, false]) {
+      await expect(
+        dispatchCommand(application as DesktopApplication, {
+          type: "settings",
+          patch: { agentMode },
+        }),
+      ).rejects.toMatchObject({ code: "InvalidInput" });
+    }
+    expect(notifications).toBe(3);
+  } finally {
+    unsubscribe();
+  }
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect((await next.runPromise(restored.read)).agentMode).toBe("standard");
+  await next.dispose();
+  await rm(join(directory, "settings.json"));
+  const reset = open();
+  const defaults = await reset.runPromise(DesktopSettingsService);
+  expect((await reset.runPromise(defaults.read)).agentMode ?? defaultAgentMode).toBe("codemode");
+});
 test("serialized patches preserve unrelated fields and survive reopening", async () => {
   const { directory, open, runtime, settings } = await setup();
   expect(await runtime.runPromise(settings.read)).toEqual({ defaultThinkingLevel: "off" });

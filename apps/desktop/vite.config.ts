@@ -23,6 +23,17 @@ export default defineConfig({
       "@earendil-works/chord": fileURLToPath(
         new URL("./node_modules/@earendil-works/chord/dist/index.js", import.meta.url),
       ),
+      ...Object.fromEntries(
+        ["portable", "source", "declarations", "index"].map((entry) => [
+          `@earendil-works/pi-codemode${entry === "index" ? "" : `/${entry}`}`,
+          fileURLToPath(
+            new URL(
+              `../../packages/core/node_modules/@earendil-works/pi-codemode/dist/${entry}.js`,
+              import.meta.url,
+            ),
+          ),
+        ]),
+      ),
     },
   },
   ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/agent", "@eta/core"] },
@@ -47,6 +58,9 @@ export default defineConfig({
           "@eta/agent$": fileURLToPath(
             new URL("../../packages/agent/src/index.ts", import.meta.url),
           ),
+          "@eta/agent/codemode$": fileURLToPath(
+            new URL("../../packages/agent/src/codemode/index.ts", import.meta.url),
+          ),
           "@eta/agent/env$": fileURLToPath(
             new URL("../../packages/agent/src/env/index.ts", import.meta.url),
           ),
@@ -66,6 +80,7 @@ export default defineConfig({
       main: "src/main.ts",
       preload: "src/preload.ts",
       "sandbox-worker": "../../packages/core/src/platform/sandbox/worker.ts",
+      "codemode-worker": "../../packages/core/src/service/runtime/codemode-worker.ts",
     },
     format: "cjs",
     outDir: "dist/electron",
@@ -80,6 +95,10 @@ export default defineConfig({
         "effect/**",
         "@earendil-works/pi-ai",
         "@earendil-works/pi-ai/**",
+        "@earendil-works/pi-codemode",
+        "@earendil-works/pi-codemode/**",
+        "quickjs-wasi",
+        "quickjs-wasi/**",
         "@eta/agent",
         "@eta/agent/**",
         "@eta/core",
