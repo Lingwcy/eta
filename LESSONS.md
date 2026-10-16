@@ -73,6 +73,18 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Validate SDK compatibility separately from frozen dependency resolution.**
+
+- Evidence: #29 and #54 failed Mobile CI at Expo's compatibility gate despite successful frozen installs. On 2026-10-15, main `ff2545b` reproduces the expected Expo `~57.0.30` / Router `~57.0.28` mismatch; the release commit only changes Desktop/root versions. Expo CLI reads its native-module recommendations from an online SDK API, so a lockfile does not freeze that contract. Aligning these patches makes the compatibility check pass; this does not establish that the old native app was broken.
+- Check: preserve the compatibility gate, verify the SDK's required toolchain together, and export both platforms. Keep release-age exceptions restricted to required exact versions and verify unrelated workspace importers remain unchanged; do not disable policy or force offline metadata merely to turn CI green.
+- Seen: 2026-10-15.
+
+**Parse streaming protocols independently of transport read boundaries.**
+
+- Evidence: on 2026-10-15, byte-split LF frames passed Desktop's thread and schedule subscriptions, but valid split CRLF and bare-CR frames produced six failures: no completed thread observation or schedule revision arrived. The shared Desktop parser normalized each chunk separately, losing CRLF boundaries split across reads. Incremental line-ending normalization makes all 18 Bot transport tests pass, including UTF-8, admission acknowledgement, reconnect and cancellation; Mobile's existing independent parser passes its four boundary tests unchanged. This is a controlled protocol reproduction, not a production incident or an explanation of unrelated CI failures.
+- Check: feed valid frames across arbitrary byte boundaries, including UTF-8 and line endings, on every consumer of a shared parser. Do not assume a server's usual LF output or a whole-frame mock covers the wire protocol.
+- Seen: 2026-10-15.
+
 **Recover filesystem staging before treating a cross-store lifecycle operation as rolled back.**
 
 - Evidence: on 2026-10-13, the scheduled-task `SIGKILL at delete-intent` fixture moved a real session into `.trash` and killed the host before its Catalog replacement. The reopened Catalog still contained the thread, but opening it failed with `StorageCorrupt`. Session removal now journals before renaming and reconciles that journal against Catalog before opening threads; six real archive/delete crash windows pass, including restore-after-archive without restarting plans.
@@ -134,6 +146,12 @@ and inspect every build configuration that derives those keys.**
 - Seen 1× (2026-10-12).
 
 ## Asynchronous verification
+
+**Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
+
+- Evidence: on 2026-10-16, #57 holds a real Core recovery result across stop and resubmit of the same Bot thread. The old successful check releases the replacement's checkout reservation and admits a competing writer; an old failed check marks the replacement blocked. Two native regressions reproduce both outcomes before the fix and verify current completion still releases capacity afterward.
+- Check: carry a per-claim identity across awaits, validate it before releasing or changing state, and dispose late subscription setup instead of overwriting a new monitor. Exercise stop/resubmit while a previous check is pending; unsubscribing alone cannot retract an already running callback.
+- Seen: 2026-10-16.
 
 **Keep provider continuation payloads in runtime storage, out of display snapshots.**
 
