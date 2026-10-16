@@ -9,6 +9,12 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { ExecutionError, FileError, err, ok } from "@eta/agent/env";
 import type {
   ExecutionEnv,
+  BinaryReader,
+  DirReader,
+  FileWatcher,
+  WatchTarget,
+  WatchChange,
+  LineScan,
   FileErrorCode,
   FileInfo,
   Result,
@@ -59,6 +65,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
   private closed = false;
   private failure?: string;
   private cleanupPromise?: Promise<void>;
+  private readonly watchers = new Map<number, (change: WatchChange) => void>();
   private readonly pending = new Map<number, Pending>();
   private readonly ready: Promise<void>;
   private readonly child: ChildProcess;
@@ -92,11 +99,34 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
           resolve();
           return;
         }
+        if (message.event === "watch") {
+          if (message.change) {
+            const change = message.change;
+            try {
+              this.watchers.get(message.id)?.(
+                "error" in change
+                  ? { error: new RemoteFileError(change.error) }
+                  : "paths" in change
+                    ? { paths: [...change.paths] }
+                    : change,
+              );
+            } catch {
+              this.watchers.delete(message.id);
+              void this.request({ method: "closeWatcher", reader: message.id }, BACKGROUND_CONTEXT);
+            }
+            if ("error" in change) this.watchers.delete(message.id);
+          }
+          return;
+        }
         const pending = this.pending.get(message.id);
         if (!pending) return;
         if (message.event === "output") {
           try {
-            pending.output?.(String(message.value), pending.context);
+            pending.output?.(
+              String(message.value),
+              pending.context,
+              message.outputInfo ?? { stream: "stdout" },
+            );
           } catch (error) {
             pending.callbackError = error instanceof Error ? error.message : String(error);
             this.terminate("callback_error", pending.callbackError);
@@ -178,6 +208,14 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
     for (const [id, pending] of this.pending)
       pending.resolve({ id, event: "result", error: { code, message } });
     this.pending.clear();
+    for (const onChange of this.watchers.values()) {
+      try {
+        onChange({ error: new FileError("unknown", message) });
+      } catch {
+        /* A watcher cannot block worker cleanup. */
+      }
+    }
+    this.watchers.clear();
   }
 
   private terminate(code: string, message: string) {
@@ -197,11 +235,13 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
     request: Request,
     context: Context,
     output?: ShellExecOptions["onOutput"],
+    onChange?: (change: WatchChange) => void,
   ): Promise<Result<T, FileError>> {
     if (context.abortSignal?.aborted) return err(new FileError("aborted", "aborted", request.path));
     if (this.closed || this.failure)
       return err(new FileError("unknown", this.failure ?? "沙盒执行环境已关闭"));
     const id = ++this.sequence;
+    if (onChange) this.watchers.set(id, onChange);
     const abort = () => {
       if (request.method === "exec") this.terminate("aborted", "Command aborted");
       else if (this.child.connected) this.child.send({ id, method: "cancel" });
@@ -230,6 +270,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
           },
         );
       });
+      if (message.error && onChange) this.watchers.delete(id);
       return message.error ? err(new RemoteFileError(message.error)) : ok(message.value as T);
     } finally {
       context.abortSignal?.removeEventListener("abort", abort);
@@ -266,6 +307,83 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
   async readBinaryFile(path: string, context: Context): Promise<Result<Uint8Array, FileError>> {
     const result = await this.request<string>({ method: "readBinaryFile", path }, context);
     return result.ok ? ok(Buffer.from(result.value, "base64")) : result;
+  }
+  async openBinaryReader(
+    path: string,
+    options: { noFollow?: boolean } | undefined,
+    context: Context,
+  ): Promise<Result<BinaryReader, FileError>> {
+    const result = await this.request<number>(
+      { method: "openBinaryReader", path, options },
+      context,
+    );
+    if (!result.ok) return result;
+    const reader = result.value;
+    return ok({
+      info: (context) => this.request<FileInfo>({ method: "binaryInfo", reader }, context),
+      read: async (offset, length, context) => {
+        const bytes = await this.request<string>(
+          { method: "binaryRead", reader, offset, length },
+          context,
+        );
+        return bytes.ok ? ok(Buffer.from(bytes.value, "base64")) : bytes;
+      },
+      scanLines: (options, context) =>
+        this.request<LineScan>({ method: "scanLines", reader, options }, context),
+      close: async (context) => {
+        await this.request({ method: "closeReader", reader }, context);
+      },
+    });
+  }
+  async openDirReader(path: string, context: Context): Promise<Result<DirReader, FileError>> {
+    const result = await this.request<number>({ method: "openDirReader", path }, context);
+    if (!result.ok) return result;
+    const reader = result.value;
+    return ok({
+      next: (maxEntries, context) =>
+        this.request<{ entries: FileInfo[]; done: boolean }>(
+          { method: "readDir", reader, options: { maxEntries } },
+          context,
+        ),
+      close: async (context) => {
+        await this.request({ method: "closeReader", reader }, context);
+      },
+    });
+  }
+  async watch(
+    targets: readonly WatchTarget[],
+    onChange: (change: WatchChange) => void,
+    context: Context,
+  ): Promise<Result<FileWatcher, FileError>> {
+    const result = await this.request<{ id: number; mode: FileWatcher["mode"] }>(
+      {
+        method: "watch",
+        targets: targets.map((target) => ({
+          ...target,
+          path: expandHome(target.path),
+          ...(target.exclude
+            ? {
+                exclude: {
+                  ...target.exclude,
+                  names: target.exclude.names && [...target.exclude.names],
+                },
+              }
+            : {}),
+        })),
+      },
+      context,
+      undefined,
+      onChange,
+    );
+    if (!result.ok) return result;
+    const { id, mode } = result.value;
+    return ok({
+      mode,
+      close: async (context) => {
+        this.watchers.delete(id);
+        await this.request({ method: "closeWatcher", reader: id }, context);
+      },
+    });
   }
   writeFile(path: string, content: string | Uint8Array, context: Context) {
     return this.request<void>(
@@ -327,7 +445,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
     return this.request<string>({ method: "createTempFile", options }, context);
   }
   async exec(
-    command: string,
+    command: string | readonly string[],
     options: ShellExecOptions | undefined,
     context: Context,
   ): Promise<Result<ShellExecResult, ExecutionError>> {
@@ -349,7 +467,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
     let result: Result<ShellExecResult, FileError>;
     try {
       result = await this.request<ShellExecResult>(
-        { method: "exec", path: command, options },
+        { method: "exec", command: typeof command === "string" ? command : [...command], options },
         context,
         options?.onOutput,
       );

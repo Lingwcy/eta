@@ -34,7 +34,9 @@ export function createTitleTask(
             task.input.model.modelId,
           );
           if (!model) throw new Error("标题模型不可用");
-          const view = await runtime.context(runtime.conversationId, context, task.input.entry);
+          const view = await runtime.context(runtime.conversationId, context, {
+            at: task.input.entry,
+          });
           const source = view.messages.filter((message) => message.role === "user");
           const allowImages = model.input.includes("image") && !(await blockImages());
           const messages: Message[] = [

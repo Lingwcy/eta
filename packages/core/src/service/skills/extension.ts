@@ -61,7 +61,7 @@ export function createSkillsExtension(
       const loaded = existing ?? (await loadSkill(selected));
       await api.commit((tx) => activate(tx, api.conversationId, loaded), context);
       return {
-        content: [
+        output: [
           {
             type: "text" as const,
             text: `Activated ${name}. Follow its instructions in the active-skills section. Base directory: ${loaded.directory}`,
@@ -83,7 +83,7 @@ export function createSkillsExtension(
         const state = await tx.doc(SkillsDoc, api.conversationId);
         state.active = state.active.filter((skill) => skill.name !== name);
       }, context);
-      return { content: [{ type: "text" as const, text: `Removed active skill ${name}` }] };
+      return { output: [{ type: "text" as const, text: `Removed active skill ${name}` }] };
     },
   });
   const extension = defineExtension({

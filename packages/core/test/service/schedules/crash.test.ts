@@ -39,6 +39,7 @@ test.each(["pending", "dispatching", "submitted", "recorded", "finished"])(
     child.stderr?.on("data", (chunk: Buffer) => {
       diagnostics += chunk.toString();
     });
+    const admissionGate = Promise.withResolvers<void>();
     let close: (() => Promise<void>) | undefined;
     try {
       const report = await new Promise<typeof ReportSchema.Type>((resolve, reject) => {
@@ -79,8 +80,9 @@ test.each(["pending", "dispatching", "submitted", "recorded", "finished"])(
       let submissions = 0;
       const adapter = scheduleHostAdapter(
         {
-          submit: (id, prompt, requestId) => {
+          submit: async (id, prompt, requestId) => {
             submissions++;
+            await admissionGate.promise;
             return reopened.runPromise(threads.submit(id, prompt, requestId));
           },
           operationByRequest: (id, requestId) =>
@@ -95,7 +97,23 @@ test.each(["pending", "dispatching", "submitted", "recorded", "finished"])(
       );
       await reopened.runPromise(dispatcher.tick(adapter, report.scheduledAt + 1));
       const schedule = (await reopened.runPromise(schedules.list(report.threadId)))[0];
-      const occurrence = (await reopened.runPromise(schedules.runs(schedule.id)))[0];
+      let occurrence = (await reopened.runPromise(schedules.runs(schedule.id)))[0];
+      if (["pending", "dispatching"].includes(phase)) {
+        expect(occurrence.state).toBe("dispatching");
+        expect(occurrence.operationId).toBeUndefined();
+      }
+      admissionGate.resolve();
+      // A tick can return before admission; reconcile the durable receipt before reading its ID.
+      await expect
+        .poll(
+          async () => {
+            await reopened.runPromise(dispatcher.tick(adapter, report.scheduledAt + 1));
+            occurrence = (await reopened.runPromise(schedules.runs(schedule.id)))[0];
+            return occurrence.operationId;
+          },
+          { timeout: 10000 },
+        )
+        .toBeDefined();
       const opened = await reopened.runPromise(threads.open(report.threadId));
       if (opened.snapshot.recoveryRequired)
         await reopened.runPromise(threads.resume(report.threadId));
@@ -119,6 +137,7 @@ test.each(["pending", "dispatching", "submitted", "recorded", "finished"])(
       expect(finalRuns[0].requestId).toBe(occurrence.requestId);
       expect(finalRuns[0].state).toBe("succeeded");
     } finally {
+      admissionGate.resolve();
       if (child.exitCode === null && child.signalCode === null) {
         const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
         child.kill("SIGKILL");
