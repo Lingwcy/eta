@@ -2,16 +2,20 @@
   <img src="apps/desktop/renderer/public/eta-icon.png" width="96" height="96" alt="Eta 标志" />
 </p>
 <h1 align="center">Eta</h1>
-<p align="center">桌面上的通用 Agent。</p>
+<p align="center">桌面与云端通用的 Agent。</p>
 <p align="center"><a href="README.md">English</a> · 简体中文</p>
 
-用自然语言让 Eta 帮你处理文件：理解代码、修改文档，或整理工作目录。连接 AI 账户或填入自己的 API Key，选好项目文件夹就能开始；会话会保存，随时回来接着做。
+Eta 把自然语言指令变成实际成果：理解代码、修改文档、整理工作目录，或按计划周期性执行任务。同一个 Agent，三种用法——桌面应用处理本地工作；自托管的 Bot 在云端全天候运行；手机端随时查看进度、处理审批。
+
+给 Eta 一个项目和一个任务即可开始。会话是持久的：关掉应用、放下手机，或者明天再回来——工作、历史记录和定时计划都原样保留。
 
 ![Eta 桌面界面：聊天记录、已完成的工具调用和模型选择器](docs/assets/image.png)
 
-## 安装
+## 快速开始
 
-从 [GitHub Releases](https://github.com/Lingwcy/eta/releases) 下载安装包。
+### 桌面端
+
+从 [GitHub Releases](https://github.com/Lingwcy/eta/releases) 下载安装包，Eta 会自动更新到新版本。
 
 | 平台                  | 安装包                        |
 | --------------------- | ----------------------------- |
@@ -19,29 +23,62 @@
 | macOS — Intel         | `Eta-<version>-mac-x64.dmg`   |
 | Windows — x64         | `Eta-<version>-win-x64.exe`   |
 
-Windows 上执行命令需要安装含 Git Bash 的 [Git for Windows](https://gitforwindows.org/)。从源码运行或自行打包，请看[贡献指南（English）](CONTRIBUTING.md)。
+连接 AI 账户或填入自己的 API Key，选择项目文件夹，然后描述要做的工作。会话、项目、技能、子智能体和定时任务的用法见[桌面端指南](docs/user/desktop.zh-CN.md)。
 
-## 用 Eta 完成工作
+### 云端 —— Eta Bot
 
-| 你想做什么                             | 使用指南                                                      |
-| -------------------------------------- | ------------------------------------------------------------- |
-| 继续已有聊天、管理项目或备份会话       | [聊天与本地数据](docs/user/desktop.zh-CN.md#聊天与本地数据)   |
-| 用 `$技能名` 为 agent 提供可复用的指令 | [技能](docs/user/desktop.zh-CN.md#技能)                       |
-| 委派任务并跟进子会话                   | [子智能体](docs/user/desktop.zh-CN.md#子智能体)               |
-| 控制文件、命令和网络访问               | [沙盒策略](docs/user/sandbox.md)                              |
-| 在远端 Eta Bot 上执行任务              | [连接 Bot](docs/user/bot.md) · [部署 Bot](apps/bot/README.md) |
+把 Eta 部署在自己的服务器上，用桌面端或手机端连接同一个 Agent。用 Docker 部署 Bot：
 
-## 使用前须知
+```sh
+docker compose -f apps/bot/compose.example.yaml up --build -d
+```
 
-- agent 可以修改文件、执行命令。新会话默认使用工作区沙盒；只想查看文件时，可选择只读模式。Windows 的受限模式会阻止本地任务，执行任务需要完全访问；选择前请先阅读[沙盒策略](docs/user/sandbox.md)。
-- 在**设置 → 工具函数**中启用或停用系统工具，在**设置 → 权限**中管理图片读取。外部工具尚未接入。
-- 安装包可能触发系统安全提示：macOS 版本默认采用 ad-hoc 签名，除非发布时启用了 Developer ID 签名与公证；Windows 安装包目前未签名。
-- 本地与 Bot 的文件和会话历史不会自动同步。
+然后在桌面端「设置 → 应用 → Bot」中填写服务器地址并连接，导入模型凭证，新建聊天时把执行位置从「此计算机」切换为「云端」。云端任务使用服务器上的文件、模型和技能；关闭桌面端后任务仍继续运行，定时计划照常触发。Bot 还提供 HTTP API，并可接收来自 Discord 的客户问题。完整部署说明见 [apps/bot/README.md](apps/bot/README.md)，使用说明见[连接 Bot](docs/user/bot.md)。
+
+### 手机端
+
+eta-mobile（iOS 与 Android）连接已部署的 Bot：新建会话、实时查看工具执行结果、在手机上处理审批请求。断开连接后，任务在服务器上继续运行。见[手机端指南](docs/user/mobile.md)。
+
+## Eta 能做什么
+
+- **持久会话与项目** —— 会话完整保存历史；每个项目有自己的工作区，可选用 Git worktree 隔离工作；侧边栏可浏览项目的 GitHub PR 与 Issue。
+- **子智能体** —— 把工作委派给子会话，实时查看进度，中途发消息调整方向。预设可携带各自的指令、思考等级和模型；编排模式下由主会话统筹、子会话执行。
+- **技能** —— 可复用的指令集，Agent 按需加载。用 `$技能名` 调用；个人技能放在 `~/.agents/skills/`，项目技能放在 `.agents/skills/`。
+- **定时任务** —— 一次性、间隔、每日或每周计划，绑定在会话上。可在本机运行，也可放在 Bot 上，桌面端关闭后仍按计划在服务器触发。
+- **可扩展的审批** —— 超出当前策略的操作在执行前会完整展示要做什么。你可以在桌面端或手机端亲自批准，也可以让自动审查模型先行判断：批准、拒绝，或转交给你决定。
+
+## 权限与沙盒
+
+Eta 内置完整的权限系统。每个会话运行在三档策略之一——**只读**、**工作区沙盒**（默认）或**完全访问**——由原生沙盒后端（macOS 的 Seatbelt、Linux 的 Landlock）对文件工具、命令和子进程强制执行。超出策略的操作必须先获得授权：审批卡片会写明操作、完整参数以及额外的文件或网络范围，授权只对单次调用或单次运行有效。Bot 部署可为所有接入的客户端设定策略上限。沙盒后端不可用时，任务会被阻止并说明原因——Eta 不会自行放宽访问范围。详见[沙盒策略](docs/user/sandbox.md)。
+
+## 仓库结构
+
+本仓库包含 Eta 的各端应用与它们共享的核心。
+
+| 部分               | 说明                                                 |
+| ------------------ | ---------------------------------------------------- |
+| **apps/desktop**   | macOS 与 Windows 的 Electron 客户端，完整的本地 Agent 体验 |
+| **apps/bot**       | 自托管云端服务，通过 HTTP/SSE 托管 Agent，支持 Discord 接入 |
+| **apps/mobile**    | iOS 与 Android 手机端，连接已部署的 Bot             |
+| **packages/core**  | 共享核心：项目、持久会话、沙盒、定时任务、审批       |
+| **packages/agent** | Agent 运行时：工具调用与会话管理                     |
+
+Eta 的 Agent 运行时基于 Earendil Works 的 [Pi](https://github.com/earendil-works/pi) —— 一个极简、可扩展的 Agent 框架。
 
 ## 参与开发
 
-[贡献指南（English）](CONTRIBUTING.md)包含开发环境配置、针对性检查和安装包构建方法。维护者发布版本时请参考[发布指南](docs/release.md)。
+开发环境、聚焦检查与安装包构建见 [CONTRIBUTING.md](CONTRIBUTING.md)。维护者按[发布指南](docs/release.md)发布版本。
 
-## 许可
+## 开发命令
 
-采用 [MIT 许可证](LICENSE)。依赖和内置资源仍适用各自的许可证。
+```sh
+vp install        # 用 Vite+ 工具链安装依赖
+vp run dev        # 构建并运行桌面端
+vp run @eta/bot#build   # 构建 Bot 服务
+vp run package:mac      # 构建 macOS 安装包
+vp run package:win      # 构建 Windows 安装包
+```
+
+## 许可证
+
+[MIT](LICENSE)。依赖与捆绑资源保留各自的许可证。
