@@ -180,7 +180,9 @@ and inspect every build configuration that derives those keys.**
 **Keep provider continuation payloads in runtime storage, out of display snapshots.**
 
 - Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
-- Check: measure real payload fields, cover initial history and live events, and retain signed originals for subsequent provider calls. Compression alone does not remove incompressible continuation data; SSE compression must flush small events and release producers when cancelled.
+- Additional evidence: on 2026-10-17, #100's real HTTP operation-polling regression returns 220,582 bytes for a short answer because this route bypasses the history/SSE display projection. Reusing the assistant display filter removes the continuation fields while preserving Core answers, receipt/origin identities, text phases and business payloads.
+- Check: measure real payload fields, cover history, live events and operation-result polling, and retain signed originals for subsequent provider calls. Compression or client-side schema stripping does not remove the transfer/decoding cost; SSE compression must flush small events and release producers when cancelled.
+- Seen: 2026-10-15, 2026-10-17.
 
 **Keep deadlines that become due during an asynchronous pass in the next wake calculation.**
 

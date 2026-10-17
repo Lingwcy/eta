@@ -4,7 +4,7 @@ import { bearerAuth } from "hono/bearer-auth";
 import { HTTPException } from "hono/http-exception";
 import { bodyLimit } from "hono/body-limit";
 import { compressEvents, compressJson } from "./compression.ts";
-import { displaySnapshot } from "./snapshot.ts";
+import { displayOperation, displaySnapshot } from "./snapshot.ts";
 import { streamSSE } from "hono/streaming";
 import { SubagentCommandSchema } from "@eta/core/shared/subagent-schema";
 import { Schema } from "effect";
@@ -434,7 +434,9 @@ export function createHttpApp(options: {
   app.get("/v1/threads/:id/operations/:operationId", async (context) => {
     const id = context.req.param("id");
     await controller.authorize(id);
-    return context.json(await core.operation(id, context.req.param("operationId")));
+    return context.json(
+      displayOperation(await core.operation(id, context.req.param("operationId"))),
+    );
   });
   app.post("/v1/threads/:id/stop", async (context) => {
     await controller.stop(context.req.param("id"));

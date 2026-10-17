@@ -1,8 +1,68 @@
 import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
-import type { SnapshotResponse } from "@eta/core/agent/protocol";
+import type { OperationResult, SnapshotResponse } from "@eta/core/agent/protocol";
 import { messageText } from "@eta/core/agent/message-text";
-import { displaySnapshot } from "./snapshot.ts";
+import { displayOperation, displaySnapshot } from "./snapshot.ts";
+
+test("operation display preserves receipt metadata, display phases and business payloads", () => {
+  const assistant = fauxAssistantMessage("Visible answer");
+  assistant.content = [
+    { type: "thinking", thinking: "Reasoning", thinkingSignature: "internal-thinking" },
+    { type: "text", text: "Visible answer", textSignature: '{"phase":"final_answer"}' },
+    {
+      type: "toolCall",
+      id: "tool",
+      name: "example",
+      arguments: { thoughtSignature: "business argument" },
+      thoughtSignature: "internal-tool",
+    },
+  ];
+  const operation: OperationResult = {
+    operationId: "2",
+    originOperationId: "1",
+    inputEntryId: "entry:0",
+    kind: "run",
+    status: "completed",
+    startedAt: 1,
+    endedAt: 2,
+    messages: [
+      assistant,
+      { role: "user", content: "Literal thinkingSignature", timestamp: 1 },
+      {
+        role: "toolResult",
+        toolCallId: "tool",
+        toolName: "example",
+        content: [{ type: "text", text: "Business result" }],
+        details: { thinkingSignature: "business detail" },
+        isError: false,
+        timestamp: 2,
+      },
+    ],
+  };
+  const original = JSON.stringify(operation);
+  const displayed = displayOperation(operation);
+  expect(displayed).toMatchObject({
+    operationId: "2",
+    originOperationId: "1",
+    inputEntryId: "entry:0",
+    kind: "run",
+    status: "completed",
+    startedAt: 1,
+    endedAt: 2,
+  });
+  expect(displayed.messages[0]?.content).toEqual([
+    { type: "thinking", thinking: "Reasoning" },
+    assistant.content[1],
+    {
+      type: "toolCall",
+      id: "tool",
+      name: "example",
+      arguments: { thoughtSignature: "business argument" },
+    },
+  ]);
+  expect(displayed.messages.slice(1)).toEqual(operation.messages.slice(1));
+  expect(JSON.stringify(operation)).toBe(original);
+});
 
 test("display snapshots omit continuation payloads without modifying signed history or display phases", () => {
   const message = fauxAssistantMessage("Visible answer");

@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { SnapshotResponse } from "@eta/core/agent/protocol";
+import type { OperationResult, SnapshotResponse } from "@eta/core/agent/protocol";
 
 function displayMessage(message: AssistantMessage): AssistantMessage {
   return {
@@ -18,6 +18,16 @@ function displayMessage(message: AssistantMessage): AssistantMessage {
       // textSignature carries display phase metadata used to distinguish progress and final text.
       return part;
     }),
+  };
+}
+
+/** Operation polling is a display boundary too; keep the original receipt and messages in Core. */
+export function displayOperation(operation: OperationResult): OperationResult {
+  return {
+    ...operation,
+    messages: operation.messages.map((message) =>
+      message.role === "assistant" ? displayMessage(message) : message,
+    ),
   };
 }
 
