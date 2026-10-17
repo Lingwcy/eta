@@ -205,9 +205,9 @@ test.each([
     }, saved);
     if (prior) await store.connect(connection);
     if (tokenOnly) acceptedToken = second.token;
-    const cache = saved.storage.cache;
-    const saveConnection = saved.storage.saveConnection;
-    const saveCache = saved.storage.saveCache;
+    const cache = saved.storage.cache.bind(saved.storage);
+    const saveConnection = saved.storage.saveConnection.bind(saved.storage);
+    const saveCache = saved.storage.saveCache.bind(saved.storage);
     let fail = true;
     saved.storage.cache = async (url) => {
       if (stage === "cache-load" && url === second.url && fail) {
