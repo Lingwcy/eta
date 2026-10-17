@@ -73,6 +73,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Resolve optional summaries from the latest call instead of inheriting an earlier cache hit.**
+
+- Evidence: on 2026-10-17, #91 runs two real write turns with the same provider call ID. Both files are correct, but the second legacy call inherits the first summary. Five further regressions cover an unmarked or removed declaration, empty or invalid text, and a partial streamed call; all fail before clearing that ID before checking the latest call.
+- Check: provider call IDs need not be globally unique across turns. Preserve unrelated history and valid replacement summaries, and exercise the shared projection in a suite actually run by CI; the current Bot/Desktop workflows build Agent but do not run its unit suite.
+- Seen: 2026-10-17.
+
 **Classify header-decided HTTP failures before reading an unused body.**
 
 - Evidence: on 2026-10-17, #84's controlled Response streams show Desktop and Mobile consuming a stalled 401 body before rejecting authentication; Mobile's event subscription cannot reach its fatal-auth path while that body remains open. Handling the status first and cancelling the unused stream makes both clients reject without a body pull, including when cancellation fails.
