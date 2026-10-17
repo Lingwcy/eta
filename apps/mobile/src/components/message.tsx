@@ -17,6 +17,7 @@ import {
   getToolSummary,
   textContent,
   toolCallState,
+  toolDescription,
   toolStateLabel,
   nestedTools,
   isActivityMessage,
@@ -244,9 +245,7 @@ export const MessageView = memo(function MessageView({
                   name={part.name ?? "工具"}
                   args={part.arguments}
                   result={result}
-                  description={
-                    running?.description ?? (part.id ? snapshot.toolIntents?.[part.id] : undefined)
-                  }
+                  description={toolDescription(snapshot, part.id, running?.description)}
                   status={running?.status ?? stopped ?? toolCallState(snapshot, message, part.id)}
                 />
               )}
