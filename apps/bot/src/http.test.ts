@@ -156,6 +156,38 @@ test("HTTP history and SSE omit internal signatures while durable Core history k
   );
 });
 
+test("HTTP operation results omit continuation signatures without modifying durable answers", async () => {
+  const { bot, provider, request, create } = await fixture();
+  const answer = fauxAssistantMessage("Visible operation answer");
+  answer.content.unshift({
+    type: "thinking",
+    thinking: "Visible operation reasoning",
+    thinkingSignature: "operation-continuation".repeat(10000),
+  });
+  provider.setResponses([answer]);
+  const id = await create("display-operation");
+  const accepted = await request(`/v1/threads/${id}/messages`, {
+    requestId: "display-operation-input",
+    prompt: "Hello",
+  });
+  const { operationId } = Schema.decodeUnknownSync(admission)(await accepted.json());
+  await expect
+    .poll(async () => (await bot.core.operation(id, operationId)).status, { timeout: 10000 })
+    .toBe("completed");
+  const result = await request(`/v1/threads/${id}/operations/${operationId}`);
+  expect(result.status).toBe(200);
+  const wire = await result.text();
+  expect(wire).toContain("Visible operation reasoning");
+  expect(wire).toContain("Visible operation answer");
+  expect(new TextEncoder().encode(wire).byteLength).toBeLessThan(2000);
+  expect(wire).not.toContain("operation-continuation");
+  const decoded = OperationSchema.parse(JSON.parse(wire));
+  expect(decoded).toMatchObject({ operationId, status: "completed" });
+  expect(JSON.stringify(await bot.core.operation(id, operationId))).toContain(
+    "operation-continuation",
+  );
+});
+
 test("an unknown approval reviewer model fails startup instead of silently using another", async () => {
   const { config } = await fixture();
   await expect(
