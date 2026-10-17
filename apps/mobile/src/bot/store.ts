@@ -249,7 +249,6 @@ export class MobileStore {
   async connect(connection: Connection) {
     if (this.state.sending) throw new Error("请等待当前消息提交完成");
     const candidate = this.makeClient(connection);
-    const previous = this.client;
     await this.persist();
     const epoch = ++this.epoch;
     this.stopObservation();
@@ -292,7 +291,7 @@ export class MobileStore {
       this.poll();
     } catch (error) {
       if (epoch !== this.epoch) return;
-      this.client = previous;
+      // Before commit the old client is unchanged; after commit it must match the new state.
       this.update({ status: "error", error: message(error) });
       this.poll();
       throw error;

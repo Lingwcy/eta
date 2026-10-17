@@ -73,6 +73,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Keep a committed connection's client, credentials and cache origin together after later failures.**
+
+- Evidence: on 2026-10-17, #110's MobileStore regression saves Bot B's credentials and URL, then rejects its cache write. The old catch restores only client A; a subsequent public refresh/send uses A's token and writes its directory into B's cache. First-connect and same-URL token-rotation cases also lose the committed client; cache-load and credential-save failures before commit remain on A.
+- Check: inject failures before and after the commit point and assert the next real client request destination/credentials and persisted cache namespace, not just a status label. Do not roll back one field of an already committed identity; retain error propagation and late-response ownership guards.
+- Seen: 2026-10-17.
+
 **Validate update metadata against actual asset bytes, not only a matching digest.**
 
 - Evidence: on 2026-10-17, #103 accepts a Mac ZIP with the correct hash but wrong declared size, or an empty ZIP with its matching hash and zero size. Both split and combined feeds pass; the real release CLI with fake GitHub publishes the inconsistent feed. The current Mac updater uses that declared size for its local ZIP proxy Content-Length; Windows already checks size.
