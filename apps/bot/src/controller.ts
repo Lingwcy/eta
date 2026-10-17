@@ -105,6 +105,12 @@ export class BotController {
         if (current() && !state.pending) {
           this.release(id, lease);
           await this.pumpRecovery();
+        } else if (current() && state.queuedOnly && !state.required && !state.blockedTasks.length) {
+          const { snapshot } = await this.core.openThread(id);
+          // Model errors leave follow-ups queued for the next input. End this failed turn's
+          // delegated work before releasing its checkout; recurring plans can try again later.
+          if (current() && !snapshot.operation && snapshot.lastResult?.status === "failed")
+            await this.stopAdmission(id, lease);
         }
       } catch (error) {
         if (current())
@@ -242,8 +248,13 @@ export class BotController {
     );
   }
 
-  async stop(id: string) {
+  stop(id: string) {
+    return this.stopAdmission(id);
+  }
+
+  private async stopAdmission(id: string, expectedLease?: AdmissionLease) {
     await this.authorize(id);
+    if (expectedLease && this.active.get(id) !== expectedLease) return;
     this.recoveryQueue.delete(id);
     const lease = this.active.get(id);
     const stopResult = Promise.withResolvers<boolean>();

@@ -44,6 +44,8 @@ export interface OperationResult extends OperationAdmission {
 export interface RecoveryState {
   required: boolean;
   pending: boolean;
+  /** Only queued submissions remain; no foreground task or placed input is executing them. */
+  queuedOnly: boolean;
   unsafeTool: boolean;
   blockedTasks: readonly { taskId: string; kind: string; reason: string }[];
 }

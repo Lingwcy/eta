@@ -79,6 +79,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: cover ordinary requests and streaming entry points on sibling clients. Do not let optional diagnostics or cleanup replace an already authoritative authentication error; preserve non-auth server diagnostics and existing body-read deadlines.
 - Seen: 2026-10-17.
 
+**End failed turns without treating a temporary provider limit as a permanent scheduling block.**
+
+- Evidence: on 2026-10-17, eta-server's reviewer exhausted its model usage window at 01:52 UTC. Its scheduled receipt was failed and all tasks had settled, but two queued child-report wakeups kept `RecoveryState.pending` true, reserving the checkout for over seven hours. Real Bot regressions reproduce the same block with scheduled and ordinary input, then verify failed-turn cleanup admits a peer, repeated quota errors retain the recurring plan, and a later automatic slot succeeds with the same model after availability returns.
+- Check: distinguish queued submissions from executing tasks using one durable inspection. Preserve the failure and delegated output, end stale wakeups before releasing capacity, keep the reservation if cleanup fails, and guard asynchronous cleanup with the admission's identity. Do not disable recurring plans or hard-code a provider's usage-window duration.
+- Seen: 2026-10-17.
+
 **Treat deployment policy changes as explicit choices and recover scheduled interruptions without replaying unsafe tools.**
 
 - Evidence: on 2026-10-16, eta-server's v0.1.23 deployment passed `ENABLE_FULL_ACCESS=false`, removing an existing permission while three stored conversations retained full access. The same deployment interrupted the reviewer while it watched that deployment's workflow; its nested Bash checkpoint required unsafe replay, so recovery reserved the checkout and left sibling schedules busy despite healthy HTTP and systemd status. The deployment CLI regression preserves the original config by default; real Bot restart tests cancel the interrupted scheduled operation, retain its recurring plan and admit queued work without replaying the tool.
