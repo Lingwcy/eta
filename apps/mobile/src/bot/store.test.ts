@@ -159,6 +159,107 @@ test("different Bots keep separate drafts, and clearing removes all phone caches
   expect(saved.caches.size).toBe(0);
 });
 
+test.each([
+  { stage: "cache-load", prior: true, tokenOnly: false },
+  { stage: "credential-save", prior: true, tokenOnly: false },
+  { stage: "cache-save", prior: true, tokenOnly: false },
+  { stage: "cache-save", prior: false, tokenOnly: false },
+  { stage: "cache-save", prior: true, tokenOnly: true },
+])(
+  "connection and next admission stay on the committed Bot after $stage failure (prior=$prior, tokenOnly=$tokenOnly)",
+  async ({ stage, prior, tokenOnly }) => {
+    const saved = memoryStorage();
+    const second = {
+      url: tokenOnly ? connection.url : "https://second-bot",
+      token: "second-token",
+    };
+    let acceptedToken = connection.token;
+    let credentialsSaved = false;
+    const admitted: { host: string; authorization: string | null; prompt: unknown }[] = [];
+    const created = new Set<string>();
+    const { store } = setup(async (url, init) => {
+      const parsed = new URL(requestUrl(url));
+      const token = parsed.hostname === "second-bot" ? second.token : acceptedToken;
+      if (new Headers(init?.headers).get("authorization") !== `Bearer ${token}`)
+        return json({ error: { code: "Unauthorized", message: "Token revoked" } }, 401);
+      if (parsed.pathname === "/v1/library")
+        return json({
+          ...library,
+          projects: [{ ...library.projects[0]!, name: parsed.hostname }],
+          threads: created.has(parsed.hostname) ? [thread.thread] : [],
+        });
+      if (parsed.pathname.endsWith("/events")) return events(init?.signal);
+      if (parsed.pathname === "/v1/threads") {
+        created.add(parsed.hostname);
+        return json(thread, 201);
+      }
+      if (parsed.pathname.endsWith("/messages")) {
+        admitted.push({
+          host: parsed.hostname,
+          authorization: new Headers(init?.headers).get("authorization"),
+          prompt: requestBody(init).prompt,
+        });
+        return json({ operationId: "operation", kind: "run", startedAt: 1 }, 202);
+      }
+      return json(thread);
+    }, saved);
+    if (prior) await store.connect(connection);
+    if (tokenOnly) acceptedToken = second.token;
+    const cache = saved.storage.cache.bind(saved.storage);
+    const saveConnection = saved.storage.saveConnection.bind(saved.storage);
+    const saveCache = saved.storage.saveCache.bind(saved.storage);
+    let fail = true;
+    saved.storage.cache = async (url) => {
+      if (stage === "cache-load" && url === second.url && fail) {
+        fail = false;
+        throw new Error("Simulated storage failure");
+      }
+      return cache(url);
+    };
+    saved.storage.saveConnection = async (value) => {
+      if (stage === "credential-save" && value?.url === second.url && fail) {
+        fail = false;
+        throw new Error("Simulated storage failure");
+      }
+      await saveConnection(value);
+      if (value?.token === second.token) credentialsSaved = true;
+    };
+    saved.storage.saveCache = async (url, value) => {
+      if (stage === "cache-save" && credentialsSaved && url === second.url && fail) {
+        fail = false;
+        throw new Error("Simulated storage failure");
+      }
+      return saveCache(url, value);
+    };
+    await expect(store.connect(second)).rejects.toThrow("Simulated storage failure");
+    await store.refresh();
+    const refreshed = store.getSnapshot();
+    const expected = stage === "cache-save" ? second : connection;
+    const host = new URL(expected.url).hostname;
+    store.setDraft("Only the selected Bot should receive this prompt");
+    await store.send();
+    expect({
+      url: refreshed.url,
+      project: refreshed.library?.projects[0]?.name,
+      credentials: saved.connection(),
+      cache: saved.caches.get(expected.url)?.library?.projects[0]?.name,
+      admitted,
+    }).toEqual({
+      url: expected.url,
+      project: host,
+      credentials: expected,
+      cache: host,
+      admitted: [
+        {
+          host,
+          authorization: `Bearer ${expected.token}`,
+          prompt: "Only the selected Bot should receive this prompt",
+        },
+      ],
+    });
+  },
+);
+
 test("late responses from the old Bot cannot overwrite a new connection", async () => {
   let resolveOld!: (response: Response) => void;
   let delayOld = false;
