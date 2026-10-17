@@ -418,6 +418,7 @@ test.each(
       snapshot: {
         configuration: { model: { provider: "test", modelId: "one" }, thinkingLevel: "off" },
         transcript: [],
+        toolIntents: { "opaque-call": "检查配置 你好" },
         operation: null,
         lastResult: null,
         faulted: false,
@@ -473,6 +474,9 @@ test.each(
     });
     try {
       await client.connect(prefix + "thread");
+      expect(client.getSnapshot().observation?.snapshot.toolIntents).toEqual({
+        "opaque-call": "检查配置 你好",
+      });
       const controller = await ready.promise;
       if (delivery === "ordinary") {
         await client.submit("Ordinary message 你好");
@@ -511,6 +515,9 @@ test.each(
         .poll(() => client.getSnapshot().observation?.snapshot.lastResult?.operationId)
         .toBe(prefix + "42");
       expect(client.getSnapshot().admission).toBeNull();
+      expect(client.getSnapshot().observation?.snapshot.toolIntents).toEqual({
+        "opaque-call": "检查配置 你好",
+      });
       expect(client.getSnapshot().observation?.snapshot.transcript[0].id).toBe(prefix + "12:0");
       expect(client.getSnapshot().observation?.snapshot.transcript[0].message.content).toBe(
         "Ordinary message 你好",

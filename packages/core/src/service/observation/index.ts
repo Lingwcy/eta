@@ -1,3 +1,4 @@
+import { toolIntents } from "@eta/agent/tools";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { CompactionEntry, ToolResultEntry, UserEntry } from "@eta/agent";
@@ -203,6 +204,10 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
           ?.mode ?? "standard",
     },
     transcript,
+    toolIntents: toolIntents(
+      history.flatMap((entry) => [...(entry.model ?? [])]),
+      live.generation?.message,
+    ),
     operation: live.run
       ? {
           id: String(live.run.inputs[0] ?? ""),
@@ -225,7 +230,10 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
                     ? "settled"
                     : approvals.some((request) => request.toolTaskId === String(tool.taskId))
                       ? "waiting"
-                      : "running",
+                      : tool.status === "pending"
+                        ? "pending"
+                        : "running",
+                ...(tool.description ? { description: tool.description } : {}),
                 ...("summary" in tool ? { isError: tool.summary?.isError } : {}),
                 toolCallId: tool.callId,
                 ...(tool.taskId === undefined ? {} : { taskId: String(tool.taskId) }),

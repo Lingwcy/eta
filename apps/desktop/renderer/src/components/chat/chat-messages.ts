@@ -26,11 +26,33 @@ export function getChatMessages(snapshot?: AgentSnapshot) {
         !snapshot.operation.deferred,
     });
   const occurrences = new Map<string, number>();
-  return messages.map(({ id, message, streaming }) => {
-    if (message.role !== "assistant") return { id, message, streaming };
-    const identity = `assistant:${message.timestamp}:${message.provider}:${message.model}`;
-    const occurrence = occurrences.get(identity) ?? 0;
-    occurrences.set(identity, occurrence + 1);
-    return { id: `${identity}:${occurrence}`, message, streaming };
-  });
+  return messages
+    .filter(
+      ({ message }) =>
+        message.role !== "assistant" ||
+        message.content.some(
+          (part) =>
+            part.type === "toolCall" ||
+            (part.type === "text" && part.text.trim()) ||
+            (part.type === "thinking" && part.thinking.trim()),
+        ),
+    )
+    .map(({ id, message, streaming }) => {
+      if (message.role !== "assistant") return { id, message, streaming };
+      const identity = `assistant:${message.timestamp}:${message.provider}:${message.model}`;
+      const occurrence = occurrences.get(identity) ?? 0;
+      occurrences.set(identity, occurrence + 1);
+      return { id: `${identity}:${occurrence}`, message, streaming };
+    });
+}
+
+/** Thinking and tool-only responses form one compact activity sequence. */
+export function isActivityMessage(message: AgentSnapshot["transcript"][number]["message"]) {
+  return (
+    message.role === "assistant" &&
+    message.content.some(
+      (part) => part.type === "toolCall" || (part.type === "thinking" && part.thinking.trim()),
+    ) &&
+    !message.content.some((part) => part.type === "text" && part.text.trim())
+  );
 }

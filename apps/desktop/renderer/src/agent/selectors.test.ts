@@ -242,3 +242,74 @@ test("cancelled tools retain partial output and show stopped rather than failed"
     },
   ]);
 });
+
+test("streamed calls merge with pending, executing and terminal observations without duplication", () => {
+  const value = snapshot();
+  value.transcript = [];
+  value.toolIntents = { call: "检查并发配置" };
+  const message = fauxAssistantMessage(
+    fauxToolCall("bash", { description: "检查并发配置", command: "" }, { id: "call" }),
+    { stopReason: "pending" },
+  );
+  value.operation = {
+    id: "run",
+    kind: "run",
+    status: "running",
+    startedAt: 1,
+    fromTipId: null,
+    streamingMessage: message,
+    runningTools: [],
+  };
+  expect(getTools(value)).toMatchObject([
+    { toolCallId: "call", status: "generating", description: "检查并发配置" },
+  ]);
+  value.operation.runningTools = [
+    { toolCallId: "call", toolName: "bash", args: { command: "git status" }, status: "pending" },
+  ];
+  expect(getTools(value)).toMatchObject([{ toolCallId: "call", status: "pending" }]);
+  value.operation.runningTools[0]!.status = "running";
+  value.transcript.push({ id: "saved", type: "message", message });
+  expect(getTools(value)).toMatchObject([
+    { toolCallId: "call", status: "running", args: { command: "git status" } },
+  ]);
+  value.transcript.push({
+    id: "result",
+    type: "message",
+    message: {
+      role: "toolResult",
+      toolCallId: "call",
+      toolName: "bash",
+      content: [],
+      isError: true,
+      timestamp: 2,
+    },
+  });
+  value.operation = null;
+  expect(getTools(value)).toMatchObject([
+    { toolCallId: "call", status: "settled", description: "检查并发配置", isError: true },
+  ]);
+});
+
+test.each(["retry", "deferred", "aborting", "recovery", "faulted"])(
+  "%s does not revive a stale streaming call",
+  (phase) => {
+    const value = snapshot();
+    value.transcript = [];
+    value.operation = {
+      id: "run",
+      kind: "run",
+      status: phase === "aborting" ? "aborting" : "running",
+      startedAt: 1,
+      fromTipId: null,
+      runningTools: [],
+      streamingMessage: fauxAssistantMessage(
+        fauxToolCall("write", { description: "保存文件" }, { id: "stale" }),
+      ),
+    };
+    if (phase === "retry") value.operation.retry = { attempt: 2, maxAttempts: 4 };
+    if (phase === "deferred") value.operation.deferred = { pollAt: 3 };
+    if (phase === "recovery") value.recoveryRequired = true;
+    if (phase === "faulted") value.faulted = true;
+    expect(getTools(value)).toEqual([]);
+  },
+);

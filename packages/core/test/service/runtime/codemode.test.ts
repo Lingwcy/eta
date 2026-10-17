@@ -528,3 +528,110 @@ test("unavailable Code mode reports how to switch modes and leaves standard mode
   await f.run();
   expect(await readFile(join(f.cwd, "standard-fallback.txt"), "utf8")).toBe("manual choice");
 }, 20000);
+
+test("intent summaries survive native Code mode, truncated nested previews, mode switches and history reopening", async () => {
+  const f = await fixture({ defaultSandboxMode: "danger-full-access" });
+  const code =
+    'await tools.write({path:"intent.txt",content:"x".repeat(5000),description:"保存验证内容"}); text(await tools.read({path:"intent.txt",description:"读取验证内容"}));';
+  f.provider.setResponses([
+    (request) => {
+      const declared = getCurrentTools(request.messages).find((tool) => tool.name === "codemode")!;
+      expect(declared.parameters).toHaveProperty("required", ["description", "code"]);
+      expect(declared.constrainedSampling).toBeUndefined();
+      return fauxAssistantMessage(
+        fauxToolCall("codemode", { description: "验证文件读写", code }, { id: "intent-code" }),
+        { stopReason: "toolUse" },
+      );
+    },
+    fauxAssistantMessage("Verified"),
+  ]);
+  const result = await f.run();
+  expect(result.snapshot.toolIntents?.["intent-code"]).toBe("验证文件读写");
+  const nested = result.snapshot.transcript.find(
+    ({ message }) => message.role === "toolResult" && message.toolName === "codemode",
+  )!.message;
+  if (nested.role !== "toolResult") throw Error("Missing code result");
+  const details = Schema.decodeUnknownSync(
+    Schema.Struct({
+      calls: Schema.Array(
+        Schema.Struct({ name: Schema.String, args: Schema.String, description: Schema.String }),
+      ),
+    }),
+  )(nested.details);
+  expect(details.calls.map((call) => call.description)).toEqual(["保存验证内容", "读取验证内容"]);
+  expect(details.calls[0]!.args).not.toContain("保存验证内容");
+  expect(await readFile(join(f.cwd, "intent.txt"), "utf8")).toBe("x".repeat(5000));
+  f.update({ agentMode: "standard" });
+  f.provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall(
+        "read",
+        { path: "intent.txt", description: "检查保存结果" },
+        { id: "intent-read" },
+      ),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Read verified"),
+  ]);
+  await f.run();
+  const reopened = await f.core.openThread(f.thread.id);
+  expect(reopened.snapshot.toolIntents).toMatchObject({
+    "intent-code": "验证文件读写",
+    "intent-read": "检查保存结果",
+  });
+});
+
+test("a sequential tool round distinguishes execution from queued calls while retaining both intents", async () => {
+  let entered = false;
+  const release = Promise.withResolvers<void>();
+  const gate = defineTool({
+    name: "intent_gate",
+    description: "Hold one sequential call",
+    executionMode: "sequential",
+    parameters: Type.Object(
+      { description: Type.Optional(Type.String()) },
+      { "x-eta-tool-intent": true },
+    ),
+    execute: async () => {
+      entered = true;
+      await release.promise;
+      return { output: [] };
+    },
+  });
+  const f = await fixture(
+    { agentMode: "standard", defaultSandboxMode: "danger-full-access" },
+    undefined,
+    { extensions: () => [{ name: "intent-test", tools: [gate] }] },
+  );
+  f.provider.setResponses([
+    fauxAssistantMessage(
+      [
+        fauxToolCall("intent_gate", { description: "等待测试放行" }, { id: "gate" }),
+        fauxToolCall(
+          "write",
+          { description: "保存排队内容", path: "queued.txt", content: "queued" },
+          { id: "queued" },
+        ),
+      ],
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const running = f.run();
+  try {
+    await expect.poll(() => entered, { timeout: 15000 }).toBe(true);
+    const current = await f.core.openThread(f.thread.id);
+    expect(current.snapshot.operation!.runningTools).toMatchObject([
+      { toolCallId: "gate", status: "running", description: "等待测试放行" },
+      { toolCallId: "queued", status: "pending" },
+    ]);
+    expect(current.snapshot.toolIntents).toMatchObject({
+      gate: "等待测试放行",
+      queued: "保存排队内容",
+    });
+  } finally {
+    release.resolve();
+    await running;
+  }
+  expect(await readFile(join(f.cwd, "queued.txt"), "utf8")).toBe("queued");
+});

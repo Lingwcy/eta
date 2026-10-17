@@ -1,6 +1,7 @@
 import { type Static, Type } from "typebox";
 import type { FileError } from "../env/index.ts";
 import { defineTool } from "../harness/define.ts";
+import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";
 import type { ToolRegistration } from "../harness/types.ts";
 import {
 	applyEditsToNormalizedContent,
@@ -24,13 +25,17 @@ const replaceEditSchema = Type.Object({
 	newText: Type.String({ description: "Replacement text for this targeted edit." }),
 });
 
-const editSchema = Type.Object({
-	path: Type.String({ description: "Path to the file to edit (relative or absolute)" }),
-	edits: Type.Array(replaceEditSchema, {
-		description:
-			"One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
-	}),
-});
+const editSchema = Type.Object(
+	{
+		description: intentParameter,
+		path: Type.String({ description: "Path to the file to edit (relative or absolute)" }),
+		edits: Type.Array(replaceEditSchema, {
+			description:
+				"One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
+		}),
+	},
+	{ [TOOL_INTENT]: true },
+);
 
 export type EditToolInput = Static<typeof editSchema>;
 type LegacyEditToolInput = EditToolInput & { oldText?: unknown; newText?: unknown };
@@ -128,9 +133,7 @@ export function createEditTool(): ToolRegistration<typeof editSchema, EditToolDe
 					const details: EditToolDetails = {
 						diff: diffResult.diff,
 						patch: generateUnifiedPatch(path, baseContent, newContent),
-						...(diffResult.firstChangedLine === undefined
-							? {}
-							: { firstChangedLine: diffResult.firstChangedLine }),
+						...(diffResult.firstChangedLine === undefined ? {} : { firstChangedLine: diffResult.firstChangedLine }),
 					};
 					return {
 						output: [{ type: "text", text: `Successfully replaced ${edits.length} block(s) in ${path}.` }],

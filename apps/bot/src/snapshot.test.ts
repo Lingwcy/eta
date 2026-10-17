@@ -36,6 +36,7 @@ test("display snapshots omit continuation payloads without modifying signed hist
         streamingMessage: message,
       },
       lastResult: null,
+      toolIntents: { tool: "检查运行配置" },
       faulted: false,
       compacting: false,
     },
@@ -58,4 +59,5 @@ test("display snapshots omit continuation payloads without modifying signed hist
   expect(message.content[0]).toHaveProperty("thinkingSignature");
   expect(message.content[2]).toHaveProperty("thoughtSignature", "provider-signature");
   expect(displayed.contextTokens).toBe(42);
+  expect(displayed.snapshot.toolIntents).toEqual({ tool: "检查运行配置" });
 });

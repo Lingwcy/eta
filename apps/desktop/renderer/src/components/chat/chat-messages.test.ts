@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
-import { fauxAssistantMessage } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import type { AgentSnapshot } from "@eta/core/agent/protocol";
-import { getChatMessages } from "./chat-messages";
+import { getChatMessages, isActivityMessage } from "./chat-messages";
 
 const message = { ...fauxAssistantMessage("Hello"), timestamp: 100 };
 function snapshot(): AgentSnapshot {
@@ -120,3 +120,41 @@ test.each(["aborting", "recovery", "fault", "retry", "deferred"] as const)(
     expect(entry.streaming).toBe(false);
   },
 );
+
+test("compact activity sequences stop at narrative, images and user turns", () => {
+  const thinking = { type: "thinking" as const, thinking: "Inspect concurrency" };
+  const call = fauxToolCall("read", { path: "config.ts" });
+  expect(isActivityMessage(fauxAssistantMessage([thinking, call]))).toBe(true);
+  expect(isActivityMessage(fauxAssistantMessage([call]))).toBe(true);
+  expect(
+    isActivityMessage(
+      fauxAssistantMessage([thinking, { type: "text", text: "Here are the results" }]),
+    ),
+  ).toBe(false);
+  expect(isActivityMessage(fauxAssistantMessage([]))).toBe(false);
+  expect(
+    isActivityMessage({
+      role: "user",
+      timestamp: 1,
+      content: [{ type: "image", data: "test", mimeType: "image/png" }],
+    }),
+  ).toBe(false);
+  expect(isActivityMessage({ role: "user", content: "Next task", timestamp: 1 })).toBe(false);
+});
+
+test("invisible assistant entries do not create empty transcript spacing", () => {
+  const value = snapshot();
+  value.operation = null;
+  value.transcript = [
+    { id: "empty", type: "message", message: fauxAssistantMessage([]) },
+    {
+      id: "blank",
+      type: "message",
+      message: fauxAssistantMessage([{ type: "thinking", thinking: "  " }]),
+    },
+    { id: "visible", type: "message", message: fauxAssistantMessage("Visible reply") },
+  ];
+  expect(getChatMessages(value).map(({ message }) => message.content)).toEqual([
+    fauxAssistantMessage("Visible reply").content,
+  ]);
+});
