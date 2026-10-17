@@ -338,12 +338,42 @@ const file = process.env.GH_TEST_STATE;
 const state = JSON.parse(fs.readFileSync(file, "utf8"));
 const args = process.argv.slice(2);
 const output = value => console.log(JSON.stringify(value));
-if (args[0] === "api") output([[...state.previous, ...(state.current ? [state.current] : [])]]);
+const incoming = phase => {
+  const release = state[phase];
+  if (release && !state.previous.some(value => value.tag_name === release.tag_name)) {
+    state.previous.push(release);
+    if (!release.draft && !release.prerelease) state.latestTag = release.tag_name;
+  }
+};
+const finalize = mode => {
+  incoming("newerAtFinalize");
+  if (state.failFinalize) throw new Error("Simulated finalization failure");
+  state.current.draft = false;
+  state.finalizeMode = mode;
+  if (mode === "legacy") {
+    // Model the documented server selection for these monotonically versioned fixtures.
+    const stable = [...state.previous, state.current].filter(value => !value.draft && !value.prerelease);
+    stable.sort((a, b) => {
+      const left = a.tag_name.slice(1).split(".").map(BigInt);
+      const right = b.tag_name.slice(1).split(".").map(BigInt);
+      for (let i = 0; i < 3; i++) if (left[i] !== right[i]) return left[i] > right[i] ? -1 : 1;
+      return 0;
+    });
+    state.latestTag = stable[0].tag_name;
+  } else if (mode === "true") state.latestTag = state.current.tag_name;
+  state.current.latest = state.latestTag === state.current.tag_name;
+};
+if (args[0] === "api" && args.includes("PATCH")) {
+  if (args[1] !== "https://api.github.com/repos/owner/eta/releases/42" || args[args.indexOf("--field") + 1] !== "draft=false" || args[args.indexOf("--raw-field") + 1] !== "make_latest=legacy") throw new Error("Unexpected finalization request");
+  finalize("legacy");
+  output(state.current);
+}
+else if (args[0] === "api") output([[...state.previous, ...(state.current ? [state.current] : [])]]);
 else if (args[1] === "create") state.current = {tag_name: args[2], draft: true, body: fs.readFileSync(args[args.indexOf("--notes-file")+1], "utf8"), assets: []};
 else if (args[1] === "edit" && args.includes("--notes-file")) state.current.body = fs.readFileSync(args[args.indexOf("--notes-file")+1], "utf8");
-else if (args[1] === "upload") state.current.assets = args.slice(args.indexOf("--clobber")+1).map(file => ({name: path.basename(file), state: "uploaded", digest: "sha256:"+crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")}));
-else if (args[1] === "view") output({assets: state.current.assets.map(asset => state.corrupt && asset.name.endsWith("arm64.dmg") ? {...asset, digest: "wrong"} : asset)});
-else if (args.includes("--draft=false")) { state.current.draft = false; state.current.latest = args.includes("--latest"); }
+else if (args[1] === "upload") { state.current.assets = args.slice(args.indexOf("--clobber")+1).map(file => ({name: path.basename(file), state: "uploaded", digest: "sha256:"+crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")})); incoming("newerDuringUpload"); }
+else if (args[1] === "view") output({apiUrl: "https://api.github.com/repos/owner/eta/releases/42", assets: state.current.assets.map(asset => state.corrupt && asset.name.endsWith("arm64.dmg") ? {...asset, digest: "wrong"} : asset)});
+else if (args.includes("--draft=false")) finalize(args.includes("--latest") ? "true" : "false");
 else throw new Error("Unexpected GitHub command");
 fs.writeFileSync(file, JSON.stringify(state));
 `,
@@ -387,15 +417,80 @@ test("publishing rejects inconsistent Mac update sizes before creating or upload
   assert.equal(state.current, undefined);
 });
 
+test.each(["newerDuringUpload", "newerAtFinalize"])(
+  "publication cannot replace a higher Latest release appearing at %s",
+  (phase) => {
+    const { root, release } = setup();
+    const { statePath, publish } = githubFixture(root);
+    writeFileSync(
+      statePath,
+      JSON.stringify({
+        previous: [release("v0.0.1")],
+        [phase]: release("v0.0.4", "2026-10-17T00:00:00Z"),
+      }),
+    );
+    publish();
+    const state = JSON.parse(readFileSync(statePath, "utf8")) as {
+      latestTag: string;
+      current: { draft: boolean; latest: boolean };
+    };
+    assert.equal(state.current.draft, false);
+    assert.equal(state.latestTag, "v0.0.4");
+    assert.equal(state.current.latest, false);
+  },
+);
+
+test.each(["draft", "prerelease"])(
+  "a concurrent %s cannot displace the stable Latest release",
+  (kind) => {
+    const { root, release } = setup();
+    const { statePath, publish } = githubFixture(root);
+    writeFileSync(
+      statePath,
+      JSON.stringify({
+        previous: [release("v0.0.1")],
+        newerDuringUpload: { ...release("v0.0.4"), [kind]: true },
+      }),
+    );
+    publish();
+    const state = JSON.parse(readFileSync(statePath, "utf8")) as {
+      latestTag: string;
+      current: { latest: boolean };
+    };
+    assert.equal(state.latestTag, "v0.0.3");
+    assert.equal(state.current.latest, true);
+  },
+);
+
+test("a rejected publication request leaves a verified draft retryable", () => {
+  const { root, release } = setup();
+  const { statePath, publish } = githubFixture(root);
+  writeFileSync(statePath, JSON.stringify({ previous: [release("v0.0.1")], failFinalize: true }));
+  assert.throws(publish, /Simulated finalization failure/);
+  const state = JSON.parse(readFileSync(statePath, "utf8")) as {
+    failFinalize: boolean;
+    current: { draft: boolean; assets: { name: string }[] };
+  };
+  assert.equal(state.current.draft, true);
+  assert.ok(state.current.assets.length > 0);
+  state.failFinalize = false;
+  writeFileSync(statePath, JSON.stringify(state));
+  publish();
+  const published = JSON.parse(readFileSync(statePath, "utf8")) as typeof state;
+  assert.equal(published.current.draft, false);
+  assert.deepEqual(published.current.assets, state.current.assets);
+});
+
 test("publishing creates a complete release and rerunning preserves published edits", () => {
   const { root, release } = setup();
   const { statePath, assets, publish } = githubFixture(root);
   writeFileSync(statePath, JSON.stringify({ previous: [release("v0.0.1")] }));
   publish();
   const state = JSON.parse(readFileSync(statePath, "utf8")) as {
-    current: { draft: boolean; body: string; assets: { name: string }[] };
+    current: { draft: boolean; latest: boolean; body: string; assets: { name: string }[] };
   };
   assert.equal(state.current.draft, false);
+  assert.equal(state.current.latest, true);
   assert.match(state.current.body, /修复等待状态/);
   assert.match(state.current.body, /ad-hoc 签名/);
   assert.match(state.current.body, /Windows x64/);
