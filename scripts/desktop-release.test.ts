@@ -221,6 +221,48 @@ test("an update feed for another version or with a corrupted zip is rejected", (
   assert.throws(() => updateFeed(root, "v0.0.3"), /checksum mismatch: Eta-0\.0\.3-mac-x64\.zip/);
 });
 
+test.each([
+  ["split", "arm64"],
+  ["split", "x64"],
+  ["combined", "arm64"],
+  ["combined", "x64"],
+])("Mac %s feed rejects an incorrect %s ZIP size even with a valid digest", (layout, arch) => {
+  const { root } = setup();
+  for (const architecture of ["arm64", "x64"]) writeArchitecture(root, architecture);
+  if (layout === "combined") {
+    updateFeed(root, "v0.0.3");
+    for (const architecture of ["arm64", "x64"])
+      rmSync(join(root, `latest-mac-${architecture}.yml`));
+  }
+  const path = join(root, layout === "combined" ? "latest-mac.yml" : `latest-mac-${arch}.yml`);
+  const feed = parse(readFileSync(path, "utf8")) as { files: { url: string; size: number }[] };
+  feed.files.find((file) => file.url === `Eta-0.0.3-mac-${arch}.zip`)!.size++;
+  writeFileSync(path, stringify(feed));
+  assert.throws(() => updateFeed(root, "v0.0.3"), /size mismatch/);
+});
+
+test.each(["split", "combined"])(
+  "Mac %s feed rejects an empty ZIP with a matching digest and size",
+  (layout) => {
+    const { root } = setup();
+    for (const arch of ["arm64", "x64"]) writeArchitecture(root, arch);
+    if (layout === "combined") {
+      updateFeed(root, "v0.0.3");
+      for (const arch of ["arm64", "x64"]) rmSync(join(root, `latest-mac-${arch}.yml`));
+    }
+    const path = join(root, layout === "combined" ? "latest-mac.yml" : "latest-mac-arm64.yml");
+    const feed = parse(readFileSync(path, "utf8")) as {
+      files: { url: string; size: number; sha512: string }[];
+    };
+    const zip = feed.files.find((file) => file.url === "Eta-0.0.3-mac-arm64.zip")!;
+    writeFileSync(join(root, zip.url), "");
+    zip.size = 0;
+    zip.sha512 = createHash("sha512").update("").digest("base64");
+    writeFileSync(path, stringify(feed));
+    assert.throws(() => updateFeed(root, "v0.0.3"), /Empty update asset/);
+  },
+);
+
 function writeWindows(directory: string, version = "0.0.3") {
   const url = `Eta-${version}-win-x64.exe`;
   const data = "Windows installer";
@@ -256,6 +298,16 @@ test("Windows updates require the matching installer, valid digest and nonempty 
   assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /ENOENT/);
   writeFileSync(join(root, "Eta-0.0.3-win-x64.exe.blockmap"), "");
   assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /Empty blockmap/);
+});
+
+test("Windows feeds already reject an incorrect installer size with a valid digest", () => {
+  const { root } = setup();
+  writeWindows(root);
+  const path = join(root, "latest.yml");
+  const feed = parse(readFileSync(path, "utf8")) as { files: { size: number }[] };
+  feed.files[0]!.size++;
+  writeFileSync(path, stringify(feed));
+  assert.throws(() => windowsUpdateFeed(root, "v0.0.3"), /checksum mismatch/);
 });
 
 test("Windows feeds cannot point at installers omitted from the release", () => {
@@ -321,6 +373,19 @@ fs.writeFileSync(file, JSON.stringify(state));
     );
   return { statePath, assets, publish };
 }
+
+test("publishing rejects inconsistent Mac update sizes before creating or uploading a draft", () => {
+  const { root, release } = setup();
+  const { statePath, assets, publish } = githubFixture(root);
+  writeFileSync(statePath, JSON.stringify({ previous: [release("v0.0.1")] }));
+  const path = join(assets, "latest-mac-arm64.yml");
+  const feed = parse(readFileSync(path, "utf8")) as { files: { size: number }[] };
+  feed.files[0]!.size++;
+  writeFileSync(path, stringify(feed));
+  assert.throws(publish, /size mismatch/);
+  const state = JSON.parse(readFileSync(statePath, "utf8")) as { current?: unknown };
+  assert.equal(state.current, undefined);
+});
 
 test("publishing creates a complete release and rerunning preserves published edits", () => {
   const { root, release } = setup();
