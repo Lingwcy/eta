@@ -111,14 +111,16 @@ function writeConfigAtomically(configPath, config) {
 
 if (require.main === module) {
   const [configPath, enableFullAccessValue] = process.argv.slice(2);
-  if (!configPath || !["true", "false"].includes(enableFullAccessValue)) {
-    console.error("Usage: apply-sandbox-modes.cjs CONFIG_PATH true|false");
+  if (!configPath || !["preserve", "true", "false"].includes(enableFullAccessValue)) {
+    console.error("Usage: apply-sandbox-modes.cjs CONFIG_PATH preserve|true|false");
     process.exitCode = 2;
   } else {
     try {
       const config = JSON.parse(readFileSync(configPath, "utf8"));
-      const nextConfig = configureSandboxModes(config, enableFullAccessValue === "true");
-      writeConfigAtomically(configPath, nextConfig);
+      if (enableFullAccessValue !== "preserve") {
+        const nextConfig = configureSandboxModes(config, enableFullAccessValue === "true");
+        writeConfigAtomically(configPath, nextConfig);
+      }
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = 1;

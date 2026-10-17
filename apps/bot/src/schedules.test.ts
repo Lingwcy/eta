@@ -1,21 +1,31 @@
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DateTime } from "effect";
+import { DateTime, Effect, Schema } from "effect";
+import { defineTool } from "@eta/agent";
+import { createCore } from "@eta/core";
+import type { CoreEnvironment } from "@eta/core";
+import { ScheduleStoreSchema } from "@eta/core/shared/schedules";
 import {
   createModels,
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
+  Type,
 } from "@earendil-works/pi-ai";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { createBotApplication, type BotApplication } from "./application.ts";
+import { BotController } from "./controller.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
-async function fixture(maximum = 1) {
+async function fixture(
+  maximum = 1,
+  environment: Partial<CoreEnvironment> = {},
+  agentMode: "standard" | "codemode" = "standard",
+) {
   const root = await mkdtemp(join(tmpdir(), "eta-bot-schedule-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const workspaceRoot = join(root, "workspaces");
@@ -45,10 +55,10 @@ async function fixture(maximum = 1) {
     workspaceRoot,
     adminToken: "schedule-test-token",
     maxConcurrent: maximum,
-    runtime: { agentMode: "standard" as const, defaultThinkingLevel: "off" as const },
+    runtime: { agentMode, defaultThinkingLevel: "off" as const },
   };
   const open = async () => {
-    const bot = await createBotApplication(config, { models });
+    const bot = await createBotApplication(config, { models, environment });
     cleanups.push(() => bot.close());
     return bot;
   };
@@ -61,6 +71,8 @@ async function fixture(maximum = 1) {
   };
   return {
     bot,
+    config,
+    models,
     root,
     fast,
     open,
@@ -119,6 +131,203 @@ async function scheduledRunState(bot: BotApplication, threadId: string, schedule
     activeThreads: bot.controller.status().activeThreads,
   };
 }
+
+test.each([
+  { source: "automatic", replay: "unsafe", recovery: "normal" },
+  { source: "manual", replay: "unsafe", recovery: "normal" },
+  { source: "ordinary", replay: "unsafe", recovery: "normal" },
+  { source: "automatic", replay: "safe", recovery: "normal" },
+  { source: "automatic", replay: "unsafe", recovery: "dispatching" },
+  { source: "automatic", replay: "unsafe", recovery: "stop-failed" },
+  { source: "automatic", replay: "unsafe", recovery: "nested" },
+] as const)(
+  "restart handles $source work with a $replay tool ($recovery recovery)",
+  async ({ source, replay, recovery }) => {
+    let executions = 0;
+    const release = Promise.withResolvers<void>();
+    const tool = defineTool({
+      name: "interrupted_work",
+      description: "Controlled work interrupted by a host restart",
+      parameters: Type.Object({}),
+      replay,
+      execute: async (_input, _api, context) => {
+        executions++;
+        if (executions === 1) {
+          const abort = () => release.resolve();
+          context.abortSignal?.addEventListener("abort", abort, { once: true });
+          try {
+            if (!context.abortSignal?.aborted) await release.promise;
+          } finally {
+            context.abortSignal?.removeEventListener("abort", abort);
+          }
+        }
+        return {};
+      },
+    });
+    const environment: Partial<CoreEnvironment> = {
+      extensions: () => [{ name: "interrupted-work", tools: [tool] }],
+    };
+    const { bot, config, models, open, thread, fast, releaseModel } = await fixture(
+      1,
+      environment,
+      recovery === "nested" ? "codemode" : "standard",
+    );
+    releaseModel();
+    try {
+      const id = await thread("Interrupted work");
+      const peer = await thread("Another schedule in the same checkout");
+      const created = await bot.core.createSchedule({
+        threadId: id,
+        requestId: "recurring",
+        name: "Recurring",
+        prompt: "Perform scheduled work",
+        rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 86400_000 },
+      });
+      const scheduleId = created.scheduleId!;
+      fast.setResponses([
+        fauxAssistantMessage(
+          recovery === "nested"
+            ? fauxToolCall("codemode", { code: `await tools.${tool.name}({});` })
+            : fauxToolCall(tool.name, {}),
+          { stopReason: "toolUse" },
+        ),
+        fauxAssistantMessage("Finished work"),
+      ]);
+      let operationId: string;
+      if (source === "ordinary") {
+        operationId = (await bot.controller.submit(id, "Ordinary work", "ordinary")).operationId;
+      } else {
+        if (source === "manual") {
+          await bot.core.runScheduleNow({ scheduleId, expectedRevision: 1, requestId: "run" });
+        } else {
+          const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now());
+          try {
+            await bot.core.updateSchedule({
+              scheduleId,
+              expectedRevision: 1,
+              requestId: "arm-recurring",
+              patch: {
+                rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 500 },
+              },
+            });
+          } finally {
+            clock.mockRestore();
+          }
+        }
+        await expect
+          .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.operationId, {
+            timeout: 10000,
+          })
+          .toBeTruthy();
+        operationId = (await bot.core.listScheduleRuns({ scheduleId }))[0].operationId!;
+      }
+      await expect.poll(() => executions, { timeout: 10000 }).toBe(1);
+      const queued = await bot.core.createSchedule({
+        threadId: peer,
+        requestId: "peer",
+        name: "Peer",
+        prompt: "Other scheduled work",
+        rule: { type: "once", at: Date.now() + 86400_000 },
+      });
+      await bot.core.runScheduleNow({
+        scheduleId: queued.scheduleId!,
+        expectedRevision: 1,
+        requestId: "run-peer",
+      });
+      await expect
+        .poll(() => scheduledRunState(bot, peer, queued.scheduleId!), { timeout: 5000 })
+        .toMatchObject({ reason: "busy" });
+      await bot.close();
+      if (recovery === "dispatching") {
+        const path = join(config.dataRoot, "schedules.json");
+        const state = Schema.decodeUnknownSync(ScheduleStoreSchema)(
+          JSON.parse(await readFile(path, "utf8")),
+        );
+        await writeFile(
+          path,
+          JSON.stringify({
+            ...state,
+            occurrences: Object.fromEntries(
+              Object.entries(state.occurrences).map(([key, run]) => [
+                key,
+                run.operationId === operationId
+                  ? { ...run, state: "dispatching", operationId: undefined }
+                  : run,
+              ]),
+            ),
+          }),
+        );
+      }
+      fast.setResponses([
+        fauxAssistantMessage("Finished after restart"),
+        fauxAssistantMessage("Finished queued work"),
+      ]);
+      if (recovery === "stop-failed") {
+        const core = await createCore({
+          dataRoot: config.dataRoot,
+          home: join(config.dataRoot, "home"),
+          models,
+          settings: { read: Effect.succeed(config.runtime), subscribe: () => () => {} },
+          environment,
+        });
+        cleanups.push(() => core.close());
+        const controller = new BotController(core, bot.workspaceProjects, 1);
+        cleanups.push(() => controller.close(0));
+        const stop = vi.spyOn(core, "stop").mockRejectedValueOnce(new Error("Stop failed"));
+        try {
+          await controller.recover();
+          expect(controller.status().blocked[id]).toBe("Stop failed");
+          expect((await core.operation(id, operationId)).status).toBe("paused");
+          expect((await core.listScheduleRuns({ scheduleId }))[0].state).toBe("admitted");
+          expect(executions).toBe(1);
+          await expect(controller.submit(peer, "New work", "blocked-peer")).rejects.toMatchObject({
+            code: "Busy",
+          });
+        } finally {
+          stop.mockRestore();
+        }
+        await controller.stop(id);
+        const admitted = await controller.submit(peer, "New work", "after-stop");
+        await expect
+          .poll(async () => (await core.operation(peer, admitted.operationId)).status, {
+            timeout: 10000,
+          })
+          .toBe("completed");
+        return;
+      }
+      const restored = await open();
+      if (source === "ordinary") {
+        expect(restored.controller.status().blocked[id]).toContain("maintainer review");
+        expect(await restored.core.recovery(id)).toMatchObject({
+          required: true,
+          unsafeTool: true,
+        });
+        expect(executions).toBe(1);
+        await restored.controller.stop(id);
+      } else {
+        await expect
+          .poll(async () => (await restored.core.operation(id, operationId)).status, {
+            timeout: 10000,
+          })
+          .toBe(replay === "unsafe" ? "aborted" : "completed");
+        await expect
+          .poll(async () => (await restored.core.listScheduleRuns({ scheduleId }))[0]?.state, {
+            timeout: 10000,
+          })
+          .toBe(replay === "unsafe" ? "cancelled" : "succeeded");
+        expect((await restored.core.listSchedules({ threadId: id }))[0].state).toBe("active");
+        expect(executions).toBe(replay === "unsafe" ? 1 : 2);
+        expect(restored.controller.status().blocked[id]).toBeUndefined();
+      }
+      await expect
+        .poll(() => scheduledRunState(restored, peer, queued.scheduleId!), { timeout: 10000 })
+        .toMatchObject({ state: "succeeded" });
+    } finally {
+      release.resolve();
+    }
+  },
+  45000,
+);
 
 test("automatic scheduling respects same-project exclusion and wakes when Controller releases capacity", async () => {
   const { bot, thread, releaseModel } = await fixture(4);

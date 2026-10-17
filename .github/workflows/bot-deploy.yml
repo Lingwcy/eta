@@ -7,9 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       enable_full_access:
-        description: Allow danger-full-access (false removes it and restricts the default sandbox mode)
-        type: boolean
-        default: false
+        description: Full access policy (preserve, true to allow, false to remove)
+        type: choice
+        default: preserve
+        options:
+          - preserve
+          - "true"
+          - "false"
 
 permissions:
   contents: read
@@ -64,7 +68,7 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ vars.ETA_SERVER_KNOWN_HOSTS }}
           SSH_HOST: ${{ vars.ETA_SERVER_HOST }}
           SSH_USER: ${{ vars.ETA_SERVER_USER }}
-          ENABLE_FULL_ACCESS: ${{ inputs.enable_full_access == true && 'true' || 'false' }}
+          ENABLE_FULL_ACCESS: ${{ inputs.enable_full_access || 'preserve' }}
         run: |
           set -euo pipefail
           test -n "$SSH_KEY"

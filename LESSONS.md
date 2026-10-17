@@ -73,6 +73,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Treat deployment policy changes as explicit choices and recover scheduled interruptions without replaying unsafe tools.**
+
+- Evidence: on 2026-10-16, eta-server's v0.1.23 deployment passed `ENABLE_FULL_ACCESS=false`, removing an existing permission while three stored conversations retained full access. The same deployment interrupted the reviewer while it watched that deployment's workflow; its nested Bash checkpoint required unsafe replay, so recovery reserved the checkout and left sibling schedules busy despite healthy HTTP and systemd status. The deployment CLI regression preserves the original config by default; real Bot restart tests cancel the interrupted scheduled operation, retain its recurring plan and admit queued work without replaying the tool.
+- Check: distinguish an omitted deployment choice from explicit enable/disable. Match the interrupted operation to its durable schedule request, including the dispatching receipt gap; preserve manual recovery for ordinary work and missing definitions, and retain checkout blocking if cancellation fails.
+- Seen: 2026-10-16.
+
 **Distinguish structured tool values from display content using the admitted contract.**
 
 - Evidence: on 2026-10-16, #72's native Code mode regression executes ten valid JSON values through a declared structured tool. The script receives the original values, but nested previews drop scalars and arrays or misinterpret records containing `type` as display blocks. Reading the persisted run's structured-tool declarations preserves JSON values while retaining schema-less text/image handling.
