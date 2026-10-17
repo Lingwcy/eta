@@ -176,6 +176,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Make shared publication decisions at their remote commit boundary, not from an earlier listing.**
+
+- Evidence: on 2026-10-17, #105's release CLI overwrites a higher Latest version that appears during upload or immediately before finalization. Both controlled interleavings fail even though the pre-existing-newer-version control passes. GitHub's documented make_latest=legacy mode lets the server choose by its version/date policy when publishing, instead of a client forcing a stale choice.
+- Check: cover state changes after the initial read and at the final request, normal advancement, publication failure/retry and immutable published reruns. A late refresh alone does not remove TOCTOU; do not claim a mock proves the service's internal concurrency implementation.
+- Seen: 2026-10-17.
+
 **Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
 
 - Evidence: on 2026-10-16, #57 holds a real Core recovery result across stop and resubmit of the same Bot thread. The old successful check releases the replacement's checkout reservation and admits a competing writer; an old failed check marks the replacement blocked. Two native regressions reproduce both outcomes before the fix and verify current completion still releases capacity afterward.

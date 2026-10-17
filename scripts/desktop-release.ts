@@ -298,8 +298,9 @@ export function publishRelease(root: string, tag: string, directory: string, rep
     checksumsPath,
   ]);
   const uploaded = JSON.parse(
-    gh(["release", "view", tag, "--repo", repository, "--json", "assets"]),
+    gh(["release", "view", tag, "--repo", repository, "--json", "assets,apiUrl"]),
   ) as {
+    apiUrl: string;
     assets: { name: string; digest: string; state: string }[];
   };
   for (const path of [...installers.map(({ path }) => path), ...updates]) {
@@ -309,22 +310,21 @@ export function publishRelease(root: string, tag: string, directory: string, rep
     if (asset?.state !== "uploaded" || asset.digest !== `sha256:${digest}`)
       throw new Error(`Uploaded installer checksum mismatch: ${name}`);
   }
-  const newerPublished = releases.some(
-    (release) =>
-      !release.draft &&
-      !release.prerelease &&
-      versionPattern.test(release.tag_name) &&
-      olderThan(tag, release.tag_name),
-  );
+  // Let GitHub choose Latest at publication time, not from the pre-upload release listing.
   console.log(
     gh([
-      "release",
-      "edit",
-      tag,
-      "--repo",
-      repository,
-      "--draft=false",
-      newerPublished ? "--latest=false" : "--latest",
+      "api",
+      uploaded.apiUrl,
+      "--method",
+      "PATCH",
+      "--header",
+      "X-GitHub-Api-Version: 2022-11-28",
+      "--field",
+      "draft=false",
+      "--raw-field",
+      "make_latest=legacy",
+      "--jq",
+      ".html_url",
     ]),
   );
 }
