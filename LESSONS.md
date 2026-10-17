@@ -73,6 +73,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Classify header-decided HTTP failures before reading an unused body.**
+
+- Evidence: on 2026-10-17, #84's controlled Response streams show Desktop and Mobile consuming a stalled 401 body before rejecting authentication; Mobile's event subscription cannot reach its fatal-auth path while that body remains open. Handling the status first and cancelling the unused stream makes both clients reject without a body pull, including when cancellation fails.
+- Check: cover ordinary requests and streaming entry points on sibling clients. Do not let optional diagnostics or cleanup replace an already authoritative authentication error; preserve non-auth server diagnostics and existing body-read deadlines.
+- Seen: 2026-10-17.
+
 **Treat deployment policy changes as explicit choices and recover scheduled interruptions without replaying unsafe tools.**
 
 - Evidence: on 2026-10-16, eta-server's v0.1.23 deployment passed `ENABLE_FULL_ACCESS=false`, removing an existing permission while three stored conversations retained full access. The same deployment interrupted the reviewer while it watched that deployment's workflow; its nested Bash checkpoint required unsafe replay, so recovery reserved the checkout and left sibling schedules busy despite healthy HTTP and systemd status. The deployment CLI regression preserves the original config by default; real Bot restart tests cancel the interrupted scheduled operation, retain its recurring plan and admit queued work without replaying the tool.

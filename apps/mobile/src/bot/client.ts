@@ -72,13 +72,13 @@ export class BotClient {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (!response.ok) {
+        if (response.status === 401) {
+          void response.body?.cancel().catch(() => {});
+          throw new BotError("Bot 令牌无效，请修改连接设置", "Unauthorized", 401);
+        }
         const error = ErrorSchema.safeParse(await response.json().catch(() => null));
         throw new BotError(
-          response.status === 401
-            ? "Bot 令牌无效，请修改连接设置"
-            : error.success
-              ? error.data.error.message
-              : `Bot 请求失败 (${response.status})`,
+          error.success ? error.data.error.message : `Bot 请求失败 (${response.status})`,
           error.success ? error.data.error.code : "HttpError",
           response.status,
         );
