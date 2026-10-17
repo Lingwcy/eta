@@ -115,6 +115,40 @@ test("partial summaries reach live state while the command is held and no tool h
 	}
 });
 
+test("reused provider call IDs execute independent turns without retaining old summaries", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "eta-intent-reuse-"));
+	const setup = chatSetup();
+	setup.registry.install(createCodingTools());
+	setup.faux.setResponses([
+		fauxAssistantMessage(
+			fauxToolCall("write", { description: "Earlier write", path: "first.txt", content: "first" }, { id: "reused" }),
+			{ stopReason: "toolUse" },
+		),
+		done,
+		fauxAssistantMessage(
+			fauxToolCall("write", { path: "second.txt", content: "second" }, { id: "reused" }),
+			{ stopReason: "toolUse" },
+		),
+		done,
+	]);
+	const { harness, root } = await openChat(new MemoryStorage(), setup, {
+		env: new NodeExecutionEnv({ cwd: directory }),
+	});
+	try {
+		for (const prompt of ["first", "second"])
+			expect((await (await root.submit({ type: "input", content: prompt }, context)).wait(context)).status).toBe(
+				"done",
+			);
+		expect(await readFile(join(directory, "first.txt"), "utf8")).toBe("first");
+		expect(await readFile(join(directory, "second.txt"), "utf8")).toBe("second");
+		const messages = (await allEntries(root)).flatMap((entry) => [...(entry.model ?? [])]);
+		expect(toolIntents(messages)).toEqual({});
+	} finally {
+		await harness.close(context);
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
 test("summaries use the declaration at each call and ignore business descriptions", () => {
 	const annotated = Type.Object({ description: Type.Optional(Type.String()) }, { [TOOL_INTENT]: true });
 	const unmarked = Type.Object({ description: Type.String() });

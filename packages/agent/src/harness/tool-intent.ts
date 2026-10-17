@@ -41,7 +41,10 @@ export function toolIntents(messages: readonly Message[], streaming?: Message): 
 			for (const tool of message.toolsAdded ?? []) enabled.set(tool.name, supportsIntent(tool.parameters));
 		} else if (message.role === "assistant") {
 			for (const call of message.content) {
-				if (call.type !== "toolCall" || !enabled.get(call.name)) continue;
+				if (call.type !== "toolCall") continue;
+				// Provider call IDs may repeat across turns; the latest call owns its summary.
+				intents.delete(call.id);
+				if (!enabled.get(call.name)) continue;
 				const description = intentText(call.arguments.description);
 				if (description) intents.set(call.id, description);
 			}
