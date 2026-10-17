@@ -133,6 +133,224 @@ async function scheduledRunState(bot: BotApplication, threadId: string, schedule
 }
 
 test.each([
+  { source: "automatic", mode: "standard", cleanup: "normal" },
+  { source: "manual", mode: "standard", cleanup: "normal" },
+  { source: "ordinary", mode: "standard", cleanup: "normal" },
+  { source: "automatic", mode: "codemode", cleanup: "normal" },
+  { source: "automatic", mode: "standard", cleanup: "fails" },
+] as const)(
+  "restart recovers $source work after a child report starts a $mode follow-up ($cleanup cleanup)",
+  async ({ source, mode, cleanup }) => {
+    const releaseChild = Promise.withResolvers<void>();
+    const releaseTool = Promise.withResolvers<void>();
+    let executions = 0;
+    const tool = defineTool({
+      name: "wait_for_deployment",
+      description: "An unsafe invocation interrupted by the deployment it waits for",
+      parameters: Type.Object({}),
+      replay: "unsafe",
+      execute: async (_input, _api, context) => {
+        executions++;
+        const abort = () => releaseTool.resolve();
+        context.abortSignal?.addEventListener("abort", abort, { once: true });
+        try {
+          if (!context.abortSignal?.aborted) await releaseTool.promise;
+        } finally {
+          context.abortSignal?.removeEventListener("abort", abort);
+        }
+        return {};
+      },
+    });
+    const environment: Partial<CoreEnvironment> = {
+      extensions: () => [{ name: "deployment-wait", tools: [tool] }],
+    };
+    const { bot, open, thread, fast, releaseModel, config, models } = await fixture(
+      1,
+      environment,
+      mode,
+    );
+    releaseModel();
+    let rootRequests = 0;
+    const responses: Parameters<typeof fast.setResponses>[0] = Array.from(
+      { length: 12 },
+      () => async (context) => {
+        if (
+          context.messages.some(
+            (message) => message.role === "user" && message.content === "Delayed delegated work",
+          )
+        ) {
+          await releaseChild.promise;
+          return fauxAssistantMessage("Completed delegated work");
+        }
+        rootRequests++;
+        if (rootRequests === 1) {
+          const args = {
+            action: "spawn",
+            name: "worker",
+            message: "Delayed delegated work",
+            wait: false,
+          };
+          return fauxAssistantMessage(
+            mode === "codemode"
+              ? fauxToolCall("codemode", { code: `await tools.subagent(${JSON.stringify(args)});` })
+              : fauxToolCall("subagent", args),
+            { stopReason: "toolUse" },
+          );
+        }
+        if (rootRequests === 2) return fauxAssistantMessage("Waiting for delegated results");
+        return fauxAssistantMessage(
+          mode === "codemode"
+            ? fauxToolCall("codemode", { code: "await tools.wait_for_deployment({});" })
+            : fauxToolCall(tool.name, {}),
+          { stopReason: "toolUse" },
+        );
+      },
+    );
+    fast.setResponses(responses);
+    try {
+      const id = await thread("Release reviewer");
+      const peer = await thread("Queued scheduled work");
+      const created = await bot.core.createSchedule({
+        threadId: id,
+        requestId: "review-plan",
+        name: "Recurring review",
+        prompt: "Review and delegate",
+        rule: { type: "interval", everyMs: 3600_000, anchorAt: Date.now() + 86400_000 },
+      });
+      const scheduleId = created.scheduleId!;
+      let original: string;
+      if (source === "ordinary") {
+        fast.setResponses([fauxAssistantMessage("Historical schedule completed")]);
+        await bot.core.runScheduleNow({
+          scheduleId,
+          expectedRevision: 1,
+          requestId: "historical-run",
+        });
+        await expect
+          .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.state, {
+            timeout: 10000,
+          })
+          .toBe("succeeded");
+        await expect.poll(() => bot.controller.status().activeThreads).toEqual([]);
+        fast.setResponses(responses);
+        original = (await bot.controller.submit(id, "Ordinary delegated work", "ordinary"))
+          .operationId;
+      } else {
+        if (source === "manual") {
+          await bot.core.runScheduleNow({
+            scheduleId,
+            expectedRevision: 1,
+            requestId: "run-review",
+          });
+        } else {
+          const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now());
+          try {
+            await bot.core.updateSchedule({
+              scheduleId,
+              expectedRevision: 1,
+              requestId: "arm-review",
+              patch: { rule: { type: "interval", everyMs: 3600_000, anchorAt: Date.now() + 500 } },
+            });
+          } finally {
+            clock.mockRestore();
+          }
+        }
+        await expect
+          .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.operationId, {
+            timeout: 10000,
+          })
+          .toBeTruthy();
+        original = (await bot.core.listScheduleRuns({ scheduleId }))[0].operationId!;
+      }
+      await expect
+        .poll(async () => (await bot.core.operation(id, original)).status, { timeout: 10000 })
+        .toBe("completed");
+      const queued = await bot.core.createSchedule({
+        threadId: peer,
+        requestId: "peer-plan",
+        name: "Peer",
+        prompt: "Run queued work",
+        rule: { type: "once", at: Date.now() + 86400_000 },
+      });
+      await bot.core.runScheduleNow({
+        scheduleId: queued.scheduleId!,
+        expectedRevision: 1,
+        requestId: "peer-run",
+      });
+      await expect
+        .poll(() => scheduledRunState(bot, peer, queued.scheduleId!))
+        .toMatchObject({ reason: "busy" });
+      if (source !== "ordinary") {
+        await expect
+          .poll(async () => (await bot.core.listScheduleRuns({ scheduleId }))[0]?.state)
+          .toBe("succeeded");
+      }
+      releaseChild.resolve();
+      await expect.poll(() => executions, { timeout: 10000 }).toBe(1);
+      const followup = (await bot.core.openThread(id)).snapshot.operation!.id;
+      expect(followup).not.toBe(original);
+      await bot.close();
+      fast.setResponses([fauxAssistantMessage("Queued work completed")]);
+      if (cleanup === "fails") {
+        const core = await createCore({
+          dataRoot: config.dataRoot,
+          home: join(config.dataRoot, "home"),
+          models,
+          settings: { read: Effect.succeed(config.runtime), subscribe: () => () => {} },
+          environment,
+        });
+        cleanups.push(() => core.close());
+        const controller = new BotController(core, bot.workspaceProjects, 1);
+        cleanups.push(() => controller.close(0));
+        const stop = vi
+          .spyOn(core, "stop")
+          .mockRejectedValueOnce(new Error("Follow-up cleanup failed"));
+        try {
+          await controller.recover();
+          expect(controller.status().blocked[id]).toBe("Follow-up cleanup failed");
+          expect((await core.operation(id, followup)).status).toBe("paused");
+          expect((await core.listScheduleRuns({ scheduleId }))[0].state).toBe("succeeded");
+          await expect(controller.submit(peer, "Other work", "blocked-peer")).rejects.toMatchObject(
+            { code: "Busy" },
+          );
+        } finally {
+          stop.mockRestore();
+        }
+        await controller.stop(id);
+        const resumed = await controller.submit(peer, "Other work", "after-cleanup");
+        await expect
+          .poll(async () => (await core.operation(peer, resumed.operationId)).status)
+          .toBe("completed");
+        expect(executions).toBe(1);
+        return;
+      }
+      const restored = await open();
+      if (source === "ordinary") {
+        expect(restored.controller.status().blocked[id]).toContain("maintainer review");
+        expect((await restored.core.operation(id, followup)).status).toBe("paused");
+        await restored.controller.stop(id);
+      } else {
+        await expect
+          .poll(async () => (await restored.core.operation(id, followup)).status)
+          .toBe("aborted");
+        expect((await restored.core.listScheduleRuns({ scheduleId }))[0].state).toBe("succeeded");
+        expect(restored.controller.status().blocked[id]).toBeUndefined();
+      }
+      expect((await restored.core.operation(id, original)).status).toBe("completed");
+      expect((await restored.core.listSchedules({ threadId: id }))[0].state).toBe("active");
+      expect(executions).toBe(1);
+      await expect
+        .poll(() => scheduledRunState(restored, peer, queued.scheduleId!), { timeout: 10000 })
+        .toMatchObject({ state: "succeeded" });
+    } finally {
+      releaseChild.resolve();
+      releaseTool.resolve();
+    }
+  },
+  30000,
+);
+
+test.each([
   { source: "scheduled", cleanup: "normal" },
   { source: "ordinary", cleanup: "normal" },
   { source: "scheduled", cleanup: "fails" },

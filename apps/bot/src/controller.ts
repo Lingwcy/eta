@@ -316,18 +316,24 @@ export class BotController {
   private async cancelInterruptedSchedule(id: string) {
     const operation = (await this.core.openThread(id)).snapshot.operation;
     if (!operation) return false;
+    const { originOperationId } = await this.core.operation(id, operation.id);
     const snapshot = await this.core.scheduleSnapshot();
     for (const run of snapshot.occurrences ?? []) {
-      if (run.threadId !== id || !["dispatching", "admitted"].includes(run.state)) continue;
+      if (run.threadId !== id) continue;
+      const inFlight = ["dispatching", "admitted"].includes(run.state);
+      if (!inFlight && (originOperationId === undefined || run.operationId !== originOperationId))
+        continue;
       // A crash can precede the dispatcher's receipt write; Core's request identity is authoritative.
       const operationId =
         run.operationId ?? (await this.core.operationByRequest(id, run.requestId))?.operationId;
-      if (operationId !== operation.id) continue;
+      const direct = inFlight && operationId === operation.id;
+      if (!direct && (originOperationId === undefined || operationId !== originOperationId))
+        continue;
       await this.core.stop(id);
       this.log({
         event: "schedule.interrupted",
         threadId: id,
-        operationId,
+        operationId: operation.id,
         requestId: run.requestId,
       });
       return true;
