@@ -4,8 +4,8 @@ set -euo pipefail
 
 archive=${1:?Usage: deploy-server.sh ARCHIVE RELEASE_ID}
 release_id=${2:?Usage: deploy-server.sh ARCHIVE RELEASE_ID}
-enable_full_access=${3:-false}
-[[ $enable_full_access == true || $enable_full_access == false ]] || exit 1
+enable_full_access=${3:-preserve}
+[[ $enable_full_access == preserve || $enable_full_access == true || $enable_full_access == false ]] || exit 1
 [[ $EUID == 0 ]] || { echo 'Run with sudo.' >&2; exit 1; }
 [[ $release_id =~ ^[a-f0-9]{40}-[0-9]+-[0-9]+$ ]] || { echo 'Invalid release ID.' >&2; exit 1; }
 root=/opt/eta-bot
@@ -73,9 +73,10 @@ systemctl daemon-reload
 systemctl enable eta-bot
 systemctl reset-failed eta-bot || true
 systemctl restart eta-bot
+check_args=()
 if [[ $enable_full_access == true ]]; then
   check_args=(--expect-full-access)
-else
+elif [[ $enable_full_access == false ]]; then
   check_args=(--expect-no-full-access)
 fi
 for attempt in {1..30}; do

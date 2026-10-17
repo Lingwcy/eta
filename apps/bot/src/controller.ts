@@ -278,6 +278,17 @@ export class BotController {
         return undefined;
       });
       if (state?.required) {
+        if (state.unsafeTool && !state.blockedTasks.length) {
+          try {
+            if (await this.cancelInterruptedSchedule(thread.id)) continue;
+          } catch (error) {
+            this.block(
+              thread.id,
+              error instanceof Error ? error.message : "Interrupted schedule cleanup failed.",
+            );
+            continue;
+          }
+        }
         if (state.unsafeTool || state.blockedTasks.length) {
           this.blocked.set(
             thread.id,
@@ -288,6 +299,29 @@ export class BotController {
       }
     }
     await this.pumpRecovery();
+  }
+
+  /** Cancel an interrupted scheduled run rather than replaying a tool with uncertain side effects. */
+  private async cancelInterruptedSchedule(id: string) {
+    const operation = (await this.core.openThread(id)).snapshot.operation;
+    if (!operation) return false;
+    const snapshot = await this.core.scheduleSnapshot();
+    for (const run of snapshot.occurrences ?? []) {
+      if (run.threadId !== id || !["dispatching", "admitted"].includes(run.state)) continue;
+      // A crash can precede the dispatcher's receipt write; Core's request identity is authoritative.
+      const operationId =
+        run.operationId ?? (await this.core.operationByRequest(id, run.requestId))?.operationId;
+      if (operationId !== operation.id) continue;
+      await this.core.stop(id);
+      this.log({
+        event: "schedule.interrupted",
+        threadId: id,
+        operationId,
+        requestId: run.requestId,
+      });
+      return true;
+    }
+    return false;
   }
 
   private async pumpRecovery() {

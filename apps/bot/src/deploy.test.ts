@@ -28,6 +28,23 @@ async function deployConfig(config: object, enableFullAccess: boolean) {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
+test.each([
+  {},
+  { allowedSandboxModes: ["workspace-write"] },
+  {
+    allowedSandboxModes: ["read-only", "workspace-write", "danger-full-access"],
+    runtime: { defaultSandboxMode: "danger-full-access" },
+  },
+])("preserve leaves the existing deployment policy unchanged: %j", async (original) => {
+  const { path } = await prepareConfig(original);
+  const before = await readFile(path, "utf8");
+  const metadata = await stat(path);
+  execFileSync(process.execPath, [configEditor, path, "preserve"]);
+  expect(await readFile(path, "utf8")).toBe(before);
+  expect((await stat(path)).ino).toBe(metadata.ino);
+  expect((await stat(path)).mtimeMs).toBe(metadata.mtimeMs);
+});
+
 test("false removes full access and preserves explicitly configured restricted modes", async () => {
   const config = await deployConfig(
     { allowedSandboxModes: ["read-only", "workspace-write", "danger-full-access"] },
