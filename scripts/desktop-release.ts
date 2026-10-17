@@ -188,8 +188,11 @@ export function updateFeed(directory: string, tag: string) {
   const uploads: string[] = [];
   for (const file of files.values()) {
     const path = join(directory, file.url);
-    const digest = createHash("sha512").update(readFileSync(path)).digest("base64");
+    const data = readFileSync(path);
+    const digest = createHash("sha512").update(data).digest("base64");
     if (digest !== file.sha512) throw new Error(`Update feed checksum mismatch: ${file.url}`);
+    if (!data.length) throw new Error(`Empty update asset: ${file.url}`);
+    if (data.length !== file.size) throw new Error(`Update feed size mismatch: ${file.url}`);
     uploads.push(path);
     // Only zips are downloaded by the updater, so only their blockmaps enable differential updates.
     if (file.url.endsWith(".zip") && existsSync(`${path}.blockmap`))

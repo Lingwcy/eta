@@ -73,6 +73,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Validate update metadata against actual asset bytes, not only a matching digest.**
+
+- Evidence: on 2026-10-17, #103 accepts a Mac ZIP with the correct hash but wrong declared size, or an empty ZIP with its matching hash and zero size. Both split and combined feeds pass; the real release CLI with fake GitHub publishes the inconsistent feed. The current Mac updater uses that declared size for its local ZIP proxy Content-Length; Windows already checks size.
+- Check: require nonempty assets and exact byte lengths for each architecture before creating or editing a release draft. Keep digest-failure controls, valid feed merging and published-release rerun behavior. Distinguish a controlled corrupt artifact from an actually broken published version.
+- Seen: 2026-10-17.
+
 **Resolve optional summaries from the latest call instead of inheriting an earlier cache hit.**
 
 - Evidence: on 2026-10-17, #91 runs two real write turns with the same provider call ID. Both files are correct, but the second legacy call inherits the first summary. Five further regressions cover an unmarked or removed declaration, empty or invalid text, and a partial streamed call; all fail before clearing that ID before checking the latest call.
