@@ -1,15 +1,20 @@
 import { type Static, Type } from "typebox";
 import { getOrThrow } from "../env/index.ts";
 import { defineTool } from "../harness/define.ts";
+import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";
 import type { ToolRegistration } from "../harness/types.ts";
 import { requireEnv } from "./env.ts";
 import { withFileMutationQueue } from "./file-mutation-queue.ts";
 import { resolveToolPath } from "./path-utils.ts";
 
-const writeSchema = Type.Object({
-	path: Type.String({ description: "Path to the file to write (relative or absolute)" }),
-	content: Type.String({ description: "Content to write to the file" }),
-});
+const writeSchema = Type.Object(
+	{
+		description: intentParameter,
+		path: Type.String({ description: "Path to the file to write (relative or absolute)" }),
+		content: Type.String({ description: "Content to write to the file" }),
+	},
+	{ [TOOL_INTENT]: true },
+);
 
 export type WriteToolInput = Static<typeof writeSchema>;
 

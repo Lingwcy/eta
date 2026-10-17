@@ -8,6 +8,7 @@ import type { AgentSnapshot, SnapshotTool } from "@eta/core/agent/protocol";
 import { TaskList } from "@/components/task-list";
 import { MessageUsage } from "./message-usage";
 import { ThinkingMessage } from "./thinking-message";
+import { isActivityMessage } from "./chat-messages";
 import { toolsForMessage } from "@/agent/selectors";
 
 export function ChatMessage({
@@ -48,7 +49,9 @@ export function ChatMessage({
   return (
     <EntranceAnimation value={animate}>
       <Reveal>
-        <div className="flex flex-col gap-3">
+        <div
+          className={isActivityMessage(message) ? "flex flex-col gap-0.5" : "flex flex-col gap-3"}
+        >
           {thinking && (
             <ThinkingMessage
               text={thinking}

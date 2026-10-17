@@ -1,42 +1,50 @@
 import type { Context } from "@earendil-works/chord";
 import { type Static, Type } from "typebox";
 import { defineTool } from "../harness/define.ts";
+import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";
 import type { ToolExecutionApi, ToolExecutionResult, ToolRegistration } from "../harness/types.ts";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "../truncate.ts";
 import { requireEnv } from "./env.ts";
 
 const MAX_TIMEOUT_SECONDS = 2_147_483_647 / 1000;
 
-const bashSchema = Type.Object({
-	command: Type.String({ description: "Bash command to execute" }),
-	timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
-	sandbox: Type.Optional(
-		Type.Object(
-			{
-				reason: Type.String({
-					minLength: 1,
-					description:
-						"Why this command needs additional access. This pauses for approval before execution.",
-				}),
-				gitMetadata: Type.Optional(
-					Type.Boolean({
-						description:
-							"Request write access to this workspace's own Git metadata (index, objects, current branch ref) when it lives outside the workspace, as in a linked worktree.",
+const bashSchema = Type.Object(
+	{
+		description: intentParameter,
+		command: Type.String({ description: "Bash command to execute" }),
+		timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
+		sandbox: Type.Optional(
+			Type.Object(
+				{
+					reason: Type.String({
+						minLength: 1,
+						description: "Why this command needs additional access. This pauses for approval before execution.",
 					}),
-				),
-				networkAccess: Type.Optional(Type.Boolean()),
-				readableRoots: Type.Optional(Type.Array(Type.String())),
-				writableRoots: Type.Optional(Type.Array(Type.String())),
-			},
-			{ additionalProperties: false },
+					gitMetadata: Type.Optional(
+						Type.Boolean({
+							description:
+								"Request write access to this workspace's own Git metadata (index, objects, current branch ref) when it lives outside the workspace, as in a linked worktree.",
+						}),
+					),
+					networkAccess: Type.Optional(Type.Boolean()),
+					readableRoots: Type.Optional(Type.Array(Type.String())),
+					writableRoots: Type.Optional(Type.Array(Type.String())),
+				},
+				{ additionalProperties: false },
+			),
 		),
-	),
-});
+	},
+	{ [TOOL_INTENT]: true },
+);
 
-const powershellSchema = Type.Object({
-	command: Type.String({ description: "PowerShell command to execute" }),
-	timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
-});
+const powershellSchema = Type.Object(
+	{
+		description: intentParameter,
+		command: Type.String({ description: "PowerShell command to execute" }),
+		timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
+	},
+	{ [TOOL_INTENT]: true },
+);
 
 /** What a program that calls `bash` or `powershell` receives. */
 const shellStructuredOutputSchema = Type.Object({

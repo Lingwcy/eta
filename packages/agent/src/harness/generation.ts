@@ -32,6 +32,7 @@ import { applyBoundary, prepareBoundary } from "./inbox.ts";
 import { assignJson } from "./json.ts";
 import { endRun, LiveDoc, type LiveState, type ToolSlot } from "./live.ts";
 import { planSystemEntries, renderSections, replaySections } from "./prompt.ts";
+import { modelTool } from "./tool-intent.ts";
 import { ensureProviderSessionId } from "./provider.ts";
 import { appendToolResult, harnessError, ToolTask, type ToolTaskResult } from "./tool.ts";
 import type {
@@ -160,7 +161,7 @@ export const GenerationTask = defineTask<GenerationInput, GenerationCheckpoint, 
 			}
 			const input: PromptInput = { conversationId, agent, env, shown: Object.fromEntries(shown), read: runtime };
 			const desired = await renderSections(agent.sections, input, shown, report, context);
-			const entries = planSystemEntries(view, desired, agent.tools, runtime.now());
+			const entries = planSystemEntries(view, desired, agent.tools.map(modelTool), runtime.now());
 			const threshold =
 				compacted === undefined
 					? thresholdCompaction(view, entries, resolved.contextWindow, settings.compaction)
@@ -277,9 +278,7 @@ export const GenerationTask = defineTask<GenerationInput, GenerationCheckpoint, 
 		const conversationId = runtime.conversationId;
 		// Runs after the round's tool tasks are terminal; calls never started get `aborted` results (spec §8.5).
 		const unstarted =
-			checkpoint.phase === "tools"
-				? await readCalls(runtime, checkpoint.assistant, checkpoint.pending, context)
-				: [];
+			checkpoint.phase === "tools" ? await readCalls(runtime, checkpoint.assistant, checkpoint.pending, context) : [];
 		await runtime.commit(async (tx) => {
 			const live = await tx.doc(LiveDoc, conversationId);
 			await convertPartial(tx, live, conversationId);
@@ -593,8 +592,7 @@ async function startToolRound(
 	const sequential =
 		runtime.settings.toolExecution === "sequential" ||
 		calls.some(
-			(call) =>
-				offered.has(call.name) && tools.find((tool) => tool.name === call.name)?.executionMode === "sequential",
+			(call) => offered.has(call.name) && tools.find((tool) => tool.name === call.name)?.executionMode === "sequential",
 		);
 	await runtime.commit(async (tx): Promise<Next> => {
 		const live = await tx.doc(LiveDoc, conversationId);

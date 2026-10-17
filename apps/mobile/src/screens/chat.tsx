@@ -13,7 +13,7 @@ import { ArrowDown, Menu, SquarePen } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMobile } from "../provider.tsx";
 import { draftKey } from "../bot/store.ts";
-import { conversationRows, taskLabel } from "../conversation.ts";
+import { conversationRows, taskLabel, isActivityMessage } from "../conversation.ts";
 import { MessageView } from "../components/message.tsx";
 import { Approvals } from "../components/approvals.tsx";
 import { ConfigurationSheet, sandboxLabels, thinkingLabels } from "../components/configuration.tsx";
@@ -162,8 +162,17 @@ export function ChatScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             contentContainerStyle={[styles.messages, !rows.length && styles.emptyList]}
-            renderItem={({ item }) =>
-              snapshot ? <MessageView message={item.message} snapshot={snapshot} /> : null
+            renderItem={({ item, index }) =>
+              snapshot ? (
+                <MessageView
+                  message={item.message}
+                  snapshot={snapshot}
+                  compactAfter={
+                    isActivityMessage(item.message) &&
+                    Boolean(rows[index + 1] && isActivityMessage(rows[index + 1]!.message))
+                  }
+                />
+              ) : null
             }
             initialNumToRender={12}
             maxToRenderPerBatch={8}

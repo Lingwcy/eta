@@ -1,6 +1,5 @@
 import { type AssistantMessage, fauxAssistantMessage, fauxText, Type } from "@earendil-works/pi-ai";
 import { CodemodeSandbox } from "@earendil-works/pi-codemode";
-import { CODEMODE_SOURCE_GRAMMAR } from "@earendil-works/pi-codemode/source";
 import { defineTool, MemoryStorage, type ToolRegistration } from "@earendil-works/pi-durable";
 import { describe, expect, it } from "vitest";
 import { createCodemodeExtension } from "../src/codemode/codemode.ts";
@@ -87,13 +86,15 @@ describe("code mode description and section", () => {
 		expect(sections.codemode).not.toContain("mcp__github__get_issue");
 		// The code mode tool itself is not callable from scripts.
 		expect(sections.codemode).not.toContain("### `codemode`");
-		// The tool declaration carries the script grammar; pi-ai applies it only for models that support it.
-		const tools = (system.model![0] as { toolsAdded?: { name: string; constrainedSampling?: unknown }[] })
-			.toolsAdded!;
-		expect(tools.find((candidate) => candidate.name === "codemode")?.constrainedSampling).toEqual({
-			type: "grammar",
-			variants: { openai_lark: CODEMODE_SOURCE_GRAMMAR },
-		});
+		// JSON parameters preserve the summary on every provider, including those supporting raw-source tools.
+		const tools = (
+			system.model![0] as {
+				toolsAdded?: { name: string; constrainedSampling?: unknown; parameters: { required: string[] } }[];
+			}
+		).toolsAdded!;
+		const declared = tools.find((candidate) => candidate.name === "codemode")!;
+		expect(declared.constrainedSampling).toBeUndefined();
+		expect(declared.parameters.required).toEqual(["description", "code"]);
 		await harness.close(context);
 	});
 });

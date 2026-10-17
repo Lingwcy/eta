@@ -77,6 +77,7 @@ export const MessageSchema = z.object({
   toolName: z.string().optional(),
   isError: z.boolean().optional(),
   stopReason: z.string().optional(),
+  details: z.unknown().optional(),
   errorMessage: z.string().optional(),
 });
 export type BotMessage = z.infer<typeof MessageSchema>;
@@ -108,6 +109,7 @@ export const ApprovalSchema = z.object({
     .optional(),
 });
 export const SnapshotSchema = z.object({
+  toolIntents: z.record(z.string(), z.string()).optional(),
   configuration: z.object({
     model: z.object({ provider: z.string(), modelId: z.string() }),
     thinkingLevel: ThinkingLevelSchema,
@@ -124,6 +126,11 @@ export const SnapshotSchema = z.object({
         z.object({
           toolCallId: z.string(),
           toolName: z.string(),
+          description: z.string().optional(),
+          parentToolCallId: z.string().optional(),
+          result: z
+            .object({ content: z.array(ContentSchema), details: z.unknown().optional() })
+            .optional(),
           status: z.string(),
           args: z.record(z.string(), z.unknown()),
           isError: z.boolean().optional(),

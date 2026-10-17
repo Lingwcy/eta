@@ -1,21 +1,8 @@
 import { memo, useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  Linking,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Markdown from "react-native-markdown-display";
 import {
   Brain,
-  ChevronDown,
-  ChevronRight,
-  CircleCheck,
-  CircleMinus,
   CircleX,
   FileCode2,
   FilePenLine,
@@ -26,7 +13,14 @@ import {
   Wrench,
 } from "lucide-react-native";
 import type { BotMessage, BotSnapshot } from "../bot/contracts.ts";
-import { getToolSummary, textContent } from "../conversation.ts";
+import {
+  getToolSummary,
+  textContent,
+  toolCallState,
+  toolStateLabel,
+  nestedTools,
+  isActivityMessage,
+} from "../conversation.ts";
 import { colors, ScrollArea } from "../ui.tsx";
 
 function ToolIcon({ name, size = 14, color }: { name: string; size?: number; color: string }) {
@@ -57,57 +51,46 @@ export function ToolCard({
   args,
   result,
   status,
+  description,
 }: {
   name: string;
   args?: Record<string, unknown>;
   result?: BotMessage;
   status?: string;
+  description?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const summary = getToolSummary(name, args);
+  const summary = description ?? getToolSummary(name, args);
   const isError = result?.isError ?? false;
-  const isRunning = status === "running" || (status === undefined && !result);
+  const state = toolStateLabel(status, result);
+  const active = status === "running" || status === "generating" || status === "pending";
 
   return (
     <View style={styles.toolCard}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
-        accessibilityLabel={`${name}${summary ? ` · ${summary}` : ""}，点击${expanded ? "收起" : "展开"}详情`}
+        accessibilityLabel={`${name}${summary ? ` · ${summary}` : ""}，${state}，点击${expanded ? "收起" : "展开"}详情`}
         onPress={() => setExpanded(!expanded)}
         style={styles.toolRow}
       >
-        <ToolIcon name={name} size={14} color={colors.muted} />
-        <Text style={styles.toolName}>{name}</Text>
-        {!!summary && (
-          <Text numberOfLines={1} ellipsizeMode="middle" style={styles.toolSummary}>
-            {summary}
-          </Text>
-        )}
-        <View style={styles.toolStatus}>
-          {isRunning ? (
-            <ActivityIndicator size="small" color={colors.text} style={styles.toolSpinner} />
-          ) : isError ? (
-            <CircleX size={14} color={colors.danger} />
-          ) : status === "stopped" || status === "incomplete" || status === "waiting" ? (
-            <CircleMinus size={14} color={colors.muted} />
-          ) : (
-            <CircleCheck size={14} color={colors.muted} />
-          )}
-        </View>
-        {expanded ? (
-          <ChevronDown size={14} color={colors.muted} />
+        {isError ? (
+          <CircleX size={14} color={colors.danger} />
         ) : (
-          <ChevronRight size={14} color={colors.muted} />
+          <ToolIcon name={name} size={14} color={colors.muted} />
         )}
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={[styles.toolSummary, isError && styles.errorText]}
+        >
+          {description ?? (summary ? `${name} · ${summary}` : name)}
+        </Text>
+        {status !== "settled" && <Text style={styles.toolState}>{state}</Text>}
       </Pressable>
 
       {expanded && (
-        <ScrollArea
-          maxHeight={220}
-          style={styles.toolScrollArea}
-          contentContainerStyle={styles.toolScrollContent}
-        >
+        <ScrollArea maxHeight={240} contentContainerStyle={styles.toolScrollContent}>
           {args && Object.keys(args).length > 0 && (
             <View style={styles.toolSection}>
               <Text style={styles.toolSectionTitle}>参数</Text>
@@ -138,7 +121,7 @@ export function ToolCard({
                   ))}
             </View>
           )}
-          {isRunning && !result && <Text style={styles.runningHint}>正在执行中…</Text>}
+          {active && !result && <Text style={styles.runningHint}>{state}</Text>}
         </ScrollArea>
       )}
     </View>
@@ -147,34 +130,28 @@ export function ToolCard({
 
 function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const preview = text.trim().split(/\r\n|\r|\n/, 1)[0] || "思考内容";
   return (
-    <View style={styles.thinkingWrapper}>
+    <View style={styles.toolCard}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
-        accessibilityLabel={`${active ? "正在思考" : "思考内容"}，点击${expanded ? "收起" : "展开"}`}
+        accessibilityLabel={`${expanded ? "思考内容" : preview}，${active ? "正在思考，" : ""}点击${expanded ? "收起" : "展开"}思考内容`}
         onPress={() => setExpanded(!expanded)}
-        style={styles.thinkingRow}
+        style={styles.toolRow}
       >
         <Brain size={14} color={colors.muted} />
-        <Text style={styles.thinkingTitle}>{active ? "正在思考…" : "思考过程"}</Text>
-        {active && (
-          <ActivityIndicator size="small" color={colors.muted} style={styles.toolSpinner} />
-        )}
-        {expanded ? (
-          <ChevronDown size={14} color={colors.muted} />
-        ) : (
-          <ChevronRight size={14} color={colors.muted} />
-        )}
+        <Text numberOfLines={1} ellipsizeMode="tail" style={styles.toolSummary}>
+          {expanded ? "思考内容" : preview}
+        </Text>
+        {active && <Text style={styles.toolState}>正在思考</Text>}
       </Pressable>
       {expanded && (
-        <View style={styles.thinkingContentWrapper}>
-          <ScrollArea maxHeight={180}>
-            <Text selectable style={styles.thinkingText}>
-              {text}
-            </Text>
-          </ScrollArea>
-        </View>
+        <ScrollArea maxHeight={240} contentContainerStyle={styles.toolScrollContent}>
+          <Text selectable style={styles.thinkingText}>
+            {text}
+          </Text>
+        </ScrollArea>
       )}
     </View>
   );
@@ -183,9 +160,11 @@ function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
 export const MessageView = memo(function MessageView({
   message,
   snapshot,
+  compactAfter = false,
 }: {
   message: BotMessage;
   snapshot: BotSnapshot;
+  compactAfter?: boolean;
 }) {
   const user = message.role === "user";
 
@@ -204,7 +183,14 @@ export const MessageView = memo(function MessageView({
       (!message.stopReason && message.role === "assistant"));
 
   return (
-    <View style={[styles.message, user && styles.userMessage]}>
+    <View
+      style={[
+        styles.message,
+        isActivityMessage(message) && styles.activityMessage,
+        compactAfter && styles.compactAfter,
+        user && styles.userMessage,
+      ]}
+    >
       {parts.map((part, index) => {
         if (part.type === "text") {
           return user ? (
@@ -241,14 +227,42 @@ export const MessageView = memo(function MessageView({
           const stopped = snapshot.transcript.find(
             ({ message: value }) => value === message,
           )?.toolStatus;
+          const nested = nestedTools(snapshot, part.id);
+          const showOuter =
+            part.name !== "codemode" ||
+            !nested.length ||
+            result?.isError ||
+            running?.isError ||
+            running?.status === "waiting" ||
+            (Array.isArray(result?.content) &&
+              result.content.some((item) => item.type === "image")) ||
+            running?.result?.content.some((item) => item.type === "image");
           return (
-            <ToolCard
-              key={part.id ?? index}
-              name={part.name ?? "工具"}
-              args={part.arguments}
-              result={result}
-              status={running?.status ?? stopped ?? (!snapshot.operation ? "stopped" : undefined)}
-            />
+            <View key={part.id ?? index}>
+              {showOuter && (
+                <ToolCard
+                  name={part.name ?? "工具"}
+                  args={part.arguments}
+                  result={result}
+                  description={
+                    running?.description ?? (part.id ? snapshot.toolIntents?.[part.id] : undefined)
+                  }
+                  status={running?.status ?? stopped ?? toolCallState(snapshot, message, part.id)}
+                />
+              )}
+              <View style={showOuter ? styles.nestedTools : undefined}>
+                {nested.map((tool) => (
+                  <ToolCard
+                    key={tool.id}
+                    name={tool.name}
+                    args={tool.args}
+                    description={tool.description}
+                    status={tool.status}
+                    result={tool.result}
+                  />
+                ))}
+              </View>
+            </View>
           );
         }
 
@@ -281,6 +295,9 @@ export const MessageView = memo(function MessageView({
 });
 
 const styles = StyleSheet.create({
+  nestedTools: { marginLeft: 16 },
+  activityMessage: { gap: 2 },
+  compactAfter: { marginBottom: 2 },
   message: {
     marginBottom: 18,
     gap: 6,
@@ -318,72 +335,21 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     paddingTop: 4,
   },
-  // Thinking Component
-  thinkingWrapper: {
-    marginVertical: 4,
-  },
-  thinkingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 5,
-  },
-  thinkingTitle: {
-    fontSize: 13,
-    color: colors.muted,
-    fontWeight: "500",
-  },
-  thinkingContentWrapper: {
-    marginTop: 4,
-    marginLeft: 4,
-    paddingLeft: 12,
-    borderLeftWidth: 2,
-    borderLeftColor: colors.border,
-  },
   thinkingText: {
     color: colors.muted,
     fontSize: 13,
     lineHeight: 20,
   },
-  // Single-row Tool Component
-  toolCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginVertical: 3,
-    overflow: "hidden",
-  },
+  toolCard: { marginVertical: 1, overflow: "hidden" },
   toolRow: {
-    height: 38,
+    height: 28,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 2,
   },
-  toolName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  toolSummary: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    color: colors.muted,
-  },
-  toolStatus: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  toolSpinner: {
-    transform: [{ scale: 0.75 }],
-  },
-  toolScrollArea: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.soft,
-  },
+  toolSummary: { flex: 1, fontSize: 12, color: colors.muted },
+  toolState: { fontSize: 12, color: colors.muted },
   toolScrollContent: {
     padding: 10,
     gap: 8,

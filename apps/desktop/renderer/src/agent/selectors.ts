@@ -7,6 +7,7 @@ const CodemodeDetails = Schema.Struct({
       id: Schema.Number,
       name: Schema.String,
       args: Schema.String,
+      description: Schema.optionalKey(Schema.String),
       status: Schema.Literals(["running", "ok", "error", "cancelled"]),
       error: Schema.optionalKey(Schema.String),
       taskId: Schema.optionalKey(Schema.String),
@@ -86,6 +87,7 @@ export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {
                   : "settled",
             // Upstream truncates this preview, so it may no longer be valid JSON.
             args: { preview: call.args },
+            ...(call.description ? { description: call.description } : {}),
             isError: call.status === "error",
             ...(call.result
               ? {
@@ -105,6 +107,27 @@ export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {
       }
     }
   }
-  for (const tool of snapshot.operation?.runningTools ?? []) tools.set(tool.toolCallId, tool);
+  const operation = snapshot.operation;
+  const active =
+    operation?.status === "running" &&
+    !snapshot.recoveryRequired &&
+    !snapshot.faulted &&
+    !snapshot.blockedReason;
+  if (active && !operation.retry && !operation.deferred) {
+    for (const part of operation.streamingMessage?.content ?? []) {
+      if (part.type !== "toolCall" || tools.has(part.id)) continue;
+      tools.set(part.id, {
+        toolCallId: part.id,
+        toolName: part.name,
+        args: part.arguments,
+        status: "generating",
+      });
+    }
+  }
+  for (const tool of operation?.runningTools ?? []) tools.set(tool.toolCallId, tool);
+  for (const [id, tool] of tools) {
+    const description = tool.description ?? snapshot.toolIntents?.[id];
+    if (description) tools.set(id, { ...tool, description });
+  }
   return [...tools.values()];
 }
