@@ -4,6 +4,7 @@ import { Schema } from "effect";
 import type { OperationResult, RecoveryState } from "../../agent/protocol.ts";
 import { CoreError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
+import { hasForegroundWork } from "../runtime/recovery.ts";
 
 const OperationId = Schema.NumberFromString.check(
   Schema.isInt(),
@@ -123,7 +124,11 @@ export async function readRecovery(runtime: ThreadRuntime): Promise<RecoveryStat
   }
   return {
     required: runtime.recoveryRequired,
-    pending: await runtime.hasWork(),
+    pending: hasForegroundWork(inspection),
+    queuedOnly:
+      inspection.submissions.length > 0 &&
+      inspection.submissions.every((submission) => submission.status === "queued") &&
+      !hasForegroundWork({ tasks: inspection.tasks, submissions: [] }),
     unsafeTool,
     blockedTasks: inspection.tasks.flatMap(({ record, state }) =>
       state.kind === "blocked"

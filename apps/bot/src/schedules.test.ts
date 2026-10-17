@@ -133,6 +133,235 @@ async function scheduledRunState(bot: BotApplication, threadId: string, schedule
 }
 
 test.each([
+  { source: "scheduled", cleanup: "normal" },
+  { source: "ordinary", cleanup: "normal" },
+  { source: "scheduled", cleanup: "fails" },
+  { source: "scheduled", cleanup: "restart" },
+  { source: "scheduled", cleanup: "superseded" },
+] as const)(
+  "$source quota failure releases queued reports and retries after quota resets ($cleanup cleanup)",
+  async ({ source, cleanup }) => {
+    const setup = await fixture();
+    const { thread, fast, releaseModel, open } = setup;
+    let bot = setup.bot;
+    releaseModel();
+    const requested = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const cleanupEntered = Promise.withResolvers<void>();
+    const finishCleanup = Promise.withResolvers<void>();
+    const replacementEntered = Promise.withResolvers<void>();
+    const finishReplacement = Promise.withResolvers<void>();
+    const exhausted = () =>
+      fauxAssistantMessage([], {
+        stopReason: "error",
+        errorMessage: "Codex error: The usage limit has been reached",
+      });
+    fast.setResponses([
+      async () => {
+        requested.resolve();
+        await release.promise;
+        return exhausted();
+      },
+      fauxAssistantMessage("First retained report"),
+      fauxAssistantMessage("Second retained report"),
+      exhausted(),
+    ]);
+    try {
+      const id = await thread("Quota-limited reviewer");
+      const peer = await thread("Another scheduled task");
+      const plan = await bot.core.createSchedule({
+        threadId: id,
+        requestId: "recurring",
+        name: "Hourly review",
+        prompt: "Review again at the next slot",
+        rule: { type: "interval", everyMs: 3600_000, anchorAt: Date.now() + 86400_000 },
+      });
+      let operationId: string;
+      if (source === "ordinary") {
+        operationId = (await bot.controller.submit(id, "Review", "ordinary")).operationId;
+      } else {
+        await bot.core.runScheduleNow({
+          scheduleId: plan.scheduleId!,
+          expectedRevision: 1,
+          requestId: "first-run",
+        });
+        await expect
+          .poll(
+            async () =>
+              (await bot.core.listScheduleRuns({ scheduleId: plan.scheduleId! }))[0]?.operationId,
+          )
+          .toBeTruthy();
+        operationId = (await bot.core.listScheduleRuns({ scheduleId: plan.scheduleId! }))[0]
+          .operationId!;
+      }
+      await requested.promise;
+      for (const name of ["first", "second"]) {
+        await bot.core.subagent(
+          id,
+          { action: "spawn", name, message: "Return a report", wait: false },
+          `child-${name}`,
+        );
+        await expect
+          .poll(
+            async () =>
+              (await bot.core.openThread(id)).snapshot.subagents?.find(
+                (child) => child.path === `/${name}`,
+              )?.status,
+          )
+          .toBe("completed");
+      }
+      const queued = await bot.core.createSchedule({
+        threadId: peer,
+        requestId: "peer",
+        name: "Peer review",
+        prompt: "Other scheduled work",
+        rule: { type: "once", at: Date.now() + 86400_000 },
+      });
+      await bot.core.runScheduleNow({
+        scheduleId: queued.scheduleId!,
+        expectedRevision: 1,
+        requestId: "run-peer",
+      });
+      await expect
+        .poll(() => scheduledRunState(bot, peer, queued.scheduleId!))
+        .toMatchObject({ reason: "busy" });
+      let failedSnapshots = 0;
+      const openThread = bot.core.openThread.bind(bot.core);
+      const inspection =
+        cleanup === "superseded"
+          ? vi.spyOn(bot.core, "openThread").mockImplementation(async (threadId) => {
+              const view = await openThread(threadId);
+              if (
+                threadId === id &&
+                !view.snapshot.operation &&
+                view.snapshot.lastResult?.status === "failed" &&
+                ++failedSnapshots === 2
+              ) {
+                cleanupEntered.resolve();
+                await finishCleanup.promise;
+              }
+              return view;
+            })
+          : undefined;
+      const stop =
+        cleanup === "fails" || cleanup === "restart"
+          ? vi.spyOn(bot.core, "stop").mockRejectedValue(new Error("Quota cleanup failed"))
+          : undefined;
+      try {
+        release.resolve();
+        await expect
+          .poll(async () => (await bot.core.operation(id, operationId)).status)
+          .toBe("failed");
+        if (stop) {
+          await expect.poll(() => bot.controller.status().blocked[id]).toBe("Quota cleanup failed");
+          expect(await scheduledRunState(bot, peer, queued.scheduleId!)).toMatchObject({
+            reason: "busy",
+            activeThreads: [id],
+          });
+          if (cleanup === "restart") await bot.close();
+        }
+        if (inspection) {
+          // Hold cleanup's authorization after it read the old failure, then replace the admission.
+          await cleanupEntered.promise;
+          await bot.core.stopScheduler();
+          await bot.controller.stop(id);
+          fast.setResponses([
+            async () => {
+              replacementEntered.resolve();
+              await finishReplacement.promise;
+              return fauxAssistantMessage("Replacement complete");
+            },
+          ]);
+          const replacement = await bot.controller.submit(id, "New work", "replacement");
+          await replacementEntered.promise;
+          finishCleanup.resolve();
+          expect((await bot.core.operation(id, replacement.operationId)).status).toBe("running");
+          expect(bot.controller.status().activeThreads).toEqual([id]);
+          finishReplacement.resolve();
+          await expect
+            .poll(async () => (await bot.core.operation(id, replacement.operationId)).status)
+            .toBe("completed");
+          await bot.close();
+        }
+      } finally {
+        stop?.mockRestore();
+        inspection?.mockRestore();
+        finishCleanup.resolve();
+      }
+      if (cleanup === "restart" || cleanup === "superseded") {
+        fast.setResponses([exhausted(), exhausted(), exhausted()]);
+        bot = await open();
+      }
+      // Queued child wakeups must not reserve the checkout after the model has failed.
+      await expect
+        .poll(() => scheduledRunState(bot, peer, queued.scheduleId!), { timeout: 5000 })
+        .toMatchObject({ state: "failed", activeThreads: [] });
+      expect((await bot.core.operation(id, operationId)).error).toContain("usage limit");
+
+      fast.setResponses([exhausted()]);
+      await bot.core.runScheduleNow({
+        scheduleId: plan.scheduleId!,
+        expectedRevision: 1,
+        requestId: "still-exhausted",
+      });
+      await expect
+        .poll(
+          async () =>
+            (await bot.core.listScheduleRuns({ scheduleId: plan.scheduleId! })).find((run) =>
+              run.requestId.includes("still-exhausted"),
+            )?.state,
+        )
+        .toBe("failed");
+      await expect.poll(() => bot.controller.status().activeThreads).toEqual([]);
+      expect((await bot.core.listSchedules({ threadId: id }))[0]).toMatchObject({
+        state: "active",
+      });
+
+      // The reset can happen at any time: the next automatic slot uses the same model and succeeds.
+      fast.setResponses([fauxAssistantMessage("Quota reset; scheduled work complete")]);
+      const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now());
+      try {
+        await bot.core.updateSchedule({
+          scheduleId: plan.scheduleId!,
+          expectedRevision: 1,
+          requestId: "arm-after-reset",
+          patch: { rule: { type: "interval", everyMs: 3600_000, anchorAt: Date.now() + 500 } },
+        });
+      } finally {
+        clock.mockRestore();
+      }
+      await expect
+        .poll(
+          async () =>
+            (await bot.core.listScheduleRuns({ scheduleId: plan.scheduleId! })).find(
+              (run) => run.source === "automatic",
+            )?.state,
+          { timeout: 10000 },
+        )
+        .toBe("succeeded");
+      expect((await bot.core.listSchedules({ threadId: id }))[0]).toMatchObject({
+        state: "active",
+      });
+      expect(bot.controller.status().blocked).toEqual({});
+      for (const [name, output] of [
+        ["first", "First retained report"],
+        ["second", "Second retained report"],
+      ]) {
+        const child = (await bot.core.openThread(id)).snapshot.subagents?.find(
+          (agent) => agent.path === `/${name}`,
+        );
+        expect(child?.output).toContain(output);
+      }
+    } finally {
+      release.resolve();
+      finishCleanup.resolve();
+      finishReplacement.resolve();
+    }
+  },
+  20000,
+);
+
+test.each([
   { source: "automatic", replay: "unsafe", recovery: "normal" },
   { source: "manual", replay: "unsafe", recovery: "normal" },
   { source: "ordinary", replay: "unsafe", recovery: "normal" },

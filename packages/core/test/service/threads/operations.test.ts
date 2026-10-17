@@ -36,7 +36,7 @@ function runtimeFor(
   ];
   return {
     harness: {
-      inspect: async () => ({ tasks }),
+      inspect: async () => ({ tasks, submissions: [] }),
       conversation: async () => ({
         agent: async () => ({ tools: [{ name: "read", replay: options.toolReplay ?? "safe" }] }),
       }),
@@ -86,3 +86,25 @@ test("recovery conservatively blocks unsafe, unknown, or malformed nested tool i
   );
   expect(malformed.unsafeTool).toBe(true);
 });
+
+test.each([
+  { status: "queued", task: undefined, pending: true, queuedOnly: true },
+  { status: "placed", task: undefined, pending: true, queuedOnly: false },
+  { status: "queued", task: "pi.generation", pending: true, queuedOnly: false },
+  { status: "queued", task: "eta.subagent-reporter", pending: true, queuedOnly: false },
+  { status: undefined, task: undefined, pending: false, queuedOnly: false },
+] as const)(
+  "recovery distinguishes $status submissions with $task work from an idle queue",
+  async ({ status, task, pending, queuedOnly }) => {
+    const runtime = {
+      recoveryRequired: false,
+      harness: {
+        inspect: async () => ({
+          submissions: status ? [{ status }] : [],
+          tasks: task ? [{ record: { kind: task }, state: { kind: "running" } }] : [],
+        }),
+      },
+    } as unknown as RecoveryRuntime;
+    expect(await readRecovery(runtime)).toMatchObject({ pending, queuedOnly });
+  },
+);
