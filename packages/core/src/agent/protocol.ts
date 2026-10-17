@@ -51,7 +51,8 @@ export interface RecoveryState {
 }
 
 export interface SnapshotTool {
-  status: "running" | "waiting" | "settled" | "stopped" | "incomplete";
+  status: "generating" | "pending" | "running" | "waiting" | "settled" | "stopped" | "incomplete";
+  description?: string;
   toolCallId: string;
   taskId?: string;
   parentToolCallId?: string;
@@ -63,6 +64,8 @@ export interface SnapshotTool {
 }
 
 export interface AgentSnapshot {
+  /** Display summaries resolved against each call's admitted tool declaration. */
+  toolIntents?: Record<string, string>;
   sandbox?: SandboxStatus;
   approvals?: readonly SandboxApproval[];
   /** Recent automatic and reused approvals, oldest first. */

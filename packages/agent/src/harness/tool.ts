@@ -49,6 +49,7 @@ import type {
 	ToolHooks,
 	ToolRegistration,
 } from "./types.ts";
+import { intentText, supportsIntent } from "./tool-intent.ts";
 import { recordUsage } from "./usage.ts";
 
 /**
@@ -134,6 +135,12 @@ export const ToolTask = defineTask<ToolTaskInput, ToolTaskCheckpoint, ToolTaskRe
 				const error = harnessError("tool_unavailable", `Tool ${call.name} is not available`);
 				return settle(runtime, task.input, call, COMPLETED, () => error, context);
 			}
+			const description = supportsIntent(tool.parameters) ? intentText(call.arguments.description) : undefined;
+			if (description)
+				await runtime.commit(async (tx) => {
+					const slot = toolSlot(await tx.doc(LiveDoc, runtime.conversationId), runtime.taskId);
+					if (slot) slot.description = description;
+				}, context);
 			const prepared = prepare(tool, call.arguments as JsonObject);
 			const checked = "error" in prepared ? prepared : validate(tool, call, prepared.args);
 			if ("error" in checked)

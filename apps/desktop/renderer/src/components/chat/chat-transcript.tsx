@@ -3,7 +3,7 @@ import { getTools } from "@/agent/selectors";
 import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "./chat-message";
-import { getChatMessages } from "./chat-messages";
+import { getChatMessages, isActivityMessage } from "./chat-messages";
 import { useScrollFollow } from "./use-scroll-follow";
 import { ChatNavigation } from "./chat-navigation";
 import { getActiveTurn, getChatTurns } from "./chat-turns";
@@ -71,33 +71,39 @@ export function ChatTranscript({
           )}
         >
           <div
-            className={cn("mx-auto flex w-full max-w-[960px] flex-col gap-5", empty && "flex-1")}
+            className={cn("mx-auto flex w-full max-w-[960px] flex-col", empty && "flex-1 gap-5")}
           >
-            {messages.map((entry) =>
-              entry.message.role === "user" ? (
-                <div key={entry.id} data-chat-turn={entry.id}>
-                  {origins?.get(entry.id) && (
-                    <p className="mb-1 text-right text-xs text-neutral-500">
-                      {origins.get(entry.id)}
-                    </p>
-                  )}
-                  <ChatMessage
-                    message={entry.message}
-                    tools={tools}
-                    animate={Boolean(history && !history.has(entry.id))}
-                  />
-                </div>
-              ) : (
+            {messages.map((entry, index) => (
+              <div
+                key={entry.id}
+                data-chat-turn={entry.message.role === "user" ? entry.id : undefined}
+                className={
+                  index === 0
+                    ? undefined
+                    : isActivityMessage(entry.message) &&
+                        isActivityMessage(messages[index - 1]!.message)
+                      ? "mt-0.5"
+                      : "mt-5"
+                }
+              >
+                {entry.message.role === "user" && origins?.get(entry.id) && (
+                  <p className="mb-1 text-right text-xs text-neutral-500">
+                    {origins.get(entry.id)}
+                  </p>
+                )}
                 <ChatMessage
-                  key={entry.id}
                   message={entry.message}
                   tools={tools}
                   streaming={entry.streaming}
                   animate={Boolean(history && !history.has(entry.id))}
                 />
-              ),
+              </div>
+            ))}
+            {messages.length ? (
+              <div className="mt-5 flex flex-col gap-5">{children}</div>
+            ) : (
+              children
             )}
-            {children}
           </div>
         </ScrollAreaContent>
       </ScrollAreaViewport>

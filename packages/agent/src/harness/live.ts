@@ -11,6 +11,7 @@ import type { CompactionReason, CompactionResult, ToolDiagnostic } from "./types
 type SlotProgress = {
 	callId: string;
 	name: string;
+	description?: string;
 	status: "pending" | "running" | "done";
 	/** Retained running output and what the bounds dropped. */
 	output?: string;

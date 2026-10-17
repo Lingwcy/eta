@@ -11,6 +11,7 @@ import {
 	startsWithBom,
 } from "../env/index.ts";
 import { defineTool } from "../harness/define.ts";
+import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";
 import type { ToolDiagnostic, ToolExecutionApi, ToolExecutionResult, ToolRegistration } from "../harness/types.ts";
 import {
 	DEFAULT_MAX_BYTES,
@@ -32,11 +33,15 @@ import {
 } from "./image-processor.ts";
 import { resolveReadToolPath } from "./path-utils.ts";
 
-const readSchema = Type.Object({
-	path: Type.String({ description: "Path to the file to read (relative or absolute)" }),
-	offset: Type.Optional(Type.Number({ description: "Line number to start reading from (1-indexed)" })),
-	limit: Type.Optional(Type.Number({ description: "Maximum number of lines to read" })),
-});
+const readSchema = Type.Object(
+	{
+		description: intentParameter,
+		path: Type.String({ description: "Path to the file to read (relative or absolute)" }),
+		offset: Type.Optional(Type.Number({ description: "Line number to start reading from (1-indexed)" })),
+		limit: Type.Optional(Type.Number({ description: "Maximum number of lines to read" })),
+	},
+	{ [TOOL_INTENT]: true },
+);
 
 export type ReadToolInput = Static<typeof readSchema>;
 
@@ -66,7 +71,7 @@ async function readHead(
 	const decoder = rangeDecoder();
 	let text = "";
 	let newlines = 0;
-	for (let position = skipBom && start === 0 ? 3 : start; position < end; ) {
+	for (let position = skipBom && start === 0 ? 3 : start; position < end;) {
 		const bytes = getOrThrow(await reader.read(position, Math.min(READ_CHUNK, end - position), context));
 		if (bytes.length === 0) break;
 		position += bytes.length;
@@ -118,16 +123,23 @@ export function createReadTool(options: ReadToolOptions = {}): ToolRegistration<
 						mimeType === undefined
 							? await readText(reader, path, offset, limit, context)
 							: options.readImage !== undefined
-								? { output: await options.readImage(getOrThrow(await reader.read(0, before.size, context)), mimeType, api, context) }
+								? {
+										output: await options.readImage(
+											getOrThrow(await reader.read(0, before.size, context)),
+											mimeType,
+											api,
+											context,
+										),
+									}
 								: await readImage(
-									reader,
-									before,
-									path,
-									mimeType,
-									options.images,
-									await imageModel(api, context),
-									context,
-								);
+										reader,
+										before,
+										path,
+										mimeType,
+										options.images,
+										await imageModel(api, context),
+										context,
+									);
 					const after = getOrThrow(await reader.info(context));
 					const unchanged = after.size === before.size && after.mtimeMs === before.mtimeMs;
 					if (unchanged || (mimeType === undefined && after.size > before.size)) return result;

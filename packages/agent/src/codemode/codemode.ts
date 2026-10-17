@@ -44,7 +44,7 @@ import {
 	type CodemodeSandboxBase,
 	toCodemodeIdentifier,
 } from "@earendil-works/pi-codemode/portable";
-import { CODEMODE_SOURCE_GRAMMAR, parseCodemodeSource } from "@earendil-works/pi-codemode/source";
+import { parseCodemodeSource } from "@earendil-works/pi-codemode/source";
 import { type Static, Type } from "typebox";
 import { defineDoc } from "../documents.ts";
 import type { ExecutionEnv } from "../env/index.ts";
@@ -58,6 +58,7 @@ import type {
 	ToolExecutionResult,
 	ToolRegistration,
 } from "../harness/types.ts";
+import { intentParameter, intentText, supportsIntent, TOOL_INTENT } from "../harness/tool-intent.ts";
 import { rankDocuments } from "../search.ts";
 import type { JsonObject } from "../types.ts";
 import {
@@ -93,7 +94,15 @@ export const CODEMODE_TOOL_NAME = "codemode";
  * `hidden`: an internal tool of this extension (`pi.codemode.*`), which scripts reach only through a global such as
  * `models.classify()`; never in `tools`, `ALL_TOOLS`, or tool search.
  */
-type DeclaredTool = { name: string; jsName: string; description: string; structured?: true; hidden?: true };
+type DeclaredTool = {
+	name: string;
+	jsName: string;
+	description: string;
+	structured?: true;
+	hidden?: true;
+	/** Display metadata; older starts without it keep their original execution contract. */
+	intent?: true;
+};
 
 /** What a call starts with; a rerun starts the VM from exactly this. */
 type Start = {
@@ -172,6 +181,7 @@ export type CodemodeNestedCall = {
 	name: string;
 	/** Compact JSON of the arguments, cut for display. */
 	args: string;
+	description?: string;
 	status: "running" | "ok" | "error" | "cancelled";
 	durationMs?: number;
 	/** Error text, cut for display. */
@@ -203,7 +213,10 @@ export type CodemodeGlobal = {
 	execute(args: unknown, api: ToolExecutionApi, context: Context): Promise<JsonValue | undefined>;
 };
 
-const codemodeSchema = Type.Object({ code: Type.String({ description: "Raw JavaScript source." }) });
+const codemodeSchema = Type.Object(
+	{ description: intentParameter, code: Type.String({ description: "Raw JavaScript source." }) },
+	{ [TOOL_INTENT]: true },
+);
 
 export type CodemodeToolInput = Static<typeof codemodeSchema>;
 
@@ -234,8 +247,7 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolRegistrati
 		description: codemodeDescription(options.models !== false),
 		parameters: codemodeSchema,
 		outputLimits: OUTPUT_LIMITS,
-		// Capable models write the script as raw text instead of a JSON-escaped string; pi-ai applies it only for them.
-		constrainedSampling: { type: "grammar", variants: { openai_lark: CODEMODE_SOURCE_GRAMMAR } },
+		// JSON parameters carry the summary before the script; raw-source grammar cannot carry both fields.
 		callers: ["model"],
 		replay: "safe",
 		execute: (args, api, context) => new CodemodeCall(options, api, context).execute(args.code),
@@ -368,6 +380,7 @@ class CodemodeCall {
 		const tools: DeclaredTool[] = agent.callable.map((tool) => ({
 			name: tool.name,
 			jsName: toCodemodeIdentifier(tool.name),
+			...(supportsIntent(tool.parameters) ? { intent: true as const } : {}),
 			description: sampleOf(tool),
 			...(tool.structuredOutputSchema === undefined ? {} : { structured: true as const }),
 			...(tool.name.startsWith(CODEMODE_INTERNAL_PREFIX) ? { hidden: true as const } : {}),
@@ -844,7 +857,21 @@ class CodemodeCall {
 		const name = call.name.startsWith(CODEMODE_INTERNAL_PREFIX)
 			? call.name.slice(CODEMODE_INTERNAL_PREFIX.length)
 			: call.name;
-		this.rows.set(call.id, { id: call.id, name, args: cut(args, ARGS_PREVIEW_CHARS), status: "running" });
+		const description =
+			this.start.tools.find((tool) => tool.name === call.name)?.intent &&
+			call.args &&
+			typeof call.args === "object" &&
+			!Array.isArray(call.args) &&
+			"description" in call.args
+				? intentText(call.args.description)
+				: undefined;
+		this.rows.set(call.id, {
+			id: call.id,
+			name,
+			args: cut(args, ARGS_PREVIEW_CHARS),
+			status: "running",
+			...(description ? { description } : {}),
+		});
 	}
 
 	/** A tool call ended: its row gets its status, duration, and error. */
@@ -1022,9 +1049,7 @@ function sameJson(a: unknown, b: unknown): boolean {
 	if (a === b) return true;
 	if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
 	if (Array.isArray(a) || Array.isArray(b)) {
-		return (
-			Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, i) => sameJson(item, b[i]))
-		);
+		return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, i) => sameJson(item, b[i]));
 	}
 	const keys = Object.keys(a);
 	return (

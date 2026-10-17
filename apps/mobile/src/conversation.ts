@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { MessageSchema } from "./bot/contracts.ts";
 import type { BotMessage, BotSnapshot } from "./bot/contracts.ts";
 
 export function conversationRows(snapshot: BotSnapshot) {
@@ -22,13 +24,28 @@ export function conversationRows(snapshot: BotSnapshot) {
   const rows = entries.map(({ id, message }) => ({ id, message }));
   if (streaming && !saved) rows.push({ id: "streaming", message: streaming });
   const occurrences = new Map<string, number>();
-  return rows.map(({ id, message }) => {
-    if (message.role !== "assistant" || message.timestamp === undefined) return { id, message };
-    const identity = `assistant:${message.timestamp}:${message.provider}:${message.model}`;
-    const occurrence = occurrences.get(identity) ?? 0;
-    occurrences.set(identity, occurrence + 1);
-    return { id: `${identity}:${occurrence}`, message };
-  });
+  return rows
+    .filter(
+      ({ message }) =>
+        message.role !== "assistant" ||
+        Boolean(message.errorMessage) ||
+        (typeof message.content === "string"
+          ? Boolean(message.content.trim())
+          : message.content.some(
+              (part) =>
+                part.type === "toolCall" ||
+                part.type === "image" ||
+                (part.type === "text" && part.text?.trim()) ||
+                (part.type === "thinking" && part.thinking?.trim()),
+            )),
+    )
+    .map(({ id, message }) => {
+      if (message.role !== "assistant" || message.timestamp === undefined) return { id, message };
+      const identity = `assistant:${message.timestamp}:${message.provider}:${message.model}`;
+      const occurrence = occurrences.get(identity) ?? 0;
+      occurrences.set(identity, occurrence + 1);
+      return { id: `${identity}:${occurrence}`, message };
+    });
 }
 
 export function textContent(message: BotMessage) {
@@ -117,4 +134,130 @@ export function getToolSummary(name: string, args?: Record<string, unknown>): st
     return stringValues[0].trim().split("\n")[0]?.trim() ?? "";
   }
   return "";
+}
+
+/** Only current generation is preparing; saved historical calls are never inferred to be executing. */
+export function toolCallState(snapshot: BotSnapshot, message: BotMessage, id?: string): string {
+  const result = snapshot.transcript.find(
+    ({ message: entry }) => entry.role === "toolResult" && entry.toolCallId === id,
+  );
+  if (result) return result.toolStatus ?? "settled";
+  const operation = snapshot.operation;
+  if (
+    !operation ||
+    operation.status === "aborting" ||
+    snapshot.recoveryRequired ||
+    snapshot.faulted ||
+    snapshot.blockedReason
+  )
+    return "incomplete";
+  const stream = operation.streamingMessage;
+  if (!operation.retry && !operation.deferred && stream === message) return "generating";
+  return "incomplete";
+}
+
+export function toolStateLabel(status?: string, result?: Pick<BotMessage, "isError">): string {
+  if (result?.isError) return "执行失败";
+  switch (status) {
+    case "generating":
+      return "准备执行";
+    case "pending":
+      return "等待执行";
+    case "running":
+      return "执行中";
+    case "waiting":
+      return "等待批准";
+    case "settled":
+      return "已完成";
+    case "stopped":
+      return "已停止";
+    case "incomplete":
+      return "未完成";
+    default:
+      return result ? "已完成" : "未完成";
+  }
+}
+
+const NestedCallsSchema = z.object({
+  calls: z.array(
+    z.object({
+      id: z.number(),
+      name: z.string(),
+      args: z.string(),
+      description: z.string().optional(),
+      result: MessageSchema.pick({ content: true }).optional(),
+      status: z.enum(["running", "ok", "error", "cancelled"]),
+      error: z.string().optional(),
+    }),
+  ),
+});
+
+/** Nested previews may be truncated JSON, so their summary travels separately from args. */
+export function nestedTools(snapshot: BotSnapshot, parentId?: string) {
+  type Row = {
+    id: string;
+    name: string;
+    args: Record<string, unknown>;
+    description?: string;
+    status: string;
+    result?: BotMessage;
+  };
+  const rows = new Map<string, Row>();
+  for (const { message } of snapshot.transcript) {
+    if (
+      message.role !== "toolResult" ||
+      message.toolName !== "codemode" ||
+      message.toolCallId !== parentId
+    )
+      continue;
+    const parsed = NestedCallsSchema.safeParse(message.details);
+    if (!parsed.success) continue;
+    for (const call of parsed.data.calls) {
+      const id = `${parentId}/c${call.id}`;
+      rows.set(id, {
+        id,
+        name: call.name,
+        args: { preview: call.args },
+        description: call.description,
+        status:
+          call.status === "cancelled"
+            ? "stopped"
+            : call.status === "running"
+              ? "incomplete"
+              : "settled",
+        result: {
+          role: "toolResult",
+          content: call.result?.content ?? (call.error ? [{ type: "text", text: call.error }] : []),
+          isError: call.status === "error",
+        },
+      });
+    }
+  }
+  for (const tool of snapshot.operation?.runningTools ?? []) {
+    if (!parentId || tool.parentToolCallId !== parentId) continue;
+    rows.set(tool.toolCallId, {
+      id: tool.toolCallId,
+      name: tool.toolName,
+      args: tool.args,
+      description: tool.description,
+      status: tool.status,
+      result: tool.result
+        ? { role: "toolResult", content: tool.result.content, isError: tool.isError }
+        : undefined,
+    });
+  }
+  return [...rows.values()];
+}
+
+/** Keep narrative and user turns separated while tool/thinking rows stay adjacent. */
+export function isActivityMessage(message: BotMessage) {
+  if (message.role !== "assistant" || typeof message.content === "string") return false;
+  return (
+    message.content.some(
+      (part) => part.type === "toolCall" || (part.type === "thinking" && part.thinking?.trim()),
+    ) &&
+    !message.content.some(
+      (part) => part.type === "image" || (part.type === "text" && part.text?.trim()),
+    )
+  );
 }
