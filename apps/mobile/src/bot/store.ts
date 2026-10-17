@@ -84,6 +84,7 @@ export class MobileStore {
   private listeners = new Set<() => void>();
   private client?: BotClient;
   private epoch = 0;
+  private connectionAttempt = 0;
   private view = 0;
   private observer?: AbortController;
   private opener?: AbortController;
@@ -250,9 +251,10 @@ export class MobileStore {
   async connect(connection: Connection) {
     if (this.state.sending) throw new Error("请等待当前消息提交完成");
     const candidate = this.makeClient(connection);
-    const previousEpoch = this.epoch;
+    // The old cache flush precedes the new epoch; preserve the latest call's intent.
+    const attempt = ++this.connectionAttempt;
     await this.persist();
-    if (previousEpoch !== this.epoch) return;
+    if (attempt !== this.connectionAttempt) return;
     const epoch = ++this.epoch;
     this.stopObservation();
     this.update({ status: "connecting", error: undefined, opening: false });
@@ -303,6 +305,7 @@ export class MobileStore {
     }
   }
   async disconnect(forget = false) {
+    ++this.connectionAttempt;
     if (!forget) await this.persist();
     ++this.epoch;
     this.stopObservation();
@@ -628,6 +631,7 @@ export class MobileStore {
     }
   }
   dispose() {
+    ++this.connectionAttempt;
     this.stopObservation();
     ++this.epoch;
     this.listeners.clear();

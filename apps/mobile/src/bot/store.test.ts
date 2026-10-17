@@ -27,6 +27,56 @@ function setup(fetcher: typeof fetch, saved = memoryStorage()) {
 }
 const connection = { url: "https://bot", token: "secret" };
 
+test("the latest overlapping connection still wins across the initial cache flush", async () => {
+  const { store } = setup(async () => json(library));
+  await Promise.all([
+    store.connect(connection),
+    store.connect({ ...connection, url: "https://second-bot" }),
+  ]);
+  expect(store.getSnapshot().url).toBe("https://second-bot");
+});
+
+test("forget cancels a connection still flushing its previous cache", async () => {
+  vi.useFakeTimers();
+  const requests: string[] = [];
+  const { store, saved } = setup(async (url) => {
+    requests.push(requestUrl(url));
+    return json(library);
+  });
+  const release = Promise.withResolvers<void>();
+  const work: Promise<void>[] = [];
+  try {
+    await store.connect(connection);
+    const save = saved.storage.saveCache.bind(saved.storage);
+    let held = false;
+    saved.storage.saveCache = async (url, value) => {
+      held = true;
+      await release.promise;
+      await save(url, value);
+    };
+    const connecting = store.connect({ ...connection, url: "https://second-bot" });
+    work.push(connecting);
+    void connecting.catch(() => {});
+    await vi.waitFor(() => expect(held).toBe(true), { timeout: 1000 });
+    const before = requests.length;
+    const forgetting = store.disconnect(true);
+    work.push(forgetting);
+    void forgetting.catch(() => {});
+    release.resolve();
+    await Promise.all(work);
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(requests.slice(before)).toEqual([]);
+    expect(store.getSnapshot().status).toBe("disconnected");
+    expect(saved.connection()).toBeUndefined();
+    expect(saved.caches.size).toBe(0);
+  } finally {
+    release.resolve();
+    await Promise.allSettled(work);
+    store.dispose();
+    vi.useRealTimers();
+  }
+});
+
 test.each(
   [
     "initialize",
