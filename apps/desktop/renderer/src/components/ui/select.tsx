@@ -14,6 +14,7 @@ interface SelectProps<T extends string> {
   label?: string;
   panelTitle?: string;
   popupSizing?: "trigger" | "content";
+  className?: string;
 }
 
 export function Select<T extends string>({
@@ -27,6 +28,7 @@ export function Select<T extends string>({
   label,
   panelTitle,
   popupSizing = "trigger",
+  className,
 }: SelectProps<T>) {
   return (
     <BaseSelect.Root
@@ -43,6 +45,7 @@ export function Select<T extends string>({
           "flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm text-neutral-800 outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-50",
           size === "compact" && "w-auto rounded-[10px] px-3 py-1 text-[13px]",
           variant === "menu" && "bg-[#f8f8f8] hover:bg-neutral-100",
+          className,
         )}
       >
         <span className="flex min-w-0 items-center gap-2">

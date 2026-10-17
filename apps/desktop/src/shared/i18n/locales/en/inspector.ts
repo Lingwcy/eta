@@ -49,6 +49,7 @@ export default {
   "githubPanel.state.closed": "Closed",
   "githubPanel.state.merged": "Merged",
   "githubPanel.state.all": "All",
+  "githubPanel.draftBadge": "Draft",
   "githubPanel.draft": " · Draft",
   "githubPanel.remote": "GitHub remote",
 } as const;
