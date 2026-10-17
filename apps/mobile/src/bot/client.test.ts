@@ -53,6 +53,83 @@ test("unauthorized SSE stops reconnecting and reports an actionable error", asyn
   expect(errors).toEqual([{ fatal: true, message: "Bot 令牌无效，请修改连接设置" }]);
 });
 
+test.each([
+  { streaming: false, cancelFails: false },
+  { streaming: true, cancelFails: false },
+  { streaming: true, cancelFails: true },
+])("401 rejects without reading a stalled body: %j", async ({ streaming, cancelFails }) => {
+  const read = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>(
+    {
+      start(value) {
+        controller = value;
+      },
+      pull() {
+        read.resolve();
+        return release.promise;
+      },
+      cancel() {
+        cancelled = true;
+        if (cancelFails) throw new Error("Body cancellation failed");
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const client = new BotClient(
+    { url: "https://bot", token: "secret" },
+    async () => new Response(body, { status: 401 }),
+  );
+  const abort = new AbortController();
+  const errors: { message?: string; fatal?: boolean }[] = [];
+  const work = streaming
+    ? client
+        .watch(
+          "thread",
+          abort.signal,
+          () => {},
+          (message, fatal) => errors.push({ message, fatal }),
+        )
+        .then(() => errors[0])
+    : client.library(abort.signal).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+  try {
+    const outcome = await Promise.race([
+      work.then((value) => ({ kind: "done" as const, value })),
+      read.promise.then(() => ({ kind: "body-read" as const })),
+    ]);
+    expect(outcome.kind).toBe("done");
+    if (outcome.kind !== "done") throw new Error("The client waited for an unauthorized body");
+    if (streaming)
+      expect(outcome.value).toEqual({ message: "Bot 令牌无效，请修改连接设置", fatal: true });
+    else expect(outcome.value).toMatchObject({ code: "Unauthorized", status: 401 });
+    expect(cancelled).toBe(true);
+  } finally {
+    abort.abort();
+    if (!cancelled) controller.close();
+    release.resolve();
+    await work;
+  }
+});
+
+test.each([400, 503])("non-401 HTTP %s retains its error code and diagnostic", async (status) => {
+  const response = json(
+    { error: { code: "ServerDiagnostic", message: "Controlled diagnostic" } },
+    status,
+  );
+  const client = new BotClient({ url: "https://bot", token: "secret" }, async () => response);
+  await expect(client.library()).rejects.toMatchObject({
+    code: "ServerDiagnostic",
+    message: "Controlled diagnostic",
+    status,
+  });
+  expect(response.bodyUsed).toBe(true);
+});
+
 test("a JSON response stalled after headers still times out", async () => {
   const client = new BotClient(
     { url: "https://bot", token: "secret" },

@@ -78,6 +78,69 @@ test("restoring a large thread can read its body beyond the ordinary request dea
   }
 });
 
+test.each([false, true])(
+  "an unauthorized response rejects before reading its body (cancel fails=%s)",
+  async (cancelFails) => {
+    const { bot, request } = await connect(true);
+    const read = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>(
+      {
+        start(value) {
+          controller = value;
+        },
+        pull() {
+          read.resolve();
+          return release.promise;
+        },
+        cancel() {
+          cancelled = true;
+          if (cancelFails) throw new Error("Body cancellation failed");
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    request.mockResolvedValue(new Response(body, { status: 401 }));
+    const rejected = bot.request("/v1/library").then(
+      () => ({ kind: "success" as const }),
+      (error: unknown) => ({ kind: "error" as const, error }),
+    );
+    try {
+      const outcome = await Promise.race([
+        rejected,
+        read.promise.then(() => ({ kind: "body-read" as const })),
+      ]);
+      expect(outcome.kind).toBe("error");
+      if (outcome.kind !== "error") throw new Error("The client waited for an unauthorized body");
+      expect(outcome.error).toBeInstanceOf(Error);
+      expect(outcome.error).toMatchObject({ message: "Bot 令牌无效" });
+      expect(cancelled).toBe(true);
+    } finally {
+      if (!cancelled) controller.close();
+      release.resolve();
+      await rejected;
+      bot.close();
+    }
+  },
+);
+
+test.each([400, 503])("non-401 HTTP %s retains the server diagnostic", async (status) => {
+  const { bot, request } = await connect(true);
+  const response = Response.json(
+    { error: { message: "Controlled server diagnostic" } },
+    { status },
+  );
+  request.mockResolvedValue(response);
+  try {
+    await expect(bot.request("/v1/library")).rejects.toThrow("Controlled server diagnostic");
+    expect(response.bodyUsed).toBe(true);
+  } finally {
+    bot.close();
+  }
+});
+
 test("an older Bot reports sandbox incompatibility before changing or creating remote threads", async () => {
   const { bot, request, prefix } = await connect(false);
   await expect(bot.configureSandbox(prefix + "thread", "read-only")).rejects.toThrow(

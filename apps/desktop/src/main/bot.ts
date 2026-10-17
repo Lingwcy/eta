@@ -321,14 +321,15 @@ export class DesktopBot {
       redirect: "error",
     });
     if (!response.ok && !acceptedStatuses.includes(response.status)) {
+      if (response.status === 401) {
+        // Authentication is decided by the status; an unread error body must not delay it.
+        void response.body?.cancel().catch(() => {});
+        throw new Error("Bot 令牌无效");
+      }
       const error = (await response.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
-      throw new Error(
-        response.status === 401
-          ? "Bot 令牌无效"
-          : (error?.error?.message ?? `Bot 请求失败 (${response.status})`),
-      );
+      throw new Error(error?.error?.message ?? `Bot 请求失败 (${response.status})`);
     }
     return response;
   }
