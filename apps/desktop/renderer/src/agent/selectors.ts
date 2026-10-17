@@ -40,6 +40,12 @@ export function toolsForMessage(tools: readonly SnapshotTool[], callIds: readonl
   });
 }
 
+function savedToolIntent(intents: AgentSnapshot["toolIntents"], id: string) {
+  if (!intents || !Object.hasOwn(intents, id)) return undefined;
+  const description: unknown = intents[id];
+  return typeof description === "string" ? description : undefined;
+}
+
 /** Reconstructs tool observations from the transcript, with live results overriding settled history. */
 export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {
   const tools = new Map<string, SnapshotTool>();
@@ -126,7 +132,7 @@ export function getTools(snapshot: AgentSnapshot): SnapshotTool[] {
   }
   for (const tool of operation?.runningTools ?? []) tools.set(tool.toolCallId, tool);
   for (const [id, tool] of tools) {
-    const description = tool.description ?? snapshot.toolIntents?.[id];
+    const description = tool.description ?? savedToolIntent(snapshot.toolIntents, id);
     if (description) tools.set(id, { ...tool, description });
   }
   return [...tools.values()];

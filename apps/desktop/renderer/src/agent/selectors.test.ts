@@ -290,6 +290,59 @@ test("streamed calls merge with pending, executing and terminal observations wit
   ]);
 });
 
+test.each(["constructor", "toString", "__proto__"])(
+  "does not treat inherited tool intent properties as summaries (%s)",
+  (id) => {
+    const value = snapshot();
+    value.transcript = [
+      {
+        id: "assistant",
+        type: "message",
+        message: fauxAssistantMessage(fauxToolCall("read", { path: "special.txt" }, { id })),
+      },
+    ];
+    value.toolIntents = JSON.parse("{}");
+    expect(getTools(value)[0]).not.toHaveProperty("description");
+  },
+);
+
+test("uses only own string summaries and preserves live description precedence", () => {
+  const value = snapshot();
+  value.transcript = [
+    {
+      id: "assistant",
+      type: "message",
+      message: fauxAssistantMessage(
+        fauxToolCall("read", { path: "special.txt" }, { id: "constructor" }),
+      ),
+    },
+  ];
+  value.toolIntents = JSON.parse('{"constructor":"Saved summary"}');
+  expect(getTools(value)[0]).toMatchObject({ description: "Saved summary" });
+
+  value.toolIntents = JSON.parse('{"constructor":false}');
+  expect(getTools(value)[0]).not.toHaveProperty("description");
+
+  value.toolIntents = JSON.parse('{"constructor":"Saved summary"}');
+  value.operation = {
+    id: "run",
+    kind: "run",
+    status: "running",
+    startedAt: 1,
+    fromTipId: null,
+    runningTools: [
+      {
+        toolCallId: "constructor",
+        toolName: "read",
+        args: { path: "special.txt" },
+        status: "running",
+        description: "Live summary",
+      },
+    ],
+  };
+  expect(getTools(value)[0]).toMatchObject({ description: "Live summary" });
+});
+
 test.each(["retry", "deferred", "aborting", "recovery", "faulted"])(
   "%s does not revive a stale streaming call",
   (phase) => {

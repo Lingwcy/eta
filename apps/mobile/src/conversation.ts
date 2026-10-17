@@ -48,6 +48,18 @@ export function conversationRows(snapshot: BotSnapshot) {
     });
 }
 
+export function toolDescription(
+  snapshot: Pick<BotSnapshot, "toolIntents">,
+  id?: string,
+  liveDescription?: string,
+) {
+  if (liveDescription !== undefined) return liveDescription;
+  const intents = snapshot.toolIntents;
+  if (id === undefined || !intents || !Object.hasOwn(intents, id)) return undefined;
+  const description: unknown = intents[id];
+  return typeof description === "string" ? description : undefined;
+}
+
 export function textContent(message: BotMessage) {
   return typeof message.content === "string"
     ? message.content

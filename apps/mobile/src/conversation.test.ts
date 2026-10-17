@@ -4,6 +4,7 @@ import {
   getToolSummary,
   taskLabel,
   toolCallState,
+  toolDescription,
   toolStateLabel,
   nestedTools,
   isActivityMessage,
@@ -102,6 +103,28 @@ test("getToolSummary extracts concise rough info for compact single-row display"
   expect(getToolSummary("custom_tool", { prompt: "summarize this" })).toBe("summarize this");
   expect(getToolSummary("empty_tool", {})).toBe("");
   expect(getToolSummary("no_args")).toBe("");
+});
+
+test.each(["constructor", "toString", "__proto__"])(
+  "does not treat inherited tool intent properties as summaries (%s)",
+  (id) => {
+    expect(toolDescription(thread.snapshot, id)).toBeUndefined();
+    expect(
+      toolDescription({ ...thread.snapshot, toolIntents: JSON.parse("{}") }, id),
+    ).toBeUndefined();
+  },
+);
+
+test("tool descriptions require own string summaries and keep live values first", () => {
+  const saved = { ...thread.snapshot, toolIntents: JSON.parse('{"constructor":"Saved summary"}') };
+  expect(toolDescription(saved, "constructor")).toBe("Saved summary");
+  expect(toolDescription(saved, "constructor", "Live summary")).toBe("Live summary");
+
+  const invalid = {
+    ...thread.snapshot,
+    toolIntents: JSON.parse('{"constructor":false}') as unknown as BotSnapshot["toolIntents"],
+  };
+  expect(toolDescription(invalid, "constructor")).toBeUndefined();
 });
 
 test("mobile transport retains summaries and derives generating only from the current stream", () => {
