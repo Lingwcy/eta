@@ -39,6 +39,7 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
     kind: "chat",
     worktree: worktrees.has(thread.workspaceId),
   }));
+  const actionSearch = query.trim().toLocaleLowerCase();
   const actions = [
     ...(props.onSchedules
       ? [
@@ -80,7 +81,7 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
       disabled: props.busy,
       run: props.onChoose,
     },
-  ].filter((action) => !query.trim() || action.label.includes(query.trim()));
+  ].filter((action) => !actionSearch || action.label.toLocaleLowerCase().includes(actionSearch));
   const groups = [
     {
       label: props.archived
