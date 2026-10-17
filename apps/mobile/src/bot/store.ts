@@ -84,6 +84,7 @@ export class MobileStore {
   private listeners = new Set<() => void>();
   private client?: BotClient;
   private epoch = 0;
+  private connectionAttempt = 0;
   private view = 0;
   private observer?: AbortController;
   private opener?: AbortController;
@@ -241,6 +242,7 @@ export class MobileStore {
             : defaultConfiguration(cache.library);
         this.update({ configuration: remembered });
       }
+      if (epoch !== this.epoch) return;
       await this.reconnect();
     } catch (error) {
       if (epoch === this.epoch) this.update({ status: "error", error: message(error) });
@@ -249,7 +251,10 @@ export class MobileStore {
   async connect(connection: Connection) {
     if (this.state.sending) throw new Error("请等待当前消息提交完成");
     const candidate = this.makeClient(connection);
+    // The old cache flush precedes the new epoch; preserve the latest call's intent.
+    const attempt = ++this.connectionAttempt;
     await this.persist();
+    if (attempt !== this.connectionAttempt) return;
     const epoch = ++this.epoch;
     this.stopObservation();
     this.update({ status: "connecting", error: undefined, opening: false });
@@ -287,7 +292,9 @@ export class MobileStore {
         sending: false,
       });
       await this.persist();
+      if (epoch !== this.epoch) return;
       if (this.state.threadId) await this.open(this.state.threadId);
+      if (epoch !== this.epoch) return;
       this.poll();
     } catch (error) {
       if (epoch !== this.epoch) return;
@@ -298,6 +305,7 @@ export class MobileStore {
     }
   }
   async disconnect(forget = false) {
+    ++this.connectionAttempt;
     if (!forget) await this.persist();
     ++this.epoch;
     this.stopObservation();
@@ -323,10 +331,13 @@ export class MobileStore {
   }
   async reconnect() {
     if (!this.client) return;
+    const epoch = this.epoch;
     this.update({ status: "reconnecting", error: undefined });
     await this.refresh();
+    if (epoch !== this.epoch) return;
     if (this.state.status === "connected" && this.state.threadId && !this.state.sending)
       await this.open(this.state.threadId);
+    if (epoch !== this.epoch) return;
     this.poll();
   }
   async refresh() {
@@ -387,6 +398,7 @@ export class MobileStore {
       if (epoch !== this.epoch || view !== this.view) return;
       this.useThread(thread);
       await this.persist();
+      if (epoch !== this.epoch || view !== this.view) return;
       this.watch();
     } catch (error) {
       if (epoch !== this.epoch || view !== this.view) return;
@@ -497,6 +509,7 @@ export class MobileStore {
             },
           });
         await this.persist();
+        if (epoch !== this.epoch) return;
         this.watch();
       }
       await client.send(pending.threadId!, pending.prompt, pending.messageId);
@@ -512,7 +525,9 @@ export class MobileStore {
         sending: false,
       });
       await this.persist();
+      if (epoch !== this.epoch) return;
       await this.refresh();
+      if (epoch !== this.epoch) return;
       if (this.state.threadId === pending.threadId) await this.open(pending.threadId!);
     } catch (error) {
       if (epoch !== this.epoch) return;
@@ -616,6 +631,7 @@ export class MobileStore {
     }
   }
   dispose() {
+    ++this.connectionAttempt;
     this.stopObservation();
     ++this.epoch;
     this.listeners.clear();
