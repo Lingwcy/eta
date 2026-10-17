@@ -298,7 +298,7 @@ export class MobileStore {
     }
   }
   async disconnect(forget = false) {
-    await this.persist();
+    if (!forget) await this.persist();
     ++this.epoch;
     this.stopObservation();
     this.client = undefined;

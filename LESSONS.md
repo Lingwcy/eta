@@ -244,6 +244,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**An explicit discard must not depend on saving the data being discarded.**
+
+- Evidence: on 2026-10-17, #111's MobileStore forget action fails at a cache-quota error before it can remove independently stored credentials. Skipping that final save lets clear proceed; held-write regressions verify old writes settle before removal even when they reject. Ordinary disconnect still saves drafts, and actual deletion errors remain visible and retryable.
+- Check: preserve the distinction between retain and discard. Keep epoch invalidation and the serialized storage barrier, test in-flight completion/rejection, and do not swallow a real wipe failure or claim native deletion guarantees from an in-memory fixture.
+- Seen: 2026-10-17.
+
 **Editing schedules must preserve stored timing semantics, not reconstruct unchanged values from lossy UI fields.**
 
 - Evidence: on 2026-10-14, reviewing PR #19 found that `6937c42` replaced the existing daily/weekly timezone with the machine timezone. The `editing a daily/weekly plan preserves its timezone through real IPC` regressions in `renderer/src/components/schedules/schedules.test.ts` failed before the fix: renaming a plan changed `Asia/Shanghai` to `UTC`. They now check the persisted rule and next run remain unchanged; the existing creation test still verifies the machine-timezone default.

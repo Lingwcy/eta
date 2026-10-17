@@ -125,6 +125,99 @@ test("a lost create response reuses its durable create ID after restart", async 
   expect(second.getSnapshot().threadId).toBe("thread");
 });
 
+test("forget clears credentials and every cache even when saving discarded data would fail", async () => {
+  const { store, saved } = setup(async () => json(library));
+  await store.connect(connection);
+  saved.caches.set("https://other-bot", { drafts: { "workspace:other": "Other cached draft" } });
+  store.setDraft("Discard this unsaved draft");
+  saved.storage.saveCache = async () => {
+    throw new Error("Cache quota exhausted");
+  };
+  await store.disconnect(true);
+  expect(saved.connection()).toBeUndefined();
+  expect(saved.caches.size).toBe(0);
+  expect(store.getSnapshot()).toMatchObject({ status: "disconnected", drafts: {} });
+});
+
+test.each([false, true])(
+  "forget remains ordered after an in-flight cache write (reject=%s)",
+  async (reject) => {
+    const { store, saved } = setup(async () => json(library));
+    await store.connect(connection);
+    let started = false;
+    const release = Promise.withResolvers<void>();
+    const save = saved.storage.saveCache.bind(saved.storage);
+    let first = true;
+    saved.storage.saveCache = async (url, value) => {
+      if (first) {
+        first = false;
+        started = true;
+        await release.promise;
+        if (reject) throw new Error("In-flight save failed");
+      }
+      await save(url, value);
+    };
+    const writing = store.configure({
+      ...store.getSnapshot().configuration!,
+      thinkingLevel: "medium",
+    });
+    const observedWrite = writing.catch((error: unknown) => error);
+    let forgetting: Promise<void> | undefined;
+    try {
+      await expect.poll(() => started, { timeout: 1000 }).toBe(true);
+      forgetting = store.disconnect(true);
+      expect(store.getSnapshot().status).toBe("disconnected");
+      expect(saved.connection()).toEqual(connection);
+      expect(saved.caches.size).toBeGreaterThan(0);
+      release.resolve();
+      await observedWrite;
+      await forgetting;
+      expect(saved.connection()).toBeUndefined();
+      expect(saved.caches.size).toBe(0);
+    } finally {
+      release.resolve();
+      await Promise.allSettled([observedWrite, forgetting]);
+    }
+  },
+);
+
+test("a rejected clear is reported and can be retried instead of claiming data was erased", async () => {
+  const { store, saved } = setup(async () => json(library));
+  await store.connect(connection);
+  const clear = saved.storage.clear.bind(saved.storage);
+  let reject = true;
+  saved.storage.clear = async () => {
+    if (reject) throw new Error("Secure storage deletion rejected");
+    await clear();
+  };
+  await expect(store.disconnect(true)).rejects.toThrow("Secure storage deletion rejected");
+  expect(saved.connection()).toEqual(connection);
+  expect(saved.caches.size).toBeGreaterThan(0);
+  reject = false;
+  await store.disconnect(true);
+  expect(saved.connection()).toBeUndefined();
+  expect(saved.caches.size).toBe(0);
+});
+
+test("ordinary disconnect still preserves drafts and reports a failed final save", async () => {
+  const { store, saved } = setup(async () => json(library));
+  await store.connect(connection);
+  store.setDraft("Preserve this unsaved draft");
+  const save = saved.storage.saveCache.bind(saved.storage);
+  saved.storage.saveCache = async () => {
+    throw new Error("Cache quota exhausted");
+  };
+  await expect(store.disconnect()).rejects.toThrow("Cache quota exhausted");
+  expect(saved.connection()).toEqual(connection);
+  expect(store.getSnapshot().status).toBe("connected");
+  saved.storage.saveCache = save;
+  await store.disconnect();
+  expect(saved.connection()).toBeUndefined();
+  expect(saved.caches.get(connection.url)?.drafts["workspace:workspace"]).toBe(
+    "Preserve this unsaved draft",
+  );
+});
+
 test("disconnect and reconnect preserve an unresolved message for the same Bot", async () => {
   const { store, saved } = setup(async (url, init) => {
     const path = new URL(requestUrl(url)).pathname;
