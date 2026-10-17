@@ -1,4 +1,17 @@
 export default {
+  "runStatus.busy": "Waiting for another chat in this project or an available execution slot",
+  "runStatus.recoveryRequired":
+    "This chat was interrupted. Resume or stop its unfinished task first",
+  "runStatus.projectBlocked":
+    "Another chat in this project was interrupted. Resume or stop its task first",
+  "runStatus.workspaceUnavailable":
+    "Workspace unavailable. Check the project directory and connection",
+  "runStatus.runtimeClosing": "The execution environment is shutting down. Waiting to reconnect",
+  "runStatus.reconciling": "Confirming whether the server has started execution",
+  "runStatus.blockedReason": "Needs attention: {{reason}}",
+  "runStatus.offline": "Status unconfirmed",
+  "runStatus.offlineDetail": "Disconnected. Showing cached status; the server may still be running",
+  "runStatus.queued": "Request received. It will run automatically when ready",
   "format.sun": "Sun",
   "format.mon": "Mon",
   "format.tue": "Tue",

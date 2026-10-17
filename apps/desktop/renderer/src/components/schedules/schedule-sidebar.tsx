@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ScheduleMenu } from "./schedule-menu";
 import { ScheduleForm } from "./schedule-form";
 import { scheduleRuleText, scheduleTime } from "./format";
+import { scheduleRunStatus } from "./run-status";
 import { ToastNotice } from "@/components/ui/toast";
 import "./schedule-status.css";
 
@@ -62,6 +63,7 @@ export function ScheduleSidebar({
               }),
         plan.threadId,
       );
+      if (kind === "run") onSelect(plan.threadId);
     } catch (error) {
       setError(
         describeError(
@@ -73,13 +75,6 @@ export function ScheduleSidebar({
       setActing(false);
       setSubmittingRun(undefined);
     }
-  };
-  const statusLabels = {
-    submitting: t("schedules:scheduleSidebar.submitting"),
-    running: t("schedules:scheduleSidebar.running"),
-    waiting: t("schedules:scheduleSidebar.waitingToRun"),
-    succeeded: t("schedules:scheduleSidebar.runSucceeded"),
-    failed: t("schedules:scheduleSidebar.chatError"),
   };
   const groups = controller.snapshot.snapshots
     .flatMap(({ environment, data }) => {
@@ -96,25 +91,20 @@ export function ScheduleSidebar({
             .filter((plan) => plan.state === "active" && plan.nextRunAt !== null)
             .toSorted((a, b) => a.nextRunAt! - b.nextRunAt!)[0];
           const runs = data.occurrences?.filter((run) => run.threadId === id) ?? [];
-          const latest = runs.toSorted((a, b) => b.scheduledAt - a.scheduledAt)[0];
           const status =
             submittingRun === id
-              ? "submitting"
-              : runs.some((run) => run.state === "admitted")
-                ? "running"
-                : runs.some((run) => ["pending", "dispatching"].includes(run.state))
-                  ? "waiting"
-                  : latest?.state === "succeeded"
-                    ? "succeeded"
-                    : latest?.state === "failed"
-                      ? "failed"
-                      : undefined;
+              ? {
+                  state: "submitting",
+                  label: t("schedules:scheduleSidebar.submitting"),
+                  detail: undefined,
+                }
+              : scheduleRunStatus(runs, plans, environment);
           return {
             id,
             title: next?.name ?? plans[0]?.name ?? threadTitle(thread),
             plans,
             next,
-            status: status as keyof typeof statusLabels | undefined,
+            status,
             environment,
             archived: thread?.archivedAt !== undefined,
             unavailable:
@@ -236,7 +226,10 @@ export function ScheduleSidebar({
                       )}
                       <span className="truncate">{group.title}</span>
                     </span>
-                    <span className="truncate text-xs text-neutral-500">
+                    <span
+                      className="truncate text-xs text-neutral-500"
+                      title={group.status?.detail}
+                    >
                       {group.next
                         ? `${scheduleTime(group.next.nextRunAt)} · ${scheduleRuleText(group.next.rule)}`
                         : group.archived
@@ -247,21 +240,23 @@ export function ScheduleSidebar({
                       {group.plans.length > 1
                         ? t("schedules:scheduleSidebar.schedules", { count: group.plans.length })
                         : ""}
-                      {group.status ? ` · ${statusLabels[group.status]}` : ""}
+                      {group.status
+                        ? ` · ${group.status.label}${group.status.detail ? ` · ${group.status.detail}` : ""}`
+                        : ""}
                     </span>
                   </span>
                 </Button>
                 {group.status && (
                   <span
                     role="status"
-                    aria-label={statusLabels[group.status]}
-                    title={statusLabels[group.status]}
+                    aria-label={group.status.label}
+                    title={group.status.detail ?? group.status.label}
                     className={`absolute top-1.5 right-2 size-1.5 rounded-full ${
-                      group.status === "running"
+                      group.status.state === "running"
                         ? "schedule-running-light bg-blue-500"
-                        : group.status === "succeeded"
+                        : group.status.state === "succeeded"
                           ? "bg-green-500"
-                          : group.status === "failed"
+                          : group.status.state === "failed"
                             ? "bg-red-500"
                             : "bg-neutral-400"
                     }`}
