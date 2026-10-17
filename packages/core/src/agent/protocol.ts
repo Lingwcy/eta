@@ -35,6 +35,8 @@ export interface OperationAdmission {
 }
 
 export interface OperationResult extends OperationAdmission {
+  /** Original input owning an autonomous subagent follow-up, when durable records prove its lineage. */
+  originOperationId?: string;
   status: "queued" | "running" | "paused" | "completed" | "failed" | "aborted";
   messages: readonly Message[];
   endedAt?: number;

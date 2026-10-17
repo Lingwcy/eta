@@ -5,6 +5,7 @@ import type { OperationResult, RecoveryState } from "../../agent/protocol.ts";
 import { CoreError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
 import { hasForegroundWork } from "../runtime/recovery.ts";
+import { readOperationOrigin } from "./origin.ts";
 
 const OperationId = Schema.NumberFromString.check(
   Schema.isInt(),
@@ -56,6 +57,9 @@ export async function readOperation(
       ? undefined
       : await runtime.storage.entry(receipt.answer, BACKGROUND_CONTEXT);
   const messages = answer?.entry.model ?? [];
+  const origin = receipt.requestId?.startsWith("subagent-report:")
+    ? await readOperationOrigin(runtime.storage, receipt)
+    : undefined;
   const status =
     receipt.status === "done"
       ? "completed"
@@ -75,6 +79,7 @@ export async function readOperation(
         }
       : {}),
     operationId: String(receipt.id),
+    ...(origin !== undefined ? { originOperationId: origin } : {}),
     kind: "run",
     startedAt: input?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.createdAt,
     status,

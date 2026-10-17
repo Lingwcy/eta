@@ -94,8 +94,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Treat deployment policy changes as explicit choices and recover scheduled interruptions without replaying unsafe tools.**
 
 - Evidence: on 2026-10-16, eta-server's v0.1.23 deployment passed `ENABLE_FULL_ACCESS=false`, removing an existing permission while three stored conversations retained full access. The same deployment interrupted the reviewer while it watched that deployment's workflow; its nested Bash checkpoint required unsafe replay, so recovery reserved the checkout and left sibling schedules busy despite healthy HTTP and systemd status. The deployment CLI regression preserves the original config by default; real Bot restart tests cancel the interrupted scheduled operation, retain its recurring plan and admit queued work without replaying the tool.
-- Check: distinguish an omitted deployment choice from explicit enable/disable. Match the interrupted operation to its durable schedule request, including the dispatching receipt gap; preserve manual recovery for ordinary work and missing definitions, and retain checkout blocking if cancellation fails.
-- Seen: 2026-10-16.
+- Additional evidence: on 2026-10-17, the v0.1.25 deployment interrupted `subagent-report:10946` after its originating scheduled receipt `10887` had succeeded. Exact matching against in-flight schedule receipts missed this autonomous follow-up and reserved the checkout again. Restart regressions cover automatic/manual scheduled origins and nested Code mode; ordinary origins keep manual recovery. The spawning task's durable creation ID lies between its owner's input and answer entries, allowing old sessions to be attributed without relying on a request prefix or an earlier schedule in the chat alone.
+- Check: distinguish an omitted deployment choice from explicit enable/disable. Match interrupted work to its durable schedule origin, including the dispatching receipt gap and completed inputs that spawned later autonomous reports. Reject missing or ambiguous lineage; preserve manual recovery for ordinary work and missing definitions, and retain checkout blocking if cancellation fails.
+- Seen: 2026-10-16, 2026-10-17.
 
 **Distinguish structured tool values from display content using the admitted contract.**
 
