@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
 import { ScheduleMessages } from "@/components/schedules/schedule-tool-notice";
+import { ScheduleRunNotice } from "@/components/schedules/schedule-run-notice";
 import type { SchedulesController } from "@/agent/use-schedules";
 import { scheduleTime } from "@/components/schedules/format";
 import { SubagentConversation } from "@/components/subagents/subagent-conversation";
@@ -146,6 +147,7 @@ export function ConversationPanel({
         </ScheduleMessages>
         <div className="w-full shrink-0 px-5 pb-4 min-[901px]:px-8">
           <div className="mx-auto w-full max-w-[960px]">
+            <ScheduleRunNotice threadId={tab.threadId} controller={schedules} />
             {view.composerContext && <ComposerContext {...view.composerContext} />}
             <ApprovalNotice {...view.approval} />
             <CompositeInput

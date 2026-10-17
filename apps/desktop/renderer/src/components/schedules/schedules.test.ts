@@ -34,6 +34,7 @@ import { ThreadActivity } from "@/agent/thread-activity";
 import { useDesktopController } from "@/agent/use-desktop-controller";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { ScheduleSidebar } from "./schedule-sidebar";
+import { ScheduleRunNotice } from "./schedule-run-notice";
 import { ToastProvider } from "@/components/ui/toast";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -1395,5 +1396,92 @@ test("manual run shows submission immediately and follows queued, running and te
       .toBe(label);
     if (color)
       expect(document.querySelector('[role="status"]')?.classList.contains(color)).toBe(true);
+  }
+});
+
+test("manual run explains project recovery, interrupted admissions and stale offline status in chat and sidebar", async () => {
+  const { runtime, schedules, threads, workspace, library, bridge } = await setup();
+  const thread = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [thread.thread];
+  const plan = await runtime.runPromise(
+    schedules.write({
+      threadId: thread.id,
+      requestId: "blocked-plan",
+      change: {
+        action: "create",
+        name: "Blocked review",
+        prompt: "Review",
+        rule: { type: "once", at: Date.now() + 86400_000 },
+      },
+    }),
+  );
+  await runtime.runPromise(
+    schedules.runNow({
+      threadId: thread.id,
+      scheduleId: plan.scheduleId!,
+      expectedRevision: 1,
+      requestId: "manual-blocked",
+    }),
+  );
+  const initial = await bridge.scheduleSnapshot();
+  let snapshot = initial;
+  let changed = () => {};
+  bridge.scheduleSnapshot = async () => snapshot;
+  bridge.subscribeSchedules = (listener) => {
+    changed = listener;
+    return () => {};
+  };
+  function View() {
+    const controller = useSchedules();
+    return createElement(
+      Fragment,
+      null,
+      createElement(ScheduleSidebar, {
+        library,
+        controller,
+        onSelect: () => {},
+        onSaved: () => {},
+      }),
+      createElement(ScheduleRunNotice, { controller, threadId: thread.id }),
+    );
+  }
+  await act(async () => root.render(createElement(ToastProvider, null, createElement(View))));
+  const cases = [
+    ["pending", "projectBlocked", "connected", "等待执行", "同项目有中断的会话"],
+    ["pending", "busy", "connected", "等待执行", "等待同项目会话结束"],
+    ["dispatching", "admissionUnknown", "connected", "等待执行", "正在确认服务器"],
+    ["admitted", "recoveryRequired", "connected", "等待执行", "会话被中断"],
+    ["admitted", undefined, "connected", "执行中", undefined],
+    ["admitted", undefined, "offline", "状态未确认", "显示的是缓存"],
+    ["admitted", undefined, "connected", "执行中", undefined],
+    ["failed", "Provider unavailable", "connected", "会话错误", "Provider unavailable"],
+    ["succeeded", undefined, "connected", "执行成功", undefined],
+  ] as const;
+  for (const [state, reason, connection, label, detail] of cases) {
+    snapshot = {
+      snapshots: initial.snapshots.map((scoped) => ({
+        ...scoped,
+        environment: { ...scoped.environment, status: connection },
+        data: {
+          ...scoped.data,
+          occurrences: scoped.data.occurrences!.map((run) => ({ ...run, state, reason })),
+        },
+      })),
+    };
+    await act(async () => changed());
+    await expect
+      .poll(() => document.querySelector('aside [role="status"]')?.getAttribute("aria-label"))
+      .toBe(label);
+    const notice = document.querySelector('[aria-live="polite"]');
+    expect(notice?.textContent).toContain(` · ${label}`);
+    if (detail) {
+      expect(notice?.textContent).toContain(detail);
+      expect(document.querySelector('aside [role="status"]')?.getAttribute("title")).toContain(
+        detail,
+      );
+    }
+    expect(document.querySelector(".schedule-running-light") !== null).toBe(
+      state === "admitted" && !reason && connection === "connected",
+    );
   }
 });

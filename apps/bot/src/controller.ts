@@ -36,6 +36,16 @@ export class BotController {
     };
   }
 
+  scheduleBlockReason(id: string) {
+    const project = this.threadProjects.get(id);
+    if (
+      project &&
+      [...this.blockedProjects].some(([thread, root]) => thread !== id && root === project)
+    )
+      return "projectBlocked";
+    return undefined;
+  }
+
   async authorize(id: string) {
     const view = await this.core.openThread(id);
     if (!this.workspaceProjects.has(view.thread.workspaceId))
@@ -83,14 +93,17 @@ export class BotController {
     const released = this.active.delete(id);
     this.monitors.get(id)?.();
     this.monitors.delete(id);
-    if (released)
-      for (const listener of this.capacityListeners) {
-        try {
-          listener();
-        } catch {
-          this.log({ event: "scheduler.listener-failed" });
-        }
+    if (released) this.notifyCapacity();
+  }
+
+  private notifyCapacity() {
+    for (const listener of this.capacityListeners) {
+      try {
+        listener();
+      } catch {
+        this.log({ event: "scheduler.listener-failed" });
       }
+    }
   }
 
   private async monitor(id: string, lease: AdmissionLease) {
@@ -268,9 +281,11 @@ export class BotController {
     }
     this.log({ event: "thread.stopped", threadId: id });
     if (this.active.get(id) === lease) {
-      this.release(id, lease);
       this.blocked.delete(id);
-      this.blockedProjects.delete(id);
+      const unblocked = this.blockedProjects.delete(id);
+      this.release(id, lease);
+      // Interrupted work has no live admission lease, but stopping it frees the checkout.
+      if (!lease && unblocked) this.notifyCapacity();
     }
     await this.pumpRecovery();
   }

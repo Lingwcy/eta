@@ -750,7 +750,13 @@ test.each([
           unsafeTool: true,
         });
         expect(executions).toBe(1);
+        await expect
+          .poll(() => scheduledRunState(restored, peer, queued.scheduleId!), { timeout: 10000 })
+          .toMatchObject({ state: "pending", reason: "projectBlocked" });
+        expect((await restored.core.openThread(peer)).snapshot.operation).toBeNull();
         await restored.controller.stop(id);
+        expect(restored.controller.status().blocked).toEqual({});
+        expect(restored.controller.scheduleBlockReason(peer)).toBeUndefined();
       } else {
         await expect
           .poll(async () => (await restored.core.operation(id, operationId)).status, {

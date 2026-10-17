@@ -84,6 +84,8 @@ Agents create and manage plans immediately. The tool message shows the result an
 
 Busy chats finish their current work first. Missed recurring slots coalesce into the latest one within a 24-hour window; failed runs do not retry automatically. Archiving pauses plans, and restoring a chat does not resume them. Closing a chat tab keeps schedules active. Pausing or deleting a plan stops future triggers; stop already-started work in the chat. Pending management requests retain the effective state until their result is confirmed.
 
+**Run now** queues a run and opens its chat, where its status and any waiting reason appear above the input. An interrupted chat can block other tasks in the same project: open that chat and resume or stop its unfinished task to free the project.
+
 Local tasks require Eta to be running and the computer awake. macOS keeps running after windows close. Windows exits by default; enable **Keep running after closing windows** in **Settings → App → About → Background** to keep a visible tray with Open and Quit actions. Explicitly quitting stops local scheduling.
 
 Bot schedules stay on the server and continue while Desktop is disconnected or closed. Offline views show stale cached data and disable changes. Older Bots report this feature as unsupported; tasks never move to this computer. Missing workspaces and recovery requirements block execution until resolved.
