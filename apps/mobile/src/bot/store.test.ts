@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BotClient } from "./client.ts";
 import { MobileStore, draftKey } from "./store.ts";
 import {
@@ -26,6 +26,104 @@ function setup(fetcher: typeof fetch, saved = memoryStorage()) {
   return { store, saved };
 }
 const connection = { url: "https://bot", token: "secret" };
+
+test.each(
+  [
+    "initialize",
+    "connect",
+    "connect-prior",
+    "connect-open",
+    "reconnect",
+    "reconnect-open",
+    "open",
+    "send-create",
+    "send-ack",
+    "send-refresh",
+  ].flatMap((action) => [false, true].map((disposed) => ({ action, disposed }))),
+)(
+  "late $action persistence respects lifecycle ownership (disposed=$disposed)",
+  async ({ action, disposed }) => {
+    vi.useFakeTimers();
+    const requests: string[] = [];
+    const { store, saved } = setup(async (url, init) => {
+      const path = new URL(requestUrl(url)).pathname;
+      requests.push(`${init?.method ?? "GET"} ${path}`);
+      if (path === "/v1/library") return json({ ...library, threads: [thread.thread] });
+      if (path.endsWith("/events")) return events(init?.signal);
+      if (path.endsWith("/messages"))
+        return json({ operationId: "operation", kind: "run", startedAt: 1 }, 202);
+      return json(thread, path === "/v1/threads" ? 201 : 200);
+    }, memoryStorage(connection));
+    const release = Promise.withResolvers<void>();
+    const save = saved.storage.saveCache.bind(saved.storage);
+    let armed = false;
+    let held = false;
+    let writes = 0;
+    const holdAt =
+      action === "send-refresh"
+        ? 3
+        : ["send-create", "send-ack", "connect-open", "reconnect-open"].includes(action)
+          ? 2
+          : 1;
+    saved.storage.saveCache = async (url, value) => {
+      if (armed && ++writes === holdAt) {
+        held = true;
+        await release.promise;
+      }
+      await save(url, value);
+    };
+    let work: Promise<void> | undefined;
+    try {
+      if (action === "connect-open")
+        saved.caches.set(connection.url, { threadId: "thread", drafts: {} });
+      if (!["initialize", "connect", "connect-open"].includes(action))
+        await store.connect(connection);
+      if (["send-ack", "send-refresh", "reconnect-open"].includes(action))
+        await store.open("thread");
+      armed = true;
+      if (action.startsWith("send-")) {
+        store.setDraft("Submit once");
+        work = store.send();
+      } else if (action === "initialize") work = store.initialize();
+      else if (action.startsWith("reconnect")) work = store.reconnect();
+      else if (action === "open") work = store.open("thread");
+      else work = store.connect(connection);
+      void work.catch(() => {});
+      await vi.waitFor(() => expect(held).toBe(true), { timeout: 1000 });
+      const before = requests.length;
+      if (disposed) store.dispose();
+      release.resolve();
+      await work;
+      await vi.advanceTimersByTimeAsync(15000);
+      const resumed = requests.slice(before);
+      if (disposed) expect(resumed).toEqual([]);
+      else
+        expect(resumed).toContain(
+          [
+            "initialize",
+            "connect",
+            "connect-prior",
+            "connect-open",
+            "reconnect",
+            "reconnect-open",
+          ].includes(action)
+            ? "GET /v1/library"
+            : "GET /v1/threads/thread/events",
+        );
+      if (disposed && action === "initialize") {
+        const restart = requests.length;
+        await store.initialize();
+        await vi.advanceTimersByTimeAsync(15000);
+        expect(requests.slice(restart)).toContain("GET /v1/library");
+      }
+    } finally {
+      release.resolve();
+      await work?.catch(() => {});
+      store.dispose();
+      vi.useRealTimers();
+    }
+  },
+);
 
 test("a lost message response survives restart and retries the same request without duplicating work", async () => {
   const saved = memoryStorage();
