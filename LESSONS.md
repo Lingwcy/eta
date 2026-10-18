@@ -256,6 +256,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Project authoritative configuration consistently when opening and observing a conversation.**
+
+- Evidence: on 2026-10-18, #161 delivers valid Mobile SSE sandbox changes through the real client/parser. The thread snapshot updates, but the model/thinking-only projection retains an old sandbox mode in the priority UI configuration, next draft and cache. Matching the open projection fixes both immediate and coalesced frames; unchanged/missing-mode and no-policy-RPC controls distinguish state synchronization from server permission changes.
+- Check: cover every configuration field on both ingestion paths, including clearing absent optional fields and downstream inheritance/persistence. A schema accepting the field does not prove the client actually applies it.
+- Seen: 2026-10-18.
+
 **An explicit discard must not depend on saving the data being discarded.**
 
 - Evidence: on 2026-10-17, #111's MobileStore forget action fails at a cache-quota error before it can remove independently stored credentials. Skipping that final save lets clear proceed; held-write regressions verify old writes settle before removal even when they reject. Ordinary disconnect still saves drafts, and actual deletion errors remain visible and retryable.
