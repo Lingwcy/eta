@@ -220,7 +220,7 @@ test.each(["unauthorized", "cache-failure"])(
   },
 );
 
-test("a queued old cache failure cannot mark the committed replacement as failed", async () => {
+test("a queued old cache write is skipped at the committed replacement", async () => {
   const saved = memoryStorage();
   const next = { url: "https://second-bot", token: "second" };
   const release = Promise.withResolvers<void>();
@@ -276,7 +276,7 @@ test("a queued old cache failure cannot mark the committed replacement as failed
       .toBe("Late old");
     release.resolve();
     await Promise.all(work);
-    expect(stateAtFailure).toBe("Current");
+    expect(stateAtFailure).toBeUndefined();
     expect(store.getSnapshot()).toMatchObject({
       status: "connected",
       url: next.url,
@@ -289,3 +289,85 @@ test("a queued old cache failure cannot mark the committed replacement as failed
     store.dispose();
   }
 });
+
+test.each(
+  ["open", "metadata"].flatMap((action) => [false, true].map((handoff) => ({ action, handoff }))),
+)(
+  "validation-window $action result belongs to its active client (handoff=$handoff)",
+  async ({ action, handoff }) => {
+    const saved = memoryStorage();
+    const candidate = Promise.withResolvers<void>();
+    const old = Promise.withResolvers<void>();
+    const work: Promise<void>[] = [];
+    let candidateEntered = false;
+    let operationEntered = false;
+    let oldAborted = 0;
+    const store = new MobileStore(
+      saved.storage,
+      (credentials) =>
+        new BotClient(credentials, async (url, init) => {
+          const current = new Headers(init?.headers).get("authorization") === "Bearer second";
+          const path = new URL(requestUrl(url)).pathname;
+          if (path === "/v1/library") {
+            if (current) {
+              candidateEntered = true;
+              await candidate.promise;
+            }
+            return json({
+              ...library,
+              threads: [{ ...thread.thread, title: current ? "Current" : "Initial" }],
+            });
+          }
+          if (path.endsWith("/events")) {
+            if (!current)
+              init?.signal?.addEventListener("abort", () => ++oldAborted, { once: true });
+            return events(init?.signal);
+          }
+          if (!current) {
+            operationEntered = true;
+            await old.promise;
+          }
+          const metadata = { ...thread.thread, title: current ? "Current" : "Old read" };
+          return json(path.endsWith("/metadata") ? metadata : { ...thread, thread: metadata });
+        }),
+      () => "unused-id",
+    );
+    try {
+      await store.connect(connection);
+      const connecting = store.connect({ url: "https://second-bot", token: "second" });
+      work.push(connecting);
+      void connecting.catch(() => {});
+      await expect.poll(() => candidateEntered, { timeout: 1000 }).toBe(true);
+      await store.refresh();
+      const operation =
+        action === "open" ? store.open("thread") : store.metadata("thread", { title: "Old read" });
+      work.push(operation);
+      void operation.catch(() => {});
+      await expect.poll(() => operationEntered, { timeout: 1000 }).toBe(true);
+      if (handoff) {
+        candidate.resolve();
+        await connecting;
+      }
+      old.resolve();
+      await operation;
+      if (!handoff) {
+        expect(
+          action === "open"
+            ? store.getSnapshot().thread?.thread.title
+            : store.getSnapshot().library?.threads[0]?.title,
+        ).toBe("Old read");
+        candidate.resolve();
+        await connecting;
+        if (action === "open") expect(oldAborted).toBe(1);
+      }
+      expect(store.getSnapshot().thread).toBeUndefined();
+      expect(store.getSnapshot().library?.threads[0]?.title).toBe("Current");
+      expect(saved.caches.get("https://second-bot")?.threadId).toBeUndefined();
+    } finally {
+      candidate.resolve();
+      old.resolve();
+      await Promise.allSettled(work);
+      store.dispose();
+    }
+  },
+);

@@ -255,7 +255,7 @@ export class MobileStore {
     const attempt = ++this.connectionAttempt;
     await this.persist();
     if (attempt !== this.connectionAttempt) return;
-    const epoch = ++this.epoch;
+    let epoch = ++this.epoch;
     this.stopObservation();
     this.update({ status: "connecting", error: undefined, opening: false });
     try {
@@ -266,6 +266,9 @@ export class MobileStore {
         if (epoch === this.epoch) await this.storage.saveConnection(candidate.connection);
       });
       if (epoch !== this.epoch) return;
+      // Reads started against the old client during validation do not own this handoff.
+      epoch = ++this.epoch;
+      this.stopObservation();
       this.client = candidate;
       this.update({
         url: candidate.connection.url,
