@@ -91,7 +91,7 @@ export class MobileStore {
   private timer?: ReturnType<typeof setInterval>;
   private draftTimer?: ReturnType<typeof setTimeout>;
   private storageTail: Promise<void> = Promise.resolve();
-  private refreshing = false;
+  private refreshing?: BotClient;
   private projectRequest?: { name: string; id: string };
 
   constructor(
@@ -255,7 +255,7 @@ export class MobileStore {
     const attempt = ++this.connectionAttempt;
     await this.persist();
     if (attempt !== this.connectionAttempt) return;
-    const epoch = ++this.epoch;
+    let epoch = ++this.epoch;
     this.stopObservation();
     this.update({ status: "connecting", error: undefined, opening: false });
     try {
@@ -266,10 +266,15 @@ export class MobileStore {
         if (epoch === this.epoch) await this.storage.saveConnection(candidate.connection);
       });
       if (epoch !== this.epoch) return;
+      // Reads started against the old client during validation do not own this handoff.
+      epoch = ++this.epoch;
+      this.stopObservation();
       this.client = candidate;
       this.update({
         url: candidate.connection.url,
         status: "connected",
+        opening: false,
+        error: undefined,
         library,
         drafts: cache?.drafts ?? {},
         pending: cache?.pending,
@@ -342,12 +347,12 @@ export class MobileStore {
   }
   async refresh() {
     const client = this.client;
-    if (!client || this.refreshing || !this.state.foreground) return;
+    if (!client || this.refreshing === client || !this.state.foreground) return;
     const epoch = this.epoch;
-    this.refreshing = true;
+    this.refreshing = client;
     try {
       const library = await client.library();
-      if (epoch !== this.epoch) return;
+      if (epoch !== this.epoch || client !== this.client) return;
       const selected = library.threads.find((thread) => thread.id === this.state.threadId);
       if (this.state.threadId && !selected && !this.state.pending) {
         this.observer?.abort();
@@ -368,11 +373,11 @@ export class MobileStore {
       });
       await this.persist();
     } catch (error) {
-      if (epoch !== this.epoch) return;
+      if (epoch !== this.epoch || client !== this.client) return;
       this.update({ status: "error", error: message(error) });
       if (error instanceof BotError && error.status === 401) this.observer?.abort();
     } finally {
-      this.refreshing = false;
+      if (this.refreshing === client) this.refreshing = undefined;
     }
   }
   async open(id: string) {
