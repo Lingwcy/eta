@@ -35,7 +35,7 @@ export function BrowserPanel({
     useBrowserPage(tab, visible, client, state);
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
-      <div className="flex h-[54px] shrink-0 items-center gap-2 border-b border-neutral-100 px-3">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-100 px-2.5">
         <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost-muted"
@@ -74,7 +74,7 @@ export function BrowserPanel({
             event.preventDefault();
             void navigate();
           }}
-          className="mx-auto flex h-9 min-w-0 max-w-[1100px] flex-1 items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3.5 focus-within:border-neutral-400 focus-within:bg-white"
+          className="mx-auto flex h-8 min-w-0 max-w-[1100px] flex-1 items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 focus-within:border-neutral-400 focus-within:bg-white"
         >
           {tab.url ? (
             <Globe2 size={15} className="shrink-0 text-neutral-400" />
