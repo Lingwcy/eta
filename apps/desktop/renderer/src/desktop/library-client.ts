@@ -15,6 +15,7 @@ export class DesktopLibraryClient {
   private unsubscribeLibrary?: () => void;
   private mounted = false;
   private revision = 0;
+  private lifetime = 0;
   private invalidated = false;
 
   constructor(private readonly bridge: LibraryBridge) {}
@@ -36,9 +37,12 @@ export class DesktopLibraryClient {
 
   dispose() {
     this.mounted = false;
+    this.lifetime++;
     this.revision++;
     this.unsubscribeLibrary?.();
     this.unsubscribeLibrary = undefined;
+    this.invalidated = false;
+    if (this.state.busy) this.update({ busy: false });
   }
 
   refresh = () => this.read(++this.revision);
@@ -72,23 +76,29 @@ export class DesktopLibraryClient {
   }
 
   private async mutate(action: () => Promise<void>) {
-    if (this.state.busy) return;
+    if (!this.mounted || this.state.busy) return;
+    const lifetime = this.lifetime;
+    const ownsMutation = () => this.mounted && lifetime === this.lifetime;
     // Pre-write reads are obsolete before the write itself settles or starts its refresh.
     ++this.revision;
     this.update({ busy: true, error: null });
     try {
       await action();
+      if (!ownsMutation()) return;
       do {
         this.invalidated = false;
         await this.refresh();
+        if (!ownsMutation()) return;
       } while (this.invalidated);
     } catch (error) {
-      this.reportError(error);
-      // A failed mutation may still have changed durable state or overlapped a library notification.
-      this.reload();
+      if (ownsMutation()) {
+        this.reportError(error);
+        // A failed mutation may still have changed durable state or overlapped a notification.
+        this.reload();
+      }
       throw error;
     } finally {
-      this.update({ busy: false });
+      if (ownsMutation()) this.update({ busy: false });
     }
   }
 
