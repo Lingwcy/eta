@@ -24,7 +24,7 @@ export interface BrowserPage {
 export class BrowserManager {
   private readonly pages = new Map<
     string,
-    { page: BrowserPage; preview?: string; error?: string; revision: number }
+    { page: BrowserPage; preview?: string; error?: string; revision: number; capture?: symbol }
   >();
   private activeId?: string;
   private disposed = false;
@@ -125,8 +125,13 @@ export class BrowserManager {
   }
 
   private async capture(id: string, page: BrowserPage) {
+    const record = this.pages.get(id);
+    if (!record || record.page !== page) return;
+    const capture = Symbol();
+    record.capture = capture;
     try {
-      return await page.capture();
+      const preview = await page.capture();
+      if (this.pages.get(id) === record && record.capture === capture) return preview;
     } catch (error) {
       // A failed preview does not interrupt browsing, but remains diagnosable.
       console.warn(`Unable to capture browser preview for ${id}`, error);
