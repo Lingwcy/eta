@@ -18,8 +18,8 @@ test.each(cases)(
     const gate = Promise.withResolvers<void>();
     const cacheFailure = new Error("Old cache write failed");
     const clearFailure = new Error("Secure storage clear failed");
-    const save = saved.storage.saveCache;
-    const clear = saved.storage.clear;
+    const save = saved.storage.saveCache.bind(saved.storage);
+    const clear = saved.storage.clear.bind(saved.storage);
     let hold = false;
     let entered = false;
     saved.storage.saveCache = async (url, cache) => {
@@ -30,10 +30,11 @@ test.each(cases)(
       }
       await save(url, cache);
     };
-    saved.storage.clear = vi.fn(async () => {
+    const clearStorage = vi.fn(async () => {
       if (action === "clear-fails") throw clearFailure;
       await clear();
     });
+    saved.storage.clear = clearStorage;
     const store = new MobileStore(
       saved.storage,
       (connection) => new BotClient(connection, async () => json(library)),
@@ -81,17 +82,17 @@ test.each(cases)(
         else expect(store.getSnapshot()).toMatchObject({ status: "disconnected", drafts: {} });
       }
       if (action === "forget") {
-        expect(saved.storage.clear).toHaveBeenCalledOnce();
+        expect(clearStorage).toHaveBeenCalledOnce();
         expect(saved.caches.size).toBe(0);
         expect(saved.connection()).toBeUndefined();
       } else if (action === "disconnect") {
-        expect(saved.storage.clear).not.toHaveBeenCalled();
+        expect(clearStorage).not.toHaveBeenCalled();
         expect(saved.connection()).toBeUndefined();
         expect(saved.caches.get("https://bot")?.drafts[draftKey(before)]).toBe(
           "Retain this draft unless explicitly forgotten",
         );
       } else if (action === "clear-fails") {
-        expect(saved.storage.clear).toHaveBeenCalledOnce();
+        expect(clearStorage).toHaveBeenCalledOnce();
         expect(saved.connection()?.url).toBe("https://bot");
       }
     } finally {
