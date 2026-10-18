@@ -108,11 +108,11 @@ export function ModelPicker({
           <Popover.Popup
             aria-label={t("chat:modelPicker.availableModels")}
             initialFocus={searchInput}
-            className="flex h-[min(288px,var(--available-height))] max-h-[calc(100dvh-32px)] w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[20px] border border-neutral-200 bg-white p-1 shadow-lg outline-none"
+            className="flex h-[min(288px,var(--available-height))] max-h-[calc(100dvh-32px)] w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[14px] border border-neutral-200 bg-white p-1 shadow-lg outline-none"
           >
             <nav
               aria-label={t("chat:modelPicker.modelProviders")}
-              className="w-10 shrink-0 overflow-y-auto rounded-2xl bg-neutral-50 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="w-10 shrink-0 overflow-y-auto rounded-[10px] bg-neutral-50 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <BaseButton
                 aria-label={t("chat:modelPicker.allModels")}
@@ -185,7 +185,7 @@ export function ModelPicker({
                         setOpen(false);
                       }}
                       className={cn(
-                        "flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-[10px] py-2 pr-2 pl-1.5 text-left text-[13px] text-neutral-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
+                        "flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-[8px] py-1.5 pr-2 pl-1.5 text-left text-[13px] text-neutral-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
                         defaultOption.selected ? "bg-neutral-100" : "hover:bg-neutral-50",
                       )}
                     >
@@ -223,7 +223,7 @@ export function ModelPicker({
                       <div
                         key={`${entry.provider}/${entry.id}`}
                         className={cn(
-                          "relative min-h-9 rounded-[10px]",
+                          "relative min-h-8 rounded-[8px]",
                           selected && "bg-neutral-100",
                         )}
                       >
@@ -251,7 +251,7 @@ export function ModelPicker({
                             }
                           }}
                           className={cn(
-                            "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[10px] py-2 pr-2 pl-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
+                            "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[8px] py-1.5 pr-2 pl-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
                             selected ? "hover:bg-neutral-100" : "hover:bg-neutral-50",
                           )}
                         >
