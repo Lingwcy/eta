@@ -56,7 +56,7 @@ export function ThinkingLevelControl({
           <Popover.Popup
             aria-label={t("chat:thinkingLevelControl.adjustThinkingLevel")}
             initialFocus={thumb}
-            className="w-[244px] max-w-[calc(100vw-32px)] rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg outline-none"
+            className="w-[244px] max-w-[calc(100vw-32px)] rounded-[14px] border border-neutral-200 bg-white p-3 shadow-lg outline-none"
           >
             <div className="mb-2.5 flex items-baseline gap-1.5 text-[13px]">
               <span className="text-neutral-500">
