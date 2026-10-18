@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import { BrowserManager } from "./manager.ts";
 import type { BrowserPage } from "./manager.ts";
 import type { BrowserEvent, BrowserBounds, BrowserState } from "../../browser/protocol.ts";
@@ -156,4 +156,78 @@ test("an old load failure cannot overwrite a newer navigation or a closed page",
   fail(new Error("network failed"));
   await Promise.resolve();
   expect(events).toHaveLength(before);
+});
+
+const previewCases = (["hide", "capture"] as const).flatMap((first) =>
+  (["hide", "capture"] as const).flatMap((second) =>
+    [false, true].map((fail) => ({ first, second, fail })),
+  ),
+);
+test.each(previewCases)(
+  "newer preview owns the frame: $first/$second failure=$fail",
+  async ({ first, second, fail }) => {
+    const { manager, pages, events } = setup();
+    const gate = Promise.withResolvers<string>();
+    let pending: Promise<BrowserState | null> | undefined;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await manager.command({ type: "create", id: "one", url: "example.com" });
+      const baseline = await manager.command({ type: "capture", id: "one" });
+      const page = pages.get("one")!;
+      let captures = 0;
+      page.capture = async () => {
+        if (++captures === 1) return gate.promise;
+        if (fail) throw new Error("New capture failed");
+        return "new frame";
+      };
+      await manager.command({ type: "show", id: "one", bounds });
+      pending = manager.command({ type: first, id: "one" });
+      expect(captures).toBe(1);
+      await manager.command({ type: "show", id: "one", bounds });
+      const latest = await manager.command({ type: second, id: "one" });
+      expect(latest?.preview).toBe(fail ? baseline?.preview : "new frame");
+      gate.resolve("old frame");
+      const settled = await pending;
+      expect(settled?.preview).toBe(latest?.preview);
+      const state = events.filter((event) => event.type === "state").at(-1);
+      expect(state?.state.preview).toBe(latest?.preview);
+      expect(page.closed).toBe(false);
+      if (fail) expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      gate.resolve("old frame");
+      await pending;
+      manager.dispose();
+      warn.mockRestore();
+    }
+  },
+);
+
+test.each(
+  (["hide", "capture"] as const).flatMap((first) =>
+    (["live", "other-page", "closed"] as const).map((mode) => ({ first, mode })),
+  ),
+)("preview capture controls: $first/$mode", async ({ first, mode }) => {
+  const { manager, pages } = setup();
+  const gate = Promise.withResolvers<string>();
+  let pending: Promise<BrowserState | null> | undefined;
+  try {
+    await manager.command({ type: "create", id: "one", url: "example.com" });
+    const page = pages.get("one")!;
+    page.capture = () => gate.promise;
+    await manager.command({ type: "show", id: "one", bounds });
+    pending = manager.command({ type: first, id: "one" });
+    if (mode === "closed") await manager.command({ type: "close", id: "one" });
+    if (mode === "other-page") {
+      await manager.command({ type: "create", id: "two", url: "example.org" });
+      await manager.command({ type: "capture", id: "two" });
+    }
+    gate.resolve("current frame");
+    const result = await pending;
+    if (mode === "closed") expect(result).toBeNull();
+    else expect(result?.preview).toBe("current frame");
+  } finally {
+    gate.resolve("current frame");
+    await pending;
+    manager.dispose();
+  }
 });
