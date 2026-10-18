@@ -8,6 +8,7 @@ export function useAuthentication(onConnected: () => Promise<void>) {
   const [error, setError] = useState<Message | null>(null);
   const [busy, setBusy] = useState(false);
   const current = useRef<string | null>(null);
+  const loginEpoch = useRef(0);
   const mounted = useRef(false);
   const refreshed = useRef<string | null>(null);
   const connected = useRef(onConnected);
@@ -16,6 +17,7 @@ export function useAuthentication(onConnected: () => Promise<void>) {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      ++loginEpoch.current;
       if (current.current) void window.eta.cancelLogin(current.current).catch(() => {});
     };
   }, []);
@@ -68,6 +70,7 @@ export function useAuthentication(onConnected: () => Promise<void>) {
           await window.eta.cancelLogin(next.id);
           return;
         }
+        ++loginEpoch.current;
         current.current = next.id;
         setLogin(next);
       } catch (error) {
@@ -80,6 +83,7 @@ export function useAuthentication(onConnected: () => Promise<void>) {
       }
     },
     close: async () => {
+      ++loginEpoch.current;
       setBusy(true);
       try {
         const id = current.current;
@@ -104,14 +108,20 @@ export function useAuthentication(onConnected: () => Promise<void>) {
       }
     },
     answer: async (promptId: string, value: string) => {
-      if (!login) return;
+      if (!login || current.current !== login.id) return;
+      const id = login.id;
+      const epoch = loginEpoch.current;
+      const ownsLogin = () =>
+        mounted.current && loginEpoch.current === epoch && current.current === id;
       setBusy(true);
       setError(null);
       try {
-        await window.eta.answerLogin(login.id, promptId, value);
-        if (mounted.current) setLogin(await window.eta.loginState(login.id));
+        await window.eta.answerLogin(id, promptId, value);
+        if (!ownsLogin()) return;
+        const next = await window.eta.loginState(id);
+        if (ownsLogin()) setLogin(next);
       } catch (error) {
-        if (mounted.current)
+        if (ownsLogin())
           setError(
             describeError(
               error,
@@ -119,7 +129,8 @@ export function useAuthentication(onConnected: () => Promise<void>) {
             ),
           );
       } finally {
-        if (mounted.current) setBusy(false);
+        // Completion may clear current itself; only a newer intent owns a different epoch.
+        if (mounted.current && loginEpoch.current === epoch) setBusy(false);
       }
     },
     openLink: async (url: string) => {
