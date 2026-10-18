@@ -155,10 +155,13 @@ export function getToolSummary(name: string, args?: Record<string, unknown>): st
 }
 
 /** Only current generation is preparing; saved historical calls are never inferred to be executing. */
-export function toolCallState(snapshot: BotSnapshot, message: BotMessage, id?: string): string {
-  const result = snapshot.transcript.find(
-    ({ message: entry }) => entry.role === "toolResult" && entry.toolCallId === id,
-  );
+export function toolCallState(
+  snapshot: BotSnapshot,
+  message: BotMessage,
+  id?: string,
+  tools = buildToolIndex(snapshot),
+): string {
+  const result = tools.results.get(id);
   if (result) return result.toolStatus ?? "settled";
   const operation = snapshot.operation;
   if (
@@ -210,28 +213,80 @@ const NestedCallsSchema = z.object({
   ),
 });
 
-/** Nested previews may be truncated JSON, so their summary travels separately from args. */
-export function nestedTools(snapshot: BotSnapshot, parentId?: string) {
-  type Row = {
-    id: string;
-    name: string;
-    args: Record<string, unknown>;
-    description?: string;
-    status: string;
-    result?: BotMessage;
+type NestedTool = {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  description?: string;
+  status: string;
+  result?: BotMessage;
+};
+export type ToolIndex = ReturnType<typeof buildToolIndex>;
+
+/** Build once per observed snapshot, not once per visible tool card. */
+export function buildToolIndex(snapshot: BotSnapshot) {
+  const results = new Map<string | undefined, BotSnapshot["transcript"][number]>();
+  const messages = new Map<BotMessage, BotSnapshot["transcript"][number]>();
+  const running = new Map<string, NonNullable<BotSnapshot["operation"]>["runningTools"][number]>();
+  const previews = new Map<string | undefined, BotMessage[]>();
+  const children = new Map<string | undefined, Map<string, NestedTool>>();
+  const childRows = (parentId: string | undefined) => {
+    let rows = children.get(parentId);
+    if (!rows) {
+      rows = new Map();
+      children.set(parentId, rows);
+    }
+    return rows;
   };
-  const rows = new Map<string, Row>();
-  for (const { message } of snapshot.transcript) {
-    if (
-      message.role !== "toolResult" ||
-      message.toolName !== "codemode" ||
-      message.toolCallId !== parentId
-    )
-      continue;
+  for (const entry of snapshot.transcript) {
+    const { message } = entry;
+    // Match the original find semantics when providers reuse call IDs.
+    if (!messages.has(message)) messages.set(message, entry);
+    if (message.role !== "toolResult") continue;
+    if (!results.has(message.toolCallId)) results.set(message.toolCallId, entry);
+    if (message.toolName !== "codemode") continue;
+    const saved = previews.get(message.toolCallId);
+    if (saved) saved.push(message);
+    else previews.set(message.toolCallId, [message]);
+  }
+  for (const tool of snapshot.operation?.runningTools ?? []) {
+    if (!running.has(tool.toolCallId)) running.set(tool.toolCallId, tool);
+    if (!tool.parentToolCallId) continue;
+    childRows(tool.parentToolCallId).set(tool.toolCallId, {
+      id: tool.toolCallId,
+      name: tool.toolName,
+      args: tool.args,
+      description: tool.description,
+      status: tool.status,
+      result: tool.result
+        ? { role: "toolResult", content: tool.result.content, isError: tool.isError }
+        : undefined,
+    });
+  }
+  return {
+    results,
+    messages,
+    running,
+    previews,
+    liveChildren: children,
+    children: new Map<string | undefined, NestedTool[]>(),
+  };
+}
+
+/** Nested previews may be truncated JSON, so their summary travels separately from args. */
+export function nestedTools(
+  snapshot: BotSnapshot,
+  parentId?: string,
+  tools = buildToolIndex(snapshot),
+) {
+  const cached = tools.children.get(parentId);
+  if (cached) return cached;
+  const rows = new Map<string, NestedTool>();
+  for (const message of tools.previews.get(parentId) ?? []) {
     const parsed = NestedCallsSchema.safeParse(message.details);
     if (!parsed.success) continue;
     for (const call of parsed.data.calls) {
-      const id = `${parentId}/c${call.id}`;
+      const id = `${message.toolCallId}/c${call.id}`;
       rows.set(id, {
         id,
         name: call.name,
@@ -251,20 +306,10 @@ export function nestedTools(snapshot: BotSnapshot, parentId?: string) {
       });
     }
   }
-  for (const tool of snapshot.operation?.runningTools ?? []) {
-    if (!parentId || tool.parentToolCallId !== parentId) continue;
-    rows.set(tool.toolCallId, {
-      id: tool.toolCallId,
-      name: tool.toolName,
-      args: tool.args,
-      description: tool.description,
-      status: tool.status,
-      result: tool.result
-        ? { role: "toolResult", content: tool.result.content, isError: tool.isError }
-        : undefined,
-    });
-  }
-  return [...rows.values()];
+  for (const [id, row] of tools.liveChildren.get(parentId) ?? []) rows.set(id, row);
+  const result = [...rows.values()];
+  tools.children.set(parentId, result);
+  return result;
 }
 
 /** Keep narrative and user turns separated while tool/thinking rows stay adjacent. */

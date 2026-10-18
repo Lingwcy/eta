@@ -74,8 +74,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Bound mounted transcript rows and index tools once per observation.**
 
 - Evidence: on 2026-10-17, the maintainer reported slow opening and client-wide lag in a long-running scheduled thread. Source inspection found every historical message mounted, with every message rebuilding and scanning the full tool index. An isolated Chrome fixture with 200 runs and 2,000 transcript records mounted about 22,000 DOM nodes before virtualization and about 750 afterward; this is synthetic evidence, not a profile of the reported thread.
-- Check: use a shared tool index, navigate by virtual offsets, and retain expansion outside virtual rows. The real-component `chat-transcript.test.ts` regressions cover bounded mounting, navigation to unmounted history, expansion restoration, bottom follow and reading-position preservation. Keep a changing tail identity when a footer follows the messages, or append detection cannot recognize new output.
-- Seen: 2026-10-17.
+- Additional evidence: on 2026-10-18, Mobile tool cards independently scanned the full transcript for results, stopped state and nested previews. A synthetic 20,000-entry/30-query fixture performs 1,200,000 history visits in the old nested/status helpers versus 20,000 with a shared snapshot index; this is not a native frame-rate measurement. `apps/mobile/src/conversation.test.ts` counts history visits and verifies unseen nested previews are not decoded, while `components/message.test.ts` covers status priority, live replacement and expanded result updates.
+- Check: use a shared tool index, navigate by virtual offsets, and retain expansion outside virtual rows. Decode nested previews only for queried parents and cache them within the observed snapshot; eagerly decoding all historical previews can replace one long-thread bottleneck with another. The real-component `chat-transcript.test.ts` regressions cover bounded mounting, navigation to unmounted history, expansion restoration, bottom follow and reading-position preservation. Keep a changing tail identity when a footer follows the messages, or append detection cannot recognize new output.
+- Seen: 2026-10-17, 2026-10-18.
 
 **Exercise interactive popup content when changing compound UI components.**
 

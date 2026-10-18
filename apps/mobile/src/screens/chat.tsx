@@ -13,7 +13,7 @@ import { ArrowDown, Menu, SquarePen } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMobile } from "../provider.tsx";
 import { draftKey } from "../bot/store.ts";
-import { conversationRows, taskLabel, isActivityMessage } from "../conversation.ts";
+import { buildToolIndex, conversationRows, taskLabel, isActivityMessage } from "../conversation.ts";
 import { MessageView } from "../components/message.tsx";
 import { Approvals } from "../components/approvals.tsx";
 import {
@@ -42,6 +42,7 @@ export function ChatScreen() {
   const list = useRef<FlatList<ReturnType<typeof conversationRows>[number]>>(null);
   const snapshot = state.thread?.snapshot;
   const rows = useMemo(() => (snapshot ? conversationRows(snapshot) : []), [snapshot]);
+  const tools = useMemo(() => (snapshot ? buildToolIndex(snapshot) : undefined), [snapshot]);
   const workspace = state.library?.workspaces.find((value) => value.id === state.workspaceId);
   const project = state.library?.projects.find((value) => value.id === workspace?.projectId);
   const model = state.library?.models.find(
@@ -156,10 +157,11 @@ export function ChatScreen() {
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             contentContainerStyle={[styles.messages, !rows.length && styles.emptyList]}
             renderItem={({ item, index }) =>
-              snapshot ? (
+              snapshot && tools ? (
                 <MessageView
                   message={item.message}
                   snapshot={snapshot}
+                  tools={tools}
                   compactAfter={
                     isActivityMessage(item.message) &&
                     Boolean(rows[index + 1] && isActivityMessage(rows[index + 1]!.message))
