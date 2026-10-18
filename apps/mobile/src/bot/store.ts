@@ -137,13 +137,15 @@ export class MobileStore {
       if (epoch === this.epoch) await this.storage.saveCache(url, cache);
     });
   }
+  private persistInBackground(prefix = "") {
+    const epoch = this.epoch;
+    void this.persist().catch((error) => {
+      if (epoch === this.epoch) this.update({ error: `${prefix}${message(error)}` });
+    });
+  }
   private saveLater() {
     clearTimeout(this.draftTimer);
-    this.draftTimer = setTimeout(() => {
-      void this.persist().catch((error) =>
-        this.update({ error: `无法保存草稿：${message(error)}` }),
-      );
-    }, 300);
+    this.draftTimer = setTimeout(() => this.persistInBackground("无法保存草稿："), 300);
   }
   private stopObservation() {
     ++this.view;
@@ -631,7 +633,7 @@ export class MobileStore {
     this.update({ foreground });
     if (!foreground) {
       this.stopObservation();
-      void this.persist().catch((error) => this.update({ error: message(error) }));
+      this.persistInBackground();
     } else if (this.client) {
       void this.reconnect().catch((error) => this.update({ error: message(error) }));
     }
