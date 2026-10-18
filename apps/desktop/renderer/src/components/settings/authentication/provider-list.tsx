@@ -4,6 +4,7 @@ import { Check, LogOut } from "lucide-react";
 import type { AuthProvider, LoginMethod } from "../../../../../src/authentication.ts";
 import type { DesktopLibrary } from "../../../../../src/bridge.ts";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { ProviderLogo } from "./provider-logo";
 
 export function ProviderList({
@@ -24,12 +25,12 @@ export function ProviderList({
   useTranslation();
   if (!providers.length)
     return (
-      <p className="py-10 text-center text-sm text-neutral-400">
+      <p className="py-8 text-center text-xs text-neutral-400">
         {t("settings:providerList.noMatchingProviders")}
       </p>
     );
   return (
-    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white divide-y divide-neutral-100">
+    <Card>
       {providers.map((provider) => {
         const credential = library.credentials.find((entry) => entry.providerId === provider.id);
         const connected = credential?.type === method;
@@ -38,20 +39,20 @@ export function ProviderList({
         return (
           <div
             key={provider.id}
-            className="flex flex-wrap items-center gap-3 px-4 py-4 min-[901px]:gap-4 min-[901px]:px-5"
+            className="flex flex-wrap items-center gap-x-6 gap-y-2.5 py-2.5 min-[901px]:flex-nowrap"
           >
             <ProviderLogo id={provider.id} name={provider.name} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className="text-sm font-medium text-neutral-900">{provider.name}</h3>
+                <h3 className="text-[13px] font-medium text-neutral-800">{provider.name}</h3>
                 {connected && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700">
                     <Check size={10} />
                     {t("settings:providerList.connected")}
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-xs/5 text-neutral-500">
+              <p className="mt-0.5 text-xs/4 text-neutral-500">
                 {connected
                   ? t("settings:providerList.availableModels", { count: count })
                   : credential
@@ -70,7 +71,7 @@ export function ProviderList({
                         : t("settings:providerList.connectWithYourOwnApiKey")}
               </p>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {connected && (
                 <Button
                   variant="ghost-muted"
@@ -99,6 +100,6 @@ export function ProviderList({
           </div>
         );
       })}
-    </div>
+    </Card>
   );
 }
