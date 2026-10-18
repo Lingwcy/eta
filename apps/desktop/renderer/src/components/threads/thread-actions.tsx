@@ -80,7 +80,7 @@ export function ThreadActionsProvider({
           <ThreadEditForm
             key={`${edit.kind}:${edit.thread.id}`}
             edit={edit}
-            onClose={() => setEdit(null)}
+            onClose={() => setEdit((current) => (current === edit ? null : current))}
             onSaved={desktop.reload}
           />
         )}
