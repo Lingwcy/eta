@@ -73,13 +73,19 @@ export class BrowserManager {
         this.load(id, browserAddress(command.url));
         break;
       case "back":
-        if (page.state().canGoBack) page.back();
+        if (page.state().canGoBack) {
+          this.beginNavigation(id);
+          page.back();
+        }
         break;
       case "forward":
-        if (page.state().canGoForward) page.forward();
+        if (page.state().canGoForward) {
+          this.beginNavigation(id);
+          page.forward();
+        }
         break;
       case "reload":
-        record.error = undefined;
+        this.beginNavigation(id);
         page.reload();
         break;
       case "stop":
@@ -138,10 +144,15 @@ export class BrowserManager {
     }
   }
 
+  private beginNavigation(id: string) {
+    const record = this.pages.get(id)!;
+    record.error = undefined;
+    return ++record.revision;
+  }
+
   private load(id: string, url: string) {
     const record = this.pages.get(id)!;
-    const revision = ++record.revision;
-    record.error = undefined;
+    const revision = this.beginNavigation(id);
     void record.page.load(url).catch((error: unknown) => {
       if (this.pages.get(id) !== record || this.disposed || revision !== record.revision) return;
       // ERR_ABORTED is expected when the next navigation overtakes an earlier load.

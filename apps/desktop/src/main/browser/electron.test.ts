@@ -148,3 +148,44 @@ test("malformed native commands are rejected before page resources can be acquir
     url: "example.com",
   });
 });
+
+test.each(["back", "forward", "reload"] as const)(
+  "%s recovers from a failed address load without hiding a new failure",
+  async (type) => {
+    const { manager, guest, send } = setup();
+    try {
+      await manager.command({ type: "create", id: "web", url: "example.com" });
+      const contents = guest().webContents;
+      contents.loadURL = async (url) => {
+        contents.emit("did-fail-load", {}, -105, "DNS failure", url, true);
+        throw new Error("ERR_NAME_NOT_RESOLVED");
+      };
+      await manager.command({ type: "navigate", id: "web", url: "missing.example.com" });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(send.mock.calls.at(-1)?.[1].state.error).toBeTruthy();
+      const recovered = () => {
+        contents.emit("did-navigate", {}, "https://example.com/recovered");
+      };
+      contents.navigationHistory.canGoBack = () => true;
+      contents.navigationHistory.canGoForward = () => true;
+      contents.navigationHistory.goBack = recovered;
+      contents.navigationHistory.goForward = recovered;
+      contents.reload = recovered;
+      const state = await manager.command({ type, id: "web" });
+      expect(state?.url).toBe("https://example.com/recovered");
+      expect(state?.error).toBeUndefined();
+      expect(send.mock.calls.at(-1)?.[1].state.error).toBeUndefined();
+      contents.emit(
+        "did-fail-load",
+        {},
+        -106,
+        "New network failure",
+        "https://example.com/recovered",
+        true,
+      );
+      expect(send.mock.calls.at(-1)?.[1].state.error).toBeTruthy();
+    } finally {
+      manager.dispose();
+    }
+  },
+);
