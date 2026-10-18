@@ -58,6 +58,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## UI scope
 
+**A previous turn cannot prove that the current stream has been saved.**
+
+- Evidence: on 2026-10-18, #126's valid Mobile snapshots lose the current reply when any older assistant shares its timestamp/provider/model, even after a later user message. Missing optional metadata has the same failure. Matching the latest conversation entry retains the stream; JSON reparse/save controls keep one row, and an orphan result still stays visible. Desktop's existing latest-entry boundary passes the equivalent control.
+- Check: treat timestamps as metadata, not globally unique ownership. Cover an intervening user turn, colliding or missing metadata, actual save handoff, and orphan tool results; do not claim a full tool-call identity solution from this narrower deduplication fix.
+- Seen: 2026-10-18.
+
 **Keep PR-only visual evidence in GitHub review artifacts, not the source tree.**
 
 - Existing rule: [Pull requests](AGENTS.md#pull-requests) requires UI evidence but prohibits committing PR-only screenshots/assets.

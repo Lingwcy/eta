@@ -14,13 +14,19 @@ export function conversationRows(snapshot: BotSnapshot) {
     ({ message }) => message.role !== "toolResult" || !calls.has(message.toolCallId),
   );
   const streaming = snapshot.operation?.streamingMessage;
-  const saved = entries.some(
-    ({ message }) =>
-      message.role === "assistant" &&
-      message.timestamp === streaming?.timestamp &&
-      message.provider === streaming?.provider &&
-      message.model === streaming?.model,
-  );
+  let last: BotMessage | undefined;
+  for (let index = entries.length - 1; index >= 0; --index) {
+    const message = entries[index]!.message;
+    if (message.role === "user" || message.role === "assistant") {
+      last = message;
+      break;
+    }
+  }
+  const saved =
+    last?.role === "assistant" &&
+    last.timestamp === streaming?.timestamp &&
+    last.provider === streaming?.provider &&
+    last.model === streaming?.model;
   const rows = entries.map(({ id, message }) => ({ id, message }));
   if (streaming && !saved) rows.push({ id: "streaming", message: streaming });
   const occurrences = new Map<string, number>();

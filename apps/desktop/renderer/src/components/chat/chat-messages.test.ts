@@ -35,6 +35,24 @@ test("streaming response keeps its identity when saved without appearing twice",
   expect(getChatMessages(current)[0]?.id).toBe(live[0]?.id);
 });
 
+test("an older assistant with the same metadata does not hide a later turn's stream", () => {
+  const value = snapshot();
+  const previous = { ...message, content: [{ type: "text" as const, text: "Earlier answer" }] };
+  const user = { role: "user" as const, content: "Next question", timestamp: 100 };
+  value.transcript = [
+    { id: "old", type: "message", message: previous },
+    { id: "user", type: "message", message: user },
+  ];
+  const rows = getChatMessages(value);
+  expect(rows.map(({ message }) => message)).toEqual([previous, user, message]);
+  const id = rows.at(-1)?.id;
+  value.transcript.push({ id: "saved", type: "message", message });
+  const saved = getChatMessages(value);
+  expect(saved).toHaveLength(3);
+  expect(saved.at(-1)?.id).toBe(id);
+  expect(new Set(saved.map(({ id }) => id)).size).toBe(3);
+});
+
 test("later tool rounds append a new response while preserving earlier responses", () => {
   const current = snapshot();
   const first = getChatMessages(current)[0]?.id;
