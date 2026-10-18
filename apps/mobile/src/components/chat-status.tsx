@@ -1,5 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { AlertTriangle, CloudOff, RefreshCw, SlidersHorizontal } from "lucide-react-native";
+import {
+  AlertTriangle,
+  CloudOff,
+  MessageSquare,
+  RefreshCw,
+  SlidersHorizontal,
+} from "lucide-react-native";
+import type { ReactNode } from "react";
 import type { BotSnapshot } from "../bot/contracts.ts";
 import { colors } from "../ui.tsx";
 
@@ -45,6 +52,28 @@ export function TaskStatus({ label, tone }: { label: string; tone: TaskTone }) {
       <Text numberOfLines={1} style={styles.taskText}>
         {label}
       </Text>
+    </View>
+  );
+}
+
+/** First paint for an empty conversation; matches the Desktop welcome instead of bare text. */
+export function ChatEmptyState({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint: string;
+  children?: ReactNode;
+}) {
+  return (
+    <View style={styles.empty}>
+      <View style={styles.emptyMark}>
+        <MessageSquare size={22} strokeWidth={1.5} color={colors.muted} />
+      </View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyHint}>{hint}</Text>
+      {children}
     </View>
   );
 }
@@ -160,6 +189,37 @@ export function PendingNotice({
 }
 
 const styles = StyleSheet.create({
+  empty: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    paddingBottom: 56,
+  },
+  emptyMark: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: {
+    marginTop: 4,
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.text,
+    letterSpacing: -0.2,
+  },
+  emptyHint: {
+    maxWidth: 300,
+    textAlign: "center",
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
+  },
   task: {
     flexDirection: "row",
     alignItems: "center",

@@ -73,26 +73,39 @@ export function Button({
   disabled = false,
   secondary = false,
   destructive = false,
+  compact = false,
 }: {
   children: ReactNode;
   onPress: () => void;
   disabled?: boolean;
   secondary?: boolean;
   destructive?: boolean;
+  /** Inline size for footer chips and empty states; the default stays a full touch target. */
+  compact?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       disabled={disabled}
+      hitSlop={compact ? 5 : undefined}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        compact && styles.compact,
         secondary && styles.secondary,
         destructive && styles.destructive,
         (pressed || disabled) && styles.dim,
       ]}
     >
-      <Text style={[styles.buttonText, secondary && styles.secondaryText]}>{children}</Text>
+      <Text
+        style={[
+          styles.buttonText,
+          compact && styles.compactText,
+          secondary && styles.secondaryText,
+        ]}
+      >
+        {children}
+      </Text>
     </Pressable>
   );
 }
@@ -241,6 +254,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  compact: {
+    minHeight: 34,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 9,
+  },
+  compactText: { fontSize: 13 },
   secondary: {
     backgroundColor: colors.soft,
     borderWidth: 1,
