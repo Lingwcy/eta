@@ -85,15 +85,15 @@ export function LoginDialog({
       }}
     >
       <DialogContent variant="form">
-        <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             {login && <ProviderLogo id={login.provider} name={name} />}
             <div>
-              <DialogTitle className="text-xl font-semibold text-neutral-900">
+              <DialogTitle className="text-base font-semibold text-neutral-900">
                 {t("settings:loginDialog.connect")}
                 {name}
               </DialogTitle>
-              <p className="mt-1 text-sm text-neutral-500">
+              <p className="mt-0.5 text-xs/5 text-neutral-500">
                 {login?.method === "oauth"
                   ? t("settings:loginDialog.continueWithYourAccount")
                   : t("settings:loginDialog.configureYourApiKeyAndProviderParameters")}
