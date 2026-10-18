@@ -31,8 +31,8 @@ export function ProjectSidebar({
         <div className="min-w-0 flex-1">
           <Button variant="ghost" size="row-compact" onClick={onNew} disabled={!canCreate}>
             <SquarePen size={19} aria-hidden="true" />
-            {t("navigation:projectSidebar.newChat")}
-            <span className="ml-auto hidden min-[901px]:block">
+            <span className="min-w-0 truncate">{t("navigation:projectSidebar.newChat")}</span>
+            <span className="ml-auto hidden shrink-0 whitespace-nowrap min-[1600px]:block">
               <Kbd>⌘ N</Kbd>
             </span>
           </Button>
