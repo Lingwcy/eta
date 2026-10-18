@@ -13,12 +13,12 @@ export function ChatWelcome({
   return (
     <div className="flex flex-1 flex-col items-center justify-center pt-8 pb-11 text-center">
       <TerminalSquare
-        className="mb-6 text-neutral-300"
-        size={50}
+        className="mb-4 text-neutral-300"
+        size={38}
         strokeWidth={1.4}
         aria-hidden="true"
       />
-      <h2 className="text-[22px]/normal font-normal tracking-tight text-balance min-[901px]:text-[clamp(22px,2.3vw,30px)]">
+      <h2 className="text-[19px]/normal font-normal tracking-tight text-balance min-[901px]:text-[clamp(19px,1.5vw,21px)]">
         {projectName ? (
           <Trans
             ns="chat"
@@ -35,7 +35,7 @@ export function ChatWelcome({
         )}
       </h2>
       {connecting && (
-        <output className="mt-3 text-xs text-neutral-400">
+        <output className="mt-2 text-xs text-neutral-400">
           {t("chat:chatWelcome.preparingTheAgent")}
         </output>
       )}
