@@ -61,14 +61,14 @@ export function ChatMessage({
                   key={index}
                   src={`data:${image.mimeType};base64,${image.data}`}
                   alt={t("chat:chatMessage.attachedImage", { value1: index + 1 })}
-                  className="max-h-56 max-w-full rounded-2xl border border-neutral-200 object-contain"
+                  className="max-h-56 max-w-full rounded-[12px] border border-neutral-200 object-contain"
                 />
               ))}
             </div>
           )}
           {text &&
             (message.role === "user" ? (
-              <article className="ml-auto max-w-[85%] rounded-2xl border border-neutral-200/70 bg-neutral-50 px-4 py-3 text-sm/6 whitespace-pre-wrap break-words">
+              <article className="ml-auto max-w-[85%] rounded-[14px] border border-neutral-200/70 bg-neutral-50 px-3.5 py-2.5 text-sm/6 whitespace-pre-wrap break-words">
                 {text}
               </article>
             ) : (

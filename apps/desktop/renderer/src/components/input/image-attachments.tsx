@@ -28,7 +28,7 @@ export function ImageAttachments({
       {items.map((item) => (
         <li
           key={item.id}
-          className="relative size-16 overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50"
+          className="relative size-16 overflow-hidden rounded-[12px] border border-neutral-200 bg-neutral-50"
           title={renderMessage(item.error) ?? item.name}
         >
           {item.image ? (
