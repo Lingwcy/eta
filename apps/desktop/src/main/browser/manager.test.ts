@@ -231,3 +231,57 @@ test.each(
     manager.dispose();
   }
 });
+
+test.each(["back", "forward", "reload"] as const)(
+  "an old address failure cannot overwrite a newer %s navigation",
+  async (type) => {
+    const { manager, pages, events } = setup();
+    const gate = Promise.withResolvers<void>();
+    try {
+      await manager.command({ type: "create", id: "one", url: "example.com/first" });
+      await manager.command({ type: "navigate", id: "one", url: "example.com/second" });
+      const page = pages.get("one")!;
+      page.pending = () => gate.promise;
+      await manager.command({ type: "navigate", id: "one", url: "example.com/pending" });
+      if (type === "forward") await manager.command({ type: "back", id: "one" });
+      const current = await manager.command({ type, id: "one" });
+      gate.reject(new Error("Old address failed"));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const result = await manager.command({ type: "capture", id: "one" });
+      expect(result?.url).toBe(current?.url);
+      expect(result?.error).toBeUndefined();
+      expect(events.filter((event) => event.type === "state").at(-1)?.state.error).toBeUndefined();
+    } finally {
+      gate.resolve();
+      manager.dispose();
+    }
+  },
+);
+
+test.each(["back", "forward"] as const)(
+  "unavailable %s preserves the current load failure",
+  async (type) => {
+    const { manager, pages } = setup();
+    try {
+      await manager.command({ type: "create", id: "one", url: "example.com" });
+      const page = pages.get("one")!;
+      page.pending = async () => {
+        throw new Error("Current address failed");
+      };
+      await manager.command({ type: "navigate", id: "one", url: "missing.example.com" });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.spyOn(page, "state").mockImplementation(() => ({
+        id: "one",
+        url: "https://missing.example.com/",
+        title: "Failed",
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+      }));
+      const result = await manager.command({ type, id: "one" });
+      expect(result?.error).toBeTruthy();
+    } finally {
+      manager.dispose();
+    }
+  },
+);
