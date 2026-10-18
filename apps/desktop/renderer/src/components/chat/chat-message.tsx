@@ -9,7 +9,6 @@ import { TaskList } from "@/components/task-list";
 import { MessageUsage } from "./message-usage";
 import { ThinkingMessage } from "./thinking-message";
 import { isActivityMessage } from "./chat-messages";
-import { toolsForMessage } from "@/agent/selectors";
 
 export function ChatMessage({
   message,
@@ -18,6 +17,7 @@ export function ChatMessage({
   animate = true,
 }: {
   message: AgentSnapshot["transcript"][number]["message"];
+  /** Already associated with this message, including its nested calls. */
   tools: readonly SnapshotTool[];
   streaming?: boolean;
   animate?: boolean;
@@ -29,14 +29,6 @@ export function ChatMessage({
     typeof message.content === "string"
       ? []
       : message.content.filter((part) => part.type === "image");
-  const calls =
-    typeof message.content === "string"
-      ? []
-      : message.content.filter((content) => content.type === "toolCall");
-  const messageTools = toolsForMessage(
-    tools,
-    calls.map((call) => call.id),
-  );
   const thinking =
     message.role === "assistant"
       ? message.content
@@ -45,7 +37,7 @@ export function ChatMessage({
           .filter((text) => text.trim())
           .join("\n\n")
       : "";
-  if (!text && !thinking && !images.length && !messageTools.length) return null;
+  if (!text && !thinking && !images.length && !tools.length) return null;
   return (
     <EntranceAnimation value={animate}>
       <Reveal>
@@ -87,7 +79,7 @@ export function ChatMessage({
                 )}
               </div>
             ))}
-          {messageTools.length > 0 && <TaskList tools={messageTools} />}
+          {tools.length > 0 && <TaskList tools={tools} />}
         </div>
       </Reveal>
     </EntranceAnimation>

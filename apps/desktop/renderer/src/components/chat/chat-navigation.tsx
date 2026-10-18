@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Bookmark } from "lucide-react";
 import { MessageMarkdown } from "./message-markdown";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import type { ChatTurn } from "./chat-turns";
 
 const tickWidths = ["w-7", "w-5", "w-3.5", "w-2.5"];
 
-export function ChatNavigation({
+export const ChatNavigation = memo(function ChatNavigation({
   turns,
   activeId,
   onNavigate,
@@ -99,4 +99,4 @@ export function ChatNavigation({
       )}
     </PreviewCard>
   );
-}
+});

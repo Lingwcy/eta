@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import type { AgentSnapshot, SnapshotTool } from "@eta/core/agent/protocol";
-import { getTools, toolsForMessage } from "./selectors.ts";
+import { getTools, indexTools, toolsForMessage } from "./selectors.ts";
 
 function snapshot(): AgentSnapshot {
   return {
@@ -123,8 +123,8 @@ test("Code mode keeps nested call identity live and reconstructs completed and c
     isError: true,
     result: { content: [{ type: "text", text: "missing" }] },
   });
-  expect(toolsForMessage(tools, ["code-call"])).toEqual(tools);
-  expect(toolsForMessage(tools, ["another-message"])).toEqual([]);
+  expect(toolsForMessage(indexTools(tools), ["code-call"])).toEqual(tools);
+  expect(toolsForMessage(indexTools(tools), ["another-message"])).toEqual([]);
 });
 
 test("message tool selection follows explicit parent identities through multiple nesting levels", () => {
@@ -146,7 +146,7 @@ test("message tool selection follows explicit parent identities through multiple
     },
     { toolCallId: "parent/unrelated", toolName: "read", args: {}, status: "running" },
   ];
-  expect(toolsForMessage(tools, ["parent"]).map((tool) => tool.toolCallId)).toEqual([
+  expect(toolsForMessage(indexTools(tools), ["parent"]).map((tool) => tool.toolCallId)).toEqual([
     "parent",
     "nested",
     "leaf",
@@ -366,3 +366,55 @@ test.each(["retry", "deferred", "aborting", "recovery", "faulted"])(
     expect(getTools(value)).toEqual([]);
   },
 );
+
+test("indexed message tools retain order, shared descendants and missing-parent calls", () => {
+  const tools: SnapshotTool[] = [
+    {
+      toolCallId: "leaf",
+      parentToolCallId: "nested",
+      toolName: "read",
+      args: {},
+      status: "settled",
+    },
+    { toolCallId: "other", toolName: "bash", args: {}, status: "settled" },
+    {
+      toolCallId: "nested",
+      parentToolCallId: "missing",
+      toolName: "codemode",
+      args: {},
+      status: "running",
+    },
+    ...Array.from({ length: 5000 }, (_, index) => ({
+      toolCallId: `unrelated:${index}`,
+      toolName: "read",
+      args: {},
+      status: "settled" as const,
+    })),
+  ];
+  const index = indexTools(tools);
+  expect(
+    toolsForMessage(index, ["missing", "other", "nested"]).map((tool) => tool.toolCallId),
+  ).toEqual(["leaf", "other", "nested"]);
+  expect(toolsForMessage(index, ["unrelated:4500"])).toEqual([tools[4503]]);
+  expect(toolsForMessage(index, [])).toEqual([]);
+});
+
+test("cyclic nested tool identities cannot hang a message lookup", () => {
+  const tools: SnapshotTool[] = [
+    {
+      toolCallId: "first",
+      parentToolCallId: "second",
+      toolName: "codemode",
+      args: {},
+      status: "running",
+    },
+    {
+      toolCallId: "second",
+      parentToolCallId: "first",
+      toolName: "read",
+      args: {},
+      status: "running",
+    },
+  ];
+  expect(toolsForMessage(indexTools(tools), ["second", "first"])).toEqual(tools);
+});

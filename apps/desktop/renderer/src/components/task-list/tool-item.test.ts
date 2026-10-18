@@ -5,7 +5,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { i18n } from "@/i18n";
-import { getTools } from "@/agent/selectors";
+import { getTools, indexTools, toolsForMessage } from "@/agent/selectors";
 import { getChatMessages } from "../chat/chat-messages";
 import { ChatMessage } from "../chat/chat-message";
 import { TaskList } from "./index";
@@ -69,7 +69,10 @@ test.each([false, true])(
             createElement(ChatMessage, {
               key: entry.id,
               message: entry.message,
-              tools: getTools(snapshot),
+              tools: toolsForMessage(
+                indexTools(getTools(snapshot)),
+                message.content.flatMap((part) => (part.type === "toolCall" ? [part.id] : [])),
+              ),
               streaming: entry.streaming,
               animate: false,
             }),

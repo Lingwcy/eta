@@ -24,20 +24,33 @@ const CodemodeDetails = Schema.Struct({
   ),
 });
 
-/** Associate nested calls with the assistant message that owns their outermost call. */
-export function toolsForMessage(tools: readonly SnapshotTool[], callIds: readonly string[]) {
-  const selected = new Set(callIds);
-  const byId = new Map(tools.map((tool) => [tool.toolCallId, tool]));
-  return tools.filter((tool) => {
-    const visited = new Set<string>();
-    let id: string | undefined = tool.toolCallId;
-    while (id !== undefined && !visited.has(id)) {
-      if (selected.has(id)) return true;
-      visited.add(id);
-      id = byId.get(id)?.parentToolCallId;
-    }
-    return false;
-  });
+/** Build once per observation; message rows visit only their own calls and descendants. */
+export function indexTools(tools: readonly SnapshotTool[]) {
+  const byId = new Map(tools.map((tool, order) => [tool.toolCallId, { tool, order }]));
+  const children = new Map<string, string[]>();
+  for (const tool of tools) {
+    if (!tool.parentToolCallId) continue;
+    const siblings = children.get(tool.parentToolCallId) ?? [];
+    siblings.push(tool.toolCallId);
+    children.set(tool.parentToolCallId, siblings);
+  }
+  return { byId, children };
+}
+
+/** Preserve transcript order even when nested results arrive before their parent. */
+export function toolsForMessage(index: ReturnType<typeof indexTools>, callIds: readonly string[]) {
+  const visited = new Set<string>();
+  const selected: { tool: SnapshotTool; order: number }[] = [];
+  const pending = [...callIds];
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const call = index.byId.get(id);
+    if (call) selected.push(call);
+    for (const child of index.children.get(id) ?? []) pending.push(child);
+  }
+  return selected.sort((a, b) => a.order - b.order).map(({ tool }) => tool);
 }
 
 function savedToolIntent(intents: AgentSnapshot["toolIntents"], id: string) {

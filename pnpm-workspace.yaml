@@ -36,6 +36,7 @@ catalog:
   expo-splash-screen: ~57.0.10
   i18next: ^26.4.5
   react-i18next: ^17.0.16
+  "@tanstack/react-virtual": 3.14.21
 overrides:
   # The adapter's ^rc range also accepts incompatible stable releases.
   "@effect/platform-node-shared": "catalog:"

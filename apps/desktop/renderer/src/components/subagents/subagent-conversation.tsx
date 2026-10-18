@@ -122,7 +122,12 @@ export function SubagentConversation({
           {subagentStatus()[child.status]}
         </span>
       </div>
-      <ChatTranscript snapshot={snapshot} running={running}>
+      <ChatTranscript
+        key={`${threadId}:${child.path}`}
+        snapshot={snapshot}
+        running={running}
+        active={active}
+      >
         {snapshot?.recoveryRequired && (
           <Alert tone="warning">
             {t("inspector:subagentConversation.resumeOrStopTheUnfinishedTaskIn")}
