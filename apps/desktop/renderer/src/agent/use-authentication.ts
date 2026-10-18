@@ -9,6 +9,8 @@ export function useAuthentication(onConnected: () => Promise<void>) {
   const [busy, setBusy] = useState(false);
   const current = useRef<string | null>(null);
   const loginEpoch = useRef(0);
+  // Poll and post-answer snapshots share a login ID but can arrive out of order.
+  const latestStateRead = useRef(0);
   const mounted = useRef(false);
   const refreshed = useRef<string | null>(null);
   const connected = useRef(onConnected);
@@ -26,14 +28,17 @@ export function useAuthentication(onConnected: () => Promise<void>) {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
+      const read = ++latestStateRead.current;
       try {
         const next = await window.eta.loginState(login.id);
         if (stopped) return;
-        setLogin(next);
+        if (read === latestStateRead.current) setLogin(next);
         if (next.status === "running") timer = setTimeout(() => void poll(), 350);
       } catch {
-        if (!stopped)
+        if (stopped) return;
+        if (read === latestStateRead.current)
           setError(localizedMessage("chat:useAuthentication.cannotReadSignInProgressCancelAnd"));
+        else timer = setTimeout(() => void poll(), 350);
       }
     };
     void poll();
@@ -113,15 +118,17 @@ export function useAuthentication(onConnected: () => Promise<void>) {
       const epoch = loginEpoch.current;
       const ownsLogin = () =>
         mounted.current && loginEpoch.current === epoch && current.current === id;
+      let read: number | undefined;
       setBusy(true);
       setError(null);
       try {
         await window.eta.answerLogin(id, promptId, value);
         if (!ownsLogin()) return;
+        read = ++latestStateRead.current;
         const next = await window.eta.loginState(id);
-        if (ownsLogin()) setLogin(next);
+        if (ownsLogin() && read === latestStateRead.current) setLogin(next);
       } catch (error) {
-        if (ownsLogin())
+        if (ownsLogin() && (read === undefined || read === latestStateRead.current))
           setError(
             describeError(
               error,
