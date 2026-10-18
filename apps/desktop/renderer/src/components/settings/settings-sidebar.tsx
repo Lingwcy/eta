@@ -41,13 +41,13 @@ export function SettingsSidebar({
             );
             if (!items.length) return null;
             return (
-              <div key={group.id} className="mb-5">
-                <h2 className="px-2 pt-1 pb-2 text-[13px] font-medium text-neutral-500">
+              <div key={group.id} className="mb-4">
+                <h2 className="px-2 pt-1.5 pb-1 text-xs font-medium text-neutral-500">
                   {group.label}
                 </h2>
                 {items.map((item) => (
-                  <TabsTrigger key={item.id} value={item.id}>
-                    <item.icon size={16} aria-hidden="true" />
+                  <TabsTrigger key={item.id} variant="sidebar" value={item.id}>
+                    <item.icon aria-hidden="true" />
                     <span className="truncate">{item.label}</span>
                   </TabsTrigger>
                 ))}
