@@ -25,6 +25,7 @@ import type { DesktopLibraryController } from "@/agent/use-desktop-library";
 import { ThreadActionsProvider } from "@/components/threads/thread-actions";
 import { ThreadSearchDialog } from "@/components/sidebar/thread-search-dialog";
 import { useSchedules } from "@/agent/use-schedules";
+import { useDesktopShell } from "@/agent/use-desktop-shell";
 import { ScheduleForm } from "./schedule-form";
 import { TaskList } from "@/components/task-list";
 import { ScheduleMessages } from "./schedule-tool-notice";
@@ -1485,3 +1486,113 @@ test("manual run explains project recovery, interrupted admissions and stale off
     );
   }
 });
+
+test("schedule completion keeps a replacement form after a saved plan's delayed library refresh", async () => {
+  const { runtime, schedules, threads, workspace, library, bridge } = await setup();
+  const first = await runtime.runPromise(threads.create(workspace.id));
+  const second = await runtime.runPromise(threads.create(workspace.id));
+  library.threads = [first.thread, second.thread];
+  const gate = Promise.withResolvers<DesktopLibrary>();
+  let held = false;
+  let reads = 0;
+  let loading = 0;
+  let completed: Promise<void> | undefined;
+  const full = {
+    ...bridge,
+    openThread: async (id: string) => {
+      loading++;
+      try {
+        return await bridge.openThread(id);
+      } finally {
+        loading--;
+      }
+    },
+    library: async () => {
+      if (++reads === 2) {
+        held = true;
+        return gate.promise;
+      }
+      return library;
+    },
+    subscribeLibrary: () => () => {},
+    subscribeBrowser: () => () => {},
+    subscribe: () => () => {},
+    browser: async () => null,
+    gitRepository: async () => {
+      throw new Error("Git is outside this schedule fixture");
+    },
+  };
+  vi.stubGlobal("eta", full);
+  Object.defineProperty(window, "eta", { configurable: true, value: full });
+  let shell: ReturnType<typeof useDesktopShell> | undefined;
+  function Host() {
+    shell = useDesktopShell();
+    return shell.creatingSchedule && shell.desktop.library
+      ? createElement(ScheduleForm, {
+          key: shell.creatingSchedule,
+          library: shell.desktop.library,
+          controller: shell.schedules,
+          threadId: shell.creatingSchedule,
+          workspaceId: workspace.id,
+          onCancel: shell.finishSchedule,
+          onSaved: (id) => {
+            completed = shell!.scheduleSaved(id);
+            void completed.catch(() => {});
+          },
+        })
+      : null;
+  }
+  try {
+    await act(async () => root.render(createElement(ToastProvider, null, createElement(Host))));
+    await expect.poll(() => reads, { timeout: 10000 }).toBe(1);
+    await act(async () => {
+      shell!.addSchedule(first.id);
+    });
+    await act(async () => {
+      await expect.poll(() => loading, { timeout: 10000 }).toBe(0);
+    });
+    await input(
+      document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
+      "First saved plan",
+    );
+    await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Do not execute yet");
+    await click("创建");
+    await act(async () => {
+      await expect.poll(() => held, { timeout: 10000 }).toBe(true);
+    });
+    expect(button("创建").disabled).toBe(false);
+    expect((await runtime.runPromise(schedules.list())).length).toBe(1);
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(document.querySelector("form")).toBeNull();
+    await act(async () => {
+      shell!.addSchedule(second.id);
+    });
+    await input(
+      document.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,
+      "Replacement draft",
+    );
+    await input(
+      document.querySelector<HTMLTextAreaElement>("textarea")!,
+      "Replacement unsaved instructions",
+    );
+    await act(async () => {
+      await expect.poll(() => loading, { timeout: 10000 }).toBe(0);
+    });
+    expect(button("创建").disabled).toBe(false);
+    await act(async () => {
+      gate.resolve(library);
+      await completed;
+    });
+    expect(shell!.creatingSchedule).toBe(second.id);
+    expect(document.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(
+      "Replacement unsaved instructions",
+    );
+    expect(shell!.navigation.tabs.activeTab).toMatchObject({ threadId: second.id });
+    expect((await runtime.runPromise(schedules.list())).length).toBe(1);
+  } finally {
+    gate.resolve(library);
+    await completed?.catch(() => {});
+  }
+}, 20000);

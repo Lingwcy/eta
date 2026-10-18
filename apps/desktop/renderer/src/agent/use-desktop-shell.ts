@@ -2,7 +2,7 @@ import { useSchedules } from "./use-schedules";
 import { projectRootWorkspace } from "@/desktop/selectors";
 import { useSubagents } from "./use-subagents";
 import { inspectedConversation, inspectedWorkspace, showScheduledTasks } from "./inspector";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useProjectGit } from "./use-project-git";
 import { GitHubClient } from "./github-client";
 import { isCloudId } from "../../../src/shared/bot.ts";
@@ -16,7 +16,9 @@ export function useDesktopShell() {
   const desktop = useDesktopLibrary();
   const schedules = useSchedules();
   const [scheduleView, setScheduleView] = useState(false);
-  const [creatingSchedule, setCreatingSchedule] = useState<string>();
+  // Reopening the same thread creates a different form owner for save callbacks.
+  const [scheduleCreation, setScheduleCreation] = useState<{ threadId: string }>();
+  const currentScheduleCreation = useRef(scheduleCreation);
   const navigation = useDesktopTabs(desktop.library);
   const [selectedSubagents, setSelectedSubagents] = useState<Record<string, string | undefined>>(
     {},
@@ -100,19 +102,27 @@ export function useDesktopShell() {
       setCollapsed(false);
       showScheduledTasks(navigation.tabs);
     },
-    creatingSchedule,
-    finishSchedule: () => setCreatingSchedule(undefined),
+    creatingSchedule: scheduleCreation?.threadId,
+    finishSchedule: () => {
+      currentScheduleCreation.current = undefined;
+      setScheduleCreation(undefined);
+    },
     addSchedule: (id: string) => {
+      const creation = { threadId: id };
+      currentScheduleCreation.current = creation;
       selectThread(id);
-      setCreatingSchedule(id);
+      setScheduleCreation(creation);
       setScheduleView(true);
       setCollapsed(false);
     },
     scheduleSaved: async (id: string) => {
+      if (currentScheduleCreation.current !== scheduleCreation) return;
       const library = await desktop.refresh();
+      if (currentScheduleCreation.current !== scheduleCreation) return;
       const thread = library.threads.find((thread) => thread.id === id);
       if (thread) navigation.tabs.openThread(id, thread.workspaceId);
-      setCreatingSchedule(undefined);
+      currentScheduleCreation.current = undefined;
+      setScheduleCreation(undefined);
       setScheduleView(true);
       setCollapsed(false);
     },
