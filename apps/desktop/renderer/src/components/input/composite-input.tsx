@@ -33,11 +33,13 @@ export function CompositeInput({
   const [dragging, setDragging] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
+  const liveAttachments = useRef(new Set<string>());
   const sending = useRef(false);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      liveAttachments.current.clear();
     };
   }, []);
   const pending = attachments.some((item) => !item.image && !item.error);
@@ -49,6 +51,7 @@ export function CompositeInput({
     if (locked) return;
     setAttachmentError(undefined);
     const queued = files.map((file) => ({ file, id: crypto.randomUUID() }));
+    for (const { id } of queued) liveAttachments.current.add(id);
     setAttachments((items) => [
       ...items,
       ...queued.map(({ file, id }) => ({
@@ -58,6 +61,9 @@ export function CompositeInput({
     ]);
     for (const { file, id } of queued) {
       if (!mounted.current) return;
+      // Each selection gets a fresh ID; removal invalidates its queued and in-flight work.
+      const current = () => mounted.current && liveAttachments.current.has(id);
+      if (!current()) continue;
       if (
         !file.type.startsWith("image/") &&
         !/\.(png|jpe?g|webp|gif|bmp|avif|heic|heif|tiff?)$/i.test(file.name)
@@ -87,14 +93,15 @@ export function CompositeInput({
             reject(new LocalizedError("chat:compositeInput.cannotReadTheImage"));
           reader.readAsDataURL(file);
         });
+        if (!current()) continue;
         const source = { data, name: file.name || t("chat:compositeInput.pastedImagePng") };
         const image = await prepare(source);
-        if (mounted.current)
+        if (current())
           setAttachments((items) =>
             items.map((item) => (item.id === id ? { ...item, image, source } : item)),
           );
       } catch (error) {
-        if (mounted.current) {
+        if (current()) {
           const message = describeError(
             error,
             localizedMessage("chat:compositeInput.imageProcessingFailed"),
@@ -139,6 +146,7 @@ export function CompositeInput({
         });
       await onSubmit(prompt, images.length ? images : undefined);
       setText("");
+      liveAttachments.current.clear();
       setAttachments([]);
     } catch (error) {
       if (mounted.current)
@@ -196,6 +204,7 @@ export function CompositeInput({
           items={attachments}
           disabled={locked}
           onRemove={(id) => {
+            liveAttachments.current.delete(id);
             setAttachments((items) => items.filter((item) => item.id !== id));
             setAttachmentError(undefined);
           }}
