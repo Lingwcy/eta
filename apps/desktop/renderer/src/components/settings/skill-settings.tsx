@@ -6,6 +6,7 @@ import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import type { SkillCatalog } from "@eta/core/skills/types";
 import type { DesktopSettings } from "../../../../src/shared/settings.ts";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { ToastNotice } from "@/components/ui/toast";
 import { SettingsRow, SettingsSection } from "./settings-section";
 
@@ -99,19 +100,22 @@ export function SkillSettings({
           title={t("settings:skillSettings.scope")}
           description={t("settings:skillSettings.userSkillsComeFromAgentsSkillsProject")}
         >
-          <select
-            aria-label={t("settings:skillSettings.skillProjectScope")}
+          <Select
+            className="max-w-64"
             value={cwd}
-            onChange={(event) => setCwd(event.target.value)}
-            className="max-w-56 rounded-lg border border-neutral-200 px-2 py-1.5 text-xs"
-          >
-            <option value="">{t("settings:skillSettings.userAndCustomDirectories")}</option>
-            {library.workspaces.map((workspace) => (
-              <option key={workspace.id} value={workspace.cwd}>
-                {workspace.cwd}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: t("settings:skillSettings.userAndCustomDirectories") },
+              ...library.workspaces.map((workspace) => ({
+                value: workspace.cwd,
+                label: workspace.cwd,
+              })),
+            ]}
+            label={t("settings:skillSettings.skillProjectScope")}
+            size="compact"
+            variant="menu"
+            popupSizing="content"
+            onValueChange={setCwd}
+          />
         </SettingsRow>
         <SettingsRow
           title={t("settings:skillSettings.refreshSkillDirectories")}

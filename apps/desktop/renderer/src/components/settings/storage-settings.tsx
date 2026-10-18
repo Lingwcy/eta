@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Folder, ListTree, RefreshCw, SlidersHorizontal } from "lucide-react";
 import type { StorageReport, StorageTarget } from "../../../../src/shared/storage.ts";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { ToastNotice } from "@/components/ui/toast";
 import { SearchInput } from "@/components/ui/search-input";
 import {
@@ -169,15 +170,17 @@ export function StorageSettings({ active }: { active: boolean }) {
               onValueChange={setQuery}
             />
           </div>
-          <select
-            aria-label={t("settings:storageSettings.sortSessions")}
+          <Select
             value={sort}
-            onChange={(event) => setSort(event.target.value)}
-            className="cursor-pointer rounded-md bg-transparent px-2 py-1.5 text-xs text-neutral-600 outline-none focus-visible:ring-2 focus-visible:ring-neutral-300"
-          >
-            <option value="size">{t("settings:storageSettings.size")}</option>
-            <option value="name">{t("settings:storageSettings.name")}</option>
-          </select>
+            options={[
+              { value: "size", label: t("settings:storageSettings.size") },
+              { value: "name", label: t("settings:storageSettings.name") },
+            ]}
+            label={t("settings:storageSettings.sortSessions")}
+            size="compact"
+            variant="menu"
+            onValueChange={setSort}
+          />
         </div>
         <ScrollAreaRoot className="h-[min(420px,50vh)]">
           <ScrollAreaViewport
