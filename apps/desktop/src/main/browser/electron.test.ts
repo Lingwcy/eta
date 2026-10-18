@@ -1,15 +1,45 @@
 import { EventEmitter } from "node:events";
-import { expect, test, vi } from "vite-plus/test";
-import type { BrowserWindow } from "electron";
+import { beforeEach, expect, test, vi } from "vite-plus/test";
+import type { BrowserWindow, Session, WebContents } from "electron";
 
-const native = vi.hoisted(() => ({ views: [] as unknown[] }));
+const native = vi.hoisted(() => ({
+  views: [] as unknown[],
+  sessions: new Map<string, PermissionSession>(),
+}));
+class PermissionSession {
+  check: Parameters<Session["setPermissionCheckHandler"]>[0] = null;
+  request: Parameters<Session["setPermissionRequestHandler"]>[0] = null;
+  device: Parameters<Session["setDevicePermissionHandler"]>[0] = null;
+  setPermissionCheckHandler(handler: typeof this.check) {
+    this.check = handler;
+  }
+  setPermissionRequestHandler(handler: typeof this.request) {
+    this.request = handler;
+  }
+  setDevicePermissionHandler(handler: typeof this.device) {
+    this.device = handler;
+  }
+}
+function sessionFor(partition: string) {
+  let session = native.sessions.get(partition);
+  if (!session) {
+    session = new PermissionSession();
+    native.sessions.set(partition, session);
+  }
+  return session;
+}
+beforeEach(() => native.sessions.clear());
 vi.mock("electron", () => ({
+  session: { fromPartition: (partition: string) => sessionFor(partition) },
   WebContentsView: class {
     preferences: unknown;
     visible = false;
     bounds?: { x: number; y: number; width: number; height: number };
-    webContents = new Contents();
-    constructor(options: { webPreferences: unknown }) {
+    webContents: Contents;
+    constructor(options: { webPreferences: { session?: PermissionSession; partition?: string } }) {
+      this.webContents = new Contents(
+        options.webPreferences.session ?? sessionFor(options.webPreferences.partition ?? "default"),
+      );
       this.preferences = options.webPreferences;
       native.views.push(this);
     }
@@ -23,6 +53,10 @@ vi.mock("electron", () => ({
 }));
 
 class Contents extends EventEmitter {
+  policyAtLoad: boolean[] = [];
+  constructor(readonly session: PermissionSession) {
+    super();
+  }
   destroyed = false;
   url = "";
   openWindow?: (details: { url: string }) => { action: string };
@@ -36,6 +70,17 @@ class Contents extends EventEmitter {
     return this.destroyed;
   }
   loadURL = async (url: string) => {
+    this.policyAtLoad = [
+      this.session.check?.(null, "media", url, { isMainFrame: true, requestingUrl: url }) ?? true,
+    ];
+    if (this.session.request)
+      this.session.request(
+        this as unknown as WebContents,
+        "media",
+        (allow) => this.policyAtLoad.push(allow),
+        { isMainFrame: true, requestingUrl: url },
+      );
+    else this.policyAtLoad.push(true);
     this.url = url;
     this.emit("did-start-loading");
     this.emit("did-navigate", {}, url);
@@ -189,3 +234,124 @@ test.each(["back", "forward", "reload"] as const)(
     }
   },
 );
+
+test.each([
+  "media",
+  "notifications",
+  "geolocation",
+  "clipboard-read",
+  "fileSystem",
+  "display-capture",
+  "hid",
+  "serial",
+  "usb",
+  "unknown",
+] as const)(
+  "guest permission %s is denied for checks and requests in main and child frames",
+  async (permission) => {
+    const { manager, guest } = setup();
+    try {
+      await manager.command({ type: "create", id: "web", url: "https://example.com/" });
+      const contents = guest().webContents;
+      for (const isMainFrame of [true, false]) {
+        for (const origin of ["https://example.com", "http://localhost"]) {
+          const details = { isMainFrame, requestingUrl: origin };
+          expect(contents.session.check?.(null, permission, origin, details) ?? true).toBe(false);
+          expect(
+            contents.session.check?.(
+              contents as unknown as WebContents,
+              permission,
+              origin,
+              details,
+            ) ?? true,
+          ).toBe(false);
+          const decisions: boolean[] = [];
+          if (contents.session.request)
+            contents.session.request(
+              contents as unknown as WebContents,
+              permission,
+              (allow) => decisions.push(allow),
+              details,
+            );
+          else decisions.push(true); // Documented Electron default, not a native-device experiment.
+          expect(decisions).toEqual([false]);
+        }
+      }
+    } finally {
+      manager.dispose();
+    }
+  },
+);
+
+test("guest policy is installed before first load, stays partition-local and survives another window closing", async () => {
+  const first = setup();
+  const second = setup();
+  try {
+    await first.manager.command({ type: "create", id: "first", url: "https://example.com/" });
+    await second.manager.command({ type: "create", id: "second", url: "https://example.org/" });
+    const contents = second.guest().webContents;
+    expect(first.guest().webContents.policyAtLoad).toEqual([false, false]);
+    expect(contents.policyAtLoad).toEqual([false, false]);
+    expect(contents.session).toBe(first.guest().webContents.session);
+    expect(contents.session).toBe(sessionFor("persist:eta-browser"));
+    const control = sessionFor("default");
+    expect(control.check).toBeNull();
+    expect(control.request).toBeNull();
+    expect(control.device).toBeNull();
+    first.manager.dispose();
+    const decisions: boolean[] = [];
+    contents.session.request?.(
+      contents as unknown as WebContents,
+      "notifications",
+      (allow) => decisions.push(allow),
+      { isMainFrame: true, requestingUrl: "https://example.org/" },
+    );
+    expect(decisions).toEqual([false]);
+    expect(contents.url).toBe("https://example.org/");
+  } finally {
+    first.manager.dispose();
+    second.manager.dispose();
+  }
+});
+
+const devices = [
+  {
+    deviceType: "serial",
+    origin: "https://example.com",
+    device: { portId: "serial", portName: "fixture" },
+  },
+  {
+    deviceType: "hid",
+    origin: "https://example.com",
+    device: { deviceId: "hid", name: "fixture", collections: [], vendorId: 1, productId: 1 },
+  },
+  {
+    deviceType: "usb",
+    origin: "https://example.com",
+    device: {
+      deviceId: "usb",
+      configurations: [],
+      deviceClass: 0,
+      deviceSubclass: 0,
+      deviceProtocol: 0,
+      deviceVersionMajor: 1,
+      deviceVersionMinor: 0,
+      deviceVersionSubminor: 0,
+      usbVersionMajor: 2,
+      usbVersionMinor: 0,
+      usbVersionSubminor: 0,
+      vendorId: 1,
+      productId: 1,
+    },
+  },
+] satisfies Parameters<NonNullable<Parameters<Session["setDevicePermissionHandler"]>[0]>>[0][];
+
+test.each(devices)("guest remembered $deviceType device permission is denied", async (details) => {
+  const { manager, guest } = setup();
+  try {
+    await manager.command({ type: "create", id: "web", url: "https://example.com/" });
+    expect(guest().webContents.session.device?.(details) ?? true).toBe(false);
+  } finally {
+    manager.dispose();
+  }
+});

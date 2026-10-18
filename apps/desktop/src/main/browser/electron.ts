@@ -1,4 +1,4 @@
-import { WebContentsView } from "electron";
+import { session, WebContentsView } from "electron";
 import type { BrowserWindow } from "electron";
 import { Schema } from "effect";
 import { browserAddress, desktopShortcut } from "../../browser/protocol.ts";
@@ -35,13 +35,18 @@ export function decodeBrowserCommand(raw: unknown): BrowserCommand {
 
 /** Guest pages never receive Eta's preload, credentials, or agent bridge. */
 export function createWindowBrowser(window: BrowserWindow) {
+  // Guests have no permission prompt; sandboxing does not deny web API permissions.
+  const guestSession = session.fromPartition("persist:eta-browser");
+  guestSession.setPermissionCheckHandler(() => false);
+  guestSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  guestSession.setDevicePermissionHandler(() => false);
   const emit = (event: BrowserEvent) => {
     if (!window.webContents.isDestroyed()) window.webContents.send("browser:event", event);
   };
   const manager = new BrowserManager((id, changed) => {
     const view = new WebContentsView({
       webPreferences: {
-        partition: "persist:eta-browser",
+        session: guestSession,
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,

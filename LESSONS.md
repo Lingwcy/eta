@@ -256,6 +256,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Configure guest web permissions independently of renderer sandboxing.**
+
+- Evidence: on 2026-10-18, #174 finds that the isolated Desktop browser session has no permission policy despite sandbox/no-preload flags. Electron 44.4.2 documents default request approval and requires both check and request handlers. SDK-shaped adapter tests exercise denial before first load, main/subframes, devices, shared windows and an untouched default session; they are not native device-access or production-leak proof.
+- Check: install explicit checks, request decisions and device policy on the actual guest session before views load. Without consent UI, deny by default; do not reset a shared session when one window closes or change the trusted renderer session. Keep OS, user-gesture and platform verification limits explicit.
+- Seen: 2026-10-18.
+
 **Project authoritative configuration consistently when opening and observing a conversation.**
 
 - Evidence: on 2026-10-18, #161 delivers valid Mobile SSE sandbox changes through the real client/parser. The thread snapshot updates, but the model/thinking-only projection retains an old sandbox mode in the priority UI configuration, next draft and cache. Matching the open projection fixes both immediate and coalesced frames; unchanged/missing-mode and no-policy-RPC controls distinguish state synchronization from server permission changes.
