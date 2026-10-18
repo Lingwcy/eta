@@ -41,15 +41,13 @@ export class DesktopLibraryClient {
     this.unsubscribeLibrary = undefined;
   }
 
-  refresh = async () => {
-    const epoch = ++this.revision;
-    const library = await this.bridge.library();
-    if (this.mounted && epoch === this.revision) this.update({ library });
-    return library;
-  };
+  refresh = () => this.read(++this.revision);
 
   reload = () => {
-    void this.refresh().catch(this.reportError);
+    const epoch = ++this.revision;
+    void this.read(epoch).catch((error) => {
+      if (epoch === this.revision) this.reportError(error);
+    });
   };
 
   clearError = () => this.update({ error: null });
@@ -67,8 +65,16 @@ export class DesktopLibraryClient {
       await this.bridge.updateSettings(patch);
     });
 
+  private async read(epoch: number) {
+    const library = await this.bridge.library();
+    if (this.mounted && epoch === this.revision) this.update({ library });
+    return library;
+  }
+
   private async mutate(action: () => Promise<void>) {
     if (this.state.busy) return;
+    // Pre-write reads are obsolete before the write itself settles or starts its refresh.
+    ++this.revision;
     this.update({ busy: true, error: null });
     try {
       await action();
