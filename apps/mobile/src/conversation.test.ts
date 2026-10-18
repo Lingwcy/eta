@@ -1,6 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import {
   conversationRows,
+  textContent,
   getToolSummary,
   taskLabel,
   toolCallState,
@@ -29,6 +30,77 @@ test("streaming replies keep their identity when saved and are not rendered twic
   const saved = conversationRows({ ...snapshot, transcript: [{ id: "persisted-id", message }] });
   expect(saved).toHaveLength(1);
   expect(saved[0]?.id).toBe(streaming[0]?.id);
+});
+
+test.each([true, false])(
+  "a previous turn cannot hide the current stream (metadata=%s)",
+  (metadata) => {
+    const identity = metadata ? { timestamp: 10, provider: "test", model: "one" } : {};
+    const previous: BotMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Earlier answer" }],
+      ...identity,
+    };
+    const current: BotMessage = {
+      ...previous,
+      content: [{ type: "text", text: "Current answer" }],
+    };
+    const value = SnapshotSchema.parse({
+      ...thread.snapshot,
+      transcript: [
+        { id: "old", message: previous },
+        { id: "user", message: { role: "user", content: "Next question", timestamp: 10 } },
+      ],
+      operation: { id: "current", status: "running", runningTools: [], streamingMessage: current },
+    });
+    const rows = conversationRows(value);
+    expect(rows.map(({ message }) => textContent(message))).toEqual([
+      "Earlier answer",
+      "Next question",
+      "Current answer",
+    ]);
+    const id = rows.at(-1)?.id;
+    const stream = value.operation!.streamingMessage!;
+    const saved = conversationRows(
+      SnapshotSchema.parse({
+        ...value,
+        transcript: [...value.transcript, { id: "saved", message: stream }],
+      }),
+    );
+    expect(saved).toHaveLength(3);
+    if (metadata) expect(saved.at(-1)?.id).toBe(id);
+    expect(new Set(saved.map(({ id }) => id)).size).toBe(3);
+  },
+);
+
+test("an orphan result after the saved assistant does not duplicate the current stream", () => {
+  const message: BotMessage = {
+    role: "assistant",
+    timestamp: 10,
+    provider: "test",
+    model: "one",
+    content: [{ type: "text", text: "Saved reply" }],
+  };
+  const value = SnapshotSchema.parse({
+    ...thread.snapshot,
+    transcript: [
+      { id: "saved", message },
+      {
+        id: "orphan",
+        message: {
+          role: "toolResult",
+          toolCallId: "missing",
+          toolName: "read",
+          content: [{ type: "text", text: "Recovered result" }],
+        },
+      },
+    ],
+    operation: { id: "current", status: "running", runningTools: [], streamingMessage: message },
+  });
+  expect(conversationRows(value).map(({ message }) => textContent(message))).toEqual([
+    "Saved reply",
+    "Recovered result",
+  ]);
 });
 
 test("status distinguishes waiting for approval, recovery and cancellation", () => {
