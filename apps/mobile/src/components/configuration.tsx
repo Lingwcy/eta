@@ -385,9 +385,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    height: "36%",
-    minHeight: 270,
-    maxHeight: 330,
+    maxHeight: "62%",
     backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -467,7 +465,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   modelListWrapper: {
-    flex: 1,
+    maxHeight: 246,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 10,
@@ -475,7 +473,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   modelListScroll: {
-    flex: 1,
+    flexGrow: 0,
   },
   menuItem: {
     height: 32,
