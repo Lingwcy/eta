@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
-import { useState } from "react";
 import { Brain } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -10,11 +9,12 @@ import {
   ScrollAreaScrollbar,
 } from "@/components/ui/scroll-area";
 import { useScrollFollow } from "./use-scroll-follow";
+import { useMessageExpansion } from "./chat-message-state";
 
 /** Keeps the chosen open state when a streamed thought becomes saved history. */
 export function ThinkingMessage({ text, active }: { text: string; active: boolean }) {
   useTranslation();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useMessageExpansion("thinking");
   const preview =
     text.trim().split(/\r\n|\r|\n/, 1)[0] || t("chat:thinkingMessage.thinkingContent2");
   const title = open ? t("chat:thinkingMessage.thinkingContent2") : preview;

@@ -125,7 +125,12 @@ export function ConversationPanel({
           })}
       <div className={child ? "hidden" : "contents"}>
         <ScheduleMessages value={scheduleMessages}>
-          <ChatTranscript {...view.transcript} origins={origins}>
+          <ChatTranscript
+            key={tab.threadId ?? tab.id}
+            {...view.transcript}
+            origins={origins}
+            active={active && !child}
+          >
             {view.welcome && <ChatWelcome {...view.welcome} />}
             {view.loading && <ThreadLoading {...view.loading} />}
             {view.recovery && <RecoveryNotice {...view.recovery} />}

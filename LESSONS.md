@@ -58,6 +58,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## UI scope
 
+**Bound mounted transcript rows and index tools once per observation.**
+
+- Evidence: on 2026-10-17, the maintainer reported slow opening and client-wide lag in a long-running scheduled thread. Source inspection found every historical message mounted, with every message rebuilding and scanning the full tool index. An isolated Chrome fixture with 200 runs and 2,000 transcript records mounted about 22,000 DOM nodes before virtualization and about 750 afterward; this is synthetic evidence, not a profile of the reported thread.
+- Check: use a shared tool index, navigate by virtual offsets, and retain expansion outside virtual rows. The real-component `chat-transcript.test.ts` regressions cover bounded mounting, navigation to unmounted history, expansion restoration, bottom follow and reading-position preservation. Keep a changing tail identity when a footer follows the messages, or append detection cannot recognize new output.
+- Seen: 2026-10-17.
+
 **Exercise interactive popup content when changing compound UI components.**
 
 - Evidence: on 2026-10-13, opening the worktree branch submenu threw `ComboboxGroupContext is missing` because its `CommandGroupLabel` lacked a `CommandGroup`. Typecheck and renderer build had passed; a DOM interaction test reproduced the exception and now covers opening, searching, selecting and reopening the real picker.

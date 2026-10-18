@@ -4,7 +4,7 @@ import {
   ScheduleToolNotice,
   scheduleToolResult,
 } from "@/components/schedules/schedule-tool-notice";
-import { useState } from "react";
+import { useMessageExpansion } from "@/components/chat/chat-message-state";
 import { Clock3, CircleX, FileCode2, FilePenLine, Search, Terminal, Wrench } from "lucide-react";
 import type { SnapshotTool } from "@eta/core/agent/protocol";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ export function ToolItem({ tool }: { tool: SnapshotTool }) {
 
 function GenericToolItem({ tool }: { tool: SnapshotTool }) {
   useTranslation();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useMessageExpansion(`tool:${tool.toolCallId}`);
   const failed = tool.status === "settled" && tool.isError;
   const running = tool.status === "running";
   const waiting = tool.status === "waiting";

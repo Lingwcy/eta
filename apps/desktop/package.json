@@ -22,6 +22,7 @@
     "@earendil-works/pi-ai": "1.3.0",
     "@eta/agent": "workspace:*",
     "@eta/core": "workspace:*",
+    "@tanstack/react-virtual": "catalog:",
     "class-variance-authority": "^0.7.1",
     "effect": "catalog:",
     "electron-updater": "catalog:",
