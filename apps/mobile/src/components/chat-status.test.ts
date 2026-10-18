@@ -39,11 +39,12 @@ vi.mock("react-native", async () => {
 vi.mock("lucide-react-native", () => ({
   AlertTriangle: () => null,
   CloudOff: () => null,
+  MessageSquare: () => null,
   RefreshCw: () => null,
   SlidersHorizontal: () => null,
 }));
 
-import { PendingNotice, TaskStatus, taskTone } from "./chat-status";
+import { ChatEmptyState, PendingNotice, TaskStatus, taskTone } from "./chat-status";
 
 let root: Root;
 let container: HTMLDivElement;
@@ -114,6 +115,21 @@ test("task status renders its label as a live status line", async () => {
   );
   const status = container.querySelector('[role="status"]')!;
   expect(status.textContent).toContain("等待审批");
+});
+
+test("empty state keeps the title, hint and inline action in one centered column", async () => {
+  await act(async () =>
+    root.render(
+      createElement(ChatEmptyState, {
+        title: "从这里开始工作",
+        hint: "任务将在 eta 中运行",
+        children: createElement("button", { type: "button" }, "重新加载会话"),
+      }),
+    ),
+  );
+  expect(container.textContent).toContain("从这里开始工作");
+  expect(container.textContent).toContain("任务将在 eta 中运行");
+  expect(container.querySelector("button")!.textContent).toBe("重新加载会话");
 });
 
 test("pending notice keeps the prompt visible and only offers retry after sending", async () => {

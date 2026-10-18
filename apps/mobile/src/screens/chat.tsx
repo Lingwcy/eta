@@ -17,6 +17,7 @@ import { conversationRows, taskLabel, isActivityMessage } from "../conversation.
 import { MessageView } from "../components/message.tsx";
 import { Approvals } from "../components/approvals.tsx";
 import {
+  ChatEmptyState,
   ConnectionBanner,
   ErrorStrip,
   PendingNotice,
@@ -71,11 +72,12 @@ export function ChatScreen() {
         <TaskStatus label={taskLabel(snapshot)} tone={taskTone(snapshot)} />
       )}
       {snapshot?.sandbox && !snapshot.sandbox.available && (
-        <Text style={common.error}>{snapshot.sandbox.reason ?? "Bot 沙盒不可用"}</Text>
+        <ErrorStrip message={snapshot.sandbox.reason ?? "Bot 沙盒不可用"} />
       )}
       {snapshot?.recoveryRequired && (
-        <View style={styles.resume}>
+        <View style={styles.inlineAction}>
           <Button
+            compact
             secondary
             disabled={!allowed || !!snapshot.blockedReason}
             onPress={() => {
@@ -87,8 +89,9 @@ export function ChatScreen() {
         </View>
       )}
       {!!state.thread?.thread.archivedAt && (
-        <View style={styles.resume}>
+        <View style={styles.inlineAction}>
           <Button
+            compact
             secondary
             disabled={!allowed}
             onPress={() => {
@@ -184,16 +187,16 @@ export function ChatScreen() {
               if (atBottom.current) list.current?.scrollToEnd({ animated: false });
             }}
             ListEmptyComponent={
-              <View style={styles.empty}>
-                <Text style={styles.emptyTitle}>
-                  {state.opening
+              <ChatEmptyState
+                title={
+                  state.opening
                     ? "正在读取会话…"
                     : state.threadId && !state.thread
                       ? "会话尚未加载"
-                      : "从这里开始工作"}
-                </Text>
-                <Text style={styles.emptyHint}>
-                  {!state.library?.models.length
+                      : "从这里开始工作"
+                }
+                hint={
+                  !state.library?.models.length
                     ? "Bot 尚未提供模型，请先在 Bot 配置模型凭据"
                     : state.thread && !state.opening
                       ? "这个会话还没有消息"
@@ -201,10 +204,12 @@ export function ChatScreen() {
                         ? "连接 Bot 后查看会话内容"
                         : project
                           ? `任务将在 ${project.name} 中运行`
-                          : "先选择或创建一个 Bot 项目"}
-                </Text>
+                          : "先选择或创建一个 Bot 项目"
+                }
+              >
                 {state.threadId && !state.thread && !state.opening && (
                   <Button
+                    compact
                     secondary
                     disabled={!connected || busy}
                     onPress={() => {
@@ -214,7 +219,7 @@ export function ChatScreen() {
                     重新加载会话
                   </Button>
                 )}
-              </View>
+              </ChatEmptyState>
             }
             ListFooterComponent={footer}
           />
@@ -321,16 +326,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   emptyList: { flexGrow: 1 },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center", gap: 10, paddingBottom: 64 },
-  emptyTitle: { fontSize: 22, fontWeight: "600", color: colors.text, letterSpacing: -0.2 },
-  emptyHint: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 21,
-    textAlign: "center",
-    maxWidth: 320,
-  },
-  resume: { marginVertical: 10 },
+  inlineAction: { alignItems: "flex-start", marginVertical: 8 },
   jump: {
     position: "absolute",
     bottom: 14,
