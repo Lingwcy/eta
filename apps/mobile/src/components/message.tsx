@@ -21,6 +21,7 @@ import {
   toolStateLabel,
   nestedTools,
   isActivityMessage,
+  type ToolIndex,
 } from "../conversation.ts";
 import { colors, ScrollArea } from "../ui.tsx";
 
@@ -161,10 +162,12 @@ function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
 export const MessageView = memo(function MessageView({
   message,
   snapshot,
+  tools,
   compactAfter = false,
 }: {
   message: BotMessage;
   snapshot: BotSnapshot;
+  tools: ToolIndex;
   compactAfter?: boolean;
 }) {
   const user = message.role === "user";
@@ -219,16 +222,10 @@ export const MessageView = memo(function MessageView({
         }
 
         if (part.type === "toolCall") {
-          const result = snapshot.transcript.find(
-            ({ message: value }) => value.role === "toolResult" && value.toolCallId === part.id,
-          )?.message;
-          const running = snapshot.operation?.runningTools.find(
-            (tool) => tool.toolCallId === part.id,
-          );
-          const stopped = snapshot.transcript.find(
-            ({ message: value }) => value === message,
-          )?.toolStatus;
-          const nested = nestedTools(snapshot, part.id);
+          const result = tools.results.get(part.id)?.message;
+          const running = part.id === undefined ? undefined : tools.running.get(part.id);
+          const stopped = tools.messages.get(message)?.toolStatus;
+          const nested = nestedTools(snapshot, part.id, tools);
           const showOuter =
             part.name !== "codemode" ||
             !nested.length ||
@@ -246,7 +243,9 @@ export const MessageView = memo(function MessageView({
                   args={part.arguments}
                   result={result}
                   description={toolDescription(snapshot, part.id, running?.description)}
-                  status={running?.status ?? stopped ?? toolCallState(snapshot, message, part.id)}
+                  status={
+                    running?.status ?? stopped ?? toolCallState(snapshot, message, part.id, tools)
+                  }
                 />
               )}
               <View style={showOuter ? styles.nestedTools : undefined}>

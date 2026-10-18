@@ -1,5 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import {
+  buildToolIndex,
   conversationRows,
   textContent,
   getToolSummary,
@@ -269,10 +270,12 @@ test("nested summaries survive truncated arguments and live results override sav
       ],
     },
   });
-  expect(nestedTools(snapshot, "script")).toMatchObject([
+  const liveTools = buildToolIndex(snapshot);
+  expect(nestedTools(snapshot, "script", liveTools)).toMatchObject([
     { id: "script/c1", description: "保存内容", status: "running", args: { path: "a.txt" } },
   ]);
   snapshot.operation = null;
+  expect(nestedTools(snapshot, "script", liveTools)[0]?.status).toBe("running");
   expect(nestedTools(snapshot, "script")).toMatchObject([
     { id: "script/c1", description: "保存内容", status: "settled", result: { isError: true } },
   ]);
@@ -325,4 +328,79 @@ test("empty assistant rows do not reserve vertical spacing", () => {
   expect(conversationRows(snapshot)).toEqual([
     { id: "visible", message: { role: "assistant", content: "Reply" } },
   ]);
+});
+
+test("tool indexes keep first matches, stopped messages and each snapshot's live state", () => {
+  const message: BotMessage = {
+    role: "assistant",
+    content: [{ type: "toolCall", id: "call", name: "write", arguments: {} }],
+  };
+  const first = {
+    id: "first",
+    message: { role: "toolResult" as const, toolCallId: "call", content: "First output" },
+    toolStatus: "stopped",
+  };
+  const snapshot: BotSnapshot = {
+    ...thread.snapshot,
+    transcript: [
+      { id: "assistant", message, toolStatus: "stopped" },
+      { id: "duplicate-message", message, toolStatus: "settled" },
+      first,
+      { id: "second", message: { ...first.message, content: "Later output" } },
+    ],
+    operation: {
+      id: "run",
+      status: "running",
+      streamingMessage: message,
+      runningTools: [
+        { toolCallId: "call", toolName: "write", args: {}, status: "running" },
+        { toolCallId: "call", toolName: "write", args: {}, status: "waiting" },
+      ],
+    },
+  };
+  const tools = buildToolIndex(snapshot);
+  expect(tools.results.get("call")).toBe(first);
+  expect(tools.messages.get(message)?.toolStatus).toBe("stopped");
+  expect(tools.running.get("call")?.status).toBe("running");
+  expect(toolCallState(snapshot, message, "call", tools)).toBe("stopped");
+  const next = { ...snapshot, transcript: [], operation: null };
+  const updated = buildToolIndex(next);
+  expect(updated.results.has("call")).toBe(false);
+  expect(updated.running.has("call")).toBe(false);
+  expect(toolCallState(next, message, "call", updated)).toBe("incomplete");
+  expect(tools.results.get("call")).toBe(first);
+});
+
+test("shared tool queries do not revisit history or decode unseen nested previews", () => {
+  let visits = 0;
+  let decoded = 0;
+  const transcript: BotSnapshot["transcript"] = Array.from({ length: 2000 }, (_, index) => ({
+    id: String(index),
+    get message(): BotMessage {
+      visits++;
+      return {
+        role: "toolResult",
+        toolName: "codemode",
+        toolCallId: String(index),
+        content: [],
+        get details() {
+          decoded++;
+          return { calls: [{ id: 1, name: "write", args: "{}", status: "ok" }] };
+        },
+      };
+    },
+  }));
+  const snapshot = { ...thread.snapshot, transcript };
+  const tools = buildToolIndex(snapshot);
+  expect(visits).toBe(transcript.length);
+  expect(decoded).toBe(0);
+  for (let i = 0; i < 30; i++) {
+    const id = String(i);
+    expect(tools.results.get(id)?.id).toBe(id);
+    expect(toolCallState(snapshot, { role: "assistant", content: [] }, id, tools)).toBe("settled");
+    expect(nestedTools(snapshot, id, tools)).toMatchObject([{ name: "write", status: "settled" }]);
+    expect(nestedTools(snapshot, id, tools)).toBe(nestedTools(snapshot, id, tools));
+  }
+  expect(visits).toBe(transcript.length);
+  expect(decoded).toBe(30);
 });
