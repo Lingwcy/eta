@@ -258,7 +258,7 @@ function ThreadEditForm({
           void save();
         }}
       >
-        <DialogTitle className="text-lg font-semibold">
+        <DialogTitle className="text-base font-medium">
           {deleting
             ? t("chat:threadActions.deleteChatPermanently")
             : t("chat:threadActions.renameChat")}
