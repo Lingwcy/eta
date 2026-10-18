@@ -3,7 +3,7 @@ import { t } from "@/i18n";
 import { isCloudId } from "../../../src/shared/bot.ts";
 import { defaultModel, projectRootWorkspace } from "@/desktop/selectors";
 import type { ImageAttachment } from "@eta/core/images/types";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useThinkingStatus } from "./use-thinking-status";
 import { useThreadAgent } from "./use-thread-agent";
 import { DraftThread } from "./draft-thread";
@@ -53,13 +53,29 @@ export function useDesktopController(
     thinkingLevel: ThinkingLevel;
   }>();
   const snapshot = agent.observation?.snapshot;
-  const mainModel =
-    agent.session?.model ??
-    (cloud && cloudSelection
-      ? cloudSelection.model
-      : modelLibrary
-        ? defaultModel(modelLibrary)
-        : undefined);
+  const configuredProvider = snapshot?.configuration.model.provider;
+  const configuredModelId = snapshot?.configuration.model.modelId;
+  const sessionModel = agent.session?.model;
+  const catalogModels = modelLibrary?.models;
+  const liveModel = useMemo(() => {
+    if (
+      sessionModel &&
+      sessionModel.provider === configuredProvider &&
+      sessionModel.id === configuredModelId
+    )
+      return sessionModel;
+    return catalogModels?.find(
+      (model) => model.provider === configuredProvider && model.id === configuredModelId,
+    );
+  }, [sessionModel, configuredProvider, configuredModelId, catalogModels]);
+  const mainModel = snapshot
+    ? liveModel
+    : (agent.session?.model ??
+      (cloud && cloudSelection
+        ? cloudSelection.model
+        : modelLibrary
+          ? defaultModel(modelLibrary)
+          : undefined));
   useEffect(() => {
     if (active)
       desktop.selectMainModel(mainModel && { provider: mainModel.provider, modelId: mainModel.id });
@@ -252,7 +268,7 @@ export function useDesktopController(
           ? (cloudSelection?.thinkingLevel ?? modelLibrary?.settings.defaultThinkingLevel)
           : desktop.library?.settings.defaultThinkingLevel),
       contextTokens: agent.observation?.contextTokens,
-      contextWindow: agent.session?.model.contextWindow,
+      contextWindow: snapshot ? liveModel?.contextWindow : agent.session?.model.contextWindow,
       cwd: cloud ? undefined : workspace?.cwd,
       onSubmit: async (prompt: string, images?: readonly ImageAttachment[]) => {
         desktop.clearError();

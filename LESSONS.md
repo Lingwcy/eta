@@ -259,6 +259,7 @@ and inspect every build configuration that derives those keys.**
 **Project authoritative configuration consistently when opening and observing a conversation.**
 
 - Evidence: on 2026-10-18, #161 delivers valid Mobile SSE sandbox changes through the real client/parser. The thread snapshot updates, but the model/thinking-only projection retains an old sandbox mode in the priority UI configuration, next draft and cache. Matching the open projection fixes both immediate and coalesced frames; unchanged/missing-mode and no-policy-RPC controls distinguish state synchronization from server permission changes.
+- Additional evidence: on 2026-10-18, #168 receives a live Desktop model switch but still renders the open-session model name/window and global selection. Matching provider/model IDs against the correct local/Bot catalog synchronizes metadata; unknown models clear stale capacity, later catalog arrival and real picker selection recover, and matching session-only metadata remains usable.
 - Check: cover every configuration field on both ingestion paths, including clearing absent optional fields and downstream inheritance/persistence. A schema accepting the field does not prove the client actually applies it.
 - Seen: 2026-10-18.
 
