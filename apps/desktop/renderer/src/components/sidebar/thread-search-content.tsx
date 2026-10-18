@@ -144,23 +144,25 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
             </CommandGroupLabel>
             {chats.map((chat, index) => (
               <ThreadContextMenu key={chat.id} id={chat.id} onScheduleOpen={props.onClose}>
-                <CommandItem value={chat} onClick={() => choose(() => props.onSelect(chat.id))}>
-                  <span className="w-4 shrink-0" aria-hidden="true" />
+                <CommandItem
+                  variant="row"
+                  value={chat}
+                  onClick={() => choose(() => props.onSelect(chat.id))}
+                >
+                  <span className="size-3.5 shrink-0" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate">{chat.label}</span>
                   <ThreadItemStatus
                     running={props.runningThreadIds.has(chat.id)}
                     scheduled={props.scheduledThreadIds?.has(chat.id) ?? false}
                     worktree={chat.worktree}
                   />
-                  <span className="max-w-28 truncate text-[13px] text-neutral-400">
-                    {chat.project}
-                  </span>
+                  <span className="max-w-28 truncate text-xs text-neutral-400">{chat.project}</span>
                   {index < 9 && <Kbd variant="badge">⌃{index + 1}</Kbd>}
                 </CommandItem>
               </ThreadContextMenu>
             ))}
             {!chats.length && (
-              <p className="px-6 py-3 text-sm text-neutral-400">
+              <p className="px-4 py-3 text-[13px] text-neutral-400">
                 {query.trim()
                   ? t("navigation:threadSearchContent.noMatchingChatsFound")
                   : t("navigation:threadSearchContent.noChatHistory")}
@@ -175,13 +177,14 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
               {actions.map((action) => (
                 <CommandItem
                   key={action.id}
+                  variant="row"
                   value={action}
                   disabled={action.disabled}
                   onClick={() => choose(action.run)}
                 >
-                  <action.icon size={16} aria-hidden="true" />
+                  <action.icon aria-hidden="true" />
                   <span className="flex-1">{action.label}</span>
-                  <Kbd variant="badge">{action.shortcut}</Kbd>
+                  {action.shortcut && <Kbd variant="badge">{action.shortcut}</Kbd>}
                 </CommandItem>
               ))}
             </CommandGroup>
