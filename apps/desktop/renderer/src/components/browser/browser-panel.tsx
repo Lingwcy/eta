@@ -112,17 +112,17 @@ export function BrowserPanel({
             )}
           </>
         ) : (
-          <div className="mx-auto flex h-full max-w-[620px] flex-col items-center justify-center px-8 pb-16">
-            <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-neutral-100">
-              <Globe2 size={28} strokeWidth={1.4} className="text-neutral-500" />
+          <div className="mx-auto flex h-full max-w-[560px] flex-col items-center justify-center px-8 pb-14">
+            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-neutral-100">
+              <Globe2 size={22} strokeWidth={1.5} className="text-neutral-500" />
             </div>
-            <h1 className="text-xl font-medium tracking-tight text-neutral-800">
+            <h1 className="text-[17px] font-semibold tracking-tight text-neutral-800">
               {t("browser:browserPanel.startHere")}
             </h1>
-            <p className="mt-2 text-sm text-neutral-400">
+            <p className="mt-1 text-[13px] text-neutral-400">
               {t("browser:browserPanel.browseTheWebOrOpenANew")}
             </p>
-            <div className="mt-8 flex items-center gap-3">
+            <div className="mt-6 flex items-center gap-2">
               <Button variant="secondary" size="sm" onClick={() => tabs.newConversation()}>
                 <MessageCircle size={15} />
                 {t("browser:browserPanel.newChat")}
