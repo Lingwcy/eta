@@ -28,6 +28,18 @@ for (const platform of ["ios", "android"]) {
   console.log(`${platform}: exported bundle has no Eta agent, core or desktop sources`);
 }
 const config = JSON.parse(await readFile(join(root, "app.json"), "utf8")).expo;
+assert.equal(config.name, "Eta");
+assert.equal(config.ios.bundleIdentifier, "com.eta.mobile");
+assert.equal(config.android.package, "com.eta.mobile");
+assert.equal(config.scheme, "eta-mobile");
+assert.equal(config.android.adaptiveIcon.backgroundColor, "#171717");
+for (const path of new Set([config.icon, config.android.adaptiveIcon.foregroundImage])) {
+  assert.equal(typeof path, "string", "Missing app icon");
+  const icon = await readFile(join(root, path));
+  assert.equal(icon.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", "Icon must be PNG");
+  assert.equal(icon.readUInt32BE(16), 1024, "Icon must be 1024px wide");
+  assert.equal(icon.readUInt32BE(20), 1024, "Icon must be 1024px tall");
+}
 assert(!config.android.permissions.includes("android.permission.RECORD_AUDIO"));
 assert(config.android.blockedPermissions.includes("android.permission.RECORD_AUDIO"));
 console.log("eta-mobile package verified");
