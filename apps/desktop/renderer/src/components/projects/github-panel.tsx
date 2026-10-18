@@ -3,13 +3,107 @@ import { useTranslation } from "react-i18next";
 import { t, currentFormatLocale } from "@/i18n";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { GitRepositoryInfo } from "@eta/core/shared/git";
-import type { GitHubKind, GitHubState } from "@eta/core/shared/github";
+import type { GitHubItem, GitHubKind, GitHubState } from "@eta/core/shared/github";
 import type { GitHubClient } from "@/agent/github-client";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal } from "lucide-react";
+import { Select } from "@/components/ui/select";
+import {
+  CircleCheck,
+  CircleDot,
+  GitMerge,
+  GitPullRequest,
+  GitPullRequestClosed,
+  GitPullRequestDraft,
+  MoreHorizontal,
+} from "lucide-react";
 import { InspectorToolbar } from "@/components/inspector/inspector-tabs";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ToastNotice } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
+
+/** Row treatment matches the rest of Eta: compact type, one meta line, hover surface. */
+function GitHubRow({
+  kind,
+  item,
+  separated,
+}: {
+  kind: GitHubKind;
+  item: GitHubItem;
+  separated: boolean;
+}) {
+  useTranslation();
+  const merged = item.state === "merged";
+  const closed = item.state === "closed";
+  const StateIcon =
+    kind === "pulls"
+      ? item.draft
+        ? GitPullRequestDraft
+        : merged
+          ? GitMerge
+          : closed
+            ? GitPullRequestClosed
+            : GitPullRequest
+      : closed
+        ? CircleCheck
+        : CircleDot;
+  const tone = item.draft
+    ? "text-neutral-400"
+    : merged
+      ? "text-violet-500"
+      : closed
+        ? "text-red-500/80"
+        : "text-emerald-600";
+  const state = t(`inspector:githubPanel.state.${item.state}`);
+  return (
+    <article
+      className={cn(
+        "group flex items-start gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-neutral-100/70",
+        separated && "border-t border-neutral-100",
+      )}
+    >
+      <StateIcon size={14} className={cn("mt-[3px] shrink-0", tone)} aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`${item.title} · #${item.number} · ${state}`}
+          className="flex min-w-0 items-baseline gap-1.5 outline-none"
+        >
+          <span className="line-clamp-2 min-w-0 text-xs font-medium text-neutral-800 decoration-neutral-300 underline-offset-2 group-hover:underline">
+            {item.title}
+          </span>
+          <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">#{item.number}</span>
+        </a>
+        <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-neutral-400">
+          <span className="max-w-32 truncate">{item.author}</span>
+          <span aria-hidden="true">·</span>
+          <span className="tabular-nums">
+            {new Date(item.updatedAt).toLocaleDateString(currentFormatLocale())}
+          </span>
+          {item.draft && (
+            <span className="rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-500">
+              {t("inspector:githubPanel.draftBadge")}
+            </span>
+          )}
+          {item.labels.map((label) => (
+            <span
+              key={label}
+              className="max-w-32 truncate rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-500"
+            >
+              {label}
+            </span>
+          ))}
+        </p>
+        {item.head && (
+          <p className="mt-0.5 truncate font-mono text-[10.5px] text-neutral-400">
+            {item.head} <span aria-hidden="true">→</span> {item.base}
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
 
 export function GitHubPanel({
   client,
@@ -117,27 +211,27 @@ export function GitHubPanel({
             initialFocus={false}
             aria-label={t("inspector:githubPanel.githubListOptions")}
           >
-            <div className="flex flex-col gap-1 px-2 py-1">
-              <p className="text-xs text-neutral-500">GitHub · {name}</p>
+            <div className="flex flex-col gap-2 px-1 py-1">
+              <p className="px-1 text-xs text-neutral-500">GitHub · {name}</p>
               {remotes.length > 0 && (
-                <label className="text-xs">
-                  {t("inspector:githubPanel.browseRepository")}
-                  <select
-                    className="max-w-full bg-transparent text-xs outline-none"
-                    aria-label={t("inspector:githubPanel.remote")}
+                <label className="flex flex-col gap-1 px-1">
+                  <span className="text-[11px] text-neutral-500">
+                    {t("inspector:githubPanel.browseRepository")}
+                  </span>
+                  <Select
+                    className="w-full"
                     value={selection?.remote ?? ""}
+                    options={remotes.map((remote) => ({
+                      value: remote.name,
+                      label: `${remote.name} · ${remote.github!.owner}/${remote.github!.repo}`,
+                    }))}
+                    label={t("inspector:githubPanel.remote")}
+                    placeholder={t("inspector:githubPanel.chooseRemote")}
+                    size="compact"
+                    variant="menu"
                     disabled={!connected || view.loading}
-                    onChange={(event) => void onRemote(event.target.value)}
-                  >
-                    <option value="" disabled>
-                      {t("inspector:githubPanel.chooseRemote")}
-                    </option>
-                    {remotes.map((remote) => (
-                      <option key={remote.name} value={remote.name}>
-                        {remote.name} · {remote.github!.owner}/{remote.github!.repo}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={(remote) => void onRemote(remote)}
+                  />
                 </label>
               )}
               {!selection && (
@@ -145,21 +239,26 @@ export function GitHubPanel({
                   {t("inspector:githubPanel.chooseAGithubRepositoryToBrowse")}
                 </p>
               )}
-              <select
-                className="bg-transparent text-xs outline-none"
-                aria-label={t("inspector:githubPanel.githubStateFilter")}
-                value={state}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    [kind]: event.target.value as GitHubState,
-                  }))
-                }
-              >
-                <option value="open">{t("inspector:githubPanel.open")}</option>
-                <option value="closed">{t("inspector:githubPanel.closedFilter")}</option>
-                <option value="all">{t("inspector:githubPanel.all")}</option>
-              </select>
+              <label className="flex flex-col gap-1 px-1">
+                <span className="text-[11px] text-neutral-500">
+                  {t("inspector:githubPanel.githubStateFilter")}
+                </span>
+                <Select
+                  className="w-full"
+                  value={state}
+                  options={[
+                    { value: "open", label: t("inspector:githubPanel.open") },
+                    { value: "closed", label: t("inspector:githubPanel.closedFilter") },
+                    { value: "all", label: t("inspector:githubPanel.all") },
+                  ]}
+                  label={t("inspector:githubPanel.githubStateFilter")}
+                  size="compact"
+                  variant="menu"
+                  onValueChange={(next) =>
+                    setFilters((current) => ({ ...current, [kind]: next as GitHubState }))
+                  }
+                />
+              </label>
               <div className="flex gap-1">
                 <Button
                   variant="menu"
@@ -216,35 +315,16 @@ export function GitHubPanel({
               })}
             </p>
           )}
-          {page.items.map((item) => (
-            <article key={item.number} className="space-y-1 border-b border-neutral-200 pb-2">
-              <a
-                className="block text-xs font-medium text-neutral-800 underline-offset-2 hover:underline"
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                #{item.number} {item.title}
-              </a>
-              <p className="text-[11px] text-neutral-500">
-                {t(`inspector:githubPanel.state.${item.state}`)}
-                {item.draft ? t("inspector:githubPanel.draft") : ""} · {item.author} ·{" "}
-                {new Date(item.updatedAt).toLocaleDateString(currentFormatLocale())}
-              </p>
-              {item.head && (
-                <p className="break-all text-[11px] text-neutral-500">
-                  {item.head} → {item.base}
-                </p>
-              )}
-              {!!item.labels.length && (
-                <p className="text-[11px] text-neutral-500">{item.labels.join(" · ")}</p>
-              )}
-            </article>
-          ))}
+          <div className="flex flex-col">
+            {page.items.map((item, index) => (
+              <GitHubRow key={item.number} kind={kind} item={item} separated={index > 0} />
+            ))}
+          </div>
           {page.nextCursor && (
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost-muted"
+              size="row-sm"
+              className="justify-center text-neutral-500"
               disabled={!connected || view.loading || limited}
               onClick={() => void client.load(key, { ...query, cursor: page!.nextCursor }, true)}
             >

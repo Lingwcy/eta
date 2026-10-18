@@ -43,6 +43,7 @@ export default {
   "githubPanel.state.closed": "已关闭",
   "githubPanel.state.merged": "已合并",
   "githubPanel.state.all": "全部",
+  "githubPanel.draftBadge": "草稿",
   "githubPanel.draft": " · 草稿",
   "githubPanel.remote": "GitHub 远端仓库",
 } as const;

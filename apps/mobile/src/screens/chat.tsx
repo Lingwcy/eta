@@ -16,6 +16,13 @@ import { draftKey } from "../bot/store.ts";
 import { conversationRows, taskLabel, isActivityMessage } from "../conversation.ts";
 import { MessageView } from "../components/message.tsx";
 import { Approvals } from "../components/approvals.tsx";
+import {
+  ConnectionBanner,
+  ErrorStrip,
+  PendingNotice,
+  TaskStatus,
+  taskTone,
+} from "../components/chat-status.tsx";
 import { ConfigurationSheet, sandboxLabels, thinkingLabels } from "../components/configuration.tsx";
 import { ComposerInput } from "../components/composer-input.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
@@ -61,11 +68,7 @@ export function ChatScreen() {
     <>
       {snapshot && <Approvals snapshot={snapshot} />}
       {!!taskLabel(snapshot) && (
-        <View style={styles.task}>
-          <Text selectable style={common.hint}>
-            {taskLabel(snapshot)}
-          </Text>
-        </View>
+        <TaskStatus label={taskLabel(snapshot)} tone={taskTone(snapshot)} />
       )}
       {snapshot?.sandbox && !snapshot.sandbox.available && (
         <Text style={common.error}>{snapshot.sandbox.reason ?? "Bot 沙盒不可用"}</Text>
@@ -129,31 +132,18 @@ export function ChatScreen() {
           />
         </View>
         {state.status !== "connected" && (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>
-              {state.status === "reconnecting" ? "正在重连 Bot" : (state.error ?? "Bot 连接不可用")}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                void run(() => store.reconnect());
-              }}
-              disabled={busy}
-            >
-              <Text style={styles.link}>重连</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => router.push("/settings")}>
-              <Text style={styles.link}>设置</Text>
-            </Pressable>
-          </View>
+          <ConnectionBanner
+            reconnecting={state.status === "reconnecting"}
+            message={state.error}
+            url={state.url}
+            busy={busy}
+            onReconnect={() => {
+              void run(() => store.reconnect());
+            }}
+            onSettings={() => router.push("/settings")}
+          />
         )}
-        {connected && state.error && (
-          <View style={styles.banner}>
-            <Text accessibilityRole="alert" style={styles.bannerText}>
-              {state.error}
-            </Text>
-          </View>
-        )}
+        {connected && state.error && <ErrorStrip message={state.error} />}
         <View style={styles.transcript}>
           <FlatList
             ref={list}
@@ -243,25 +233,15 @@ export function ChatScreen() {
           )}
         </View>
         {state.pending && (
-          <View style={styles.pending}>
-            <Text style={styles.pendingTitle}>
-              {state.sending ? "正在提交消息…" : "上次消息的接收状态待确认"}
-            </Text>
-            <Text numberOfLines={2} style={common.hint}>
-              {state.pending.prompt}
-            </Text>
-            {!state.sending && (
-              <Button
-                secondary
-                disabled={!connected || busy}
-                onPress={() => {
-                  void run(() => store.retrySend());
-                }}
-              >
-                重试并确认接收
-              </Button>
-            )}
-          </View>
+          <PendingNotice
+            sending={state.sending}
+            prompt={state.pending.prompt}
+            busy={busy}
+            connected={connected}
+            onRetry={() => {
+              void run(() => store.retrySend());
+            }}
+          />
         )}
         <View style={styles.composerArea}>
           <ComposerInput
@@ -331,20 +311,6 @@ const styles = StyleSheet.create({
   title: { flex: 1, alignItems: "center", gap: 2 },
   titleText: { fontSize: 16, fontWeight: "600", color: colors.text },
   project: { fontSize: 12, color: colors.muted },
-  banner: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: colors.soft,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  bannerText: { flex: 1, color: colors.muted, fontSize: 13, lineHeight: 18 },
-  link: { color: colors.blue, fontSize: 13, fontWeight: "500", paddingVertical: 4 },
   transcript: { flex: 1 },
   messages: {
     paddingHorizontal: 18,
@@ -364,7 +330,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 320,
   },
-  task: { marginTop: 4, marginBottom: 12 },
   resume: { marginVertical: 10 },
   jump: {
     position: "absolute",
@@ -372,17 +337,6 @@ const styles = StyleSheet.create({
     right: 20,
     borderRadius: 20,
   },
-  pending: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    padding: 12,
-    gap: 6,
-    backgroundColor: colors.soft,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pendingTitle: { fontSize: 13, fontWeight: "600", color: colors.text },
   composerArea: {
     paddingHorizontal: 16,
     paddingTop: 8,

@@ -4,16 +4,73 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { ArrowLeft, Check, Eye, EyeOff } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Power,
+  RefreshCw,
+  Trash2,
+} from "lucide-react-native";
+import type { LucideIcon } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMobile } from "../provider.tsx";
-import { Button, colors, common, IconButton, useAction } from "../ui.tsx";
+import { colors, common, useAction } from "../ui.tsx";
+
+function statusLabel(status: string) {
+  if (status === "connected") return "已连接";
+  if (status === "connecting" || status === "reconnecting") return "正在连接";
+  return "连接不可用";
+}
+
+function statusColor(status: string) {
+  if (status === "connected") return colors.success;
+  if (status === "connecting" || status === "reconnecting") return "#D97706";
+  return colors.danger;
+}
+
+/** Compact grouped row; keeps a full-height touch target without the pill weight. */
+function ActionRow({
+  icon: Icon,
+  title,
+  onPress,
+  disabled,
+  destructive = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  onPress: () => void;
+  disabled: boolean;
+  destructive?: boolean;
+}) {
+  const tint = destructive ? colors.danger : colors.muted;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.actionRow,
+        pressed && styles.rowPressed,
+        disabled && styles.disabled,
+      ]}
+    >
+      <Icon size={15} strokeWidth={1.9} color={tint} />
+      <Text style={[styles.actionTitle, destructive && styles.destructive]}>{title}</Text>
+      <ChevronRight size={14} color={colors.muted} />
+    </Pressable>
+  );
+}
 
 export function SettingsScreen({ onboarding = false }: { onboarding?: boolean }) {
   const { store, state } = useMobile();
@@ -43,6 +100,8 @@ export function SettingsScreen({ onboarding = false }: { onboarding?: boolean })
         },
       ],
     );
+  const blocked = busy || state.sending;
+  const canConnect = !blocked && !!url.trim() && !!token.trim();
   return (
     <SafeAreaView style={common.screen}>
       <KeyboardAvoidingView
@@ -50,38 +109,48 @@ export function SettingsScreen({ onboarding = false }: { onboarding?: boolean })
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.header}>
-          {!onboarding && (
-            <IconButton icon={ArrowLeft} label="返回会话" onPress={() => router.back()} />
+          {onboarding ? (
+            <View style={styles.headerSpacer} />
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="返回会话"
+              hitSlop={8}
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.back, pressed && styles.rowPressed]}
+            >
+              <ArrowLeft size={18} color={colors.text} />
+            </Pressable>
           )}
-          <Text style={styles.brand}>{onboarding ? "eta-mobile" : "Bot 连接"}</Text>
+          <Text numberOfLines={1} style={styles.headerTitle}>
+            {onboarding ? "eta-mobile" : "连接设置"}
+          </Text>
+          <View style={styles.headerSpacer} />
         </View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-          <View style={common.section}>
-            <Text style={common.heading}>{onboarding ? "连接 Bot，继续工作" : "连接设置"}</Text>
-            <Text style={common.hint}>
-              手机连接已部署的 Eta Bot。项目、模型和任务都在 Bot 上运行。
-            </Text>
-          </View>
-          {state.url && (
-            <View style={styles.status}>
-              {state.status === "connected" && <Check size={18} color={colors.blue} />}
-              <View style={styles.statusText}>
-                <Text style={common.body}>
-                  {state.status === "connected"
-                    ? "已连接"
-                    : state.status === "connecting" || state.status === "reconnecting"
-                      ? "正在连接"
-                      : "连接不可用"}
-                </Text>
-                <Text selectable style={common.hint}>
-                  {state.url}
-                </Text>
-              </View>
-            </View>
-          )}
-          <View style={common.section}>
-            <View>
-              <Text style={common.label}>服务器地址</Text>
+          <Text style={styles.sectionLabel}>{onboarding ? "连接 Bot" : "Bot 连接"}</Text>
+          <Text style={styles.intro}>
+            手机连接已部署的 Eta Bot。项目、模型和任务都在 Bot 上运行。
+          </Text>
+
+          <View style={styles.group}>
+            {state.url && (
+              <>
+                <View style={styles.statusRow}>
+                  <View style={[styles.dot, { backgroundColor: statusColor(state.status) }]} />
+                  <View style={styles.statusText}>
+                    <Text style={styles.statusTitle}>{statusLabel(state.status)}</Text>
+                    <Text numberOfLines={1} selectable style={styles.statusUrl}>
+                      {state.url}
+                    </Text>
+                  </View>
+                  {state.status === "connected" && <Check size={14} color={colors.success} />}
+                </View>
+                <View style={styles.divider} />
+              </>
+            )}
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>服务器地址</Text>
               <TextInput
                 accessibilityLabel="Bot 服务器地址"
                 value={url}
@@ -91,12 +160,13 @@ export function SettingsScreen({ onboarding = false }: { onboarding?: boolean })
                 keyboardType="url"
                 placeholder="https://bot.example.com"
                 placeholderTextColor={colors.muted}
-                style={common.field}
+                style={styles.input}
               />
             </View>
-            <View>
-              <Text style={common.label}>访问令牌</Text>
-              <View style={styles.token}>
+            <View style={styles.divider} />
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>访问令牌</Text>
+              <View style={styles.tokenRow}>
                 <TextInput
                   accessibilityLabel="Bot 访问令牌"
                   value={token}
@@ -106,103 +176,237 @@ export function SettingsScreen({ onboarding = false }: { onboarding?: boolean })
                   secureTextEntry={!visible}
                   placeholder="输入 Bot 管理员令牌"
                   placeholderTextColor={colors.muted}
-                  style={styles.tokenInput}
+                  style={[styles.input, styles.tokenInput]}
                 />
-                <IconButton
-                  icon={visible ? EyeOff : Eye}
-                  label={visible ? "隐藏令牌" : "显示令牌"}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={visible ? "隐藏令牌" : "显示令牌"}
+                  hitSlop={7}
                   onPress={() => setVisible(!visible)}
-                />
+                  style={({ pressed }) => [styles.eye, pressed && styles.rowPressed]}
+                >
+                  {visible ? (
+                    <EyeOff size={15} color={colors.muted} />
+                  ) : (
+                    <Eye size={15} color={colors.muted} />
+                  )}
+                </Pressable>
               </View>
             </View>
-            <Text style={common.hint}>
-              访问令牌保存在手机的安全存储中。修改连接时需重新填写令牌。正式部署建议使用 HTTPS。
-            </Text>
             {state.error && (
-              <Text accessibilityRole="alert" style={common.error}>
+              <Text accessibilityRole="alert" style={styles.error}>
                 {state.error}
               </Text>
             )}
-            <Button
-              onPress={() => {
-                void connect();
-              }}
-              disabled={busy || state.sending || !url.trim() || !token.trim()}
-            >
-              {busy ? "正在验证连接…" : "验证并连接"}
-            </Button>
-          </View>
-          {state.url && (
-            <View style={common.section}>
-              <Button
-                secondary
-                disabled={busy || state.sending}
+            <View style={styles.divider} />
+            <View style={styles.submitRow}>
+              <Text style={styles.submitHint}>
+                {busy ? "正在验证连接…" : "令牌只保存在这台手机"}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="验证并连接"
+                hitSlop={6}
+                disabled={!canConnect}
                 onPress={() => {
-                  void run(() => store.reconnect());
+                  void connect();
                 }}
+                style={({ pressed }) => [
+                  styles.submit,
+                  pressed && styles.submitPressed,
+                  !canConnect && styles.submitDisabled,
+                ]}
               >
-                重新连接
-              </Button>
-              <Button
-                secondary
-                disabled={busy || state.sending}
-                onPress={() => {
-                  void run(() => store.disconnect());
-                }}
-              >
-                断开连接
-              </Button>
+                <Text style={[styles.submitText, !canConnect && styles.submitTextDisabled]}>
+                  {busy ? "连接中" : "连接"}
+                </Text>
+              </Pressable>
             </View>
-          )}
-          <View style={common.section}>
-            <Text style={common.hint}>
-              关闭 App 或断开连接后，Bot 已接收的任务会继续执行。需要取消任务时，请在会话中停止。
-            </Text>
-            <Button secondary disabled={busy || state.sending} onPress={clear}>
-              清除连接和手机缓存
-            </Button>
           </View>
+          <Text style={styles.footnote}>
+            令牌保存在手机的安全存储中；修改连接时需重新填写。正式部署建议使用 HTTPS。
+          </Text>
+
+          {state.url && (
+            <>
+              <Text style={[styles.sectionLabel, styles.sectionSpaced]}>连接操作</Text>
+              <View style={styles.group}>
+                <ActionRow
+                  icon={RefreshCw}
+                  title="重新连接"
+                  disabled={blocked}
+                  onPress={() => {
+                    void run(() => store.reconnect());
+                  }}
+                />
+                <View style={styles.divider} />
+                <ActionRow
+                  icon={Power}
+                  title="断开连接"
+                  disabled={blocked}
+                  onPress={() => {
+                    void run(() => store.disconnect());
+                  }}
+                />
+                <View style={styles.divider} />
+                <ActionRow
+                  icon={Trash2}
+                  title="清除连接和手机缓存"
+                  disabled={blocked}
+                  destructive
+                  onPress={clear}
+                />
+              </View>
+              <Text style={styles.footnote}>
+                关闭 App 或断开连接后，Bot 已接收的任务会继续执行。需要取消任务时，请在会话中停止。
+              </Text>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  brand: { fontSize: 18, fontWeight: "600", color: colors.text },
-  content: { padding: 24, paddingTop: 40, maxWidth: 560, width: "100%", alignSelf: "center" },
-  status: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 20,
-  },
-  statusText: { flex: 1 },
-  token: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingRight: 6,
-  },
-  tokenInput: {
-    flex: 1,
+    gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingTop: 4,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  back: {
+    width: 32,
+    height: 32,
+    marginLeft: -6,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerSpacer: { width: 26 },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+    letterSpacing: -0.2,
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 32,
+    maxWidth: 560,
+    width: "100%",
+    alignSelf: "center",
+  },
+  sectionLabel: {
+    paddingHorizontal: 2,
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: colors.muted,
+    letterSpacing: 0.3,
+  },
+  sectionSpaced: { marginTop: 22 },
+  intro: {
+    marginTop: 4,
+    marginBottom: 10,
+    paddingHorizontal: 2,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: colors.muted,
+  },
+  group: {
+    overflow: "hidden",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surface,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  statusText: { flex: 1, minWidth: 0 },
+  statusTitle: { fontSize: 13, fontWeight: "600", color: colors.text },
+  statusUrl: { marginTop: 1, fontSize: 11.5, color: colors.muted },
+  field: { paddingHorizontal: 12, paddingVertical: 9 },
+  fieldLabel: { marginBottom: 2, fontSize: 11.5, fontWeight: "500", color: colors.muted },
+  input: {
+    minHeight: 22,
+    padding: 0,
     fontSize: 15,
     color: colors.text,
+  },
+  tokenRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  tokenInput: { flex: 1 },
+  eye: {
+    width: 30,
+    height: 30,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  error: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.danger,
+  },
+  submitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  submitHint: { flex: 1, fontSize: 11.5, color: colors.muted },
+  submit: {
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: colors.text,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  submitPressed: { opacity: 0.82 },
+  submitDisabled: {
+    backgroundColor: colors.soft,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  submitText: { fontSize: 13, fontWeight: "600", color: colors.surface },
+  submitTextDisabled: { color: colors.muted },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 12,
+    backgroundColor: colors.borderSubtle,
+  },
+  actionRow: {
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+  },
+  actionTitle: { flex: 1, fontSize: 14, color: colors.text },
+  destructive: { color: colors.danger },
+  rowPressed: { backgroundColor: colors.soft },
+  disabled: { opacity: 0.45 },
+  footnote: {
+    marginTop: 8,
+    paddingHorizontal: 2,
+    fontSize: 11.5,
+    lineHeight: 17,
+    color: colors.muted,
   },
 });
