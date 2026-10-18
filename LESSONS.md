@@ -58,6 +58,13 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## UI scope
 
+**Keep PR-only visual evidence in GitHub review artifacts, not the source tree.**
+
+- Existing rule: [Pull requests](AGENTS.md#pull-requests) requires UI evidence but prohibits committing PR-only screenshots/assets.
+- Evidence: on 2026-10-18, #123 verifies that main 2b77de9 contains 20 review-only files from #28/#109 (16 PNGs and four fixture/revision comparison notes), despite the rule. Their immutable commit links preserve reviewability when the current tree is cleaned; product code and user documentation do not reference them.
+- Check: distinguish review material from runtime icons and product documentation images, include legacy review folders, and pin historical evidence before deletion. Removing current-tree files neither erases history nor shrinks an existing full Git clone; do not rewrite history to claim otherwise.
+- Seen: 2026-10-18.
+
 **Bound mounted transcript rows and index tools once per observation.**
 
 - Evidence: on 2026-10-17, the maintainer reported slow opening and client-wide lag in a long-running scheduled thread. Source inspection found every historical message mounted, with every message rebuilding and scanning the full tool index. An isolated Chrome fixture with 200 runs and 2,000 transcript records mounted about 22,000 DOM nodes before virtualization and about 750 afterward; this is synthetic evidence, not a profile of the reported thread.
