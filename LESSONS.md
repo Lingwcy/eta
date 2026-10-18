@@ -188,14 +188,6 @@ and inspect every build configuration that derives those keys.**
 - Check: cover state changes after the initial read and at the final request, normal advancement, publication failure/retry and immutable published reruns. A late refresh alone does not remove TOCTOU; do not claim a mock proves the service's internal concurrency implementation.
 - Seen: 2026-10-17.
 
-**Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
-
-- Evidence: on 2026-10-16, #57 holds a real Core recovery result across stop and resubmit of the same Bot thread. The old successful check releases the replacement's checkout reservation and admits a competing writer; an old failed check marks the replacement blocked. Two native regressions reproduce both outcomes before the fix and verify current completion still releases capacity afterward.
-- Additional evidence: on 2026-10-16, #76 preserves real unfinished work, reopens Core, resumes it and explicitly stops it before injecting a late resume failure. The outer recovery queue still re-blocked the idle checkout despite the inner lease guard; another thread received Busy. Reporting superseded ownership before cleanup prevents this, while a current-failure control still reserves the checkout until stop.
-- Additional evidence: on 2026-10-17, #113's Mobile persistence gates expose ten stale continuations that restart polling/SSE or issue follow-up requests after dispose. A connection-attempt token spans the pre-epoch cache flush; the original epoch is checked before later nested operations. This prevents stale callers from acquiring a fresh generation without rejecting the latest overlapping connect; ten current-owner controls retain observation and send completion.
-- Check: carry a per-claim identity across awaits, validate it before releasing or changing state, and dispose late subscription setup instead of overwriting a new monitor. Apply this to outer recovery/error queues too, before cleanup erases ownership evidence. Revalidate the original connection/view after persistence as well as network responses, before nested operations capture new ownership. Exercise stop/resubmit while previous work is pending; unsubscribing alone cannot retract an already running callback.
-- Seen: 2026-10-16, 2026-10-17.
-
 **Keep provider continuation payloads in runtime storage, out of display snapshots.**
 
 - Evidence: on 2026-10-15, the affected Bot thread returned 2,936,340 bytes, including 1,636,107 bytes of opaque `thinkingSignature` values. The server produced it in about 150 ms, but a client-side transfer received only 476 KB in 25 seconds and exceeded Desktop's 10-second deadline. `apps/bot/src/snapshot.test.ts` and the HTTP history/SSE regression verify the display projection removes continuation signatures without mutating Core history, tool arguments or text phase metadata.
@@ -273,6 +265,16 @@ model choice must still be validated as an explicit choice.**
 - Seen 1× (2026-10-12).
 
 ## Promoted lessons
+
+**Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
+
+- Evidence: on 2026-10-16, #57 holds a real Core recovery result across stop and resubmit of the same Bot thread. The old successful check releases the replacement's checkout reservation and admits a competing writer; an old failed check marks the replacement blocked. Two native regressions reproduce both outcomes before the fix and verify current completion still releases capacity afterward.
+- Additional evidence: on 2026-10-16, #76 preserves real unfinished work, reopens Core, resumes it and explicitly stops it before injecting a late resume failure. The outer recovery queue still re-blocked the idle checkout despite the inner lease guard; another thread received Busy. Reporting superseded ownership before cleanup prevents this, while a current-failure control still reserves the checkout until stop.
+- Additional evidence: on 2026-10-17, #113's Mobile persistence gates expose ten stale continuations that restart polling/SSE or issue follow-up requests after dispose. A connection-attempt token spans the pre-epoch cache flush; the original epoch is checked before later nested operations. This prevents stale callers from acquiring a fresh generation without rejecting the latest overlapping connect; ten current-owner controls retain observation and send completion.
+- Additional evidence: on 2026-10-18, #114 adds distinct failure/coalescing cases: the global refresh-busy flag suppresses a committed replacement's request, an old 401 aborts its live stream, and an old queued cache failure marks it failed. Client-scoped occupancy and owner checks reject these effects; same-URL token rotation and current-failure recovery are covered.
+- Check: carry a per-claim identity across awaits, validate it before releasing or changing state, and dispose late subscription setup instead of overwriting a new monitor. Apply this to outer recovery/error queues too, before cleanup erases ownership evidence. Revalidate the original connection/view after persistence as well as network responses, before nested operations capture new ownership. Exercise stop/resubmit while previous work is pending; unsubscribing alone cannot retract an already running callback.
+- Seen: 2026-10-16, 2026-10-17, 2026-10-18.
+- Promoted on 2026-10-18 to [Verifying](AGENTS.md#verifying).
 
 **Verify the runtime entry point and the packaged dependency graph when adding
 a dependency. A dev server succeeding does not prove an installed client works.**

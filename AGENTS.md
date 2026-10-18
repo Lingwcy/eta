@@ -63,6 +63,7 @@ rules in the relevant section of this file; retain their evidence in LESSONS.md.
 - Test meaningful logic or observable behavior. Do not render components to static markup to assert props or attributes, or add tests that merely assert callback wiring or mirror the implementation.
 - **Do not run repo-wide checks.** No `vp check`, no `vp run -r test`, no `vp run -r typecheck` unless I ask. CI owns the full suite.
 - Backend behavior changes ship with focused tests for that behavior.
+- Carry the original operation ownership across awaits. Before committing state or starting nested work, validate the actual admission/client/view identity, not just a stable ID or an unrelated epoch. Bind in-flight coalescing and cleanup to that owner so a stale completion cannot overwrite or release its replacement.
 - When adding a runtime dependency, verify its published exports and packaged dependency graph through the actual entry points, including DOM integration tests that transform host services. Development builds and typechecks can hide missing exports or reliance on prebuilt workspace output.
 - Wait for observable readiness or completion with bounded, phase-appropriate deadlines that allow native startup. Use controlled fixture gates rather than fixed sleeps, release held work in `finally` even when startup assertions fail, and do not treat a timeout increase or a successful retry alone as proof of a fix.
 
