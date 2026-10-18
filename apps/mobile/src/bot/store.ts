@@ -175,6 +175,7 @@ export class MobileStore {
           ...this.state.configuration,
           ...configuration.model,
           thinkingLevel: configuration.thinkingLevel,
+          sandboxMode: current.snapshot.sandbox?.mode,
         },
       });
     };
