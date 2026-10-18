@@ -23,7 +23,8 @@ export function SkillSettings({
 }) {
   useTranslation();
   const [cwd, setCwd] = useState("");
-  const [catalog, setCatalog] = useState<SkillCatalog>();
+  const [loaded, setLoaded] = useState<{ cwd: string; catalog: SkillCatalog }>();
+  const catalog = loaded?.cwd === cwd ? loaded.catalog : undefined;
   const [error, setError] = useState<Message>();
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -54,7 +55,7 @@ export function SkillSettings({
     window.eta
       .skills(cwd || undefined)
       .then((value) => {
-        if (!cancelled) setCatalog(value);
+        if (!cancelled) setLoaded({ cwd, catalog: value });
       })
       .catch((error: unknown) => {
         if (!cancelled)
@@ -234,7 +235,9 @@ export function SkillSettings({
             <Button
               variant={skill.enabled ? "secondary" : "outline"}
               size="sm"
-              disabled={busy || settings.skillsEnabled === false || Boolean(skill.shadowedBy)}
+              disabled={
+                busy || loading || settings.skillsEnabled === false || Boolean(skill.shadowedBy)
+              }
               aria-pressed={skill.enabled}
               aria-label={`${skill.enabled ? t("settings:skillSettings.disable") : t("settings:skillSettings.enable")} ${skill.name}`}
               onClick={() =>
