@@ -74,14 +74,14 @@ export function CommandGroupLabel(
   props: Omit<ComponentProps<typeof Autocomplete.GroupLabel>, "className">,
 ) {
   return (
-    <Autocomplete.GroupLabel className="px-2.5 pt-3 pb-1 text-[13px] text-neutral-400" {...props} />
+    <Autocomplete.GroupLabel className="px-2 pt-2.5 pb-1 text-xs text-neutral-400" {...props} />
   );
 }
 export function CommandItem({
   variant = "default",
   ...props
 }: Omit<ComponentProps<typeof Autocomplete.Item>, "className"> & {
-  variant?: "default" | "menu" | "menu-detail";
+  variant?: "default" | "menu" | "menu-detail" | "row";
 }) {
   return (
     <Autocomplete.Item
@@ -89,7 +89,9 @@ export function CommandItem({
         "flex items-center outline-none data-disabled:cursor-not-allowed [&_svg]:shrink-0",
         variant === "menu" || variant === "menu-detail"
           ? "cursor-default gap-1.5 rounded-[5px] px-2 text-xs text-neutral-800 data-highlighted:bg-[#007aff] data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:stroke-[1.7]"
-          : "cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-sm text-neutral-600 data-highlighted:bg-neutral-100 data-highlighted:text-neutral-900 data-disabled:opacity-40",
+          : variant === "row"
+            ? "cursor-pointer gap-2 rounded-md px-2 py-1 text-[13px] text-neutral-700 data-highlighted:bg-neutral-100 data-highlighted:text-neutral-900 data-disabled:opacity-40 [&_svg]:size-3.5 [&_svg]:stroke-[1.7]"
+            : "cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-sm text-neutral-600 data-highlighted:bg-neutral-100 data-highlighted:text-neutral-900 data-disabled:opacity-40",
         variant === "menu" && "h-[26px]",
         variant === "menu-detail" && "min-h-[26px] py-1",
       )}
