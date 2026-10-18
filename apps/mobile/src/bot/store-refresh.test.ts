@@ -91,7 +91,7 @@ function replacement(
       holdCurrent = true;
     },
     track,
-    async begin() {
+    async begin({ settleOldBeforeCommit = false, openCurrent = true } = {}) {
       await store.connect(connection);
       const connecting = track(store.connect(next));
       await expect.poll(() => candidateEntered, { timeout: 1000 }).toBe(true);
@@ -100,9 +100,13 @@ function replacement(
       await expect.poll(() => oldEntered, { timeout: 1000 }).toBe(true);
       await coalesce();
       expect(oldRequests).toBe(2);
+      if (settleOldBeforeCommit) {
+        old.resolve();
+        await refreshing;
+      }
       candidate.resolve();
       await connecting;
-      await store.open("thread");
+      if (openCurrent) await store.open("thread");
       return { refreshing };
     },
     async close() {
@@ -360,6 +364,11 @@ test.each(
         await connecting;
         if (action === "open") expect(oldAborted).toBe(1);
       }
+      expect(store.getSnapshot()).toMatchObject({
+        status: "connected",
+        opening: false,
+        error: undefined,
+      });
       expect(store.getSnapshot().thread).toBeUndefined();
       expect(store.getSnapshot().library?.threads[0]?.title).toBe("Current");
       expect(saved.caches.get("https://second-bot")?.threadId).toBeUndefined();
@@ -371,3 +380,18 @@ test.each(
     }
   },
 );
+
+test("handoff clears errors that belonged to the previously active client", async () => {
+  const race = replacement(false, "unauthorized");
+  try {
+    await race.begin({ settleOldBeforeCommit: true, openCurrent: false });
+    expect(race.store.getSnapshot()).toMatchObject({
+      status: "connected",
+      opening: false,
+      error: undefined,
+      url: race.next.url,
+    });
+  } finally {
+    await race.close();
+  }
+});

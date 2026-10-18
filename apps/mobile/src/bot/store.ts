@@ -273,6 +273,8 @@ export class MobileStore {
       this.update({
         url: candidate.connection.url,
         status: "connected",
+        opening: false,
+        error: undefined,
         library,
         drafts: cache?.drafts ?? {},
         pending: cache?.pending,
