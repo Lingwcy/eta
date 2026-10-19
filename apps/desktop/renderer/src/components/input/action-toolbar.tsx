@@ -44,7 +44,10 @@ export function ActionToolbar({
     : t("chat:actionToolbar.sendMessage");
   return (
     <footer
-      className={cn("flex items-center justify-between gap-2 select-none", className)}
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 select-none",
+        className,
+      )}
       aria-label={t("chat:actionToolbar.messageActions")}
     >
       <div className="flex min-w-0 items-center gap-1">
