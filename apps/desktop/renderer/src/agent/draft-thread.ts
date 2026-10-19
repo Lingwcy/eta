@@ -37,6 +37,8 @@ export class DraftThread {
   constructor(
     readonly requestId: string,
     private readonly bridge: DraftBridge,
+    /** A created thread is visible and stoppable before the first admission settles. */
+    private readonly onCreated?: (id: string, workspaceId: string | undefined) => void,
   ) {}
 
   submit(
@@ -103,6 +105,7 @@ export class DraftThread {
       this.threadId = created.id;
       this.workspaceId = workspaceId;
       this.applied = configuration ? { ...configuration } : undefined;
+      this.onCreated?.(created.id, workspaceId);
     }
     if (configuration) {
       const applied = this.applied;
