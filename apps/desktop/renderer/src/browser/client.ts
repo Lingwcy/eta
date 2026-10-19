@@ -11,6 +11,7 @@ export interface BrowserViewState {
 export class BrowserClient {
   private state: Readonly<Record<string, BrowserViewState>> = {};
   private readonly listeners = new Set<() => void>();
+  private readonly mounted = new Set<string>();
 
   constructor(private readonly bridge: Pick<DesktopBridge, "browser" | "subscribeBrowser">) {}
 
@@ -45,6 +46,19 @@ export class BrowserClient {
 
   private fail(id: string, error: unknown) {
     this.update(id, { error: describeError(error, String(error)) });
+  }
+
+  /** A tab is mounted while a panel owns it; reopened tabs keep a late-created page. */
+  mount(id: string) {
+    this.mounted.add(id);
+  }
+
+  unmount(id: string) {
+    this.mounted.delete(id);
+  }
+
+  isMounted(id: string) {
+    return this.mounted.has(id);
   }
 
   retain(ids: ReadonlySet<string>) {

@@ -25,13 +25,14 @@ function message(
   content = "issue: investigate",
   channelId = "10",
   bot = false,
+  authorId = bot ? "99" : "20",
 ): DiscordMessage {
   return {
     id,
     content,
     channelId,
     guildId: "1",
-    authorId: bot ? "99" : "20",
+    authorId,
     bot,
     createdAt: Number(id),
   };
@@ -94,7 +95,7 @@ class FakeDiscord implements DiscordPort {
     await this.handlers?.message(row);
   }
 }
-async function fixture() {
+async function fixture(options: { allowedAuthorIds?: string[] } = {}) {
   const root = await mkdtemp(join(tmpdir(), "eta-discord-"));
   roots.push(root);
   const cwd = join(root, "workspaces", "workspace");
@@ -134,6 +135,7 @@ async function fixture() {
           projectKey: "test",
           triggerPrefix: "issue:",
           startAfter: "0",
+          ...(options.allowedAuthorIds ? { allowedAuthorIds: options.allowedAuthorIds } : {}),
         },
       ],
     },
@@ -366,4 +368,35 @@ test("restoring a stopped data-directory backup preserves association, queue and
   expect(restored.discord!.store.inputs()).toHaveLength(1);
   expect(restored.discord!.store.outputs()).toHaveLength(1);
   expect(port.sendCalls).toBe(2);
+});
+
+test("an operator allowlist narrows who may drive a run", async () => {
+  const allowed = await fixture({ allowedAuthorIds: ["20"] });
+  await allowed.port.emit(message("300", "issue: allowed", "10", false, "20"));
+  await allowed.finished(allowed.app, "300");
+  expect(allowed.port.sendCalls).toBe(1);
+  await allowed.port.emit(message("301", "issue: outsider", "10", false, "21"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(allowed.app.discord!.store.issue("301")).toBeUndefined();
+  expect(allowed.app.discord!.store.input("301")).toBeUndefined();
+  expect(allowed.port.sendCalls).toBe(1);
+});
+
+test("without an allowlist every participant is still accepted", async () => {
+  const open = await fixture();
+  await open.port.emit(message("310", "issue: from anyone", "10", false, "21"));
+  await open.finished(open.app, "310");
+  expect(open.port.sendCalls).toBe(1);
+});
+
+test("the allowlist also covers followups posted in an issue thread", async () => {
+  const scoped = await fixture({ allowedAuthorIds: ["20"] });
+  await scoped.port.emit(message("320", "issue: first", "10", false, "20"));
+  await scoped.finished(scoped.app, "320");
+  const threadId = scoped.app.discord!.store.issue("320")!.discordThreadId!;
+  await scoped.port.emit(message("321", "outsider followup", threadId, false, "21"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(scoped.app.discord!.store.input("321")).toBeUndefined();
+  await scoped.port.emit(message("322", "allowed followup", threadId, false, "20"));
+  await expect.poll(() => scoped.app.discord!.store.input("322")?.state).toBeDefined();
 });

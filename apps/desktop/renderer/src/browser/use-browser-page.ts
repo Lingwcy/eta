@@ -14,7 +14,9 @@ export function useBrowserPage(
   const viewport = useRef<HTMLDivElement>(null);
   const hasUrl = tab.url !== "";
   useEffect(() => {
+    client.mount(tab.id);
     return () => {
+      client.unmount(tab.id);
       void client.command({ type: "close", id: tab.id });
     };
   }, [client, tab.id]);
@@ -26,7 +28,12 @@ export function useBrowserPage(
     let cancelled = false;
     setReady(false);
     void client.command({ type: "create", id: tab.id, url: tab.url }).then((created) => {
-      if (!cancelled) setReady(created);
+      if (!cancelled) {
+        setReady(created);
+        return;
+      }
+      // The tab closed while its page was being created; a reopened tab keeps the page.
+      if (!client.isMounted(tab.id)) void client.command({ type: "close", id: tab.id });
     });
     return () => {
       cancelled = true;
