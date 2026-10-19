@@ -42,7 +42,7 @@ export function ComposerContext({
   library: DesktopLibrary | null;
   workspaceId: string | null;
   onProject: (id: string | null) => void;
-  onCreateProject: (rootPath: string, name: string) => Promise<void>;
+  onCreateProject: (rootPath: string, name: string, requestId: string) => Promise<void>;
 }) {
   useTranslation();
   return (

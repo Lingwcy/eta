@@ -26,7 +26,7 @@ export function ProjectPicker({
   cwd?: string;
   disabled: boolean;
   onSelect: (id: string | null) => void;
-  onCreate: (rootPath: string, name: string) => Promise<void>;
+  onCreate: (rootPath: string, name: string, requestId: string) => Promise<void>;
 }) {
   useTranslation();
   const [open, setOpen] = useState(false);

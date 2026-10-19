@@ -130,10 +130,10 @@ export function useDesktopController(
   useEffect(() => {
     if (threadId && snapshot && hasThreadActivity(snapshot)) navigation.activity.watch(threadId);
   }, [threadId, snapshot, navigation.activity]);
-  const registerProject = async (rootPath: string, name: string) => {
+  const registerProject = async (rootPath: string, name: string, requestId: string) => {
     await desktop.act(async () => {
       const project = cloud
-        ? await window.eta.createCloudProject(name, crypto.randomUUID())
+        ? await window.eta.createCloudProject(name, requestId)
         : await window.eta.registerProject(rootPath, name);
       const next = await desktop.refresh();
       const workspace = projectRootWorkspace(next.workspaces, project.id);
