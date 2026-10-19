@@ -17,6 +17,10 @@ test.each([
   { type: "move-thread", id: "thread", projectId: "" },
   { type: "move-thread", id: "thread", projectId: { path: "/project" } },
   { type: "delete-thread", id: "" },
+  { type: "operation", id: "thread", operationId: "" },
+  { type: "operation", id: "", operationId: "42" },
+  { type: "operation", id: "thread", operationId: 42 },
+  { type: "operation", id: "thread", operationId: "42", path: "/arbitrary-path" },
   { type: "create", workspaceId: "", requestId: "request" },
   {
     type: "create",

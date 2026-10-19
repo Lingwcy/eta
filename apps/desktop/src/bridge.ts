@@ -15,7 +15,7 @@ import type { BotConnection, BotState } from "./shared/bot.ts";
 import type { SubagentCommand, SubagentSummary } from "@eta/core/shared/subagents";
 import type { ImageAttachment, ImageSource } from "@eta/core/images/types";
 import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
-import type { OperationAdmission } from "@eta/core/agent/protocol";
+import type { OperationAdmission, OperationResult } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse } from "@eta/core/agent/protocol";
 import type { AgentModel, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { DesktopSettings } from "./shared/settings.ts";
@@ -43,6 +43,7 @@ export type CommandReply<A> = { ok: true; value: A } | { ok: false; error: Comma
 
 export interface AgentBridge {
   openThread(id: string): Promise<SessionResponse>;
+  operation(id: string, operationId: string): Promise<OperationResult>;
   configureSandbox(id: string, mode: SandboxMode): Promise<SessionResponse>;
   configureThread(
     id: string,

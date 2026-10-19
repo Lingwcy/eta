@@ -262,3 +262,54 @@ test("a cloud draft creates and submits with the chosen model before consulting 
     )
     .toBe(true);
 });
+
+test("Desktop can reconcile an earlier cloud receipt after a later turn replaces lastResult", async () => {
+  const { remote, url, provider } = await fixture();
+  const state = await remote.connect({ url, token: "remote-secret" });
+  const localOperation = vi.fn(async () => {
+    throw new Error("Cloud receipts must not be read locally");
+  });
+  const desktop = withBot(
+    {
+      operation: localOperation,
+      updateSettings: async () => ({}),
+    } as unknown as LocalDesktopApplication,
+    remote,
+  );
+  const thread = await desktop.createThread(state.library!.workspaces[0]!.id, "receipt-thread", {
+    provider: "remote-test",
+    modelId: "one",
+    thinkingLevel: "off",
+  });
+  provider.setResponses([
+    fauxAssistantMessage("First answer"),
+    fauxAssistantMessage("Later answer"),
+  ]);
+  const first = await desktop.submit(thread.id, "First input", "first-receipt");
+  await expect
+    .poll(async () => (await desktop.operation(thread.id, first.operationId)).status, {
+      timeout: 10000,
+    })
+    .toBe("completed");
+  // Wait for the Controller to release the completed turn's admission before sending again.
+  await expect
+    .poll(
+      async () => (await remote.request<{ activeThreads: string[] }>("/v1/status")).activeThreads,
+      {
+        timeout: 10000,
+      },
+    )
+    .toEqual([]);
+  const later = await desktop.submit(thread.id, "Later input", "later-receipt");
+  await expect
+    .poll(async () => (await desktop.openThread(thread.id)).snapshot.lastResult?.operationId, {
+      timeout: 10000,
+    })
+    .toBe(later.operationId);
+  expect(await desktop.operation(thread.id, first.operationId)).toMatchObject({
+    ...first,
+    status: "completed",
+    messages: [{ role: "assistant", content: [{ type: "text", text: "First answer" }] }],
+  });
+  expect(localOperation).not.toHaveBeenCalled();
+});
