@@ -82,6 +82,7 @@ export function ComposerInput({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`当前沙盒策略：${sandboxModeLabel}，点击修改`}
+              hitSlop={6}
               disabled={disabled || running}
               onPress={onOpenConfiguration}
               style={({ pressed }) => [styles.sandboxChip, pressed && styles.chipPressed]}
@@ -100,6 +101,7 @@ export function ComposerInput({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="选择模型与思考等级"
+            hitSlop={6}
             disabled={disabled || running}
             onPress={onOpenConfiguration}
             style={({ pressed }) => [styles.modelButton, pressed && styles.chipPressed]}
@@ -125,6 +127,7 @@ export function ComposerInput({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="停止任务"
+              hitSlop={2}
               disabled={!canStop}
               onPress={onStop}
               style={({ pressed }) => [
@@ -140,6 +143,7 @@ export function ComposerInput({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="发送消息"
+              hitSlop={2}
               disabled={!canSend}
               onPress={onSubmit}
               style={({ pressed }) => [
@@ -215,12 +219,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   sandboxChip: {
+    minHeight: 32,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 5,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: colors.soft,
     borderWidth: 1,
     borderColor: colors.border,
@@ -231,12 +236,13 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   modelButton: {
+    minHeight: 32,
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: colors.soft,
     borderWidth: 1,
     borderColor: colors.border,
@@ -273,9 +279,9 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   actionButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
