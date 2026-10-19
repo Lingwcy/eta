@@ -107,7 +107,8 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Carry retry policy as data across process boundaries.**
 
 - Evidence: on 2026-10-19, BDS-08's initial Desktop thread read never retried. Bot transport failures were serialized as non-retryable InternalError, and preload-created Error fields cannot be relied on across Electron contextBridge. Returning the command reply DTO and unwrapping in the renderer carries explicit retry policy into bounded read-only retries; focused Bot/IPC, preload and client regressions cover the layers, not native Electron serialization.
-- Check: classify transient transport errors at the adapter, preserve the classification as a serializable reply, and retry only the read owned by the current client lifetime. Do not apply this retry loop to writes whose admission may be unknown.
+- Additional evidence: on 2026-10-19, BDS-02's merged request-identity reuse still classified uncertainty with renderer-side instanceof, while preload threw the error from its own realm. A controlled message-only Error boundary plus real preload/BotStore reproduces duplicate admissions; serialized submit replies decoded in the caller retain one identity for existing threads and drafts, with definite-rejection and successful-next-message controls. These fixtures do not reproduce native Electron itself.
+- Check: classify transient transport errors at the adapter, preserve the classification as a serializable reply, and decode it in the realm that consumes its type/fields. Retry only the read owned by the current client lifetime. For writes with unknown admission, preserve the logical request identity for explicit retry rather than applying a read retry loop.
 
 **Observation failures do not establish an execution outcome.**
 

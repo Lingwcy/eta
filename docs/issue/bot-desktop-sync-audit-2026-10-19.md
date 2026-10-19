@@ -18,9 +18,11 @@
 
 建议：重连时按原始 operation / request identity 查询持久化回执，收敛到该次执行的实际状态。不能把“当前已空闲”直接当成该次提交成功，也不能只等一个可能永远不会重现的最新结果字段。
 
-### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（已修复，待 PR 合并）
+### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（身份复用 #215 已合并；跨 contextBridge 回复补丁待 PR 合并）
 
 位置：`apps/desktop/src/preload.ts:117`、`apps/desktop/src/main/bot.ts:409`、`apps/bot/src/store.ts:25`。
+
+后续核对：#215 的身份复用依赖 renderer 识别 `DesktopCommandError`，但旧 preload 在自身 realm 解码后抛出 Error，不能依赖 contextBridge 保留其自定义字段或原型。补丁参照首次读取的 `openThreadReply`，新增可选 `submitReply`，以 DTO 跨越边界，在 renderer 本地解码；既有会话和 DraftThread 均使用该路径，旧桥仍支持 submit fallback。真实 preload + BotStore SQLite 的受控回归模拟 message-only 错误复制与 DTO 序列化：前者重复准入，后者保留图文请求身份、仅准入一次；确定性拒绝不复用，成功后同文本发送创建新身份。修复前 4 项控制失败，修复后 preload / client / draft 定向 63 项通过。这不是原生 Electron 或线上重复执行复现；若 IPC 调用自身拒绝而没有返回 DTO，其不确定结果识别仍需单独核对。以下保留原审查基线。
 
 preload 每次 submit 都生成新 requestId。HTTP 超时或连接中断后，客户端释放提交锁并保留输入；用户重发会产生新的持久化请求。服务端已有的幂等机制因 requestId 改变而失效。
 

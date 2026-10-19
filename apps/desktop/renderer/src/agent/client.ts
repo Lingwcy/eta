@@ -7,6 +7,7 @@ import { DesktopCommandError, unwrapReply } from "../../../src/command-reply.ts"
 import {
   admissionUncertain,
   submissionIdentity,
+  submitMessage,
   type UncertainSubmission,
 } from "../../../src/shared/message-request.ts";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
@@ -151,7 +152,7 @@ export class ThreadAgentClient {
     const requestId = submissionIdentity(this.uncertainSubmission, prompt, images);
     this.update({ submitting: true, error: null });
     try {
-      const admission = await this.bridge.submit(sessionId, prompt, images, requestId);
+      const admission = await submitMessage(this.bridge, sessionId, prompt, images, requestId);
       this.uncertainSubmission = undefined;
       const snapshot = this.state.observation?.snapshot;
       this.update({
