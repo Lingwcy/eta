@@ -81,7 +81,7 @@ export function ProjectPicker({
             render={<Button variant="ghost" size="pill" selected={open} />}
           >
             <FolderClosed size={17} aria-hidden="true" />
-            <span className="max-w-40 truncate">
+            <span className="max-w-28 truncate min-[901px]:max-w-40">
               {projectName ?? t("navigation:projectPicker.chooseAProject")}
             </span>
           </PopoverTrigger>

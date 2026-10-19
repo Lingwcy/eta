@@ -46,7 +46,7 @@ export function ComposerContext({
 }) {
   useTranslation();
   return (
-    <div className="mx-5 -mb-1 flex h-[38px] items-center gap-3 rounded-t-2xl bg-neutral-200/60 px-3 pb-1 text-[13px] text-neutral-500 min-[701px]:mx-7 min-[901px]:gap-5">
+    <div className="mx-5 -mb-1 flex min-h-[38px] flex-wrap items-center gap-x-3 gap-y-1 rounded-t-2xl bg-neutral-200/60 px-3 py-1 text-[13px] text-neutral-500 min-[701px]:mx-7 min-[901px]:gap-x-5">
       <EnvironmentPicker
         cloud={cloud}
         connected={library?.bot?.status === "connected"}
