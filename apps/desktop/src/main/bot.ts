@@ -592,63 +592,105 @@ export class DesktopBot {
     this.streams.add(controller);
     const watch = async () => {
       while (!controller.signal.aborted) {
+        const attempt = new AbortController();
+        const aborted = Promise.withResolvers<never>();
+        let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const armDeadline = () => {
+          clearTimeout(timer);
+          timer = setTimeout(
+            () =>
+              attempt.abort(
+                new LocalizedError("errors:bot.theBotConnectionWasInterruptedReconnecting"),
+              ),
+            45000,
+          );
+        };
+        const cancelAttempt = () => attempt.abort(controller.signal.reason);
+        const onAbort = () => {
+          void reader?.cancel().catch(() => {});
+          aborted.reject(attempt.signal.reason);
+        };
+        attempt.signal.addEventListener("abort", onAbort, { once: true });
+        controller.signal.addEventListener("abort", cancelAttempt, { once: true });
+        armDeadline();
+        let failure: unknown;
         try {
-          const response = await this.response(route, undefined, controller.signal);
+          const response = await Promise.race([
+            this.response(route, undefined, attempt.signal).then((response) => {
+              if (attempt.signal.aborted) {
+                void response.body?.cancel().catch(() => {});
+                throw attempt.signal.reason;
+              }
+              return response;
+            }),
+            aborted.promise,
+          ]);
           if (!response.body)
             throw new LocalizedError("errors:bot.theBotDidNotProvideALiveMessage");
-          const reader = response.body.getReader();
+          reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
           let skipLF = false;
-          try {
-            while (!controller.signal.aborted) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              const chunk = decoder.decode(value, { stream: true });
-              if (!chunk) continue;
-              // A CR is a complete line ending; swallow its optional LF even across reads.
-              buffer += (skipLF && chunk.startsWith("\n") ? chunk.slice(1) : chunk).replace(
-                /\r\n|\r/g,
-                "\n",
-              );
-              skipLF = chunk.endsWith("\r");
-              let end: number;
-              while (!controller.signal.aborted && (end = buffer.indexOf("\n\n")) >= 0) {
-                const block = buffer.slice(0, end);
-                buffer = buffer.slice(end + 2);
-                const event = block
-                  .split("\n")
-                  .find((line) => line.startsWith("event:"))
-                  ?.slice(6)
-                  .trim();
-                const data = block
-                  .split("\n")
-                  .filter((line) => line.startsWith("data:"))
-                  .map((line) => line.slice(5).trimStart())
-                  .join("\n");
-                await onEvent(event, data);
-                if (event === "error")
-                  throw new Error((JSON.parse(data) as { message: string }).message);
-              }
-            }
-          } finally {
-            await reader.cancel().catch(() => {});
-          }
-          if (!controller.signal.aborted)
-            throw new LocalizedError("errors:bot.theBotConnectionWasInterruptedReconnecting");
-        } catch (error) {
-          if (controller.signal.aborted) break;
-          onError(error instanceof Error ? error.message : "Bot 连接失败");
-          await new Promise<void>((resolve) => {
-            const finish = () => {
+          while (!attempt.signal.aborted) {
+            // Cancelling a ReadableStream reader settles pending reads even if source cleanup hangs.
+            // Do not race every frame against one pending promise: its reactions accumulate on long streams.
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            if (!chunk) continue;
+            // A CR is a complete line ending; swallow its optional LF even across reads.
+            buffer += (skipLF && chunk.startsWith("\n") ? chunk.slice(1) : chunk).replace(
+              /\r\n|\r/g,
+              "\n",
+            );
+            skipLF = chunk.endsWith("\r");
+            let end: number;
+            while (!attempt.signal.aborted && (end = buffer.indexOf("\n\n")) >= 0) {
+              const block = buffer.slice(0, end);
+              buffer = buffer.slice(end + 2);
+              const event = block
+                .split("\n")
+                .find((line) => line.startsWith("event:"))
+                ?.slice(6)
+                .trim();
+              const data = block
+                .split("\n")
+                .filter((line) => line.startsWith("data:"))
+                .map((line) => line.slice(5).trimStart())
+                .join("\n");
+              // Complete frames (including heartbeats), not model output or byte trickles, prove liveness.
+              // Consumer backpressure is not a transport failure.
               clearTimeout(timer);
-              controller.signal.removeEventListener("abort", finish);
-              resolve();
-            };
-            const timer = setTimeout(finish, 2000);
-            controller.signal.addEventListener("abort", finish, { once: true });
-          });
+              await onEvent(event, data);
+              if (!attempt.signal.aborted) armDeadline();
+              if (event === "error")
+                throw new Error((JSON.parse(data) as { message: string }).message);
+            }
+          }
+          throw new LocalizedError("errors:bot.theBotConnectionWasInterruptedReconnecting");
+        } catch (error) {
+          failure = error;
+        } finally {
+          clearTimeout(timer);
+          controller.signal.removeEventListener("abort", cancelAttempt);
+          attempt.signal.removeEventListener("abort", onAbort);
+          attempt.abort();
+          // Cancellation must not make recovery wait for an unresponsive body or source.
+          void reader?.cancel().catch(() => {});
         }
+        if (controller.signal.aborted) break;
+        onError(failure instanceof Error ? failure.message : "Bot 连接失败");
+        await new Promise<void>((resolve) => {
+          const finish = () => {
+            clearTimeout(timer);
+            controller.signal.removeEventListener("abort", finish);
+            resolve();
+          };
+          const timer = setTimeout(finish, 2000);
+          controller.signal.addEventListener("abort", finish, { once: true });
+          if (controller.signal.aborted) finish();
+        });
       }
     };
     void watch().finally(() => this.streams.delete(controller));
