@@ -83,6 +83,7 @@ const Command = Schema.Union([
     ),
   }),
   Schema.Struct({ type: Schema.Literal("open"), id: Id }),
+  Schema.Struct({ type: Schema.Literal("operation"), id: Id, operationId: Id }),
   Schema.Struct({ type: Schema.Literal("configure-sandbox"), id: Id, mode: SandboxModeSchema }),
   Schema.Struct({
     type: Schema.Literal("decide-approval"),
@@ -275,6 +276,8 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       );
     case "open":
       return application.openThread(command.id);
+    case "operation":
+      return application.operation(command.id, command.operationId);
     case "configure-sandbox":
       return application.configureSandbox(command.id, command.mode);
     case "decide-approval":

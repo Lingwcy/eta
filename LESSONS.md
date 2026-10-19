@@ -97,6 +97,11 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 - Evidence: on 2026-10-19, BDS-08's initial Desktop thread read never retried. Bot transport failures were serialized as non-retryable InternalError, and preload-created Error fields cannot be relied on across Electron contextBridge. Returning the command reply DTO and unwrapping in the renderer carries explicit retry policy into bounded read-only retries; focused Bot/IPC, preload and client regressions cover the layers, not native Electron serialization.
 - Check: classify transient transport errors at the adapter, preserve the classification as a serializable reply, and retry only the read owned by the current client lifetime. Do not apply this retry loop to writes whose admission may be unknown.
+
+**Observation failures do not establish an execution outcome.**
+
+- Evidence: on 2026-10-19, BDS-09's Desktop activity watcher removed its running marker and cancelled the reconnecting subscription on a transport error. Three focused regressions fail before the fix; retaining observation through errors allows a later authoritative snapshot to confirm continued activity or completion. Synchronous errors, disposal, interrupted/faulted snapshots and obsolete callbacks are covered without a native network reproduction.
+- Check: keep transport uncertainty separate from durable task status. Do not unsubscribe the only recovery path merely because it reports a temporary failure; release on authoritative inactivity or explicit disposal.
 - Seen: 2026-10-19.
 
 **Keep a committed connection's client, credentials and cache origin together after later failures.**
@@ -211,7 +216,9 @@ and inspect every build configuration that derives those keys.**
 **Treat a transport failure as an unknown durable outcome until it is reconciled.**
 
 - Evidence: the [2026-10-19 Bot/Desktop synchronization audit](docs/issue/bot-desktop-sync-audit-2026-10-19.md) reproduces a committed message whose lost reply is retried with a new request ID, executing twice in the real BotStore. A separate controlled snapshot skips an acknowledged run's completion in favor of a later run, leaving Desktop's admission locked. The same audit reproduces clearing a background running marker on a temporary stream error and discarding a healthy chat view when the independent library poll recovers. These are controlled interleavings, not established causes of the reported production 502.
-- Check: retain a logical message's request identity across retries, reconcile its durable receipt after uncertain delivery, and distinguish connection health from execution outcome. A newer snapshot need not retain the particular operation needed to acknowledge an older request; transient observer errors cannot prove completion.
+- Additional evidence: on 2026-10-19, #202 shows a catalog poll failure (independent of the thread stream) disabling a connected cloud chat and, on recovery, rebuilding every mounted client from an empty observation. Keying recovery on the observation's own health keeps history and input while still rebuilding a client that never connected; a cloud draft without an observation stays gated.
+- Regression evidence: BDS-01's `renderer/src/agent/client.test.ts` checks the original durable operation after a later snapshot or late invoke reply, keeps queued/running/paused inputs locked, and preserves newer observations. Held lookups cover replacement admissions, disposal and transient read failures; local IPC and real Bot HTTP tests retain access to an earlier receipt after a later turn replaces `lastResult`.
+- Check: retain a logical message's request identity across retries, reconcile its durable receipt after uncertain delivery, and distinguish connection health from execution outcome. Independent health signals must not gate or reset each other; a catalog error is not proof that a live session is unusable. A newer snapshot need not retain the particular operation needed to acknowledge an older request; transient observer errors cannot prove completion.
 - Seen: 2026-10-19.
 
 **Make shared publication decisions at their remote commit boundary, not from an earlier listing.**

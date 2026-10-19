@@ -29,6 +29,7 @@ import type {
   SessionResponse,
   SnapshotResponse,
   OperationAdmission,
+  OperationResult,
 } from "@eta/core/agent/protocol";
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { ThreadMetadata } from "@eta/core/shared/threads";
@@ -368,6 +369,21 @@ export class DesktopBot {
   }
   async open(id: string) {
     return this.session(await this.request<SessionResponse>(this.route(id)));
+  }
+  async operation(id: string, operationId: string): Promise<OperationResult> {
+    const connection = this.connection;
+    const prefix = this.prefix;
+    const result = await this.request<OperationResult>(
+      this.route(id) + `/operations/${encodeURIComponent(this.raw(operationId))}`,
+    );
+    if (this.connection !== connection)
+      throw new LocalizedError("errors:bot.theBotForThisCloudProjectOrChat");
+    return {
+      ...result,
+      operationId: prefix + result.operationId,
+      ...(result.inputEntryId ? { inputEntryId: prefix + result.inputEntryId } : {}),
+      ...(result.originOperationId ? { originOperationId: prefix + result.originOperationId } : {}),
+    };
   }
   async create(workspaceId: string, requestId: string, configuration?: CreateThreadConfiguration) {
     if (configuration?.sandboxMode) this.requireSandbox();
@@ -971,6 +987,8 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
         ? choose(bot.create(id, requestId ?? crypto.randomUUID(), configuration))
         : local.createThread(id, requestId, configuration),
     openThread: (id: string) => (isCloudId(id) ? choose(bot.open(id)) : local.openThread(id)),
+    operation: (id: string, operationId: string) =>
+      isCloudId(id) ? bot.operation(id, operationId) : local.operation(id, operationId),
     configureThread: (...args: Parameters<LocalDesktopApplication["configureThread"]>) =>
       isCloudId(args[0]) ? choose(bot.configure(...args)) : local.configureThread(...args),
     configureSandbox: (...args: Parameters<LocalDesktopApplication["configureSandbox"]>) =>

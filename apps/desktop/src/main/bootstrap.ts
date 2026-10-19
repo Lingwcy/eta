@@ -196,6 +196,7 @@ async function createLocalDesktopApplication(
         configuration?: CreateThreadConfiguration,
       ) => selectThread(threads.create(workspaceId, requestId, configuration)),
       openThread: (id: string) => selectThread(threads.open(id)),
+      operation: (id: string, operationId: string) => run(threads.operation(id, operationId)),
       threadFile: async (id: string) => {
         const thread = await run(threads.get(id));
         return join(

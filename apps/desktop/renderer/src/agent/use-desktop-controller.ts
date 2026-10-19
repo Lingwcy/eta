@@ -41,12 +41,20 @@ export function useDesktopController(
       ? isCloudId(tab.threadId ?? tab.workspaceId)
       : tab.environment === "cloud";
   const remote = desktop.library?.bot;
+  // A catalog poll is independent of the live thread stream; only an unhealthy observation needs rebuilding.
+  const liveObservation = Boolean(tab.threadId) && agent.connection === "connected";
+  const directoryUnavailable = cloud && remote?.status !== "connected";
   const previousConnection = useRef(remote?.status);
   useEffect(() => {
-    if (cloud && remote?.status === "connected" && previousConnection.current === "error")
+    if (
+      cloud &&
+      remote?.status === "connected" &&
+      previousConnection.current === "error" &&
+      !liveObservation
+    )
       setLocalVersion((value) => value + 1);
     previousConnection.current = remote?.status;
-  }, [cloud, remote?.status]);
+  }, [cloud, liveObservation, remote?.status]);
   const modelLibrary = cloud ? remote?.library : desktop.library;
   const [cloudSelection, setCloudSelection] = useState<{
     model: InputModel;
@@ -333,10 +341,10 @@ export function useDesktopController(
       isRunning: running || backgroundWork,
       allowSubmitWhileRunning: backgroundWork,
       isStopping: agent.stopping || operation?.status === "aborting",
-      submitDisabled: (!threadId && !tab.workspaceId) || (cloud && remote?.status !== "connected"),
+      submitDisabled: (!threadId && !tab.workspaceId) || (directoryUnavailable && !liveObservation),
       disabled:
         desktop.busy ||
-        (cloud && remote?.status !== "connected") ||
+        (directoryUnavailable && !liveObservation) ||
         !desktop.library ||
         pending ||
         Boolean(operation?.waitingForSubagents) ||

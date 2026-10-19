@@ -26,6 +26,40 @@ test("persisted desktop skill preferences reach Core after reopening the service
   expect((await next.runPromise(threads.open(created.id))).snapshot.activeSkills).toEqual([]);
 });
 
+test("IPC reconciles an earlier local operation after a later turn replaces lastResult", async () => {
+  const { runtime, threads, registry, provider, created } = await setup();
+  provider.setResponses([
+    fauxAssistantMessage("First answer"),
+    fauxAssistantMessage("Later answer"),
+  ]);
+  const first = await runtime.runPromise(threads.submit(created.id, "First input", "first-input"));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await expect.poll(() => record.running, { timeout: 10000 }).toBe(false);
+  const later = await runtime.runPromise(threads.submit(created.id, "Later input", "later-input"));
+  await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+  await expect.poll(() => record.running, { timeout: 10000 }).toBe(false);
+  expect(
+    (await runtime.runPromise(threads.open(created.id))).snapshot.lastResult?.operationId,
+  ).toBe(later.operationId);
+  const reply = await commandReply(() =>
+    dispatchCommand(
+      {
+        operation: (id, operationId) => runtime.runPromise(threads.operation(id, operationId)),
+      } as DesktopApplication,
+      {
+        type: "operation",
+        id: created.id,
+        operationId: first.operationId,
+      },
+    ),
+  );
+  expect(JSON.parse(JSON.stringify(reply))).toMatchObject({
+    ok: true,
+    value: { ...first, status: "completed" },
+  });
+});
+
 test("unloading an active skill through IPC updates the persisted thread state", async () => {
   const { runtime, threads, created, registry, provider } = await setup();
   provider.setResponses([fauxAssistantMessage("Reviewed")]);

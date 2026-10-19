@@ -79,6 +79,60 @@ test("restoring a large thread can read its body beyond the ordinary request dea
   }
 });
 
+test("operation reconciliation maps durable identities and rejects another Bot's operation ID", async () => {
+  const { bot, request, prefix } = await connect(true);
+  request.mockResolvedValue(
+    Response.json({
+      operationId: "42",
+      inputEntryId: "12:0",
+      originOperationId: "40",
+      kind: "run",
+      status: "completed",
+      startedAt: 1000,
+      messages: [],
+    }),
+  );
+  try {
+    expect(await bot.operation(prefix + "thread", prefix + "42")).toMatchObject({
+      operationId: prefix + "42",
+      inputEntryId: prefix + "12:0",
+      originOperationId: prefix + "40",
+      status: "completed",
+    });
+    expect(request.mock.calls[0]![0]).toBe("http://localhost:8080/v1/threads/thread/operations/42");
+    request.mockClear();
+    await expect(bot.operation(prefix + "thread", "bot:another:42")).rejects.toThrow("原来的 Bot");
+    expect(request).not.toHaveBeenCalled();
+  } finally {
+    bot.close();
+  }
+});
+
+test("a late operation response cannot be remapped after changing the Bot connection", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const response = Promise.withResolvers<Response>();
+  request.mockImplementationOnce(() => response.promise);
+  const pending = bot.operation(prefix + "thread", prefix + "42");
+  try {
+    // Connecting again creates a new credential/client identity, including for the same URL.
+    await bot.connect({ url: "http://localhost:8080", token: "replacement-token" });
+    response.resolve(
+      Response.json({
+        operationId: "42",
+        kind: "run",
+        startedAt: 1000,
+        status: "completed",
+        messages: [],
+      }),
+    );
+    await expect(pending).rejects.toThrow("原来的 Bot");
+  } finally {
+    response.resolve(Response.json({}));
+    await pending.catch(() => {});
+    bot.close();
+  }
+});
+
 test.each([false, true])(
   "an unauthorized response rejects before reading its body (cancel fails=%s)",
   async (cancelFails) => {
@@ -512,6 +566,7 @@ test.each(
     });
     const client = new ThreadAgentClient({
       openThread: (id) => bot.open(id),
+      operation: (id, operationId) => bot.operation(id, operationId),
       configureThread: (id, provider, modelId, level) =>
         bot.configure(id, provider, modelId, level),
       configureSandbox: (id, mode) => bot.configureSandbox(id, mode),
