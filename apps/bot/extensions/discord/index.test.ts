@@ -12,6 +12,7 @@ import { createBotApplication } from "../../src/application.ts";
 import type { BotApplication } from "../../src/application.ts";
 import type { BotConfig } from "../../src/config.ts";
 import type { DiscordMessage, DiscordPort } from "./types.ts";
+import { PhaseLog } from "./fixtures/phases.ts";
 import { DeliveryError } from "./types.ts";
 
 const applications: BotApplication[] = [];
@@ -350,25 +351,41 @@ test("an incomplete bounded scan reports the gap and can recover after increasin
   for (const id of ["1000", "1001", "1002"]) await finished(restored, id);
 });
 
+// The healthy path measures about 2.7s locally (fixture + real directory copy + reopen + redelivery),
+// so the implicit 5s default leaves little room on a loaded CI runner. Phases are reported if the
+// budget would expire, so a future failure shows which stage consumed the time.
 test("restoring a stopped data-directory backup preserves association, queue and pending delivery", async () => {
-  const { app, open, port, provider, config, finished } = await fixture();
-  provider.setResponses([fauxAssistantMessage("Restored delivery")]);
-  port.failure = new DeliveryError(true);
-  await port.emit(message("1100"));
-  await expect.poll(() => app.discord!.store.outputs()[0]?.state).toBe("pending");
-  const issue = app.discord!.store.issue("1100")!;
-  await app.close();
-  const backup = `${config.dataRoot}-backup`;
-  await cp(config.dataRoot, backup, { recursive: true });
-  await rm(config.dataRoot, { recursive: true });
-  await cp(backup, config.dataRoot, { recursive: true });
-  const restored = await open();
-  await finished(restored, "1100");
-  expect(restored.discord!.store.issue("1100")?.etaThreadId).toBe(issue.etaThreadId);
-  expect(restored.discord!.store.inputs()).toHaveLength(1);
-  expect(restored.discord!.store.outputs()).toHaveLength(1);
-  expect(port.sendCalls).toBe(2);
-});
+  const phases = new PhaseLog(20_000);
+  try {
+    const { app, open, port, provider, config, finished } = await fixture();
+    phases.phase("fixture");
+    provider.setResponses([fauxAssistantMessage("Restored delivery")]);
+    port.failure = new DeliveryError(true);
+    await port.emit(message("1100"));
+    await expect.poll(() => app.discord!.store.outputs()[0]?.state).toBe("pending");
+    const issue = app.discord!.store.issue("1100")!;
+    phases.phase("stop");
+    await app.close();
+    const backup = `${config.dataRoot}-backup`;
+    phases.phase("backup");
+    await cp(config.dataRoot, backup, { recursive: true });
+    await rm(config.dataRoot, { recursive: true });
+    await cp(backup, config.dataRoot, { recursive: true });
+    phases.phase("reopen");
+    const restored = await open();
+    phases.phase("redeliver");
+    await finished(restored, "1100");
+    expect(restored.discord!.store.issue("1100")?.etaThreadId).toBe(issue.etaThreadId);
+    expect(restored.discord!.store.inputs()).toHaveLength(1);
+    expect(restored.discord!.store.outputs()).toHaveLength(1);
+    expect(port.sendCalls).toBe(2);
+  } catch (error) {
+    phases.failed(20_000);
+    throw error;
+  } finally {
+    phases.stop();
+  }
+}, 20_000);
 
 test("an operator allowlist narrows who may drive a run", async () => {
   const allowed = await fixture({ allowedAuthorIds: ["20"] });
