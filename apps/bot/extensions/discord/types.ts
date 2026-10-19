@@ -13,6 +13,8 @@ export const DiscordConfigSchema = Schema.Struct({
       channelId: Id,
       projectKey: Schema.NonEmptyString,
       triggerPrefix: Schema.optionalKey(Schema.String),
+      /** Optional operator allowlist; absent keeps every participant of the channel accepted. */
+      allowedAuthorIds: Schema.optionalKey(Schema.Array(Id)),
       startAfter: Schema.optionalKey(Id),
     }),
   ),

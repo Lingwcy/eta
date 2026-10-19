@@ -140,12 +140,20 @@ export class DiscordExtension {
     this.timer.unref();
     await this.wake();
   }
+  /** An absent allowlist keeps today's behaviour: every participant of the channel is accepted. */
+  private permits(guildId: string, channelId: string, authorId: string) {
+    const channel = this.config.channels.find(
+      (value) => value.guildId === guildId && value.channelId === channelId,
+    );
+    return !channel?.allowedAuthorIds?.length || channel.allowedAuthorIds.includes(authorId);
+  }
   async receive(value: DiscordMessage) {
     if (!this.accepting || this.config.enabled === false) return;
     const message = Schema.decodeUnknownSync(MessageSchema)(value);
     if (message.bot || !message.content.trim()) return;
     const issue = this.store.issueForThread(message.guildId, message.channelId);
     if (issue) {
+      if (!this.permits(issue.source.guildId, issue.source.channelId, message.authorId)) return;
       if (
         issue.state !== "closed" &&
         issue.state !== "stopped" &&
@@ -157,6 +165,7 @@ export class DiscordExtension {
         (channel) => channel.channelId === message.channelId && channel.guildId === message.guildId,
       );
       if (!channel || !message.content.startsWith(channel.triggerPrefix ?? "")) return;
+      if (!this.permits(message.guildId, message.channelId, message.authorId)) return;
       const cursor = this.store.cursor(channel.channelId);
       if (cursor !== undefined && BigInt(message.id) <= BigInt(cursor)) return;
       if (this.store.accept(message, message.id, channel.projectKey))
