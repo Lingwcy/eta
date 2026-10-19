@@ -16,6 +16,11 @@ import {
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { createBotApplication, type BotApplication } from "./application.ts";
 import { BotController } from "./controller.ts";
+import type { ScheduleOccurrence } from "@eta/core/shared/schedules";
+import {
+  scheduleDiagnostics,
+  withScheduleDiagnostics,
+} from "./schedule-diagnostics.test-support.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -77,6 +82,13 @@ async function fixture(
     fast,
     open,
     thread,
+    modelProgress: () => ({
+      holding,
+      fastCalls: fast.state.callCount,
+      fastPending: fast.getPendingResponseCount(),
+      slowCalls: slow.state.callCount,
+      slowPending: slow.getPendingResponseCount(),
+    }),
     releaseModel: () => {
       holding = false;
     },
@@ -517,19 +529,39 @@ test.each([
       expect((await bot.core.operation(id, operationId)).error).toContain("usage limit");
 
       fast.setResponses([exhausted()]);
+      const modelBefore = setup.modelProgress();
       await bot.core.runScheduleNow({
         scheduleId: plan.scheduleId!,
         expectedRevision: 1,
         requestId: "still-exhausted",
       });
-      await expect
-        .poll(
-          async () =>
-            (await bot.core.listScheduleRuns({ scheduleId: plan.scheduleId! })).find((run) =>
-              run.requestId.includes("still-exhausted"),
-            )?.state,
-        )
-        .toBe("failed");
+      let observed: ScheduleOccurrence | undefined;
+      await withScheduleDiagnostics(
+        () =>
+          expect
+            .poll(
+              async () => {
+                observed = (await bot.core.listScheduleRuns({ scheduleId: plan.scheduleId! })).find(
+                  (run) => run.requestId.includes("still-exhausted"),
+                );
+                return observed?.state;
+              },
+              // Delivery, admission, model failure and terminal cleanup each add a hop after a restart.
+              // Sibling waits in this file use explicit 5-10s budgets; the implicit 1s default measured
+              // only ~23% headroom against a healthy ~772ms path.
+              { timeout: 5000 },
+            )
+            .toBe("failed"),
+        () =>
+          scheduleDiagnostics(bot, {
+            threadId: id,
+            scheduleId: plan.scheduleId!,
+            requestId: "still-exhausted",
+            observed,
+            modelBefore,
+            modelAfter: setup.modelProgress(),
+          }),
+      );
       await expect.poll(() => bot.controller.status().activeThreads).toEqual([]);
       expect((await bot.core.listSchedules({ threadId: id }))[0]).toMatchObject({
         state: "active",
@@ -931,4 +963,163 @@ test.each(["immediate", "delayed"])(
     expect(JSON.stringify(messages[1])).toContain("Scheduled review");
   },
   15000,
+);
+
+test.each(["running", "receipt-error", "receipt-timeout"] as const)(
+  "schedule failure diagnostics preserve original failure with %s",
+  async (mode) => {
+    const setup = await fixture();
+    const { bot, fast, thread, releaseModel, modelProgress } = setup;
+    const finishModel = Promise.withResolvers<void>();
+    const finishRead =
+      Promise.withResolvers<Awaited<ReturnType<typeof bot.core.listScheduleRuns>>>();
+    let started = false;
+    let reading: ReturnType<typeof vi.spyOn> | undefined;
+    let fakeClock = false;
+    const originalFailure = new Error("Controlled assertion failed");
+    try {
+      releaseModel();
+      fast.setResponses([
+        async () => {
+          started = true;
+          await finishModel.promise;
+          return fauxAssistantMessage("Done");
+        },
+      ]);
+      const id = await thread("Diagnostic fixture");
+      const plan = await bot.core.createSchedule({
+        threadId: id,
+        requestId: "diagnostic-plan",
+        name: "Diagnostic plan",
+        prompt: "Do not include this private fixture prompt in diagnostics",
+        rule: { type: "once", at: Date.now() + 86400_000 },
+      });
+      const modelBefore = modelProgress();
+      await bot.core.runScheduleNow({
+        scheduleId: plan.scheduleId!,
+        expectedRevision: 1,
+        requestId: "diagnostic-run",
+      });
+      await expect.poll(() => started, { timeout: 10000 }).toBe(true);
+      await expect
+        .poll(
+          async () => (await bot.core.listScheduleRuns({ scheduleId: plan.scheduleId! }))[0]?.state,
+          { timeout: 10000 },
+        )
+        .toBe("admitted");
+      const observed = (await bot.core.listScheduleRuns({ scheduleId: plan.scheduleId! }))[0];
+      if (mode === "receipt-error")
+        reading = vi
+          .spyOn(bot.core, "listScheduleRuns")
+          .mockRejectedValue(new Error("Receipt unavailable"));
+      if (mode === "receipt-timeout") {
+        reading = vi
+          .spyOn(bot.core, "listScheduleRuns")
+          .mockImplementation(() => finishRead.promise);
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+        fakeClock = true;
+      }
+      let recorded: unknown;
+      const pending = withScheduleDiagnostics(
+        async () => {
+          throw originalFailure;
+        },
+        () =>
+          scheduleDiagnostics(
+            bot,
+            {
+              threadId: id,
+              scheduleId: plan.scheduleId!,
+              requestId: "diagnostic-run",
+              observed,
+              modelBefore,
+              modelAfter: modelProgress(),
+            },
+            mode === "receipt-timeout" ? 50 : 1000,
+          ),
+        (value) => {
+          recorded = value;
+        },
+      ).catch((error: unknown) => error);
+      if (fakeClock) await vi.advanceTimersByTimeAsync(50);
+      expect(await pending).toBe(originalFailure);
+      if (fakeClock) {
+        vi.useRealTimers();
+        fakeClock = false;
+      }
+      expect(recorded).toMatchObject({
+        observed: { state: "admitted", operationId: observed?.operationId },
+        target: { threadId: id, requestId: "diagnostic-run" },
+        modelBefore: { fastCalls: 0, fastPending: 1 },
+        modelAfter: { fastCalls: 1, fastPending: 0 },
+      });
+      if (mode === "receipt-timeout")
+        expect(recorded).toMatchObject({
+          occurrence: { kind: "timeout" },
+          operation: { kind: "timeout" },
+          budgetMs: 50,
+        });
+      else {
+        expect(recorded).toMatchObject({
+          operation: { kind: "value", value: { status: "running" } },
+          controller: { kind: "value", value: { activeThreads: [id] } },
+          thread: {
+            kind: "value",
+            value: { operation: { id: observed?.operationId, status: "running" } },
+          },
+        });
+        expect(recorded).toMatchObject({
+          occurrence:
+            mode === "running"
+              ? { kind: "value", value: { state: "admitted" } }
+              : { kind: "error", message: "Receipt unavailable" },
+        });
+      }
+      expect(JSON.stringify(recorded)).not.toContain("private fixture prompt");
+      expect(JSON.stringify(recorded)).not.toContain(setup.config.adminToken);
+      reading?.mockRestore();
+      reading = undefined;
+      await withScheduleDiagnostics(
+        async () => {
+          expect((await bot.core.operation(id, observed!.operationId!)).status).toBe("running");
+        },
+        async () => {
+          throw new Error("Successful assertions must not sample");
+        },
+        () => {
+          throw new Error("Successful assertions must not report");
+        },
+      );
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const result = await withScheduleDiagnostics(
+          async () => {
+            throw originalFailure;
+          },
+          async () => {
+            throw new Error("Diagnostic collection failed");
+          },
+        ).catch((error: unknown) => error);
+        expect(result).toBe(originalFailure);
+        const reportFailure = await withScheduleDiagnostics(
+          async () => {
+            throw originalFailure;
+          },
+          async () => ({}),
+          () => {
+            throw new Error("Reporter failed");
+          },
+        ).catch((error: unknown) => error);
+        expect(reportFailure).toBe(originalFailure);
+      } finally {
+        log.mockRestore();
+      }
+    } finally {
+      if (fakeClock) vi.useRealTimers();
+      reading?.mockRestore();
+      finishRead.resolve([]);
+      finishModel.resolve();
+    }
+  },
+  20000,
 );
