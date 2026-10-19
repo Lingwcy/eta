@@ -93,6 +93,17 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Bound observation transport silence independently of model output.**
+
+- Evidence: on 2026-10-19, BDS-03's Desktop SSE could wait forever for headers or a body read while the directory remained connected. Controlled stalled-header/body/partial-frame cases fail before the fix; a server heartbeat plus per-attempt complete-frame deadlines recovers a current snapshot without treating an idle model as disconnected. Thread and schedule routes, cancellation, late fetches and a held heartbeat write are covered; this is not an OS TCP or production proxy reproduction.
+- Check: bound both connection setup and subsequent complete frames, keep a single in-flight heartbeat under backpressure, and cancel timers and late deliveries with their owning observation. Consumer backpressure is not a transport deadline. Older servers without heartbeats will periodically reconnect during silence; do not claim native or deployment compatibility from stream fixtures alone.
+
+**Authorize from current ownership metadata, not a display projection.**
+
+- Evidence: on 2026-10-19, BDS-06 runs the real Bot HTTP/Core message path and records three full openThread projections before Core.submit. Catalog-only thread metadata removes those admission-time projections while keeping a full history read for GET. Regressions cover idempotent replay, six out-of-scope actions and revocation during receipt lookup; seven fail before the change. This is a call-count reproduction, not a production latency benchmark.
+- Check: preserve fresh scope checks at admission and on cached replies. Do not replace repeated authorization with a cached permission, or make checking ownership depend on opening history. Test control gates should target the operation boundary rather than count incidental snapshot reads.
+- Seen: 2026-10-19.
+
 **Carry retry policy as data across process boundaries.**
 
 - Evidence: on 2026-10-19, BDS-08's initial Desktop thread read never retried. Bot transport failures were serialized as non-retryable InternalError, and preload-created Error fields cannot be relied on across Electron contextBridge. Returning the command reply DTO and unwrapping in the renderer carries explicit retry policy into bounded read-only retries; focused Bot/IPC, preload and client regressions cover the layers, not native Electron serialization.
@@ -394,4 +405,5 @@ allows native startup, before checking an operation's result.**
   loading the development worker.
 - Additional evidence: on 2026-10-15, issue #38's parent-cancellation fixture timed out before its child tool started. Injecting 1.5 seconds of child-model latency reproduced the false precondition failure and a cleanup hook timeout. Separating the controlled child response from tool readiness and moving startup inside `try/finally` lets the same delayed case pass. An injected startup assertion failure now reports only that assertion, without a cleanup timeout. This reproduces a fixture defect; the original CI run did not record enough timing to prove it was the sole cause.
 - Additional evidence: on 2026-10-15, #41 was reproduced by holding `Submission.wait` after its durable terminal receipt was visible. The dispatcher integration's immediate deletion then failed with `Busy`. PR #43 verifies deletion stays blocked while the supervisor lease is held, releases the controlled gate, and waits for running/recovery/foreground-work to clear before deleting. This proves a fixture assumption is invalid without weakening production deletion guards; it does not identify every historical CI failure's timing.
-- Seen: 2026-10-12, 2026-10-14, 2026-10-15.
+- Additional evidence: on 2026-10-19, PR #212's schedule reconnect fixture asserted publication immediately after the two-second backoff. Holding the replacement HTTP response reproduces that assertion with the second stream already connected, even while the original reader's cancellation cleanup never settles. Releasing the response and boundedly awaiting the listener covers the response/cache-write completion separately; keeping periodic polling real prevents it from faking SSE recovery. This demonstrates a fixture completion assumption, not a transport teardown defect or a native CI timing trace.
+- Seen: 2026-10-12, 2026-10-14, 2026-10-15, 2026-10-19.

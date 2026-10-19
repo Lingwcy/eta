@@ -47,15 +47,15 @@ export class BotController {
   }
 
   async authorize(id: string) {
-    const view = await this.core.openThread(id);
-    if (!this.workspaceProjects.has(view.thread.workspaceId))
+    const thread = await this.core.threadMetadata(id);
+    if (!this.workspaceProjects.has(thread.workspaceId))
       throw new BotHttpError(
         403,
         "ProjectUnavailable",
         "This thread is outside the configured projects.",
       );
-    this.threadProjects.set(id, this.workspaceProjects.get(view.thread.workspaceId)!);
-    return view;
+    this.threadProjects.set(id, this.workspaceProjects.get(thread.workspaceId)!);
+    return thread;
   }
 
   private block(id: string, message: string) {
@@ -68,9 +68,15 @@ export class BotController {
 
   private async claim(id: string): Promise<AdmissionLease> {
     if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
-    const view = await this.authorize(id);
+    const thread = await this.authorize(id);
     if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
-    const project = this.workspaceProjects.get(view.thread.workspaceId)!;
+    const project = this.workspaceProjects.get(thread.workspaceId);
+    if (!project)
+      throw new BotHttpError(
+        403,
+        "ProjectUnavailable",
+        "This thread is outside the configured projects.",
+      );
     if (
       this.active.has(id) ||
       this.active.size >= this.maximum ||
