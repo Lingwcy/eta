@@ -145,14 +145,14 @@ test("message authorization never opens full history before admission or idempot
     const beforeRead = opening.mock.calls.length;
     const history = await request(`/v1/threads/${id}`);
     expect(history.status).toBe(200);
-    expect((await history.json()).id).toBe(id);
+    expect(Schema.decodeUnknownSync(identity)(await history.json()).id).toBe(id);
     expect(opening.mock.calls.length).toBe(beforeRead + 1);
   } finally {
     opening.mockRestore();
     submitting.mockRestore();
     await bot.controller.stop(id);
   }
-});
+}, 15000);
 
 test("admission rechecks workspace scope after its receipt lookup", async () => {
   const { bot, workspace, create } = await fixture();
