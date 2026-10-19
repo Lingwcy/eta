@@ -1141,6 +1141,10 @@ test("a silent schedule stream reconnects and refreshes the authoritative revisi
   const { bot, request } = await connect(true, ["schedules"]);
   const original = request.getMockImplementation()!;
   const signals: AbortSignal[] = [];
+  const cleanup = Promise.withResolvers<void>();
+  const cancelled = vi.fn(() => cleanup.promise);
+  const releaseRefresh = Promise.withResolvers<void>();
+  let refreshing = false;
   request.mockImplementation(async (input, init) => {
     if (String(input).endsWith("/v1/schedules/events")) {
       signals.push(init!.signal!);
@@ -1152,10 +1156,13 @@ test("a silent schedule stream reconnects and refreshes the authoritative revisi
                 new TextEncoder().encode('event: schedules\ndata: {"revision":2}\n\n'),
               );
           },
+          cancel: cancelled,
         }),
       );
     }
-    if (String(input).endsWith("/v1/schedules"))
+    if (String(input).endsWith("/v1/schedules")) {
+      refreshing = true;
+      await releaseRefresh.promise;
       return Response.json({
         revision: 2,
         schedules: [],
@@ -1163,9 +1170,11 @@ test("a silent schedule stream reconnects and refreshes the authoritative revisi
         requests: [],
         lifecycleIntents: [],
       });
+    }
     return original(input, init);
   });
-  vi.useFakeTimers();
+  // Keep polling intervals real: only the stream should initiate this revision refresh.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const changed = vi.fn();
   const stop = bot.subscribeSchedules(changed);
   try {
@@ -1173,7 +1182,12 @@ test("a silent schedule stream reconnects and refreshes the authoritative revisi
     expect(signals[0]!.aborted).toBe(true);
     await vi.advanceTimersByTimeAsync(2000);
     expect(signals).toHaveLength(2);
-    expect(changed).toHaveBeenCalled();
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(refreshing).toBe(true);
+    expect(changed).not.toHaveBeenCalled();
+    releaseRefresh.resolve();
+    // Backoff completion starts the refresh; its response and durable cache write finish separately.
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
     expect((await bot.scheduleSnapshot())?.data.revision).toBe(2);
     stop();
     await vi.advanceTimersByTimeAsync(60000);
@@ -1182,6 +1196,8 @@ test("a silent schedule stream reconnects and refreshes the authoritative revisi
   } finally {
     stop();
     bot.close();
+    releaseRefresh.resolve();
+    cleanup.resolve();
     vi.useRealTimers();
   }
 });

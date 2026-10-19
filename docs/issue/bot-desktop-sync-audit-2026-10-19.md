@@ -32,7 +32,9 @@ preload 每次 submit 都生成新 requestId。HTTP 超时或连接中断后，�
 
 修复：Bot 的 thread / schedules SSE 每 15 秒发送独立 heartbeat，单个在途心跳写入避免慢读堆积，观察结束时停表。Desktop 每次观察连接有 45 秒首完整帧 / 后续帧期限，超时取消该次请求和 reader，沿既有 2 秒退避重连；新连接的首快照核对当前权威状态，原 operation 回执仍按 BDS-01 的持久化查询收敛。正常无模型输出时由 heartbeat 证明存活；等待消费者处理不计入传输期限。退订、关闭、断开和切换 Bot 取消期限，旧 fetch 即使迟到也不能发布到替代连接。
 
-验证：新增 4 个 Desktop 与 2 个真实 Bot 路由回归在旧实现失败；修复后，Desktop main/bot.test.ts 50 项整文件通过（含 schedule 静默重连控制）；Bot 两个 heartbeat 路由、两项背压 / cleanup helper 和两项压缩回归通过。扩大运行 Bot HTTP / heartbeat / compression 共 40 项时 36 通过、4 项既有 native tool / recovery / sandbox 用例超时或未在轮询期完成，原因未在本次修复中确认，不宣称该组全绿。未做浏览器、原生 Electron 或线上网络验证。旧版不发送 heartbeat 的 Bot 仍可连接，但静默超过 45 秒将周期重连，升级服务端后才有闲置保活。以下保留原审查基线。
+验证：新增 4 个 Desktop 与 2 个真实 Bot 路由回归在旧实现失败；修复后，Desktop main/bot.test.ts 50 项整文件通过（含 schedule 静默重连控制）；Bot 两个 heartbeat 路由、两项背压 / cleanup helper 和两项压缩回归通过。扩大运行 Bot HTTP / heartbeat / compression 共 40 项时 36 通过、4 项既有 native tool / recovery / sandbox 用例超时或未在轮询期完成，原因未在本次修复中确认，不宣称该组全绿。未做浏览器、原生 Electron 或线上网络验证。旧版不发送 heartbeat 的 Bot 仍可连接，但静默超过 45 秒将周期重连，升级服务端后才有闲置保活。
+
+PR #212 的 CI 曾在退避 2 秒后立即检查调度通知而失败。受控复现将旧 reader 的取消清理和新 `/v1/schedules` 响应分别挂住：退避结束时已建立第二条流、已开始读取新修订，但发布尚未完成，原立即断言确定失败。释放响应后有界等待实际通知，再核对修订；旧取消清理仍未结束也不阻塞重连。测试仅推进 timeout，不推进周期轮询，避免轮询掩盖 SSE 恢复。此处修复测试的完成条件，未修改产品传输逻辑；Desktop `main/bot.test.ts` 50/50 通过。以下保留原审查基线。
 
 位置：`apps/desktop/src/main/bot.ts:559`、`apps/bot/src/http.ts:449`。
 
