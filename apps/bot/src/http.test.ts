@@ -1615,3 +1615,36 @@ test("default deployment advertises full access and permits switching both ways"
     expect((await bot.core.openThread(id)).snapshot.sandbox?.mode).toBe(mode);
   }
 });
+
+test.each(["thread", "schedules"])(
+  "idle %s SSE sends transport heartbeats without new model output",
+  async (kind) => {
+    const { bot, create } = await fixture();
+    const id = await create("heartbeat-" + kind);
+    const controller = new AbortController();
+    vi.useFakeTimers();
+    const response = await bot.app.request(
+      kind === "thread" ? "/v1/threads/" + id + "/events" : "/v1/schedules/events",
+      {
+        headers: { authorization: "Bearer test-admin-token" },
+        signal: controller.signal,
+      },
+    );
+    const reader = response.body!.getReader();
+    try {
+      const initial = new TextDecoder().decode((await reader.read()).value);
+      expect(initial).toContain("event: " + (kind === "thread" ? "snapshot" : "schedules"));
+      const received: string[] = [];
+      const pending = reader.read().then((value) => {
+        received.push(new TextDecoder().decode(value.value));
+      });
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(received.join("")).toContain("event: heartbeat");
+      await pending;
+    } finally {
+      controller.abort();
+      await reader.cancel();
+      vi.useRealTimers();
+    }
+  },
+);

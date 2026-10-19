@@ -1,3 +1,4 @@
+import { heartbeat } from "./sse-heartbeat.ts";
 import { mountScheduleRoutes } from "./schedule-http.ts";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
@@ -452,19 +453,25 @@ export function createHttpApp(options: {
     const signal = AbortSignal.any([shutdown, context.req.raw.signal]);
     return streamSSE(context, async (stream) => {
       let stop: (() => void) | undefined;
+      let stopHeartbeat: (() => void) | undefined;
+      let stopped = false;
       const ended = Promise.withResolvers<void>();
       const end = () => {
+        stopped = true;
+        stopHeartbeat?.();
         stop?.();
+        stop = undefined;
         ended.resolve();
       };
       signal.addEventListener("abort", end, { once: true });
       stream.onAbort(end);
       try {
         if (signal.aborted) return;
+        stopHeartbeat = heartbeat(stream, end);
         stop = await core.subscribe(
           id,
           async (snapshot) => {
-            if (!signal.aborted)
+            if (!signal.aborted && !stopped)
               await stream.writeSSE({
                 event: "snapshot",
                 data: JSON.stringify(displaySnapshot(snapshot)),
@@ -478,10 +485,10 @@ export function createHttpApp(options: {
           },
           context.req.query("path"),
         );
-        if (signal.aborted) end();
+        if (signal.aborted || stopped) end();
         await ended.promise;
       } finally {
-        stop?.();
+        end();
         signal.removeEventListener("abort", end);
       }
     });

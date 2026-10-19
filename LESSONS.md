@@ -93,6 +93,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Bound observation transport silence independently of model output.**
+
+- Evidence: on 2026-10-19, BDS-03's Desktop SSE could wait forever for headers or a body read while the directory remained connected. Controlled stalled-header/body/partial-frame cases fail before the fix; a server heartbeat plus per-attempt complete-frame deadlines recovers a current snapshot without treating an idle model as disconnected. Thread and schedule routes, cancellation, late fetches and a held heartbeat write are covered; this is not an OS TCP or production proxy reproduction.
+- Check: bound both connection setup and subsequent complete frames, keep a single in-flight heartbeat under backpressure, and cancel timers and late deliveries with their owning observation. Consumer backpressure is not a transport deadline. Older servers without heartbeats will periodically reconnect during silence; do not claim native or deployment compatibility from stream fixtures alone.
+- Seen: 2026-10-19.
+
 **Carry retry policy as data across process boundaries.**
 
 - Evidence: on 2026-10-19, BDS-08's initial Desktop thread read never retried. Bot transport failures were serialized as non-retryable InternalError, and preload-created Error fields cannot be relied on across Electron contextBridge. Returning the command reply DTO and unwrapping in the renderer carries explicit retry policy into bounded read-only retries; focused Bot/IPC, preload and client regressions cover the layers, not native Electron serialization.

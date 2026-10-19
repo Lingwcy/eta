@@ -1,3 +1,4 @@
+import { heartbeat } from "./sse-heartbeat.ts";
 import type { Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { Schema } from "effect";
@@ -242,9 +243,12 @@ export function mountScheduleRoutes(
       let publishing = false;
       let dirty = false;
       let unsubscribe: (() => void) | undefined;
+      let stopHeartbeat: (() => void) | undefined;
       const end = () => {
         stopped = true;
+        stopHeartbeat?.();
         unsubscribe?.();
+        unsubscribe = undefined;
         ended.resolve();
       };
       const publish = async () => {
@@ -268,6 +272,7 @@ export function mountScheduleRoutes(
       stream.onAbort(end);
       try {
         if (signal.aborted) return;
+        stopHeartbeat = heartbeat(stream, end);
         unsubscribe = core.subscribeSchedules(() => {
           void publish();
         });

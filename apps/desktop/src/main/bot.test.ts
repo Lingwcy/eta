@@ -979,3 +979,207 @@ test.each([true, false])(
     }
   },
 );
+
+test.each(["headers", "body", "partial", "snapshot"])(
+  "a stalled SSE %s is aborted and reconnects to a fresh snapshot",
+  async (phase) => {
+    const { bot, request, prefix } = await connect(true);
+    const original = request.getMockImplementation()!;
+    const signals: AbortSignal[] = [];
+    const cancelled = vi.fn();
+    const received: SnapshotResponse[] = [];
+    const errors: string[] = [];
+    const pending = Promise.withResolvers<Response>();
+    request.mockImplementation(async (input, init) => {
+      if (!String(input).endsWith("/events")) return original(input, init);
+      signals.push(init!.signal!);
+      if (signals.length === 1 && phase === "headers") return pending.promise;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            if (signals.length > 1 || phase === "snapshot")
+              controller.enqueue(
+                new TextEncoder().encode(
+                  "event: snapshot\ndata: " +
+                    JSON.stringify({
+                      contextTokens: signals.length > 1 ? 42 : 1,
+                      snapshot: {
+                        configuration: {
+                          model: { provider: "test", modelId: "one" },
+                          thinkingLevel: "off",
+                        },
+                        transcript: [],
+                        operation: null,
+                        lastResult: null,
+                        faulted: false,
+                      },
+                    }) +
+                    "\n\n",
+                ),
+              );
+            else if (phase === "partial")
+              controller.enqueue(new TextEncoder().encode("event: snapshot\ndata: {"));
+          },
+          cancel: cancelled,
+        }),
+      );
+    });
+    vi.useFakeTimers();
+    const stop = await bot.subscribeThread(
+      prefix + "thread",
+      (value) => {
+        received.push(value);
+      },
+      (error) => errors.push(error),
+    );
+    try {
+      await vi.advanceTimersByTimeAsync(44999);
+      expect(errors).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(errors).toHaveLength(1);
+      expect(signals[0]!.aborted).toBe(true);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(signals).toHaveLength(2);
+      expect(received.at(-1)?.contextTokens).toBe(42);
+      if (phase !== "headers") expect(cancelled).toHaveBeenCalledTimes(1);
+      pending.resolve(new Response(new ReadableStream({ cancel: cancelled })));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(received).toHaveLength(phase === "snapshot" ? 2 : 1);
+      if (phase === "headers") expect(cancelled).toHaveBeenCalledTimes(1);
+    } finally {
+      stop();
+      bot.close();
+      pending.resolve(new Response());
+      vi.useRealTimers();
+    }
+  },
+);
+
+test("heartbeat frames keep an otherwise idle thread observation alive", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const original = request.getMockImplementation()!;
+  const signals: AbortSignal[] = [];
+  let stream!: ReadableStreamDefaultController<Uint8Array>;
+  const cancelled = vi.fn();
+  request.mockImplementation(async (input, init) => {
+    if (!String(input).endsWith("/events")) return original(input, init);
+    signals.push(init!.signal!);
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(value) {
+          stream = value;
+        },
+        cancel: cancelled,
+      }),
+    );
+  });
+  const received = vi.fn();
+  const failed = vi.fn();
+  vi.useFakeTimers();
+  const stop = await bot.subscribeThread(prefix + "thread", received, failed);
+  try {
+    await vi.advanceTimersByTimeAsync(0);
+    for (let i = 0; i < 20; i++) {
+      await vi.advanceTimersByTimeAsync(15000);
+      stream.enqueue(new TextEncoder().encode("event: heartbeat\ndata: {}\n\n"));
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    expect(signals).toHaveLength(1);
+    expect(signals[0]!.aborted).toBe(false);
+    expect(failed).not.toHaveBeenCalled();
+    expect(received).not.toHaveBeenCalled();
+    stop();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(signals[0]!.aborted).toBe(true);
+    expect(signals).toHaveLength(1);
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+  } finally {
+    stop();
+    bot.close();
+    vi.useRealTimers();
+  }
+});
+
+test.each(["unsubscribe", "close", "disconnect", "switch"])(
+  "%s during the first-frame wait cancels its deadline without reconnecting",
+  async (action) => {
+    const { bot, request, prefix } = await connect(true);
+    const original = request.getMockImplementation()!;
+    const signals: AbortSignal[] = [];
+    const cancelled = vi.fn();
+    const failed = vi.fn();
+    request.mockImplementation(async (input, init) => {
+      if (!String(input).endsWith("/events")) return original(input, init);
+      signals.push(init!.signal!);
+      return new Response(new ReadableStream<Uint8Array>({ cancel: cancelled }));
+    });
+    vi.useFakeTimers();
+    const stop = await bot.subscribeThread(prefix + "thread", () => {}, failed);
+    try {
+      await vi.advanceTimersByTimeAsync(30000);
+      if (action === "unsubscribe") stop();
+      else if (action === "close") bot.close();
+      else if (action === "disconnect") await bot.disconnect();
+      else await bot.connect({ url: "http://localhost:8081", token: "replacement" });
+      await vi.advanceTimersByTimeAsync(90000);
+      expect(signals).toHaveLength(1);
+      expect(signals[0]!.aborted).toBe(true);
+      expect(cancelled).toHaveBeenCalledTimes(1);
+      expect(failed).not.toHaveBeenCalled();
+    } finally {
+      stop();
+      bot.close();
+      vi.useRealTimers();
+    }
+  },
+);
+
+test("a silent schedule stream reconnects and refreshes the authoritative revision", async () => {
+  const { bot, request } = await connect(true, ["schedules"]);
+  const original = request.getMockImplementation()!;
+  const signals: AbortSignal[] = [];
+  request.mockImplementation(async (input, init) => {
+    if (String(input).endsWith("/v1/schedules/events")) {
+      signals.push(init!.signal!);
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            if (signals.length > 1)
+              controller.enqueue(
+                new TextEncoder().encode('event: schedules\ndata: {"revision":2}\n\n'),
+              );
+          },
+        }),
+      );
+    }
+    if (String(input).endsWith("/v1/schedules"))
+      return Response.json({
+        revision: 2,
+        schedules: [],
+        proposals: [],
+        requests: [],
+        lifecycleIntents: [],
+      });
+    return original(input, init);
+  });
+  vi.useFakeTimers();
+  const changed = vi.fn();
+  const stop = bot.subscribeSchedules(changed);
+  try {
+    await vi.advanceTimersByTimeAsync(45000);
+    expect(signals[0]!.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(signals).toHaveLength(2);
+    expect(changed).toHaveBeenCalled();
+    expect((await bot.scheduleSnapshot())?.data.revision).toBe(2);
+    stop();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(signals[1]!.aborted).toBe(true);
+    expect(signals).toHaveLength(2);
+  } finally {
+    stop();
+    bot.close();
+    vi.useRealTimers();
+  }
+});
