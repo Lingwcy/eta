@@ -40,11 +40,39 @@ export type BrowserEvent =
   | { type: "open"; url: string }
   | { type: "shortcut"; action: DesktopShortcut };
 
+function parsed(url: string) {
+  try {
+    return new URL(url);
+  } catch {
+    // A malformed port or host must reach the user as an address message, not a raw TypeError.
+    throw new LocalizedError("errors:protocol.enterAUrlOrSearchQuery");
+  }
+}
+
+/** LAN targets rarely serve TLS; extend the localhost exception to private, link-local and wildcard hosts. */
+function localHostname(hostname: string) {
+  if (hostname === "localhost" || hostname === "0.0.0.0") return true;
+  const octets = hostname.split(".").map(Number);
+  if (
+    octets.length !== 4 ||
+    octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  )
+    return false;
+  const [first, second] = octets as [number, number, number, number];
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 169 && second === 254)
+  );
+}
+
 /** Address-bar inputs can be URLs or a search; only web URLs enter guest contents. */
 export function browserAddress(input: string) {
   const text = input.trim();
   if (!text) throw new LocalizedError("errors:protocol.enterAUrlOrSearchQuery");
-  if (/^https?:\/\//i.test(text)) return new URL(text).href;
+  if (/^https?:\/\//i.test(text)) return parsed(text).href;
   if (/^[a-z][\w+.-]*:/i.test(text) && !/^[\w.-]+:\d+(?:[/?#]|$)/.test(text))
     throw new LocalizedError("errors:protocol.theBrowserOnlySupportsHttpAndHttpsUrls");
   if (
@@ -52,10 +80,9 @@ export function browserAddress(input: string) {
     (/^(?:localhost|\[[\da-f:]+\])(?::\d+)?(?:[/?#]|$)/i.test(text) ||
       /^[\w\p{L}-]+(?:\.[\w\p{L}-]+)+(?::\d+)?(?:[/?#]|$)/u.test(text))
   ) {
-    const { hostname } = new URL(`https://${text}`);
-    const local = hostname === "localhost" || /^127(?:\.\d+){3}$/.test(hostname);
+    const { hostname } = parsed(`https://${text}`);
     // Reparse the input so changing the default scheme cannot discard an explicit port.
-    return new URL(`${local ? "http" : "https"}://${text}`).href;
+    return parsed(`${localHostname(hostname) ? "http" : "https"}://${text}`).href;
   }
   return `https://duckduckgo.com/?q=${encodeURIComponent(text)}`;
 }

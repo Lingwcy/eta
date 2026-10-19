@@ -186,3 +186,57 @@ test.each(
     i18n.t("browser:browserPanel.thePageCouldNotBeLoaded"),
   );
 });
+
+const lan = [
+  ["192.168.1.1", "http://192.168.1.1/"],
+  ["192.168.1.1:8080", "http://192.168.1.1:8080/"],
+  ["10.0.0.5", "http://10.0.0.5/"],
+  ["172.16.0.1", "http://172.16.0.1/"],
+  ["172.31.255.254", "http://172.31.255.254/"],
+  ["169.254.1.1", "http://169.254.1.1/"],
+  ["0.0.0.0:3000", "http://0.0.0.0:3000/"],
+] as const;
+const publicHosts = [
+  ["172.32.0.1", "https://172.32.0.1/"],
+  ["8.8.8.8", "https://8.8.8.8/"],
+  ["192.168.1.1.example.com", "https://192.168.1.1.example.com/"],
+  ["[::1]", "https://[::1]/"],
+] as const;
+test.each(
+  (["create", "navigate"] as const).flatMap((mode) =>
+    [...lan, ...publicHosts].map(([input, expected]) => ({ mode, input, expected })),
+  ),
+)(
+  "browser address $mode keeps LAN targets reachable over http: $input",
+  async ({ mode, input, expected }) => {
+    const id = await open(mode);
+    const field = await enter(input);
+    expect(pages.get(id)?.state().url).toBe(expected);
+    expect(field.value).toBe(expected);
+    expect(client?.getSnapshot()[id]?.error).toBeUndefined();
+  },
+);
+test.each(
+  (["create", "navigate"] as const).flatMap((mode) =>
+    ["example.com:99999", "https://example.com:99999/", "http://example.com:65536"].map(
+      (input) => ({
+        mode,
+        input,
+      }),
+    ),
+  ),
+)(
+  "browser address $mode reports malformed $input in the interface language",
+  async ({ mode, input }) => {
+    const id = await open(mode);
+    const field = await enter(input);
+    expect(pages.get(id)?.state().url).toBe(
+      mode === "create" ? undefined : "https://initial.example/",
+    );
+    expect(client?.getSnapshot()[id]?.error).toBeDefined();
+    expect(document.body.textContent).toContain(i18n.t("errors:protocol.enterAUrlOrSearchQuery"));
+    expect(document.body.textContent).not.toContain("Invalid URL");
+    // A rejected address stays in the box so the user can correct the port or host.
+    expect(field.value).toBe(input);
+  },
+);
