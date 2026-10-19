@@ -920,6 +920,7 @@ test("an initial HTTP 502 recovers through the serialized command reply and clie
   const client = new ThreadAgentClient({
     openThread: (id) => bot.open(id),
     openThreadReply: async (id) => structuredClone(await commandReply(() => bot.open(id))),
+    operation: (id, operationId) => bot.operation(id, operationId),
     configureThread: (id, provider, model, level) => bot.configure(id, provider, model, level),
     configureSandbox: (id, mode) => bot.configureSandbox(id, mode),
     submit: (id, prompt, images) => bot.submit(id, prompt, "request", images),
