@@ -95,12 +95,69 @@ test("keeps watching an idle root until background children and their final synt
   expect(unsubscribed).toEqual(["thread"]);
 });
 
-test("a lost observation removes stale indicators and releases its subscription", () => {
-  const { activity, listeners, unsubscribed } = fixture();
+test("transport errors retain activity and observation until a recovered snapshot confirms completion", () => {
+  const { activity, subscribe, emit, listeners, unsubscribed } = fixture();
+  const changed = vi.fn();
+  activity.subscribe(changed);
   activity.watch("thread");
+  emit("thread", active);
+  const running = activity.getSnapshot();
+  listeners.get("thread")?.({ type: "error", message: "502 Bad Gateway" });
   listeners.get("thread")?.({ type: "error", message: "Disconnected" });
+  expect(activity.getSnapshot()).toBe(running);
+  expect(unsubscribed).toEqual([]);
+  expect(changed).toHaveBeenCalledTimes(1);
+  activity.watch("thread");
+  expect(subscribe).toHaveBeenCalledTimes(1);
+  emit("thread", active);
+  expect(activity.getSnapshot()).toBe(running);
+  emit("thread", snapshot());
   expect(activity.getSnapshot().size).toBe(0);
   expect(unsubscribed).toEqual(["thread"]);
+  expect(changed).toHaveBeenCalledTimes(2);
+});
+
+test.each([{ recoveryRequired: true }, { faulted: true }])(
+  "a recovered snapshot with %j clears activity even with an interrupted operation",
+  (terminal) => {
+    const { activity, emit, listeners, unsubscribed } = fixture();
+    activity.watch("thread");
+    listeners.get("thread")?.({ type: "error", message: "Disconnected" });
+    emit("thread", { ...active, ...terminal });
+    expect(activity.getSnapshot().size).toBe(0);
+    expect(unsubscribed).toEqual(["thread"]);
+  },
+);
+
+test("disposing after a transport error still releases the retained subscription", () => {
+  const { activity, listeners, unsubscribed } = fixture();
+  activity.watch("thread");
+  const stale = listeners.get("thread");
+  stale?.({ type: "error", message: "Disconnected" });
+  expect(unsubscribed).toEqual([]);
+  activity.dispose();
+  expect(activity.getSnapshot().size).toBe(0);
+  expect(unsubscribed).toEqual(["thread"]);
+  activity.watch("thread");
+  stale?.({ type: "error", message: "Disconnected" });
+  stale?.({ type: "snapshot", value: { snapshot: snapshot(), contextTokens: 0 } });
+  expect(activity.getSnapshot().has("thread")).toBe(true);
+  activity.dispose();
+});
+
+test("a synchronous transport error keeps the returned observation alive", () => {
+  const unsubscribe = vi.fn();
+  const activity = new ThreadActivity({
+    subscribe: (_id, listener) => {
+      listener({ type: "error", message: "Disconnected" });
+      return unsubscribe;
+    },
+  });
+  activity.watch("thread");
+  expect(activity.getSnapshot().has("thread")).toBe(true);
+  expect(unsubscribe).not.toHaveBeenCalled();
+  activity.dispose();
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
 });
 
 test("disposed and replaced subscriptions cannot clear a newly running task", () => {

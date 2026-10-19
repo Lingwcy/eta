@@ -37,7 +37,8 @@ export class ThreadActivity {
     this.update();
     const onEvent = (event: AgentEvent) => {
       if (this.watches.get(id) !== watch) return;
-      if (event.type === "snapshot" && hasThreadActivity(event.value.snapshot)) return;
+      // A transport error says nothing about execution; keep the subscription alive to recover.
+      if (event.type !== "snapshot" || hasThreadActivity(event.value.snapshot)) return;
       this.watches.delete(id);
       watch.unsubscribe?.();
       this.update();

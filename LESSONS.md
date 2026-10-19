@@ -93,6 +93,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Observation failures do not establish an execution outcome.**
+
+- Evidence: on 2026-10-19, BDS-09's Desktop activity watcher removed its running marker and cancelled the reconnecting subscription on a transport error. Three focused regressions fail before the fix; retaining observation through errors allows a later authoritative snapshot to confirm continued activity or completion. Synchronous errors, disposal, interrupted/faulted snapshots and obsolete callbacks are covered without a native network reproduction.
+- Check: keep transport uncertainty separate from durable task status. Do not unsubscribe the only recovery path merely because it reports a temporary failure; release on authoritative inactivity or explicit disposal.
+- Seen: 2026-10-19.
+
 **Keep a committed connection's client, credentials and cache origin together after later failures.**
 
 - Evidence: on 2026-10-17, #110's MobileStore regression saves Bot B's credentials and URL, then rejects its cache write. The old catch restores only client A; a subsequent public refresh/send uses A's token and writes its directory into B's cache. First-connect and same-URL token-rotation cases also lose the committed client; cache-load and credential-save failures before commit remain on A.
