@@ -30,6 +30,7 @@ export class ThreadAgentClient {
   private state = initialAgentState;
   private readonly listeners = new Set<() => void>();
   private unsubscribeEvents?: () => void;
+  private stopAdmissionWatch?: () => void;
   private disposed = false;
 
   constructor(private readonly bridge: AgentBridge = window.eta) {}
@@ -146,6 +147,7 @@ export class ThreadAgentClient {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.stopAdmissionWatch?.();
     this.unsubscribeEvents?.();
     this.listeners.clear();
   }
@@ -166,8 +168,40 @@ export class ThreadAgentClient {
 
   private update(patch: Partial<AgentClientState>) {
     if (this.disposed) return;
+    const previousAdmission = this.state.admission;
     this.state = { ...this.state, ...patch };
+    if (this.state.admission !== previousAdmission) this.watchAdmission();
     for (const listener of this.listeners) listener();
+  }
+
+  /** A later turn can replace lastResult before this view observes its own input's completion. */
+  private watchAdmission() {
+    this.stopAdmissionWatch?.();
+    this.stopAdmissionWatch = undefined;
+    const admission = this.state.admission;
+    const sessionId = this.state.session?.id;
+    if (!admission || !sessionId) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const stop = () => clearTimeout(timer);
+    this.stopAdmissionWatch = stop;
+    const current = () =>
+      !this.disposed && this.stopAdmissionWatch === stop && this.state.admission === admission;
+    const check = async () => {
+      try {
+        const result = await this.bridge.operation(sessionId, admission.operationId);
+        if (!current()) return;
+        if (
+          result.operationId === admission.operationId &&
+          ["completed", "failed", "aborted"].includes(result.status)
+        )
+          this.update({ admission: null });
+      } catch {
+        // An unavailable receipt does not establish whether the admitted input has finished.
+      }
+      if (current()) timer = setTimeout(() => void check(), 2000);
+    };
+    // Ordinary live acknowledgements usually arrive before a fallback read is necessary.
+    timer = setTimeout(() => void check(), 1000);
   }
 }
 

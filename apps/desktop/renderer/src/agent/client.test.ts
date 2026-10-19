@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
-import type { OperationAdmission } from "@eta/core/agent/protocol";
+import type { OperationAdmission, OperationResult } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentEvent, AgentBridge } from "../../../src/bridge.ts";
 import { ThreadAgentClient } from "./client.ts";
@@ -38,6 +38,12 @@ class TestBridge implements AgentBridge {
     },
   });
   submit = async (_sessionId: string, _prompt: string) => admission;
+  operation = vi.fn(async (_id: string, operationId: string): Promise<OperationResult> => ({
+    ...admission,
+    operationId,
+    status: "running",
+    messages: [],
+  }));
   stop = async (_sessionId: string) => {};
   subscribe = (_sessionId: string, listener: (event: AgentEvent) => void) => {
     this.listener = listener;
@@ -84,6 +90,7 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const client of clients.splice(0)) client.dispose();
+  vi.useRealTimers();
 });
 
 async function connectedClient() {
@@ -144,6 +151,176 @@ test("does not leave stale admission state when completion arrives before the in
   await client.submit("Quick answer");
   expect(client.getSnapshot().admission).toBeNull();
   expect(client.getSnapshot().submitting).toBe(false);
+});
+
+function laterObservation(): SnapshotResponse {
+  return {
+    contextTokens: 42,
+    snapshot: {
+      ...session.snapshot,
+      transcript: [
+        {
+          id: "later-input",
+          type: "message",
+          message: { role: "user", content: "Later scheduled turn", timestamp: 3000 },
+        },
+      ],
+      lastResult: {
+        operationId: "later-run",
+        kind: "run",
+        status: "completed",
+        startedAt: 3000,
+        endedAt: 4000,
+        fromTipId: null,
+        tipId: null,
+      },
+    },
+  };
+}
+
+test.each(["completed", "failed", "aborted"] as const)(
+  "reconciles a missed %s receipt without replacing a newer observed turn",
+  async (status) => {
+    vi.useFakeTimers();
+    const client = await connectedClient();
+    await client.submit("First input");
+    const newer = laterObservation();
+    bridge.emit(newer);
+    bridge.operation.mockResolvedValue({ ...admission, status, messages: [] });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(bridge.operation).toHaveBeenCalledExactlyOnceWith(session.id, admission.operationId);
+    expect(client.getSnapshot().admission).toBeNull();
+    expect(client.getSnapshot().observation).toBe(newer);
+    await expect(client.submit("Next input")).resolves.toBeUndefined();
+  },
+);
+
+test("reconciles when a late admission reply arrives after a later turn's snapshot", async () => {
+  vi.useFakeTimers();
+  const client = await connectedClient();
+  bridge.submit = async () => {
+    bridge.emit(laterObservation());
+    return admission;
+  };
+  bridge.operation.mockResolvedValue({ ...admission, status: "completed", messages: [] });
+  await client.submit("First input");
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(client.getSnapshot().admission).toBeNull();
+  expect(client.getSnapshot().observation?.snapshot.lastResult?.operationId).toBe("later-run");
+});
+
+test("keeps queued, running and paused receipts locked until their durable terminal result", async () => {
+  vi.useFakeTimers();
+  const client = await connectedClient();
+  await client.submit("First input");
+  bridge.emit(laterObservation());
+  for (const status of ["queued", "running", "paused"] as const) {
+    bridge.operation.mockResolvedValue({ ...admission, status, messages: [] });
+    await vi.advanceTimersByTimeAsync(status === "queued" ? 1000 : 2000);
+    expect(client.getSnapshot().admission).toBe(admission);
+    await expect(client.submit("Too soon")).rejects.toThrow("尚未就绪");
+  }
+  bridge.operation.mockResolvedValue({ ...admission, status: "completed", messages: [] });
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(client.getSnapshot().admission).toBeNull();
+  expect(bridge.operation).toHaveBeenCalledTimes(4);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+test("retries an unavailable receipt without treating a lookup failure as completion", async () => {
+  vi.useFakeTimers();
+  const client = await connectedClient();
+  bridge.operation
+    .mockRejectedValueOnce(new Error("Temporary Bot failure"))
+    .mockResolvedValue({ ...admission, status: "completed", messages: [] });
+  await client.submit("First input");
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(client.getSnapshot().admission).toBe(admission);
+  expect(client.getSnapshot().error).toBeNull();
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(client.getSnapshot().admission).toBeNull();
+});
+
+test("does not poll a receipt already acknowledged by the live snapshot", async () => {
+  vi.useFakeTimers();
+  const client = await connectedClient();
+  await client.submit("First input");
+  bridge.emit({
+    ...laterObservation(),
+    snapshot: {
+      ...session.snapshot,
+      operation: {
+        id: admission.operationId,
+        kind: "run",
+        startedAt: 1000,
+        fromTipId: null,
+        status: "running",
+        runningTools: [],
+      },
+    },
+  });
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(client.getSnapshot().admission).toBeNull();
+  expect(bridge.operation).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+test("an obsolete receipt lookup cannot clear or restart polling for its replacement", async () => {
+  vi.useFakeTimers();
+  const client = await connectedClient();
+  const pending = Promise.withResolvers<OperationResult>();
+  bridge.operation.mockImplementationOnce(() => pending.promise);
+  await client.submit("First input");
+  await vi.advanceTimersByTimeAsync(1000);
+  bridge.emit(laterObservation());
+  bridge.emit(laterObservation());
+  await vi.advanceTimersByTimeAsync(10000);
+  expect(bridge.operation).toHaveBeenCalledTimes(1);
+  const firstCompleted = laterObservation();
+  firstCompleted.snapshot.lastResult!.operationId = admission.operationId;
+  bridge.emit(firstCompleted);
+  const replacement = { ...admission, operationId: "replacement-run" };
+  bridge.submit = async () => replacement;
+  await client.submit("Replacement input");
+  pending.resolve({ ...admission, status: "completed", messages: [] });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.getSnapshot().admission).toBe(replacement);
+  bridge.operation.mockResolvedValue({ ...replacement, status: "running", messages: [] });
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(bridge.operation).toHaveBeenCalledTimes(2);
+  expect(bridge.operation).toHaveBeenLastCalledWith(session.id, replacement.operationId);
+  expect(vi.getTimerCount()).toBe(1);
+});
+
+test("disposing a view invalidates an in-flight receipt lookup and its retry", async () => {
+  vi.useFakeTimers();
+  const client = await connectedClient();
+  const pending = Promise.withResolvers<OperationResult>();
+  bridge.operation.mockImplementationOnce(() => pending.promise);
+  await client.submit("First input");
+  await vi.advanceTimersByTimeAsync(1000);
+  const before = client.getSnapshot();
+  client.dispose();
+  pending.resolve({ ...admission, status: "completed", messages: [] });
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(client.getSnapshot()).toBe(before);
+  expect(bridge.operation).toHaveBeenCalledTimes(1);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+test("a response for another operation cannot acknowledge the pending admission", async () => {
+  vi.useFakeTimers();
+  const client = await connectedClient();
+  bridge.operation.mockResolvedValue({
+    ...admission,
+    operationId: "wrong-run",
+    status: "completed",
+    messages: [],
+  });
+  await client.submit("First input");
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(client.getSnapshot().admission).toBe(admission);
+  expect(vi.getTimerCount()).toBe(1);
 });
 
 test("a late open after disposal does not install a subscription", async () => {

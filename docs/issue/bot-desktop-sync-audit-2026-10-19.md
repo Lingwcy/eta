@@ -10,6 +10,8 @@
 
 位置：`apps/desktop/renderer/src/agent/client.ts:153`。
 
+修复候选（待审批）：Desktop 现在会按原始 operationId 核对持久化执行记录，仅在确认 completed / failed / aborted 后释放尚未被快照确认的发送回执。实时确认会取消后备查询；查询失败会重试；会话关闭或回执被替换后，旧查询不能更改新状态。现有较新的会话快照保持不变。回归覆盖见 `apps/desktop/renderer/src/agent/client.test.ts`，本地 IPC 与真实 Bot HTTP 集成分别见 `apps/desktop/src/main/runtime-integration.test.ts` 和 `apps/bot/src/desktop.test.ts`。以下保留原审查基线的问题说明。
+
 发送回执只在当前 `operation.id` 或 `lastResult.operationId` 与它相等时解除。若消息已经被接收，断线期间该次执行完成，随后定时任务或另一个客户端又完成一轮，重连快照只保留后一轮的 `lastResult`。旧回执不会再被确认。
 
 复现：提交得到 `run`，下一份收到的快照包含已保存输入、没有运行任务、`lastResult` 为 `later-scheduled-run`。连接显示 connected，但 admission 仍为 `run`，下一条消息被拒绝。此测试验证丢帧后的客户端状态，不声称线上已经发生同一交错。
