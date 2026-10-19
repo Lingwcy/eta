@@ -180,13 +180,30 @@ export class BotClient {
   ) {
     let attempt = 0;
     while (!signal.aborted) {
+      // The server emits a transport heartbeat every 15s; three missed frames mean the stream is silent.
+      const alive = new AbortController();
+      const forward = () => alive.abort(signal.reason);
+      signal.addEventListener("abort", forward, { once: true });
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      const arm = () => {
+        clearTimeout(deadline);
+        deadline = setTimeout(() => alive.abort(new Error("实时连接中断，正在重连")), 45_000);
+      };
+      arm();
       try {
-        const response = await this.response(this.route(id) + "/events", undefined, signal, true);
+        const response = await this.response(
+          this.route(id) + "/events",
+          undefined,
+          alive.signal,
+          true,
+        );
         if (!response.body) throw new Error("Bot 未提供实时消息流");
         await readEvents(
           response.body,
           ({ event, data }) => {
-            if (signal.aborted) return;
+            if (alive.signal.aborted) return;
+            // Any frame, including a heartbeat, proves the transport is still delivering.
+            arm();
             if (event === "snapshot") {
               const parsed = SnapshotResponseSchema.safeParse(JSON.parse(data));
               if (!parsed.success) throw new BotError("Bot 实时数据格式不兼容", "InvalidResponse");
@@ -199,7 +216,7 @@ export class BotClient {
               throw new Error(parsed.message);
             }
           },
-          signal,
+          alive.signal,
         );
         if (!signal.aborted) throw new Error("实时连接中断，正在重连");
       } catch (error) {
@@ -212,6 +229,9 @@ export class BotClient {
             error.code === "InvalidResponse");
         status(error instanceof Error ? error.message : "实时连接中断", fatal);
         if (fatal) return;
+      } finally {
+        clearTimeout(deadline);
+        signal.removeEventListener("abort", forward);
       }
       await delay(Math.min(1000 * 2 ** attempt++, 30000), signal);
     }
