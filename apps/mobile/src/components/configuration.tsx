@@ -198,6 +198,7 @@ export function ConfigurationSheet({
                 <Pressable
                   accessibilityRole="tab"
                   accessibilityState={{ selected: activeProvider === null && !query }}
+                  hitSlop={6}
                   onPress={() => {
                     setActiveProvider(null);
                     setQuery("");
@@ -223,6 +224,7 @@ export function ConfigurationSheet({
                       key={p}
                       accessibilityRole="tab"
                       accessibilityState={{ selected: isActive }}
+                      hitSlop={6}
                       onPress={() => {
                         setActiveProvider(p);
                         setQuery("");
@@ -313,6 +315,7 @@ export function ConfigurationSheet({
                           key={lvl}
                           accessibilityRole="radio"
                           accessibilityState={{ selected: isLvlSelected }}
+                          hitSlop={6}
                           onPress={() => setSelected({ ...selected, thinkingLevel: lvl })}
                           style={[styles.miniChip, isLvlSelected && styles.miniChipActive]}
                         >
@@ -335,6 +338,7 @@ export function ConfigurationSheet({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`沙盒策略: ${sandboxLabels[selected.sandboxMode]}, 点击切换`}
+                    hitSlop={6}
                     onPress={handleCycleSandbox}
                     style={styles.sandboxChip}
                   >
@@ -350,6 +354,7 @@ export function ConfigurationSheet({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="应用设置"
+                hitSlop={6}
                 disabled={busy || !model}
                 onPress={() => {
                   void run(async () => {
@@ -436,17 +441,17 @@ const styles = StyleSheet.create({
   },
   providerRow: {
     marginBottom: 6,
-    height: 24,
+    height: 32,
   },
   providerScroll: {
     flexDirection: "row",
-    gap: 4,
+    gap: 6,
     alignItems: "center",
   },
   providerTab: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -523,6 +528,7 @@ const styles = StyleSheet.create({
   },
   footerRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
@@ -547,9 +553,11 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   miniChip: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    minHeight: 32,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    justifyContent: "center",
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -567,12 +575,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   sandboxChip: {
+    minHeight: 32,
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -583,9 +592,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   confirmButton: {
-    height: 28,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    height: 32,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     backgroundColor: colors.text,
     alignItems: "center",
     justifyContent: "center",
