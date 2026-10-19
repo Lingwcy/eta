@@ -6,11 +6,11 @@
 
 ## 已复现的问题
 
-### BDS-01 / P1：漏掉一次完成快照，会永久保留发送锁
+### BDS-01 / P1：漏掉一次完成快照，会永久保留发送锁（已解决，[#204](https://github.com/Lingwcy/eta/pull/204) 已合并）
 
 位置：`apps/desktop/renderer/src/agent/client.ts:153`。
 
-修复候选（待审批）：Desktop 现在会按原始 operationId 核对持久化执行记录，仅在确认 completed / failed / aborted 后释放尚未被快照确认的发送回执。实时确认会取消后备查询；查询失败会重试；会话关闭或回执被替换后，旧查询不能更改新状态。现有较新的会话快照保持不变。回归覆盖见 `apps/desktop/renderer/src/agent/client.test.ts`，本地 IPC 与真实 Bot HTTP 集成分别见 `apps/desktop/src/main/runtime-integration.test.ts` 和 `apps/bot/src/desktop.test.ts`。以下保留原审查基线的问题说明。
+已合并的修复：Desktop 现在会按原始 operationId 核对持久化执行记录，仅在确认 completed / failed / aborted 后释放尚未被快照确认的发送回执。实时确认会取消后备查询；查询失败会重试；会话关闭或回执被替换后，旧查询不能更改新状态。现有较新的会话快照保持不变。回归覆盖见 `apps/desktop/renderer/src/agent/client.test.ts`，本地 IPC 与真实 Bot HTTP 集成分别见 `apps/desktop/src/main/runtime-integration.test.ts` 和 `apps/bot/src/desktop.test.ts`。以下保留原审查基线的问题说明。
 
 发送回执只在当前 `operation.id` 或 `lastResult.operationId` 与它相等时解除。若消息已经被接收，断线期间该次执行完成，随后定时任务或另一个客户端又完成一轮，重连快照只保留后一轮的 `lastResult`。旧回执不会再被确认。
 
@@ -28,7 +28,7 @@ preload 每次 submit 都生成新 requestId。HTTP 超时或连接中断后，�
 
 建议：让一条待发消息在发送、超时核对和重试之间持有同一个 requestId；将“是否已接收未知”与“确认未接收”分开。先核对服务端回执，再决定重发。
 
-### BDS-03 / P1：实时连接半断开时，客户端可能一直显示旧状态（已修复，待 PR 合并）
+### BDS-03 / P1：实时连接半断开时，客户端可能一直显示旧状态（已解决，[#212](https://github.com/Lingwcy/eta/pull/212) 已合并）
 
 修复：Bot 的 thread / schedules SSE 每 15 秒发送独立 heartbeat，单个在途心跳写入避免慢读堆积，观察结束时停表。Desktop 每次观察连接有 45 秒首完整帧 / 后续帧期限，超时取消该次请求和 reader，沿既有 2 秒退避重连；新连接的首快照核对当前权威状态，原 operation 回执仍按 BDS-01 的持久化查询收敛。正常无模型输出时由 heartbeat 证明存活；等待消费者处理不计入传输期限。退订、关闭、断开和切换 Bot 取消期限，旧 fetch 即使迟到也不能发布到替代连接。
 
@@ -44,7 +44,9 @@ SSE 使用没有 deadline 的 AbortController，fetch 建连和 reader.read 都�
 
 建议：建立服务端心跳及客户端首帧 / 心跳 deadline，超期后重建观察连接并核对持久化状态。不能仅按“多久没有模型输出”判断断线，正常长工具调用也可能没有内容变化。
 
-### BDS-04 / P2：目录轮询的一次错误，会禁用健康聊天；恢复后又清空已显示历史
+### BDS-04 / P2：目录轮询的一次错误，会禁用健康聊天；恢复后又清空已显示历史（已解决，[#203](https://github.com/Lingwcy/eta/pull/203) 已合并）
+
+当前行为分别判断目录状态与已显示的健康会话观察；仅目录轮询失败不会禁用健康聊天或销毁其快照。对应回归见 `renderer/src/agent/directory-health.test.ts`。以下保留原审查基线。
 
 位置：`apps/desktop/renderer/src/agent/use-desktop-controller.ts:43`、`apps/desktop/renderer/src/agent/use-thread-agent.ts:19`。
 
@@ -76,7 +78,7 @@ POST /v1/threads/:id/messages
 
 建议：创建时一次提交最终配置，删除成功创建后的重复配置；目录刷新退出关键发送路径。在准备、创建和待接收阶段明确显示状态；创建后尽早绑定实际 thread identity，并按阶段提供真实取消语义。
 
-### BDS-06 / P2：普通发送前，服务端重复构造 3 次完整会话快照（已修复，待 PR 合并）
+### BDS-06 / P2：普通发送前，服务端重复构造 3 次完整会话快照（核心问题已解决，[#211](https://github.com/Lingwcy/eta/pull/211) 已合并；目录扫描另待优化）
 
 修复：Core 公开已有 `ThreadService.get` 的轻量元数据读取；Controller 的 HTTP、直接发送、停止、子智能体与调度鉴权使用该读取，不再为鉴权打开运行时 / 投影历史。准入前仍重新核对工作区归属；真正 GET 会话时仍构造一次完整快照。真实 HTTP 回归确认 admission 前 openThread 从 3 次降至 0，幂等重放不打开历史，越权请求在读取历史前拒绝；收据查询期间撤销工作区后不能继续准入。8 项新增回归通过，其中 7 项在旧实现下失败。原过期清理测试改为在真实 authorize 边界持有控制门，不再依赖第 2 次完整快照。目录扫描频率未修改，也没有生产规模耗时基准；不声称整条发送路径已完成性能优化。
 
@@ -90,7 +92,9 @@ HTTP messages 路由 authorize 一次，Controller.submit authorize 一次，cla
 
 建议：鉴权和准入读取轻量元数据；需要展示时才构造历史快照。保留提交时的权限与归属验证，避免为减少次数引入过期授权。
 
-### BDS-07 / P2：自动恢复后，失败 toast 仍然留在屏幕上
+### BDS-07 / P2：自动恢复后，失败 toast 仍然留在屏幕上（旧通知未关闭已解决，[#210](https://github.com/Lingwcy/eta/pull/210) 已合并）
+
+当前 `ToastNotice` 在 message 清空或替换时关闭对应 toast，实 DOM 回归见 `renderer/src/components/ui/toast-notice.test.ts`。原建议中的延迟通知、恢复中状态与标题分级未实现，不视为已完成。以下保留原审查基线。
 
 位置：`apps/desktop/renderer/src/components/ui/toast.tsx:101`、`apps/desktop/src/main/bot.ts:612`。
 
@@ -100,7 +104,7 @@ HTTP messages 路由 authorize 一次，Controller.submit authorize 一次，cla
 
 建议：瞬时连接故障先进入“正在恢复”的连接状态；达到阈值或无法自动恢复时再给出可操作错误。若 toast 表示当前连接故障，恢复时应关闭或更新对应通知；具体写入失败仍需按回执核对结果。
 
-### BDS-08 / P2：首次打开聊天的 502，没有同等的自动重试（已修复，待 PR 合并）
+### BDS-08 / P2：首次打开聊天的 502，没有同等的自动重试（已解决，[#206](https://github.com/Lingwcy/eta/pull/206) 已合并）
 
 修复：首次只读 open 请求遇到明确可重试错误时，按 1 秒 / 2 秒退避，最多尝试 3 次；耗尽后仍保留原手动重试路径。Bot 网络 / 超时及 HTTP 408、429、5xx 错误携带可重试策略，经 IPC reply DTO 传入 renderer，避免依赖 contextBridge 保留 Error 自定义属性。认证、权限及不存在等不可重试错误直接显示；dispose、替换 connect 和过期回调不会重启旧连接。`client.test.ts`、`main/bot.test.ts`、`main/ipc.test.ts` 和 `preload.test.ts` 定向测试 119/119 通过，覆盖客户端退避 / 生命周期、真实 Bot HTTP 502 经 IPC DTO 后重试成功、错误分类、响应体网络中断与 preload DTO 入口。lint 在本机工具内部崩溃，桌面类型检查超时，未视为通过；未做原生 Electron 或线上 Bot 验证。
 
@@ -112,7 +116,7 @@ connect 先等待 openThread，成功后才建立 SSE。若首次 GET 失败，�
 
 建议：对可恢复的首次读取失败做有界重试，保留手动重试并区分认证 / 权限 / 不存在等不可重试错误。
 
-### BDS-09 / P2：后台运行标记把临时断线当作任务结束（已修复，待 PR 合并）
+### BDS-09 / P2：后台运行标记把临时断线当作任务结束（已解决，[#205](https://github.com/Lingwcy/eta/pull/205) 已合并）
 
 修复：`ThreadActivity` 不再把 error 事件当成执行终态，保留运行标记和原订阅，让底层连接继续自动恢复。只有后续权威快照确认无活动、需要恢复或已故障时才清除；dispose 仍释放订阅。`thread-activity.test.ts` 的 11 项定向测试通过，涵盖连续断线、恢复后继续运行 / 完成、同步错误、故障 / recovery 快照及过期回调。新增回归中的 3 项在修复前失败。未做原生桌面或线上 Bot 验证。
 
