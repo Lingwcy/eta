@@ -18,7 +18,7 @@
 
 建议：重连时按原始 operation / request identity 查询持久化回执，收敛到该次执行的实际状态。不能把“当前已空闲”直接当成该次提交成功，也不能只等一个可能永远不会重现的最新结果字段。
 
-### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次
+### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（已修复，待 PR 合并）
 
 位置：`apps/desktop/src/preload.ts:117`、`apps/desktop/src/main/bot.ts:409`、`apps/bot/src/store.ts:25`。
 

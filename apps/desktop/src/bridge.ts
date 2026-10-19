@@ -57,6 +57,8 @@ export interface AgentBridge {
     sessionId: string,
     prompt: string,
     images?: readonly ImageAttachment[],
+    /** Retried attempts of one logical message reuse its durable identity. */
+    requestId?: string,
   ): Promise<OperationAdmission>;
   stop(sessionId: string): Promise<void>;
   subscribe(sessionId: string, listener: (event: AgentEvent) => void, path?: string): () => void;

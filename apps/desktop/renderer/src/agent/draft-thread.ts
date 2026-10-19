@@ -3,6 +3,11 @@ import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import type { ImageAttachment } from "@eta/core/images/types";
 import type { DesktopBridge } from "../../../src/bridge.ts";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
+import {
+  admissionUncertain,
+  submissionIdentity,
+  type UncertainSubmission,
+} from "../../../src/shared/message-request.ts";
 
 type DraftBridge = Pick<DesktopBridge, "submit"> &
   Partial<Pick<DesktopBridge, "configureThread" | "configureSandbox" | "createWorktree">> & {
@@ -19,6 +24,7 @@ export class DraftThread {
   private workspaceId?: string;
   private pending?: Promise<string>;
   private worktree?: { key: string; requestId: string; workspaceId?: string };
+  private uncertainSubmission?: UncertainSubmission;
 
   constructor(
     readonly requestId: string,
@@ -98,7 +104,16 @@ export class DraftThread {
       );
     if (configuration?.sandboxMode)
       await this.bridge.configureSandbox?.(this.threadId, configuration.sandboxMode);
-    await this.bridge.submit(this.threadId, prompt, ...(images ? [images] : []));
+    const requestId = submissionIdentity(this.uncertainSubmission, prompt, images);
+    try {
+      await this.bridge.submit(this.threadId, prompt, images, requestId);
+      this.uncertainSubmission = undefined;
+    } catch (error) {
+      this.uncertainSubmission = admissionUncertain(error)
+        ? { requestId, prompt, images }
+        : undefined;
+      throw error;
+    }
     return this.threadId;
   }
 

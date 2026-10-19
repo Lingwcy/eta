@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 import { DraftThread } from "./draft-thread";
+import { DesktopCommandError } from "../../../src/command-reply.ts";
 
 function setup() {
   const createThread = vi.fn(async (_workspace: string, _request: string) => ({ id: "persisted" }));
@@ -24,7 +25,12 @@ test("a draft stays local until a nonempty message has a selected project", asyn
   expect(submit).not.toHaveBeenCalled();
   await expect(draft.submit("selected-project", "  Hello  ")).resolves.toBe("persisted");
   expect(createThread).toHaveBeenCalledExactlyOnceWith("selected-project", "draft-request");
-  expect(submit).toHaveBeenCalledExactlyOnceWith("persisted", "Hello");
+  expect(submit).toHaveBeenCalledExactlyOnceWith(
+    "persisted",
+    "Hello",
+    undefined,
+    expect.any(String),
+  );
 });
 
 test("repeated sends while creation is pending share one thread and one admission", async () => {
@@ -78,7 +84,7 @@ test("an image-only draft still requires a project and forwards the image on fir
   await expect(draft.submit(null, "", images)).rejects.toThrow("选择项目");
   expect(createThread).not.toHaveBeenCalled();
   await draft.submit("project", "", images);
-  expect(submit).toHaveBeenCalledWith("persisted", "", images);
+  expect(submit).toHaveBeenCalledWith("persisted", "", images, expect.any(String));
 });
 
 test("a failed cloud configuration preserves the created thread and admits no message until retry", async () => {
@@ -99,7 +105,12 @@ test("a failed cloud configuration preserves the created thread and admits no me
   ).resolves.toBe("persisted");
   expect(createThread).toHaveBeenCalledTimes(1);
   expect(configureThread).toHaveBeenLastCalledWith("persisted", "cloud", "one", "off");
-  expect(submit).toHaveBeenCalledExactlyOnceWith("persisted", "Cloud work");
+  expect(submit).toHaveBeenCalledExactlyOnceWith(
+    "persisted",
+    "Cloud work",
+    undefined,
+    expect.any(String),
+  );
 });
 
 const worktreeInput = {
@@ -199,4 +210,40 @@ test("duplicate sends during worktree creation share one creation and one messag
   expect(createWorktree).toHaveBeenCalledTimes(1);
   expect(createThread).toHaveBeenCalledTimes(1);
   expect(submit).toHaveBeenCalledTimes(1);
+});
+
+test("an uncertain draft admission keeps its identity and a definite rejection does not", async () => {
+  const calls: (string | undefined)[] = [];
+  const submit = vi.fn(async (...args: unknown[]) => {
+    calls.push(args.at(-1) as string | undefined);
+    if (calls.length === 1)
+      throw new DesktopCommandError({
+        code: "BotRequestFailed",
+        message: "Request timed out",
+        retryable: true,
+      });
+    return { operationId: "run", kind: "run" as const, startedAt: 1 };
+  });
+  const draft = new DraftThread("draft-request", {
+    createThread: vi.fn(async () => ({ id: "persisted" })),
+    submit,
+  });
+  await expect(draft.submit("project", "Hello")).rejects.toThrow("Request timed out");
+  await expect(draft.submit("project", "Hello")).resolves.toBe("persisted");
+  expect(calls[0]).toBeTruthy();
+  expect(calls[1]).toBe(calls[0]);
+  await expect(draft.submit("project", "Other work")).resolves.toBe("persisted");
+  expect(calls[2]).not.toBe(calls[0]);
+
+  const rejected: (string | undefined)[] = [];
+  const rejecting = new DraftThread("draft-request", {
+    createThread: vi.fn(async () => ({ id: "persisted" })),
+    submit: vi.fn(async (...args: unknown[]) => {
+      rejected.push(args.at(-1) as string | undefined);
+      throw new DesktopCommandError({ code: "Busy", message: "Please wait", retryable: false });
+    }),
+  });
+  await expect(rejecting.submit("project", "Hello")).rejects.toThrow("Please wait");
+  await expect(rejecting.submit("project", "Hello")).rejects.toThrow("Please wait");
+  expect(rejected[1]).not.toBe(rejected[0]);
 });
