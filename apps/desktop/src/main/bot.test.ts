@@ -986,7 +986,8 @@ test.each(["headers", "body", "partial", "snapshot"])(
     const { bot, request, prefix } = await connect(true);
     const original = request.getMockImplementation()!;
     const signals: AbortSignal[] = [];
-    const cancelled = vi.fn();
+    const cleanup = Promise.withResolvers<void>();
+    const cancelled = vi.fn(() => cleanup.promise);
     const received: SnapshotResponse[] = [];
     const errors: string[] = [];
     const pending = Promise.withResolvers<Response>();
@@ -1050,6 +1051,7 @@ test.each(["headers", "body", "partial", "snapshot"])(
       stop();
       bot.close();
       pending.resolve(new Response());
+      cleanup.resolve();
       vi.useRealTimers();
     }
   },

@@ -633,7 +633,9 @@ export class DesktopBot {
           let buffer = "";
           let skipLF = false;
           while (!attempt.signal.aborted) {
-            const { value, done } = await Promise.race([reader.read(), aborted.promise]);
+            // Cancelling a ReadableStream reader settles pending reads even if source cleanup hangs.
+            // Do not race every frame against one pending promise: its reactions accumulate on long streams.
+            const { value, done } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
             if (!chunk) continue;
