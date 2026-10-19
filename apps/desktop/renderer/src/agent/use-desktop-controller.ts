@@ -30,7 +30,16 @@ export function useDesktopController(
   const agent = useThreadAgent(tab.threadId ?? null, version + localVersion, active);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Message>();
-  const [draft] = useState(() => new DraftThread(tab.id, window.eta));
+  const [draft] = useState(
+    () =>
+      // The created thread is bound to the tab before its first admission settles, so stop works.
+      new DraftThread(tab.id, window.eta, (id, workspaceId) =>
+        navigation.tabs.updateConversation(tab.id, {
+          threadId: id,
+          workspaceId: workspaceId ?? tab.workspaceId,
+        }),
+      ),
+  );
   const [worktreeDraft, setWorktreeDraft] = useState<WorktreeDraft>({ enabled: false });
   const workspace = desktop.library?.workspaces.find(
     (workspace) => workspace.id === tab.workspaceId,
@@ -97,6 +106,8 @@ export function useDesktopController(
     pending,
   );
   const backgroundWork = Boolean(snapshot && !running && hasThreadActivity(snapshot));
+  // Until a durable thread exists there is nothing to stop; the composer stays disabled instead.
+  const creating = pending && !tab.threadId;
   const sandboxDisabledReason =
     cloud && remote?.status !== "connected"
       ? t("chat:useDesktopController.botIsDisconnectedReconnectInSettingsBefore")
@@ -119,10 +130,10 @@ export function useDesktopController(
   useEffect(() => {
     if (threadId && snapshot && hasThreadActivity(snapshot)) navigation.activity.watch(threadId);
   }, [threadId, snapshot, navigation.activity]);
-  const registerProject = async (rootPath: string, name: string) => {
+  const registerProject = async (rootPath: string, name: string, requestId: string) => {
     await desktop.act(async () => {
       const project = cloud
-        ? await window.eta.createCloudProject(name, crypto.randomUUID())
+        ? await window.eta.createCloudProject(name, requestId)
         : await window.eta.registerProject(rootPath, name);
       const next = await desktop.refresh();
       const workspace = projectRootWorkspace(next.workspaces, project.id);
@@ -338,7 +349,7 @@ export function useDesktopController(
         }
       },
       onStop: () => void agent.stop(),
-      isRunning: running || backgroundWork,
+      isRunning: (running || backgroundWork) && !creating,
       allowSubmitWhileRunning: backgroundWork,
       isStopping: agent.stopping || operation?.status === "aborting",
       submitDisabled: (!threadId && !tab.workspaceId) || (directoryUnavailable && !liveObservation),

@@ -2563,3 +2563,20 @@ test.each([false, true])(
   },
   15000,
 );
+
+test("a new thread applies the requested configuration before its first message", async () => {
+  const { runtime, threads, workspace } = await setup();
+  const created = await runtime.runPromise(
+    threads.create(workspace.id, "create-with-configuration", {
+      provider: "eta-test",
+      modelId: "two",
+      thinkingLevel: "high",
+      sandboxMode: "read-only",
+    }),
+  );
+  expect(created.snapshot.configuration).toMatchObject({
+    model: { provider: "eta-test", modelId: "two" },
+    thinkingLevel: "high",
+  });
+  expect(created.snapshot.sandbox?.mode).toBe("read-only");
+});
