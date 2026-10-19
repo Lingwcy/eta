@@ -93,6 +93,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Do not make a durable creation receipt wait for its derived directory.**
+
+- Evidence: on 2026-10-19, BDS-05 still awaited DesktopBot's library/status refresh after the configured thread was already created. Holding either read blocks the first message in two real DraftThread/HTTP-adapter regressions before the change. Returning the creation first admits the prompt while both held-read and later catalog-publication controls pass. Background failure, an older poll, connection replacement and explicit disposal are covered without a production latency claim.
+- Check: separate accepted creation from catalog discovery. Keep a trailing read after an older in-flight poll so the directory eventually includes the new record, and bind that continuation and the creation reply to their original connection generation. Do not use a catalog failure as evidence that creation was rejected.
+- Seen: 2026-10-19.
+
 **Bound observation transport silence independently of model output.**
 
 - Evidence: on 2026-10-19, BDS-03's Desktop SSE could wait forever for headers or a body read while the directory remained connected. Controlled stalled-header/body/partial-frame cases fail before the fix; a server heartbeat plus per-attempt complete-frame deadlines recovers a current snapshot without treating an idle model as disconnected. Thread and schedule routes, cancellation, late fetches and a held heartbeat write are covered; this is not an OS TCP or production proxy reproduction.

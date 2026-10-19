@@ -60,7 +60,11 @@ Bot library 每 5 秒轮询，一次失败就令 remote.status 变为 error。co
 
 建议：分别维护目录刷新与会话观察健康状态；恢复时保留已显示快照，只重建确实失效的观察连接。
 
-### BDS-05 / P2：新会话首条消息串行等待过多，而且停止无效（重复配置与创建期停止已修复，待 PR 合并；准备/创建阶段的状态提示未做）
+### BDS-05 / P2：新会话首条消息串行等待过多，而且停止无效（部分解决：重复配置与创建期停止已合并；目录刷新等待已修复、待 PR 合并；阶段状态提示未做）
+
+当前状态：[#218](https://github.com/Lingwcy/eta/pull/218) 已让创建携带的配置避免再次 configure / sandbox，[#221](https://github.com/Lingwcy/eta/pull/221) 已在创建完成后立即绑定实际 thread，创建前不再显示无效停止操作。此次继续移除 `DesktopBot.create` 对目录刷新完成的等待：持久化创建回执先返回，首条 submit 可直接发送；后台刷新等旧轮询结束后补读最新目录，失败仍通过既有目录状态报告，不改变创建 / 发送回执。原连接关闭、断开、切换 Bot 或更新凭证后，排队的补读不能重新启动；过期创建回复不会被映射到替代连接。
+
+受控回归分别挂住 `/v1/library` 与 `/v1/status`，旧实现均无法发送首条消息，修复后无需放行目录请求即可收到发送回执与 onCreated；放行后仍更新并发布目录。另覆盖后台失败 / 恢复、旧轮询之后补读、关闭 / 断开 / 切换 / 更新凭证和创建失败。`main/bot.test.ts`、`draft-thread.test.ts`、`draft-stop.test.ts` 定向 78/78 通过，真实 Bot 的 `src/desktop.test.ts` 7/7 通过。创建回执不再保证目录已发布：离线缓存回归先等待目录通知（在持久化写入之后），目录归属回归等待该记录实际出现，保留原离线 / 归属断言。以下保留原审查基线；准备 / 创建阶段的明确状态提示仍未实现，也未测量线上延迟或目录扫描占比。
 
 位置：`apps/desktop/renderer/src/agent/draft-thread.ts:83`、`apps/desktop/src/main/bot.ts:361`、`apps/desktop/renderer/src/agent/use-desktop-controller.ts:273`。
 

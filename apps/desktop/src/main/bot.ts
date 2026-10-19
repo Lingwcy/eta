@@ -387,14 +387,21 @@ export class DesktopBot {
   }
   async create(workspaceId: string, requestId: string, configuration?: CreateThreadConfiguration) {
     if (configuration?.sandboxMode) this.requireSandbox();
-    const result = this.session(
-      await this.request<SessionResponse>("/v1/threads", {
-        workspaceId: this.raw(workspaceId),
-        requestId,
-        ...(configuration ? { configuration } : {}),
-      }),
-    );
-    await this.refresh(true);
+    const generation = this.generation;
+    const created = await this.request<SessionResponse>("/v1/threads", {
+      workspaceId: this.raw(workspaceId),
+      requestId,
+      ...(configuration ? { configuration } : {}),
+    });
+    if (generation !== this.generation)
+      throw new LocalizedError("errors:bot.theBotForThisCloudProjectOrChat");
+    const result = this.session(created);
+    // A durable creation can be opened/submitted immediately; directory reads are not its receipt.
+    // Follow any older refresh with a current read, without reviving a replaced connection.
+    void (async () => {
+      await this.refreshing;
+      if (generation === this.generation) await this.refresh();
+    })().catch(() => {});
     return result;
   }
   async configure(id: string, provider: string, modelId: string, thinkingLevel: string) {

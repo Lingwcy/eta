@@ -159,7 +159,17 @@ test("Desktop executes and observes cloud work, persists its connection and neve
 test("failed authentication preserves the prior connection; offline catalogs never become local work", async () => {
   const { remote, url, dataRoot, server } = await fixture();
   await remote.connect({ url, token: "remote-secret" });
+  const published: string[][] = [];
+  cleanup.push(
+    remote.subscribe(() => {
+      published.push(remote.status().library?.threads.map((thread) => thread.id) ?? []);
+    }),
+  );
   const created = await remote.create(remote.status().library!.workspaces[0]!.id, "offline-thread");
+  // The creation receipt precedes directory I/O. Publication follows the durable cache write.
+  await expect
+    .poll(() => published.some((ids) => ids.includes(created.id)), { timeout: 5000 })
+    .toBe(true);
   await expect(remote.connect({ url, token: "wrong" })).rejects.toThrow("令牌无效");
   expect(remote.status().status).toBe("connected");
   if ("closeAllConnections" in server) server.closeAllConnections();
@@ -206,9 +216,12 @@ test("Desktop creates a cloud folder and selects its remote workspace without lo
     .status()
     .library!.workspaces.find((value) => value.projectId === project.id)!;
   const thread = await desktop.createThread(workspace.id, "new-cloud-draft");
-  expect(
-    remote.status().library!.threads.find((value) => value.id === thread.id)?.workspaceId,
-  ).toBe(workspace.id);
+  await expect
+    .poll(
+      () => remote.status().library!.threads.find((value) => value.id === thread.id)?.workspaceId,
+      { timeout: 5000 },
+    )
+    .toBe(workspace.id);
   expect(local.registerProject).not.toHaveBeenCalled();
   await expect(desktop.createCloudProject("../escape", "bad-project")).rejects.toThrow("根目录");
 });

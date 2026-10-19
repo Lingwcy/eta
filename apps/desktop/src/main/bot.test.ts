@@ -6,6 +6,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ThreadAgentClient } from "../../renderer/src/agent/client.ts";
 import type { SessionResponse, SnapshotResponse } from "@eta/core/agent/protocol";
 import { DesktopBot } from "./bot.ts";
+import { DraftThread } from "../../renderer/src/agent/draft-thread.ts";
 import { commandReply } from "./ipc.ts";
 
 const roots: string[] = [];
@@ -38,6 +39,270 @@ async function connect(supported: boolean, capabilities?: unknown) {
     "bot:" + createHash("sha256").update("http://localhost:8080").digest("hex").slice(0, 16) + ":";
   return { bot, request, prefix };
 }
+
+function createdSession(): SessionResponse {
+  return {
+    id: "created-thread",
+    model: {
+      provider: "test",
+      id: "one",
+      name: "One",
+      contextWindow: 10000,
+      thinkingLevels: ["off"],
+    },
+    snapshot: {
+      configuration: { model: { provider: "test", modelId: "one" }, thinkingLevel: "off" },
+      transcript: [],
+      operation: null,
+      lastResult: null,
+      faulted: false,
+    },
+    contextTokens: 0,
+  };
+}
+
+test.each(["library", "status"])(
+  "a cloud draft sends its first message while the post-create %s read is held",
+  async (held) => {
+    const { bot, request, prefix } = await connect(true);
+    const original = request.getMockImplementation()!;
+    const release = Promise.withResolvers<void>();
+    const entered = Promise.withResolvers<void>();
+    const session = createdSession();
+    const library = {
+      ...bot.status().library!,
+      threads: [
+        {
+          id: session.id,
+          workspaceId: "workspace",
+          title: "Created",
+          createdAt: 1,
+          sessionRef: {
+            backendId: "eta" as const,
+            metadata: {
+              id: "session",
+              createdAt: 1,
+              storageVersion: 1,
+              cwd: "/cloud",
+              path: "/data/session",
+              modifiedAt: 1,
+            },
+          },
+        },
+      ],
+    };
+    let sent = 0;
+    request.mockImplementation(async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/v1/threads") return Response.json(session);
+      if (path === "/v1/threads/created-thread/messages") {
+        sent++;
+        return Response.json({ operationId: "run", kind: "run", startedAt: 1 });
+      }
+      if (path === "/v1/" + held) {
+        entered.resolve();
+        await release.promise;
+      }
+      return path === "/v1/library" ? Response.json(library) : original(input, init);
+    });
+    const published = vi.fn();
+    const stop = bot.subscribe(published);
+    const created = vi.fn();
+    const draft = new DraftThread(
+      "first-message",
+      {
+        createThread: (workspace, requestId, configuration) =>
+          bot.create(workspace, requestId, configuration),
+        submit: (id, prompt, images, requestId) => bot.submit(id, prompt, requestId, images),
+      },
+      created,
+    );
+    const sending = draft.submit(prefix + "workspace", "Hello", undefined, {
+      provider: "test",
+      modelId: "one",
+      thinkingLevel: "off",
+      sandboxMode: "workspace-write",
+    });
+    try {
+      await entered.promise;
+      await expect.poll(() => sent).toBe(1);
+      expect(created).toHaveBeenCalledExactlyOnceWith(prefix + session.id, prefix + "workspace");
+      await expect(sending).resolves.toBe(prefix + session.id);
+      expect(published).not.toHaveBeenCalled();
+      expect(bot.status().library?.threads).toEqual([]);
+      const paths = request.mock.calls.map(([url]) => new URL(String(url)).pathname);
+      expect(paths.filter((path) => path === "/v1/threads")).toHaveLength(1);
+      expect(paths.some((path) => path.endsWith("/configure") || path.endsWith("/sandbox"))).toBe(
+        false,
+      );
+      release.resolve();
+      await expect.poll(() => published.mock.calls.length).toBe(1);
+      expect(bot.status().library?.threads[0]?.id).toBe(prefix + session.id);
+    } finally {
+      release.resolve();
+      await sending.catch(() => {});
+      await bot.refresh();
+      stop();
+      bot.close();
+    }
+  },
+);
+
+test("a failed post-create directory read does not fail the accepted first message", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const original = request.getMockImplementation()!;
+  let sent = 0;
+  request.mockImplementation(async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path === "/v1/threads") return Response.json(createdSession());
+    if (path === "/v1/threads/created-thread/messages") {
+      sent++;
+      return Response.json({ operationId: "run", kind: "run", startedAt: 1 });
+    }
+    if (path === "/v1/library") throw new TypeError("catalog unavailable");
+    return original(input, init);
+  });
+  const draft = new DraftThread("catalog-failed", {
+    createThread: (workspace, requestId) => bot.create(workspace, requestId),
+    submit: (id, prompt, images, requestId) => bot.submit(id, prompt, requestId, images),
+  });
+  try {
+    await expect(draft.submit(prefix + "workspace", "Hello")).resolves.toBe(
+      prefix + "created-thread",
+    );
+    expect(sent).toBe(1);
+    await expect.poll(() => bot.status().status).toBe("error");
+    expect(bot.status().message).toContain("catalog unavailable");
+    request.mockImplementation(original);
+    await bot.refresh();
+    expect(bot.status().status).toBe("connected");
+  } finally {
+    bot.close();
+  }
+});
+
+test("creation returns during an older catalog read and schedules a fresh read after it", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const original = request.getMockImplementation()!;
+  const release = Promise.withResolvers<void>();
+  const library = bot.status().library!;
+  let reads = 0;
+  request.mockImplementation(async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path === "/v1/threads") return Response.json(createdSession());
+    if (path === "/v1/library") {
+      reads++;
+      if (reads === 1) await release.promise;
+      return Response.json(reads === 1 ? library : { ...library, workspaceRoot: "/fresh-catalog" });
+    }
+    return original(input, init);
+  });
+  const older = bot.refresh();
+  const creating = bot.create(prefix + "workspace", "new-during-refresh");
+  try {
+    await expect(creating).resolves.toMatchObject({ id: prefix + "created-thread" });
+    expect(reads).toBe(1);
+    release.resolve();
+    await older;
+    await expect.poll(() => bot.status().library?.workspaceRoot).toBe("/fresh-catalog");
+    expect(reads).toBe(2);
+  } finally {
+    release.resolve();
+    await older;
+    await creating.catch(() => {});
+    await bot.refresh();
+    bot.close();
+  }
+});
+
+test.each(["close", "disconnect", "switch", "credentials"])(
+  "a queued creation refresh cannot restart after %s",
+  async (action) => {
+    const { bot, request, prefix } = await connect(true);
+    const original = request.getMockImplementation()!;
+    const release = Promise.withResolvers<void>();
+    let first = true;
+    request.mockImplementation(async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/v1/threads") return Response.json(createdSession());
+      if (path === "/v1/library" && first) {
+        first = false;
+        await release.promise;
+      }
+      return original(input, init);
+    });
+    const older = bot.refresh();
+    try {
+      await bot.create(prefix + "workspace", "queued-refresh");
+      if (action === "close") bot.close();
+      else if (action === "disconnect") await bot.disconnect();
+      else
+        await bot.connect({
+          url: action === "switch" ? "http://localhost:8081" : "http://localhost:8080",
+          token: "replacement",
+        });
+      const current = bot.status();
+      request.mockClear();
+      release.resolve();
+      await older;
+      // Both the old refresh and its queued continuation settle before the check-phase barrier.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(request).not.toHaveBeenCalled();
+      expect(bot.status()).toBe(current);
+    } finally {
+      release.resolve();
+      await older;
+      bot.close();
+    }
+  },
+);
+
+test.each(["close", "disconnect", "switch", "credentials"])(
+  "a creation reply after %s is not remapped or followed by a catalog read",
+  async (action) => {
+    const { bot, request, prefix } = await connect(true);
+    const original = request.getMockImplementation()!;
+    const release = Promise.withResolvers<Response>();
+    request.mockImplementation((input, init) =>
+      new URL(String(input)).pathname === "/v1/threads" ? release.promise : original(input, init),
+    );
+    const creating = bot.create(prefix + "workspace", "obsolete-create");
+    const rejected = expect(creating).rejects.toThrow("原来的 Bot");
+    try {
+      if (action === "close") bot.close();
+      else if (action === "disconnect") await bot.disconnect();
+      else
+        await bot.connect({
+          url: action === "switch" ? "http://localhost:8081" : "http://localhost:8080",
+          token: "replacement",
+        });
+      const current = bot.status();
+      request.mockClear();
+      release.resolve(Response.json(createdSession()));
+      await rejected;
+      expect(request).not.toHaveBeenCalled();
+      expect(bot.status()).toBe(current);
+    } finally {
+      release.resolve(Response.json(createdSession()));
+      await creating.catch(() => {});
+      bot.close();
+    }
+  },
+);
+
+test("failed creation does not trigger a catalog refresh", async () => {
+  const { bot, request, prefix } = await connect(true);
+  request.mockResolvedValue(
+    Response.json({ error: { message: "creation rejected" } }, { status: 400 }),
+  );
+  try {
+    await expect(bot.create(prefix + "workspace", "failed")).rejects.toThrow("creation rejected");
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]![0]).toBe("http://localhost:8080/v1/threads");
+  } finally {
+    bot.close();
+  }
+});
 
 test("restoring a large thread can read its body beyond the ordinary request deadline", async () => {
   const { bot, request } = await connect(true);
