@@ -455,22 +455,22 @@ test.each([
       await expect
         .poll(() => scheduledRunState(bot, peer, queued.scheduleId!))
         .toMatchObject({ reason: "busy" });
-      let failedSnapshots = 0;
-      const openThread = bot.core.openThread.bind(bot.core);
+      let heldCleanup = false;
+      const authorize = bot.controller.authorize.bind(bot.controller);
       const inspection =
         cleanup === "superseded"
-          ? vi.spyOn(bot.core, "openThread").mockImplementation(async (threadId) => {
-              const view = await openThread(threadId);
+          ? vi.spyOn(bot.controller, "authorize").mockImplementation(async (threadId) => {
+              const thread = await authorize(threadId);
               if (
                 threadId === id &&
-                !view.snapshot.operation &&
-                view.snapshot.lastResult?.status === "failed" &&
-                ++failedSnapshots === 2
+                !heldCleanup &&
+                (await bot.core.operation(id, operationId)).status === "failed"
               ) {
+                heldCleanup = true;
                 cleanupEntered.resolve();
                 await finishCleanup.promise;
               }
-              return view;
+              return thread;
             })
           : undefined;
       const stop =
