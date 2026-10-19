@@ -312,3 +312,17 @@ test("an uncertain draft admission keeps its identity and a definite rejection d
   await expect(rejecting.submit("project", "Hello")).rejects.toThrow("Please wait");
   expect(rejected[1]).not.toBe(rejected[0]);
 });
+
+test("a created draft reports its durable identity only when it creates the thread", async () => {
+  const created = vi.fn();
+  const submit = vi.fn(async () => ({ operationId: "run", kind: "run" as const, startedAt: 1 }));
+  const draft = new DraftThread(
+    "draft-request",
+    { createThread: vi.fn(async () => ({ id: "persisted" })), submit },
+    created,
+  );
+  await expect(draft.submit("project", "Hello")).resolves.toBe("persisted");
+  expect(created).toHaveBeenCalledExactlyOnceWith("persisted", "project");
+  await expect(draft.submit("project", "Again")).resolves.toBe("persisted");
+  expect(created).toHaveBeenCalledTimes(1);
+});

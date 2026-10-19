@@ -50,7 +50,7 @@ Bot library 每 5 秒轮询，一次失败就令 remote.status 变为 error。co
 
 建议：分别维护目录刷新与会话观察健康状态；恢复时保留已显示快照，只重建确实失效的观察连接。
 
-### BDS-05 / P2：新会话首条消息串行等待过多，而且停止无效（重复配置已修复，待 PR 合并；创建期停止仍未修复）
+### BDS-05 / P2：新会话首条消息串行等待过多，而且停止无效（重复配置与创建期停止已修复，待 PR 合并；准备/创建阶段的状态提示未做）
 
 位置：`apps/desktop/renderer/src/agent/draft-thread.ts:83`、`apps/desktop/src/main/bot.ts:361`、`apps/desktop/renderer/src/agent/use-desktop-controller.ts:273`。
 
