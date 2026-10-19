@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import { BotClient, normalizeConnection } from "./client.ts";
 import { json, library, requestUrl } from "./fixtures.test-support.ts";
 
@@ -184,4 +184,84 @@ test("older and newer Bot snapshots both decode while automatic review details s
       review: { reviewer: { modelId: "one" }, toolCalls: [{ summary: "git status" }] },
     },
   ]);
+});
+
+test("a silent stream is replaced after three missed heartbeats", async () => {
+  vi.useFakeTimers();
+  try {
+    let requests = 0;
+    const controller = new AbortController();
+    const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+    const client = new BotClient({ url: "https://bot", token: "secret" }, async (url) => {
+      if (!new URL(requestUrl(url)).pathname.endsWith("/events")) return json({});
+      requests += 1;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(stream) {
+            streams.push(stream);
+          },
+        }),
+        { headers: { "content-type": "text/event-stream" } },
+      );
+    });
+    const statuses: { message?: string; fatal?: boolean }[] = [];
+    void client.watch(
+      "thread",
+      controller.signal,
+      () => {},
+      (message, fatal) => statuses.push({ message, fatal }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requests).toBe(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(requests).toBe(1);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(requests).toBe(2);
+    expect(statuses).toEqual([{ message: "实时连接中断，正在重连", fatal: false }]);
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(requests).toBe(2);
+    expect(streams.length).toBe(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("transport heartbeats keep a quiet stream alive", async () => {
+  vi.useFakeTimers();
+  try {
+    let requests = 0;
+    const controller = new AbortController();
+    let stream!: ReadableStreamDefaultController<Uint8Array>;
+    const client = new BotClient({ url: "https://bot", token: "secret" }, async (url) => {
+      if (!new URL(requestUrl(url)).pathname.endsWith("/events")) return json({});
+      requests += 1;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(value) {
+            stream = value;
+          },
+        }),
+        { headers: { "content-type": "text/event-stream" } },
+      );
+    });
+    const statuses: unknown[] = [];
+    void client.watch(
+      "thread",
+      controller.signal,
+      () => {},
+      (...status) => statuses.push(status),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    const encoder = new TextEncoder();
+    for (let frame = 0; frame < 6; frame++) {
+      stream.enqueue(encoder.encode("event: heartbeat\ndata: {}\n\n"));
+      await vi.advanceTimersByTimeAsync(15_000);
+    }
+    expect(requests).toBe(1);
+    expect(statuses).toEqual([]);
+    controller.abort();
+  } finally {
+    vi.useRealTimers();
+  }
 });
