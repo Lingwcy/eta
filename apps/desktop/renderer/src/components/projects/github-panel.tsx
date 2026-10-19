@@ -73,30 +73,30 @@ function GitHubRow({
           <span className="line-clamp-2 min-w-0 text-xs font-medium text-neutral-800 decoration-neutral-300 underline-offset-2 group-hover:underline">
             {item.title}
           </span>
-          <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">#{item.number}</span>
+          <span className="shrink-0 text-[11px] tabular-nums text-neutral-600">#{item.number}</span>
         </a>
-        <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-neutral-400">
+        <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-neutral-600">
           <span className="max-w-32 truncate">{item.author}</span>
           <span aria-hidden="true">·</span>
           <span className="tabular-nums">
             {new Date(item.updatedAt).toLocaleDateString(currentFormatLocale())}
           </span>
           {item.draft && (
-            <span className="rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-500">
+            <span className="rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-600">
               {t("inspector:githubPanel.draftBadge")}
             </span>
           )}
           {item.labels.map((label) => (
             <span
               key={label}
-              className="max-w-32 truncate rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-500"
+              className="max-w-32 truncate rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-600"
             >
               {label}
             </span>
           ))}
         </p>
         {item.head && (
-          <p className="mt-0.5 truncate font-mono text-[10.5px] text-neutral-400">
+          <p className="mt-0.5 truncate font-mono text-[10.5px] text-neutral-600">
             {item.head} <span aria-hidden="true">→</span> {item.base}
           </p>
         )}
