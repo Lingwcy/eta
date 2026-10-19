@@ -288,8 +288,13 @@ test("read-only pauses edits for one exact approval and persists the selected po
     args: { path: "approved.txt", content: "approved once" },
   });
   await core.decideApproval(thread.id, approval.id, true);
+  // Approval -> tool run -> second model stream -> finalize is multi-stage; the implicit 1s default
+  // has timed out as "running" in three separate CI runs (39256820019, 39340169963, 39340329268).
+  // Sibling waits in this file already declare explicit budgets.
   await expect
-    .poll(async () => (await core.operation(thread.id, operation.operationId)).status)
+    .poll(async () => (await core.operation(thread.id, operation.operationId)).status, {
+      timeout: 10_000,
+    })
     .toBe("completed");
   expect(await readFile(join(cwd, "approved.txt"), "utf8")).toBe("approved once");
   await expect(core.decideApproval(thread.id, approval.id, true)).rejects.toMatchObject({

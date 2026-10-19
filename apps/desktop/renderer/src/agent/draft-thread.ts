@@ -7,10 +7,11 @@ import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import {
   admissionUncertain,
   submissionIdentity,
+  submitMessage,
   type UncertainSubmission,
 } from "../../../src/shared/message-request.ts";
 
-type DraftBridge = Pick<DesktopBridge, "submit"> &
+type DraftBridge = Pick<DesktopBridge, "submit" | "submitReply"> &
   Partial<Pick<DesktopBridge, "configureThread" | "configureSandbox" | "createWorktree">> & {
     createThread(
       workspaceId: string,
@@ -138,7 +139,7 @@ export class DraftThread {
     }
     const requestId = submissionIdentity(this.uncertainSubmission, prompt, images);
     try {
-      await this.bridge.submit(this.threadId, prompt, images, requestId);
+      await submitMessage(this.bridge, this.threadId, prompt, images, requestId);
       this.uncertainSubmission = undefined;
     } catch (error) {
       this.uncertainSubmission = admissionUncertain(error)

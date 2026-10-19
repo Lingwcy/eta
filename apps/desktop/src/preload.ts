@@ -1,11 +1,24 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AgentEvent, DesktopBridge } from "./bridge.ts";
 import type { CommandReply, UpdateState } from "./bridge.ts";
+import type { OperationAdmission } from "@eta/core/agent/protocol";
 import { unwrapReply } from "./command-reply.ts";
 import type { BrowserEvent } from "./browser/protocol.ts";
 
 async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
   return unwrapReply((await ipcRenderer.invoke(channel, ...args)) as CommandReply<A>);
+}
+
+function submitReply(
+  ...[id, prompt, images, requestId]: Parameters<DesktopBridge["submit"]>
+): Promise<CommandReply<OperationAdmission>> {
+  return ipcRenderer.invoke("eta:command", {
+    type: "submit",
+    id,
+    prompt,
+    ...(images === undefined ? {} : { images }),
+    requestId: requestId ?? globalThis.crypto.randomUUID(),
+  });
 }
 
 const bridge: DesktopBridge = {
@@ -116,14 +129,8 @@ const bridge: DesktopBridge = {
   archiveThread: (id, archived) => invoke("eta:command", { type: "archive", id, archived }),
   configureThread: (id, provider, modelId, thinkingLevel) =>
     invoke("eta:command", { type: "configure", id, provider, modelId, thinkingLevel }),
-  submit: (id, prompt, images, requestId) =>
-    invoke("eta:command", {
-      type: "submit",
-      id,
-      prompt,
-      ...(images === undefined ? {} : { images }),
-      requestId: requestId ?? globalThis.crypto.randomUUID(),
-    }),
+  submit: async (...args) => unwrapReply(await submitReply(...args)),
+  submitReply,
   stop: (id) => invoke("eta:command", { type: "stop", id }),
   resume: (id) => invoke("eta:command", { type: "resume", id }),
   compact: (id) => invoke("eta:command", { type: "compact", id }),
