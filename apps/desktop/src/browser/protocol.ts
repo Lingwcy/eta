@@ -45,14 +45,17 @@ export function browserAddress(input: string) {
   const text = input.trim();
   if (!text) throw new LocalizedError("errors:protocol.enterAUrlOrSearchQuery");
   if (/^https?:\/\//i.test(text)) return new URL(text).href;
-  if (/^[a-z][\w+.-]*:/i.test(text) && !/^[\w.-]+:\d+(?:\/|$)/.test(text))
+  if (/^[a-z][\w+.-]*:/i.test(text) && !/^[\w.-]+:\d+(?:[/?#]|$)/.test(text))
     throw new LocalizedError("errors:protocol.theBrowserOnlySupportsHttpAndHttpsUrls");
   if (
     !/\s/.test(text) &&
-    (/^(?:localhost|\[[\da-f:]+\])(?::\d+)?(?:\/|$)/i.test(text) ||
+    (/^(?:localhost|\[[\da-f:]+\])(?::\d+)?(?:[/?#]|$)/i.test(text) ||
       /^[\w\p{L}-]+(?:\.[\w\p{L}-]+)+(?::\d+)?(?:[/?#]|$)/u.test(text))
   ) {
-    return new URL(`${/^(?:localhost|127\.)/.test(text) ? "http" : "https"}://${text}`).href;
+    const { hostname } = new URL(`https://${text}`);
+    const local = hostname === "localhost" || /^127(?:\.\d+){3}$/.test(hostname);
+    // Reparse the input so changing the default scheme cannot discard an explicit port.
+    return new URL(`${local ? "http" : "https"}://${text}`).href;
   }
   return `https://duckduckgo.com/?q=${encodeURIComponent(text)}`;
 }

@@ -257,6 +257,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Classify bare web addresses from parsed authorities, not raw prefixes.**
+
+- Evidence: on 2026-10-19, #187 enters localhost/port URLs with query or fragment through the real browser panel. Inconsistent delimiters reject valid URLs or send them to search; raw prefixes select the wrong default scheme for uppercase localhost and public lookalikes. Parsed-host classification and consistent boundaries fix both create/navigate while preserving explicit protocols and ports. Native loads are controlled fixtures, not network/TLS or production-leak evidence.
+- Check: cover query/fragment without a slash, local casing, lookalike public hosts, explicit/default ports, ordinary search and unsafe-scheme rejection at the actual navigation entry. Reconstruct from original input after choosing the scheme so pre-parsing cannot erase a meaningful port.
+- Seen: 2026-10-19.
+
 **Configure guest web permissions independently of renderer sandboxing.**
 
 - Evidence: on 2026-10-18, #174 finds that the isolated Desktop browser session has no permission policy despite sandbox/no-preload flags. Electron 44.4.2 documents default request approval and requires both check and request handlers. SDK-shaped adapter tests exercise denial before first load, main/subframes, devices, shared windows and an untouched default session; they are not native device-access or production-leak proof.
