@@ -35,7 +35,7 @@ const buttonVariants = cva(
         "icon-sm": "size-[30px] rounded-lg",
         "icon-xs": "size-7 rounded-md",
         "icon-round": "size-[30px] rounded-full",
-        "icon-tiny": "size-5 rounded-full",
+        "icon-tiny": "size-6 rounded-full",
         tick: "h-2.5 w-7 min-h-0 shrink justify-start gap-0 border-0 p-0",
       },
       selected: { true: "bg-neutral-200/70 text-neutral-800", false: "" },
