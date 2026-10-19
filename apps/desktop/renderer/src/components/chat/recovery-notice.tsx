@@ -17,7 +17,7 @@ export function RecoveryNotice({
   return (
     <Alert tone="warning">
       <p>{t("chat:recoveryNotice.anUnfinishedTaskWasFoundResumingMay")}</p>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-2.5 flex gap-2">
         <Button variant="outline" size="sm" disabled={busy || blocked} onClick={onResume}>
           {t("chat:recoveryNotice.resumeTask")}
         </Button>
