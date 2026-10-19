@@ -87,7 +87,74 @@ test("an image-only draft still requires a project and forwards the image on fir
   expect(submit).toHaveBeenCalledWith("persisted", "", images, expect.any(String));
 });
 
-test("a failed cloud configuration preserves the created thread and admits no message until retry", async () => {
+test("a creation that already applied the configuration adds no extra round trips", async () => {
+  const { createThread, submit } = setup();
+  const configureThread = vi.fn().mockResolvedValue({});
+  const configureSandbox = vi.fn().mockResolvedValue({});
+  const draft = new DraftThread("cloud-draft", {
+    createThread,
+    submit,
+    configureThread,
+    configureSandbox,
+  });
+  const configuration = {
+    provider: "cloud",
+    modelId: "one",
+    thinkingLevel: "off" as const,
+    sandboxMode: "read-only" as const,
+  };
+  await expect(
+    draft.submit("bot:server:workspace", "Cloud work", undefined, configuration),
+  ).resolves.toBe("persisted");
+  expect(createThread).toHaveBeenCalledExactlyOnceWith(
+    "bot:server:workspace",
+    "cloud-draft",
+    configuration,
+  );
+  expect(configureThread).not.toHaveBeenCalled();
+  expect(configureSandbox).not.toHaveBeenCalled();
+  expect(submit).toHaveBeenCalledExactlyOnceWith(
+    "persisted",
+    "Cloud work",
+    undefined,
+    expect.any(String),
+  );
+});
+
+test("a later attempt only applies the settings that changed", async () => {
+  const { createThread, submit } = setup();
+  const configureThread = vi.fn().mockResolvedValue({});
+  const configureSandbox = vi.fn().mockResolvedValue({});
+  const draft = new DraftThread("cloud-draft", {
+    createThread,
+    submit,
+    configureThread,
+    configureSandbox,
+  });
+  const configuration = {
+    provider: "cloud",
+    modelId: "one",
+    thinkingLevel: "off" as const,
+    sandboxMode: "read-only" as const,
+  };
+  await draft.submit("bot:server:workspace", "First", undefined, configuration);
+  await draft.submit("bot:server:workspace", "Second", undefined, {
+    ...configuration,
+    sandboxMode: "workspace-write" as const,
+  });
+  expect(configureThread).not.toHaveBeenCalled();
+  expect(configureSandbox).toHaveBeenCalledExactlyOnceWith("persisted", "workspace-write");
+  await draft.submit("bot:server:workspace", "Third", undefined, {
+    ...configuration,
+    thinkingLevel: "high" as const,
+  });
+  expect(configureThread).toHaveBeenCalledExactlyOnceWith("persisted", "cloud", "one", "high");
+  // The third attempt explicitly asks for read-only again, so that change is applied too.
+  expect(configureSandbox).toHaveBeenLastCalledWith("persisted", "read-only");
+  expect(configureSandbox).toHaveBeenCalledTimes(2);
+});
+
+test("a failed configuration change preserves the thread and admits no message until retry", async () => {
   const { createThread, submit } = setup();
   const configureThread = vi
     .fn()
@@ -95,22 +162,20 @@ test("a failed cloud configuration preserves the created thread and admits no me
     .mockResolvedValue({});
   const draft = new DraftThread("cloud-draft", { createThread, submit, configureThread });
   const configuration = { provider: "cloud", modelId: "one", thinkingLevel: "off" as const };
+  await draft.submit("bot:server:workspace", "First", undefined, configuration);
+  expect(submit).toHaveBeenCalledTimes(1);
+  const changed = { ...configuration, thinkingLevel: "high" as const };
   await expect(
-    draft.submit("bot:server:workspace", "Cloud work", undefined, configuration),
+    draft.submit("bot:server:workspace", "Cloud work", undefined, changed),
   ).rejects.toThrow("Bot disconnected");
   expect(draft.persistedId).toBe("persisted");
-  expect(submit).not.toHaveBeenCalled();
+  expect(submit).toHaveBeenCalledTimes(1);
   await expect(
-    draft.submit("bot:server:workspace", "Cloud work", undefined, configuration),
+    draft.submit("bot:server:workspace", "Cloud work", undefined, changed),
   ).resolves.toBe("persisted");
   expect(createThread).toHaveBeenCalledTimes(1);
-  expect(configureThread).toHaveBeenLastCalledWith("persisted", "cloud", "one", "off");
-  expect(submit).toHaveBeenCalledExactlyOnceWith(
-    "persisted",
-    "Cloud work",
-    undefined,
-    expect.any(String),
-  );
+  expect(configureThread).toHaveBeenLastCalledWith("persisted", "cloud", "one", "high");
+  expect(submit).toHaveBeenCalledTimes(2);
 });
 
 const worktreeInput = {
