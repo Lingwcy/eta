@@ -287,7 +287,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                     accessibilityRole="button"
                     accessibilityLabel={`管理会话：${thread.title}`}
                     disabled={!available}
-                    hitSlop={4}
+                    hitSlop={6}
                     onPress={() => setMenu(thread)}
                     style={({ pressed }) => [
                       styles.threadMoreButton,
@@ -586,12 +586,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   sectionAction: {
+    minHeight: 32,
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2.5,
-    borderRadius: 4,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
   sectionActionPressed: {
     backgroundColor: colors.softHover,
@@ -654,9 +655,9 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   threadMoreButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 5,
+    width: 32,
+    height: 32,
+    borderRadius: 6,
     alignItems: "center",
     justifyContent: "center",
   },
