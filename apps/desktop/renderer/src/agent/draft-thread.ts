@@ -1,8 +1,14 @@
 import { LocalizedError } from "../../../src/shared/i18n/messages.ts";
-import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
+import type { CreateThreadConfiguration, ThinkingLevel } from "@eta/core/agent/protocol";
+import type { SandboxMode } from "@eta/core/shared/sandbox";
 import type { ImageAttachment } from "@eta/core/images/types";
 import type { DesktopBridge } from "../../../src/bridge.ts";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
+import {
+  admissionUncertain,
+  submissionIdentity,
+  type UncertainSubmission,
+} from "../../../src/shared/message-request.ts";
 
 type DraftBridge = Pick<DesktopBridge, "submit"> &
   Partial<Pick<DesktopBridge, "configureThread" | "configureSandbox" | "createWorktree">> & {
@@ -19,10 +25,20 @@ export class DraftThread {
   private workspaceId?: string;
   private pending?: Promise<string>;
   private worktree?: { key: string; requestId: string; workspaceId?: string };
+  private uncertainSubmission?: UncertainSubmission;
+  /** Creation already applies the requested configuration; only later changes need another call. */
+  private applied?: {
+    provider: string;
+    modelId: string;
+    thinkingLevel: ThinkingLevel;
+    sandboxMode?: SandboxMode;
+  };
 
   constructor(
     readonly requestId: string,
     private readonly bridge: DraftBridge,
+    /** A created thread is visible and stoppable before the first admission settles. */
+    private readonly onCreated?: (id: string, workspaceId: string | undefined) => void,
   ) {}
 
   submit(
@@ -88,17 +104,48 @@ export class DraftThread {
       );
       this.threadId = created.id;
       this.workspaceId = workspaceId;
+      this.applied = configuration ? { ...configuration } : undefined;
+      this.onCreated?.(created.id, workspaceId);
     }
-    if (configuration)
-      await this.bridge.configureThread?.(
-        this.threadId,
-        configuration.provider,
-        configuration.modelId,
-        configuration.thinkingLevel,
-      );
-    if (configuration?.sandboxMode)
-      await this.bridge.configureSandbox?.(this.threadId, configuration.sandboxMode);
-    await this.bridge.submit(this.threadId, prompt, ...(images ? [images] : []));
+    if (configuration) {
+      const applied = this.applied;
+      const modelChanged =
+        !applied ||
+        applied.provider !== configuration.provider ||
+        applied.modelId !== configuration.modelId ||
+        applied.thinkingLevel !== configuration.thinkingLevel;
+      if (modelChanged)
+        await this.bridge.configureThread?.(
+          this.threadId,
+          configuration.provider,
+          configuration.modelId,
+          configuration.thinkingLevel,
+        );
+      const sandboxChanged =
+        Boolean(configuration.sandboxMode) && applied?.sandboxMode !== configuration.sandboxMode;
+      if (sandboxChanged && configuration.sandboxMode)
+        await this.bridge.configureSandbox?.(this.threadId, configuration.sandboxMode);
+      this.applied = {
+        provider: configuration.provider,
+        modelId: configuration.modelId,
+        thinkingLevel: configuration.thinkingLevel,
+        ...(configuration.sandboxMode
+          ? { sandboxMode: configuration.sandboxMode }
+          : applied?.sandboxMode
+            ? { sandboxMode: applied.sandboxMode }
+            : {}),
+      };
+    }
+    const requestId = submissionIdentity(this.uncertainSubmission, prompt, images);
+    try {
+      await this.bridge.submit(this.threadId, prompt, images, requestId);
+      this.uncertainSubmission = undefined;
+    } catch (error) {
+      this.uncertainSubmission = admissionUncertain(error)
+        ? { requestId, prompt, images }
+        : undefined;
+      throw error;
+    }
     return this.threadId;
   }
 

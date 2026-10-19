@@ -4,6 +4,7 @@ import type { OperationAdmission, OperationResult } from "@eta/core/agent/protoc
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentEvent, AgentBridge, CommandReply } from "../../../src/bridge.ts";
 import { ThreadAgentClient } from "./client.ts";
+import { DesktopCommandError } from "../../../src/command-reply.ts";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 
 class TestBridge implements AgentBridge {
@@ -736,4 +737,86 @@ test("a synchronous subscription that disposes the client releases its returned 
   expect(unsubscribe).toHaveBeenCalledTimes(1);
   client.dispose();
   expect(unsubscribe).toHaveBeenCalledTimes(1);
+});
+
+test("a retryable transport failure keeps one request identity for the same message", async () => {
+  const client = await connectedClient();
+  const calls: (string | undefined)[] = [];
+  bridge.submit = vi.fn(
+    async (_id: string, _prompt: string, _images?: unknown, requestId?: string) => {
+      calls.push(requestId);
+      if (calls.length === 1)
+        throw new DesktopCommandError({
+          code: "BotRequestFailed",
+          message: "Request timed out",
+          retryable: true,
+        });
+      return admission;
+    },
+  );
+  await expect(client.submit("Hello")).rejects.toThrow("Request timed out");
+  await expect(client.submit("Hello")).resolves.toBeUndefined();
+  expect(calls).toHaveLength(2);
+  expect(calls[0]).toBeTruthy();
+  expect(calls[1]).toBe(calls[0]);
+});
+
+test("a new message or a definite rejection never reuses a request identity", async () => {
+  const client = await connectedClient();
+  const calls: (string | undefined)[] = [];
+  bridge.submit = vi.fn(
+    async (_id: string, _prompt: string, _images?: unknown, requestId?: string) => {
+      calls.push(requestId);
+      if (calls.length === 1)
+        throw new DesktopCommandError({ code: "Busy", message: "Please wait", retryable: false });
+      return admission;
+    },
+  );
+  await expect(client.submit("Hello")).rejects.toThrow("Please wait");
+  await expect(client.submit("Hello")).resolves.toBeUndefined();
+  expect(calls[1]).not.toBe(calls[0]);
+
+  const other = await connectedClient();
+  const retry: (string | undefined)[] = [];
+  bridge.submit = vi.fn(
+    async (_id: string, _prompt: string, _images?: unknown, requestId?: string) => {
+      retry.push(requestId);
+      if (retry.length === 1)
+        throw new DesktopCommandError({
+          code: "BotRequestFailed",
+          message: "Request timed out",
+          retryable: true,
+        });
+      return admission;
+    },
+  );
+  await expect(other.submit("Hello")).rejects.toThrow("Request timed out");
+  await expect(other.submit("Different text")).resolves.toBeUndefined();
+  expect(retry[1]).not.toBe(retry[0]);
+});
+
+test("a completed message releases its identity before the next identical send", async () => {
+  const client = await connectedClient();
+  const calls: (string | undefined)[] = [];
+  bridge.submit = vi.fn(
+    async (_id: string, _prompt: string, _images?: unknown, requestId?: string) => {
+      calls.push(requestId);
+      return admission;
+    },
+  );
+  await expect(client.submit("Repeat me")).resolves.toBeUndefined();
+  const snapshot = structuredClone(session.snapshot);
+  snapshot.lastResult = {
+    operationId: admission.operationId,
+    kind: "run",
+    status: "completed",
+    fromTipId: null,
+    tipId: null,
+    startedAt: 1000,
+    endedAt: 2000,
+  };
+  bridge.emit({ snapshot, contextTokens: 5 });
+  expect(client.getSnapshot().admission).toBeNull();
+  await expect(client.submit("Repeat me")).resolves.toBeUndefined();
+  expect(calls[1]).not.toBe(calls[0]);
 });

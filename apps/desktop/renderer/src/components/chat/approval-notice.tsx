@@ -108,7 +108,7 @@ export function ApprovalNotice({
               aria-label={t("chat:approvalNotice.approvalRequested", { tool: request.tool })}
               className="px-1 py-1.5 not-first:border-t not-first:border-black/10"
             >
-              <div className="flex items-center gap-1.5 px-2">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-2">
                 <ShieldQuestion
                   size={14}
                   strokeWidth={1.7}
@@ -124,7 +124,7 @@ export function ApprovalNotice({
                     {t("chat:approvalNotice.network")}
                   </span>
                 )}
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
                   <Button
                     variant="outline"
                     size="compact"
