@@ -90,6 +90,13 @@ test.each(["local", "cloud", "collision", "unknown", "same", "session-only"] as 
     );
     const bridge: AgentBridge = {
       openThread: async () => session,
+      operation: async (_id, operationId) => ({
+        operationId,
+        kind: "run",
+        startedAt: 0,
+        status: "running",
+        messages: [],
+      }),
       configureThread: configure,
       configureSandbox: async () => session,
       submit: async () => ({ operationId: "operation", kind: "run", startedAt: 0 }),
