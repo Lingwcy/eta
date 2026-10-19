@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { ArrowUp, ChevronDown, Cpu, Shield, Square } from "lucide-react-native";
 import { colors } from "../ui.tsx";
 
@@ -47,6 +55,9 @@ export function ComposerInput({
   placeholder = "交给 Eta Bot…",
 }: ComposerInputProps) {
   const [inputHeight, setInputHeight] = useState(44);
+  const { width } = useWindowDimensions();
+  /** Small phones cannot fit the sandbox label and token count beside the model picker. */
+  const compactToolbar = width < 360;
   const showThinkingBadge = thinkingLevel && thinkingLevel !== "off" && thinkingLevelLabel;
 
   return (
@@ -76,9 +87,11 @@ export function ComposerInput({
               style={({ pressed }) => [styles.sandboxChip, pressed && styles.chipPressed]}
             >
               <Shield size={12} color={colors.muted} />
-              <Text numberOfLines={1} style={styles.sandboxText}>
-                {sandboxModeLabel}
-              </Text>
+              {!compactToolbar && (
+                <Text numberOfLines={1} style={styles.sandboxText}>
+                  {sandboxModeLabel}
+                </Text>
+              )}
             </Pressable>
           )}
         </View>
@@ -99,7 +112,7 @@ export function ComposerInput({
             <ChevronDown size={13} color={colors.muted} />
           </Pressable>
 
-          {typeof contextTokens === "number" && contextTokens > 0 && (
+          {!compactToolbar && typeof contextTokens === "number" && contextTokens > 0 && (
             <View
               accessibilityLabel={`已用 token: ${formatTokens(contextTokens)}`}
               style={styles.tokensChip}
@@ -192,13 +205,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    flexShrink: 1,
+    flexShrink: 0,
   },
   toolbarRight: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    flexShrink: 0,
+    flexShrink: 1,
+    minWidth: 0,
   },
   sandboxChip: {
     flexDirection: "row",
@@ -227,6 +241,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     maxWidth: 160,
+    flexShrink: 1,
+    minWidth: 0,
   },
   modelText: {
     color: colors.text,
@@ -239,6 +255,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   tokensChip: {
+    flexShrink: 0,
     paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 10,
@@ -259,6 +276,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
+    flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
   },
