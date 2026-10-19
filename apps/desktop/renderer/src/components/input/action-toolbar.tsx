@@ -47,7 +47,7 @@ export function ActionToolbar({
       className={cn("flex items-center justify-between gap-2 select-none", className)}
       aria-label={t("chat:actionToolbar.messageActions")}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1">
         {skillsControl}
         {onAttach && (
           <Button
@@ -82,7 +82,9 @@ export function ActionToolbar({
           onSettings={onSettings}
         />
         {contextWindow && contextTokens > 0 && (
-          <ContextIndicator percentage={percentage} hideText />
+          <span className="hidden min-[701px]:inline-flex">
+            <ContextIndicator percentage={percentage} hideText />
+          </span>
         )}
         <Button
           type="button"

@@ -91,7 +91,7 @@ export function ModelPicker({
             <ProviderMark id={model.provider} />
           </span>
         )}
-        <span className="max-w-[105px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
+        <span className="max-w-[72px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
           {selection?.label ??
             model?.name ??
             (defaultOption?.selected ? defaultOption.label : placeholder)}

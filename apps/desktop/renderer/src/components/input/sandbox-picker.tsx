@@ -64,7 +64,8 @@ export function SandboxPicker({
             : options()[mode].description
         }
       >
-        <Icon size={16} aria-hidden="true" /> {label}
+        <Icon size={16} aria-hidden="true" />
+        <span className="max-w-14 truncate min-[701px]:max-w-none">{label}</span>
       </PopoverTrigger>
       <PopoverContent
         variant="menu"
