@@ -143,7 +143,10 @@ export function LoginDialog({
           ) : (
             <div className="flex flex-col gap-5">
               {login && (
-                <p role="status" className="flex items-start gap-2 text-sm/6 text-neutral-500">
+                <p
+                  role="status"
+                  className="flex items-start gap-2 text-sm/6 break-words text-neutral-500"
+                >
                   {login.prompt ? (
                     <KeyRound size={16} className="mt-1 shrink-0" />
                   ) : (
@@ -152,9 +155,11 @@ export function LoginDialog({
                       className="mt-1 shrink-0 animate-spin motion-reduce:animate-none"
                     />
                   )}
-                  {login.messageKey
-                    ? t(login.messageKey, { defaultValue: login.message })
-                    : login.message}
+                  <span className="min-w-0 break-words">
+                    {login.messageKey
+                      ? t(login.messageKey, { defaultValue: login.message })
+                      : login.message}
+                  </span>
                 </p>
               )}
               {login?.deviceCode && (
