@@ -143,7 +143,7 @@ function CreateProjectForm({
           required
         />
         {cloud ? (
-          <p className="text-xs text-neutral-500">
+          <p className="text-xs break-words text-neutral-500">
             {t("navigation:createProjectDialog.createAFolderWithThisNameUnder")}
             {cloudRoot ? t("navigation:createProjectDialog.cloudRoot", { path: cloudRoot }) : ""}
           </p>
