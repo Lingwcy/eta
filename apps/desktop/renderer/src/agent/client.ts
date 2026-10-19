@@ -4,6 +4,11 @@ import type { OperationAdmission } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentBridge } from "../../../src/bridge.ts";
 import { DesktopCommandError, unwrapReply } from "../../../src/command-reply.ts";
+import {
+  admissionUncertain,
+  submissionIdentity,
+  type UncertainSubmission,
+} from "../../../src/shared/message-request.ts";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 
 export interface AgentClientState {
@@ -29,6 +34,7 @@ export const initialAgentState: AgentClientState = {
 /** Disposing a view only unsubscribes; durable execution and history belong to main. */
 export class ThreadAgentClient {
   private state = initialAgentState;
+  private uncertainSubmission?: UncertainSubmission;
   private readonly listeners = new Set<() => void>();
   private unsubscribeEvents?: () => void;
   private stopAdmissionWatch?: () => void;
@@ -141,9 +147,12 @@ export class ThreadAgentClient {
       throw new LocalizedError("chat:client.theAgentIsNotReadyYet");
     const sessionId = this.state.session?.id;
     if (!sessionId) throw new LocalizedError("chat:client.theChatIsNotOpenYet");
+    // A retried message keeps the identity its first attempt may already have committed.
+    const requestId = submissionIdentity(this.uncertainSubmission, prompt, images);
     this.update({ submitting: true, error: null });
     try {
-      const admission = await this.bridge.submit(sessionId, prompt, ...(images ? [images] : []));
+      const admission = await this.bridge.submit(sessionId, prompt, images, requestId);
+      this.uncertainSubmission = undefined;
       const snapshot = this.state.observation?.snapshot;
       this.update({
         admission:
@@ -153,6 +162,10 @@ export class ThreadAgentClient {
             : admission,
       });
     } catch (error) {
+      // Only an unknown outcome justifies reusing the identity on the next attempt.
+      this.uncertainSubmission = admissionUncertain(error)
+        ? { requestId, prompt, images }
+        : undefined;
       this.update({ error: message(error) });
       throw error;
     } finally {

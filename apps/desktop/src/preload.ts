@@ -116,13 +116,13 @@ const bridge: DesktopBridge = {
   archiveThread: (id, archived) => invoke("eta:command", { type: "archive", id, archived }),
   configureThread: (id, provider, modelId, thinkingLevel) =>
     invoke("eta:command", { type: "configure", id, provider, modelId, thinkingLevel }),
-  submit: (id, prompt, images) =>
+  submit: (id, prompt, images, requestId) =>
     invoke("eta:command", {
       type: "submit",
       id,
       prompt,
       ...(images === undefined ? {} : { images }),
-      requestId: globalThis.crypto.randomUUID(),
+      requestId: requestId ?? globalThis.crypto.randomUUID(),
     }),
   stop: (id) => invoke("eta:command", { type: "stop", id }),
   resume: (id) => invoke("eta:command", { type: "resume", id }),
