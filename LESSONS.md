@@ -93,6 +93,11 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Carry retry policy as data across process boundaries.**
+
+- Evidence: on 2026-10-19, BDS-08's initial Desktop thread read never retried. Bot transport failures were serialized as non-retryable InternalError, and preload-created Error fields cannot be relied on across Electron contextBridge. Returning the command reply DTO and unwrapping in the renderer carries explicit retry policy into bounded read-only retries; focused Bot/IPC, preload and client regressions cover the layers, not native Electron serialization.
+- Check: classify transient transport errors at the adapter, preserve the classification as a serializable reply, and retry only the read owned by the current client lifetime. Do not apply this retry loop to writes whose admission may be unknown.
+
 **Observation failures do not establish an execution outcome.**
 
 - Evidence: on 2026-10-19, BDS-09's Desktop activity watcher removed its running marker and cancelled the reconnecting subscription on a transport error. Three focused regressions fail before the fix; retaining observation through errors allows a later authoritative snapshot to confirm continued activity or completion. Synchronous errors, disposal, interrupted/faulted snapshots and obsolete callbacks are covered without a native network reproduction.

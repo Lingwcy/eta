@@ -3,6 +3,7 @@ import type { ImageAttachment } from "@eta/core/images/types";
 import type { OperationAdmission } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentBridge } from "../../../src/bridge.ts";
+import { DesktopCommandError, unwrapReply } from "../../../src/command-reply.ts";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 
 export interface AgentClientState {
@@ -32,6 +33,7 @@ export class ThreadAgentClient {
   private unsubscribeEvents?: () => void;
   private stopAdmissionWatch?: () => void;
   private disposed = false;
+  private connection?: AbortController;
 
   constructor(private readonly bridge: AgentBridge = window.eta) {}
 
@@ -42,25 +44,52 @@ export class ThreadAgentClient {
   };
 
   async connect(threadId: string) {
-    try {
-      const session = await this.bridge.openThread(threadId);
-      if (this.disposed) {
+    if (this.disposed) return;
+    this.connection?.abort();
+    const connection = new AbortController();
+    this.connection = connection;
+    this.unsubscribeEvents?.();
+    this.unsubscribeEvents = undefined;
+    const current = () => !connection.signal.aborted && !this.disposed;
+    this.update({ connection: "connecting", error: null });
+    for (let attempt = 0; current(); attempt++) {
+      let session: SessionResponse;
+      try {
+        session = this.bridge.openThreadReply
+          ? unwrapReply(await this.bridge.openThreadReply(threadId))
+          : await this.bridge.openThread(threadId);
+      } catch (error) {
+        if (!current()) return;
+        if (error instanceof DesktopCommandError && error.retryable && attempt < 2) {
+          await retryDelay(1000 * (attempt + 1), connection.signal);
+          continue;
+        }
+        this.update({ connection: "error", error: message(error) });
         return;
       }
+      if (!current()) return;
       this.update({
         session: { id: session.id, model: session.model },
         observation: { snapshot: session.snapshot, contextTokens: session.contextTokens },
+        connection: "connected",
+        error: null,
       });
-      this.unsubscribeEvents = this.bridge.subscribe(session.id, (event) => {
-        if (event.type === "snapshot") {
-          this.observe(event.value);
-        } else {
-          this.update({ connection: "error", error: event.localization ?? event.message });
-        }
-      });
-      this.update({ connection: "connected" });
-    } catch (error) {
-      if (!this.disposed) this.update({ connection: "error", error: message(error) });
+      if (!current()) return;
+      try {
+        const unsubscribe = this.bridge.subscribe(session.id, (event) => {
+          if (!current()) return;
+          if (event.type === "snapshot") {
+            this.observe(event.value);
+          } else {
+            this.update({ connection: "error", error: event.localization ?? event.message });
+          }
+        });
+        if (current()) this.unsubscribeEvents = unsubscribe;
+        else unsubscribe();
+      } catch (error) {
+        if (current()) this.update({ connection: "error", error: message(error) });
+      }
+      return;
     }
   }
 
@@ -147,6 +176,7 @@ export class ThreadAgentClient {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.connection?.abort();
     this.stopAdmissionWatch?.();
     this.unsubscribeEvents?.();
     this.listeners.clear();
@@ -203,6 +233,19 @@ export class ThreadAgentClient {
     // Ordinary live acknowledgements usually arrive before a fallback read is necessary.
     timer = setTimeout(() => void check(), 1000);
   }
+}
+
+function retryDelay(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    signal.addEventListener("abort", finish, { once: true });
+    if (signal.aborted) finish();
+  });
 }
 
 function message(error: unknown) {

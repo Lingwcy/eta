@@ -92,7 +92,9 @@ HTTP messages 路由 authorize 一次，Controller.submit authorize 一次，cla
 
 建议：瞬时连接故障先进入“正在恢复”的连接状态；达到阈值或无法自动恢复时再给出可操作错误。若 toast 表示当前连接故障，恢复时应关闭或更新对应通知；具体写入失败仍需按回执核对结果。
 
-### BDS-08 / P2：首次打开聊天的 502，没有同等的自动重试
+### BDS-08 / P2：首次打开聊天的 502，没有同等的自动重试（已修复，待 PR 合并）
+
+修复：首次只读 open 请求遇到明确可重试错误时，按 1 秒 / 2 秒退避，最多尝试 3 次；耗尽后仍保留原手动重试路径。Bot 网络 / 超时及 HTTP 408、429、5xx 错误携带可重试策略，经 IPC reply DTO 传入 renderer，避免依赖 contextBridge 保留 Error 自定义属性。认证、权限及不存在等不可重试错误直接显示；dispose、替换 connect 和过期回调不会重启旧连接。`client.test.ts`、`main/bot.test.ts`、`main/ipc.test.ts` 和 `preload.test.ts` 定向测试 119/119 通过，覆盖客户端退避 / 生命周期、真实 Bot HTTP 502 经 IPC DTO 后重试成功、错误分类、响应体网络中断与 preload DTO 入口。lint 在本机工具内部崩溃，桌面类型检查超时，未视为通过；未做原生 Electron 或线上 Bot 验证。
 
 位置：`apps/desktop/renderer/src/agent/client.ts:43`。
 

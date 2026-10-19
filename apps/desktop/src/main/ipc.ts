@@ -1,4 +1,5 @@
 import { BotConnectionSchema } from "./bot-schema.ts";
+import { BotRequestError } from "../shared/bot-request-error.ts";
 import { SubagentCommandSchema, SubagentSettingsSchema } from "@eta/core/shared/subagent-schema";
 import { builtinToolNames } from "@eta/core/tools";
 import { agentThinkingVariants } from "../appearance.ts";
@@ -355,7 +356,7 @@ export async function commandReply<A>(action: () => Promise<A>): Promise<Command
     return { ok: true, value: await action() };
   } catch (error) {
     const code =
-      error instanceof CoreError
+      error instanceof CoreError || error instanceof BotRequestError
         ? error.code
         : error instanceof ProjectError
           ? error.reason
@@ -369,14 +370,17 @@ export async function commandReply<A>(action: () => Promise<A>): Promise<Command
       error: {
         code,
         message: error instanceof Error ? error.message : "操作失败",
-        retryable: [
-          "Busy",
-          "ModelUnavailable",
-          "WorkspaceUnavailable",
-          "SandboxUnavailable",
-          "StorageUnavailable",
-          "RuntimeClosing",
-        ].includes(code),
+        retryable:
+          error instanceof BotRequestError
+            ? error.retryable
+            : [
+                "Busy",
+                "ModelUnavailable",
+                "WorkspaceUnavailable",
+                "SandboxUnavailable",
+                "StorageUnavailable",
+                "RuntimeClosing",
+              ].includes(code),
         ...(error instanceof LocalizedError ? { localization: error.reference } : {}),
       },
     };
