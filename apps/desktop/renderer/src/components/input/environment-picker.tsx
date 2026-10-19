@@ -28,7 +28,7 @@ export function EnvironmentPicker({
         aria-label={t("chat:environmentPicker.chooseWhereToRun")}
       >
         {cloud ? <Cloud size={18} /> : <Laptop size={18} />}
-        {cloud ? "Bot" : t("chat:environmentPicker.thisComputer")}
+        <span className="truncate">{cloud ? "Bot" : t("chat:environmentPicker.thisComputer")}</span>
       </PopoverTrigger>
       <PopoverContent variant="menu" aria-label={t("chat:environmentPicker.chooseWhereToRun")}>
         <Button
