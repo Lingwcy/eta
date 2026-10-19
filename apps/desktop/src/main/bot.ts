@@ -1,4 +1,5 @@
 import { LocalizedError, localizedMessage } from "../shared/i18n/messages.ts";
+import { BotRequestError } from "../shared/bot-request-error.ts";
 import {
   ScheduleSnapshotSchema,
   ScheduleRequestSchema,
@@ -319,17 +320,24 @@ export class DesktopBot {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: signal ?? AbortSignal.timeout(10000),
       redirect: "error",
+    }).catch((error: unknown) => {
+      throw new BotRequestError(error instanceof Error ? error.message : "Bot 连接失败", true, {
+        cause: error,
+      });
     });
     if (!response.ok && !acceptedStatuses.includes(response.status)) {
       if (response.status === 401) {
         // Authentication is decided by the status; an unread error body must not delay it.
         void response.body?.cancel().catch(() => {});
-        throw new Error("Bot 令牌无效");
+        throw new BotRequestError("Bot 令牌无效", false);
       }
       const error = (await response.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
-      throw new Error(error?.error?.message ?? `Bot 请求失败 (${response.status})`);
+      throw new BotRequestError(
+        error?.error?.message ?? `Bot 请求失败 (${response.status})`,
+        response.status === 408 || response.status === 429 || response.status >= 500,
+      );
     }
     return response;
   }
@@ -343,7 +351,10 @@ export class DesktopBot {
     try {
       return (await (await this.response(path, body, signal)).json()) as T;
     } catch (error) {
-      if (signal.aborted) throw new Error("连接 Bot 超时，请检查网络后重试。", { cause: error });
+      if (signal.aborted)
+        throw new BotRequestError("连接 Bot 超时，请检查网络后重试。", true, { cause: error });
+      if (error instanceof TypeError)
+        throw new BotRequestError(error.message, true, { cause: error });
       throw error;
     }
   }

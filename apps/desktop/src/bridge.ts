@@ -43,6 +43,8 @@ export type CommandReply<A> = { ok: true; value: A } | { ok: false; error: Comma
 
 export interface AgentBridge {
   openThread(id: string): Promise<SessionResponse>;
+  /** Preserve retry policy as data across Electron contextBridge, not a thrown Error. */
+  openThreadReply?(id: string): Promise<CommandReply<SessionResponse>>;
   configureSandbox(id: string, mode: SandboxMode): Promise<SessionResponse>;
   configureThread(
     id: string,

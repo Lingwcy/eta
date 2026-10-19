@@ -68,3 +68,10 @@ test("invoke decodes success values and preserves domain error metadata", async 
     message: "Workspace busy",
   });
 });
+
+test("initial thread reads return the error DTO without throwing across contextBridge", async () => {
+  const reply = { ok: false, error: { code: "BotRequestFailed", message: "502", retryable: true } };
+  transport.invoke.mockResolvedValueOnce(reply);
+  await expect(bridge.openThreadReply!("thread")).resolves.toEqual(reply);
+  expect(transport.invoke).toHaveBeenLastCalledWith("eta:command", { type: "open", id: "thread" });
+});

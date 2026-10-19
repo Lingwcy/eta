@@ -83,6 +83,7 @@ const bridge: DesktopBridge = {
       ...(configuration ? { configuration } : {}),
     }),
   openThread: (id) => invoke("eta:command", { type: "open", id }),
+  openThreadReply: (id) => ipcRenderer.invoke("eta:command", { type: "open", id }),
   configureSandbox: (id, mode) => invoke("eta:command", { type: "configure-sandbox", id, mode }),
   decideApproval: (id, requestId, approved, reuse) =>
     invoke("eta:command", {

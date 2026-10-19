@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import type { OperationAdmission } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
-import type { AgentEvent, AgentBridge } from "../../../src/bridge.ts";
+import type { AgentEvent, AgentBridge, CommandReply } from "../../../src/bridge.ts";
 import { ThreadAgentClient } from "./client.ts";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 
@@ -84,6 +84,7 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const client of clients.splice(0)) client.dispose();
+  vi.useRealTimers();
 });
 
 async function connectedClient() {
@@ -389,4 +390,174 @@ test("a configuration reply after leaving the thread cannot update the disposed 
   finish(configured);
   await pending;
   expect(client.getSnapshot()).toBe(before);
+});
+
+function openingClient() {
+  const openThreadReply = vi.fn<NonNullable<AgentBridge["openThreadReply"]>>();
+  const client = new ThreadAgentClient({ ...bridge, openThreadReply });
+  clients.push(client);
+  return { client, openThreadReply };
+}
+
+const unavailable = {
+  ok: false,
+  error: { code: "BotRequestFailed", message: "Bot 请求失败 (502)", retryable: true },
+} satisfies CommandReply<SessionResponse>;
+
+test("a recoverable initial read retries then installs exactly one live subscription", async () => {
+  vi.useFakeTimers();
+  const { client, openThreadReply } = openingClient();
+  openThreadReply
+    .mockResolvedValueOnce(unavailable)
+    .mockResolvedValue({ ok: true, value: session });
+  const connecting = client.connect(session.id);
+  await vi.advanceTimersByTimeAsync(999);
+  expect(openThreadReply).toHaveBeenCalledTimes(1);
+  expect(client.getSnapshot().connection).toBe("connecting");
+  expect(bridge.listener).toBeUndefined();
+  await vi.advanceTimersByTimeAsync(1);
+  await connecting;
+  expect(openThreadReply).toHaveBeenCalledTimes(2);
+  expect(client.getSnapshot()).toMatchObject({ connection: "connected", error: null });
+  expect(client.getSnapshot().observation?.snapshot).toBe(session.snapshot);
+  expect(bridge.listener).toBeDefined();
+  client.dispose();
+  expect(bridge.unsubscribed).toBe(1);
+});
+
+test("initial read retries are bounded, while manual retry gets a fresh budget", async () => {
+  vi.useFakeTimers();
+  const { client, openThreadReply } = openingClient();
+  openThreadReply.mockResolvedValue(unavailable);
+  const connecting = client.connect(session.id);
+  await vi.runAllTimersAsync();
+  await connecting;
+  expect(openThreadReply).toHaveBeenCalledTimes(3);
+  expect(client.getSnapshot()).toMatchObject({
+    connection: "error",
+    error: unavailable.error.message,
+  });
+  expect(bridge.listener).toBeUndefined();
+  openThreadReply.mockResolvedValueOnce({ ok: true, value: session });
+  await client.connect(session.id);
+  expect(client.getSnapshot()).toMatchObject({ connection: "connected", error: null });
+  expect(openThreadReply).toHaveBeenCalledTimes(4);
+});
+
+test.each(["Unauthorized", "Forbidden", "NotFound", "InternalError"])(
+  "an initial %s error is not retried",
+  async (code) => {
+    vi.useFakeTimers();
+    const { client, openThreadReply } = openingClient();
+    openThreadReply.mockResolvedValue({
+      ok: false,
+      error: { code, message: code, retryable: false },
+    });
+    await client.connect(session.id);
+    await vi.runAllTimersAsync();
+    expect(openThreadReply).toHaveBeenCalledTimes(1);
+    expect(client.getSnapshot().connection).toBe("error");
+    expect(client.getSnapshot().error).toEqual(
+      code === "NotFound" ? { key: "errors:NotFound", diagnostic: code } : code,
+    );
+    expect(bridge.listener).toBeUndefined();
+  },
+);
+
+test("disposing during retry backoff cancels the retry and settles connect", async () => {
+  vi.useFakeTimers();
+  const { client, openThreadReply } = openingClient();
+  openThreadReply.mockResolvedValue(unavailable);
+  const connecting = client.connect(session.id);
+  await vi.advanceTimersByTimeAsync(0);
+  client.dispose();
+  await connecting;
+  expect(vi.getTimerCount()).toBe(0);
+  await vi.runAllTimersAsync();
+  expect(openThreadReply).toHaveBeenCalledTimes(1);
+  expect(bridge.listener).toBeUndefined();
+});
+
+test.each([true, false])(
+  "a late initial read cannot replace a newer connection (success=%s)",
+  async (success) => {
+    const { client, openThreadReply } = openingClient();
+    const old = Promise.withResolvers<CommandReply<SessionResponse>>();
+    const replacement = { ...session, id: "replacement" };
+    openThreadReply
+      .mockReturnValueOnce(old.promise)
+      .mockResolvedValue({ ok: true, value: replacement });
+    const connecting = client.connect(session.id);
+    await client.connect(replacement.id);
+    const listener = bridge.listener;
+    old.resolve(success ? { ok: true, value: session } : unavailable);
+    await connecting;
+    expect(client.getSnapshot()).toMatchObject({
+      session: { id: replacement.id },
+      connection: "connected",
+      error: null,
+    });
+    expect(bridge.listener).toBe(listener);
+    expect(openThreadReply).toHaveBeenCalledTimes(2);
+    expect(bridge.unsubscribed).toBe(0);
+  },
+);
+
+test("a replacement connect cancels pending retry backoff", async () => {
+  vi.useFakeTimers();
+  const { client, openThreadReply } = openingClient();
+  openThreadReply
+    .mockResolvedValueOnce(unavailable)
+    .mockResolvedValue({ ok: true, value: session });
+  const old = client.connect(session.id);
+  await vi.advanceTimersByTimeAsync(0);
+  await client.connect(session.id);
+  await old;
+  expect(vi.getTimerCount()).toBe(0);
+  await vi.runAllTimersAsync();
+  expect(openThreadReply).toHaveBeenCalledTimes(2);
+  expect(client.getSnapshot()).toMatchObject({ connection: "connected", error: null });
+});
+
+test("a replacement connection ignores old stream callbacks", async () => {
+  const client = await connectedClient();
+  const stale = bridge.listener;
+  await client.connect(session.id);
+  stale?.({ type: "error", message: "obsolete failure" });
+  stale?.({
+    type: "snapshot",
+    value: { snapshot: { ...session.snapshot, faulted: true }, contextTokens: 99 },
+  });
+  expect(client.getSnapshot()).toMatchObject({ connection: "connected", error: null });
+  expect(client.getSnapshot().observation?.snapshot.faulted).toBe(false);
+  expect(client.getSnapshot().observation?.contextTokens).toBe(0);
+  expect(bridge.unsubscribed).toBe(1);
+});
+
+test("disposing an in-flight failed read does not schedule a retry", async () => {
+  vi.useFakeTimers();
+  const { client, openThreadReply } = openingClient();
+  const pending = Promise.withResolvers<CommandReply<SessionResponse>>();
+  openThreadReply.mockReturnValue(pending.promise);
+  const connecting = client.connect(session.id);
+  client.dispose();
+  pending.resolve(unavailable);
+  await connecting;
+  expect(vi.getTimerCount()).toBe(0);
+  expect(openThreadReply).toHaveBeenCalledTimes(1);
+  expect(bridge.listener).toBeUndefined();
+});
+
+test("a synchronous subscription that disposes the client releases its returned listener", async () => {
+  const unsubscribe = vi.fn();
+  bridge.subscribe = () => {
+    client.dispose();
+    return unsubscribe;
+  };
+  const client = new ThreadAgentClient(bridge);
+  clients.push(client);
+  await client.connect(session.id);
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
+  client.dispose();
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
 });

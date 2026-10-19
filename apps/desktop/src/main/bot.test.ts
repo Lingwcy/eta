@@ -6,6 +6,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ThreadAgentClient } from "../../renderer/src/agent/client.ts";
 import type { SessionResponse, SnapshotResponse } from "@eta/core/agent/protocol";
 import { DesktopBot } from "./bot.ts";
+import { commandReply } from "./ipc.ts";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -786,6 +787,138 @@ test.each(["unsubscribe", "close", "disconnect", "switch"])(
     } finally {
       release.resolve();
       stop();
+      bot.close();
+    }
+  },
+);
+
+test.each([
+  [401, false],
+  [403, false],
+  [404, false],
+  [408, true],
+  [429, true],
+  [500, true],
+  [502, true],
+  [503, true],
+] as const)(
+  "HTTP %s open failures retain retry policy in the serialized command reply",
+  async (status, retryable) => {
+    const { bot, request, prefix } = await connect(true);
+    request.mockResolvedValue(Response.json({ error: { message: "upstream failed" } }, { status }));
+    try {
+      const reply = JSON.parse(
+        JSON.stringify(await commandReply(() => bot.open(prefix + "thread"))),
+      );
+      expect(reply).toMatchObject({ ok: false, error: { code: "BotRequestFailed", retryable } });
+      expect(request).toHaveBeenCalledTimes(1);
+    } finally {
+      bot.close();
+    }
+  },
+);
+
+test("a network failure while opening a thread is retryable across the command boundary", async () => {
+  const { bot, request, prefix } = await connect(true);
+  request.mockRejectedValue(new TypeError("fetch failed"));
+  try {
+    await expect(commandReply(() => bot.open(prefix + "thread"))).resolves.toEqual({
+      ok: false,
+      error: { code: "BotRequestFailed", message: "fetch failed", retryable: true },
+    });
+  } finally {
+    bot.close();
+  }
+});
+
+test("an initial HTTP 502 recovers through the serialized command reply and client retry", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const session: SessionResponse = {
+    id: "thread",
+    model: {
+      id: "one",
+      provider: "test",
+      name: "One",
+      contextWindow: 10000,
+      thinkingLevels: ["off"],
+    },
+    contextTokens: 42,
+    snapshot: {
+      configuration: { model: { provider: "test", modelId: "one" }, thinkingLevel: "off" },
+      transcript: [
+        {
+          id: "saved",
+          type: "message",
+          message: { role: "user", content: "Saved history", timestamp: 1 },
+        },
+      ],
+      operation: null,
+      lastResult: null,
+      faulted: false,
+    },
+  };
+  request
+    .mockResolvedValueOnce(new Response("Bad gateway", { status: 502 }))
+    .mockImplementation(async () => Response.json(session));
+  const unsubscribe = vi.fn();
+  const subscribe = vi.fn(() => unsubscribe);
+  const client = new ThreadAgentClient({
+    openThread: (id) => bot.open(id),
+    openThreadReply: async (id) => structuredClone(await commandReply(() => bot.open(id))),
+    configureThread: (id, provider, model, level) => bot.configure(id, provider, model, level),
+    configureSandbox: (id, mode) => bot.configureSandbox(id, mode),
+    submit: (id, prompt, images) => bot.submit(id, prompt, "request", images),
+    stop: (id) => bot.command<void>(id, "stop"),
+    subscribe,
+  });
+  vi.useFakeTimers();
+  try {
+    const connecting = client.connect(prefix + "thread");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(client.getSnapshot().connection).toBe("connecting");
+    expect(subscribe).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+    await connecting;
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(client.getSnapshot()).toMatchObject({
+      connection: "connected",
+      error: null,
+      session: { id: prefix + "thread" },
+    });
+    expect(client.getSnapshot().observation?.snapshot.transcript[0]?.id).toBe(prefix + "saved");
+    expect(client.getSnapshot().observation?.contextTokens).toBe(42);
+  } finally {
+    client.dispose();
+    bot.close();
+    vi.useRealTimers();
+  }
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
+});
+
+test.each([true, false])(
+  "thread body failures retry only transport errors (transport=%s)",
+  async (transport) => {
+    const { bot, request, prefix } = await connect(true);
+    request.mockImplementation(async () =>
+      transport
+        ? new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new TypeError("terminated"));
+              },
+            }),
+          )
+        : new Response("invalid JSON"),
+    );
+    try {
+      const reply = await commandReply(() => bot.open(prefix + "thread"));
+      expect(reply).toMatchObject({
+        ok: false,
+        error: { code: transport ? "BotRequestFailed" : "InternalError", retryable: transport },
+      });
+    } finally {
       bot.close();
     }
   },
