@@ -44,7 +44,9 @@ export function ProviderList({
             <ProviderLogo id={provider.id} name={provider.name} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className="text-[13px] font-medium text-neutral-800">{provider.name}</h3>
+                <h3 className="min-w-0 text-[13px] font-medium break-words text-neutral-800">
+                  {provider.name}
+                </h3>
                 {connected && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700">
                     <Check size={10} />
@@ -52,7 +54,7 @@ export function ProviderList({
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-xs/4 text-neutral-500">
+              <p className="mt-0.5 text-xs/4 break-words text-neutral-500">
                 {connected
                   ? t("settings:providerList.availableModels", { count: count })
                   : credential
