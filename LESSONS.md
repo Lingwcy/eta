@@ -202,6 +202,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Asynchronous verification
 
+**Treat a transport failure as an unknown durable outcome until it is reconciled.**
+
+- Evidence: the [2026-10-19 Bot/Desktop synchronization audit](docs/issue/bot-desktop-sync-audit-2026-10-19.md) reproduces a committed message whose lost reply is retried with a new request ID, executing twice in the real BotStore. A separate controlled snapshot skips an acknowledged run's completion in favor of a later run, leaving Desktop's admission locked. The same audit reproduces clearing a background running marker on a temporary stream error and discarding a healthy chat view when the independent library poll recovers. These are controlled interleavings, not established causes of the reported production 502.
+- Check: retain a logical message's request identity across retries, reconcile its durable receipt after uncertain delivery, and distinguish connection health from execution outcome. A newer snapshot need not retain the particular operation needed to acknowledge an older request; transient observer errors cannot prove completion.
+- Seen: 2026-10-19.
+
 **Make shared publication decisions at their remote commit boundary, not from an earlier listing.**
 
 - Evidence: on 2026-10-17, #105's release CLI overwrites a higher Latest version that appears during upload or immediately before finalization. Both controlled interleavings fail even though the pre-existing-newer-version control passes. GitHub's documented make_latest=legacy mode lets the server choose by its version/date policy when publishing, instead of a client forcing a stale choice.
