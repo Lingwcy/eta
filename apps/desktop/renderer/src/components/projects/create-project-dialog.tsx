@@ -20,7 +20,7 @@ export function CreateProjectDialog({
   cloud?: boolean;
   cloudRoot?: string;
   onOpenChange: (open: boolean) => void;
-  onCreate: (rootPath: string, name: string) => Promise<void>;
+  onCreate: (rootPath: string, name: string, requestId: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   return (
@@ -53,12 +53,14 @@ function CreateProjectForm({
   cloud: boolean;
   cloudRoot?: string;
   onClose: () => void;
-  onCreate: (rootPath: string, name: string) => Promise<void>;
+  onCreate: (rootPath: string, name: string, requestId: string) => Promise<void>;
   onBusyChange: (busy: boolean) => void;
 }) {
   useTranslation();
   const [name, setName] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
+  /** A retry of the same project must reuse the identity its first attempt may have committed. */
+  const attempt = useRef<{ key: string; requestId: string } | undefined>(undefined);
   const [rootPath, setRootPath] = useState<string | null>(cloud ? (cloudRoot ?? null) : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Message | null>(null);
@@ -85,11 +87,15 @@ function CreateProjectForm({
   };
   const create = async () => {
     if (busy || (!cloud && !rootPath) || !name.trim()) return;
+    const key = JSON.stringify([rootPath ?? "", name.trim()]);
+    if (attempt.current?.key !== key) attempt.current = { key, requestId: crypto.randomUUID() };
+    const requestId = attempt.current.requestId;
     setBusy(true);
     onBusyChange(true);
     setError(null);
     try {
-      await onCreate(rootPath ?? "", name.trim());
+      await onCreate(rootPath ?? "", name.trim(), requestId);
+      attempt.current = undefined;
       onClose();
     } catch (error) {
       setError(
