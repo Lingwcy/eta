@@ -84,14 +84,14 @@ export function ModelPicker({
               : t("chat:modelPicker.chooseAModel")
         }
         title={model ? `${model.provider}/${model.id}` : placeholder}
-        className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent bg-transparent px-2.5 text-[13px] font-normal text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0"
+        className="inline-flex h-8 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent bg-transparent px-2.5 text-[13px] font-normal text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0"
       >
         {model && (
           <span aria-hidden="true" className="size-[18px] shrink-0 opacity-60">
             <ProviderMark id={model.provider} />
           </span>
         )}
-        <span className="max-w-[72px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
+        <span className="min-w-0 max-w-[72px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
           {selection?.label ??
             model?.name ??
             (defaultOption?.selected ? defaultOption.label : placeholder)}
