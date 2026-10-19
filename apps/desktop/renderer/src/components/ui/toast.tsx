@@ -97,17 +97,26 @@ export function ToastNotice({
   const visible = useContext(NoticeVisibility);
   const latest = useRef({ manager, onRetry });
   latest.current = { manager, onRetry };
-  const shown = useRef<Message | undefined>(undefined);
+  const shown = useRef<{ message: Message; key: string; id?: string } | undefined>(undefined);
   useEffect(() => {
-    if (!message) {
+    const { manager } = latest.current;
+    const previous = shown.current;
+    // A resolved or replaced condition must not leave its old notice on screen.
+    if (!message || previous?.message !== message) {
+      if (previous?.id) {
+        manager.close(previous.id);
+        if (notices?.get(previous.key) === previous.id) notices.delete(previous.key);
+      }
       shown.current = undefined;
+    }
+    if (!message) return;
+    if (!active || !visible || shown.current?.message === message) return;
+    const key = `${type}:${JSON.stringify(message)}`;
+    if (notices?.has(key)) {
+      // Another view already reported this failure; do not take ownership of its notice.
+      shown.current = { message, key };
       return;
     }
-    if (!active || !visible || shown.current === message) return;
-    shown.current = message;
-    const { manager } = latest.current;
-    const key = `${type}:${JSON.stringify(message)}`;
-    if (notices?.has(key)) return;
     const id = manager.add({
       title: <LocalizedNotice message={title} />,
       description: <LocalizedNotice message={message} />,
@@ -125,6 +134,7 @@ export function ToastNotice({
           }
         : {}),
     });
+    shown.current = { message, key, id };
     notices?.set(key, id);
   }, [message, title, type, active, visible, notices]);
   return null;
