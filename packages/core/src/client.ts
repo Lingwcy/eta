@@ -214,6 +214,7 @@ export async function createCore(options: CoreOptions) {
         requestId?: string,
         configuration?: CreateThreadConfiguration,
       ) => runtime.runPromise(threads.create(workspaceId, requestId, configuration)),
+      threadMetadata: (id: string) => runtime.runPromise(threads.get(id)),
       openThread: (id: string) => runtime.runPromise(threads.open(id)),
       configureSandbox: (id: string, mode: SandboxMode) =>
         runtime.runPromise(threads.configureSandbox(id, mode)),

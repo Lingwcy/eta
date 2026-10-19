@@ -93,6 +93,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Authorize from current ownership metadata, not a display projection.**
+
+- Evidence: on 2026-10-19, BDS-06 runs the real Bot HTTP/Core message path and records three full openThread projections before Core.submit. Catalog-only thread metadata removes those admission-time projections while keeping a full history read for GET. Regressions cover idempotent replay, six out-of-scope actions and revocation during receipt lookup; seven fail before the change. This is a call-count reproduction, not a production latency benchmark.
+- Check: preserve fresh scope checks at admission and on cached replies. Do not replace repeated authorization with a cached permission, or make checking ownership depend on opening history. Test control gates should target the operation boundary rather than count incidental snapshot reads.
+- Seen: 2026-10-19.
+
 **Carry retry policy as data across process boundaries.**
 
 - Evidence: on 2026-10-19, BDS-08's initial Desktop thread read never retried. Bot transport failures were serialized as non-retryable InternalError, and preload-created Error fields cannot be relied on across Electron contextBridge. Returning the command reply DTO and unwrapping in the renderer carries explicit retry policy into bounded read-only retries; focused Bot/IPC, preload and client regressions cover the layers, not native Electron serialization.

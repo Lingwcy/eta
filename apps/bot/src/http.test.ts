@@ -115,6 +115,110 @@ async function fixture(
   return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
 
+test("message authorization never opens full history before admission or idempotent replay", async () => {
+  const { bot, provider, request, create } = await fixture();
+  const id = await create("lightweight-admission");
+  provider.setResponses([fauxAssistantMessage("Accepted once")]);
+  const calls: string[] = [];
+  const open = bot.core.openThread;
+  const submit = bot.core.submit;
+  const opening = vi.spyOn(bot.core, "openThread").mockImplementation((...args) => {
+    calls.push("open");
+    return open(...args);
+  });
+  const submitting = vi.spyOn(bot.core, "submit").mockImplementation((...args) => {
+    calls.push("submit");
+    return submit(...args);
+  });
+  try {
+    const body = { requestId: "lightweight-input", prompt: "Hello" };
+    const accepted = await request(`/v1/threads/${id}/messages`, body);
+    expect(accepted.status).toBe(202);
+    const receipt = await accepted.json();
+    expect(calls.slice(0, calls.indexOf("submit"))).toEqual([]);
+    const beforeReplay = opening.mock.calls.length;
+    const replay = await request(`/v1/threads/${id}/messages`, body);
+    expect(replay.status).toBe(202);
+    expect(await replay.json()).toEqual(receipt);
+    expect(opening.mock.calls.length).toBe(beforeReplay);
+    expect(submitting).toHaveBeenCalledTimes(1);
+    const beforeRead = opening.mock.calls.length;
+    const history = await request(`/v1/threads/${id}`);
+    expect(history.status).toBe(200);
+    expect(Schema.decodeUnknownSync(identity)(await history.json()).id).toBe(id);
+    expect(opening.mock.calls.length).toBe(beforeRead + 1);
+  } finally {
+    opening.mockRestore();
+    submitting.mockRestore();
+    await bot.controller.stop(id);
+  }
+}, 15000);
+
+test("admission rechecks workspace scope after its receipt lookup", async () => {
+  const { bot, workspace, create } = await fixture();
+  const id = await create("revoked-before-admission");
+  const allowed = new Map(bot.workspaceProjects);
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const submit = vi.fn(bot.core.submit);
+  const controller = new BotController(
+    {
+      ...bot.core,
+      operationByRequest: async (...args) => {
+        const result = await bot.core.operationByRequest(...args);
+        entered.resolve();
+        await release.promise;
+        return result;
+      },
+      submit,
+    },
+    allowed,
+    1,
+  );
+  const pending = controller.submit(id, "Not admitted", "revoked-input");
+  const outcome = expect(pending).rejects.toMatchObject({ code: "ProjectUnavailable" });
+  try {
+    await entered.promise;
+    allowed.delete(workspace);
+    release.resolve();
+    await outcome;
+    expect(submit).not.toHaveBeenCalled();
+    expect(controller.status().activeThreads).toEqual([]);
+  } finally {
+    release.resolve();
+    await pending.catch(() => {});
+    await controller.close(0);
+  }
+});
+
+test.each(["read", "messages", "operations/missing", "stop", "compact", "subagent"])(
+  "out-of-scope thread %s is rejected without opening its history",
+  async (action) => {
+    const { bot, cwd, request } = await fixture();
+    const nested = join(cwd, "not-an-exposed-project");
+    await mkdir(nested);
+    const project = await bot.core.registerProject(nested);
+    const [workspace] = await bot.core.workspaces(project.id);
+    const thread = await bot.core.createThread(workspace!.id);
+    const opening = vi.spyOn(bot.core, "openThread");
+    try {
+      const path = `/v1/threads/${thread.id}` + (action === "read" ? "" : "/" + action);
+      const response = await request(
+        path,
+        ["read", "operations/missing"].includes(action)
+          ? undefined
+          : action === "messages"
+            ? { requestId: "outside", prompt: "Not allowed" }
+            : {},
+      );
+      expect(response.status).toBe(403);
+      expect(opening).not.toHaveBeenCalled();
+    } finally {
+      opening.mockRestore();
+    }
+  },
+);
+
 test("HTTP history and SSE omit internal signatures while durable Core history keeps them", async () => {
   const { bot, provider, request, create } = await fixture();
   const answer = fauxAssistantMessage("Visible response");
@@ -254,7 +358,10 @@ test("HTTP admission executes real tools, rejects conflicting retries and retain
   expect(response.status).toBe(202);
   const accepted = Schema.decodeUnknownSync(admission)(await response.json());
   await expect
-    .poll(async () => (await bot.core.operation(id, accepted.operationId)).status)
+    // Admission no longer spends native startup time projecting three histories first.
+    .poll(async () => (await bot.core.operation(id, accepted.operationId)).status, {
+      timeout: 10000,
+    })
     .toBe("completed");
   expect(await readFile(join(cwd, "result.txt"), "utf8")).toBe("HTTP execution");
   const repeated = await request(`/v1/threads/${id}/messages`, {
@@ -279,7 +386,7 @@ test("HTTP admission executes real tools, rejects conflicting retries and retain
     status: "completed",
     operationId: accepted.operationId,
   });
-});
+}, 15000);
 
 test("HTTP exposes sandbox ceilings and scopes approvals to the owning thread", async () => {
   const { bot, provider, request, create, cwd } = await fixture(false, undefined, [

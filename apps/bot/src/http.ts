@@ -413,9 +413,11 @@ export function createHttpApp(options: {
     );
     return context.json(displaySnapshot(result), 201);
   });
-  app.get("/v1/threads/:id", async (context) =>
-    context.json(displaySnapshot(await controller.authorize(context.req.param("id")))),
-  );
+  app.get("/v1/threads/:id", async (context) => {
+    const id = context.req.param("id");
+    await controller.authorize(id);
+    return context.json(displaySnapshot(await core.openThread(id)));
+  });
   app.post("/v1/threads/:id/messages", async (context) => {
     const id = context.req.param("id");
     await controller.authorize(id);

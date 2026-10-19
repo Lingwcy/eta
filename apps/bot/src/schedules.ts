@@ -19,8 +19,8 @@ export function botScheduleAdapter(
     },
     async (id) => {
       await projects.refresh();
-      const view = await controller.authorize(id);
-      if (!projects.workspaceProjects.has(view.thread.workspaceId)) return "workspaceUnavailable";
+      const thread = await controller.authorize(id);
+      if (!projects.workspaceProjects.has(thread.workspaceId)) return "workspaceUnavailable";
       return controller.scheduleBlockReason(id);
     },
   );
