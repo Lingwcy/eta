@@ -60,6 +60,10 @@ export interface AgentBridge {
     /** Retried attempts of one logical message reuse its durable identity. */
     requestId?: string,
   ): Promise<OperationAdmission>;
+  /** Keep unknown-admission retry policy intact across Electron contextBridge. */
+  submitReply?(
+    ...args: Parameters<AgentBridge["submit"]>
+  ): Promise<CommandReply<OperationAdmission>>;
   stop(sessionId: string): Promise<void>;
   subscribe(sessionId: string, listener: (event: AgentEvent) => void, path?: string): () => void;
 }

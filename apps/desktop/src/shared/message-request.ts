@@ -1,5 +1,16 @@
 import type { ImageAttachment } from "@eta/core/images/types";
-import { DesktopCommandError } from "../command-reply.ts";
+import { DesktopCommandError, unwrapReply } from "../command-reply.ts";
+import type { AgentBridge } from "../bridge.ts";
+
+/** Decode in the calling realm; a rejected preload Error loses custom fields at contextBridge. */
+export async function submitMessage(
+  bridge: Pick<AgentBridge, "submit" | "submitReply">,
+  ...args: Parameters<AgentBridge["submit"]>
+) {
+  return bridge.submitReply
+    ? unwrapReply(await bridge.submitReply(...args))
+    : bridge.submit(...args);
+}
 
 /** A send whose transport outcome is unknown; the same logical message must keep its identity. */
 export interface UncertainSubmission {
