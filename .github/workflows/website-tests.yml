@@ -1,0 +1,39 @@
+name: Website tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/website/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - "vite.config.ts"
+      - ".github/workflows/website-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/website/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - "vite.config.ts"
+      - ".github/workflows/website-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Verify website typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp install --frozen-lockfile
+      - run: vp run @eta/website#typecheck
+      - run: vp run @eta/website#build
+      - run: vp fmt --check apps/website
