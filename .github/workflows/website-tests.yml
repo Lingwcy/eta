@@ -35,5 +35,16 @@ jobs:
           cache: true
       - run: vp install --frozen-lockfile
       - run: vp run @eta/website#typecheck
-      - run: vp run @eta/website#build
+      # Deployment builds set SITE_URL; building that way exercises the canonical/og:image/hreflang
+      # branch instead of only the relative-path fallback the default build produces.
+      - name: Build the site with a deployment origin
+        run: vp run @eta/website#build
+        env:
+          SITE_URL: https://eta.example
+      - name: Verify absolute metadata
+        run: |
+          grep -Fq 'rel="canonical" href="https://eta.example/"' apps/website/dist/index.html
+          grep -Fq 'property="og:image" content="https://eta.example/social.png"' apps/website/dist/index.html
+          grep -Fq 'rel="canonical" href="https://eta.example/zh/"' apps/website/dist/zh/index.html
+          grep -Fq 'rel="alternate" hreflang="zh-CN" href="https://eta.example/zh/"' apps/website/dist/index.html
       - run: vp fmt --check apps/website
