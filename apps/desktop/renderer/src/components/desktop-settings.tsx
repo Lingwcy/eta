@@ -10,6 +10,7 @@ import { SettingsSidebar } from "./settings/settings-sidebar";
 import { SettingsPage } from "./settings/settings-page";
 import type { SettingsItem } from "./settings/settings-categories";
 import { settingsGroups } from "./settings/settings-categories";
+import { chooseCategory } from "./settings/settings-category";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Message } from "@/i18n/messages";
 
@@ -25,17 +26,17 @@ interface Props extends Omit<SettingsPanelProps, "active"> {
 }
 export function DesktopSettings(props: Props) {
   useTranslation();
-  const [category, setCategory] = useState(
-    props.initialCategory ??
-      (props.library.credentials.find(
-        (credential) => credential.providerId === props.library.settings.defaultProvider,
-      )?.type === "api_key"
-        ? "api-keys"
-        : "accounts"),
-  );
+  const known = new Set(settingsGroups().flatMap((group) => group.items.map((item) => item.id)));
+  const fallback =
+    props.library.credentials.find(
+      (credential) => credential.providerId === props.library.settings.defaultProvider,
+    )?.type === "api_key"
+      ? "api-keys"
+      : "accounts";
+  const [category, setCategory] = useState(chooseCategory(props.initialCategory, known, fallback));
   const [query, setQuery] = useState("");
   useEffect(() => {
-    if (props.initialCategory) setCategory(props.initialCategory);
+    if (props.initialCategory) setCategory(chooseCategory(props.initialCategory, known, fallback));
   }, [props.initialCategory, props.categoryRevision]);
   useEffect(() => {
     if (props.active === false) return;
@@ -48,7 +49,7 @@ export function DesktopSettings(props: Props) {
   return (
     <Tabs
       value={category}
-      onValueChange={(value) => setCategory(String(value))}
+      onValueChange={(value) => setCategory(chooseCategory(String(value), known, category))}
       orientation="vertical"
       className="contents"
     >
@@ -67,7 +68,7 @@ export function DesktopSettings(props: Props) {
                 props.onClose();
                 props.onChooseProject();
               }}
-              onSettings={(next) => setCategory(next ?? "accounts")}
+              onSettings={(next) => setCategory(chooseCategory(next ?? undefined, known, fallback))}
             />
             <SettingsSidebar query={query} onQuery={setQuery} onClose={props.onClose} />
           </>
