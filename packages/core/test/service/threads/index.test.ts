@@ -2192,7 +2192,11 @@ test("orchestrator root offers delegation and scheduling while children retain c
   ]);
   await runtime.runPromise(threads.submit(created.id, "Research this"));
   const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
-  await expect.poll(async () => (await record.subagents.list())[0]?.status).toBe("completed");
+  // A subagent needs a tool turn and at least one model stream; the implicit 1s default timed out
+  // as "running" in CI run 39348003301, matching the multi-stage waits described in #59.
+  await expect
+    .poll(async () => (await record.subagents.list())[0]?.status, { timeout: 10_000 })
+    .toBe("completed");
   for (const task of (await record.harness.inspect(BACKGROUND_CONTEXT)).tasks) {
     if (task.record.kind === "eta.subagent-reporter")
       await record.harness.waitForTask(task.record.id, BACKGROUND_CONTEXT);
