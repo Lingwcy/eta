@@ -107,8 +107,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Authorize from current ownership metadata, not a display projection.**
 
 - Evidence: on 2026-10-19, BDS-06 runs the real Bot HTTP/Core message path and records three full openThread projections before Core.submit. Catalog-only thread metadata removes those admission-time projections while keeping a full history read for GET. Regressions cover idempotent replay, six out-of-scope actions and revocation during receipt lookup; seven fail before the change. This is a call-count reproduction, not a production latency benchmark.
-- Check: preserve fresh scope checks at admission and on cached replies. Do not replace repeated authorization with a cached permission, or make checking ownership depend on opening history. Test control gates should target the operation boundary rather than count incidental snapshot reads.
-- Seen: 2026-10-19.
+- Additional evidence: on 2026-10-20, BDS-06's status/credential HTTP routes still scanned projects despite not using workspace ownership. Three real HTTP regressions show four unnecessary refreshes, a status request blocked behind a held scan, and administration failing when the workspace root is not a directory. Placing those handlers after global guards but before discovery removes that dependency; scoped routes still scan and existing escaping-symlink tests pass.
+- Check: keep ownership checks separate from display history and attach discovery to its consuming routes, not global administrative guards. Preserve authentication, body limits and shutdown checks for the fast path, and fresh scope checks at admission/on cached replies; never trade them for a cached allowlist just to avoid scans. Test gates target the operation boundary, not incidental snapshot counts.
+- Seen: 2026-10-19, 2026-10-20.
 
 **Carry retry policy as data across process boundaries.**
 

@@ -86,9 +86,11 @@ POST /v1/threads/:id/messages
 
 建议：创建时一次提交最终配置，删除成功创建后的重复配置；目录刷新退出关键发送路径。在准备、创建和待接收阶段明确显示状态；创建后尽早绑定实际 thread identity，并按阶段提供真实取消语义。
 
-### BDS-06 / P2：普通发送前，服务端重复构造 3 次完整会话快照（核心问题已解决，[#211](https://github.com/Lingwcy/eta/pull/211) 已合并；目录扫描另待优化）
+### BDS-06 / P2：普通发送前，服务端重复构造 3 次完整会话快照（核心问题已解决，[#211](https://github.com/Lingwcy/eta/pull/211) 已合并；管理接口扫描已修复待合并，工作区路径仍实时扫描）
 
-修复：Core 公开已有 `ThreadService.get` 的轻量元数据读取；Controller 的 HTTP、直接发送、停止、子智能体与调度鉴权使用该读取，不再为鉴权打开运行时 / 投影历史。准入前仍重新核对工作区归属；真正 GET 会话时仍构造一次完整快照。真实 HTTP 回归确认 admission 前 openThread 从 3 次降至 0，幂等重放不打开历史，越权请求在读取历史前拒绝；收据查询期间撤销工作区后不能继续准入。8 项新增回归通过，其中 7 项在旧实现下失败。原过期清理测试改为在真实 authorize 边界持有控制门，不再依赖第 2 次完整快照。目录扫描频率未修改，也没有生产规模耗时基准；不声称整条发送路径已完成性能优化。
+修复：Core 公开已有 `ThreadService.get` 的轻量元数据读取；Controller 的 HTTP、直接发送、停止、子智能体与调度鉴权使用该读取，不再为鉴权打开运行时 / 投影历史。准入前仍重新核对工作区归属；真正 GET 会话时仍构造一次完整快照。真实 HTTP 回归确认 admission 前 openThread 从 3 次降至 0，幂等重放不打开历史，越权请求在读取历史前拒绝；收据查询期间撤销工作区后不能继续准入。8 项新增回归通过，其中 7 项在旧实现下失败。原过期清理测试改为在真实 authorize 边界持有控制门，不再依赖第 2 次完整快照。该快照修复没有修改目录扫描频率，也没有生产规模耗时基准；不声称整条发送路径已完成性能优化。
+
+目录扫描后续：`GET /v1/status`、`POST /v1/credentials/import` 和 `POST /v1/credentials/remove` 不使用项目目录，将这三个管理接口放在项目发现中间件之前，避免每次管理调用扫描目录，亦不等待已在进行的扫描。全局认证、shutdown 检查和 48 MiB 限制仍在这些接口之前；工作区 / 会话 / 调度相关请求仍在项目发现之后，未缓存或延长授权有效期。4 项新增真实 Bot HTTP 控制覆盖四次连续管理请求从 4 次 refresh 降为 0、挂住目录扫描时仍返回状态、项目根目录不可用时仍可管理且错误输入 / 未授权 / 大请求仍拒绝、shutdown 后仍拒绝；其中 3 项修复前失败。`src/http.test.ts` 48/48、`src/desktop.test.ts` 7/7、`src/compression.test.ts` 2/2 通过。工作区相关请求的扫描合并 / 增量发现仍是后续项，未声称生产速度提升或整个扫描开销已解决。以下保留原审查基线。
 
 位置：`apps/bot/src/http.ts:419`、`apps/bot/src/controller.ts:49`、`apps/bot/src/controller.ts:157`、`packages/core/src/service/observation/index.ts:93`。
 

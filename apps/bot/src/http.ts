@@ -109,7 +109,6 @@ export function createHttpApp(options: {
   app.use("/v1/*", bearerAuth({ token: config.adminToken }));
   app.use("/v1/*", async (_context, next) => {
     if (shutdown.aborted) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
-    await options.projects.refresh();
     await next();
   });
   app.use(
@@ -146,6 +145,12 @@ export function createHttpApp(options: {
     );
     await options.credentials.remove(input.providerId);
     return context.json({ removed: true });
+  });
+  // Administration above does not depend on directory discovery. Scoped routes below still
+  // refresh ownership on every request rather than trusting a cached workspace allowlist.
+  app.use("/v1/*", async (_context, next) => {
+    await options.projects.refresh();
+    await next();
   });
   app.post("/v1/projects", async (context) => {
     const input = decode(
