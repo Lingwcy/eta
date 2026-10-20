@@ -105,15 +105,19 @@ const opened: SessionResponse = {
 };
 
 test.each([
-  { kind: "client", dto: true, definite: false },
-  { kind: "draft", dto: true, definite: false },
-  { kind: "client", dto: false, definite: false },
-  { kind: "draft", dto: false, definite: false },
-  { kind: "client", dto: true, definite: true },
-  { kind: "draft", dto: true, definite: true },
+  { kind: "client", dto: true, definite: false, ipc: "none" },
+  { kind: "draft", dto: true, definite: false, ipc: "none" },
+  { kind: "client", dto: false, definite: false, ipc: "none" },
+  { kind: "draft", dto: false, definite: false, ipc: "none" },
+  { kind: "client", dto: true, definite: true, ipc: "none" },
+  { kind: "draft", dto: true, definite: true, ipc: "none" },
+  { kind: "client", dto: true, definite: false, ipc: "before" },
+  { kind: "draft", dto: true, definite: false, ipc: "before" },
+  { kind: "client", dto: true, definite: false, ipc: "after" },
+  { kind: "draft", dto: true, definite: false, ipc: "after" },
 ])(
-  "$kind submission crosses the reply boundary (DTO=$dto, definite=$definite)",
-  async ({ kind, dto, definite }) => {
+  "$kind submission crosses the reply boundary (DTO=$dto, definite=$definite, IPC=$ipc)",
+  async ({ kind, dto, definite, ipc }) => {
     const root = await mkdtemp(join(tmpdir(), "eta-submit-reply-"));
     const store = new BotStore(join(root, "bot.sqlite"));
     const requestIds: string[] = [];
@@ -135,6 +139,7 @@ test.each([
         if (command.type !== "submit") throw new Error("Unexpected command");
         const requestId = command.requestId!;
         requestIds.push(requestId);
+        if (ipc === "before" && requestIds.length === 1) throw new Error("Controlled failure");
         // A definite rejection never reaches admission; an unknown outcome has already committed.
         const value =
           definite && requestIds.length === 1
@@ -148,6 +153,8 @@ test.each([
                   return admission;
                 },
               );
+        // The receipt is committed, but Electron never delivers a reply DTO.
+        if (ipc === "after" && requestIds.length === 1) throw new Error("Controlled failure");
         if (requestIds.length === 1)
           return {
             ok: false,
@@ -189,6 +196,8 @@ test.each([
     try {
       if (kind === "client") await client.connect("thread");
       await expect(send()).rejects.toThrow("Controlled failure");
+      expect(requestIds).toHaveLength(1);
+      expect(executions).toBe(definite || ipc === "before" ? 0 : 1);
       await send();
       expect(requestIds).toHaveLength(2);
       if (dto && !definite) expect(requestIds[1]).toBe(requestIds[0]);
