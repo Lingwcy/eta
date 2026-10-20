@@ -137,6 +137,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: inject failures before and after the commit point and assert the next real client request destination/credentials and persisted cache namespace, not just a status label. Do not roll back one field of an already committed identity; retain error propagation and late-response ownership guards.
 - Seen: 2026-10-17.
 
+**Index stable catalog records once before a bulk traversal.**
+
+- Evidence: on 2026-10-20, BDS-06 searches the entire registered-project array for each directory and allocates/scans its visible project IDs for each workspace. Real Core/filesystem fixtures count 624 rootPath reads at 32 projects before indexing; an upper bound of five reads per project passes afterward. Separate controls preserve newly discovered/missing projects, outside-scope exclusion and canonical duplicate-path first-match behavior. This measures metadata access, not production latency or every filesystem operation.
+- Check: build indexes from the current scan, retain the original duplicate-key selection rule, and construct membership sets only after all eligible projects are known. Keep filesystem validation and request freshness unchanged rather than retaining a permission cache across scans.
+- Seen: 2026-10-20.
+
 **Validate update metadata against actual asset bytes, not only a matching digest.**
 
 - Evidence: on 2026-10-17, #103 accepts a Mac ZIP with the correct hash but wrong declared size, or an empty ZIP with its matching hash and zero size. Both split and combined feeds pass; the real release CLI with fake GitHub publishes the inconsistent feed. The current Mac updater uses that declared size for its local ZIP proxy Content-Length; Windows already checks size.

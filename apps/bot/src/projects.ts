@@ -72,6 +72,11 @@ export class BotProjects {
     await mkdir(this.config.workspaceRoot, { recursive: true });
     const root = await realpath(this.config.workspaceRoot);
     const existing = await this.core.projects();
+    const existingByPath = new Map<string, string>();
+    for (const project of existing) {
+      const path = project.rootPath;
+      if (!existingByPath.has(path)) existingByPath.set(path, project.id);
+    }
     const projects = new Map<string, string>();
     for (const entry of await readdir(root, { withFileTypes: true })) {
       if (entry.name.startsWith(".") || (!entry.isDirectory() && !entry.isSymbolicLink())) continue;
@@ -80,10 +85,9 @@ export class BotProjects {
         if (!(await this.inside(path, root))) continue;
         if (!(await stat(path)).isDirectory()) continue;
         const canonical = await realpath(path);
-        const project =
-          existing.find((value) => value.rootPath === canonical) ??
-          (await this.core.registerProject(path));
-        projects.set(canonical, project.id);
+        const projectId =
+          existingByPath.get(canonical) ?? (await this.core.registerProject(path)).id;
+        projects.set(canonical, projectId);
       } catch (error) {
         if (
           error instanceof Error &&
@@ -104,9 +108,10 @@ export class BotProjects {
         throw error;
       }
     }
+    const projectIds = new Set(projects.values());
     const workspaces = new Map<string, string>();
     for (const workspace of await this.core.workspaces()) {
-      if (![...projects.values()].includes(workspace.projectId)) continue;
+      if (!projectIds.has(workspace.projectId)) continue;
       try {
         if (await this.inside(workspace.cwd, root))
           workspaces.set(workspace.id, workspace.projectId);
