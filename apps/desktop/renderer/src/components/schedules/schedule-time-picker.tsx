@@ -46,7 +46,7 @@ export function ScheduleTimePicker({
           >
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <p className="mb-1 text-center text-neutral-400">
+                <p className="mb-1 text-center text-neutral-500">
                   {t("schedules:scheduleTimePicker.hour")}
                 </p>
                 <ScrollArea
@@ -75,7 +75,7 @@ export function ScheduleTimePicker({
                 </ScrollArea>
               </div>
               <div>
-                <p className="mb-1 text-center text-neutral-400">
+                <p className="mb-1 text-center text-neutral-500">
                   {t("schedules:scheduleTimePicker.minute")}
                 </p>
                 <ScrollArea

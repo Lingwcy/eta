@@ -64,7 +64,7 @@ export function ThinkingLevelControl({
               </span>
               <span className="font-medium text-neutral-900">{options[preview]?.label}</span>
             </div>
-            <div className="mb-1.5 flex justify-between text-[11px] text-neutral-400">
+            <div className="mb-1.5 flex justify-between text-[11px] text-neutral-500">
               <span>{t("chat:thinkingLevelControl.faster")}</span>
               <span>{t("chat:thinkingLevelControl.deeper")}</span>
             </div>
