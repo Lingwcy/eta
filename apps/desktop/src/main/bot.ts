@@ -50,6 +50,7 @@ export class DesktopBot {
   private readonly streams = new Set<AbortController>();
   private timer?: ReturnType<typeof setInterval>;
   private refreshing?: Promise<void>;
+  private refreshQueued = false;
   private generation = 0;
   private scheduleCache?: ScheduleSnapshot;
   private scheduleCacheUrl?: string;
@@ -190,8 +191,14 @@ export class DesktopBot {
 
   async refresh(force = false) {
     if (this.refreshing) {
-      await this.refreshing;
-      if (!force) return;
+      if (!force) {
+        await this.refreshing;
+        return;
+      }
+      // Any number of forced requests during one read share a single follow-up read.
+      this.refreshQueued = true;
+      while (this.refreshing) await this.refreshing;
+      return;
     }
     if (!this.connection) return;
     const generation = this.generation;
@@ -229,6 +236,10 @@ export class DesktopBot {
       }
     })().finally(() => {
       this.refreshing = undefined;
+      if (this.refreshQueued) {
+        this.refreshQueued = false;
+        void this.refresh(true).catch(() => {});
+      }
     });
     return this.refreshing;
   }

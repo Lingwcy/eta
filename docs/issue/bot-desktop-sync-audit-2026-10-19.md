@@ -90,6 +90,8 @@ POST /v1/threads/:id/messages
 
 修复：Core 公开已有 `ThreadService.get` 的轻量元数据读取；Controller 的 HTTP、直接发送、停止、子智能体与调度鉴权使用该读取，不再为鉴权打开运行时 / 投影历史。准入前仍重新核对工作区归属；真正 GET 会话时仍构造一次完整快照。真实 HTTP 回归确认 admission 前 openThread 从 3 次降至 0，幂等重放不打开历史，越权请求在读取历史前拒绝；收据查询期间撤销工作区后不能继续准入。8 项新增回归通过，其中 7 项在旧实现下失败。原过期清理测试改为在真实 authorize 边界持有控制门，不再依赖第 2 次完整快照。目录扫描频率未修改，也没有生产规模耗时基准；不声称整条发送路径已完成性能优化。
 
+重复根解析后续（已修复，待 PR 合并）：单次 `BotProjects.scan` 的目录、已登记项目和工作区检查复用同一个已解析根路径，避免逐项重新解析根。8 个正常项目的真实文件系统 / Core fixture 中，初次扫描的根路径 realpath 调用由 17 次降至 2 次；缓存仅限本次扫描，下一次仍重新解析。别名先在临时映射中构建，发布任一映射前再验证根未变化；受控切换根目录的符号链接时，本次刷新拒绝并同时撤销两张旧归属映射，不能沿用旧根的授权；下次刷新正常采用新根。`projects.test.ts` 4/4 和现有 `http.test.ts` 44/44 通过，新增中的 3 项修复前失败，另有缺失工作区历史、内部别名、越界及悬空链接兼容控制。未改变按请求扫描策略或引入跨请求授权缓存，未测量线上延迟，也不声称所有目录 I/O 已减少为常数；缺失路径回溯仍可能需要解析父目录。
+
 位置：`apps/bot/src/http.ts:419`、`apps/bot/src/controller.ts:49`、`apps/bot/src/controller.ts:157`、`packages/core/src/service/observation/index.ts:93`。
 
 HTTP messages 路由 authorize 一次，Controller.submit authorize 一次，claim 又 authorize 一次。authorize 调用 Core.openThread，而该操作构造完整 observation，包含历史投影、持久化 submission 扫描、子智能体及权限状态读取和 JSON 深拷贝。

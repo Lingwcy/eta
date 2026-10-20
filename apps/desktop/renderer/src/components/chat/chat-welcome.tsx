@@ -35,7 +35,7 @@ export function ChatWelcome({
         )}
       </h2>
       {connecting && (
-        <output className="mt-2 text-xs text-neutral-400">
+        <output className="mt-2 text-xs text-neutral-500">
           {t("chat:chatWelcome.preparingTheAgent")}
         </output>
       )}
