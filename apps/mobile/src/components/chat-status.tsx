@@ -10,6 +10,11 @@ import type { ReactNode } from "react";
 import type { BotSnapshot } from "../bot/contracts.ts";
 import { colors } from "../ui.tsx";
 
+/** Muted grey designed for the app canvas (#f9f9f8), where colors.muted drops to 4.48:1. */
+const mutedOnCanvas = "#525252";
+/** colors.danger on dangerSoft is 3.95:1; this stays above 4.5:1. */
+const errorTextColor = "#B91C1C";
+
 export type TaskTone = "running" | "warning" | "danger" | "done" | "idle";
 
 /** One tone per task state so the status line reads at a glance. */
@@ -218,7 +223,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 13,
     lineHeight: 19,
-    color: colors.muted,
+    color: mutedOnCanvas,
   },
   task: {
     flexDirection: "row",
@@ -228,7 +233,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   taskDot: { width: 6, height: 6, borderRadius: 3 },
-  taskText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: colors.muted },
+  taskText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: mutedOnCanvas },
   banner: {
     marginHorizontal: 16,
     marginBottom: 8,
@@ -274,7 +279,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  errorText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: colors.danger },
+  errorText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: errorTextColor },
   pending: {
     marginHorizontal: 16,
     marginBottom: 8,
