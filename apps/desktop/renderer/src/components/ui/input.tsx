@@ -12,7 +12,7 @@ export function Input({ className, variant = "default", ...props }: InputProps) 
     <BaseInput
       data-slot="input"
       className={cn(
-        "w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 disabled:opacity-50",
+        "w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 outline-none placeholder:text-neutral-500 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 disabled:opacity-50",
         variant === "compact" && "h-7 px-2.5 py-0 text-[13px]",
         variant === "search" &&
           "rounded-full border-transparent bg-neutral-100 py-2 pl-9 focus:bg-white",
