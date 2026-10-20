@@ -77,6 +77,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, focused checks, an
 vp install        # Install dependencies with the Vite+ toolchain
 vp run dev        # Build and run the desktop app
 vp run @eta/bot#build   # Build the Bot server
+vp run dev:website     # Run the Astro product website
+vp run build:website   # Build the static website
 vp run package:mac      # Build a macOS installer
 vp run package:win      # Build a Windows installer
 ```

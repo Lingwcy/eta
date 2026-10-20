@@ -1,0 +1,25 @@
+Generated with the built-in image_gen tool.
+
+Use case: ads-marketing / stylized-concept. Generate a finished photographic hero
+artwork asset for Eta, a premium open-source personal AI agent website. Landscape
+image, approximately 3:2 aspect ratio, high resolution. A monumental fragment of
+an ancient Greek marble winged sculpture, photographed in a dark museum studio.
+Focus on ONE beautifully sculpted sweeping wing and a partial draped shoulder at
+the lower right; no head, no face, no full standing figure. The wing curves upward
+gracefully like an abstract sail. Worn ivory-white marble, deep carved feather
+relief, subtle age and chisel texture, quietly architectural, dramatic but
+restrained. Main sculpture occupies the right two thirds, centered around 65%
+across the image; the left third and all outer edges dissolve into ABSOLUTE PURE
+BLACK (#000000), generous empty black space for a website heading that will be
+added separately. The sculpture should be large, immersive and beautifully
+cropped, with the wing tip near the upper right and draped base extending beyond
+the lower edge. Soft directional light from upper left picks out a few luminous
+silver-white feather edges while most stone remains in shadow; balanced
+midtones, no blown-out hotspots. Strict black and white, no other colors. A
+premium cultural institution / contemporary art book aesthetic, tasteful film
+grain, realistic sculptural depth, confident minimal composition. The artwork
+must blend seamlessly onto a black website background with no rectangular
+boundary. NO text, NO typography, NO logos, NO equations, NO diagrams, NO orbit
+rings, NO grids, NO star field, NO glowing cosmic swirls, NO border, NO frame,
+NO pedestal, NO excessive dust or pre-rendered particle effects; particles will
+be animated in code later.
