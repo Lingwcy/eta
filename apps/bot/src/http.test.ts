@@ -2168,3 +2168,12 @@ test.each(["thread", "schedules"])(
     }
   },
 );
+
+test("a self-referential symlink in the workspace root does not break the catalog", async () => {
+  const { bot, request, config } = await fixture();
+  await bot.core.stopScheduler();
+  await symlink("loop-entry", join(config.workspaceRoot, "loop-entry"));
+  const catalog = await request("/v1/library");
+  expect(catalog.status).toBe(200);
+  expect(LibrarySchema.parse(await catalog.json()).projects).toHaveLength(1);
+});
