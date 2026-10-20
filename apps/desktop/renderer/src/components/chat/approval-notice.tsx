@@ -120,7 +120,7 @@ export function ApprovalNotice({
                   {request.gitMetadata ? t("chat:approvalNotice.gitWrites") : request.tool}
                 </span>
                 {request.networkAccess && (
-                  <span className="shrink-0 text-[11px] text-neutral-500">
+                  <span className="shrink-0 text-[11px] text-neutral-600">
                     {t("chat:approvalNotice.network")}
                   </span>
                 )}
@@ -155,19 +155,19 @@ export function ApprovalNotice({
                   </Button>
                 </div>
               </div>
-              {note && <p className="mt-0.5 px-2 text-[11px] break-all text-neutral-500">{note}</p>}
+              {note && <p className="mt-0.5 px-2 text-xs break-all text-neutral-600">{note}</p>}
               {request.reusable && (
-                <p className="mt-0.5 px-2 text-[11px] text-neutral-500">
+                <p className="mt-0.5 px-2 text-xs text-neutral-600">
                   {t("chat:approvalNotice.afterAllowingThisScopeForTheRun")}
                 </p>
               )}
-              <details className="group mt-0.5 text-[11px]">
+              <details className="group mt-0.5 text-xs">
                 <summary
                   aria-label={t("chat:approvalNotice.viewPermissionDetails", {
                     reason: request.reason,
                   })}
                   title={request.reason}
-                  className="flex cursor-pointer list-none items-start gap-1.5 rounded-[5px] px-2 py-1 text-neutral-500 outline-none hover:bg-black/5 focus-visible:bg-black/5 [&::-webkit-details-marker]:hidden"
+                  className="flex cursor-pointer list-none items-start gap-1.5 rounded-[5px] px-2 py-1 text-neutral-600 outline-none hover:bg-black/5 focus-visible:bg-black/5 [&::-webkit-details-marker]:hidden"
                 >
                   <ChevronRight
                     size={12}
