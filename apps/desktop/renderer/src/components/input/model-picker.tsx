@@ -96,7 +96,7 @@ export function ModelPicker({
             model?.name ??
             (defaultOption?.selected ? defaultOption.label : placeholder)}
         </span>
-        {thinkingLabel && <span className="shrink-0 text-neutral-400">{thinkingLabel}</span>}
+        {thinkingLabel && <span className="shrink-0 text-neutral-500">{thinkingLabel}</span>}
         {open ? (
           <ChevronUp size={14} aria-hidden="true" />
         ) : (
@@ -108,7 +108,7 @@ export function ModelPicker({
           <Popover.Popup
             aria-label={t("chat:modelPicker.availableModels")}
             initialFocus={searchInput}
-            className="flex h-[min(288px,var(--available-height))] max-h-[calc(100dvh-32px)] w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[14px] border border-neutral-200 bg-white p-1 shadow-lg outline-none"
+            className="flex max-h-[min(288px,var(--available-height),calc(100dvh-32px))] w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[14px] border border-neutral-200 bg-white p-1 shadow-lg outline-none"
           >
             <nav
               aria-label={t("chat:modelPicker.modelProviders")}
@@ -123,7 +123,7 @@ export function ModelPicker({
                   setQuery("");
                 }}
                 className={cn(
-                  "mb-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full text-neutral-400 outline-none hover:bg-neutral-200/60 focus-visible:ring-2 focus-visible:ring-neutral-400",
+                  "mb-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full text-neutral-500 outline-none hover:bg-neutral-200/60 focus-visible:ring-2 focus-visible:ring-neutral-400",
                   (activeProvider === null || query.trim()) && "bg-neutral-200/70 text-neutral-700",
                 )}
               >
@@ -140,7 +140,7 @@ export function ModelPicker({
                     setQuery("");
                   }}
                   className={cn(
-                    "mb-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full text-neutral-400 outline-none hover:bg-neutral-200/60 focus-visible:ring-2 focus-visible:ring-neutral-400",
+                    "mb-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full text-neutral-500 outline-none hover:bg-neutral-200/60 focus-visible:ring-2 focus-visible:ring-neutral-400",
                     activeProvider === provider.id &&
                       !query.trim() &&
                       "bg-neutral-200/70 text-neutral-700",
@@ -155,7 +155,7 @@ export function ModelPicker({
             <div className="flex min-w-0 flex-1 flex-col pl-1.5">
               <div className="flex h-8 shrink-0 items-center gap-2 pr-2 pl-1.5">
                 {!query && (
-                  <span className="text-xs text-neutral-400">{t("chat:modelPicker.models")}</span>
+                  <span className="text-xs text-neutral-500">{t("chat:modelPicker.models")}</span>
                 )}
                 <div className="relative min-w-0 flex-1">
                   <input
@@ -165,12 +165,12 @@ export function ModelPicker({
                     placeholder={t("chat:modelPicker.quickSearch")}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    className="h-7 w-full min-w-0 bg-transparent pr-5 text-xs text-neutral-900 outline-none placeholder:text-neutral-400 [&::-webkit-search-cancel-button]:hidden"
+                    className="h-7 w-full min-w-0 bg-transparent pr-5 text-xs text-neutral-900 outline-none placeholder:text-neutral-500 [&::-webkit-search-cancel-button]:hidden"
                   />
                   <Search
                     size={15}
                     aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 right-0 -translate-y-1/2 text-neutral-400"
+                    className="pointer-events-none absolute top-1/2 right-0 -translate-y-1/2 text-neutral-500"
                   />
                 </div>
               </div>
@@ -261,7 +261,7 @@ export function ModelPicker({
                           <span className="min-w-0 flex-1 truncate text-[13px] text-neutral-900">
                             {entry.name}
                             {(query.trim() || activeProvider === null) && (
-                              <span className="ml-1.5 text-neutral-400">{providerName}</span>
+                              <span className="ml-1.5 text-neutral-500">{providerName}</span>
                             )}
                           </span>
                           {showThinkingControl && (
@@ -298,7 +298,7 @@ export function ModelPicker({
                     );
                   })}
                   {!visible.length && (
-                    <p className="px-3 py-10 text-center text-xs text-neutral-400">
+                    <p className="px-3 py-10 text-center text-xs text-neutral-500">
                       {models.length
                         ? t("chat:modelPicker.noMatchingModels")
                         : t("chat:modelPicker.connectAModelProviderFirst")}
