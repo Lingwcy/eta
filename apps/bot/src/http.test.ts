@@ -38,6 +38,7 @@ import { defineTask } from "@eta/agent";
 import { createCore, type CoreEnvironment } from "@eta/core";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BotController } from "./controller.ts";
+import { BotProjects } from "./projects.ts";
 import { createBotApplication } from "./application.ts";
 import type { BotApplication } from "./application.ts";
 import type { BotConfig } from "./config.ts";
@@ -114,6 +115,117 @@ async function fixture(
   };
   return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
+
+test("status and credential management do not scan projects; catalog requests still do", async () => {
+  const { bot, request } = await fixture(true);
+  await bot.core.stopScheduler();
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  try {
+    for (let i = 0; i < 2; i++) {
+      const status = await request("/v1/status");
+      expect(status.status).toBe(200);
+      expect(await status.json()).toMatchObject({
+        activeThreads: [],
+        capabilities: expect.arrayContaining(["schedules"]),
+      });
+    }
+    const imported = await request("/v1/credentials/import", {
+      credentials: { anthropic: { type: "api_key", key: "admin-test-secret" } },
+    });
+    expect(imported.status).toBe(200);
+    expect(await imported.json()).toEqual({ imported: 1 });
+    const removed = await request("/v1/credentials/remove", { providerId: "anthropic" });
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({ removed: true });
+    expect(refresh).not.toHaveBeenCalled();
+    const catalog = await request("/v1/library");
+    expect(catalog.status).toBe(200);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(await catalog.json()).toMatchObject({ credentials: [] });
+  } finally {
+    refresh.mockRestore();
+  }
+});
+
+test("status stays responsive while a catalog scan is held", async () => {
+  const { bot, request } = await fixture(true);
+  await bot.core.stopScheduler();
+  let entered = false;
+  const release = Promise.withResolvers<void>();
+  const projects = bot.core.projects;
+  const read = vi.spyOn(bot.core, "projects").mockImplementationOnce(async () => {
+    entered = true;
+    await release.promise;
+    return projects();
+  });
+  const catalog = request("/v1/library");
+  let status: Promise<Response> | undefined;
+  try {
+    await expect.poll(() => entered).toBe(true);
+    let received: Response | undefined;
+    status = Promise.resolve(request("/v1/status")).then((value) => {
+      received = value;
+      return value;
+    });
+    await expect.poll(() => received?.status).toBe(200);
+  } finally {
+    release.resolve();
+    await catalog;
+    await status;
+    read.mockRestore();
+  }
+});
+
+test("unavailable project discovery does not block administration or its request guards", async () => {
+  const { bot, request, config } = await fixture(true);
+  await bot.core.stopScheduler();
+  const saved = config.workspaceRoot + "-saved";
+  await rename(config.workspaceRoot, saved);
+  await writeFile(config.workspaceRoot, "not a directory");
+  try {
+    expect((await request("/v1/status")).status).toBe(200);
+    expect((await bot.app.request("/v1/status")).status).toBe(401);
+    for (const path of ["/v1/credentials/import", "/v1/credentials/remove"]) {
+      expect((await bot.app.request(path, { method: "POST", body: "{}" })).status).toBe(401);
+      expect((await request(path, {})).status).toBe(400);
+      expect(
+        (
+          await bot.app.request(path, {
+            method: "POST",
+            headers: {
+              authorization: "Bearer " + config.adminToken,
+              "content-type": "application/json",
+              "content-length": String(48 * 1024 * 1024 + 1),
+            },
+            body: "{}",
+          })
+        ).status,
+      ).toBe(413);
+    }
+    expect(
+      (
+        await request("/v1/credentials/import", {
+          credentials: { anthropic: { type: "api_key", key: "admin-test-secret" } },
+        })
+      ).status,
+    ).toBe(200);
+    expect((await request("/v1/credentials/remove", { providerId: "anthropic" })).status).toBe(200);
+    // Scoped routes must still fail closed rather than treating an old catalog as fresh authorization.
+    expect((await request("/v1/library")).status).toBe(500);
+  } finally {
+    await rm(config.workspaceRoot, { force: true });
+    await rename(saved, config.workspaceRoot);
+  }
+  expect((await request("/v1/library")).status).toBe(200);
+});
+
+test("administrative routes still reject requests after shutdown", async () => {
+  const { bot, request } = await fixture(true);
+  await bot.close();
+  expect((await request("/v1/status")).status).toBe(503);
+  expect((await request("/v1/credentials/import", { credentials: {} })).status).toBe(503);
+  expect((await request("/v1/credentials/remove", { providerId: "anthropic" })).status).toBe(503);
+});
 
 test("message authorization never opens full history before admission or idempotent replay", async () => {
   const { bot, provider, request, create } = await fixture();
