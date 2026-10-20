@@ -63,7 +63,7 @@ export function RecentThreads({
         if (!group.length) return null;
         return (
           <section key={index}>
-            <p className="px-2 pt-2 pb-1 text-xs text-neutral-400">{day}</p>
+            <p className="px-2 pt-2 pb-1 text-xs text-neutral-600">{day}</p>
             <div className="flex flex-col gap-1">
               {group.map(({ visit, thread }) => (
                 <ThreadContextMenu key={thread.id} id={thread.id}>
@@ -83,7 +83,7 @@ export function RecentThreads({
                         >
                           {threadTitle(thread)}
                         </span>
-                        <span className="max-w-14 truncate text-xs text-neutral-400">
+                        <span className="max-w-14 truncate text-xs text-neutral-600">
                           {projects.get(threadProjectId(thread, library!) ?? "") ??
                             t("navigation:recentThreads.ungrouped")}
                         </span>
@@ -93,7 +93,7 @@ export function RecentThreads({
                           worktree={worktrees.has(thread.id)}
                         />
                       </span>
-                      <span className="line-clamp-2 text-xs leading-4 text-neutral-400">
+                      <span className="line-clamp-2 text-xs leading-4 text-neutral-600">
                         {previews?.get(thread.id) || scheduleTime(visit.visitedAt)}
                       </span>
                     </span>
@@ -105,7 +105,7 @@ export function RecentThreads({
         );
       })}
       {!rows.length && (
-        <p className="px-2 py-3 text-xs text-neutral-400">
+        <p className="px-2 py-3 text-xs text-neutral-600">
           {t("navigation:recentThreads.sentMessagesWillAppearHere")}
         </p>
       )}
