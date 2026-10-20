@@ -239,6 +239,49 @@ export function createHttpApp(options: {
     await controller.resume(id);
     return context.json({ resumed: true }, 202);
   });
+  // Thread administration and approvals need the target scope, not unrelated discovery.
+  app.post("/v1/threads/:id/configure", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    const input = decode(
+      Schema.Struct({
+        provider: Schema.NonEmptyString,
+        modelId: Schema.NonEmptyString,
+        thinkingLevel: Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
+      }),
+      await readBody(context.req),
+    );
+    return context.json(
+      displaySnapshot(
+        await core.configureThread(id, input.provider, input.modelId, input.thinkingLevel),
+      ),
+    );
+  });
+  app.post("/v1/threads/:id/sandbox", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    const input = decode(Schema.Struct({ mode: SandboxModeSchema }), await readBody(context.req));
+    return context.json(displaySnapshot(await core.configureSandbox(id, input.mode)));
+  });
+  app.post("/v1/threads/:id/approvals/:requestId", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    const input = decode(
+      Schema.Struct({
+        approved: Schema.Boolean,
+        reuse: Schema.optionalKey(Schema.Literals(["call", "run"])),
+      }),
+      await readBody(context.req),
+    );
+    return context.json(
+      displaySnapshot(
+        await core.decideApproval(id, context.req.param("requestId"), input.approved, input.reuse),
+      ),
+    );
+  });
   // Remaining scoped routes refresh all ownership on every request.
   app.use("/v1/*", async (_context, next) => {
     await options.projects.refresh();
@@ -395,45 +438,6 @@ export function createHttpApp(options: {
       settings: config.runtime,
       allowedSandboxModes: config.allowedSandboxModes ?? sandboxModes,
     });
-  });
-  app.post("/v1/threads/:id/configure", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    const input = decode(
-      Schema.Struct({
-        provider: Schema.NonEmptyString,
-        modelId: Schema.NonEmptyString,
-        thinkingLevel: Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
-      }),
-      await readBody(context.req),
-    );
-    return context.json(
-      displaySnapshot(
-        await core.configureThread(id, input.provider, input.modelId, input.thinkingLevel),
-      ),
-    );
-  });
-  app.post("/v1/threads/:id/sandbox", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    const input = decode(Schema.Struct({ mode: SandboxModeSchema }), await readBody(context.req));
-    return context.json(displaySnapshot(await core.configureSandbox(id, input.mode)));
-  });
-  app.post("/v1/threads/:id/approvals/:requestId", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    const input = decode(
-      Schema.Struct({
-        approved: Schema.Boolean,
-        reuse: Schema.optionalKey(Schema.Literals(["call", "run"])),
-      }),
-      await readBody(context.req),
-    );
-    return context.json(
-      displaySnapshot(
-        await core.decideApproval(id, context.req.param("requestId"), input.approved, input.reuse),
-      ),
-    );
   });
   app.post("/v1/threads/:id/metadata", async (context) => {
     const id = context.req.param("id");
