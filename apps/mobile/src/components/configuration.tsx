@@ -160,7 +160,7 @@ export function ConfigurationSheet({
                 <TextInput
                   accessibilityLabel="搜索模型"
                   placeholder="搜索模型或服务商…"
-                  placeholderTextColor="#959591"
+                  placeholderTextColor={colors.muted}
                   value={query}
                   onChangeText={setQuery}
                   style={styles.searchInput}

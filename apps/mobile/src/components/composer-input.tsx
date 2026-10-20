@@ -11,6 +11,9 @@ import {
 import { ArrowUp, ChevronDown, Cpu, Shield, Square } from "lucide-react-native";
 import { colors } from "../ui.tsx";
 
+/** Chip labels sit on the soft grey chip background; muted drops them to 4.35:1 there. */
+const chipText = "#525252";
+
 export interface ComposerInputProps {
   value: string;
   onChangeText: (text: string) => void;
@@ -68,7 +71,7 @@ export function ComposerInput({
         onChangeText={onChangeText}
         multiline
         placeholder={placeholder}
-        placeholderTextColor="#959591"
+        placeholderTextColor={colors.muted}
         style={[styles.input, { height: inputHeight }]}
         onContentSizeChange={({ nativeEvent }) =>
           setInputHeight(Math.max(44, Math.min(140, nativeEvent.contentSize.height)))
@@ -231,7 +234,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   sandboxText: {
-    color: colors.muted,
+    color: chipText,
     fontSize: 11,
     fontWeight: "500",
   },
@@ -257,7 +260,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   thinkingBadge: {
-    color: colors.muted,
+    color: chipText,
     fontSize: 11,
   },
   tokensChip: {
@@ -270,8 +273,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   tokensText: {
-    color: colors.muted,
-    fontSize: 10,
+    color: chipText,
+    fontSize: 11,
     fontWeight: "500",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
