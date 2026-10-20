@@ -282,7 +282,7 @@ export function ScheduleSidebar({
           ))}
         </nav>
         {!groups.length && (
-          <p className="px-3 py-2 text-xs text-neutral-400">
+          <p className="px-3 py-2 text-xs text-neutral-600">
             {t("schedules:scheduleSidebar.noTasksMatchTheseFilters")}
           </p>
         )}

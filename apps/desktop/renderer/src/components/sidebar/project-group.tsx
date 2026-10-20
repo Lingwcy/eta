@@ -104,7 +104,7 @@ export function ProjectGroup({
           </Button>
         )}
         {selected && !threads.length && (
-          <p className="py-2 pr-2 pl-8 text-xs/6 text-neutral-400">
+          <p className="py-2 pr-2 pl-8 text-xs/6 text-neutral-600">
             {archived
               ? t("navigation:projectGroup.noArchivedChats")
               : t("navigation:projectGroup.startYourFirstChat")}
