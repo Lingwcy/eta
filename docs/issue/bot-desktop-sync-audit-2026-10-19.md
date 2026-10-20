@@ -18,11 +18,13 @@
 
 建议：重连时按原始 operation / request identity 查询持久化回执，收敛到该次执行的实际状态。不能把“当前已空闲”直接当成该次提交成功，也不能只等一个可能永远不会重现的最新结果字段。
 
-### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（身份复用 #215 已合并；跨 contextBridge 回复补丁待 PR 合并）
+### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（#215 / #250 已合并；IPC 未返回 DTO 的身份保留已修复，待 PR 合并）
 
 位置：`apps/desktop/src/preload.ts:117`、`apps/desktop/src/main/bot.ts:409`、`apps/bot/src/store.ts:25`。
 
-后续核对：#215 的身份复用依赖 renderer 识别 `DesktopCommandError`，但旧 preload 在自身 realm 解码后抛出 Error，不能依赖 contextBridge 保留其自定义字段或原型。补丁参照首次读取的 `openThreadReply`，新增可选 `submitReply`，以 DTO 跨越边界，在 renderer 本地解码；既有会话和 DraftThread 均使用该路径，旧桥仍支持 submit fallback。真实 preload + BotStore SQLite 的受控回归模拟 message-only 错误复制与 DTO 序列化：前者重复准入，后者保留图文请求身份、仅准入一次；确定性拒绝不复用，成功后同文本发送创建新身份。修复前 4 项控制失败，修复后 preload / client / draft 定向 63 项通过。这不是原生 Electron 或线上重复执行复现；若 IPC 调用自身拒绝而没有返回 DTO，其不确定结果识别仍需单独核对。以下保留原审查基线。
+后续核对：#215 的身份复用依赖 renderer 识别 `DesktopCommandError`，但旧 preload 在自身 realm 解码后抛出 Error，不能依赖 contextBridge 保留其自定义字段或原型。补丁参照首次读取的 `openThreadReply`，新增可选 `submitReply`，以 DTO 跨越边界，在 renderer 本地解码；既有会话和 DraftThread 均使用该路径，旧桥仍支持 submit fallback。真实 preload + BotStore SQLite 的受控回归模拟 message-only 错误复制与 DTO 序列化：前者重复准入，后者保留图文请求身份、仅准入一次；确定性拒绝不复用，成功后同文本发送创建新身份。修复前 4 项控制失败，修复后 preload / client / draft 定向 63 项通过。这不是原生 Electron 或线上重复执行复现。
+
+继续修复：`submitReply` 调用自身抛出 / 拒绝、未交付 DTO 时，不能由此判定 main 未接收。共享提交适配器现在将其标为未知准入结果，仅让显式重试复用同一图文 requestId；收到确定性失败 DTO 的分支在该 catch 之外，仍按服务端结果处理，不自动重发。真实 preload + BotStore 的 4 个新增控制覆盖现有会话 / 草稿、准入之前拒绝 / 回执持久化之后丢失回复，修复前均丢失身份；修复后三文件 67/67 通过，准入后丢回复也只执行一次，并保留确定性拒绝换身份、成功后相同内容作为新发送的控制。未做原生 Electron、主进程崩溃或应用重启后的身份持久化验证。以下保留原审查基线。
 
 preload 每次 submit 都生成新 requestId。HTTP 超时或连接中断后，客户端释放提交锁并保留输入；用户重发会产生新的持久化请求。服务端已有的幂等机制因 requestId 改变而失效。
 
