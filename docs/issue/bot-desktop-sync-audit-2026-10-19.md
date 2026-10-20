@@ -18,7 +18,7 @@
 
 建议：重连时按原始 operation / request identity 查询持久化回执，收敛到该次执行的实际状态。不能把“当前已空闲”直接当成该次提交成功，也不能只等一个可能永远不会重现的最新结果字段。
 
-### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（#215 / #250 已合并；IPC 未返回 DTO 的身份保留已修复，待 PR 合并）
+### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（已解决：[#215](https://github.com/Lingwcy/eta/pull/215) / [#250](https://github.com/Lingwcy/eta/pull/250) / [#261](https://github.com/Lingwcy/eta/pull/261) 已合并）
 
 位置：`apps/desktop/src/preload.ts:117`、`apps/desktop/src/main/bot.ts:409`、`apps/bot/src/store.ts:25`。
 
@@ -62,7 +62,7 @@ Bot library 每 5 秒轮询，一次失败就令 remote.status 变为 error。co
 
 建议：分别维护目录刷新与会话观察健康状态；恢复时保留已显示快照，只重建确实失效的观察连接。
 
-### BDS-05 / P2：新会话首条消息串行等待过多，而且停止无效（部分解决：重复配置与创建期停止已合并；目录刷新等待已修复、待 PR 合并；阶段状态提示未做）
+### BDS-05 / P2：新会话首条消息串行等待过多，而且停止无效（部分解决：[#218](https://github.com/Lingwcy/eta/pull/218) 重复配置、[#221](https://github.com/Lingwcy/eta/pull/221) 创建期停止、[#248](https://github.com/Lingwcy/eta/pull/248) 目录刷新等待均已合并；阶段状态提示未做）
 
 当前状态：[#218](https://github.com/Lingwcy/eta/pull/218) 已让创建携带的配置避免再次 configure / sandbox，[#221](https://github.com/Lingwcy/eta/pull/221) 已在创建完成后立即绑定实际 thread，创建前不再显示无效停止操作。此次继续移除 `DesktopBot.create` 对目录刷新完成的等待：持久化创建回执先返回，首条 submit 可直接发送；后台刷新等旧轮询结束后补读最新目录，失败仍通过既有目录状态报告，不改变创建 / 发送回执。原连接关闭、断开、切换 Bot 或更新凭证后，排队的补读不能重新启动；过期创建回复不会被映射到替代连接。
 
@@ -91,6 +91,8 @@ POST /v1/threads/:id/messages
 修复：Core 公开已有 `ThreadService.get` 的轻量元数据读取；Controller 的 HTTP、直接发送、停止、子智能体与调度鉴权使用该读取，不再为鉴权打开运行时 / 投影历史。准入前仍重新核对工作区归属；真正 GET 会话时仍构造一次完整快照。真实 HTTP 回归确认 admission 前 openThread 从 3 次降至 0，幂等重放不打开历史，越权请求在读取历史前拒绝；收据查询期间撤销工作区后不能继续准入。8 项新增回归通过，其中 7 项在旧实现下失败。原过期清理测试改为在真实 authorize 边界持有控制门，不再依赖第 2 次完整快照。该快照修复没有修改目录扫描频率，也没有生产规模耗时基准；不声称整条发送路径已完成性能优化。
 
 目录扫描后续：`GET /v1/status`、`POST /v1/credentials/import` 和 `POST /v1/credentials/remove` 不使用项目目录，将这三个管理接口放在项目发现中间件之前，避免每次管理调用扫描目录，亦不等待已在进行的扫描。全局认证、shutdown 检查和 48 MiB 限制仍在这些接口之前；工作区 / 会话 / 调度相关请求仍在项目发现之后，未缓存或延长授权有效期。4 项新增真实 Bot HTTP 控制覆盖四次连续管理请求从 4 次 refresh 降为 0、挂住目录扫描时仍返回状态、项目根目录不可用时仍可管理且错误输入 / 未授权 / 大请求仍拒绝、shutdown 后仍拒绝；其中 3 项修复前失败。`src/http.test.ts` 48/48、`src/desktop.test.ts` 7/7、`src/compression.test.ts` 2/2 通过。工作区相关请求的扫描合并 / 增量发现仍是后续项，未声称生产速度提升或整个扫描开销已解决。以下保留原审查基线。
+
+重复根解析后续（已修复，待 PR 合并）：单次 `BotProjects.scan` 的目录、已登记项目和工作区检查复用同一个已解析根路径，避免逐项重新解析根。8 个正常项目的真实文件系统 / Core fixture 中，初次扫描的根路径 realpath 调用由 17 次降至 2 次；缓存仅限本次扫描，下一次仍重新解析。别名先在临时映射中构建，发布任一映射前再验证根未变化；受控切换根目录的符号链接时，本次刷新拒绝并同时撤销两张旧归属映射，不能沿用旧根的授权；下次刷新正常采用新根。`projects.test.ts` 4/4 和现有 `http.test.ts` 44/44 通过，新增中的 3 项修复前失败，另有缺失工作区历史、内部别名、越界及悬空链接兼容控制。未改变按请求扫描策略或引入跨请求授权缓存，未测量线上延迟，也不声称所有目录 I/O 已减少为常数；缺失路径回溯仍可能需要解析父目录。
 
 位置：`apps/bot/src/http.ts:419`、`apps/bot/src/controller.ts:49`、`apps/bot/src/controller.ts:157`、`packages/core/src/service/observation/index.ts:93`。
 

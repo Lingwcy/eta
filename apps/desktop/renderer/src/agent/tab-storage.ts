@@ -37,7 +37,14 @@ function readTab(value: unknown): DesktopTab | undefined {
       };
     }
     case "settings":
-      return { id: value.id, kind: value.kind };
+      // The page is validated when rendered, so a removed category falls back instead of blanking.
+      return {
+        id: value.id,
+        kind: value.kind,
+        ...(typeof value.category === "string" && value.category
+          ? { category: value.category }
+          : {}),
+      };
   }
 }
 
