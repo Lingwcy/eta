@@ -164,6 +164,68 @@ export function createHttpApp(options: {
     );
     return context.json(result, 202);
   });
+  // Single-thread reads need fresh target scope, not unrelated project discovery.
+  app.get("/v1/threads/:id", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    return context.json(displaySnapshot(await core.openThread(id)));
+  });
+  app.get("/v1/threads/:id/operations/:operationId", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    return context.json(
+      displayOperation(await core.operation(id, context.req.param("operationId"))),
+    );
+  });
+  app.get("/v1/threads/:id/events", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    const signal = AbortSignal.any([shutdown, context.req.raw.signal]);
+    return streamSSE(context, async (stream) => {
+      let stop: (() => void) | undefined;
+      let stopHeartbeat: (() => void) | undefined;
+      let stopped = false;
+      const ended = Promise.withResolvers<void>();
+      const end = () => {
+        stopped = true;
+        stopHeartbeat?.();
+        stop?.();
+        stop = undefined;
+        ended.resolve();
+      };
+      signal.addEventListener("abort", end, { once: true });
+      stream.onAbort(end);
+      try {
+        if (signal.aborted) return;
+        stopHeartbeat = heartbeat(stream, end);
+        stop = await core.subscribe(
+          id,
+          async (snapshot) => {
+            if (!signal.aborted && !stopped)
+              await stream.writeSSE({
+                event: "snapshot",
+                data: JSON.stringify(displaySnapshot(snapshot)),
+              });
+          },
+          (message) => {
+            void stream
+              .writeSSE({ event: "error", data: JSON.stringify({ message }) })
+              .catch(() => {});
+            end();
+          },
+          context.req.query("path"),
+        );
+        if (signal.aborted || stopped) end();
+        await ended.promise;
+      } finally {
+        end();
+        signal.removeEventListener("abort", end);
+      }
+    });
+  });
   // Remaining scoped routes refresh all ownership on every request.
   app.use("/v1/*", async (_context, next) => {
     await options.projects.refresh();
@@ -436,18 +498,6 @@ export function createHttpApp(options: {
     );
     return context.json(displaySnapshot(result), 201);
   });
-  app.get("/v1/threads/:id", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    return context.json(displaySnapshot(await core.openThread(id)));
-  });
-  app.get("/v1/threads/:id/operations/:operationId", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    return context.json(
-      displayOperation(await core.operation(id, context.req.param("operationId"))),
-    );
-  });
   app.post("/v1/threads/:id/stop", async (context) => {
     await controller.stop(context.req.param("id"));
     return context.json({ stopped: true });
@@ -455,52 +505,6 @@ export function createHttpApp(options: {
   app.post("/v1/threads/:id/resume", async (context) => {
     await controller.resume(context.req.param("id"));
     return context.json({ resumed: true }, 202);
-  });
-  app.get("/v1/threads/:id/events", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    const signal = AbortSignal.any([shutdown, context.req.raw.signal]);
-    return streamSSE(context, async (stream) => {
-      let stop: (() => void) | undefined;
-      let stopHeartbeat: (() => void) | undefined;
-      let stopped = false;
-      const ended = Promise.withResolvers<void>();
-      const end = () => {
-        stopped = true;
-        stopHeartbeat?.();
-        stop?.();
-        stop = undefined;
-        ended.resolve();
-      };
-      signal.addEventListener("abort", end, { once: true });
-      stream.onAbort(end);
-      try {
-        if (signal.aborted) return;
-        stopHeartbeat = heartbeat(stream, end);
-        stop = await core.subscribe(
-          id,
-          async (snapshot) => {
-            if (!signal.aborted && !stopped)
-              await stream.writeSSE({
-                event: "snapshot",
-                data: JSON.stringify(displaySnapshot(snapshot)),
-              });
-          },
-          (message) => {
-            void stream
-              .writeSSE({ event: "error", data: JSON.stringify({ message }) })
-              .catch(() => {});
-            end();
-          },
-          context.req.query("path"),
-        );
-        if (signal.aborted || stopped) end();
-        await ended.promise;
-      } finally {
-        end();
-        signal.removeEventListener("abort", end);
-      }
-    });
   });
   mountScheduleRoutes(app, { core, workspaceProjects, shutdown, decode, readBody });
   return app;

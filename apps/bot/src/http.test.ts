@@ -227,6 +227,156 @@ test("administrative routes still reject requests after shutdown", async () => {
   expect((await request("/v1/credentials/remove", { providerId: "anthropic" })).status).toBe(503);
 });
 
+test.each(["history", "operation", "events", "head"])(
+  "ordinary thread %s reads leave unrelated project discovery to the catalog",
+  async (kind) => {
+    const { bot, provider, request, create, config } = await fixture();
+    await bot.core.stopScheduler();
+    const id = await create("read-discovery-" + kind);
+    provider.setResponses([fauxAssistantMessage("Stored answer")]);
+    const accepted = await bot.core.submit(id, "Stored prompt", "read-proof");
+    await expect
+      .poll(async () => (await bot.core.operation(id, accepted.operationId)).status)
+      .toBe("completed");
+    await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+    const registration = vi.spyOn(bot.core, "registerProject");
+    const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+    const abort = new AbortController();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      const suffix =
+        kind === "operation"
+          ? "/operations/" + accepted.operationId
+          : kind === "events"
+            ? "/events"
+            : "";
+      const response = await bot.app.request("/v1/threads/" + id + suffix, {
+        method: kind === "head" ? "HEAD" : "GET",
+        headers: { authorization: "Bearer " + config.adminToken },
+        signal: AbortSignal.any([abort.signal, AbortSignal.timeout(3000)]),
+      });
+      expect(response.status).toBe(200);
+      if (kind === "events") {
+        reader = response.body!.getReader();
+        const initial = new TextDecoder().decode((await reader.read()).value);
+        expect(initial).toContain("event: snapshot");
+        expect(initial).toContain("Stored answer");
+        abort.abort();
+        await reader.cancel();
+      } else if (kind === "head") {
+        expect(await response.text()).toBe("");
+      } else if (kind === "operation") {
+        expect(await response.json()).toMatchObject({
+          operationId: accepted.operationId,
+          status: "completed",
+        });
+      } else {
+        const history = await response.text();
+        expect(history).toContain("Stored prompt");
+        expect(history).toContain("Stored answer");
+      }
+      expect(registration).not.toHaveBeenCalled();
+      expect(await bot.core.projects()).toHaveLength(1);
+      expect(refresh).not.toHaveBeenCalled();
+      expect((await request("/v1/library")).status).toBe(200);
+      expect(await bot.core.projects()).toHaveLength(2);
+      expect(registration).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledTimes(1);
+    } finally {
+      abort.abort();
+      await reader?.cancel().catch(() => {});
+      registration.mockRestore();
+      refresh.mockRestore();
+    }
+  },
+);
+
+test.each(["history", "operation", "events", "head"])(
+  "a previously readable thread %s rechecks scope after a checkout escapes",
+  async (kind) => {
+    const { bot, provider, create, config, cwd, workspace } = await fixture();
+    await bot.core.stopScheduler();
+    const id = await create("read-revocation-" + kind);
+    let suffix = kind === "events" ? "/events" : "";
+    if (kind === "operation") {
+      provider.setResponses([fauxAssistantMessage("Completed")]);
+      const receipt = await bot.core.submit(id, "Before escape", "read-revocation");
+      await expect
+        .poll(async () => (await bot.core.operation(id, receipt.operationId)).status)
+        .toBe("completed");
+      suffix = "/operations/" + receipt.operationId;
+    }
+    const path = "/v1/threads/" + id + suffix;
+    const abort = new AbortController();
+    const options = {
+      method: kind === "head" ? "HEAD" : "GET",
+      headers: { authorization: "Bearer " + config.adminToken },
+      signal: AbortSignal.any([abort.signal, AbortSignal.timeout(3000)]),
+    };
+    const healthy = await bot.app.request(path, options);
+    expect(healthy.status).toBe(200);
+    if (kind === "events") {
+      const reader = healthy.body!.getReader();
+      try {
+        expect(new TextDecoder().decode((await reader.read()).value)).toContain("event: snapshot");
+      } finally {
+        abort.abort();
+        await reader.cancel().catch(() => {});
+      }
+    } else await healthy.arrayBuffer();
+    const outside = join(config.dataRoot, "outside");
+    await rename(cwd, outside);
+    await symlink(outside, cwd, "dir");
+    expect(bot.workspaceProjects.has(workspace)).toBe(true);
+    const opening = vi.spyOn(bot.core, "openThread");
+    const operation = vi.spyOn(bot.core, "operation");
+    const observing = vi.spyOn(bot.core, "subscribe");
+    try {
+      // A reconnect is a new request, not a continuation authorized by the healthy stream.
+      const denied = await bot.app.request(path, {
+        method: options.method,
+        headers: options.headers,
+      });
+      expect(denied.status).toBe(403);
+      if (kind !== "head")
+        expect(await denied.json()).toMatchObject({ error: { code: "ProjectUnavailable" } });
+      expect(bot.workspaceProjects.has(workspace)).toBe(false);
+      expect(opening).not.toHaveBeenCalled();
+      expect(operation).not.toHaveBeenCalled();
+      expect(observing).not.toHaveBeenCalled();
+    } finally {
+      abort.abort();
+      opening.mockRestore();
+      operation.mockRestore();
+      observing.mockRestore();
+    }
+  },
+);
+
+test("targeted thread reads retain authentication and shutdown guards", async () => {
+  const { bot, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("read-guards");
+  const paths = [
+    "/v1/threads/" + id,
+    "/v1/threads/" + id + "/operations/missing",
+    "/v1/threads/" + id + "/events",
+  ];
+  const metadata = vi.spyOn(bot.core, "threadMetadata");
+  try {
+    for (const path of paths) expect((await bot.app.request(path)).status).toBe(401);
+    expect((await bot.app.request(paths[0]!, { method: "HEAD" })).status).toBe(401);
+    expect(metadata).not.toHaveBeenCalled();
+    await bot.close();
+    const headers = { authorization: "Bearer " + config.adminToken };
+    for (const path of paths) expect((await bot.app.request(path, { headers })).status).toBe(503);
+    expect((await bot.app.request(paths[0]!, { method: "HEAD", headers })).status).toBe(503);
+    expect(metadata).not.toHaveBeenCalled();
+  } finally {
+    metadata.mockRestore();
+  }
+});
+
 test("ordinary messages and cached receipts do not discover unrelated projects", async () => {
   const { bot, provider, request, create, config } = await fixture();
   await bot.core.stopScheduler();

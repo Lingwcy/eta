@@ -51,7 +51,7 @@ export function AboutSettings({
 }) {
   useTranslation();
   const [info, setInfo] = useState<AppInfo>();
-  const [update, setUpdate] = useUpdateState();
+  const [update, versioned] = useUpdateState();
   const [error, setError] = useState<Message>();
   useEffect(() => {
     void window.eta.appInfo().then(setInfo, (error: unknown) => setError(String(error)));
@@ -115,7 +115,12 @@ export function AboutSettings({
               size="sm"
               variant="outline"
               disabled={unsupported || working}
-              onClick={() => void run(() => window.eta.checkForUpdates().then(setUpdate))}
+              onClick={() =>
+                void run(async () => {
+                  const at = versioned.capture();
+                  versioned.apply(await window.eta.checkForUpdates(), at);
+                })
+              }
             >
               {t("settings:aboutSettings.checkForUpdates")}
             </Button>
