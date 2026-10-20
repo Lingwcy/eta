@@ -20,6 +20,12 @@ async function canonical(path: string): Promise<string> {
   }
 }
 
+/** A path that vanished, is not a directory, or cannot be canonicalised (symlink loop). */
+const unresolvable = (error: unknown): boolean =>
+  error instanceof Error &&
+  "code" in error &&
+  (error.code === "ENOENT" || error.code === "ENOTDIR" || error.code === "ELOOP");
+
 /** The Bot owns directory discovery; Core only receives validated project paths. */
 export class BotProjects {
   readonly workspaceProjects = new Map<string, string>();
@@ -102,12 +108,7 @@ export class BotProjects {
         available =
           (await this.inside(project.rootPath, root)) && (await this.inside(workspace.cwd, root));
       } catch (error) {
-        if (
-          !(error instanceof Error) ||
-          !("code" in error) ||
-          (error.code !== "ENOENT" && error.code !== "ENOTDIR")
-        )
-          throw error;
+        if (!unresolvable(error)) throw error;
       }
       const currentRoot = await realpath(this.config.workspaceRoot);
       // Recheck after any newer publication, including scans that already finished and
@@ -157,13 +158,8 @@ export class BotProjects {
           existingByPath.get(canonical) ?? (await this.core.registerProject(path)).id;
         projects.set(canonical, projectId);
       } catch (error) {
-        if (
-          error instanceof Error &&
-          "code" in error &&
-          (error.code === "ENOENT" || error.code === "ENOTDIR")
-        )
-          continue;
-        throw error;
+        if (!unresolvable(error)) throw error;
+        continue;
       }
     }
     for (const project of existing) {
@@ -172,8 +168,8 @@ export class BotProjects {
       try {
         if (await this.inside(project.rootPath, root)) projects.set(project.rootPath, project.id);
       } catch (error) {
-        if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
-        throw error;
+        if (!unresolvable(error)) throw error;
+        continue;
       }
     }
     const projectIds = new Set(projects.values());
@@ -184,13 +180,8 @@ export class BotProjects {
         if (await this.inside(workspace.cwd, root))
           workspaces.set(workspace.id, workspace.projectId);
       } catch (error) {
-        if (
-          error instanceof Error &&
-          "code" in error &&
-          (error.code === "ENOENT" || error.code === "ENOTDIR")
-        )
-          continue;
-        throw error;
+        if (!unresolvable(error)) throw error;
+        continue;
       }
     }
     const keys = new Map<string, string>();
@@ -201,8 +192,8 @@ export class BotProjects {
         const id = projects.get(await canonical(resolve(alias.rootPath)));
         if (id) keys.set(alias.key, id);
       } catch (error) {
-        if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
-        throw error;
+        if (!unresolvable(error)) throw error;
+        continue;
       }
     }
     // Use one root for the whole scan, then revalidate before publishing either ownership map.
