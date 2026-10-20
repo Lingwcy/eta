@@ -146,8 +146,25 @@ export function createHttpApp(options: {
     await options.credentials.remove(input.providerId);
     return context.json({ removed: true });
   });
-  // Administration above does not depend on directory discovery. Scoped routes below still
-  // refresh ownership on every request rather than trusting a cached workspace allowlist.
+  // Messages validate their target paths on every request, including durable receipt replays,
+  // without discovering unrelated projects. Complex aliases still fall back to a full scan.
+  app.post("/v1/threads/:id/messages", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    const input = decode(Message, await readBody(context.req));
+    const result = await store.request(
+      `messages:${id}`,
+      input.requestId,
+      JSON.stringify({
+        prompt: input.prompt,
+        ...(input.images === undefined ? {} : { images: input.images }),
+      }),
+      () => controller.submit(id, input.prompt, `http:messages:${input.requestId}`, input.images),
+    );
+    return context.json(result, 202);
+  });
+  // Remaining scoped routes refresh all ownership on every request.
   app.use("/v1/*", async (_context, next) => {
     await options.projects.refresh();
     await next();
@@ -423,21 +440,6 @@ export function createHttpApp(options: {
     const id = context.req.param("id");
     await controller.authorize(id);
     return context.json(displaySnapshot(await core.openThread(id)));
-  });
-  app.post("/v1/threads/:id/messages", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    const input = decode(Message, await readBody(context.req));
-    const result = await store.request(
-      `messages:${id}`,
-      input.requestId,
-      JSON.stringify({
-        prompt: input.prompt,
-        ...(input.images === undefined ? {} : { images: input.images }),
-      }),
-      () => controller.submit(id, input.prompt, `http:messages:${input.requestId}`, input.images),
-    );
-    return context.json(result, 202);
   });
   app.get("/v1/threads/:id/operations/:operationId", async (context) => {
     const id = context.req.param("id");
