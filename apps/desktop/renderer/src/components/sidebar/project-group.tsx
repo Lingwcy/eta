@@ -92,7 +92,7 @@ export function ProjectGroup({
         ))}
         {threads.length > 5 && (
           <Button
-            variant="ghost-muted"
+            variant="ghost"
             size="row-compact"
             indent
             aria-expanded={showAll}
