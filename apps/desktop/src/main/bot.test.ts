@@ -1466,3 +1466,58 @@ test("a silent schedule stream reconnects and refreshes the authoritative revisi
     vi.useRealTimers();
   }
 });
+
+test("a burst of schedule events coalesces the library refresh", async () => {
+  const { bot, request } = await connect(true, ["schedules"]);
+  let library = 0;
+  let gate: ReturnType<typeof Promise.withResolvers<void>> | undefined;
+  const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+  const original = request.getMockImplementation()!;
+  request.mockImplementation(async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.endsWith("/v1/schedules/events"))
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            streams.push(controller);
+          },
+        }),
+      );
+    if (url.endsWith("/v1/schedules"))
+      return Response.json({
+        revision: 1,
+        schedules: [],
+        proposals: [],
+        requests: [],
+        lifecycleIntents: [],
+      });
+    if (url.endsWith("/v1/library")) {
+      library += 1;
+      if (gate) await gate.promise;
+    }
+    return original(input, init);
+  });
+  const stop = bot.subscribeSchedules(() => {});
+  const publish = () => {
+    streams.at(-1)!.enqueue(new TextEncoder().encode('event: schedules\ndata: {"revision":1}\n\n'));
+  };
+  try {
+    gate = Promise.withResolvers();
+    publish();
+    await expect.poll(() => library).toBe(1);
+    for (let index = 0; index < 5; index += 1) publish();
+    gate.resolve();
+    gate = undefined;
+    await expect
+      .poll(async () => {
+        const seen = library;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return library === seen ? seen : -1;
+      })
+      .toBeGreaterThan(0);
+    expect(library).toBeLessThanOrEqual(2);
+  } finally {
+    stop();
+    bot.close();
+  }
+});

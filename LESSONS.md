@@ -93,6 +93,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Reuse a filesystem scope only within the operation that verifies and publishes it.**
+
+- Evidence: on 2026-10-20, BDS-06 resolves the same Bot workspace root 17 times while discovering eight existing directories. Reusing its canonical identity reduces those lookups to two in that fixture. A controlled root-symlink switch silently completes in the old scan; checking the root again after alias resolution rejects that refresh and invalidates both ownership maps until a fresh scan succeeds. Three focused regressions fail before the change, and missing checkouts/internal aliases/escaping links retain their behavior. This is an I/O-count proof, not a production benchmark.
+- Check: cache scan-invariant identity only for that scan, revalidate it before publishing, revoke both old ownership maps when a root change is detected, and finish awaited alias work before replacing related maps. Do not turn this optimization into a cross-request permission cache or assume missing-path canonicalization performs no additional parent reads.
+- Seen: 2026-10-20.
+
 **Do not make a durable creation receipt wait for its derived directory.**
 
 - Evidence: on 2026-10-19, BDS-05 still awaited DesktopBot's library/status refresh after the configured thread was already created. Holding either read blocks the first message in two real DraftThread/HTTP-adapter regressions before the change. Returning the creation first admits the prompt while both held-read and later catalog-publication controls pass. Background failure, an older poll, connection replacement and explicit disposal are covered without a production latency claim.
@@ -107,8 +113,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Authorize from current ownership metadata, not a display projection.**
 
 - Evidence: on 2026-10-19, BDS-06 runs the real Bot HTTP/Core message path and records three full openThread projections before Core.submit. Catalog-only thread metadata removes those admission-time projections while keeping a full history read for GET. Regressions cover idempotent replay, six out-of-scope actions and revocation during receipt lookup; seven fail before the change. This is a call-count reproduction, not a production latency benchmark.
-- Check: preserve fresh scope checks at admission and on cached replies. Do not replace repeated authorization with a cached permission, or make checking ownership depend on opening history. Test control gates should target the operation boundary rather than count incidental snapshot reads.
-- Seen: 2026-10-19.
+- Additional evidence: on 2026-10-20, BDS-06's status/credential HTTP routes still scanned projects despite not using workspace ownership. Three real HTTP regressions show four unnecessary refreshes, a status request blocked behind a held scan, and administration failing when the workspace root is not a directory. Placing those handlers after global guards but before discovery removes that dependency; scoped routes still scan and existing escaping-symlink tests pass.
+- Check: keep ownership checks separate from display history and attach discovery to its consuming routes, not global administrative guards. Preserve authentication, body limits and shutdown checks for the fast path, and fresh scope checks at admission/on cached replies; never trade them for a cached allowlist just to avoid scans. Test gates target the operation boundary, not incidental snapshot counts.
+- Seen: 2026-10-19, 2026-10-20.
 
 **Carry retry policy as data across process boundaries.**
 
@@ -129,6 +136,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Evidence: on 2026-10-17, #110's MobileStore regression saves Bot B's credentials and URL, then rejects its cache write. The old catch restores only client A; a subsequent public refresh/send uses A's token and writes its directory into B's cache. First-connect and same-URL token-rotation cases also lose the committed client; cache-load and credential-save failures before commit remain on A.
 - Check: inject failures before and after the commit point and assert the next real client request destination/credentials and persisted cache namespace, not just a status label. Do not roll back one field of an already committed identity; retain error propagation and late-response ownership guards.
 - Seen: 2026-10-17.
+
+**Index stable catalog records once before a bulk traversal.**
+
+- Evidence: on 2026-10-20, BDS-06 searches the entire registered-project array for each directory and allocates/scans its visible project IDs for each workspace. Real Core/filesystem fixtures count 624 rootPath reads at 32 projects before indexing; an upper bound of five reads per project passes afterward. Separate controls preserve newly discovered/missing projects, outside-scope exclusion and canonical duplicate-path first-match behavior. This measures metadata access, not production latency or every filesystem operation.
+- Check: build indexes from the current scan, retain the original duplicate-key selection rule, and construct membership sets only after all eligible projects are known. Keep filesystem validation and request freshness unchanged rather than retaining a permission cache across scans.
+- Seen: 2026-10-20.
 
 **Validate update metadata against actual asset bytes, not only a matching digest.**
 

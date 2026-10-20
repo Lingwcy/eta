@@ -29,7 +29,7 @@ export function MessageUsage({ usage }: { usage: Usage }) {
   return (
     <dl
       aria-label={t("chat:messageUsage.usageForThisResponse")}
-      className="flex select-none flex-wrap items-center gap-x-4 gap-y-1 text-[11px]/4 text-neutral-400 tabular-nums"
+      className="flex select-none flex-wrap items-center gap-x-4 gap-y-1 text-[11px]/4 text-neutral-500 tabular-nums"
     >
       <UsageItem
         icon={ArrowUpFromLine}

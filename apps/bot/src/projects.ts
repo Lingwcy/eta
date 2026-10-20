@@ -30,8 +30,7 @@ export class BotProjects {
     private readonly config: BotConfig,
   ) {}
 
-  private async inside(path: string) {
-    const root = await realpath(this.config.workspaceRoot);
+  private async inside(path: string, root: string) {
     const target = await canonical(path);
     const suffix = relative(root, target);
     return (
@@ -54,7 +53,8 @@ export class BotProjects {
     const path = join(this.config.workspaceRoot, name);
     // Existing ordinary directories can be adopted, including after an interrupted request.
     await mkdir(path, { recursive: true });
-    if (!(await this.inside(path)))
+    const root = await realpath(this.config.workspaceRoot);
+    if (!(await this.inside(path, root)))
       throw new BotHttpError(403, "ProjectUnavailable", "项目必须位于 Bot 工作空间根目录内。");
     const project = await this.core.registerProject(path, name);
     await this.refresh(true);
@@ -72,18 +72,22 @@ export class BotProjects {
     await mkdir(this.config.workspaceRoot, { recursive: true });
     const root = await realpath(this.config.workspaceRoot);
     const existing = await this.core.projects();
+    const existingByPath = new Map<string, string>();
+    for (const project of existing) {
+      const path = project.rootPath;
+      if (!existingByPath.has(path)) existingByPath.set(path, project.id);
+    }
     const projects = new Map<string, string>();
     for (const entry of await readdir(root, { withFileTypes: true })) {
       if (entry.name.startsWith(".") || (!entry.isDirectory() && !entry.isSymbolicLink())) continue;
       const path = join(root, entry.name);
       try {
-        if (!(await this.inside(path))) continue;
+        if (!(await this.inside(path, root))) continue;
         if (!(await stat(path)).isDirectory()) continue;
         const canonical = await realpath(path);
-        const project =
-          existing.find((value) => value.rootPath === canonical) ??
-          (await this.core.registerProject(path));
-        projects.set(canonical, project.id);
+        const projectId =
+          existingByPath.get(canonical) ?? (await this.core.registerProject(path)).id;
+        projects.set(canonical, projectId);
       } catch (error) {
         if (
           error instanceof Error &&
@@ -98,17 +102,19 @@ export class BotProjects {
       const suffix = relative(root, project.rootPath);
       if (!suffix || suffix.startsWith(".") || suffix.includes(sep) || isAbsolute(suffix)) continue;
       try {
-        if (await this.inside(project.rootPath)) projects.set(project.rootPath, project.id);
+        if (await this.inside(project.rootPath, root)) projects.set(project.rootPath, project.id);
       } catch (error) {
         if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
         throw error;
       }
     }
+    const projectIds = new Set(projects.values());
     const workspaces = new Map<string, string>();
     for (const workspace of await this.core.workspaces()) {
-      if (![...projects.values()].includes(workspace.projectId)) continue;
+      if (!projectIds.has(workspace.projectId)) continue;
       try {
-        if (await this.inside(workspace.cwd)) workspaces.set(workspace.id, workspace.projectId);
+        if (await this.inside(workspace.cwd, root))
+          workspaces.set(workspace.id, workspace.projectId);
       } catch (error) {
         if (
           error instanceof Error &&
@@ -119,19 +125,27 @@ export class BotProjects {
         throw error;
       }
     }
-    this.workspaceProjects.clear();
-    for (const [id, projectId] of workspaces) this.workspaceProjects.set(id, projectId);
-    this.projectKeys.clear();
-    for (const [path, id] of projects) this.projectKeys.set(relative(root, path), id);
+    const keys = new Map<string, string>();
+    for (const [path, id] of projects) keys.set(relative(root, path), id);
     // Optional stable aliases are only used by extensions and never grant access outside the root.
     for (const alias of this.config.projects ?? []) {
       try {
         const id = projects.get(await canonical(resolve(alias.rootPath)));
-        if (id) this.projectKeys.set(alias.key, id);
+        if (id) keys.set(alias.key, id);
       } catch (error) {
         if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
         throw error;
       }
     }
+    // Use one root for the whole scan, then revalidate before publishing either ownership map.
+    if ((await realpath(this.config.workspaceRoot)) !== root) {
+      this.workspaceProjects.clear();
+      this.projectKeys.clear();
+      throw new BotHttpError(403, "ProjectUnavailable", "Workspace root changed during discovery.");
+    }
+    this.workspaceProjects.clear();
+    for (const [id, projectId] of workspaces) this.workspaceProjects.set(id, projectId);
+    this.projectKeys.clear();
+    for (const [key, id] of keys) this.projectKeys.set(key, id);
   }
 }

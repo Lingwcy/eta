@@ -169,7 +169,7 @@ export function DesktopTabBar({
                     "group/tab relative flex h-8 min-w-[120px] max-w-[280px] flex-[1_0_180px] items-center rounded-lg transition-colors [-webkit-app-region:no-drag]",
                     active
                       ? "bg-white text-neutral-800 shadow-[0_1px_3px_#00000008]"
-                      : "text-neutral-500 hover:bg-neutral-200/60",
+                      : "text-neutral-600 hover:bg-neutral-200/60",
                     !active &&
                       "after:absolute after:right-0 after:top-2 after:h-4 after:w-px after:bg-neutral-300/70 after:content-[''] hover:after:opacity-0",
                   )}
