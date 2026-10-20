@@ -66,7 +66,7 @@ export function SettingsSidebar({
             </p>
           )}
       </ScrollArea>
-      <Button variant="ghost-muted" size="row-sm" onClick={onClose}>
+      <Button variant="ghost" size="row-sm" onClick={onClose}>
         {t("settings:settingsSidebar.backToChat")}
       </Button>
     </aside>
