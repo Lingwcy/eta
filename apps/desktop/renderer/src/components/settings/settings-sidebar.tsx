@@ -61,7 +61,7 @@ export function SettingsSidebar({
               `${item.label} ${item.title}`.toLocaleLowerCase().includes(search),
             ),
           ) && (
-            <p className="px-2 py-4 text-xs text-neutral-400">
+            <p className="px-2 py-4 text-xs text-neutral-600">
               {t("settings:settingsSidebar.noMatchingSettingsCategories")}
             </p>
           )}
