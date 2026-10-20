@@ -93,6 +93,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Reuse a filesystem scope only within the operation that verifies and publishes it.**
+
+- Evidence: on 2026-10-20, BDS-06 resolves the same Bot workspace root 17 times while discovering eight existing directories. Reusing its canonical identity reduces those lookups to two in that fixture. A controlled root-symlink switch silently completes in the old scan; checking the root again after alias resolution rejects that refresh and invalidates both ownership maps until a fresh scan succeeds. Three focused regressions fail before the change, and missing checkouts/internal aliases/escaping links retain their behavior. This is an I/O-count proof, not a production benchmark.
+- Check: cache scan-invariant identity only for that scan, revalidate it before publishing, revoke both old ownership maps when a root change is detected, and finish awaited alias work before replacing related maps. Do not turn this optimization into a cross-request permission cache or assume missing-path canonicalization performs no additional parent reads.
+- Seen: 2026-10-20.
+
 **Do not make a durable creation receipt wait for its derived directory.**
 
 - Evidence: on 2026-10-19, BDS-05 still awaited DesktopBot's library/status refresh after the configured thread was already created. Holding either read blocks the first message in two real DraftThread/HTTP-adapter regressions before the change. Returning the creation first admits the prompt while both held-read and later catalog-publication controls pass. Background failure, an older poll, connection replacement and explicit disposal are covered without a production latency claim.
