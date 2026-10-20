@@ -1,15 +1,28 @@
 import type { ImageAttachment } from "@eta/core/images/types";
 import { DesktopCommandError, unwrapReply } from "../command-reply.ts";
-import type { AgentBridge } from "../bridge.ts";
+import type { AgentBridge, CommandReply } from "../bridge.ts";
+import type { OperationAdmission } from "@eta/core/agent/protocol";
 
 /** Decode in the calling realm; a rejected preload Error loses custom fields at contextBridge. */
 export async function submitMessage(
   bridge: Pick<AgentBridge, "submit" | "submitReply">,
   ...args: Parameters<AgentBridge["submit"]>
 ) {
-  return bridge.submitReply
-    ? unwrapReply(await bridge.submitReply(...args))
-    : bridge.submit(...args);
+  if (!bridge.submitReply) return bridge.submit(...args);
+  let reply: CommandReply<OperationAdmission>;
+  try {
+    reply = await bridge.submitReply(...args);
+  } catch (error) {
+    // A missing reply cannot prove rejection: main may already have admitted the write.
+    // Preserve the identity for explicit retry, but do not automatically replay the operation.
+    throw new DesktopCommandError({
+      code: "SubmissionUnknown",
+      message: error instanceof Error ? error.message : String(error),
+      retryable: true,
+    });
+  }
+  // A received failure DTO is authoritative; do not reclassify a definite rejection as unknown.
+  return unwrapReply(reply);
 }
 
 /** A send whose transport outcome is unknown; the same logical message must keep its identity. */
