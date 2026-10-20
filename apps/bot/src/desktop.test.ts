@@ -127,11 +127,16 @@ test("Desktop executes and observes cloud work, persists its connection and neve
     fauxAssistantMessage("Cloud finished"),
   ]);
   const admission = await desktop.submit(created.id, "Write on cloud", "desktop-prompt");
+  // Tool call + second model stream + observation delivery; the implicit 1s default failed here
+  // locally (whole test 4.4s when it passes), matching the multi-stage waits in #59.
   await expect
-    .poll(() =>
-      snapshots.some(
-        (value) => value.includes(admission.operationId) && value.includes('"status":"completed"'),
-      ),
+    .poll(
+      () =>
+        snapshots.some(
+          (value) =>
+            value.includes(admission.operationId) && value.includes('"status":"completed"'),
+        ),
+      { timeout: 10_000 },
     )
     .toBe(true);
   expect(await readFile(join(cwd, "remote.txt"), "utf8")).toBe("Executed on Bot");
@@ -154,8 +159,7 @@ test("Desktop executes and observes cloud work, persists its connection and neve
   await remote.disconnect();
   expect(remote.status().status).toBe("disconnected");
   await expect(remote.open(created.id)).rejects.toThrow("未连接");
-});
-
+}, 20_000);
 test("failed authentication preserves the prior connection; offline catalogs never become local work", async () => {
   const { remote, url, dataRoot, server } = await fixture();
   await remote.connect({ url, token: "remote-secret" });
