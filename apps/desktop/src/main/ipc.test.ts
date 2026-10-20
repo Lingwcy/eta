@@ -141,3 +141,60 @@ test("image preparation accepts Electron's undefined optional fields and returns
   );
   expect(image).toMatchObject({ type: "image", mimeType: "image/png", data });
 });
+
+test.each([
+  { type: "github-identity" },
+  { type: "github-identity", projectId: "" },
+  { type: "list-worktrees" },
+  { type: "list-worktrees", projectId: 42 },
+  { type: "list-worktrees", projectId: "project", extra: true },
+  { type: "reconcile-worktrees", projectId: "" },
+  { type: "reconcile-worktrees", projectId: "project", path: "/arbitrary-path" },
+])("project-scoped commands reject malformed payloads: %j", async (command) => {
+  const reply = await commandReply(() => dispatchCommand({} as DesktopApplication, command));
+  expect(reply).toEqual({
+    ok: false,
+    error: { code: "InvalidInput", message: "请求参数无效", retryable: false },
+  });
+});
+
+test("project-scoped identity and worktree commands reach their services unchanged", async () => {
+  const calls: unknown[][] = [];
+  const identity = { login: "octocat" };
+  const worktrees = [{ id: "worktree" }];
+  const reconciled = [{ id: "reconciled" }];
+  const application = {
+    githubIdentity: async (projectId: string) => {
+      calls.push(["githubIdentity", projectId]);
+      return identity;
+    },
+    listWorktrees: async (projectId: string) => {
+      calls.push(["listWorktrees", projectId]);
+      return worktrees;
+    },
+    reconcileWorktrees: async (projectId: string) => {
+      calls.push(["reconcileWorktrees", projectId]);
+      return reconciled;
+    },
+  } as unknown as DesktopApplication;
+  await expect(
+    dispatchCommand(
+      application,
+      structuredClone({ type: "github-identity", projectId: "project" }),
+    ),
+  ).resolves.toBe(identity);
+  await expect(
+    dispatchCommand(application, structuredClone({ type: "list-worktrees", projectId: "project" })),
+  ).resolves.toBe(worktrees);
+  await expect(
+    dispatchCommand(
+      application,
+      structuredClone({ type: "reconcile-worktrees", projectId: "project" }),
+    ),
+  ).resolves.toBe(reconciled);
+  expect(calls).toEqual([
+    ["githubIdentity", "project"],
+    ["listWorktrees", "project"],
+    ["reconcileWorktrees", "project"],
+  ]);
+});
