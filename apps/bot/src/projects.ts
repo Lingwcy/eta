@@ -25,6 +25,8 @@ export class BotProjects {
   readonly workspaceProjects = new Map<string, string>();
   readonly projectKeys = new Map<string, string>();
   private refreshing: Promise<void> | undefined;
+  private publishedRoot: string | undefined;
+  private publicationRevision = 0;
   constructor(
     private readonly core: CoreClient,
     private readonly config: BotConfig,
@@ -66,6 +68,72 @@ export class BotProjects {
     return (this.refreshing ??= this.scan().finally(() => {
       this.refreshing = undefined;
     }));
+  }
+
+  async refreshForThread(id: string) {
+    for (;;) {
+      // A full scan publishes both maps together. Validate after its publication, not into
+      // a snapshot that may still replace this target entry.
+      await this.refreshing;
+      const revision = this.publicationRevision;
+      const thread = await this.core.threadMetadata(id);
+      const [projects, workspaces] = await Promise.all([
+        this.core.projects(),
+        this.core.workspaces(),
+      ]);
+      const workspace = workspaces.find((value) => value.id === thread.workspaceId);
+      const project = projects.find((value) => value.id === workspace?.projectId);
+      if (!workspace || !project) return this.refresh();
+      await mkdir(this.config.workspaceRoot, { recursive: true });
+      const root = await realpath(this.config.workspaceRoot);
+      const suffix = relative(root, project.rootPath);
+      // Hidden/nested canonical paths depend on visible aliases; duplicate roots depend on
+      // discovery ordering. Keep the full scan as their source of ownership truth.
+      if (
+        !suffix ||
+        suffix.startsWith(".") ||
+        suffix.includes(sep) ||
+        isAbsolute(suffix) ||
+        projects.some((value) => value.id !== project.id && value.rootPath === project.rootPath)
+      )
+        return this.refresh();
+      let available = false;
+      try {
+        available =
+          (await this.inside(project.rootPath, root)) && (await this.inside(workspace.cwd, root));
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          !("code" in error) ||
+          (error.code !== "ENOENT" && error.code !== "ENOTDIR")
+        )
+          throw error;
+      }
+      const currentRoot = await realpath(this.config.workspaceRoot);
+      // Recheck after any newer publication, including scans that already finished and
+      // target checks that revoked this workspace or changed the root namespace.
+      if (this.refreshing || this.publicationRevision !== revision) continue;
+      if (currentRoot !== root) {
+        this.workspaceProjects.clear();
+        this.projectKeys.clear();
+        this.publishedRoot = undefined;
+        this.publicationRevision++;
+        throw new BotHttpError(
+          403,
+          "ProjectUnavailable",
+          "Workspace root changed during validation.",
+        );
+      }
+      if (this.publishedRoot !== root) {
+        this.workspaceProjects.clear();
+        this.projectKeys.clear();
+        this.publishedRoot = root;
+      }
+      this.publicationRevision++;
+      if (available) this.workspaceProjects.set(workspace.id, project.id);
+      else this.workspaceProjects.delete(workspace.id);
+      return;
+    }
   }
 
   private async scan() {
@@ -141,11 +209,15 @@ export class BotProjects {
     if ((await realpath(this.config.workspaceRoot)) !== root) {
       this.workspaceProjects.clear();
       this.projectKeys.clear();
+      this.publishedRoot = undefined;
+      this.publicationRevision++;
       throw new BotHttpError(403, "ProjectUnavailable", "Workspace root changed during discovery.");
     }
     this.workspaceProjects.clear();
     for (const [id, projectId] of workspaces) this.workspaceProjects.set(id, projectId);
     this.projectKeys.clear();
     for (const [key, id] of keys) this.projectKeys.set(key, id);
+    this.publishedRoot = root;
+    this.publicationRevision++;
   }
 }

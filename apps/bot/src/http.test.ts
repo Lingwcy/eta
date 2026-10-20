@@ -227,6 +227,99 @@ test("administrative routes still reject requests after shutdown", async () => {
   expect((await request("/v1/credentials/remove", { providerId: "anthropic" })).status).toBe(503);
 });
 
+test("ordinary messages and cached receipts do not discover unrelated projects", async () => {
+  const { bot, provider, request, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("targeted-discovery");
+  await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+  provider.setResponses([fauxAssistantMessage("Accepted once")]);
+  const registration = vi.spyOn(bot.core, "registerProject");
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  const submit = vi.spyOn(bot.core, "submit");
+  try {
+    const body = { requestId: "targeted-input", prompt: "Hello" };
+    const accepted = await request("/v1/threads/" + id + "/messages", body);
+    expect(accepted.status).toBe(202);
+    const receipt = await accepted.json();
+    expect(registration).not.toHaveBeenCalled();
+    expect(await bot.core.projects()).toHaveLength(1);
+    const replay = await request("/v1/threads/" + id + "/messages", body);
+    expect(replay.status).toBe(202);
+    expect(await replay.json()).toEqual(receipt);
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
+    // Directory reads still discover new projects and publish their workspaces.
+    expect((await request("/v1/library")).status).toBe(200);
+    expect(await bot.core.projects()).toHaveLength(2);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(registration).toHaveBeenCalledTimes(1);
+  } finally {
+    registration.mockRestore();
+    refresh.mockRestore();
+    submit.mockRestore();
+    await bot.controller.stop(id);
+  }
+});
+
+test("message scope is fresh before both cached replies and new admissions", async () => {
+  const { bot, provider, request, create, config, cwd, workspace } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("fresh-target");
+  provider.setResponses([fauxAssistantMessage("Done")]);
+  const path = "/v1/threads/" + id + "/messages";
+  const body = { requestId: "before-escape", prompt: "Hello" };
+  const accepted = await request(path, body);
+  expect(accepted.status).toBe(202);
+  const receipt = Schema.decodeUnknownSync(admission)(await accepted.json());
+  await expect
+    .poll(async () => (await bot.core.operation(id, receipt.operationId)).status)
+    .toBe("completed");
+  const outside = join(config.dataRoot, "outside");
+  await rename(cwd, outside);
+  await symlink(outside, cwd, "dir");
+  const submit = vi.spyOn(bot.core, "submit");
+  try {
+    expect((await request(path, body)).status).toBe(403);
+    expect(bot.workspaceProjects.has(workspace)).toBe(false);
+    expect((await request(path, { requestId: "after-escape", prompt: "No" })).status).toBe(403);
+    expect(submit).not.toHaveBeenCalled();
+    expect(await bot.core.operationByRequest(id, "http:messages:after-escape")).toBeUndefined();
+  } finally {
+    submit.mockRestore();
+  }
+});
+
+test("targeted messages retain authentication, body limits, input checks and shutdown guards", async () => {
+  const { bot, request, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("message-guards");
+  const path = "/v1/threads/" + id + "/messages";
+  const metadata = vi.spyOn(bot.core, "threadMetadata");
+  try {
+    expect((await bot.app.request(path, { method: "POST", body: "{}" })).status).toBe(401);
+    expect(
+      (
+        await bot.app.request(path, {
+          method: "POST",
+          headers: {
+            authorization: "Bearer " + config.adminToken,
+            "content-length": String(48 * 1024 * 1024 + 1),
+          },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(413);
+    expect(metadata).not.toHaveBeenCalled();
+    expect((await request(path, {})).status).toBe(400);
+    await bot.close();
+    metadata.mockClear();
+    expect((await request(path, { requestId: "closed", prompt: "No" })).status).toBe(503);
+    expect(metadata).not.toHaveBeenCalled();
+  } finally {
+    metadata.mockRestore();
+  }
+});
+
 test("message authorization never opens full history before admission or idempotent replay", async () => {
   const { bot, provider, request, create } = await fixture();
   const id = await create("lightweight-admission");
