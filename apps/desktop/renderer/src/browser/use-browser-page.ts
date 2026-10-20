@@ -12,6 +12,12 @@ export function useBrowserPage(
   const [ready, setReady] = useState(false);
   const addressInput = useRef<HTMLInputElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
+  /** A create only loads its own address, so later submits are serialised and the last one wins. */
+  const created = useRef(false);
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
+  const navigation = useRef<Promise<void>>(Promise.resolve());
+  const intent = useRef(0);
   const hasUrl = tab.url !== "";
   useEffect(() => {
     client.mount(tab.id);
@@ -27,9 +33,10 @@ export function useBrowserPage(
     if (!hasUrl) return;
     let cancelled = false;
     setReady(false);
-    void client.command({ type: "create", id: tab.id, url: tab.url }).then((created) => {
+    void client.command({ type: "create", id: tab.id, url: tab.url }).then((started) => {
+      if (started) created.current = true;
       if (!cancelled) {
-        setReady(created);
+        setReady(started);
         return;
       }
       // The tab closed while its page was being created; a reopened tab keeps the page.
@@ -68,13 +75,23 @@ export function useBrowserPage(
     if (visible && !hasUrl) addressInput.current?.focus();
   }, [visible, hasUrl]);
   const navigate = async () => {
-    // Main normalizes both addresses and searches before allocating a guest page.
-    const success = await client.command({
-      type: ready ? "navigate" : "create",
-      id: tab.id,
-      url: address,
+    const url = address;
+    const ticket = ++intent.current;
+    const task = navigation.current.then(async () => {
+      // Only the newest queued intent runs; an earlier address is superseded, not replayed.
+      if (ticket !== intent.current) return;
+      // Main normalizes both addresses and searches before allocating a guest page.
+      const success = await client.command({
+        type: created.current || readyRef.current ? "navigate" : "create",
+        id: tab.id,
+        url,
+      });
+      if (!success) return;
+      created.current = true;
+      addressInput.current?.blur();
     });
-    if (success) addressInput.current?.blur();
+    navigation.current = task.catch(() => {});
+    await task;
   };
   const command = async (type: "back" | "forward" | "reload" | "stop") => {
     if (type === "reload" && !ready) await navigate();
