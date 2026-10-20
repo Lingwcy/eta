@@ -133,3 +133,36 @@ test("restoration rejects corrupt records, duplicate identities and executable p
     draft: "Saved",
   });
 });
+
+test("a settings page survives a restart and malformed pages are dropped", () => {
+  vi.useFakeTimers();
+  try {
+    let next = 0;
+    const tabs = new DesktopTabs(() => "tab-" + ++next);
+    const storage = new Map<string, string>();
+    const dispose = persistTabs(
+      tabs,
+      { setItem: (key, value) => storage.set(key, value) },
+      new EventTarget(),
+    );
+    tabs.openSettings("skills");
+    vi.advanceTimersByTime(250);
+    const restored = new DesktopTabs(
+      undefined,
+      readTabs({ getItem: (key) => storage.get(key) ?? null }),
+    );
+    expect(restored.getSnapshot().tabs.find((tab) => tab.kind === "settings")).toMatchObject({
+      category: "skills",
+    });
+    expect(
+      restoreTabs({ version: 1, tabs: [{ id: "s", kind: "settings", category: 7 }], activeId: "s" })
+        ?.tabs[0],
+    ).not.toHaveProperty("category");
+    expect(
+      restoreTabs({ version: 1, tabs: [{ id: "s", kind: "settings" }], activeId: "s" })?.tabs[0],
+    ).not.toHaveProperty("category");
+    dispose();
+  } finally {
+    vi.useRealTimers();
+  }
+});

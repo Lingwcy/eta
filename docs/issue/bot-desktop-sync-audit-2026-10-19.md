@@ -18,7 +18,7 @@
 
 建议：重连时按原始 operation / request identity 查询持久化回执，收敛到该次执行的实际状态。不能把“当前已空闲”直接当成该次提交成功，也不能只等一个可能永远不会重现的最新结果字段。
 
-### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（#215 / #250 已合并；IPC 未返回 DTO 的身份保留已修复，待 PR 合并）
+### BDS-02 / P1：服务端已接收、客户端没收到回包时，重发可能执行两次（已解决：[#215](https://github.com/Lingwcy/eta/pull/215) / [#250](https://github.com/Lingwcy/eta/pull/250) / [#261](https://github.com/Lingwcy/eta/pull/261) 已合并）
 
 位置：`apps/desktop/src/preload.ts:117`、`apps/desktop/src/main/bot.ts:409`、`apps/bot/src/store.ts:25`。
 
@@ -62,7 +62,7 @@ Bot library 每 5 秒轮询，一次失败就令 remote.status 变为 error。co
 
 建议：分别维护目录刷新与会话观察健康状态；恢复时保留已显示快照，只重建确实失效的观察连接。
 
-### BDS-05 / P2：新会话首条消息串行等待过多，而且停止无效（部分解决：重复配置与创建期停止已合并；目录刷新等待已修复、待 PR 合并；阶段状态提示未做）
+### BDS-05 / P2：新会话首条消息串行等待过多，而且停止无效（部分解决：[#218](https://github.com/Lingwcy/eta/pull/218) 重复配置、[#221](https://github.com/Lingwcy/eta/pull/221) 创建期停止、[#248](https://github.com/Lingwcy/eta/pull/248) 目录刷新等待均已合并；阶段状态提示未做）
 
 当前状态：[#218](https://github.com/Lingwcy/eta/pull/218) 已让创建携带的配置避免再次 configure / sandbox，[#221](https://github.com/Lingwcy/eta/pull/221) 已在创建完成后立即绑定实际 thread，创建前不再显示无效停止操作。此次继续移除 `DesktopBot.create` 对目录刷新完成的等待：持久化创建回执先返回，首条 submit 可直接发送；后台刷新等旧轮询结束后补读最新目录，失败仍通过既有目录状态报告，不改变创建 / 发送回执。原连接关闭、断开、切换 Bot 或更新凭证后，排队的补读不能重新启动；过期创建回复不会被映射到替代连接。
 
