@@ -226,6 +226,35 @@ test("administrative routes still reject requests after shutdown", async () => {
   expect((await request("/v1/credentials/import", { credentials: {} })).status).toBe(503);
   expect((await request("/v1/credentials/remove", { providerId: "anthropic" })).status).toBe(503);
 });
+test.each(["stop", "resume"])(
+  "thread %s needs the target scope, not unrelated project discovery",
+  async (kind) => {
+    const { bot, config, create } = await fixture();
+    await bot.core.stopScheduler();
+    const id = await create("cancel-discovery-" + kind);
+    const headers = { authorization: "Bearer " + config.adminToken };
+    if (kind === "resume") {
+      const stopped = await bot.app.request("/v1/threads/" + id + "/stop", {
+        method: "POST",
+        headers,
+      });
+      expect(stopped.status).toBe(200);
+    }
+    await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+    const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+    try {
+      const response = await bot.app.request("/v1/threads/" + id + "/" + kind, {
+        method: "POST",
+        headers,
+        signal: AbortSignal.timeout(3000),
+      });
+      expect(response.status).toBe(kind === "stop" ? 200 : 202);
+      expect(refresh).not.toHaveBeenCalled();
+    } finally {
+      refresh.mockRestore();
+    }
+  },
+);
 
 test.each(["history", "operation", "events", "head"])(
   "ordinary thread %s reads leave unrelated project discovery to the catalog",

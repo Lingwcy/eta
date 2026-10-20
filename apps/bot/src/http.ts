@@ -226,6 +226,19 @@ export function createHttpApp(options: {
       }
     });
   });
+  // Cancelling and resuming need the target scope, not unrelated project discovery.
+  app.post("/v1/threads/:id/stop", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.stop(id);
+    return context.json({ stopped: true });
+  });
+  app.post("/v1/threads/:id/resume", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.resume(id);
+    return context.json({ resumed: true }, 202);
+  });
   // Remaining scoped routes refresh all ownership on every request.
   app.use("/v1/*", async (_context, next) => {
     await options.projects.refresh();
@@ -497,14 +510,6 @@ export function createHttpApp(options: {
         core.createThread(input.workspaceId, `http:create:${input.requestId}`, input.configuration),
     );
     return context.json(displaySnapshot(result), 201);
-  });
-  app.post("/v1/threads/:id/stop", async (context) => {
-    await controller.stop(context.req.param("id"));
-    return context.json({ stopped: true });
-  });
-  app.post("/v1/threads/:id/resume", async (context) => {
-    await controller.resume(context.req.param("id"));
-    return context.json({ resumed: true }, 202);
   });
   mountScheduleRoutes(app, { core, workspaceProjects, shutdown, decode, readBody });
   return app;
