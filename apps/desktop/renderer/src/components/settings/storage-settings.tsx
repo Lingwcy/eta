@@ -106,7 +106,7 @@ export function StorageSettings({ active }: { active: boolean }) {
               ? t("settings:storageSettings.calculating")
               : "—"}
         </span>
-        <span className="flex-1 text-xs text-neutral-400">
+        <span className="flex-1 text-xs text-neutral-500">
           {report && t("settings:storageSettings.sessions", { count: report.sessions.length })}
         </span>
         <Button
@@ -149,12 +149,12 @@ export function StorageSettings({ active }: { active: boolean }) {
               onClick={() => void reveal(target)}
               className="group flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs outline-none hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-300"
             >
-              <Icon size={14} className="shrink-0 text-neutral-400" />
+              <Icon size={14} className="shrink-0 text-neutral-500" />
               <span className="w-16 shrink-0 text-neutral-600">{label}</span>
-              <span className="min-w-0 flex-1 truncate text-neutral-400">{path}</span>
+              <span className="min-w-0 flex-1 truncate text-neutral-500">{path}</span>
               <ArrowUpRight
                 size={12}
-                className="shrink-0 text-neutral-400 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                className="shrink-0 text-neutral-500 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
               />
             </button>
           ))}
@@ -182,7 +182,7 @@ export function StorageSettings({ active }: { active: boolean }) {
             onValueChange={setSort}
           />
         </div>
-        <ScrollAreaRoot className="h-[min(420px,50vh)]">
+        <ScrollAreaRoot className="max-h-[min(420px,50vh)]">
           <ScrollAreaViewport
             ref={viewport}
             onScroll={(event) => {
@@ -209,7 +209,7 @@ export function StorageSettings({ active }: { active: boolean }) {
                     <span className="block truncate text-[13px] text-neutral-800">
                       {session.title || t("settings:storageSettings.unnamedSession")}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-neutral-400">
+                    <span className="mt-0.5 block truncate text-xs text-neutral-500">
                       {session.project ?? t("settings:storageSettings.noProject")}
                     </span>
                   </span>
@@ -219,7 +219,7 @@ export function StorageSettings({ active }: { active: boolean }) {
                 </button>
               ))}
               {!sessions.length && (
-                <p className="py-12 text-center text-xs text-neutral-400">
+                <p className="py-8 text-center text-xs text-neutral-500">
                   {busy && !report
                     ? t("settings:storageSettings.readingSessions")
                     : t("settings:storageSettings.noMatchingSessions")}
