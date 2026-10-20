@@ -16,6 +16,7 @@ import { Check, Cpu, Search, Shield, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Configuration } from "../bot/contracts.ts";
 import { useMobile } from "../provider.tsx";
+import { applySelection } from "./configuration-projection.ts";
 import { colors, useAction } from "../ui.tsx";
 
 export const thinkingLabels: Record<string, string> = {
@@ -358,7 +359,9 @@ export function ConfigurationSheet({
                 disabled={busy || !model}
                 onPress={() => {
                   void run(async () => {
-                    await store.configure(selected);
+                    await store.configure(
+                      applySelection(configuration, selected, state.configuration ?? configuration),
+                    );
                     handleClose();
                   });
                 }}
