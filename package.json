@@ -11,6 +11,8 @@
     "sync:repos": "node scripts/sync-reference-repos.ts",
     "sync:agent": "node scripts/sync-agent.ts",
     "build:desktop": "vp run @eta/desktop#build",
+    "dev:website": "vp run @eta/website#dev",
+    "build:website": "vp run @eta/website#build",
     "dev:mobile": "vp run eta-mobile#dev",
     "build:mobile": "vp run eta-mobile#build",
     "package:mac": "vp run --no-cache @eta/desktop#package:mac",

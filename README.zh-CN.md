@@ -77,6 +77,8 @@ Eta 的 Agent 运行时基于 Earendil Works 的 [Pi](https://github.com/earendi
 vp install        # 用 Vite+ 工具链安装依赖
 vp run dev        # 构建并运行桌面端
 vp run @eta/bot#build   # 构建 Bot 服务
+vp run dev:website     # 启动 Astro 产品官网
+vp run build:website   # 构建静态官网
 vp run package:mac      # 构建 macOS 安装包
 vp run package:win      # 构建 Windows 安装包
 ```

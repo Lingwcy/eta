@@ -1,0 +1,99 @@
+---
+const particles = Array.from({ length: 40 }, (_, index) => ({
+  x: 34 + (index * 37) % 64,
+  y: 8 + (index * 29) % 86,
+  size: index % 7 === 0 ? 3.5 : 1.6 + (index % 3) * 0.55,
+  opacity: 0.35 + (index % 6) * 0.08,
+  duration: 12 + (index % 7) * 1.5,
+  delay: -((index * 7.3) % 21),
+  driftX: -44 - (index % 6) * 12,
+  driftY: -42 + (index * 11) % 30,
+}));
+---
+
+<div class="hero-particles" data-hero-particles aria-hidden="true">
+  {particles.map((particle) => (
+    <span style={`left: ${particle.x}%; top: ${particle.y}%; --size: ${particle.size}px; --alpha: ${particle.opacity}; --duration: ${particle.duration}s; --delay: ${particle.delay}s; --drift-x: ${particle.driftX}px; --drift-y: ${particle.driftY}px;`}></span>
+  ))}
+</div>
+
+<script>
+  const field = document.querySelector<HTMLElement>("[data-hero-particles]");
+  const hero = field?.closest(".hero");
+  if (field && hero && "IntersectionObserver" in window) {
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let visible = false;
+    const sync = () => {
+      field.classList.toggle("is-active", visible && !document.hidden && !motion.matches);
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      sync();
+    });
+    observer.observe(hero);
+    document.addEventListener("visibilitychange", sync);
+    motion.addEventListener("change", sync);
+  }
+</script>
+
+<style>
+  .hero-particles {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    mask-image: radial-gradient(ellipse at 70% 46%, #000 42%, transparent 82%);
+  }
+  .hero-particles span {
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+    border-radius: 50%;
+    background: #f5f5f5;
+    opacity: 0;
+  }
+  .hero-particles span:nth-child(5n) {
+    box-shadow: 0 0 8px #fff6;
+  }
+  @keyframes drift {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 8px, 0);
+    }
+    18% {
+      opacity: var(--alpha);
+    }
+    60% {
+      transform: translate3d(calc(var(--drift-x) * 0.4), calc(var(--drift-y) - 10px), 0);
+    }
+    78% {
+      opacity: calc(var(--alpha) * 0.75);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(var(--drift-x), var(--drift-y), 0);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-particles span {
+      animation: drift var(--duration) var(--delay) linear infinite;
+      animation-play-state: paused;
+    }
+    .hero-particles.is-active span {
+      animation-play-state: running;
+    }
+  }
+  @media (max-width: 720px) {
+    .hero-particles {
+      opacity: 0.8;
+    }
+    .hero-particles span:nth-child(n + 21) {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-particles {
+      display: none;
+    }
+  }
+</style>

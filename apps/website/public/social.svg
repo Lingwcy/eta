@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="fade"><stop offset=".2" stop-color="#fff"/><stop offset="1" stop-color="#000"/></radialGradient>
+    <mask id="field"><rect x="560" y="50" width="640" height="510" fill="url(#fade)"/></mask>
+  </defs>
+  <rect width="1200" height="630" fill="#000"/>
+  <path d="M64 119h1072M64 547h1072" stroke="#555" stroke-dasharray="1 4"/>
+  <text x="65" y="88" font-family="Impact,sans-serif" font-size="41" fill="#fff">ETA</text>
+  <text x="169" y="83" font-family="monospace" font-size="11" letter-spacing="2" fill="#999">PERSONAL AGENT</text>
+  <text x="937" y="83" font-family="monospace" font-size="11" letter-spacing="2" fill="#aaa">OPEN SOURCE / MIT</text>
+  <g mask="url(#field)" fill="none" stroke="#aaa" transform="rotate(-22 924 330)">
+    <ellipse cx="924" cy="330" rx="245" ry="180" stroke="#555"/>
+    <ellipse cx="924" cy="330" rx="230" ry="165" stroke="#444"/>
+    <ellipse cx="924" cy="330" rx="210" ry="149" stroke="#888"/>
+    <ellipse cx="924" cy="330" rx="190" ry="136" stroke="#555"/>
+    <ellipse cx="924" cy="330" rx="180" ry="126" stroke="#ddd"/>
+    <ellipse cx="924" cy="330" rx="265" ry="64"/>
+    <ellipse cx="924" cy="330" rx="260" ry="59" stroke="#444"/>
+    <ellipse cx="924" cy="330" rx="255" ry="55" stroke="#ddd"/>
+    <ellipse cx="924" cy="330" rx="250" ry="51" stroke="#777"/>
+    <circle cx="924" cy="330" r="112" fill="#000" stroke="#fff" stroke-width="2"/>
+    <path d="M665 331q259 84 518 0M670 339q254 86 508 0" stroke="#fff"/>
+  </g>
+  <text x="64" y="165" font-family="monospace" font-size="10" letter-spacing="2" fill="#999">A PERSONAL AGENT. AN OPEN UNIVERSE.</text>
+  <text x="58" y="311" font-family="Impact,sans-serif" font-size="143" letter-spacing="-4" fill="#fff">BEYOND</text>
+  <text x="58" y="441" font-family="Impact,sans-serif" font-size="143" letter-spacing="-4" fill="#fff">THE PROMPT.</text>
+  <text x="66" y="503" font-family="monospace" font-size="15" fill="#aaa">Your models. Your tools. Your orbit.</text>
+  <text x="65" y="590" font-family="monospace" font-size="11" fill="#999">INTELLIGENCE, PUT TO WORK.</text>
+  <text x="836" y="590" font-family="monospace" font-size="11" fill="#999">macOS / Windows / Self-hosted cloud</text>
+</svg>

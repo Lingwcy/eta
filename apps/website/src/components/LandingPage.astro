@@ -1,0 +1,222 @@
+---
+import { Image } from "astro:assets";
+import heroWing from "../assets/hero-wing.png";
+import downloadArt from "../assets/download-engraving.png";
+import Layout from "../layouts/Layout.astro";
+import HeroParticles from "./HeroParticles.astro";
+import Icon from "./Icon.astro";
+import { copy, links, type Locale } from "../content/site";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copy[locale];
+---
+
+<Layout locale={locale}>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href={locale === "zh" ? "/zh/" : "/"} aria-label="Eta">
+        <img src="/favicon.svg" alt="" width="42" height="42" />
+        <span>ETA</span><small>PERSONAL<br />AGENT</small>
+      </a>
+      <nav class="desktop-nav" aria-label={t.menu}>
+        <a href="#product">{t.nav.product}</a>
+        <a href="#faq">{t.nav.faq}</a>
+        <a href={links.docs}>{t.nav.docs}<Icon name="diagonal" size={12} /></a>
+      </nav>
+      <div class="header-actions">
+        <a class="language-link" href={locale === "zh" ? "/" : "/zh/"} lang={locale === "zh" ? "en" : "zh-CN"} aria-label={locale === "zh" ? "Switch to English" : "切换到中文"}>{locale === "zh" ? "EN" : "中文"}</a>
+        <a class="button button-small" href="#download">{t.download}<Icon name="diagonal" size={13} /></a>
+      </div>
+      <details class="mobile-menu">
+        <summary aria-label={t.menu}><Icon name="menu" /></summary>
+        <nav aria-label={t.menu}>
+          <a href="#product">{t.nav.product}</a>
+          <a href="#download">{t.download}</a>
+          <a href="#faq">{t.nav.faq}</a>
+          <a href={links.docs}>{t.nav.docs}<Icon name="diagonal" size={13} /></a>
+        </nav>
+      </details>
+    </div>
+  </header>
+  <main id="main">
+    <section class="hero shell" aria-labelledby="hero-title">
+      <div class="hero-art" aria-hidden="true">
+        <Image src={heroWing} alt="" widths={[640, 1024, 1536]} sizes="(max-width: 720px) 100vw, 75vw" loading="eager" fetchpriority="high" format="webp" quality={85} />
+      </div>
+      <HeroParticles />
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="square-dot"></span>{t.hero.label}</p>
+        <h1 id="hero-title"><span>{t.hero.title[0]}</span><span>{t.hero.title[1]}</span></h1>
+        <p class="hero-lead">{t.hero.intro}</p>
+        <p class="hero-description">{t.hero.description}</p>
+        <div class="hero-actions">
+          <a class="button" href="#download"><span class="terminal-mark" aria-hidden="true">&gt;_</span>{t.hero.cta}<Icon name="diagonal" size={16} /></a>
+          <a class="text-link" href={links.github}><Icon name="github" size={16} />{t.hero.secondary}</a>
+        </div>
+        <p class="hero-meta mono">{t.hero.meta}</p>
+      </div>
+      <div class="hero-bottom mono"><span>{t.hero.coordinates}</span><a href="#product" aria-label={t.nav.product}><span aria-hidden="true">SCROLL TO EXPLORE</span><Icon name="arrow" size={15} /></a></div>
+    </section>
+    <div class="showcase shell" id="product">
+      <figure class="product-display" data-reveal>
+          <div class="product-caption mono"><span><span class="square-dot"></span>ETA / DESKTOP</span><span>WORKSPACE_01</span></div>
+          <div class="demo-frame">
+            <video muted loop playsinline preload="none" poster="/media/eta-desktop-demo.webp" width="1920" height="1280" tabindex="0" role="button" aria-label={t.showcase.play} aria-description={t.showcase.videoLabel} aria-describedby="demo-caption" data-play-label={t.showcase.play} data-pause-label={t.showcase.pause}>
+              <source src="/media/eta-desktop-demo.mp4" type="video/mp4" />
+              <a href="/media/eta-desktop-demo.mp4">{t.showcase.watch}</a>
+            </video>
+          </div>
+          <figcaption class="mono" id="demo-caption"><span>{t.showcase.caption}</span><a href="/media/eta-desktop-demo.mp4" class="demo-link">{t.showcase.watch}<Icon name="diagonal" size={12} /></a></figcaption>
+      </figure>
+    </div>
+    <section class="installation shell section" id="download" aria-labelledby="download-title">
+      <div class="download-heading" data-reveal><h2 id="download-title">{t.installation.title}</h2><p>{t.installation.description}</p></div>
+      <div class="platform-grid">
+        {t.installation.cards.map((card, index) => (
+          <article class="platform-card" data-reveal style={`--reveal-delay: ${index * 90}ms`}>
+            <Image class="platform-art" src={downloadArt} alt="" widths={[1200, 2172]} sizes="(max-width: 720px) 300vw, 1280px" loading="lazy" format="webp" quality={85} />
+            <div class="platform-content">
+              <p class="platform-spec mono">{card.spec}</p>
+              <h3>{card.title}</h3>
+              <a class="button platform-button" href={index === 2 ? links.bot : links.releases}><Icon name={card.icon} size={23} />{card.cta}</a>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+    <section class="faq-section section" id="faq" aria-labelledby="faq-title">
+      <div class="shell">
+        <div class="faq-heading" data-reveal><h2 id="faq-title">{t.faq.title}</h2><a class="text-link" href={links.docs}>{t.faq.docs}<Icon name="diagonal" size={14} /></a></div>
+        <div class="faq-list">
+          {t.faq.items.map((item, index) => (
+            <details data-reveal style={`--reveal-delay: ${Math.min(index, 2) * 45}ms`}><summary><span>{item.q}</span><Icon name="plus" size={19} /></summary><p>{item.a}</p></details>
+          ))}
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer shell">
+    <div class="footer-top" data-reveal><a class="footer-wordmark" href="#top" aria-label={t.top}>ETA<span aria-hidden="true">↗</span></a><div><p>{t.footer}</p><a class="text-link" href={links.github}>{t.source}<Icon name="diagonal" size={14} /></a></div></div>
+    <div class="footer-bottom mono"><span>© {new Date().getFullYear()} ETA <span class="footer-slash">/</span> {t.license}</span><nav aria-label={locale === "zh" ? "页脚导航" : "Footer navigation"}><a href={links.github}>GITHUB</a><a href={links.releases}>{t.releases}</a><a href={links.docs}>{t.nav.docs}</a><a href={links.license}>MIT</a></nav><a class="back-top" href="#top">{t.top}<Icon name="send" size={13} /></a></div>
+  </footer>
+</Layout>
+
+<script>
+  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (!motion.matches && "IntersectionObserver" in window) {
+    const pending = new Set(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+    const reveal = (element: HTMLElement, animate = true) => {
+      element.classList.remove("reveal-pending");
+      element.classList.toggle("reveal-enter", animate);
+      pending.delete(element);
+      observer.unobserve(element);
+    };
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && entry.target instanceof HTMLElement && pending.has(entry.target)) {
+          reveal(entry.target);
+        }
+      }
+    }, { rootMargin: "0px 0px -32px 0px" });
+
+    // Only JavaScript-enhanced pages hide content, and each reveal runs once.
+    for (const element of pending) {
+      element.classList.add("reveal-pending");
+      observer.observe(element);
+    }
+
+    // Keyboard and anchor navigation must never land inside an invisible section.
+    document.addEventListener("focusin", (event) => {
+      if (event.target instanceof Element) {
+        const element = event.target.closest<HTMLElement>("[data-reveal]");
+        if (element) reveal(element, false);
+      }
+    });
+    const revealAnchor = () => {
+      const target = document.getElementById(window.location.hash.slice(1));
+      if (!target) return;
+      for (const element of pending) {
+        if (target.contains(element) || element.contains(target)) reveal(element, false);
+      }
+    };
+    window.addEventListener("hashchange", revealAnchor);
+    revealAnchor();
+    if (document.activeElement instanceof HTMLElement) {
+      const focused = document.activeElement.closest<HTMLElement>("[data-reveal]");
+      if (focused) reveal(focused, false);
+    }
+    motion.addEventListener("change", () => {
+      if (!motion.matches) return;
+      for (const element of pending) reveal(element, false);
+      observer.disconnect();
+    });
+  }
+
+  const demo = document.querySelector<HTMLVideoElement>(".demo-frame video");
+  if (demo) {
+    let playbackRequested = !motion.matches;
+    let inView = !("IntersectionObserver" in window);
+    demo.muted = true;
+
+    const syncPlayback = () => {
+      if (playbackRequested && inView && !document.hidden) {
+        void demo.play().catch(() => {
+          // Leave the poster available if the browser blocks automatic playback.
+        });
+      } else {
+        demo.pause();
+      }
+    };
+    const togglePlayback = () => {
+      playbackRequested = demo.paused;
+      syncPlayback();
+    };
+    const syncLabel = () => {
+      demo.setAttribute("aria-label", (demo.paused ? demo.dataset.playLabel : demo.dataset.pauseLabel) ?? "");
+    };
+
+    demo.addEventListener("click", togglePlayback);
+    demo.addEventListener("keydown", (event) => {
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        togglePlayback();
+      }
+    });
+    demo.addEventListener("play", syncLabel);
+    demo.addEventListener("pause", syncLabel);
+    document.addEventListener("visibilitychange", syncPlayback);
+    motion.addEventListener("change", () => {
+      playbackRequested = !motion.matches;
+      syncPlayback();
+    });
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(([entry]) => {
+        inView = entry.isIntersecting && entry.intersectionRatio >= 0.2;
+        syncPlayback();
+      }, { threshold: [0, 0.2] });
+      observer.observe(demo);
+    } else {
+      syncPlayback();
+    }
+  }
+
+  const menu = document.querySelector<HTMLDetailsElement>(".mobile-menu");
+  if (menu) {
+    for (const link of menu.querySelectorAll("a")) {
+      link.addEventListener("click", () => { menu.open = false; });
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && menu.open) {
+        menu.open = false;
+        menu.querySelector("summary")?.focus();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (event.target instanceof Node && !menu.contains(event.target)) menu.open = false;
+    });
+  }
+</script>
