@@ -156,13 +156,13 @@ export function ThreadSearchContent(props: SearchDialogProps & { onClose: () => 
                     scheduled={props.scheduledThreadIds?.has(chat.id) ?? false}
                     worktree={chat.worktree}
                   />
-                  <span className="max-w-28 truncate text-xs text-neutral-400">{chat.project}</span>
+                  <span className="max-w-28 truncate text-xs text-neutral-500">{chat.project}</span>
                   {index < 9 && <Kbd variant="badge">⌃{index + 1}</Kbd>}
                 </CommandItem>
               </ThreadContextMenu>
             ))}
             {!chats.length && (
-              <p className="px-4 py-3 text-[13px] text-neutral-400">
+              <p className="px-4 py-3 text-[13px] text-neutral-500">
                 {query.trim()
                   ? t("navigation:threadSearchContent.noMatchingChatsFound")
                   : t("navigation:threadSearchContent.noChatHistory")}

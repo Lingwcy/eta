@@ -32,7 +32,7 @@ export function CommandInput({
       )}
       <Autocomplete.Input
         className={cn(
-          "w-full border-0 bg-transparent px-4 pt-4 pb-3 text-[15px] text-neutral-800 outline-none placeholder:text-neutral-400",
+          "w-full border-0 bg-transparent px-4 pt-4 pb-3 text-[15px] text-neutral-800 outline-none placeholder:text-neutral-500",
           variant === "search" && "h-11 py-0 pl-9 text-sm",
           variant === "menu-search" && "h-7 px-2 py-0 pl-7 text-xs",
         )}
@@ -74,7 +74,7 @@ export function CommandGroupLabel(
   props: Omit<ComponentProps<typeof Autocomplete.GroupLabel>, "className">,
 ) {
   return (
-    <Autocomplete.GroupLabel className="px-2 pt-2.5 pb-1 text-xs text-neutral-400" {...props} />
+    <Autocomplete.GroupLabel className="px-2 pt-2.5 pb-1 text-xs text-neutral-500" {...props} />
   );
 }
 export function CommandItem({
