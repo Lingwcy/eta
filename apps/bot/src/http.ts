@@ -282,6 +282,44 @@ export function createHttpApp(options: {
       ),
     );
   });
+  // Local metadata mutations only need the source; moves also validate their destination.
+  app.post("/v1/threads/:id/metadata", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    const input = decode(
+      Schema.Union([
+        Schema.Struct({ action: Schema.Literal("rename"), title: Schema.NonEmptyString }),
+        Schema.Struct({ action: Schema.Literal("archive"), archived: Schema.Boolean }),
+        Schema.Struct({
+          action: Schema.Literal("move"),
+          projectId: Schema.NullOr(Schema.NonEmptyString),
+        }),
+        Schema.Struct({ action: Schema.Literal("delete") }),
+      ]),
+      await readBody(context.req),
+    );
+    switch (input.action) {
+      case "rename":
+        return context.json(await core.renameThread(id, input.title));
+      case "archive":
+        return context.json(await core.archiveThread(id, input.archived));
+      case "move":
+        // Moving changes the display project, so validate the destination directory too.
+        await options.projects.refresh();
+        await controller.authorize(id);
+        if (input.projectId !== null && ![...workspaceProjects.values()].includes(input.projectId))
+          throw new BotHttpError(
+            403,
+            "ProjectUnavailable",
+            "Project is outside the configured projects.",
+          );
+        return context.json(await core.moveThread(id, input.projectId));
+      case "delete":
+        await core.deleteThread(id);
+        return context.json({ deleted: true });
+    }
+  });
   // Remaining scoped routes refresh all ownership on every request.
   app.use("/v1/*", async (_context, next) => {
     await options.projects.refresh();
@@ -438,39 +476,6 @@ export function createHttpApp(options: {
       settings: config.runtime,
       allowedSandboxModes: config.allowedSandboxModes ?? sandboxModes,
     });
-  });
-  app.post("/v1/threads/:id/metadata", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    const input = decode(
-      Schema.Union([
-        Schema.Struct({ action: Schema.Literal("rename"), title: Schema.NonEmptyString }),
-        Schema.Struct({ action: Schema.Literal("archive"), archived: Schema.Boolean }),
-        Schema.Struct({
-          action: Schema.Literal("move"),
-          projectId: Schema.NullOr(Schema.NonEmptyString),
-        }),
-        Schema.Struct({ action: Schema.Literal("delete") }),
-      ]),
-      await readBody(context.req),
-    );
-    switch (input.action) {
-      case "rename":
-        return context.json(await core.renameThread(id, input.title));
-      case "archive":
-        return context.json(await core.archiveThread(id, input.archived));
-      case "move":
-        if (input.projectId !== null && ![...workspaceProjects.values()].includes(input.projectId))
-          throw new BotHttpError(
-            403,
-            "ProjectUnavailable",
-            "Project is outside the configured projects.",
-          );
-        return context.json(await core.moveThread(id, input.projectId));
-      case "delete":
-        await core.deleteThread(id);
-        return context.json({ deleted: true });
-    }
   });
   app.post("/v1/threads/:id/compact", async (context) => {
     await controller.compact(context.req.param("id"));

@@ -435,6 +435,208 @@ test("targeted thread reads retain authentication and shutdown guards", async ()
   }
 });
 
+test.each(["rename", "archive", "delete"] as const)(
+  "metadata %s leaves unrelated discovery to catalog reads",
+  async (action) => {
+    const { bot, request, create, config } = await fixture();
+    await bot.core.stopScheduler();
+    const id = await create("metadata-discovery-" + action);
+    await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+    const registration = vi.spyOn(bot.core, "registerProject");
+    const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+    try {
+      const body =
+        action === "rename"
+          ? { action, title: "Manual title" }
+          : action === "archive"
+            ? { action, archived: true }
+            : { action };
+      const response = await request("/v1/threads/" + id + "/metadata", body);
+      expect(response.status).toBe(200);
+      if (action === "delete") {
+        expect(await response.json()).toEqual({ deleted: true });
+        expect((await bot.core.threads(undefined, true)).some((thread) => thread.id === id)).toBe(
+          false,
+        );
+      } else if (action === "rename") {
+        expect(await bot.core.threadMetadata(id)).toMatchObject({
+          title: "Manual title",
+          titleSource: "manual",
+        });
+      } else {
+        expect((await bot.core.threadMetadata(id)).archivedAt).toBeTypeOf("number");
+        expect(
+          (await request("/v1/threads/" + id + "/metadata", { action: "archive", archived: false }))
+            .status,
+        ).toBe(200);
+        expect((await bot.core.threadMetadata(id)).archivedAt).toBeUndefined();
+      }
+      expect(registration).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
+      expect(await bot.core.projects()).toHaveLength(1);
+      expect((await request("/v1/library")).status).toBe(200);
+      expect(await bot.core.projects()).toHaveLength(2);
+      expect(registration).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledTimes(1);
+    } finally {
+      registration.mockRestore();
+      refresh.mockRestore();
+    }
+  },
+);
+
+test.each(["rename", "archive", "delete"] as const)(
+  "metadata %s rejects an escaped source before changing Core state",
+  async (action) => {
+    const { bot, request, create, config, cwd, workspace } = await fixture();
+    await bot.core.stopScheduler();
+    const id = await create("metadata-escape-" + action);
+    await rename(cwd, join(config.dataRoot, "outside"));
+    await symlink(join(config.dataRoot, "outside"), cwd, "dir");
+    expect(bot.workspaceProjects.has(workspace)).toBe(true);
+    const renameThread = vi.spyOn(bot.core, "renameThread");
+    const archive = vi.spyOn(bot.core, "archiveThread");
+    const remove = vi.spyOn(bot.core, "deleteThread");
+    try {
+      const body =
+        action === "rename"
+          ? { action, title: "No" }
+          : action === "archive"
+            ? { action, archived: true }
+            : { action };
+      const response = await request("/v1/threads/" + id + "/metadata", body);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ error: { code: "ProjectUnavailable" } });
+      expect(bot.workspaceProjects.has(workspace)).toBe(false);
+      expect(renameThread).not.toHaveBeenCalled();
+      expect(archive).not.toHaveBeenCalled();
+      expect(remove).not.toHaveBeenCalled();
+      expect((await bot.core.threadMetadata(id)).archivedAt).toBeUndefined();
+    } finally {
+      renameThread.mockRestore();
+      archive.mockRestore();
+      remove.mockRestore();
+    }
+  },
+);
+
+test("metadata moves revalidate a formerly visible destination", async () => {
+  const { bot, request, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("move-destination");
+  const path = join(config.workspaceRoot, "destination");
+  await mkdir(path);
+  const destination = await bot.core.registerProject(path);
+  expect((await request("/v1/library")).status).toBe(200);
+  expect([...bot.workspaceProjects.values()]).toContain(destination.id);
+  const before = await bot.core.threadMetadata(id);
+  const outside = join(config.dataRoot, "destination-outside");
+  await rename(path, outside);
+  await symlink(outside, path, "dir");
+  const moving = vi.spyOn(bot.core, "moveThread");
+  try {
+    const response = await request("/v1/threads/" + id + "/metadata", {
+      action: "move",
+      projectId: destination.id,
+    });
+    expect(response.status).toBe(403);
+    expect([...bot.workspaceProjects.values()]).not.toContain(destination.id);
+    expect(moving).not.toHaveBeenCalled();
+    expect((await bot.core.threadMetadata(id)).projectId).toBe(before.projectId);
+  } finally {
+    moving.mockRestore();
+  }
+});
+
+test("metadata moves discover valid destinations and support clearing the display group", async () => {
+  const { bot, request, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("move-valid");
+  const path = join(config.workspaceRoot, "destination");
+  await mkdir(path);
+  const destination = await bot.core.registerProject(path);
+  expect([...bot.workspaceProjects.values()]).not.toContain(destination.id);
+  expect(
+    (
+      await request("/v1/threads/" + id + "/metadata", {
+        action: "move",
+        projectId: destination.id,
+      })
+    ).status,
+  ).toBe(200);
+  expect((await bot.core.threadMetadata(id)).projectId).toBe(destination.id);
+  expect(
+    (await request("/v1/threads/" + id + "/metadata", { action: "move", projectId: null })).status,
+  ).toBe(200);
+  expect((await bot.core.threadMetadata(id)).projectId).toBeNull();
+});
+
+test("metadata moves recheck source ownership after the destination refresh", async () => {
+  const { bot, request, create, config, cwd, workspace } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("move-source-revocation");
+  const original = BotProjects.prototype.refresh;
+  const release = Promise.withResolvers<void>();
+  let entered = false;
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh").mockImplementationOnce(async function (
+    this: BotProjects,
+    ...args
+  ) {
+    await original.apply(this, args);
+    entered = true;
+    await release.promise;
+  });
+  const moving = vi.spyOn(bot.core, "moveThread");
+  const pending = request("/v1/threads/" + id + "/metadata", { action: "move", projectId: null });
+  try {
+    await expect.poll(() => entered).toBe(true);
+    await rename(cwd, join(config.dataRoot, "outside"));
+    await symlink(join(config.dataRoot, "outside"), cwd, "dir");
+    // A later real scope publication revokes the source while the earlier refresh reply is held.
+    expect((await request("/v1/library")).status).toBe(200);
+    expect(bot.workspaceProjects.has(workspace)).toBe(false);
+    release.resolve();
+    expect((await pending).status).toBe(403);
+    expect(moving).not.toHaveBeenCalled();
+  } finally {
+    release.resolve();
+    await Promise.resolve(pending).catch(() => {});
+    refresh.mockRestore();
+    moving.mockRestore();
+  }
+});
+
+test("targeted metadata keeps authentication, body limits, input and shutdown guards", async () => {
+  const { bot, request, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("metadata-guards");
+  const path = "/v1/threads/" + id + "/metadata";
+  const metadata = vi.spyOn(bot.core, "threadMetadata");
+  try {
+    expect((await bot.app.request(path, { method: "POST", body: "{}" })).status).toBe(401);
+    expect(
+      (
+        await bot.app.request(path, {
+          method: "POST",
+          headers: {
+            authorization: "Bearer " + config.adminToken,
+            "content-length": String(48 * 1024 * 1024 + 1),
+          },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(413);
+    expect(metadata).not.toHaveBeenCalled();
+    expect((await request(path, { action: "rename" })).status).toBe(400);
+    await bot.close();
+    metadata.mockClear();
+    expect((await request(path, { action: "delete" })).status).toBe(503);
+    expect(metadata).not.toHaveBeenCalled();
+  } finally {
+    metadata.mockRestore();
+  }
+});
+
 test("ordinary messages and cached receipts do not discover unrelated projects", async () => {
   const { bot, provider, request, create, config } = await fixture();
   await bot.core.stopScheduler();
