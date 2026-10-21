@@ -83,9 +83,20 @@ export function createDesktopWindows(
       return { action: "deny" };
     });
     currentWindow.webContents.on("will-navigate", (event, url) => {
-      const allowed = devUrl
-        ? new URL(url).origin === new URL(devUrl).origin
-        : new URL(url).pathname === new URL(renderTarget).pathname;
+      let allowed = false;
+      try {
+        const destination = new URL(url);
+        const renderer = new URL(renderTarget);
+        // A matching pathname on a remote URL is not the trusted preload-bearing document.
+        // Query and hash may change for thread windows without changing that document.
+        allowed = devUrl
+          ? destination.origin === renderer.origin
+          : destination.protocol === renderer.protocol &&
+            destination.host === renderer.host &&
+            destination.pathname === renderer.pathname;
+      } catch {
+        // Malformed navigation targets are untrusted too.
+      }
       if (!allowed) event.preventDefault();
     });
     // 监听退出一个窗口时执行 ObservationService.subscribe 退订事件流
