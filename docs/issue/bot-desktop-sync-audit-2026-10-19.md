@@ -86,7 +86,7 @@ POST /v1/threads/:id/messages
 
 建议：创建时一次提交最终配置，删除成功创建后的重复配置；目录刷新退出关键发送路径。在准备、创建和待接收阶段明确显示状态；创建后尽早绑定实际 thread identity，并按阶段提供真实取消语义。
 
-### BDS-06 / P2：普通发送前，服务端重复构造 3 次完整会话快照（部分解决：快照与扫描内部优化已合并；普通消息目标核对 [#294](https://github.com/Lingwcy/eta/pull/294) 已合并；单会话读取 [#306](https://github.com/Lingwcy/eta/pull/306) 已合并；普通元数据操作目标核对已修复待合并）
+### BDS-06 / P2：普通发送前，服务端重复构造 3 次完整会话快照（部分解决：快照与扫描内部优化已合并；普通消息目标核对 [#294](https://github.com/Lingwcy/eta/pull/294) 已合并；单会话读取 [#306](https://github.com/Lingwcy/eta/pull/306) 已合并；普通元数据操作 [#323](https://github.com/Lingwcy/eta/pull/323) 已合并；子智能体命令目标核对已修复待合并）
 
 修复：Core 公开已有 `ThreadService.get` 的轻量元数据读取；Controller 的 HTTP、直接发送、停止、子智能体与调度鉴权使用该读取，不再为鉴权打开运行时 / 投影历史。准入前仍重新核对工作区归属；真正 GET 会话时仍构造一次完整快照。真实 HTTP 回归确认 admission 前 openThread 从 3 次降至 0，幂等重放不打开历史，越权请求在读取历史前拒绝；收据查询期间撤销工作区后不能继续准入。8 项新增回归通过，其中 7 项在旧实现下失败。原过期清理测试改为在真实 authorize 边界持有控制门，不再依赖第 2 次完整快照。该快照修复没有修改目录扫描频率，也没有生产规模耗时基准；不声称整条发送路径已完成性能优化。
 
@@ -114,9 +114,13 @@ HTTP messages 路由 authorize 一次，Controller.submit authorize 一次，cla
 
 4 个真实 HTTP 控制在修改前均因读取时登记无关新目录而失败，修复后普通 history / operation / SSE / HEAD 均只读取目标，下一次 library 仍正常发现目录；另有 4 个原可读路径 / SSE 重连在 checkout 越界后，于 openThread / operation / subscribe 之前拒绝，以及认证 / shutdown 控制。定向验证结果见 PR。元数据遍历、已有扫描等待、其他写入和目录路径的扫描开销仍保留，未声称整个 BDS-06 已完成或有生产延迟收益；已连接 SSE 的权限撤销策略不在本次变更内。
 
-会话元数据扫描后续（已修复，待本 PR 合并）：rename、archive / restore 和 delete 现在每次实时核验源会话归属，不再顺带发现全部项目；保持 Core 的标题持久化、Busy、调度协调与删除清理语义。move 修改的是显示项目分组，仍完整刷新目的地范围，并在刷新之后再次核验源归属，才执行原目标项目可见性检查与移动。全局认证、shutdown、48 MiB 限制和响应压缩仍在路由之前，复杂归属仍回退完整发现，没有跨请求权限缓存。
+会话元数据扫描后续（已解决，[#323](https://github.com/Lingwcy/eta/pull/323) 已合并）：rename、archive / restore 和 delete 现在每次实时核验源会话归属，不再顺带发现全部项目；保持 Core 的标题持久化、Busy、调度协调与删除清理语义。move 修改的是显示项目分组，仍完整刷新目的地范围，并在刷新之后再次核验源归属，才执行原目标项目可见性检查与移动。全局认证、shutdown、48 MiB 限制和响应压缩仍在路由之前，复杂归属仍回退完整发现，没有跨请求权限缓存。
 
 新增 10 项真实 HTTP 控制覆盖三项持久化操作 / 归档恢复、无关目录由下一次 library 发现、源 checkout 越界前置拒绝、已知目的地越界、新目的地 / 清空分组、刷新回复持有期间源被后续真实扫描撤权、入口守卫。三个无关发现控制修改前均失败；临时去掉移动的源二次核验时，受控撤权用例收到 200 而非 403，恢复核验后通过。定向结果随 PR 提供。停止 / 恢复 [#313](https://github.com/Lingwcy/eta/pull/313) 与设置 / 审批 [#317](https://github.com/Lingwcy/eta/pull/317) 也已合并；目录、跨项目移动及剩余作用域路径的扫描优化仍未完成，未提供生产耗时占比。
+
+子智能体命令扫描后续（已修复，待本 PR 合并）：POST subagent 在原全局守卫之后先实时核验所属 thread 的目标工作区，再沿原 Controller / Core 管理子任务，不再为普通直接子目录项目扫描无关目录。parent / path 仅在该 thread 的 Harness 中查找，fork 和 canDelegate 不改变工作区；原 schema、请求身份、写入租约、Busy 与回收流程保持不变。复杂归属仍回退完整发现，没有授权缓存。
+
+新增 8 项真实 HTTP 控制：list 与实际 spawn / 重放 / send 两项在修改前均因登记无关目录而失败；修复后通过公开子路径订阅确认两轮真实回答，重放不增加输入，只有下一次 library 发现新目录。持有 child 模型时另一 thread 同项目写入被 Busy 拒绝，释放租约后相同请求身份可重试；另一 thread 不能通过 parent 读取该 child。另覆盖 list / spawn / send / stop 源 checkout 越界前置拒绝、401 / 413 / 400 / shutdown。定向结果见 PR。压缩 / 技能卸载 [#325](https://github.com/Lingwcy/eta/pull/325) 也已合并；目录、跨项目移动、会话创建等剩余作用域路径仍可能全扫描，未测量生产延迟或将整个 BDS-06 标为完成。
 
 ### BDS-07 / P2：自动恢复后，失败 toast 仍然留在屏幕上（旧通知未关闭已解决，[#210](https://github.com/Lingwcy/eta/pull/210) 已合并）
 
