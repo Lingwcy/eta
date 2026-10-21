@@ -10,7 +10,7 @@ import { adapter, CoreError } from "../errors.ts";
 import { AppPathsService } from "../../platform/app-paths.ts";
 import { RuntimeRegistryService } from "../runtime/index.ts";
 import { WorkspaceService } from "../workspaces/index.ts";
-import { inspectRepository, parseBranches } from "./index.ts";
+import { BRANCH_FORMAT, inspectRepository, parseBranches } from "./index.ts";
 import { GitStoreService } from "./store.ts";
 import type { WorktreeReceipt } from "./store.ts";
 import { WorkspaceAccessService } from "./workspace-access.ts";
@@ -262,16 +262,7 @@ export class WorktreeService extends Context.Service<
         const branches = parseBranches(
           yield* adapter(
             "无法读取分支",
-            () =>
-              git(
-                info.root,
-                [
-                  "for-each-ref",
-                  "--format=%(refname)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)",
-                  "refs/heads",
-                ],
-                "无法读取分支",
-              ),
+            () => git(info.root, ["for-each-ref", BRANCH_FORMAT, "refs/heads"], "无法读取分支"),
             "WorkspaceUnavailable",
           ),
           "",

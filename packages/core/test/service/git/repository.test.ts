@@ -132,6 +132,51 @@ test("remote selection prefers a saved choice, then origin, then the only GitHub
   ).toBeUndefined();
 });
 
+test.skipIf(process.platform === "win32")(
+  "branch listing preserves a linked worktree path containing a newline",
+  async () => {
+    const { directory, root } = await committed();
+    const linked = join(directory, "linked" + String.fromCharCode(10) + "checkout");
+    await git(root, "worktree", "add", "-q", "-b", "feature", linked);
+    const core = await createCore({
+      dataRoot: join(directory, "data"),
+      home: directory,
+      models: createModels(),
+      settings: {
+        read: Effect.succeed({ defaultThinkingLevel: "off" }),
+        subscribe: () => () => {},
+      },
+      environment: { userAgent: "eta-core-test", shutdown: "preserve" },
+    });
+    clients.push(core);
+    const project = await core.registerProject(root);
+    const workspace = (await core.workspaces(project.id))[0]!;
+    const branches = await core.gitBranches(workspace.id);
+    expect(branches.map((branch) => branch.name).sort()).toEqual(["feature", "main"]);
+    expect(branches.find((branch) => branch.name === "feature")).toMatchObject({
+      checkedOutAt: linked,
+      current: false,
+    });
+    // The create path consumes this protocol too: preserve occupancy and don't invent refs.
+    await expect(
+      core.createWorktree({
+        projectId: project.id,
+        baseWorkspaceId: workspace.id,
+        branch: { kind: "existing", name: "main" },
+        requestId: "occupied-main",
+      }),
+    ).rejects.toMatchObject({ code: "Busy" });
+    await expect(
+      core.createWorktree({
+        projectId: project.id,
+        baseWorkspaceId: workspace.id,
+        branch: { kind: "new", name: "checkout" },
+        requestId: "not-a-path-fragment",
+      }),
+    ).resolves.toMatchObject({ status: "ready", branch: "checkout" });
+  },
+);
+
 test("host-side inspection never runs a repository's fsmonitor", async () => {
   const { directory, root } = await committed();
   const marker = join(directory, "fsmonitor-ran");
