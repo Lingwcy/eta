@@ -338,14 +338,14 @@ const styles = StyleSheet.create({
   },
   toolCard: { marginVertical: 1, overflow: "hidden" },
   toolRow: {
-    height: 28,
+    height: 34,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 2,
   },
-  toolSummary: { flex: 1, fontSize: 12, color: colors.muted },
-  toolState: { fontSize: 12, color: colors.muted },
+  toolSummary: { flex: 1, fontSize: 14, color: colors.muted },
+  toolState: { fontSize: 13, color: colors.muted },
   toolScrollContent: {
     padding: 10,
     gap: 8,
