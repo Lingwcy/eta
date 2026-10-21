@@ -1,11 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import {
-  AlertTriangle,
-  CloudOff,
-  MessageSquare,
-  RefreshCw,
-  SlidersHorizontal,
-} from "lucide-react-native";
+import { AlertTriangle, CloudOff, RefreshCw, SlidersHorizontal } from "lucide-react-native";
 import type { ReactNode } from "react";
 import type { BotSnapshot } from "../bot/contracts.ts";
 import { colors } from "../ui.tsx";
@@ -73,9 +67,6 @@ export function ChatEmptyState({
 }) {
   return (
     <View style={styles.empty}>
-      <View style={styles.emptyMark}>
-        <MessageSquare size={22} strokeWidth={1.5} color={colors.muted} />
-      </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyHint}>{hint}</Text>
       {children}
@@ -200,31 +191,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 6,
+    gap: 10,
     paddingBottom: 56,
   },
-  emptyMark: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   emptyTitle: {
-    marginTop: 4,
-    fontSize: 17,
+    maxWidth: 320,
+    textAlign: "center",
+    fontSize: 26,
+    lineHeight: 34,
     fontWeight: "600",
     color: colors.text,
-    letterSpacing: -0.2,
+    letterSpacing: -0.4,
   },
   emptyHint: {
-    maxWidth: 300,
+    maxWidth: 330,
     textAlign: "center",
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 22,
     color: mutedOnCanvas,
   },
   task: {
