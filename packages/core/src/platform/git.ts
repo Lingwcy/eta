@@ -1,8 +1,11 @@
 import { execFile } from "node:child_process";
 
 /**
- * Every host-side Git call goes through here. Repositories may have been edited by sandboxed agents, so
- * configuration that would run code on the host (fsmonitor, hooks, external diff drivers, pagers) is neutralised.
+ * Every host-side Git call goes through here. These overrides disable selected execution vectors
+ * (fsmonitor, hooks, external diff drivers, pagers and credential helpers), not all repository code.
+ * Attribute clean/smudge/process filters are not disabled: status and checkout can still execute
+ * configured filter commands on the host. This wrapper is not a sandbox for untrusted Git config;
+ * see #355 for the reproduced clean/smudge boundary and the unresolved execution policy.
  */
 export const HOST_GIT_CONFIG = [
   "-c",
