@@ -57,6 +57,7 @@ async function fixture(
   empty = false,
   defaultProvider?: string,
   allowedSandboxModes?: BotConfig["allowedSandboxModes"],
+  initialEnvironment?: Partial<CoreEnvironment>,
 ) {
   const root = await mkdtemp(join(tmpdir(), "eta-bot-http-"));
   roots.push(root);
@@ -100,7 +101,7 @@ async function fixture(
     bots.push(bot);
     return bot;
   };
-  const bot = await open();
+  const bot = await open(initialEnvironment);
   const workspace = [...bot.workspaceProjects.keys()][0]!;
   const request = (path: string, body?: object) =>
     bot.app.request(path, {
@@ -931,8 +932,8 @@ test("targeted subagent commands retain authentication, size, input and shutdown
   }
 });
 
-async function workspaceRequestFixture() {
-  const context = await fixture();
+async function workspaceRequestFixture(environment?: Partial<CoreEnvironment>) {
+  const context = await fixture(false, undefined, undefined, environment);
   await context.bot.core.stopScheduler();
   const git = (...args: string[]) =>
     promisify(execFile)(
@@ -1237,6 +1238,367 @@ test("workspace requests preserve guards and reject missing or unknown targets",
     scoped.mockRestore();
     creation.mockRestore();
     removal.mockRestore();
+  }
+});
+
+async function projectRequestFixture() {
+  const requests: string[] = [];
+  const context = await workspaceRequestFixture({
+    github: {
+      async session() {
+        return {
+          key: "project-scope-session",
+          identity: { authenticated: true, login: "scope-user", source: "gh" as const },
+          async request(path: string) {
+            requests.push(path);
+            return {
+              status: 200,
+              headers: {},
+              body: [
+                {
+                  number: 1,
+                  title: "Scoped issue",
+                  state: "open",
+                  user: { login: "scope-user" },
+                  updated_at: "2026-10-21T00:00:00Z",
+                  html_url: "https://github.com/eta-fixture/scoped/issues/1",
+                  labels: [],
+                },
+              ],
+            };
+          },
+        };
+      },
+    },
+  });
+  await context.git("remote", "add", "origin", "https://github.com/eta-fixture/scoped.git");
+  return { ...context, requests, projectId: context.bot.workspaceProjects.get(context.workspace)! };
+}
+
+test.each(["identity", "query", "remote", "worktrees", "reconcile", "create"] as const)(
+  "project %s requests do not discover unrelated projects before Core work",
+  async (kind) => {
+    const { bot, request, config, workspace, projectId, requests } = await projectRequestFixture();
+    await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+    const events: string[] = [];
+    const register = bot.core.registerProject;
+    const identity = bot.core.githubIdentity;
+    const query = bot.core.githubQuery;
+    const remote = bot.core.selectGitHubRemote;
+    const list = bot.core.listWorktrees;
+    const reconcile = bot.core.reconcileWorktrees;
+    const create = bot.core.createWorktree;
+    const spies = [
+      vi.spyOn(bot.core, "registerProject").mockImplementation((...args) => {
+        events.push("discover");
+        return register(...args);
+      }),
+      vi.spyOn(bot.core, "githubIdentity").mockImplementation((...args) => {
+        events.push("identity");
+        return identity(...args);
+      }),
+      vi.spyOn(bot.core, "githubQuery").mockImplementation((...args) => {
+        events.push("query");
+        return query(...args);
+      }),
+      vi.spyOn(bot.core, "selectGitHubRemote").mockImplementation((...args) => {
+        events.push("remote");
+        return remote(...args);
+      }),
+      vi.spyOn(bot.core, "listWorktrees").mockImplementation((...args) => {
+        events.push("worktrees");
+        return list(...args);
+      }),
+      vi.spyOn(bot.core, "reconcileWorktrees").mockImplementation((...args) => {
+        events.push("reconcile");
+        return reconcile(...args);
+      }),
+      vi.spyOn(bot.core, "createWorktree").mockImplementation((...args) => {
+        events.push("create");
+        return create(...args);
+      }),
+    ];
+    const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+    try {
+      const base = "/v1/projects/" + projectId;
+      const response =
+        kind === "identity"
+          ? await request(base + "/github/identity")
+          : kind === "query"
+            ? await request(base + "/github", { kind: "issues", state: "open" })
+            : kind === "remote"
+              ? await request(base + "/github-remote", {
+                  remoteName: "origin",
+                  requestId: "select",
+                })
+              : kind === "worktrees"
+                ? await request(base + "/worktrees")
+                : kind === "reconcile"
+                  ? await request(base + "/worktrees/reconcile", {})
+                  : await request(base + "/worktrees", {
+                      baseWorkspaceId: workspace,
+                      branch: { kind: "new", name: "eta/project-scope" },
+                      requestId: "project-worktree",
+                    });
+      expect(response.status).toBe(kind === "create" ? 201 : 200);
+      const value = await response.json();
+      if (kind === "identity")
+        expect(value).toMatchObject({ authenticated: true, login: "scope-user", source: "gh" });
+      else if (kind === "query") {
+        expect(value).toMatchObject({
+          status: "ready",
+          repository: { projectId, owner: "eta-fixture", repo: "scoped" },
+          items: [expect.objectContaining({ title: "Scoped issue" })],
+        });
+        expect(requests[0]).toContain("repos/eta-fixture/scoped/issues");
+      } else if (kind === "remote")
+        expect(value).toMatchObject({
+          status: "ready",
+          github: { selection: { remote: "origin", reason: "saved" } },
+        });
+      else if (kind === "create")
+        expect(value).toMatchObject({
+          projectId,
+          status: "ready",
+          branch: "eta/project-scope",
+          workspaceId: expect.any(String),
+        });
+      else expect(value).toEqual([]);
+      expect(events[0]).toBe(kind);
+      const publishesDirectory = kind === "create" || kind === "reconcile";
+      expect(refresh).toHaveBeenCalledTimes(publishesDirectory ? 1 : 0);
+      expect(spies[0]).toHaveBeenCalledTimes(publishesDirectory ? 1 : 0);
+      expect(await bot.core.projects()).toHaveLength(publishesDirectory ? 2 : 1);
+      if (publishesDirectory) expect(events).toEqual([kind, "discover"]);
+      expect((await request("/v1/library")).status).toBe(200);
+      expect(await bot.core.projects()).toHaveLength(2);
+      expect(spies[0]).toHaveBeenCalledTimes(1);
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+      refresh.mockRestore();
+    }
+  },
+);
+
+test.each(["identity", "query", "remote", "worktrees", "reconcile", "create"] as const)(
+  "project %s rejects an escaped root despite an old inside-worktree grant",
+  async (kind) => {
+    const { bot, request, config, cwd, workspace, projectId } = await projectRequestFixture();
+    const worktree = await bot.core.createWorktree({
+      projectId,
+      baseWorkspaceId: workspace,
+      branch: { kind: "new", name: "eta/inside-worktree" },
+      requestId: "inside",
+    });
+    expect((await request("/v1/workspaces/" + worktree.workspaceId! + "/git")).status).toBe(200);
+    const outside = join(config.dataRoot, "project-outside");
+    await rename(cwd, outside);
+    await symlink(outside, cwd, "dir");
+    expect(await readFile(join(worktree.path, "README.md"), "utf8")).toContain(
+      "Workspace scope fixture",
+    );
+    expect(bot.workspaceProjects.get(worktree.workspaceId!)).toBe(projectId);
+    const spies = [
+      vi.spyOn(bot.core, "githubIdentity"),
+      vi.spyOn(bot.core, "githubQuery"),
+      vi.spyOn(bot.core, "selectGitHubRemote"),
+      vi.spyOn(bot.core, "listWorktrees"),
+      vi.spyOn(bot.core, "reconcileWorktrees"),
+      vi.spyOn(bot.core, "createWorktree"),
+    ];
+    try {
+      const base = "/v1/projects/" + projectId;
+      const response =
+        kind === "identity"
+          ? await request(base + "/github/identity")
+          : kind === "query"
+            ? await request(base + "/github", { kind: "issues", state: "open" })
+            : kind === "remote"
+              ? await request(base + "/github-remote", {
+                  remoteName: "origin",
+                  requestId: "denied",
+                })
+              : kind === "worktrees"
+                ? await request(base + "/worktrees")
+                : kind === "reconcile"
+                  ? await request(base + "/worktrees/reconcile", {})
+                  : await request(base + "/worktrees", {
+                      baseWorkspaceId: workspace,
+                      branch: { kind: "new", name: "eta/denied" },
+                      requestId: "denied",
+                    });
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ error: { code: "ProjectUnavailable" } });
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  },
+);
+
+test("project worktree creation rechecks an escaped base before replaying a cached receipt", async () => {
+  const { bot, request, config, workspace, projectId } = await projectRequestFixture();
+  const source = await bot.core.createWorktree({
+    projectId,
+    baseWorkspaceId: workspace,
+    branch: { kind: "new", name: "eta/source" },
+    requestId: "source",
+  });
+  expect((await request("/v1/workspaces/" + source.workspaceId! + "/git")).status).toBe(200);
+  const path = "/v1/projects/" + projectId + "/worktrees";
+  const body = {
+    baseWorkspaceId: source.workspaceId!,
+    branch: { kind: "new", name: "eta/derived" },
+    requestId: "derived",
+  };
+  const first = await request(path, body);
+  expect(first.status).toBe(201);
+  expect(await first.json()).toMatchObject({ status: "ready", branch: "eta/derived" });
+  const outside = join(config.dataRoot, "source-outside");
+  await rename(source.path, outside);
+  await symlink(outside, source.path, "dir");
+  expect(bot.workspaceProjects.get(workspace)).toBe(projectId);
+  expect(bot.workspaceProjects.get(source.workspaceId!)).toBe(projectId);
+  const creation = vi.spyOn(bot.core, "createWorktree");
+  try {
+    expect((await request(path, body)).status).toBe(403);
+    expect(
+      (
+        await request(path, {
+          ...body,
+          branch: { kind: "new", name: "eta/another" },
+          requestId: "another",
+        })
+      ).status,
+    ).toBe(403);
+    expect(creation).not.toHaveBeenCalled();
+    expect(bot.workspaceProjects.has(source.workspaceId!)).toBe(false);
+  } finally {
+    creation.mockRestore();
+  }
+});
+
+test("project worktree creation keeps Core's different-project base rejection", async () => {
+  const { bot, request, config, projectId } = await projectRequestFixture();
+  const other = join(config.workspaceRoot, "other-project");
+  await mkdir(other);
+  const project = await bot.core.registerProject(other);
+  const [workspace] = await bot.core.workspaces(project.id);
+  const response = await request("/v1/projects/" + projectId + "/worktrees", {
+    baseWorkspaceId: workspace!.id,
+    branch: { kind: "new", name: "eta/foreign" },
+    requestId: "foreign",
+  });
+  expect(response.status).toBe(400);
+  expect(await response.json()).toMatchObject({ error: { code: "InvalidInput" } });
+  expect(await bot.core.listWorktrees(projectId)).toEqual([]);
+});
+
+test.each(["missing", "multiple"] as const)(
+  "project scope falls back to discovery with %s root metadata",
+  async (shape) => {
+    const { bot, request, config, workspace, projectId } = await projectRequestFixture();
+    await bot.core.createWorktree({
+      projectId,
+      baseWorkspaceId: workspace,
+      branch: { kind: "new", name: "eta/fallback" },
+      requestId: "fallback",
+    });
+    await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+    const list = bot.core.workspaces;
+    const metadata = vi.spyOn(bot.core, "workspaces").mockImplementation(async (...args) => {
+      const values = await list(...args);
+      const root = values.find(
+        (value) => value.projectId === projectId && value.kind === "project-root",
+      );
+      if (!root) return values;
+      return shape === "missing"
+        ? values.filter((value) => value.id !== root.id)
+        : [...values, { ...root, id: "extra-root" }];
+    });
+    const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+    const registration = vi.spyOn(bot.core, "registerProject");
+    try {
+      const response = await request("/v1/projects/" + projectId + "/github/identity");
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ authenticated: true, login: "scope-user" });
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(registration).toHaveBeenCalledTimes(1);
+      expect([...bot.workspaceProjects.values()]).toContain(projectId);
+    } finally {
+      metadata.mockRestore();
+      refresh.mockRestore();
+      registration.mockRestore();
+    }
+  },
+);
+
+test("project identity follows visible aliases and rejects them after revocation", async () => {
+  const { bot, request, config } = await projectRequestFixture();
+  const hidden = join(config.workspaceRoot, ".hidden-project");
+  await mkdir(hidden);
+  const project = await bot.core.registerProject(hidden);
+  const alias = join(config.workspaceRoot, "visible-project");
+  await symlink(hidden, alias, "dir");
+  const path = "/v1/projects/" + project.id + "/github/identity";
+  expect((await request(path)).status).toBe(200);
+  await rm(alias);
+  const identity = vi.spyOn(bot.core, "githubIdentity");
+  try {
+    expect((await request(path)).status).toBe(403);
+    expect(identity).not.toHaveBeenCalled();
+  } finally {
+    identity.mockRestore();
+  }
+});
+
+test("project-scoped routes retain global guards and reject unknown projects", async () => {
+  const { bot, request, config, projectId, requests } = await projectRequestFixture();
+  const base = "/v1/projects/" + projectId;
+  const reads = [base + "/github/identity", base + "/worktrees"];
+  const writes = [
+    base + "/github",
+    base + "/github-remote",
+    base + "/worktrees/reconcile",
+    base + "/worktrees",
+  ];
+  const metadata = vi.spyOn(bot.core, "workspaces");
+  try {
+    for (const path of reads) expect((await bot.app.request(path)).status).toBe(401);
+    for (const path of writes) {
+      expect((await bot.app.request(path, { method: "POST", body: "{}" })).status).toBe(401);
+      expect(
+        (
+          await bot.app.request(path, {
+            method: "POST",
+            headers: {
+              authorization: "Bearer " + config.adminToken,
+              "content-length": String(48 * 1024 * 1024 + 1),
+            },
+            body: "{}",
+          })
+        ).status,
+      ).toBe(413);
+    }
+    expect(metadata).not.toHaveBeenCalled();
+    expect(
+      (await request(base + "/github", { kind: "issues", state: "open", owner: "caller-supplied" }))
+        .status,
+    ).toBe(400);
+    expect((await request(base + "/github-remote", { remoteName: 123 })).status).toBe(400);
+    expect((await request(base + "/worktrees", {})).status).toBe(400);
+    for (const suffix of ["github/identity", "worktrees"])
+      expect((await request("/v1/projects/unknown/" + suffix)).status).toBe(403);
+    for (const suffix of ["github", "github-remote", "worktrees/reconcile", "worktrees"])
+      expect((await request("/v1/projects/unknown/" + suffix, {})).status).toBe(403);
+    expect(requests).toEqual([]);
+    await bot.close();
+    metadata.mockClear();
+    for (const path of reads) expect((await request(path)).status).toBe(503);
+    for (const path of writes) expect((await request(path, {})).status).toBe(503);
+    expect(metadata).not.toHaveBeenCalled();
+  } finally {
+    metadata.mockRestore();
   }
 });
 
