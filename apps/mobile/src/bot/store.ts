@@ -1,18 +1,25 @@
 import { z } from "zod";
 import { BotClient, BotError } from "./client.ts";
-import { ConfigurationSchema, LibrarySchema } from "./contracts.ts";
+import { ConfigurationSchema, ImageAttachmentSchema, LibrarySchema } from "./contracts.ts";
 import type {
   BotLibrary,
   Configuration,
+  ImageAttachment,
   Connection,
   OpenThread,
   SnapshotResponse,
 } from "./contracts.ts";
 
+const DraftImageSchema = ImageAttachmentSchema.extend({ id: z.string() });
+export type DraftImage = z.infer<typeof DraftImageSchema>;
+export const MAX_DRAFT_IMAGES = 4;
+export const MAX_IMAGE_BASE64_LENGTH = 32 * 1024 * 1024;
+
 const PendingSchema = z.object({
   workspaceId: z.string(),
   threadId: z.string().optional(),
   prompt: z.string(),
+  images: z.array(DraftImageSchema).optional(),
   createId: z.string(),
   messageId: z.string(),
   configuration: ConfigurationSchema,
@@ -22,6 +29,7 @@ export const CacheSchema = z.object({
   workspaceId: z.string().optional(),
   threadId: z.string().optional(),
   drafts: z.record(z.string(), z.string()).default({}),
+  draftImages: z.record(z.string(), z.array(DraftImageSchema)).optional(),
   pending: PendingSchema.optional(),
   lastConfiguration: ConfigurationSchema.optional(),
 });
@@ -43,6 +51,7 @@ export interface MobileState {
   thread?: OpenThread;
   configuration?: Configuration;
   drafts: Record<string, string>;
+  draftImages: Record<string, DraftImage[]>;
   pending?: z.infer<typeof PendingSchema>;
   sending: boolean;
   opening: boolean;
@@ -77,6 +86,7 @@ export class MobileStore {
   private state: MobileState = {
     status: "loading",
     drafts: {},
+    draftImages: {},
     sending: false,
     opening: false,
     foreground: true,
@@ -86,6 +96,7 @@ export class MobileStore {
   private epoch = 0;
   private connectionAttempt = 0;
   private view = 0;
+  private draftIntent = 0;
   private observer?: AbortController;
   private opener?: AbortController;
   private timer?: ReturnType<typeof setInterval>;
@@ -130,6 +141,7 @@ export class MobileStore {
       workspaceId: this.state.workspaceId,
       threadId: this.state.threadId,
       drafts: this.state.drafts,
+      draftImages: this.state.draftImages,
       pending: this.state.pending,
       lastConfiguration: this.state.configuration,
     };
@@ -254,6 +266,7 @@ export class MobileStore {
   async connect(connection: Connection) {
     if (this.state.sending) throw new Error("请等待当前消息提交完成");
     const candidate = this.makeClient(connection);
+    ++this.draftIntent;
     // The old cache flush precedes the new epoch; preserve the latest call's intent.
     const attempt = ++this.connectionAttempt;
     await this.persist();
@@ -280,6 +293,7 @@ export class MobileStore {
         error: undefined,
         library,
         drafts: cache?.drafts ?? {},
+        draftImages: cache?.draftImages ?? {},
         pending: cache?.pending,
         workspaceId: library.workspaces.some((value) => value.id === cache?.workspaceId)
           ? cache?.workspaceId
@@ -313,6 +327,7 @@ export class MobileStore {
     }
   }
   async disconnect(forget = false) {
+    ++this.draftIntent;
     ++this.connectionAttempt;
     if (!forget) await this.persist();
     ++this.epoch;
@@ -330,6 +345,7 @@ export class MobileStore {
       error: undefined,
       pending: undefined,
       drafts: {},
+      draftImages: {},
       sending: false,
       opening: false,
     });
@@ -344,7 +360,7 @@ export class MobileStore {
     await this.refresh();
     if (epoch !== this.epoch) return;
     if (this.state.status === "connected" && this.state.threadId && !this.state.sending)
-      await this.open(this.state.threadId);
+      await this.loadThread(this.state.threadId);
     if (epoch !== this.epoch) return;
     this.poll();
   }
@@ -360,8 +376,11 @@ export class MobileStore {
       if (this.state.threadId && !selected && !this.state.pending) {
         this.observer?.abort();
         ++this.view;
+        ++this.draftIntent;
         this.update({ threadId: undefined, thread: undefined });
       }
+      if (!library.workspaces.some((workspace) => workspace.id === this.state.workspaceId))
+        ++this.draftIntent;
       this.update({
         library,
         status: "connected",
@@ -384,6 +403,11 @@ export class MobileStore {
     }
   }
   async open(id: string) {
+    if (this.state.sending) throw new Error("请等待当前消息提交完成");
+    ++this.draftIntent;
+    return this.loadThread(id);
+  }
+  private async loadThread(id: string) {
     if (this.state.sending) throw new Error("请等待当前消息提交完成");
     const client = this.requireClient();
     this.observer?.abort();
@@ -429,6 +453,7 @@ export class MobileStore {
   }
   newThread(workspaceId = this.state.workspaceId) {
     if (this.state.sending) throw new Error("请等待当前消息提交完成");
+    ++this.draftIntent;
     this.observer?.abort();
     this.opener?.abort();
     ++this.view;
@@ -448,6 +473,53 @@ export class MobileStore {
     this.update({ drafts: { ...this.state.drafts, [draftKey(this.state)]: value } });
     this.saveLater();
   }
+  /** Native pickers suspend observation; only an explicit draft change cancels their result. */
+  captureImageDraft() {
+    const intent = this.draftIntent;
+    const key = draftKey(this.state);
+    const isCurrent = () =>
+      intent === this.draftIntent &&
+      key === draftKey(this.state) &&
+      !this.state.pending &&
+      !this.state.sending;
+    return {
+      isCurrent,
+      add: (images: readonly ImageAttachment[]) => {
+        if (isCurrent()) this.addImages(images);
+      },
+    };
+  }
+  addImages(images: readonly ImageAttachment[]) {
+    if (this.state.pending || this.state.sending || !images.length) return;
+    const key = draftKey(this.state);
+    const current = this.state.draftImages[key] ?? [];
+    const added = images.map((image) => ImageAttachmentSchema.parse(image));
+    if (current.length + added.length > MAX_DRAFT_IMAGES)
+      throw new Error("最多添加 4 张图片，请先移除部分图片");
+    if (
+      [...current, ...added].reduce((total, image) => total + image.data.length, 0) >
+      MAX_IMAGE_BASE64_LENGTH
+    )
+      throw new Error("图片总大小不能超过 24 MiB，请压缩图片或移除部分图片");
+    this.update({
+      draftImages: {
+        ...this.state.draftImages,
+        [key]: [...current, ...added.map((image) => ({ ...image, id: this.uuid() }))],
+      },
+    });
+    this.saveLater();
+  }
+  removeImage(id: string) {
+    if (this.state.pending || this.state.sending) return;
+    const key = draftKey(this.state);
+    this.update({
+      draftImages: {
+        ...this.state.draftImages,
+        [key]: (this.state.draftImages[key] ?? []).filter((image) => image.id !== id),
+      },
+    });
+    this.saveLater();
+  }
   private requireClient() {
     if (!this.client || this.state.status !== "connected") throw new Error("请先连接 Bot");
     return this.client;
@@ -457,7 +529,8 @@ export class MobileStore {
     this.requireClient();
     if (this.state.pending) throw new Error("请先确认上一次消息的接收状态");
     const prompt = this.state.drafts[draftKey(this.state)] ?? "";
-    if (!prompt.trim()) return;
+    const images = this.state.draftImages[draftKey(this.state)] ?? [];
+    if (!prompt.trim() && !images.length) return;
     if (!this.state.workspaceId || !this.state.configuration) throw new Error("请先选择项目和模型");
     if (this.state.threadId && !this.state.thread) throw new Error("请先等待会话加载完成");
     if (this.state.thread?.thread.archivedAt) throw new Error("请先取消归档再发送消息");
@@ -468,9 +541,11 @@ export class MobileStore {
       this.state.thread?.snapshot.faulted
     )
       throw new Error(this.state.thread.snapshot.blockedReason ?? "请先恢复当前任务");
+    ++this.draftIntent;
     this.update({
       pending: {
         prompt,
+        ...(images.length ? { images } : {}),
         workspaceId: this.state.workspaceId,
         threadId: this.state.threadId,
         configuration: this.state.configuration,
@@ -504,7 +579,12 @@ export class MobileStore {
           drafts[`thread:${thread.id}`] = pending.prompt;
           delete drafts[key];
         }
-        this.update({ pending, drafts });
+        const draftImages = { ...this.state.draftImages };
+        if (draftImages[key]) {
+          draftImages["thread:" + thread.id] = draftImages[key];
+          delete draftImages[key];
+        }
+        this.update({ pending, drafts, draftImages });
         this.useThread(thread);
         if (this.state.library)
           this.update({
@@ -520,15 +600,24 @@ export class MobileStore {
         if (epoch !== this.epoch) return;
         this.watch();
       }
-      await client.send(pending.threadId!, pending.prompt, pending.messageId);
+      await client.send(pending.threadId!, pending.prompt, pending.messageId, pending.images);
       if (epoch !== this.epoch) return;
       const key = `thread:${pending.threadId}`;
       const originalKey =
         this.state.drafts[key] === pending.prompt ? key : `workspace:${pending.workspaceId}`;
       const drafts = { ...this.state.drafts };
       if (drafts[originalKey] === pending.prompt) delete drafts[originalKey];
+      const draftImages = { ...this.state.draftImages };
+      const sentIds = new Set(pending.images?.map((image) => image.id));
+      for (const imageKey of [key, "workspace:" + pending.workspaceId]) {
+        if (draftImages[imageKey]) {
+          draftImages[imageKey] = draftImages[imageKey].filter((image) => !sentIds.has(image.id));
+          if (!draftImages[imageKey].length) delete draftImages[imageKey];
+        }
+      }
       this.update({
         pending: undefined,
+        draftImages,
         drafts,
         sending: false,
       });
@@ -639,6 +728,7 @@ export class MobileStore {
     }
   }
   dispose() {
+    ++this.draftIntent;
     ++this.connectionAttempt;
     this.stopObservation();
     ++this.epoch;
