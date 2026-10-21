@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "600",
     color: colors.muted,
     letterSpacing: 0.3,
@@ -598,12 +598,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.softHover,
   },
   sectionActionText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "500",
     color: colors.muted,
   },
   projectRow: {
-    height: 34,
+    height: 44,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
   },
   projectTitle: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 15,
     color: "#3F3F3E",
   },
   projectTitleSelected: {
@@ -633,7 +633,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   threadRow: {
-    height: 36,
+    height: 44,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 6,
@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   threadTitle: {
-    fontSize: 13,
+    fontSize: 15,
     color: "#3F3F3E",
   },
   threadTitleSelected: {
