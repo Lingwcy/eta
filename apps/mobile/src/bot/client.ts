@@ -10,7 +10,7 @@ import {
   SnapshotResponseSchema,
   ThreadSchema,
 } from "./contracts.ts";
-import type { Configuration, Connection } from "./contracts.ts";
+import type { Configuration, Connection, ImageAttachment } from "./contracts.ts";
 import { delay, readEvents } from "./stream.ts";
 
 export class BotError extends Error {
@@ -132,8 +132,22 @@ export class BotClient {
   create(workspaceId: string, requestId: string, configuration: Configuration) {
     return this.request("/v1/threads", OpenThreadSchema, { workspaceId, requestId, configuration });
   }
-  send(id: string, prompt: string, requestId: string) {
-    return this.request(this.route(id) + "/messages", AdmissionSchema, { prompt, requestId });
+  send(id: string, prompt: string, requestId: string, images?: readonly ImageAttachment[]) {
+    return this.request(this.route(id) + "/messages", AdmissionSchema, {
+      prompt,
+      requestId,
+      ...(images?.length
+        ? {
+            images: images.map(({ type, data, mimeType, name, note }) => ({
+              type,
+              data,
+              mimeType,
+              name,
+              note,
+            })),
+          }
+        : {}),
+    });
   }
   operation(id: string, operationId: string) {
     return this.request(

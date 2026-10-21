@@ -151,12 +151,14 @@ export function ErrorStrip({ message }: { message: string }) {
 export function PendingNotice({
   sending,
   prompt,
+  imageCount = 0,
   busy,
   connected,
   onRetry,
 }: {
   sending: boolean;
   prompt: string;
+  imageCount?: number;
   busy: boolean;
   connected: boolean;
   onRetry: () => void;
@@ -169,7 +171,7 @@ export function PendingNotice({
           {sending ? "正在提交消息…" : "上次消息的接收状态待确认"}
         </Text>
         <Text numberOfLines={1} style={styles.pendingDetail}>
-          {prompt}
+          {[prompt, imageCount ? `${imageCount} 张图片` : ""].filter(Boolean).join(" · ")}
         </Text>
       </View>
       {!sending && (

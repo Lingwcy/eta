@@ -1,6 +1,15 @@
 import { z } from "zod";
 
 // These schemas describe the consumed /v1 JSON fields, not the Bot's runtime objects.
+export const ImageAttachmentSchema = z.object({
+  type: z.literal("image"),
+  data: z.string().min(1),
+  mimeType: z.string().min(1),
+  name: z.string().optional(),
+  note: z.string().optional(),
+});
+export type ImageAttachment = z.infer<typeof ImageAttachmentSchema>;
+
 export const ThinkingLevelSchema = z.enum([
   "off",
   "minimal",

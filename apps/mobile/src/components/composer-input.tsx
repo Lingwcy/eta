@@ -1,5 +1,7 @@
 import { useState } from "react";
 import {
+  Image,
+  ScrollView,
   Platform,
   Pressable,
   StyleSheet,
@@ -8,13 +10,18 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { ArrowUp, ChevronDown, Cpu, Shield, Square } from "lucide-react-native";
+import { ArrowUp, ChevronDown, Cpu, ImagePlus, Shield, Square, X } from "lucide-react-native";
 import { colors } from "../ui.tsx";
+import type { DraftImage } from "../bot/store.ts";
 
 /** Chip labels sit on the soft grey chip background; muted drops them to 4.35:1 there. */
 const chipText = "#525252";
 
 export interface ComposerInputProps {
+  images?: readonly DraftImage[];
+  onAddImages?: () => void;
+  onRemoveImage?: (id: string) => void;
+  pickingImages?: boolean;
   value: string;
   onChangeText: (text: string) => void;
   onSubmit: () => void;
@@ -40,6 +47,10 @@ function formatTokens(tokens: number): string {
 }
 
 export function ComposerInput({
+  images = [],
+  onAddImages,
+  onRemoveImage,
+  pickingImages = false,
   value,
   onChangeText,
   onSubmit,
@@ -65,6 +76,29 @@ export function ComposerInput({
 
   return (
     <View style={styles.container}>
+      {!!images.length && (
+        <ScrollView horizontal contentContainerStyle={styles.attachments}>
+          {images.map((image, index) => (
+            <View key={image.id} style={styles.attachment}>
+              <Image
+                accessibilityLabel={image.name ?? "图片 " + (index + 1)}
+                source={{ uri: "data:" + image.mimeType + ";base64," + image.data }}
+                style={styles.preview}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={"移除图片 " + (index + 1)}
+                disabled={disabled}
+                onPress={() => onRemoveImage?.(image.id)}
+                style={styles.removeImage}
+                hitSlop={6}
+              >
+                <X size={14} color={colors.text} />
+              </Pressable>
+            </View>
+          ))}
+        </ScrollView>
+      )}
       <TextInput
         accessibilityLabel="消息输入框"
         value={value}
@@ -81,6 +115,22 @@ export function ComposerInput({
       />
       <View style={styles.toolbar}>
         <View style={styles.toolbarLeft}>
+          {onAddImages && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={pickingImages ? "正在读取图片" : "添加图片"}
+              disabled={disabled || pickingImages || images.length >= 4}
+              onPress={onAddImages}
+              hitSlop={6}
+              style={({ pressed }) => [
+                styles.imageButton,
+                pressed && styles.chipPressed,
+                (disabled || pickingImages || images.length >= 4) && styles.buttonDisabled,
+              ]}
+            >
+              <ImagePlus size={18} color={colors.muted} />
+            </Pressable>
+          )}
           {!!sandboxMode && !!sandboxModeLabel && (
             <Pressable
               accessibilityRole="button"
@@ -165,6 +215,23 @@ export function ComposerInput({
 }
 
 const styles = StyleSheet.create({
+  attachments: { gap: 10, paddingVertical: 6, paddingHorizontal: 6 },
+  attachment: { width: 64, height: 64 },
+  preview: { width: 64, height: 64, borderRadius: 10 },
+  removeImage: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  imageButton: { width: 28, minHeight: 32, alignItems: "center", justifyContent: "center" },
   container: {
     backgroundColor: colors.surface,
     borderRadius: 24,

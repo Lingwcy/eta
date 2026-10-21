@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { pickedImage } from "../images.ts";
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -36,6 +38,44 @@ export function ChatScreen() {
   const [sidebar, setSidebar] = useState(false);
   const [configuration, setConfiguration] = useState(false);
   const [away, setAway] = useState(false);
+  const [pickingImages, setPickingImages] = useState(false);
+  const [imageError, setImageError] = useState<string>();
+  const mounted = useRef(true);
+  const pickerBusy = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    setImageError(undefined);
+  }, [state.url, state.threadId, state.workspaceId]);
+  const selectImages = async () => {
+    if (pickerBusy.current) return;
+    const owner = store.captureImageDraft();
+    pickerBusy.current = true;
+    setPickingImages(true);
+    setImageError(undefined);
+    try {
+      // The system photo picker grants access only to selected photos; no broad library permission.
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: 4,
+        base64: true,
+        quality: 0.8,
+      });
+      if (!mounted.current || !owner.isCurrent() || result.canceled) return;
+      owner.add(result.assets.map(pickedImage));
+    } catch (error) {
+      if (mounted.current && owner.isCurrent())
+        setImageError(error instanceof Error ? error.message : "无法选择图片，请重试");
+    } finally {
+      pickerBusy.current = false;
+      if (mounted.current) setPickingImages(false);
+    }
+  };
   const { busy, run } = useAction();
 
   const atBottom = useRef(true);
@@ -50,6 +90,7 @@ export function ChatScreen() {
       value.id === state.configuration?.modelId && value.provider === state.configuration?.provider,
   );
   const draft = state.drafts[draftKey(state)] ?? "";
+  const images = state.draftImages[draftKey(state)] ?? [];
   const connected = state.status === "connected";
   const running = !!snapshot?.operation;
   const allowed = connected && !busy && !state.sending && !state.opening;
@@ -243,6 +284,7 @@ export function ChatScreen() {
           <PendingNotice
             sending={state.sending}
             prompt={state.pending.prompt}
+            imageCount={state.pending.images?.length}
             busy={busy}
             connected={connected}
             onRetry={() => {
@@ -251,7 +293,14 @@ export function ChatScreen() {
           />
         )}
         <View style={styles.composerArea}>
+          {imageError && <ErrorStrip message={imageError} />}
           <ComposerInput
+            images={images}
+            onAddImages={() => {
+              void selectImages();
+            }}
+            onRemoveImage={(id) => store.removeImage(id)}
+            pickingImages={pickingImages}
             value={draft}
             onChangeText={(value) => store.setDraft(value)}
             onSubmit={() => {
@@ -266,7 +315,8 @@ export function ChatScreen() {
             canSend={
               allowed &&
               !state.pending &&
-              Boolean(draft.trim()) &&
+              !pickingImages &&
+              Boolean(draft.trim() || images.length) &&
               Boolean(workspace) &&
               Boolean(model) &&
               !state.thread?.thread.archivedAt &&
