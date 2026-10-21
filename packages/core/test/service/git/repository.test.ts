@@ -196,6 +196,43 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test("real branches ending in HEAD remain visible while remote symbolic aliases are hidden", async () => {
+  const { directory, root } = await committed();
+  await git(root, "branch", "topic/HEAD");
+  await git(root, "update-ref", "refs/remotes/origin/feature/HEAD", "HEAD");
+  await git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/feature/HEAD");
+  const core = await createCore({
+    dataRoot: join(directory, "data"),
+    home: directory,
+    models: createModels(),
+    settings: { read: Effect.succeed({ defaultThinkingLevel: "off" }), subscribe: () => () => {} },
+    environment: { userAgent: "eta-core-test", shutdown: "preserve" },
+  });
+  clients.push(core);
+  const project = await core.registerProject(root);
+  const workspace = (await core.workspaces(project.id))[0]!;
+  const branches = await core.gitBranches(workspace.id);
+  expect(branches.map((branch) => branch.name).sort()).toEqual([
+    "main",
+    "origin/feature/HEAD",
+    "topic/HEAD",
+  ]);
+  expect(branches.find((branch) => branch.name === "topic/HEAD")).toMatchObject({ kind: "local" });
+  expect(branches.find((branch) => branch.name === "origin/feature/HEAD")).toMatchObject({
+    kind: "remote",
+  });
+  const created = await core.createWorktree({
+    projectId: project.id,
+    baseWorkspaceId: workspace.id,
+    branch: { kind: "existing", name: "topic/HEAD" },
+    requestId: "existing-head-suffix",
+  });
+  expect(created).toMatchObject({ status: "ready", branch: "topic/HEAD", createdBranch: false });
+  expect(
+    (await core.gitBranches(workspace.id)).find((branch) => branch.name === "topic/HEAD"),
+  ).toMatchObject({ checkedOutAt: created.path });
+});
+
 test("host-side inspection never runs a repository's fsmonitor", async () => {
   const { directory, root } = await committed();
   const marker = join(directory, "fsmonitor-ran");
