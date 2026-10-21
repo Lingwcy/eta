@@ -23,10 +23,10 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
 });
 
-async function repository() {
+async function repository(name = "repo") {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "eta-git-")));
   directories.push(directory);
-  const root = join(directory, "repo");
+  const root = join(directory, name);
   await mkdir(root);
   await git(root, "init", "-q", "-b", "main");
   return { directory, root };
@@ -52,6 +52,25 @@ test("plain directories are not repositories and missing ones are unavailable", 
     reason: "directory-missing",
   });
 });
+
+test.skipIf(process.platform === "win32")(
+  "repository location preserves embedded and trailing newlines in paths",
+  async () => {
+    const { root } = await repository(
+      "repo" + String.fromCharCode(10) + "root" + String.fromCharCode(10),
+    );
+    const subdirectory = join(root, "app" + String.fromCharCode(10) + "source");
+    await mkdir(subdirectory);
+    expect(await inspectRepository(subdirectory, "newline-path")).toMatchObject({
+      status: "ready",
+      root,
+      gitDir: join(root, ".git"),
+      commonDir: join(root, ".git"),
+      prefix: "app" + String.fromCharCode(10) + "source",
+      head: { kind: "unborn", name: "main" },
+    });
+  },
+);
 
 test("an empty repository reports an unborn branch and untracked files", async () => {
   const { root } = await repository();

@@ -101,6 +101,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: cache scan-invariant identity only for that scan, revalidate it before publishing, revoke both old ownership maps when a root change is detected, and finish awaited alias work before replacing related maps. Partial updates must coordinate with completed publications as well as currently pending scans; an older check cannot undo a newer revocation or clear a replacement namespace. Do not turn this optimization into a cross-request permission cache or assume missing-path canonicalization performs no additional parent reads.
 - Seen: 2026-10-20.
 
+**Do not use pathname contents as Git record boundaries.**
+
+- Evidence: on 2026-10-21, #348's real Git/Core branch listing turns a worktree path's second line into a false ref. Explicit NUL record framing fixes that producer/consumer pair. Follow-up #351 separately reproduces valid newline-root repositories reported unavailable and successful managed checkouts reported needs_reconciliation: rev-parse's bundled paths and worktree-list records also used LF as a boundary. POSIX regressions preserve embedded/trailing LF and complete create/list/replay/remove without mocking Git.
+- Check: prefer Git's NUL modes for paths and share producer formats with parsers. Where a command has no NUL mode, read ambiguous values independently and remove only its explicit output terminator, never trim pathname whitespace. Keep ordinary-path fast paths and state precisely which parsers were verified; fixing one does not prove every Git path consumer is safe.
+- Seen: 2026-10-21.
+
 **Serialize a durable request before its first read, not just its final side effect.**
 
 - Evidence: on 2026-10-21, #344's real Core/Git worktree regressions concurrently submit one creation ID. Identical inputs produce one failure; different branch parameters both succeed, even though sequential reuse already conflicts. Git's repository lock starts after both callers read and write the shared intent, and serial JSON writes alone cannot protect that read-check-write sequence. A service-local request gate makes identical callers replay one ready receipt and rejects the conflicting caller; a failed empty-repository attempt can still retry after the first commit.
