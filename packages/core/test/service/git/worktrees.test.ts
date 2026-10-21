@@ -128,6 +128,64 @@ test("creation is idempotent per request and refuses to reuse a request for othe
   ).toHaveLength(1);
 });
 
+test("concurrent copies of one worktree creation share their durable receipt", async () => {
+  const { core, project, base } = await fixture();
+  const input = {
+    projectId: project.id,
+    baseWorkspaceId: base.id,
+    branch: { kind: "new" as const, name: "eta/concurrent-once" },
+    requestId: "concurrent-request",
+  };
+  const results = await Promise.allSettled([
+    core.createWorktree(input),
+    core.createWorktree(input),
+  ]);
+  expect(results.map((result) => result.status)).toEqual(["fulfilled", "fulfilled"]);
+  if (results[0]!.status !== "fulfilled" || results[1]!.status !== "fulfilled") return;
+  const first = results[0]!.value;
+  expect(results[1]!.value).toEqual(first);
+  expect(first.status).toBe("ready");
+  expect(await core.listWorktrees(project.id)).toEqual([first]);
+  expect(await core.createWorktree(input)).toEqual(first);
+});
+
+test("concurrent reuse of a worktree request for different branches cannot overwrite its receipt", async () => {
+  const { core, project, base } = await fixture();
+  const common = {
+    projectId: project.id,
+    baseWorkspaceId: base.id,
+    requestId: "concurrent-conflict",
+  };
+  const results = await Promise.allSettled([
+    core.createWorktree({ ...common, branch: { kind: "new", name: "eta/first" } }),
+    core.createWorktree({ ...common, branch: { kind: "new", name: "eta/second" } }),
+  ]);
+  const successes = results.filter((result) => result.status === "fulfilled");
+  const failures = results.filter((result) => result.status === "rejected");
+  expect(successes).toHaveLength(1);
+  expect(failures).toHaveLength(1);
+  expect(failures[0]!.reason).toMatchObject({ code: "InvalidInput" });
+  expect(await core.listWorktrees(project.id)).toEqual([successes[0]!.value]);
+  expect(
+    (await core.workspaces(project.id)).filter((value) => value.kind === "worktree"),
+  ).toHaveLength(1);
+});
+
+test("a failed worktree creation releases its request for a later retry", async () => {
+  const { core, root, project, base } = await fixture({ empty: true });
+  const input = {
+    projectId: project.id,
+    baseWorkspaceId: base.id,
+    branch: { kind: "new" as const, name: "eta/after-commit" },
+    requestId: "retry-after-commit",
+  };
+  await expect(core.createWorktree(input)).rejects.toMatchObject({ code: "InvalidInput" });
+  await writeFile(join(root, "README.md"), "first commit");
+  await git(root, "add", ".");
+  await git(root, "commit", "-q", "-m", "initial commit");
+  expect(await core.createWorktree(input)).toMatchObject({ status: "ready" });
+});
+
 test("branch rules: new names must be free, existing branches must not be checked out", async () => {
   const { core, root, project, base } = await fixture();
   await git(root, "branch", "existing");
