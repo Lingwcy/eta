@@ -209,6 +209,27 @@ test("an expired identity does not return cached private rows", async () => {
   expect(result.status === "error" && result.cached).toBeUndefined();
 });
 
+test.each(["toString", "constructor", "__proto__"])(
+  "remote selection accepts own request record %s",
+  async (requestId) => {
+    const f = await fixture();
+    await git(f.cwd, "remote", "add", "upstream", "https://github.com/upstream/repo.git");
+    await f.core.selectGitHubRemote(f.project.id, "origin", "prime-request-table");
+    expect(await f.core.selectGitHubRemote(f.project.id, "upstream", requestId)).toMatchObject({
+      status: "ready",
+      github: { selection: { remote: "upstream" } },
+    });
+    await f.core.selectGitHubRemote(f.project.id, "origin", "later-request");
+    expect(await f.core.selectGitHubRemote(f.project.id, "upstream", requestId)).toMatchObject({
+      status: "ready",
+      github: { selection: { remote: "origin" } },
+    });
+    await expect(f.core.selectGitHubRemote(f.project.id, null, requestId)).rejects.toMatchObject({
+      code: "InvalidInput",
+    });
+  },
+);
+
 test("remote selection retries keep the same operation and conflicting reuse of its ID is rejected", async () => {
   const f = await fixture();
   await git(f.cwd, "remote", "add", "upstream", "https://github.com/upstream/repo.git");
