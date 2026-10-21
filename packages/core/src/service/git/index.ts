@@ -179,9 +179,13 @@ export async function inspectRepository(
   }
 }
 
+/** Worktree paths may contain LF; terminate records with NUL + Git's final LF. */
+export const BRANCH_FORMAT =
+  "--format=%(refname)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)%00";
+
 export function parseBranches(output: string, workspaceRoot: string): GitBranch[] {
   const branches: GitBranch[] = [];
-  for (const line of output.split("\n")) {
+  for (const line of output.split("\0\n")) {
     const [ref = "", sha = "", upstream = "", worktree = "", head = ""] = line.split("\0");
     if (!ref || ref.endsWith("/HEAD")) continue;
     const local = ref.startsWith("refs/heads/");
@@ -262,12 +266,7 @@ export class GitRepositoryService extends Context.Service<
           if (info.status !== "ready") return [];
           const output = yield* Effect.tryPromise({
             try: () =>
-              runGit(info.root, [
-                "for-each-ref",
-                "--format=%(refname)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)",
-                "refs/heads",
-                "refs/remotes",
-              ]),
+              runGit(info.root, ["for-each-ref", BRANCH_FORMAT, "refs/heads", "refs/remotes"]),
             catch: () => new CoreError({ code: "WorkspaceUnavailable", message: "无法读取分支" }),
           });
           return parseBranches(output.stdout, info.root);
