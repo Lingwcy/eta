@@ -101,6 +101,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: cache scan-invariant identity only for that scan, revalidate it before publishing, revoke both old ownership maps when a root change is detected, and finish awaited alias work before replacing related maps. Partial updates must coordinate with completed publications as well as currently pending scans; an older check cannot undo a newer revocation or clear a replacement namespace. Do not turn this optimization into a cross-request permission cache or assume missing-path canonicalization performs no additional parent reads.
 - Seen: 2026-10-20.
 
+**Serialize a durable request before its first read, not just its final side effect.**
+
+- Evidence: on 2026-10-21, #344's real Core/Git worktree regressions concurrently submit one creation ID. Identical inputs produce one failure; different branch parameters both succeed, even though sequential reuse already conflicts. Git's repository lock starts after both callers read and write the shared intent, and serial JSON writes alone cannot protect that read-check-write sequence. A service-local request gate makes identical callers replay one ready receipt and rejects the conflicting caller; a failed empty-repository attempt can still retry after the first commit.
+- Check: gate the full fingerprint/receipt lookup, intent publication and execution for one logical request. Retain live validation of completed receipts, allow different request IDs to proceed independently, and release gate entries only after their last owner/waiter leaves.
+- Seen: 2026-10-21.
+
 **Do not make a durable creation receipt wait for its derived directory.**
 
 - Evidence: on 2026-10-19, BDS-05 still awaited DesktopBot's library/status refresh after the configured thread was already created. Holding either read blocks the first message in two real DraftThread/HTTP-adapter regressions before the change. Returning the creation first admits the prompt while both held-read and later catalog-publication controls pass. Background failure, an older poll, connection replacement and explicit disposal are covered without a production latency claim.

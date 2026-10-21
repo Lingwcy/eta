@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { Context, DateTime, Effect, Layer } from "effect";
+import { Context, DateTime, Effect, Layer, Semaphore } from "effect";
 import { runGit } from "../../platform/git.ts";
 import type { GitBranch, WorktreeSummary } from "../../shared/git.ts";
 import { CatalogService } from "../catalog/index.ts";
@@ -365,8 +365,29 @@ export class WorktreeService extends Context.Service<
         return summary(settled, input.requestId);
       });
 
+      // Git's repository lock alone starts too late: duplicate callers could overwrite
+      // the durable intent before either reaches worktree add. Re-read that intent under
+      // the request gate, including the completed receipt's usual live validation.
+      const createRequests = new Map<string, { semaphore: Semaphore.Semaphore; users: number }>();
       return WorktreeService.of({
-        create,
+        create: (input) =>
+          Effect.suspend(() => {
+            let gate = createRequests.get(input.requestId);
+            if (!gate) {
+              gate = { semaphore: Semaphore.makeUnsafe(1), users: 0 };
+              createRequests.set(input.requestId, gate);
+            }
+            const current = gate;
+            current.users++;
+            return current.semaphore.withPermit(create(input)).pipe(
+              Effect.ensuring(
+                Effect.sync(() => {
+                  current.users--;
+                  if (current.users === 0) createRequests.delete(input.requestId);
+                }),
+              ),
+            );
+          }),
         list: Effect.fn("WorktreeService.list")(function* (projectId: string) {
           const results: WorktreeSummary[] = [];
           for (const [requestId, receipt] of yield* receipts(projectId))
