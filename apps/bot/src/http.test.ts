@@ -672,6 +672,265 @@ test("targeted metadata keeps authentication, body limits, input and shutdown gu
   }
 });
 
+test("subagent listing leaves unrelated discovery to the catalog", async () => {
+  const { bot, request, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("subagent-list-scope");
+  await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+  const registration = vi.spyOn(bot.core, "registerProject");
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  try {
+    const response = await request("/v1/threads/" + id + "/subagent", {
+      command: { action: "list" },
+      requestId: "list",
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([]);
+    expect(registration).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(await bot.core.projects()).toHaveLength(1);
+    expect((await request("/v1/library")).status).toBe(200);
+    expect(await bot.core.projects()).toHaveLength(2);
+    expect(registration).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  } finally {
+    registration.mockRestore();
+    refresh.mockRestore();
+  }
+});
+
+test("subagent spawn replay and steering do not discover unrelated projects", async () => {
+  const { bot, provider, request, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("subagent-writer-scope");
+  await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+  provider.setResponses(
+    Array.from({ length: 15 }, () => fauxAssistantMessage("First delegated result")),
+  );
+  const registration = vi.spyOn(bot.core, "registerProject");
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  const children = Schema.Array(Schema.Struct({ path: Schema.String }));
+  const path = "/v1/threads/" + id + "/subagent";
+  let child: SnapshotResponse | undefined;
+  let childError: string | undefined;
+  let closeChild: (() => void) | undefined;
+  try {
+    const body = {
+      command: { action: "spawn", name: "worker", message: "Work independently", wait: false },
+      requestId: "spawn-once",
+    };
+    const spawned = await request(path, body);
+    expect(spawned.status).toBe(200);
+    const first = Schema.decodeUnknownSync(children)(await spawned.json());
+    expect(first).toHaveLength(1);
+    const childPath = first[0]!.path;
+    closeChild = await bot.core.subscribe(
+      id,
+      (value) => {
+        child = value;
+      },
+      (message) => {
+        childError = message;
+      },
+      childPath,
+    );
+    await expect
+      .poll(() => childError ?? JSON.stringify(child?.snapshot.transcript), { timeout: 5000 })
+      .toContain("First delegated result");
+    await expect
+      .poll(
+        async () =>
+          (await bot.core.openThread(id)).snapshot.subagents?.find(
+            (item) => item.path === childPath,
+          )?.status,
+        { timeout: 5000 },
+      )
+      .toBe("completed");
+    const inputs = child!.snapshot.transcript.filter(
+      (entry) => entry.message.role === "user",
+    ).length;
+    expect(registration).not.toHaveBeenCalled();
+    const replay = await request(path, body);
+    expect(replay.status).toBe(200);
+    expect(Schema.decodeUnknownSync(children)(await replay.json())).toEqual(first);
+    provider.setResponses(
+      Array.from({ length: 15 }, () => fauxAssistantMessage("Second delegated result")),
+    );
+    const steered = await request(path, {
+      command: { action: "send", path: childPath, message: "Follow-up task", wait: false },
+      requestId: "steer-once",
+    });
+    expect(steered.status).toBe(200);
+    await expect
+      .poll(() => childError ?? JSON.stringify(child?.snapshot.transcript), { timeout: 5000 })
+      .toContain("Second delegated result");
+    await expect
+      .poll(
+        async () =>
+          (await bot.core.openThread(id)).snapshot.subagents?.find(
+            (item) => item.path === childPath,
+          )?.status,
+        { timeout: 5000 },
+      )
+      .toBe("completed");
+    await expect.poll(() => bot.controller.status().activeThreads, { timeout: 5000 }).toEqual([]);
+    expect(JSON.stringify(child!.snapshot.transcript)).toContain("Follow-up task");
+    expect(
+      child!.snapshot.transcript.filter((entry) => entry.message.role === "user"),
+    ).toHaveLength(inputs + 1);
+    expect(registration).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(await bot.core.projects()).toHaveLength(1);
+    expect((await request("/v1/library")).status).toBe(200);
+    expect(await bot.core.projects()).toHaveLength(2);
+    expect(registration).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  } finally {
+    closeChild?.();
+    registration.mockRestore();
+    refresh.mockRestore();
+  }
+}, 15000);
+
+test("subagent writers retain project leases and cannot resolve another thread's parent", async () => {
+  const { bot, provider, request, create } = await fixture();
+  await bot.core.stopScheduler();
+  const first = await create("subagent-owner");
+  const second = await create("subagent-contender");
+  const finish = Promise.withResolvers<void>();
+  let entered = false;
+  provider.setResponses([
+    async () => {
+      entered = true;
+      await finish.promise;
+      return fauxAssistantMessage("Held child completed");
+    },
+  ]);
+  try {
+    const response = await request("/v1/threads/" + first + "/subagent", {
+      command: { action: "spawn", name: "worker", message: "Hold this task", wait: false },
+      requestId: "held-spawn",
+    });
+    expect(response.status).toBe(200);
+    const children = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ path: Schema.String })))(
+      await response.json(),
+    );
+    expect(children).toHaveLength(1);
+    await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+    expect(bot.controller.status().activeThreads).toContain(first);
+    const foreign = await request("/v1/threads/" + second + "/subagent", {
+      command: { action: "list", parent: children[0]!.path },
+      requestId: "foreign-parent",
+    });
+    expect(foreign.status).toBe(404);
+    expect(await foreign.json()).toMatchObject({ error: { code: "NotFound" } });
+    const command = {
+      command: { action: "spawn", name: "contender", message: "Another task", wait: false },
+      requestId: "contending-spawn",
+    };
+    const delegating = vi.spyOn(bot.core, "subagent");
+    try {
+      const busy = await request("/v1/threads/" + second + "/subagent", command);
+      expect(busy.status).toBe(409);
+      expect(await busy.json()).toMatchObject({ error: { code: "Busy" } });
+      expect(delegating).not.toHaveBeenCalled();
+    } finally {
+      delegating.mockRestore();
+    }
+    expect((await bot.core.openThread(second)).snapshot.subagents ?? []).toEqual([]);
+    finish.resolve();
+    await expect.poll(() => bot.controller.status().activeThreads, { timeout: 5000 }).toEqual([]);
+    provider.setResponses(
+      Array.from({ length: 5 }, () => fauxAssistantMessage("Retried child completed")),
+    );
+    const accepted = await request("/v1/threads/" + second + "/subagent", command);
+    expect(accepted.status).toBe(200);
+    expect(
+      Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ path: Schema.String })))(
+        await accepted.json(),
+      ),
+    ).toHaveLength(1);
+    await expect
+      .poll(async () => (await bot.core.openThread(second)).snapshot.subagents?.[0]?.status, {
+        timeout: 5000,
+      })
+      .toBe("completed");
+    await expect.poll(() => bot.controller.status().activeThreads, { timeout: 5000 }).toEqual([]);
+  } finally {
+    finish.resolve();
+  }
+}, 15000);
+
+test.each(["list", "spawn", "send", "stop"] as const)(
+  "subagent %s rechecks a formerly visible workspace before reaching Core",
+  async (action) => {
+    const { bot, request, create, config, cwd, workspace } = await fixture();
+    await bot.core.stopScheduler();
+    const id = await create("subagent-revocation-" + action);
+    const outside = join(config.dataRoot, "outside");
+    await rename(cwd, outside);
+    await symlink(outside, cwd, "dir");
+    expect(bot.workspaceProjects.has(workspace)).toBe(true);
+    const delegating = vi.spyOn(bot.core, "subagent");
+    try {
+      const command =
+        action === "list"
+          ? { action }
+          : action === "spawn"
+            ? { action, name: "worker", message: "No", wait: false }
+            : action === "send"
+              ? { action, path: "/root/worker", message: "No", wait: false }
+              : { action, path: "/root/worker" };
+      const response = await request("/v1/threads/" + id + "/subagent", {
+        command,
+        requestId: "denied",
+      });
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ error: { code: "ProjectUnavailable" } });
+      expect(bot.workspaceProjects.has(workspace)).toBe(false);
+      expect(delegating).not.toHaveBeenCalled();
+      expect(bot.controller.status().activeThreads).toEqual([]);
+    } finally {
+      delegating.mockRestore();
+    }
+  },
+);
+
+test("targeted subagent commands retain authentication, size, input and shutdown guards", async () => {
+  const { bot, request, create, config } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("subagent-guards");
+  const path = "/v1/threads/" + id + "/subagent";
+  const metadata = vi.spyOn(bot.core, "threadMetadata");
+  try {
+    expect((await bot.app.request(path, { method: "POST", body: "{}" })).status).toBe(401);
+    expect(
+      (
+        await bot.app.request(path, {
+          method: "POST",
+          headers: {
+            authorization: "Bearer " + config.adminToken,
+            "content-length": String(48 * 1024 * 1024 + 1),
+          },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(413);
+    expect(metadata).not.toHaveBeenCalled();
+    expect((await request(path, { command: { action: "invalid" }, requestId: "bad" })).status).toBe(
+      400,
+    );
+    await bot.close();
+    metadata.mockClear();
+    expect((await request(path, { command: { action: "list" }, requestId: "closed" })).status).toBe(
+      503,
+    );
+    expect(metadata).not.toHaveBeenCalled();
+  } finally {
+    metadata.mockRestore();
+  }
+});
+
 test("ordinary messages and cached receipts do not discover unrelated projects", async () => {
   const { bot, provider, request, create, config } = await fixture();
   await bot.core.stopScheduler();
