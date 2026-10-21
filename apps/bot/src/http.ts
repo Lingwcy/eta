@@ -146,6 +146,29 @@ export function createHttpApp(options: {
     await options.credentials.remove(input.providerId);
     return context.json({ removed: true });
   });
+  // Folder creation validates and publishes its own scope without a preliminary scan.
+  app.post("/v1/projects", async (context) => {
+    const input = decode(
+      Schema.Struct({ name: Schema.NonEmptyString, requestId: RequestId }),
+      await readBody(context.req),
+    );
+    let refreshed = false;
+    const result = await store.request(
+      `project.create:${config.workspaceRoot}`,
+      input.requestId,
+      JSON.stringify({ name: input.name }),
+      async () => {
+        const project = await options.projects.create(input.name);
+        refreshed = true;
+        return project;
+      },
+    );
+    // Replays and coalesced callers did not run their own creation's post-refresh.
+    if (!refreshed) await options.projects.refresh();
+    if (![...workspaceProjects.values()].includes(result.id))
+      throw new BotHttpError(403, "ProjectUnavailable", "项目必须位于 Bot 工作空间根目录内。");
+    return context.json(result, 201);
+  });
   // Messages validate their target paths on every request, including durable receipt replays,
   // without discovering unrelated projects. Complex aliases still fall back to a full scan.
   app.post("/v1/threads/:id/messages", async (context) => {
@@ -499,21 +522,6 @@ export function createHttpApp(options: {
   app.use("/v1/*", async (_context, next) => {
     await options.projects.refresh();
     await next();
-  });
-  app.post("/v1/projects", async (context) => {
-    const input = decode(
-      Schema.Struct({ name: Schema.NonEmptyString, requestId: RequestId }),
-      await readBody(context.req),
-    );
-    const result = await store.request(
-      `project.create:${config.workspaceRoot}`,
-      input.requestId,
-      JSON.stringify({ name: input.name }),
-      () => options.projects.create(input.name),
-    );
-    if (![...workspaceProjects.values()].includes(result.id))
-      throw new BotHttpError(403, "ProjectUnavailable", "项目必须位于 Bot 工作空间根目录内。");
-    return context.json(result, 201);
   });
   app.get("/v1/projects", async (context) =>
     context.json(

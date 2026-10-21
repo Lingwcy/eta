@@ -39,6 +39,7 @@ import { createCore, type CoreEnvironment } from "@eta/core";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BotController } from "./controller.ts";
 import { BotProjects } from "./projects.ts";
+import { BotStore } from "./store.ts";
 import { createBotApplication } from "./application.ts";
 import type { BotApplication } from "./application.ts";
 import type { BotConfig } from "./config.ts";
@@ -3343,4 +3344,195 @@ test("a self-referential symlink in the workspace root does not break the catalo
   const catalog = await request("/v1/library");
   expect(catalog.status).toBe(200);
   expect(LibrarySchema.parse(await catalog.json()).projects).toHaveLength(1);
+});
+
+test("project folder creation discovers unrelated directories only after registration", async () => {
+  const { bot, request, config } = await fixture(true);
+  await bot.core.stopScheduler();
+  await mkdir(join(config.workspaceRoot, "unrelated"));
+  const paths: string[] = [];
+  const register = bot.core.registerProject;
+  const registration = vi.spyOn(bot.core, "registerProject").mockImplementation((path, ...args) => {
+    paths.push(path);
+    return register(path, ...args);
+  });
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  try {
+    const response = await request("/v1/projects", { name: "requested", requestId: "folder" });
+    expect(response.status).toBe(201);
+    const project = Schema.decodeUnknownSync(identity)(await response.json());
+    expect(paths[0]).toBe(join(config.workspaceRoot, "requested"));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(await readdir(config.workspaceRoot)).toEqual(
+      expect.arrayContaining(["requested", "unrelated"]),
+    );
+    expect(await bot.core.projects()).toHaveLength(2);
+    const [workspace] = await bot.core.workspaces(project.id);
+    expect(bot.workspaceProjects.get(workspace!.id)).toBe(project.id);
+  } finally {
+    registration.mockRestore();
+    refresh.mockRestore();
+  }
+});
+
+test("invalid project folder names do not trigger directory discovery", async () => {
+  const { bot, request, config } = await fixture(true);
+  await bot.core.stopScheduler();
+  await mkdir(join(config.workspaceRoot, "unrelated"));
+  const registration = vi.spyOn(bot.core, "registerProject");
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  try {
+    for (const [index, name] of ["../outside", ".hidden", " whitespace ", "a/b"].entries())
+      expect((await request("/v1/projects", { name, requestId: "invalid-" + index })).status).toBe(
+        400,
+      );
+    expect(registration).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(await bot.core.projects()).toEqual([]);
+  } finally {
+    registration.mockRestore();
+    refresh.mockRestore();
+  }
+});
+
+test("project folder replay refreshes scope without repeating creation and preserves conflicts", async () => {
+  const { bot, request, config } = await fixture(true);
+  await bot.core.stopScheduler();
+  const body = { name: "requested", requestId: "replay-folder" };
+  const first = await request("/v1/projects", body);
+  expect(first.status).toBe(201);
+  const project = Schema.decodeUnknownSync(identity)(await first.json());
+  await mkdir(join(config.workspaceRoot, "later"));
+  const creation = vi.spyOn(BotProjects.prototype, "create");
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  try {
+    const replay = await request("/v1/projects", body);
+    expect(replay.status).toBe(201);
+    expect(Schema.decodeUnknownSync(identity)(await replay.json())).toEqual(project);
+    expect(creation).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(await bot.core.projects()).toHaveLength(2);
+    expect((await request("/v1/projects", { ...body, name: "different" })).status).toBe(409);
+    expect(await readdir(config.workspaceRoot)).not.toContain("different");
+    expect(creation).not.toHaveBeenCalled();
+  } finally {
+    creation.mockRestore();
+    refresh.mockRestore();
+  }
+});
+
+async function projectRootSwitchFixture() {
+  const context = await fixture(true);
+  await context.bot.core.stopScheduler();
+  const firstRoot = context.config.workspaceRoot + "-first";
+  const nextRoot = context.config.workspaceRoot + "-next";
+  await rename(context.config.workspaceRoot, firstRoot);
+  await mkdir(nextRoot);
+  await symlink(firstRoot, context.config.workspaceRoot, "dir");
+  return { ...context, firstRoot, nextRoot };
+}
+
+test("cached project folder replies cannot reuse a previous root's permission", async () => {
+  const { bot, request, config, nextRoot } = await projectRootSwitchFixture();
+  const body = { name: "requested", requestId: "switched-folder" };
+  const response = await request("/v1/projects", body);
+  expect(response.status).toBe(201);
+  const project = Schema.decodeUnknownSync(identity)(await response.json());
+  expect([...bot.workspaceProjects.values()]).toContain(project.id);
+  await rm(config.workspaceRoot);
+  await symlink(nextRoot, config.workspaceRoot, "dir");
+  const creation = vi.spyOn(BotProjects.prototype, "create");
+  try {
+    const denied = await request("/v1/projects", body);
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({ error: { code: "ProjectUnavailable" } });
+    expect(creation).not.toHaveBeenCalled();
+    expect([...bot.workspaceProjects.values()]).not.toContain(project.id);
+    expect(await readdir(nextRoot)).toEqual([]);
+  } finally {
+    creation.mockRestore();
+  }
+});
+
+test("coalesced folder requests revalidate their own scope after the creator publishes", async () => {
+  const { bot, request, config, firstRoot, nextRoot } = await projectRootSwitchFixture();
+  const original = BotProjects.prototype.create;
+  const release = Promise.withResolvers<void>();
+  let entered = false;
+  const creating = vi.spyOn(BotProjects.prototype, "create").mockImplementation(async function (
+    this: BotProjects,
+    ...args
+  ) {
+    const project = await original.apply(this, args);
+    entered = true;
+    await release.promise;
+    return project;
+  });
+  const receipts = vi.spyOn(BotStore.prototype, "request");
+  const body = { name: "requested", requestId: "coalesced-folder" };
+  const owner = Promise.resolve(request("/v1/projects", body));
+  let duplicate: Promise<Response> | undefined;
+  try {
+    await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+    duplicate = Promise.resolve(request("/v1/projects", body));
+    await expect
+      .poll(() => receipts.mock.calls.filter(([, id]) => id === body.requestId).length, {
+        timeout: 5000,
+      })
+      .toBe(2);
+    await rm(config.workspaceRoot);
+    await symlink(nextRoot, config.workspaceRoot, "dir");
+    release.resolve();
+    const response = await duplicate;
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: { code: "ProjectUnavailable" } });
+    // The owner may finish before or after the replacement scope publishes; only the joiner
+    // must not inherit an authorization refresh it never performed.
+    expect([201, 403]).toContain((await owner).status);
+    expect(creating).toHaveBeenCalledTimes(1);
+    expect(await readdir(firstRoot)).toContain("requested");
+    expect(await readdir(nextRoot)).toEqual([]);
+    expect([...bot.workspaceProjects.values()]).toEqual([]);
+  } finally {
+    release.resolve();
+    await owner.catch(() => {});
+    await duplicate?.catch(() => {});
+    creating.mockRestore();
+    receipts.mockRestore();
+  }
+}, 15000);
+
+test("project folder creation retains authentication, size, input and shutdown guards", async () => {
+  const { bot, request, config } = await fixture(true);
+  await bot.core.stopScheduler();
+  const creating = vi.spyOn(BotProjects.prototype, "create");
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  try {
+    expect((await bot.app.request("/v1/projects", { method: "POST", body: "{}" })).status).toBe(
+      401,
+    );
+    expect(
+      (
+        await bot.app.request("/v1/projects", {
+          method: "POST",
+          headers: {
+            authorization: "Bearer " + config.adminToken,
+            "content-length": String(48 * 1024 * 1024 + 1),
+          },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(413);
+    expect((await request("/v1/projects", {})).status).toBe(400);
+    expect(creating).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    await bot.close();
+    expect((await request("/v1/projects", { name: "closed", requestId: "closed" })).status).toBe(
+      503,
+    );
+    expect(creating).not.toHaveBeenCalled();
+  } finally {
+    creating.mockRestore();
+    refresh.mockRestore();
+  }
 });

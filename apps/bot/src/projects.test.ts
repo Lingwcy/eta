@@ -496,3 +496,20 @@ test.each(["scan", "thread"])(
     }
   },
 );
+
+test("folder creation publishes ordinary and configured aliases before returning", async () => {
+  const { root, core } = await fixture();
+  const workspaceRoot = join(root, "workspaces");
+  const discovery = new BotProjects(core, {
+    dataRoot: join(root, "data"),
+    adminToken: "test",
+    workspaceRoot,
+    runtime: { defaultThinkingLevel: "off" },
+    projects: [{ key: "stable", rootPath: join(workspaceRoot, "requested") }],
+  });
+  const project = await discovery.create("requested");
+  const [workspace] = await core.workspaces(project.id);
+  expect(discovery.projectKeys.get("requested")).toBe(project.id);
+  expect(discovery.projectKeys.get("stable")).toBe(project.id);
+  expect(discovery.workspaceProjects.get(workspace!.id)).toBe(project.id);
+});
