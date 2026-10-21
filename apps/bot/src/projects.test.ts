@@ -442,3 +442,57 @@ test("a late old-root check cannot replace the newer root's ownership", async ()
     io.realpath.mockImplementation(original);
   }
 });
+
+test.each([1, 8])("workspace scope only resolves its own paths with %s projects", async (count) => {
+  const { core, workspaceRoot, workspace, discovery } = await scopeFixture(count);
+  const metadata = vi.spyOn(core, "threadMetadata");
+  io.realpath.mockClear();
+  try {
+    await discovery.refreshForWorkspace(workspace.id);
+    expect(discovery.workspaceProjects.get(workspace.id)).toBe(workspace.projectId);
+    expect(io.realpath.mock.calls.length).toBeLessThanOrEqual(4);
+    expect(
+      io.realpath.mock.calls.every(([path]) => path === workspaceRoot || path === workspace.cwd),
+    ).toBe(true);
+    expect(metadata).not.toHaveBeenCalled();
+  } finally {
+    metadata.mockRestore();
+  }
+});
+
+test.each(["scan", "thread"])(
+  "an older workspace check cannot undo a newer %s revocation",
+  async (actor) => {
+    const { root, workspaceRoot, workspace, thread, discovery } = await scopeFixture();
+    const original = io.realpath.getMockImplementation()!;
+    const release = Promise.withResolvers<void>();
+    let rootReads = 0;
+    let entered = false;
+    io.realpath.mockImplementation(async (...args) => {
+      const result = await original(...args);
+      if (args[0] === workspaceRoot && ++rootReads === 2) {
+        entered = true;
+        await release.promise;
+      }
+      return result;
+    });
+    const checking = discovery.refreshForWorkspace(workspace.id);
+    try {
+      await expect.poll(() => entered).toBe(true);
+      const outside = join(root, "outside");
+      await mkdir(outside);
+      await rm(workspace.cwd, { recursive: true });
+      await symlink(outside, workspace.cwd, "dir");
+      if (actor === "scan") await discovery.refresh();
+      else await discovery.refreshForThread(thread.id);
+      expect(discovery.workspaceProjects.has(workspace.id)).toBe(false);
+      release.resolve();
+      await checking;
+      expect(discovery.workspaceProjects.has(workspace.id)).toBe(false);
+    } finally {
+      release.resolve();
+      await checking.catch(() => {});
+      io.realpath.mockImplementation(original);
+    }
+  },
+);
