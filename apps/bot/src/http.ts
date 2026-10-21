@@ -320,6 +320,24 @@ export function createHttpApp(options: {
         return context.json({ deleted: true });
     }
   });
+  // Maintenance actions also need only the target scope.
+  app.post("/v1/threads/:id/compact", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.compact(id);
+    return context.json({ compacted: true });
+  });
+  app.post("/v1/threads/:id/unload-skill", async (context) => {
+    const id = context.req.param("id");
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    const input = decode(
+      Schema.Struct({ name: Schema.NonEmptyString }),
+      await readBody(context.req),
+    );
+    await core.unloadSkill(id, input.name);
+    return context.json({ unloaded: true });
+  });
   // Remaining scoped routes refresh all ownership on every request.
   app.use("/v1/*", async (_context, next) => {
     await options.projects.refresh();
@@ -477,10 +495,6 @@ export function createHttpApp(options: {
       allowedSandboxModes: config.allowedSandboxModes ?? sandboxModes,
     });
   });
-  app.post("/v1/threads/:id/compact", async (context) => {
-    await controller.compact(context.req.param("id"));
-    return context.json({ compacted: true });
-  });
   app.post("/v1/threads/:id/subagent", async (context) => {
     const id = context.req.param("id");
     await controller.authorize(id);
@@ -489,16 +503,6 @@ export function createHttpApp(options: {
       await readBody(context.req),
     );
     return context.json(await controller.subagent(id, input.command, input.requestId));
-  });
-  app.post("/v1/threads/:id/unload-skill", async (context) => {
-    const id = context.req.param("id");
-    await controller.authorize(id);
-    const input = decode(
-      Schema.Struct({ name: Schema.NonEmptyString }),
-      await readBody(context.req),
-    );
-    await core.unloadSkill(id, input.name);
-    return context.json({ unloaded: true });
   });
   app.post("/v1/threads", async (context) => {
     const input = decode(Create, await readBody(context.req));
