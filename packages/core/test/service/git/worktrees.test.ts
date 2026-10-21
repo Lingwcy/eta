@@ -29,7 +29,12 @@ afterEach(async () => {
 });
 
 async function fixture(
-  options: { empty?: boolean; subdirectory?: boolean; defaultRoot?: boolean } = {},
+  options: {
+    empty?: boolean;
+    subdirectory?: boolean;
+    defaultRoot?: boolean;
+    managedName?: string;
+  } = {},
 ) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "eta-worktrees-")));
   directories.push(directory);
@@ -73,7 +78,9 @@ async function fixture(
     environment: {
       userAgent: "eta-core-test",
       shutdown: "preserve",
-      ...(options.defaultRoot ? {} : { worktreeRoot: join(directory, "managed") }),
+      ...(options.defaultRoot
+        ? {}
+        : { worktreeRoot: join(directory, options.managedName ?? "managed") }),
     },
   });
   clients.push(core);
@@ -109,6 +116,34 @@ test("a new worktree is an isolated checkout registered as its own workspace", a
   const thread = await core.createThread(created.workspaceId!);
   expect(thread.thread.workspaceId).toBe(created.workspaceId);
 });
+
+test.skipIf(process.platform === "win32")(
+  "managed worktrees under a newline path stay ready through replay and removal",
+  async () => {
+    const { core, project, base } = await fixture({
+      managedName: "managed" + String.fromCharCode(10) + "checkouts",
+    });
+    const input = {
+      projectId: project.id,
+      baseWorkspaceId: base.id,
+      branch: { kind: "new" as const, name: "eta/newline-location" },
+      requestId: "newline-location",
+    };
+    const created = await core.createWorktree(input);
+    expect(created.status).toBe("ready");
+    expect(await core.listWorktrees(project.id)).toEqual([created]);
+    expect(await core.createWorktree(input)).toEqual(created);
+    expect(await core.gitRepository(created.workspaceId!)).toMatchObject({
+      status: "ready",
+      root: created.path,
+      linkedWorktree: true,
+    });
+    expect(
+      await core.removeWorktree(created.workspaceId!, "remove-newline-location"),
+    ).toMatchObject({ status: "removed" });
+    await expect(access(created.path)).rejects.toMatchObject({ code: "ENOENT" });
+  },
+);
 
 test("creation is idempotent per request and refuses to reuse a request for other parameters", async () => {
   const { core, project, base } = await fixture();

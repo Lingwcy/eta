@@ -117,13 +117,13 @@ export async function inspectRepository(
       message: "工作区目录不存在",
     };
   try {
-    const located = await runGit(cwd, [
-      "rev-parse",
+    const locationFlags = [
       "--show-toplevel",
       "--absolute-git-dir",
       "--git-common-dir",
       "--show-prefix",
-    ]);
+    ];
+    const located = await runGit(cwd, ["rev-parse", ...locationFlags]);
     if (located.exitCode !== 0) {
       if (/not a git repository/i.test(located.stderr))
         return { status: "not-repository", workspaceId };
@@ -134,7 +134,20 @@ export async function inspectRepository(
         message: located.stderr.trim().split("\n")[0] || "无法读取 Git 仓库",
       };
     }
-    const [top = "", gitDir = "", common = "", prefix = ""] = located.stdout.split("\n");
+    let locations = located.stdout.split("\n");
+    if (locations.length !== locationFlags.length + 1) {
+      // rev-parse has no NUL-delimited path format. Keep the single invocation for ordinary
+      // paths, but query each value separately when embedded LF makes the output ambiguous.
+      const results = await Promise.all(
+        locationFlags.map((flag) => runGit(cwd, ["rev-parse", flag])),
+      );
+      locations = results.map((result) => {
+        if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "无法定位 Git 仓库");
+        // Remove only Git's terminator, not valid trailing whitespace in the pathname.
+        return result.stdout.endsWith("\n") ? result.stdout.slice(0, -1) : result.stdout;
+      });
+    }
+    const [top = "", gitDir = "", common = "", prefix = ""] = locations;
     const root = await realpath(top);
     const absoluteGitDir = await realpath(gitDir);
     const commonDir = await realpath(resolve(cwd, common));

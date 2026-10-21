@@ -55,9 +55,13 @@ const git = async (cwd: string, args: readonly string[], message: string) => {
 
 /** Paths registered in `git worktree list`, keyed by canonical worktree root. */
 async function registeredWorktrees(root: string) {
-  const output = await git(root, ["worktree", "list", "--porcelain"], "无法读取 worktree 列表");
+  const output = await git(
+    root,
+    ["worktree", "list", "--porcelain", "-z"],
+    "无法读取 worktree 列表",
+  );
   const paths = new Set<string>();
-  for (const line of output.split("\n"))
+  for (const line of output.split("\0"))
     if (line.startsWith("worktree "))
       paths.add(await realpath(line.slice(9)).catch(() => line.slice(9)));
   return paths;
