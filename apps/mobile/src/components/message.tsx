@@ -297,22 +297,20 @@ const styles = StyleSheet.create({
   activityMessage: { gap: 2 },
   compactAfter: { marginBottom: 2 },
   message: {
-    marginBottom: 18,
+    marginBottom: 22,
     gap: 6,
     alignSelf: "stretch",
   },
   userMessage: {
     alignSelf: "flex-end",
-    maxWidth: "85%",
-    backgroundColor: colors.soft,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    maxWidth: "80%",
+    backgroundColor: "#F4F4F4",
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   userText: {
-    fontSize: 15,
+    fontSize: 16,
     lineHeight: 22,
     color: colors.text,
   },
@@ -393,8 +391,8 @@ const styles = StyleSheet.create({
 const markdownStyles = StyleSheet.create({
   body: {
     color: colors.text,
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 26,
   },
   heading1: {
     fontSize: 20,
@@ -419,7 +417,9 @@ const markdownStyles = StyleSheet.create({
   },
   paragraph: {
     marginTop: 0,
-    marginBottom: 8,
+    marginBottom: 10,
+    fontSize: 16,
+    lineHeight: 26,
   },
   strong: {
     fontWeight: "600",

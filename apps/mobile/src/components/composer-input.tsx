@@ -205,7 +205,7 @@ export function ComposerInput({
                 pressed && canSend && styles.buttonPressed,
               ]}
             >
-              <ArrowUp size={18} strokeWidth={2.2} color={canSend ? "#FFFFFF" : "#A3A3A3"} />
+              <ArrowUp size={18} strokeWidth={2.2} color={canSend ? "#FFFFFF" : colors.muted} />
             </Pressable>
           )}
         </View>
@@ -233,27 +233,11 @@ const styles = StyleSheet.create({
   },
   imageButton: { width: 28, minHeight: 32, alignItems: "center", justifyContent: "center" },
   container: {
-    backgroundColor: colors.surface,
+    backgroundColor: "#F4F4F4",
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingTop: 10,
-    paddingBottom: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 2,
-      },
-      default: {
-        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.05)",
-      },
-    }),
+    paddingBottom: 8,
   },
   input: {
     minHeight: 44,
@@ -271,9 +255,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
     paddingTop: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSubtle,
-    marginTop: 4,
   },
   toolbarLeft: {
     flexDirection: "row",
@@ -293,12 +274,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 10,
-    backgroundColor: colors.soft,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
   },
   sandboxText: {
     color: chipText,
@@ -312,10 +291,8 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: colors.soft,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
     maxWidth: 160,
     flexShrink: 1,
     minWidth: 0,
@@ -334,10 +311,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     paddingHorizontal: 6,
     paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: colors.soft,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
   },
   tokensText: {
     color: chipText,
@@ -360,9 +335,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.text,
   },
   sendInactive: {
-    backgroundColor: colors.soft,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: "#E7E7E7",
   },
   stopButton: {
     backgroundColor: colors.text,
