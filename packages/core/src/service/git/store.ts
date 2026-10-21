@@ -48,6 +48,14 @@ export const GitStoreSchema = Schema.Struct({
 });
 export type GitStoreState = typeof GitStoreSchema.Type;
 
+/** JSON dictionaries can inherit Object.prototype entries that are not durable records. */
+export function gitStoreEntry<A>(
+  record: Readonly<Record<string, A>> | undefined,
+  key: string,
+): A | undefined {
+  return record && Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 const decode = Schema.decodeUnknownSync(GitStoreSchema);
 const empty = (): GitStoreState => ({ version: 1, projects: {} });
 

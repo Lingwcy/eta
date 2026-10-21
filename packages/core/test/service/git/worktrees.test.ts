@@ -221,6 +221,52 @@ test("a failed worktree creation releases its request for a later retry", async 
   expect(await core.createWorktree(input)).toMatchObject({ status: "ready" });
 });
 
+test.each(["toString", "constructor", "__proto__"])(
+  "worktree request ID %s is not an inherited receipt",
+  async (requestId) => {
+    const { core, project, base } = await fixture();
+    await core.createWorktree({
+      projectId: project.id,
+      baseWorkspaceId: base.id,
+      branch: { kind: "new", name: "eta/warmup" },
+      requestId: "warmup",
+    });
+    const input = {
+      projectId: project.id,
+      baseWorkspaceId: base.id,
+      branch: { kind: "new" as const, name: "eta/special-request" },
+      requestId,
+    };
+    const created = await core.createWorktree(input);
+    expect(created).toMatchObject({ status: "ready", requestId });
+    expect(await core.createWorktree(input)).toEqual(created);
+  },
+);
+
+test.each(["toString", "constructor", "__proto__"])(
+  "worktree removal request ID %s is not an inherited fingerprint",
+  async (requestId) => {
+    const { core, project, base } = await fixture();
+    const created = await core.createWorktree({
+      projectId: project.id,
+      baseWorkspaceId: base.id,
+      branch: { kind: "new", name: "eta/remove-special-request" },
+      requestId: "create-before-special-removal",
+    });
+    const removed = await core.removeWorktree(created.workspaceId!, requestId);
+    expect(removed.status).toBe("removed");
+    expect(await core.removeWorktree(created.workspaceId!, requestId)).toEqual(removed);
+    await expect(
+      core.createWorktree({
+        projectId: project.id,
+        baseWorkspaceId: base.id,
+        branch: { kind: "new", name: "eta/conflicting-request" },
+        requestId,
+      }),
+    ).rejects.toMatchObject({ code: "InvalidInput" });
+  },
+);
+
 test("branch rules: new names must be free, existing branches must not be checked out", async () => {
   const { core, root, project, base } = await fixture();
   await git(root, "branch", "existing");
