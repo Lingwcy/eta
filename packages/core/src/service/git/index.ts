@@ -194,13 +194,15 @@ export async function inspectRepository(
 
 /** Worktree paths may contain LF; terminate records with NUL + Git's final LF. */
 export const BRANCH_FORMAT =
-  "--format=%(refname)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)%00";
+  "--format=%(refname)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)%00%(symref)%00";
 
 export function parseBranches(output: string, workspaceRoot: string): GitBranch[] {
   const branches: GitBranch[] = [];
   for (const line of output.split("\0\n")) {
-    const [ref = "", sha = "", upstream = "", worktree = "", head = ""] = line.split("\0");
-    if (!ref || ref.endsWith("/HEAD")) continue;
+    const [ref = "", sha = "", upstream = "", worktree = "", head = "", symref = ""] =
+      line.split("\0");
+    // Remote HEAD aliases are symbolic refs; a real branch may legally end in /HEAD.
+    if (!ref || (ref.startsWith("refs/remotes/") && symref)) continue;
     const local = ref.startsWith("refs/heads/");
     const current = head === "*";
     branches.push({
