@@ -76,18 +76,26 @@ export class BotProjects {
     }));
   }
 
-  async refreshForThread(id: string) {
+  refreshForThread(id: string) {
+    return this.refreshTarget(async () => (await this.core.threadMetadata(id)).workspaceId);
+  }
+
+  refreshForWorkspace(id: string) {
+    return this.refreshTarget(() => id);
+  }
+
+  private async refreshTarget(resolveWorkspace: () => string | Promise<string>) {
     for (;;) {
       // A full scan publishes both maps together. Validate after its publication, not into
       // a snapshot that may still replace this target entry.
       await this.refreshing;
       const revision = this.publicationRevision;
-      const thread = await this.core.threadMetadata(id);
+      const workspaceId = await resolveWorkspace();
       const [projects, workspaces] = await Promise.all([
         this.core.projects(),
         this.core.workspaces(),
       ]);
-      const workspace = workspaces.find((value) => value.id === thread.workspaceId);
+      const workspace = workspaces.find((value) => value.id === workspaceId);
       const project = projects.find((value) => value.id === workspace?.projectId);
       if (!workspace || !project) return this.refresh();
       await mkdir(this.config.workspaceRoot, { recursive: true });

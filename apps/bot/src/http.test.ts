@@ -931,6 +931,315 @@ test("targeted subagent commands retain authentication, size, input and shutdown
   }
 });
 
+async function workspaceRequestFixture() {
+  const context = await fixture();
+  await context.bot.core.stopScheduler();
+  const git = (...args: string[]) =>
+    promisify(execFile)(
+      "git",
+      ["-c", "user.name=Eta", "-c", "user.email=eta@example.com", ...args],
+      { cwd: context.cwd },
+    );
+  await git("init", "-q", "-b", "main");
+  await writeFile(join(context.cwd, "README.md"), "Workspace scope fixture\n");
+  const skill = join(context.cwd, ".agents", "skills", "scoped-skill");
+  await mkdir(skill, { recursive: true });
+  await writeFile(
+    join(skill, "SKILL.md"),
+    "---\nname: scoped-skill\ndescription: Workspace scope fixture\n---\nUse this workspace.\n",
+  );
+  await git("add", ".");
+  await git("commit", "-q", "-m", "fixture");
+  return { ...context, git };
+}
+
+test.each(["create", "skills", "git", "branches"] as const)(
+  "workspace %s requests leave unrelated discovery to the catalog",
+  async (kind) => {
+    const { bot, request, config, workspace } = await workspaceRequestFixture();
+    await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+    const registration = vi.spyOn(bot.core, "registerProject");
+    const creation = vi.spyOn(bot.core, "createThread");
+    const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+    try {
+      if (kind === "create") {
+        const body = {
+          workspaceId: workspace,
+          requestId: "scoped-create",
+          configuration: {
+            provider: "bot-test",
+            modelId: "one",
+            thinkingLevel: "off",
+            sandboxMode: "read-only",
+          },
+        };
+        const created = await request("/v1/threads", body);
+        expect(created.status).toBe(201);
+        const thread = Schema.decodeUnknownSync(identity)(await created.json());
+        const replay = await request("/v1/threads", body);
+        expect(replay.status).toBe(201);
+        expect(Schema.decodeUnknownSync(identity)(await replay.json())).toEqual(thread);
+        expect(creation).toHaveBeenCalledTimes(1);
+        expect((await bot.core.openThread(thread.id)).snapshot.configuration.model).toMatchObject({
+          provider: "bot-test",
+          modelId: "one",
+        });
+        expect((await bot.core.openThread(thread.id)).snapshot.sandbox?.mode).toBe("read-only");
+      } else {
+        const response = await request(
+          kind === "skills"
+            ? "/v1/skills?workspaceId=" + workspace
+            : "/v1/workspaces/" + workspace + "/" + kind,
+        );
+        expect(response.status).toBe(200);
+        const value = await response.json();
+        if (kind === "skills")
+          expect(value).toMatchObject({
+            skills: expect.arrayContaining([
+              expect.objectContaining({ name: "scoped-skill", source: "project" }),
+            ]),
+          });
+        else if (kind === "git")
+          expect(value).toMatchObject({
+            status: "ready",
+            linkedWorktree: false,
+            head: { name: "main" },
+          });
+        else
+          expect(value).toEqual(
+            expect.arrayContaining([expect.objectContaining({ name: "main", current: true })]),
+          );
+      }
+      expect(registration).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
+      expect(await bot.core.projects()).toHaveLength(1);
+      expect((await request("/v1/library")).status).toBe(200);
+      expect(await bot.core.projects()).toHaveLength(2);
+      expect(registration).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledTimes(1);
+    } finally {
+      registration.mockRestore();
+      creation.mockRestore();
+      refresh.mockRestore();
+    }
+  },
+);
+
+test("workspace creation replays recheck scope before returning a cached receipt", async () => {
+  const { bot, request, config, cwd, workspace } = await fixture();
+  await bot.core.stopScheduler();
+  const body = { workspaceId: workspace, requestId: "workspace-create-receipt" };
+  expect((await request("/v1/threads", body)).status).toBe(201);
+  const outside = join(config.dataRoot, "outside");
+  await rename(cwd, outside);
+  await symlink(outside, cwd, "dir");
+  expect(bot.workspaceProjects.has(workspace)).toBe(true);
+  const creation = vi.spyOn(bot.core, "createThread");
+  try {
+    expect((await request("/v1/threads", body)).status).toBe(403);
+    expect(
+      (await request("/v1/threads", { ...body, requestId: "new-after-revocation" })).status,
+    ).toBe(403);
+    expect(creation).not.toHaveBeenCalled();
+    expect(bot.workspaceProjects.has(workspace)).toBe(false);
+  } finally {
+    creation.mockRestore();
+  }
+});
+
+test.each(["skills", "git", "branches"] as const)(
+  "workspace %s rejects an escaped checkout before Core reads",
+  async (kind) => {
+    const { bot, request, config, cwd, workspace } = await fixture();
+    await bot.core.stopScheduler();
+    const outside = join(config.dataRoot, "outside");
+    await rename(cwd, outside);
+    await symlink(outside, cwd, "dir");
+    const skills = vi.spyOn(bot.core, "skills");
+    const repository = vi.spyOn(bot.core, "gitRepository");
+    const branches = vi.spyOn(bot.core, "gitBranches");
+    try {
+      const response = await request(
+        kind === "skills"
+          ? "/v1/skills?workspaceId=" + workspace
+          : "/v1/workspaces/" + workspace + "/" + kind,
+      );
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ error: { code: "ProjectUnavailable" } });
+      expect(skills).not.toHaveBeenCalled();
+      expect(repository).not.toHaveBeenCalled();
+      expect(branches).not.toHaveBeenCalled();
+    } finally {
+      skills.mockRestore();
+      repository.mockRestore();
+      branches.mockRestore();
+    }
+  },
+);
+
+async function scopedWorktreeFixture() {
+  const context = await workspaceRequestFixture();
+  const projectId = context.bot.workspaceProjects.get(context.workspace)!;
+  const worktree = await context.bot.core.createWorktree({
+    projectId,
+    baseWorkspaceId: context.workspace,
+    branch: { kind: "new", name: "eta/scoped-workspace" },
+    requestId: "scope-worktree",
+  });
+  expect(worktree.workspaceId).toBeTypeOf("string");
+  return { ...context, projectId, worktree, worktreeId: worktree.workspaceId! };
+}
+
+test("workspace removal retains dirty protection and cached removal without unrelated discovery", async () => {
+  const { bot, request, config, cwd, worktree, worktreeId, git } = await scopedWorktreeFixture();
+  expect(bot.workspaceProjects.has(worktreeId)).toBe(false);
+  await mkdir(join(config.workspaceRoot, "unrelated-new-project"));
+  const dirty = join(worktree.cwd, "untracked.txt");
+  await writeFile(dirty, "Do not delete this");
+  const registration = vi.spyOn(bot.core, "registerProject");
+  const refresh = vi.spyOn(BotProjects.prototype, "refresh");
+  const path = "/v1/workspaces/" + worktreeId + "/remove";
+  try {
+    expect((await request(path, { requestId: "remove" })).status).toBe(400);
+    expect(await readFile(dirty, "utf8")).toBe("Do not delete this");
+    await rm(dirty);
+    const removed = await request(path, { requestId: "remove" });
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toMatchObject({ workspaceId: worktreeId, status: "removed" });
+    await expect(readFile(join(worktree.path, ".git"))).rejects.toMatchObject({ code: "ENOENT" });
+    const replay = await request(path, { requestId: "remove" });
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toMatchObject({ workspaceId: worktreeId, status: "removed" });
+    await git("show-ref", "--verify", "refs/heads/eta/scoped-workspace");
+    expect(registration).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(await bot.core.projects()).toHaveLength(1);
+    expect((await request("/v1/library")).status).toBe(200);
+    expect(await bot.core.projects()).toHaveLength(2);
+    expect(registration).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    const outside = join(config.dataRoot, "removed-project-outside");
+    await rename(cwd, outside);
+    await symlink(outside, cwd, "dir");
+    expect((await request(path, { requestId: "remove" })).status).toBe(403);
+  } finally {
+    registration.mockRestore();
+    refresh.mockRestore();
+  }
+}, 15000);
+
+test.each(["git", "branches", "remove"] as const)(
+  "workspace %s also rejects an escaped project root with an inside worktree",
+  async (kind) => {
+    const { bot, request, config, cwd, worktree, worktreeId } = await scopedWorktreeFixture();
+    expect((await request("/v1/workspaces/" + worktreeId + "/git")).status).toBe(200);
+    const outside = join(config.dataRoot, "project-outside");
+    await rename(cwd, outside);
+    await symlink(outside, cwd, "dir");
+    // The target checkout still exists inside Bot's root; its owning project is what escaped.
+    expect(await readFile(join(worktree.path, "README.md"), "utf8")).toContain(
+      "Workspace scope fixture",
+    );
+    expect(bot.workspaceProjects.has(worktreeId)).toBe(true);
+    const repository = vi.spyOn(bot.core, "gitRepository");
+    const branches = vi.spyOn(bot.core, "gitBranches");
+    const remove = vi.spyOn(bot.core, "removeWorktree");
+    try {
+      const response = await request(
+        "/v1/workspaces/" + worktreeId + "/" + kind,
+        kind === "remove" ? { requestId: "denied" } : undefined,
+      );
+      expect(response.status).toBe(403);
+      expect(bot.workspaceProjects.has(worktreeId)).toBe(false);
+      expect(repository).not.toHaveBeenCalled();
+      expect(branches).not.toHaveBeenCalled();
+      expect(remove).not.toHaveBeenCalled();
+    } finally {
+      repository.mockRestore();
+      branches.mockRestore();
+      remove.mockRestore();
+    }
+  },
+);
+
+test("workspace creation follows visible aliases but rejects replay after the alias is removed", async () => {
+  const { bot, request, config } = await fixture();
+  await bot.core.stopScheduler();
+  const hidden = join(config.workspaceRoot, ".hidden");
+  await mkdir(hidden);
+  const project = await bot.core.registerProject(hidden);
+  const [workspace] = await bot.core.workspaces(project.id);
+  const alias = join(config.workspaceRoot, "visible-alias");
+  await symlink(hidden, alias, "dir");
+  const body = { workspaceId: workspace!.id, requestId: "alias-create" };
+  const first = await request("/v1/threads", body);
+  expect(first.status).toBe(201);
+  const thread = Schema.decodeUnknownSync(identity)(await first.json());
+  expect((await bot.core.threadMetadata(thread.id)).workspaceId).toBe(workspace!.id);
+  await rm(alias);
+  expect((await request("/v1/threads", body)).status).toBe(403);
+  expect((await request("/v1/skills?workspaceId=" + workspace!.id)).status).toBe(403);
+});
+
+test("workspace requests preserve guards and reject missing or unknown targets", async () => {
+  const { bot, request, config, workspace } = await fixture();
+  await bot.core.stopScheduler();
+  const reads = [
+    "/v1/skills?workspaceId=" + workspace,
+    "/v1/workspaces/" + workspace + "/git",
+    "/v1/workspaces/" + workspace + "/branches",
+  ];
+  const writes = ["/v1/threads", "/v1/workspaces/" + workspace + "/remove"];
+  const scoped = vi.spyOn(BotProjects.prototype, "refreshForWorkspace");
+  const creation = vi.spyOn(bot.core, "createThread");
+  const removal = vi.spyOn(bot.core, "removeWorktree");
+  try {
+    for (const path of reads) expect((await bot.app.request(path)).status).toBe(401);
+    for (const path of writes) {
+      expect((await bot.app.request(path, { method: "POST", body: "{}" })).status).toBe(401);
+      expect(
+        (
+          await bot.app.request(path, {
+            method: "POST",
+            headers: {
+              authorization: "Bearer " + config.adminToken,
+              "content-length": String(48 * 1024 * 1024 + 1),
+            },
+            body: "{}",
+          })
+        ).status,
+      ).toBe(413);
+    }
+    expect(scoped).not.toHaveBeenCalled();
+    expect((await request("/v1/threads", {})).status).toBe(400);
+    expect((await request(writes[1]!, {})).status).toBe(400);
+    expect((await request("/v1/skills")).status).toBe(403);
+    expect((await request("/v1/skills?workspaceId=unknown")).status).toBe(403);
+    expect((await request("/v1/workspaces/unknown/git")).status).toBe(403);
+    expect((await request("/v1/workspaces/unknown/branches")).status).toBe(403);
+    expect((await request("/v1/workspaces/unknown/remove", { requestId: "unknown" })).status).toBe(
+      403,
+    );
+    expect(
+      (await request("/v1/threads", { workspaceId: "unknown", requestId: "unknown" })).status,
+    ).toBe(403);
+    expect(creation).not.toHaveBeenCalled();
+    expect(removal).not.toHaveBeenCalled();
+    await bot.close();
+    scoped.mockClear();
+    for (const path of reads) expect((await request(path)).status).toBe(503);
+    expect(
+      (await request("/v1/threads", { workspaceId: workspace, requestId: "closed" })).status,
+    ).toBe(503);
+    expect((await request(writes[1]!, { requestId: "closed" })).status).toBe(503);
+    expect(scoped).not.toHaveBeenCalled();
+  } finally {
+    scoped.mockRestore();
+    creation.mockRestore();
+    removal.mockRestore();
+  }
+});
+
 test("ordinary messages and cached receipts do not discover unrelated projects", async () => {
   const { bot, provider, request, create, config } = await fixture();
   await bot.core.stopScheduler();
