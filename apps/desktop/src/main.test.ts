@@ -1,10 +1,11 @@
-import { beforeEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => Promise<unknown>>(),
   windows: [] as {
     webContents: {
       id: number;
+      emit(event: string, ...args: unknown[]): boolean;
       send: ReturnType<typeof vi.fn>;
       setWindowOpenHandler: ReturnType<typeof vi.fn>;
     };
@@ -96,7 +97,9 @@ vi.mock("electron", async () => {
     },
   };
 });
+afterEach(() => vi.unstubAllEnvs());
 beforeEach(async () => {
+  vi.stubEnv("ETA_WEB_URL", undefined);
   vi.resetModules();
   state.windows.length = 0;
   state.handlers.clear();
@@ -120,6 +123,51 @@ beforeEach(async () => {
     .mockImplementation((path: string) => state.openDirectory!(path));
   await import("./main.ts");
   await vi.waitFor(() => expect(state.windows).toHaveLength(1));
+});
+
+test("packaged renderer navigation rejects matching paths on untrusted schemes and hosts", () => {
+  const window = state.windows[0]!;
+  const target = new URL(window.loadURL.mock.calls[0]![0] as string);
+  for (const url of [
+    "https://attacker.invalid" + target.pathname,
+    "http://127.0.0.1:3000" + target.pathname,
+    "file://attacker.invalid" + target.pathname,
+    "data:" + target.pathname,
+    "file:///etc/passwd",
+    "not a URL",
+  ]) {
+    const event = { preventDefault: vi.fn() };
+    expect(() => window.webContents.emit("will-navigate", event, url)).not.toThrow();
+    expect(event.preventDefault, url).toHaveBeenCalledOnce();
+  }
+  for (const suffix of ["", "?thread=one", "#settings", "?thread=one#settings"]) {
+    const event = { preventDefault: vi.fn() };
+    window.webContents.emit("will-navigate", event, target.href + suffix);
+    expect(event.preventDefault, suffix).not.toHaveBeenCalled();
+  }
+});
+
+test("development renderer navigation stays within the configured server origin", async () => {
+  vi.stubEnv("ETA_WEB_URL", "http://localhost:5173");
+  const { createDesktopWindows } = await import("./main/windows.ts");
+  const windows = createDesktopWindows(
+    () => {},
+    () => false,
+  );
+  windows.open("dev-thread");
+  const window = state.windows.at(-1)!;
+  for (const [url, blocked] of [
+    ["http://localhost:5173/?thread=two", false],
+    ["http://localhost:5173/other", false],
+    ["https://localhost:5173/", true],
+    ["http://localhost:5174/", true],
+    ["http://attacker.invalid:5173/", true],
+  ] as const) {
+    const event = { preventDefault: vi.fn() };
+    window.webContents.emit("will-navigate", event, url);
+    expect(event.preventDefault.mock.calls.length, url).toBe(blocked ? 1 : 0);
+  }
+  windows.dispose();
 });
 
 test("message links open externally from every window without creating an Electron popup", async () => {
