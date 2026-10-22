@@ -119,14 +119,17 @@ export class RunSupervisorService extends Context.Service<
             normalizeThinkingLevel(runtime.conversation, models.models),
           );
       });
+      const reserve = (runtime: ThreadRuntime) => {
+        if (leases.has(runtime))
+          throw new CoreError({ code: "Busy", message: "此会话已有任务运行" });
+        leases.add(runtime);
+        runtime.running = true;
+      };
       const claim = async (runtime: ThreadRuntime) => {
         if (access.removing(runtime.ref.metadata.cwd))
           throw new CoreError({ code: "WorkspaceUnavailable", message: "工作区正在移除" });
-        if (leases.has(runtime))
-          throw new CoreError({ code: "Busy", message: "此会话已有任务运行" });
         // Removal must see this claim while its last asynchronous eligibility read is pending.
-        leases.add(runtime);
-        runtime.running = true;
+        reserve(runtime);
         try {
           const reason = await Effect.runPromise(access.reason(runtime.ref.metadata.cwd));
           if (reason || access.removing(runtime.ref.metadata.cwd))
@@ -285,7 +288,8 @@ export class RunSupervisorService extends Context.Service<
         stop: (runtime) =>
           adapter("无法停止任务", async () => {
             // abort also settles queued work; recovery is only resumed here to converge cancellation.
-            if (!runtime.running) await claim(runtime);
+            // Cancellation must remain possible after the checkout is lost or tombstoned.
+            if (!runtime.running) reserve(runtime);
             try {
               runtime.recoveryRequired = false;
               await runtime.subagents.stopAll();
