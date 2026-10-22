@@ -69,6 +69,26 @@ export function scheduleFingerprint(input: unknown) {
     .digest("hex");
 }
 
+/** Stored requests are own JSON fields, never entries inherited from Object.prototype. */
+export function getScheduleRequest(
+  state: Pick<ScheduleStoreState, "requests">,
+  requestId: string,
+): ScheduleRequest | undefined {
+  return Object.hasOwn(state.requests, requestId) ? state.requests[requestId] : undefined;
+}
+
+function recordScheduleRequest(state: ScheduleDraft, request: ScheduleRequest): ScheduleRequest {
+  const receipt = compactScheduleRequest(request);
+  // Assignment to a new __proto__ key invokes Object.prototype's setter instead of storing it.
+  Object.defineProperty(state.requests, receipt.requestId, {
+    value: receipt,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+  return receipt;
+}
+
 function compactScheduleRequest(request: ScheduleRequest): ScheduleRequest {
   if (request.state === "pending") return request;
   const { change: _change, ...receipt } = request;
@@ -79,7 +99,7 @@ function invalid(message: string): never {
   throw new CoreError({ code: "InvalidInput", message });
 }
 function replay(state: ScheduleDraft, requestId: string, fingerprint: string) {
-  const existing = state.requests[requestId];
+  const existing = getScheduleRequest(state, requestId);
   if (existing && existing.fingerprint !== fingerprint) invalid("请求身份已用于不同的定时任务参数");
   return existing;
 }
@@ -239,8 +259,7 @@ export function writeScheduleChange(
     if (!(error instanceof CoreError)) throw error;
     request = { ...request, state: "rejected", reason: error.message, finishedAt: now };
   }
-  state.requests[input.requestId] = compactScheduleRequest(request);
-  return state.requests[input.requestId];
+  return recordScheduleRequest(state, request);
 }
 
 /** Proposals freeze both content and execution workspace; they never create an active schedule. */
@@ -312,8 +331,7 @@ export function proposeScheduleChange(
     if (!(error instanceof CoreError)) throw error;
     request = { ...request, state: "rejected", reason: error.message };
   }
-  state.requests[input.requestId] = compactScheduleRequest(request);
-  return state.requests[input.requestId];
+  return recordScheduleRequest(state, request);
 }
 
 export function decideScheduleProposal(
@@ -384,8 +402,7 @@ export function decideScheduleProposal(
     )
       state.proposals[proposal.id] = { ...proposal, state: "invalidated", reason: error.message };
   }
-  state.requests[input.requestId] = compactScheduleRequest(request);
-  return state.requests[input.requestId];
+  return recordScheduleRequest(state, request);
 }
 
 function approvedProposal(proposal: ScheduleProposal, request: ScheduleRequest): ScheduleProposal {
@@ -438,7 +455,7 @@ export function settleScheduleRequests(
       if (proposal)
         state.proposals[proposal.id] = { ...proposal, state: "invalidated", reason: error.message };
     }
-    state.requests[request.requestId] = compactScheduleRequest(request);
+    recordScheduleRequest(state, request);
   }
 }
 
@@ -513,6 +530,5 @@ export function runScheduleNow(
     if (!(error instanceof CoreError)) throw error;
     request = { ...request, state: "rejected", reason: error.message };
   }
-  state.requests[input.requestId] = compactScheduleRequest(request);
-  return state.requests[input.requestId];
+  return recordScheduleRequest(state, request);
 }

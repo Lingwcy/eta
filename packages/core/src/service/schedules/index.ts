@@ -21,6 +21,7 @@ import {
   decideScheduleProposal,
   runScheduleNow,
   scheduleDraft,
+  getScheduleRequest,
   type ScheduleWriteInput,
   type ScheduleProposeInput,
   type ScheduleDecisionInput,
@@ -69,7 +70,7 @@ export class ScheduleService extends Context.Service<
       ) {
         // Accepted request replay must still return its receipt after archival or removal.
         const state = yield* store.read;
-        if (state.requests[requestId]) return;
+        if (getScheduleRequest(state, requestId)) return;
         const thread = (yield* catalog.read).threads.find((thread) => thread.id === threadId);
         if (thread && thread.archivedAt === undefined) {
           yield* adapter(
@@ -121,7 +122,7 @@ export class ScheduleService extends Context.Service<
         const input = yield* decodeDecision(raw).pipe(Effect.mapError(inputError));
         const saved = yield* store.read;
         const proposal = saved.proposals[input.proposalId];
-        const prior = saved.requests[input.requestId];
+        const prior = getScheduleRequest(saved, input.requestId);
         const threadId = prior?.threadId ?? proposal?.threadId;
         if (!threadId)
           return yield* new CoreError({ code: "NotFound", message: "待确认提案不存在" });
@@ -201,7 +202,8 @@ export class ScheduleService extends Context.Service<
                 .slice(0, 100),
             ),
           ),
-        request: (requestId) => store.read.pipe(Effect.map((state) => state.requests[requestId])),
+        request: (requestId) =>
+          store.read.pipe(Effect.map((state) => getScheduleRequest(state, requestId))),
         write,
         propose,
         decide,
