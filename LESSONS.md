@@ -217,7 +217,8 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 - Evidence: on 2026-10-15, byte-split LF frames passed Desktop's thread and schedule subscriptions, but valid split CRLF and bare-CR frames produced six failures: no completed thread observation or schedule revision arrived. The shared Desktop parser normalized each chunk separately, losing CRLF boundaries split across reads. Incremental line-ending normalization makes all 18 Bot transport tests pass, including UTF-8, admission acknowledgement, reconnect and cancellation; Mobile's existing independent parser passes its four boundary tests unchanged. This is a controlled protocol reproduction, not a production incident or an explanation of unrelated CI failures.
 - Check: feed valid frames across arbitrary byte boundaries, including UTF-8 and line endings, on every consumer of a shared parser. Do not assume a server's usual LF output or a whole-frame mock covers the wire protocol.
-- Seen: 2026-10-15.
+- Additional evidence: on 2026-10-22, #373 exercises Mobile's independent readEvents with a real byte stream carrying a 1 MiB snapshot in 1 KiB chunks: repeated growing-prefix newline searches offer 538,428,436 characters to the matcher. Incremental fragment assembly passes a linear search-input bound while preserving every LF/CRLF/CR byte split, UTF-8, incomplete-frame rejection, cancellation and the existing line/data size limits. #371 is independently scoped to Desktop; a shared protocol does not imply a shared parser. This is a deterministic algorithm regression, not a native-phone CPU or OOM measurement. Use constant-space observation: a spy retaining growing call arguments can manufacture a fixture OOM.
+- Seen: 2026-10-15, 2026-10-22.
 
 **Recover filesystem staging before treating a cross-store lifecycle operation as rolled back.**
 
