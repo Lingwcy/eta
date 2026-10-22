@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   taskText: { flex: 1, fontSize: 14, lineHeight: 17, color: mutedOnCanvas },
   banner: {
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   },
   error: {
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   errorText: { flex: 1, fontSize: 14, lineHeight: 17, color: errorTextColor },
   pending: {
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
