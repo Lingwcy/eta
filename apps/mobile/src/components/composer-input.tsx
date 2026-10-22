@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   },
   sandboxText: {
     color: chipText,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
   },
   modelButton: {
@@ -299,13 +299,13 @@ const styles = StyleSheet.create({
   },
   modelText: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "500",
     flexShrink: 1,
   },
   thinkingBadge: {
     color: chipText,
-    fontSize: 11,
+    fontSize: 12,
   },
   tokensChip: {
     flexShrink: 0,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   },
   tokensText: {
     color: chipText,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
