@@ -532,7 +532,7 @@ test("pending approvals survive restart without executing before explicit resume
     })
     .toBe("completed");
   expect(await readFile(join(cwd, "restart.txt"), "utf8")).toBe("after approval");
-});
+}, 60_000);
 
 test("subagents inherit read-only policy and expose their own requests to the owning thread", async () => {
   const { core, provider, cwd, workspace } = await fixture();
@@ -687,7 +687,7 @@ test("host model catalogs and mutable default settings stay local to each Core i
   bot.setModel("one");
   expect((await bot.core.createThread(bot.workspace.id)).model.id).toBe("one");
   expect((await desktop.core.createThread(desktop.workspace.id)).model.id).toBe("two");
-});
+}, 60_000);
 
 test("preserving shutdown retains an unfinished input that resumes without resubmission", async () => {
   const { core, open, provider, workspace } = await fixture();

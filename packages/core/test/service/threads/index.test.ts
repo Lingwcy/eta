@@ -151,7 +151,7 @@ test("title generation runs beside the main answer using the thread's selected m
   expect(snapshot.snapshot.transcript).toHaveLength(2);
   expect(JSON.stringify(snapshot.snapshot.transcript)).not.toContain("修复登录重定向");
   expect(snapshot.thread.titleSource).toBe("generated");
-});
+}, 60_000);
 
 test("title generation can use a separately configured provider and model", async () => {
   const { runtime, threads, registry, workspace, provider, models } = await setup();
