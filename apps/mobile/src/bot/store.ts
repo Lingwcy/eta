@@ -332,8 +332,9 @@ export class MobileStore {
   }
   async disconnect(forget = false) {
     ++this.draftIntent;
-    ++this.connectionAttempt;
+    const attempt = ++this.connectionAttempt;
     if (!forget) await this.persist();
+    if (attempt !== this.connectionAttempt) return;
     ++this.epoch;
     this.stopObservation();
     this.client = undefined;

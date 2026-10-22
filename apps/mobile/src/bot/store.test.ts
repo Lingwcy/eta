@@ -27,6 +27,58 @@ function setup(fetcher: typeof fetch, saved = memoryStorage()) {
 }
 const connection = { url: "https://bot", token: "secret" };
 
+test.each([false, true])(
+  "an older disconnect cannot cancel a later connection after forget (sameUrl=%s)",
+  async (sameUrl) => {
+    const requests: { url: string; authorization: string | null }[] = [];
+    const { store, saved } = setup(async (url, init) => {
+      requests.push({
+        url: requestUrl(url),
+        authorization: new Headers(init?.headers).get("authorization"),
+      });
+      return json(library);
+    });
+    await store.connect(connection);
+    const release = Promise.withResolvers<void>();
+    const save = saved.storage.saveCache.bind(saved.storage);
+    let flushing = false;
+    saved.storage.saveCache = async (url, cache) => {
+      flushing = true;
+      await release.promise;
+      await save(url, cache);
+    };
+    const disconnecting = store.disconnect();
+    let forgetting: Promise<void> | undefined;
+    let connecting: Promise<void> | undefined;
+    const next = { url: sameUrl ? connection.url : "https://second-bot", token: "second-token" };
+    const expected = { url: next.url + "/v1/library", authorization: "Bearer " + next.token };
+    try {
+      await expect.poll(() => flushing, { timeout: 1000 }).toBe(true);
+      forgetting = store.disconnect(true);
+      connecting = store.connect(next);
+      await expect
+        .poll(
+          () =>
+            requests.some(
+              (request) =>
+                request.url === expected.url && request.authorization === expected.authorization,
+            ),
+          { timeout: 1000 },
+        )
+        .toBe(true);
+      release.resolve();
+      await Promise.all([disconnecting, forgetting, connecting]);
+      expect(store.getSnapshot()).toMatchObject({ status: "connected", url: next.url });
+      expect(saved.connection()).toEqual(next);
+      await store.refresh();
+      expect(requests.at(-1)).toEqual(expected);
+    } finally {
+      release.resolve();
+      await Promise.allSettled([disconnecting, forgetting, connecting]);
+    }
+  },
+);
+
 test("the latest overlapping connection still wins across the initial cache flush", async () => {
   const { store } = setup(async () => json(library));
   await Promise.all([
