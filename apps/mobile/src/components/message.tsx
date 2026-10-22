@@ -358,8 +358,8 @@ const styles = StyleSheet.create({
   toolSummary: { flex: 1, fontSize: 14, color: colors.muted },
   toolState: { fontSize: 13, color: colors.muted },
   toolScrollContent: {
-    padding: 10,
-    gap: 8,
+    padding: 12,
+    gap: 10,
   },
   toolSection: {
     gap: 4,
