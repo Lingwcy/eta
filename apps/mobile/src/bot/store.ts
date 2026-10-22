@@ -652,13 +652,14 @@ export class MobileStore {
   async createProject(name: string) {
     const client = this.requireClient();
     const epoch = this.epoch;
+    const intent = this.draftIntent;
     if (!this.projectRequest || this.projectRequest.name !== name)
       this.projectRequest = { name, id: this.uuid() };
     const project = await client.project(name, this.projectRequest.id);
     if (epoch !== this.epoch) return;
     this.projectRequest = undefined;
     await this.refresh();
-    if (epoch !== this.epoch) return;
+    if (epoch !== this.epoch || intent !== this.draftIntent) return;
     const workspace = this.state.library?.workspaces.find(
       (value) => value.projectId === project.id && value.kind === "project-root",
     );
