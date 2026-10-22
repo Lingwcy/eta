@@ -329,6 +329,123 @@ test.each([false, true])(
   },
 );
 
+test("connecting while forget is clearing cannot resurrect discarded drafts", async () => {
+  let validations = 0;
+  const { store, saved } = setup(async () => {
+    validations++;
+    return json(library);
+  });
+  await store.connect(connection);
+  saved.caches.set(connection.url, {
+    drafts: { "workspace:workspace": "Discarded draft" },
+    draftImages: {
+      "workspace:workspace": [
+        { id: "discarded-image", type: "image", mimeType: "image/png", data: "AAAA" },
+      ],
+    },
+    pending: {
+      workspaceId: "workspace",
+      prompt: "Discarded pending message",
+      createId: "discarded-create",
+      messageId: "discarded-message",
+      configuration: store.getSnapshot().configuration!,
+    },
+  });
+  const release = Promise.withResolvers<void>();
+  const clear = saved.storage.clear.bind(saved.storage);
+  let clearing = false;
+  saved.storage.clear = async () => {
+    clearing = true;
+    await release.promise;
+    await clear();
+  };
+  const forgetting = store.disconnect(true);
+  let connecting: Promise<void> | undefined;
+  try {
+    await expect.poll(() => clearing, { timeout: 1000 }).toBe(true);
+    connecting = store.connect(connection);
+    await expect.poll(() => validations, { timeout: 1000 }).toBe(2);
+    release.resolve();
+    await Promise.all([forgetting, connecting]);
+    const { status, drafts, draftImages, pending } = store.getSnapshot();
+    const cached = saved.caches.get(connection.url);
+    expect({
+      status,
+      drafts,
+      draftImages,
+      pending,
+      cachedDrafts: cached?.drafts,
+      cachedImages: cached?.draftImages,
+      cachedPending: cached?.pending,
+    }).toEqual({
+      status: "connected",
+      drafts: {},
+      draftImages: {},
+      pending: undefined,
+      cachedDrafts: {},
+      cachedImages: {},
+      cachedPending: undefined,
+    });
+  } finally {
+    release.resolve();
+    await Promise.allSettled([forgetting, connecting]);
+  }
+});
+
+test("initialization cannot restore credentials or drafts while forget is clearing", async () => {
+  const { store, saved } = setup(async () => json(library));
+  await store.connect(connection);
+  store.setDraft("Discard this saved draft");
+  await store.configure(store.getSnapshot().configuration!);
+  const release = Promise.withResolvers<void>();
+  const clear = saved.storage.clear.bind(saved.storage);
+  let clearing = false;
+  saved.storage.clear = async () => {
+    clearing = true;
+    await release.promise;
+    await clear();
+  };
+  const forgetting = store.disconnect(true);
+  let initializing: Promise<void> | undefined;
+  try {
+    await expect.poll(() => clearing, { timeout: 1000 }).toBe(true);
+    initializing = store.initialize();
+    // Let already-resolved adapter reads run, without releasing the pending deletion.
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    release.resolve();
+    await Promise.all([forgetting, initializing]);
+    const { status, url, drafts } = store.getSnapshot();
+    expect({ status, url, drafts }).toEqual({ status: "disconnected", url: undefined, drafts: {} });
+    expect(saved.connection()).toBeUndefined();
+    expect(saved.caches.size).toBe(0);
+  } finally {
+    release.resolve();
+    await Promise.allSettled([forgetting, initializing]);
+  }
+});
+
+test("forget queues removal before a subscriber can restart initialization", async () => {
+  const { store, saved } = setup(async () => json(library));
+  await store.connect(connection);
+  let initializing: Promise<void> | undefined;
+  const unsubscribe = store.subscribe(() => {
+    if (store.getSnapshot().status !== "disconnected") return;
+    unsubscribe();
+    initializing = store.initialize();
+  });
+  try {
+    await store.disconnect(true);
+    await initializing;
+    const { status, url } = store.getSnapshot();
+    expect({ status, url }).toEqual({ status: "disconnected", url: undefined });
+    expect(saved.connection()).toBeUndefined();
+    expect(saved.caches.size).toBe(0);
+  } finally {
+    unsubscribe();
+    await initializing;
+  }
+});
+
 test("a rejected clear is reported and can be retried instead of claiming data was erased", async () => {
   const { store, saved } = setup(async () => json(library));
   await store.connect(connection);
