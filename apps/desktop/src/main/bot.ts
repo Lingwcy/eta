@@ -133,6 +133,8 @@ export class DesktopBot {
   private cancelStreams() {
     this.stopScheduleEvents?.();
     this.stopScheduleEvents = undefined;
+    // Consumers can still settle after their transport is cancelled.
+    for (const observation of this.observations.values()) observation.listeners.clear();
     this.observations.clear();
     for (const controller of this.streams) controller.abort();
     this.streams.clear();

@@ -1574,6 +1574,89 @@ test("a burst of schedule events coalesces the library refresh", async () => {
   }
 });
 
+test.each(
+  (["live", "replay"] as const).flatMap((delivery) =>
+    (["close", "disconnect", "switch", "credentials", "unsubscribe", "current"] as const).map(
+      (action) => ({ delivery, action }),
+    ),
+  ),
+)(
+  "$action rejects stale $delivery consumer errors after shared observation cancellation",
+  async ({ delivery, action }) => {
+    const { bot, request, prefix } = await connect(true);
+    const original = request.getMockImplementation()!;
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+    request.mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (!url.endsWith("/events")) return original(input, init);
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(value) {
+            stream = value;
+          },
+        }),
+      );
+    });
+    const release = Promise.withResolvers<void>();
+    const finished = Promise.withResolvers<void>();
+    let entered = false;
+    const error = vi.fn();
+    const peerError = vi.fn();
+    const peer = vi.fn();
+    const stopPeer = await bot.subscribeThread(prefix + "thread", peer, peerError);
+    const emit = () =>
+      stream!.enqueue(
+        new TextEncoder().encode(
+          "event: snapshot\ndata: " +
+            JSON.stringify({ snapshot: createdSession().snapshot, contextTokens: 1 }) +
+            "\n\n",
+        ),
+      );
+    let stop: (() => void) | undefined;
+    try {
+      await expect.poll(() => !!stream).toBe(true);
+      if (delivery === "replay") {
+        emit();
+        await expect.poll(() => peer.mock.calls.length).toBe(1);
+      }
+      stop = await bot.subscribeThread(
+        prefix + "thread",
+        async () => {
+          entered = true;
+          try {
+            await release.promise;
+            throw new Error("Obsolete consumer failure");
+          } finally {
+            finished.resolve();
+          }
+        },
+        error,
+      );
+      if (delivery === "live") emit();
+      await expect.poll(() => entered).toBe(true);
+      if (action === "close") bot.close();
+      else if (action === "disconnect") await bot.disconnect();
+      else if (action === "switch")
+        await bot.connect({ url: "http://localhost:8081", token: "other" });
+      else if (action === "credentials")
+        await bot.connect({ url: "http://localhost:8080", token: "replacement" });
+      else if (action === "unsubscribe") stop();
+      release.resolve();
+      await finished.promise;
+      // Let the settled consumer rejection and its error continuation reach the check phase.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(error.mock.calls).toEqual(action === "current" ? [["Obsolete consumer failure"]] : []);
+      expect(peer).toHaveBeenCalledTimes(1);
+      expect(peerError).not.toHaveBeenCalled();
+    } finally {
+      release.resolve();
+      stop?.();
+      stopPeer();
+      bot.close();
+    }
+  },
+);
+
 test("thread views share one stream, replay its latest snapshot and release only the last owner", async () => {
   const { bot, request, prefix } = await connect(true);
   const original = request.getMockImplementation()!;

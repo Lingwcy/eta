@@ -96,9 +96,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Share remote observations by resource while keeping consumer lifetimes independent.**
 
 - Evidence: on 2026-10-22, installed Desktop v0.1.110 independently subscribed the chat, subagent inspector and activity tracker to the same Bot thread. Three read-only history samples returned 19–29 MB of JSON each; SSE used the same full-history projection. `bot.test.ts` now covers one remote stream for multiple consumers, latest-snapshot replay, independent path subscriptions, consumer failures, final-owner cancellation and late old-owner cleanup. These are transport-count controls, not proof of the reported production 502's cause.
-- Check: coalesce at the remote adapter by thread and subagent path, release only the last owner, and clear retained snapshots when the remote identity changes. A UI component's independent subscription should not multiply remote history traffic.
+- Additional evidence: on 2026-10-22, #403 holds live and replay consumer callbacks across close, disconnect, URL replacement and same-URL token rotation. Eight controls report obsolete errors because clearing the observation Map and aborting readers leaves old consumer membership intact; unsubscribe/current-owner controls retain correct error behavior. Clearing memberships before transport teardown suppresses only stale reports. These are real adapter/stream interactions, not native Electron or production error-state evidence.
+- Check: coalesce at the remote adapter by thread and subagent path, release only the last owner, and clear retained snapshots when the remote identity changes. Revoke consumer membership as well as transport ownership: an already-started async callback can still settle after cancellation. Preserve current consumer failures and independent peers. A UI component's independent subscription should not multiply remote history traffic.
 - Seen: 2026-10-22.
-
 
 **Reuse a filesystem scope only within the operation that verifies and publishes it.**
 
