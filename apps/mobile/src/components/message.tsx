@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   },
   userText: {
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
     color: colors.text,
   },
   messageImage: {
