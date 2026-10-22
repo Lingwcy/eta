@@ -242,6 +242,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: keep completed-request replay and namespace validation semantics, but perform available preflight checks before mkdir/Catalog publication. Assert both disk and metadata after reopening, not only the error code. A preflight ordering fix is not general rollback, orphan collection or a retention policy for later failures.
 - Seen: 2026-10-22.
 
+**Separate readable execution contexts from eligible new-conversation targets.**
+
+- Evidence: on 2026-10-22, #410 connects production MobileStore/BotClient to real Bot HTTP/Core. With only a temporary workspace present, a fresh draft or newThread inherits its hidden ID and creates another thread in the same cwd; a test file from the first chat is visible at the new target. Both controls fail before classifying temporary targets; existing-thread continuation and an explicitly chosen project remain valid.
+- Check: apply the client's documented creation policy instead of treating every readable workspace as a selectable project. Do not implicitly reuse a private temporary root or silently choose another project. Keep existing history/continuation and accepted pending identities intact; full projectless creation/discovery is a separate product capability. This is same-authorized-Bot file sharing evidence, not cross-account access or native navigation verification.
+- Seen: 2026-10-22.
+
 **Coordinate directory adoption with destructive cleanup across services.**
 
 - Evidence: on 2026-10-22, #377's controlled temporary-workspace tests hold real path validation or removal while registering the same directory or a child. Without shared ownership coordination, all eight project/workspace and admission-order cases fail: registration can succeed while cleanup removes its files. Thread mutation and short Catalog update locks do not cover independent project/workspace registration.
