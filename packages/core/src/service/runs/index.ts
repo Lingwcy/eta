@@ -120,16 +120,25 @@ export class RunSupervisorService extends Context.Service<
           );
       });
       const claim = async (runtime: ThreadRuntime) => {
-        const reason = await Effect.runPromise(access.reason(runtime.ref.metadata.cwd));
-        if (reason || access.removing(runtime.ref.metadata.cwd))
-          throw new CoreError({
-            code: "WorkspaceUnavailable",
-            message: reason ?? "工作区正在移除",
-          });
+        if (access.removing(runtime.ref.metadata.cwd))
+          throw new CoreError({ code: "WorkspaceUnavailable", message: "工作区正在移除" });
         if (leases.has(runtime))
           throw new CoreError({ code: "Busy", message: "此会话已有任务运行" });
+        // Removal must see this claim while its last asynchronous eligibility read is pending.
         leases.add(runtime);
         runtime.running = true;
+        try {
+          const reason = await Effect.runPromise(access.reason(runtime.ref.metadata.cwd));
+          if (reason || access.removing(runtime.ref.metadata.cwd))
+            throw new CoreError({
+              code: "WorkspaceUnavailable",
+              message: reason ?? "工作区正在移除",
+            });
+        } catch (error) {
+          leases.delete(runtime);
+          runtime.running = false;
+          throw error;
+        }
       };
       const release = (runtime: ThreadRuntime) => {
         leases.delete(runtime);
