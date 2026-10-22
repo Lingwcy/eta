@@ -216,8 +216,10 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Parse streaming protocols independently of transport read boundaries.**
 
 - Evidence: on 2026-10-15, byte-split LF frames passed Desktop's thread and schedule subscriptions, but valid split CRLF and bare-CR frames produced six failures: no completed thread observation or schedule revision arrived. The shared Desktop parser normalized each chunk separately, losing CRLF boundaries split across reads. Incremental line-ending normalization makes all 18 Bot transport tests pass, including UTF-8, admission acknowledgement, reconnect and cancellation; Mobile's existing independent parser passes its four boundary tests unchanged. This is a controlled protocol reproduction, not a production incident or an explanation of unrelated CI failures.
+- Additional evidence: on 2026-10-22, Desktop's main process sustained about 105% CPU while a remote scheduled thread had a 28,067,653-byte snapshot with 8,054 messages. Replaying that response as one SSE frame in 16 KiB text chunks took 4,786 ms with repeated whole-buffer delimiter searches and 18 ms with chunk-local searches and one final join. This isolates frame assembly, not end-to-end rendering or the original CPU stack's unnamed JavaScript frames. `apps/desktop/src/main/event-stream.test.ts` bounds searched characters for a fragmented large frame and covers delimiter splits; existing Bot tests exercise both stream consumers and cancellation. Mobile's independent line parser still has an analogous growing-buffer scan and was not changed in this Desktop fix.
 - Check: feed valid frames across arbitrary byte boundaries, including UTF-8 and line endings, on every consumer of a shared parser. Do not assume a server's usual LF output or a whole-frame mock covers the wire protocol.
-- Seen: 2026-10-15.
+- Check large frames too: search only newly arrived text and retain unfinished fragments without repeatedly concatenating and scanning the growing prefix.
+- Seen: 2026-10-15, 2026-10-22.
 
 **Recover filesystem staging before treating a cross-store lifecycle operation as rolled back.**
 
