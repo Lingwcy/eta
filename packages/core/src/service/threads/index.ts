@@ -392,10 +392,7 @@ export class ThreadService extends Context.Service<
                 }
               }
               const selectedWorkspace =
-                workspaceId === null
-                  ? yield* workspaces.temporary(requestId)
-                  : yield* workspaces.get(workspaceId);
-              const workspace = yield* workspaces.validate(selectedWorkspace.id);
+                workspaceId === null ? undefined : yield* workspaces.validate(workspaceId);
               const defaults = yield* settings.read;
               const model = yield* models.select(
                 configuration
@@ -416,6 +413,9 @@ export class ThreadService extends Context.Service<
                 selected,
                 configuration?.thinkingLevel ?? defaults.defaultThinkingLevel,
               );
+              const workspace =
+                selectedWorkspace ??
+                (yield* workspaces.validate((yield* workspaces.temporary(requestId)).id));
               const instructions = yield* resources.instructions(workspace.cwd);
               const ref = yield* repository.create(workspace.cwd);
               const thread: ThreadMetadata = {
