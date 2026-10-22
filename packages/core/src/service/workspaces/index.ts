@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, realpath, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { Context, DateTime, Effect, Layer } from "effect";
 import { CatalogService } from "../catalog/index.ts";
@@ -62,8 +62,8 @@ export class WorkspaceService extends Context.Service<
             );
             if ((await realpath(paths.temporaryWorkspacesRoot)) !== root)
               throw new Error("Temporary workspace root moved or substituted");
-            const directory = join(root, id);
-            await mkdir(directory, { recursive: true });
+            // An adopted directory can outlive its original temporary workspace.
+            const directory = await mkdtemp(join(root, `${id}-`));
             if ((await realpath(directory)) !== directory)
               throw new Error("Temporary workspace moved or substituted");
             return directory;
