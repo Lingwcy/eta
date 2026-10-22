@@ -36,6 +36,7 @@ import type { ThreadMetadata } from "@eta/core/shared/threads";
 import type { BotConnection, BotState } from "../shared/bot.ts";
 import { isCloudId } from "../shared/bot.ts";
 import { BotConnectionSchema } from "./bot-schema.ts";
+import { EventStreamFrames } from "./event-stream.ts";
 import type { LocalDesktopApplication } from "./bootstrap.ts";
 import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/shared/git";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
@@ -648,7 +649,7 @@ export class DesktopBot {
             throw new LocalizedError("errors:bot.theBotDidNotProvideALiveMessage");
           reader = response.body.getReader();
           const decoder = new TextDecoder();
-          let buffer = "";
+          const frames = new EventStreamFrames();
           let skipLF = false;
           while (!attempt.signal.aborted) {
             // Cancelling a ReadableStream reader settles pending reads even if source cleanup hangs.
@@ -658,15 +659,13 @@ export class DesktopBot {
             const chunk = decoder.decode(value, { stream: true });
             if (!chunk) continue;
             // A CR is a complete line ending; swallow its optional LF even across reads.
-            buffer += (skipLF && chunk.startsWith("\n") ? chunk.slice(1) : chunk).replace(
+            const normalized = (skipLF && chunk.startsWith("\n") ? chunk.slice(1) : chunk).replace(
               /\r\n|\r/g,
               "\n",
             );
             skipLF = chunk.endsWith("\r");
-            let end: number;
-            while (!attempt.signal.aborted && (end = buffer.indexOf("\n\n")) >= 0) {
-              const block = buffer.slice(0, end);
-              buffer = buffer.slice(end + 2);
+            for (const block of frames.push(normalized)) {
+              if (attempt.signal.aborted) break;
               const event = block
                 .split("\n")
                 .find((line) => line.startsWith("event:"))
