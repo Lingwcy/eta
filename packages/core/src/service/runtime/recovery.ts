@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { ROOT_CONVERSATION_ID } from "@eta/agent";
-import type { Harness } from "@eta/agent";
+import type { Harness, Storage } from "@eta/agent";
 import { SubagentsDoc } from "../../agent/extension/subagent/index.ts";
 import type { createSubagentsExtension } from "../../agent/extension/subagent/index.ts";
 import { TITLE_TASK_KIND } from "../../agent/extension/title/task.ts";
@@ -22,6 +22,24 @@ export function hasForegroundWork(inspection: WorkInspection) {
     inspection.submissions.length > 0 ||
     inspection.tasks.some(({ record }) => record.kind !== TITLE_TASK_KIND)
   );
+}
+
+/** Inspect cold storage without opening a Harness or resuming background work. */
+export async function hasPersistedWork(storage: Storage) {
+  for (const status of ["queued", "placed"] as const) {
+    if ((await storage.scanSubmissions({ status }, 1, undefined, BACKGROUND_CONTEXT)).items.length)
+      return true;
+  }
+  for (const status of ["pending", "running", "waiting", "completing"] as const) {
+    let page = await storage.scanTasks({ status }, 64, undefined, BACKGROUND_CONTEXT);
+    for (;;) {
+      if (requiresRecovery({ submissions: [], tasks: page.items.map((record) => ({ record })) }))
+        return true;
+      if (page.next === undefined) break;
+      page = await storage.scanTasks({ status }, 64, page.next, BACKGROUND_CONTEXT);
+    }
+  }
+  return false;
 }
 
 export async function recoverRuntime(

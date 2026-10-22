@@ -21,7 +21,7 @@ import { CatalogService } from "../catalog/index.ts";
 import { ScheduleService } from "../schedules/index.ts";
 import { createScheduleExtension } from "../schedules/extension.ts";
 import { createRuntimeTools } from "./tools.ts";
-import { recoverRuntime, hasForegroundWork } from "./recovery.ts";
+import { recoverRuntime, hasForegroundWork, hasPersistedWork } from "./recovery.ts";
 import { createTitleTask, TitleDoc } from "../../agent/extension/title/task.ts";
 import { SkillsService } from "../skills/index.ts";
 import { SkillsDoc } from "../skills/extension.ts";
@@ -76,6 +76,7 @@ export class RuntimeRegistryService extends Context.Service<
       sandboxMode?: SandboxMode,
     ): Effect.Effect<ThreadRuntime, CoreError>;
     peek(ref: EtaSessionMetadata): Effect.Effect<ThreadRuntime | undefined, CoreError>;
+    busy(ref: EtaSessionMetadata): Effect.Effect<boolean, CoreError>;
     close(ref: EtaSessionMetadata): Effect.Effect<void, CoreError>;
     readonly shutdown: Effect.Effect<void, CoreError>;
   }
@@ -545,6 +546,31 @@ export class RuntimeRegistryService extends Context.Service<
             });
           }).pipe(Effect.uninterruptible),
         peek: (ref) => adapter("无法读取运行资源状态", async () => opening.get(key(ref))),
+        busy: Effect.fn("RuntimeRegistryService.busy")(function* (ref: EtaSessionMetadata) {
+          const pending = opening.get(key(ref));
+          if (pending) {
+            const record = yield* adapter("无法读取运行资源状态", () => pending);
+            return (
+              record.running ||
+              record.recoveryRequired ||
+              (yield* adapter("无法检查任务", record.hasWork))
+            );
+          }
+          const storage = yield* repository.open(ref).pipe(
+            // Unreadable histories must retain their existing maintenance escape hatch.
+            Effect.catch((error) =>
+              error.code === "StorageCorrupt" ? Effect.succeed(undefined) : Effect.fail(error),
+            ),
+          );
+          if (!storage) return false;
+          return yield* adapter("无法检查持久任务", async () => {
+            try {
+              return await hasPersistedWork(storage);
+            } finally {
+              await storage.close(BACKGROUND_CONTEXT);
+            }
+          });
+        }),
         close: (ref) =>
           adapter("无法关闭会话运行资源", () => closeOne(ref)).pipe(Effect.uninterruptible),
         shutdown,
