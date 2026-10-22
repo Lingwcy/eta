@@ -93,6 +93,13 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Share remote observations by resource while keeping consumer lifetimes independent.**
+
+- Evidence: on 2026-10-22, installed Desktop v0.1.110 independently subscribed the chat, subagent inspector and activity tracker to the same Bot thread. Three read-only history samples returned 19–29 MB of JSON each; SSE used the same full-history projection. `bot.test.ts` now covers one remote stream for multiple consumers, latest-snapshot replay, independent path subscriptions, consumer failures, final-owner cancellation and late old-owner cleanup. These are transport-count controls, not proof of the reported production 502's cause.
+- Check: coalesce at the remote adapter by thread and subagent path, release only the last owner, and clear retained snapshots when the remote identity changes. A UI component's independent subscription should not multiply remote history traffic.
+- Seen: 2026-10-22.
+
+
 **Reuse a filesystem scope only within the operation that verifies and publishes it.**
 
 - Evidence: on 2026-10-20, BDS-06 resolves the same Bot workspace root 17 times while discovering eight existing directories. Reusing its canonical identity reduces those lookups to two in that fixture. A controlled root-symlink switch silently completes in the old scan; checking the root again after alias resolution rejects that refresh and invalidates both ownership maps until a fresh scan succeeds. Three focused regressions fail before the change, and missing checkouts/internal aliases/escaping links retain their behavior. This is an I/O-count proof, not a production benchmark.
