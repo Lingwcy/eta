@@ -255,12 +255,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   compact: {
-    minHeight: 34,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    borderRadius: 9,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
-  compactText: { fontSize: 13 },
+  compactText: { fontSize: 14 },
   secondary: {
     backgroundColor: colors.soft,
     borderWidth: 1,

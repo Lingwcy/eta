@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
   project: { fontSize: 12, color: colors.muted },
   transcript: { flex: 1 },
   messages: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
     maxWidth: 760,
