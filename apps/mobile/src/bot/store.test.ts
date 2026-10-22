@@ -27,6 +27,58 @@ function setup(fetcher: typeof fetch, saved = memoryStorage()) {
 }
 const connection = { url: "https://bot", token: "secret" };
 
+test.each([false, true])(
+  "an older disconnect cannot cancel a later connection after forget (sameUrl=%s)",
+  async (sameUrl) => {
+    const requests: { url: string; authorization: string | null }[] = [];
+    const { store, saved } = setup(async (url, init) => {
+      requests.push({
+        url: requestUrl(url),
+        authorization: new Headers(init?.headers).get("authorization"),
+      });
+      return json(library);
+    });
+    await store.connect(connection);
+    const release = Promise.withResolvers<void>();
+    const save = saved.storage.saveCache.bind(saved.storage);
+    let flushing = false;
+    saved.storage.saveCache = async (url, cache) => {
+      flushing = true;
+      await release.promise;
+      await save(url, cache);
+    };
+    const disconnecting = store.disconnect();
+    let forgetting: Promise<void> | undefined;
+    let connecting: Promise<void> | undefined;
+    const next = { url: sameUrl ? connection.url : "https://second-bot", token: "second-token" };
+    const expected = { url: next.url + "/v1/library", authorization: "Bearer " + next.token };
+    try {
+      await expect.poll(() => flushing, { timeout: 1000 }).toBe(true);
+      forgetting = store.disconnect(true);
+      connecting = store.connect(next);
+      await expect
+        .poll(
+          () =>
+            requests.some(
+              (request) =>
+                request.url === expected.url && request.authorization === expected.authorization,
+            ),
+          { timeout: 1000 },
+        )
+        .toBe(true);
+      release.resolve();
+      await Promise.all([disconnecting, forgetting, connecting]);
+      expect(store.getSnapshot()).toMatchObject({ status: "connected", url: next.url });
+      expect(saved.connection()).toEqual(next);
+      await store.refresh();
+      expect(requests.at(-1)).toEqual(expected);
+    } finally {
+      release.resolve();
+      await Promise.allSettled([disconnecting, forgetting, connecting]);
+    }
+  },
+);
+
 test("the latest overlapping connection still wins across the initial cache flush", async () => {
   const { store } = setup(async () => json(library));
   await Promise.all([
@@ -328,6 +380,123 @@ test.each([false, true])(
     }
   },
 );
+
+test("connecting while forget is clearing cannot resurrect discarded drafts", async () => {
+  let validations = 0;
+  const { store, saved } = setup(async () => {
+    validations++;
+    return json(library);
+  });
+  await store.connect(connection);
+  saved.caches.set(connection.url, {
+    drafts: { "workspace:workspace": "Discarded draft" },
+    draftImages: {
+      "workspace:workspace": [
+        { id: "discarded-image", type: "image", mimeType: "image/png", data: "AAAA" },
+      ],
+    },
+    pending: {
+      workspaceId: "workspace",
+      prompt: "Discarded pending message",
+      createId: "discarded-create",
+      messageId: "discarded-message",
+      configuration: store.getSnapshot().configuration!,
+    },
+  });
+  const release = Promise.withResolvers<void>();
+  const clear = saved.storage.clear.bind(saved.storage);
+  let clearing = false;
+  saved.storage.clear = async () => {
+    clearing = true;
+    await release.promise;
+    await clear();
+  };
+  const forgetting = store.disconnect(true);
+  let connecting: Promise<void> | undefined;
+  try {
+    await expect.poll(() => clearing, { timeout: 1000 }).toBe(true);
+    connecting = store.connect(connection);
+    await expect.poll(() => validations, { timeout: 1000 }).toBe(2);
+    release.resolve();
+    await Promise.all([forgetting, connecting]);
+    const { status, drafts, draftImages, pending } = store.getSnapshot();
+    const cached = saved.caches.get(connection.url);
+    expect({
+      status,
+      drafts,
+      draftImages,
+      pending,
+      cachedDrafts: cached?.drafts,
+      cachedImages: cached?.draftImages,
+      cachedPending: cached?.pending,
+    }).toEqual({
+      status: "connected",
+      drafts: {},
+      draftImages: {},
+      pending: undefined,
+      cachedDrafts: {},
+      cachedImages: {},
+      cachedPending: undefined,
+    });
+  } finally {
+    release.resolve();
+    await Promise.allSettled([forgetting, connecting]);
+  }
+});
+
+test("initialization cannot restore credentials or drafts while forget is clearing", async () => {
+  const { store, saved } = setup(async () => json(library));
+  await store.connect(connection);
+  store.setDraft("Discard this saved draft");
+  await store.configure(store.getSnapshot().configuration!);
+  const release = Promise.withResolvers<void>();
+  const clear = saved.storage.clear.bind(saved.storage);
+  let clearing = false;
+  saved.storage.clear = async () => {
+    clearing = true;
+    await release.promise;
+    await clear();
+  };
+  const forgetting = store.disconnect(true);
+  let initializing: Promise<void> | undefined;
+  try {
+    await expect.poll(() => clearing, { timeout: 1000 }).toBe(true);
+    initializing = store.initialize();
+    // Let already-resolved adapter reads run, without releasing the pending deletion.
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    release.resolve();
+    await Promise.all([forgetting, initializing]);
+    const { status, url, drafts } = store.getSnapshot();
+    expect({ status, url, drafts }).toEqual({ status: "disconnected", url: undefined, drafts: {} });
+    expect(saved.connection()).toBeUndefined();
+    expect(saved.caches.size).toBe(0);
+  } finally {
+    release.resolve();
+    await Promise.allSettled([forgetting, initializing]);
+  }
+});
+
+test("forget queues removal before a subscriber can restart initialization", async () => {
+  const { store, saved } = setup(async () => json(library));
+  await store.connect(connection);
+  let initializing: Promise<void> | undefined;
+  const unsubscribe = store.subscribe(() => {
+    if (store.getSnapshot().status !== "disconnected") return;
+    unsubscribe();
+    initializing = store.initialize();
+  });
+  try {
+    await store.disconnect(true);
+    await initializing;
+    const { status, url } = store.getSnapshot();
+    expect({ status, url }).toEqual({ status: "disconnected", url: undefined });
+    expect(saved.connection()).toBeUndefined();
+    expect(saved.caches.size).toBe(0);
+  } finally {
+    unsubscribe();
+    await initializing;
+  }
+});
 
 test("a rejected clear is reported and can be retried instead of claiming data was erased", async () => {
   const { store, saved } = setup(async () => json(library));

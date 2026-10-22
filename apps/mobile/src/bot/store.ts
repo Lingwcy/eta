@@ -127,9 +127,13 @@ export class MobileStore {
     this.state = { ...this.state, ...value };
     for (const listener of this.listeners) listener();
   }
-  private write(action: () => Promise<void>) {
-    const next = this.storageTail.catch(() => {}).then(action);
-    this.storageTail = next;
+  private storageAction<T>(action: () => Promise<T>) {
+    const next = this.storageTail.then(action);
+    // A failed operation still rejects its caller, but cannot block later storage access.
+    this.storageTail = next.then(
+      () => {},
+      () => {},
+    );
     return next;
   }
   private persist() {
@@ -145,7 +149,7 @@ export class MobileStore {
       pending: this.state.pending,
       lastConfiguration: this.state.configuration,
     };
-    return this.write(async () => {
+    return this.storageAction(async () => {
       if (epoch === this.epoch) await this.storage.saveCache(url, cache);
     });
   }
@@ -234,7 +238,7 @@ export class MobileStore {
   async initialize() {
     const epoch = this.epoch;
     try {
-      const connection = await this.storage.connection();
+      const connection = await this.storageAction(() => this.storage.connection());
       if (epoch !== this.epoch) return;
       if (!connection) {
         this.update({ status: "disconnected" });
@@ -242,7 +246,7 @@ export class MobileStore {
       }
       this.client = this.makeClient(connection);
       const url = this.client.connection.url;
-      const cache = await this.storage.cache(url);
+      const cache = await this.storageAction(() => this.storage.cache(url));
       if (epoch !== this.epoch) return;
       this.update({ ...cache, url, status: "reconnecting" });
       if (cache?.library) {
@@ -277,8 +281,8 @@ export class MobileStore {
     try {
       const library = await candidate.library();
       if (epoch !== this.epoch) return;
-      const cache = await this.storage.cache(candidate.connection.url);
-      await this.write(async () => {
+      const cache = await this.storageAction(() => this.storage.cache(candidate.connection.url));
+      await this.storageAction(async () => {
         if (epoch === this.epoch) await this.storage.saveConnection(candidate.connection);
       });
       if (epoch !== this.epoch) return;
@@ -328,12 +332,17 @@ export class MobileStore {
   }
   async disconnect(forget = false) {
     ++this.draftIntent;
-    ++this.connectionAttempt;
+    const attempt = ++this.connectionAttempt;
     if (!forget) await this.persist();
+    if (attempt !== this.connectionAttempt) return;
     ++this.epoch;
     this.stopObservation();
     this.client = undefined;
     this.projectRequest = undefined;
+    // Subscribers may restart initialization as soon as disconnected state is published.
+    const removed = this.storageAction(() =>
+      forget ? this.storage.clear() : this.storage.saveConnection(undefined),
+    );
     this.update({
       status: "disconnected",
       url: undefined,
@@ -349,9 +358,7 @@ export class MobileStore {
       sending: false,
       opening: false,
     });
-    await this.write(() =>
-      forget ? this.storage.clear() : this.storage.saveConnection(undefined),
-    );
+    await removed;
   }
   async reconnect() {
     if (!this.client) return;
