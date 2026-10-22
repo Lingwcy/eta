@@ -93,6 +93,13 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Share remote observations by resource while keeping consumer lifetimes independent.**
+
+- Evidence: on 2026-10-22, installed Desktop v0.1.110 independently subscribed the chat, subagent inspector and activity tracker to the same Bot thread. Three read-only history samples returned 19–29 MB of JSON each; SSE used the same full-history projection. `bot.test.ts` now covers one remote stream for multiple consumers, latest-snapshot replay, independent path subscriptions, consumer failures, final-owner cancellation and late old-owner cleanup. These are transport-count controls, not proof of the reported production 502's cause.
+- Check: coalesce at the remote adapter by thread and subagent path, release only the last owner, and clear retained snapshots when the remote identity changes. A UI component's independent subscription should not multiply remote history traffic.
+- Seen: 2026-10-22.
+
+
 **Reuse a filesystem scope only within the operation that verifies and publishes it.**
 
 - Evidence: on 2026-10-20, BDS-06 resolves the same Bot workspace root 17 times while discovering eight existing directories. Reusing its canonical identity reduces those lookups to two in that fixture. A controlled root-symlink switch silently completes in the old scan; checking the root again after alias resolution rejects that refresh and invalidates both ownership maps until a fresh scan succeeds. Three focused regressions fail before the change, and missing checkouts/internal aliases/escaping links retain their behavior. This is an I/O-count proof, not a production benchmark.
@@ -227,6 +234,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Evidence: on 2026-10-13, the scheduled-task `SIGKILL at delete-intent` fixture moved a real session into `.trash` and killed the host before its Catalog replacement. The reopened Catalog still contained the thread, but opening it failed with `StorageCorrupt`. Session removal now journals before renaming and reconciles that journal against Catalog before opening threads; six real archive/delete crash windows pass, including restore-after-archive without restarting plans.
 - Check: kill the process after filesystem staging and after Catalog persistence; prove the original transcript remains accessible when the operation did not commit and that committed deletion does not resurrect it. An in-memory rollback callback cannot cover process death.
 - Seen: 2026-10-13.
+
+**Reject preflight configuration errors before allocating durable resources.**
+
+- Evidence: on 2026-10-22, #392 uses public Core with real temporary files and reopens the same data root after rejected projectless creations. Explicit unavailable models, unavailable defaults and an empty model catalog each leave three directories and Catalog workspaces without any thread. Deferring temporary allocation until model validation passes removes these side effects; corrected-model retry/replay and explicit-workspace validation-order controls still pass.
+- Check: keep completed-request replay and namespace validation semantics, but perform available preflight checks before mkdir/Catalog publication. Assert both disk and metadata after reopening, not only the error code. A preflight ordering fix is not general rollback, orphan collection or a retention policy for later failures.
+- Seen: 2026-10-22.
 
 **Coordinate directory adoption with destructive cleanup across services.**
 

@@ -75,5 +75,16 @@ export function scheduleRunStatus(
       label: t("schedules:scheduleSidebar.chatError"),
       detail: latest.reason,
     };
+  if (latest?.state === "cancelled" || latest?.state === "skipped")
+    return {
+      state: latest.state,
+      label: t(
+        latest.state === "cancelled" ? "schedules:format.cancelled" : "schedules:format.skipped",
+      ),
+      detail:
+        latest.reason === "aborted"
+          ? t("navigation:conversationPanel.generationStopped")
+          : undefined,
+    };
   return undefined;
 }
