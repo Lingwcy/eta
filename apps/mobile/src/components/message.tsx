@@ -323,18 +323,18 @@ const styles = StyleSheet.create({
   },
   fallbackContent: {
     color: colors.muted,
-    fontSize: 13,
+    fontSize: 14,
   },
   errorMessage: {
     color: colors.danger,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 20,
     paddingTop: 4,
   },
   thinkingText: {
     color: colors.muted,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 21,
   },
   toolCard: { marginVertical: 1, overflow: "hidden" },
   toolRow: {
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   toolSectionTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: colors.muted,
     textTransform: "uppercase",
@@ -362,8 +362,8 @@ const styles = StyleSheet.create({
   },
   codeText: {
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 19,
     color: colors.text,
     backgroundColor: colors.surface,
     padding: 8,
