@@ -309,7 +309,6 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: "600",
     color: colors.muted,
-    letterSpacing: 0.3,
   },
   sectionSpaced: { marginTop: 22 },
   intro: {

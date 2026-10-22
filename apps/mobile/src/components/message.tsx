@@ -3,6 +3,8 @@ import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from "rea
 import Markdown from "react-native-markdown-display";
 import {
   Brain,
+  ChevronDown,
+  ChevronRight,
   CircleX,
   FileCode2,
   FilePenLine,
@@ -89,6 +91,11 @@ export function ToolCard({
           {description ?? (summary ? `${name} · ${summary}` : name)}
         </Text>
         {status !== "settled" && <Text style={styles.toolState}>{state}</Text>}
+        {expanded ? (
+          <ChevronDown size={14} color={colors.muted} />
+        ) : (
+          <ChevronRight size={14} color={colors.muted} />
+        )}
       </Pressable>
 
       {expanded && (
@@ -147,6 +154,11 @@ function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
           {expanded ? "思考内容" : preview}
         </Text>
         {active && <Text style={styles.toolState}>正在思考</Text>}
+        {expanded ? (
+          <ChevronDown size={14} color={colors.muted} />
+        ) : (
+          <ChevronRight size={14} color={colors.muted} />
+        )}
       </Pressable>
       {expanded && (
         <ScrollArea maxHeight={240} contentContainerStyle={styles.toolScrollContent}>
@@ -358,8 +370,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   codeText: {
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
