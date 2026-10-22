@@ -51,7 +51,7 @@ export function useDesktopController(
       ? isCloudId(tab.threadId ?? tab.workspaceId)
       : tab.environment === "cloud";
   const remote = desktop.library?.bot;
-  // A catalog poll is independent of the live thread stream; only an unhealthy observation needs rebuilding.
+  // An established observation reconnects its own stream and keeps its last transcript.
   const liveObservation = Boolean(tab.threadId) && agent.connection === "connected";
   const directoryUnavailable = cloud && remote?.status !== "connected";
   const previousConnection = useRef(remote?.status);
@@ -60,11 +60,11 @@ export function useDesktopController(
       cloud &&
       remote?.status === "connected" &&
       previousConnection.current === "error" &&
-      !liveObservation
+      !agent.observation
     )
       setLocalVersion((value) => value + 1);
     previousConnection.current = remote?.status;
-  }, [cloud, liveObservation, remote?.status]);
+  }, [cloud, agent.observation, remote?.status]);
   const modelLibrary = cloud ? remote?.library : desktop.library;
   const [cloudSelection, setCloudSelection] = useState<{
     model: InputModel;

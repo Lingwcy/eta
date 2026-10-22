@@ -235,6 +235,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: kill the process after filesystem staging and after Catalog persistence; prove the original transcript remains accessible when the operation did not commit and that committed deletion does not resurrect it. An in-memory rollback callback cannot cover process death.
 - Seen: 2026-10-13.
 
+**Reject preflight configuration errors before allocating durable resources.**
+
+- Evidence: on 2026-10-22, #392 uses public Core with real temporary files and reopens the same data root after rejected projectless creations. Explicit unavailable models, unavailable defaults and an empty model catalog each leave three directories and Catalog workspaces without any thread. Deferring temporary allocation until model validation passes removes these side effects; corrected-model retry/replay and explicit-workspace validation-order controls still pass.
+- Check: keep completed-request replay and namespace validation semantics, but perform available preflight checks before mkdir/Catalog publication. Assert both disk and metadata after reopening, not only the error code. A preflight ordering fix is not general rollback, orphan collection or a retention policy for later failures.
+- Seen: 2026-10-22.
+
 **Coordinate directory adoption with destructive cleanup across services.**
 
 - Evidence: on 2026-10-22, #377's controlled temporary-workspace tests hold real path validation or removal while registering the same directory or a child. Without shared ownership coordination, all eight project/workspace and admission-order cases fail: registration can succeed while cleanup removes its files. Thread mutation and short Catalog update locks do not cover independent project/workspace registration.
