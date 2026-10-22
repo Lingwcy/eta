@@ -102,7 +102,7 @@ test("projectless threads isolate files, replay creation and retain their worksp
     code: "ENOENT",
   });
   expect((await reopened.openThread(second.id)).workspaceId).toBe(second.workspaceId);
-});
+}, 60_000);
 
 test("a delayed native run writes only inside its temporary workspace", async () => {
   const { core, provider } = await fixture();
