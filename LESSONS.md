@@ -359,8 +359,9 @@ and inspect every build configuration that derives those keys.**
 **An explicit discard must not depend on saving the data being discarded.**
 
 - Evidence: on 2026-10-17, #111's MobileStore forget action fails at a cache-quota error before it can remove independently stored credentials. Skipping that final save lets clear proceed; held-write regressions verify old writes settle before removal even when they reject. Ordinary disconnect still saves drafts, and actual deletion errors remain visible and retryable.
-- Check: preserve the distinction between retain and discard. Keep epoch invalidation and the serialized storage barrier, test in-flight completion/rejection, and do not swallow a real wipe failure or claim native deletion guarantees from an in-memory fixture.
-- Seen: 2026-10-17.
+- Additional evidence: on 2026-10-22, #382 holds an accepted clear while real MobileStore/BotClient connect and initialize read old cache/credentials outside the write queue. Successful removal is followed by restored drafts, attachments or pending state. Three controlled regressions require reads to join the same storage order and removal to be queued before notifying reentrant subscribers; prior save/clear rejection controls still pass. This is an adapter interleaving, not native storage or cross-account leakage evidence.
+- Check: preserve the distinction between retain and discard. Keep epoch invalidation and serialize reads as well as writes with destructive removal. Test in-flight completion/rejection and exact empty persisted state: matching an empty object as a subset accepts leftover data. Do not swallow a real wipe failure or claim native deletion guarantees from an in-memory fixture.
+- Seen: 2026-10-17, 2026-10-22.
 
 **Editing schedules must preserve stored timing semantics, not reconstruct unchanged values from lossy UI fields.**
 
