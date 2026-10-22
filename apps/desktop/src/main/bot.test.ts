@@ -1909,3 +1909,74 @@ test("joining a disconnected shared stream receives cached history without being
     vi.useRealTimers();
   }
 });
+
+test("incremental thread events reconstruct history and a sequence gap reconnects to a full baseline", async () => {
+  const { SnapshotDeltaEncoder } = await import("@eta/core/shared/snapshot-delta");
+  const { bot, request, prefix } = await connect(true);
+  const original = request.getMockImplementation()!;
+  const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+  request.mockImplementation(async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (!url.endsWith("/events")) return original(input, init);
+    expect(new Headers(init?.headers).get("x-eta-snapshot")).toBe("delta-v1");
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(stream) {
+          streams.push(stream);
+        },
+      }),
+    );
+  });
+  vi.useFakeTimers();
+  const received = vi.fn();
+  const failed = vi.fn();
+  const stop = await bot.subscribeThread(prefix + "thread", received, failed);
+  const emit = (index: number, frame: { event: string; data: string }) =>
+    streams[index]!.enqueue(
+      new TextEncoder().encode(`event: ${frame.event}\ndata: ${frame.data}\n\n`),
+    );
+  try {
+    await vi.advanceTimersByTimeAsync(0);
+    const encoder = new SnapshotDeltaEncoder();
+    const first = { snapshot: createdSession().snapshot, contextTokens: 1 };
+    emit(0, encoder.encode(first));
+    await vi.advanceTimersByTimeAsync(0);
+    const next = {
+      ...first,
+      contextTokens: 2,
+      snapshot: {
+        ...first.snapshot,
+        transcript: [
+          {
+            id: "entry",
+            type: "message" as const,
+            message: { role: "user" as const, content: "retained", timestamp: 0 },
+          },
+        ],
+      },
+    };
+    emit(0, encoder.encode(next));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received.mock.calls.at(-1)![0].snapshot.transcript).toMatchObject([
+      { id: prefix + "entry", message: { content: "retained" } },
+    ]);
+    encoder.encode({ ...next, contextTokens: 3 });
+    emit(0, encoder.encode({ ...next, contextTokens: 4 }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(failed).toHaveBeenCalledTimes(1);
+    expect(received.mock.calls.at(-1)![0].contextTokens).toBe(2);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(streams).toHaveLength(2);
+    const replacement = new SnapshotDeltaEncoder();
+    emit(1, replacement.encode({ ...next, contextTokens: 5 }));
+    await vi.advanceTimersByTimeAsync(0);
+    emit(1, replacement.encode({ ...next, contextTokens: 6 }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received.mock.calls.at(-1)![0].contextTokens).toBe(6);
+    expect(failed).toHaveBeenCalledTimes(1);
+  } finally {
+    stop();
+    bot.close();
+    vi.useRealTimers();
+  }
+});

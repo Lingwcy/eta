@@ -3695,3 +3695,66 @@ test("project folder creation retains authentication, size, input and shutdown g
     refresh.mockRestore();
   }
 });
+
+test.each([undefined, "delta-v1", "unknown-version"])(
+  "thread SSE negotiates %s without changing legacy clients",
+  async (mode) => {
+    const { bot, create } = await fixture();
+    const id = await create("incremental-events");
+    const baseline = await bot.core.openThread(id);
+    const stop = vi.fn();
+    let publish!: (value: SnapshotResponse) => void | Promise<void>;
+    vi.spyOn(bot.core, "subscribe").mockImplementation(async (_id, next) => {
+      publish = next;
+      void next(baseline);
+      return stop;
+    });
+    const abort = new AbortController();
+    const response = await bot.app.request(`/v1/threads/${id}/events`, {
+      headers: {
+        authorization: "Bearer test-admin-token",
+        ...(mode ? { "x-eta-snapshot": mode } : {}),
+      },
+      signal: abort.signal,
+    });
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let pending = "";
+    const frame = async () => {
+      while (!pending.includes("\n\n")) {
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error("SSE ended before a complete frame");
+        pending += decoder.decode(chunk.value, { stream: true });
+      }
+      const end = pending.indexOf("\n\n");
+      const value = pending.slice(0, end);
+      pending = pending.slice(end + 2);
+      return value;
+    };
+    try {
+      expect(await frame()).toContain("event: snapshot\n");
+      const changed = { snapshot: { ...baseline.snapshot, compacting: true }, contextTokens: 99 };
+      const write = publish(changed);
+      const update = await frame();
+      await write;
+      expect(update).toContain(
+        mode === "delta-v1" ? "event: snapshot-delta\n" : "event: snapshot\n",
+      );
+      const data = JSON.parse(update.split("data: ")[1]!);
+      expect(data.contextTokens).toBe(99);
+      expect(data.snapshot.compacting).toBe(true);
+      if (mode === "delta-v1")
+        expect(data.transcript).toEqual({
+          prefix: baseline.snapshot.transcript.length,
+          suffix: 0,
+          insert: [],
+        });
+      else expect(data.snapshot.transcript).toEqual(baseline.snapshot.transcript);
+    } finally {
+      abort.abort();
+      await reader.cancel();
+    }
+    await expect.poll(() => stop.mock.calls.length).toBe(1);
+  },
+  10000,
+);
