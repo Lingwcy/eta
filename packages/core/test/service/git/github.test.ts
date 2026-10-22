@@ -44,6 +44,7 @@ async function fixture() {
   models.setProvider(fauxProvider().provider);
   const paths: string[] = [];
   let identity = "anonymous";
+  let beforeSession: (() => Promise<void>) | undefined;
   let handler: (path: string) => Promise<GitHubResponse> = async () => response([]);
   const core = await createCore({
     dataRoot: join(directory, "data"),
@@ -52,18 +53,22 @@ async function fixture() {
     settings: { read: Effect.succeed({ defaultThinkingLevel: "off" }), subscribe: () => () => {} },
     environment: {
       github: {
-        session: async () => ({
-          key: identity,
-          identity: {
-            source: identity === "anonymous" ? "anonymous" : "gh",
-            authenticated: identity !== "anonymous",
-            ...(identity !== "anonymous" ? { login: identity } : {}),
-          },
-          request: async (path) => {
-            paths.push(path);
-            return handler(path);
-          },
-        }),
+        session: async () => {
+          const current = identity;
+          await beforeSession?.();
+          return {
+            key: current,
+            identity: {
+              source: current === "anonymous" ? "anonymous" : "gh",
+              authenticated: current !== "anonymous",
+              ...(current !== "anonymous" ? { login: current } : {}),
+            },
+            request: async (path) => {
+              paths.push(path);
+              return handler(path);
+            },
+          };
+        },
       },
     },
   });
@@ -81,6 +86,9 @@ async function fixture() {
     },
     handler: (next: typeof handler) => {
       handler = next;
+    },
+    beforeSession: (next: () => Promise<void>) => {
+      beforeSession = next;
     },
   };
 }
@@ -188,6 +196,86 @@ test("rate limits preserve stale data and respect retry deadlines; unauthenticat
   });
 });
 
+test("an identity replaced during final repository validation cannot publish an old reply", async () => {
+  const f = await fixture();
+  f.identity("old-user");
+  const oldResponse = Promise.withResolvers<GitHubResponse>();
+  const replacementSession = Promise.withResolvers<void>();
+  let replacementWaiting = false;
+  let requests = 0;
+  f.handler(async () => {
+    if (++requests === 1) return oldResponse.promise;
+    return response([row(2)]);
+  });
+  const old = f.core.githubQuery(f.query);
+  let replacement: ReturnType<typeof f.core.githubQuery> | undefined;
+  try {
+    await expect.poll(() => requests, { timeout: 5000 }).toBe(1);
+    f.identity("new-user");
+    f.beforeSession(async () => {
+      replacementWaiting = true;
+      await replacementSession.promise;
+    });
+    replacement = f.core.githubQuery(f.query);
+    await expect.poll(() => replacementWaiting, { timeout: 5000 }).toBe(true);
+    oldResponse.resolve({
+      status: 200,
+      headers: {},
+      get body() {
+        // Release the competing session after A consumes its response. Its identity commits
+        // at the next await, while A does its real final filesystem/Git validation.
+        replacementSession.resolve();
+        return [row(1)];
+      },
+    });
+    expect(await replacement).toMatchObject({
+      status: "ready",
+      identity: { login: "new-user" },
+      items: [{ number: 2 }],
+    });
+    expect(await old).toMatchObject({ status: "error", code: "unauthenticated" });
+    expect(await f.core.githubQuery(f.query)).toMatchObject({
+      status: "ready",
+      identity: { login: "new-user" },
+      items: [{ number: 2 }],
+    });
+  } finally {
+    replacementSession.resolve();
+    oldResponse.resolve(response([]));
+    await Promise.allSettled([old, ...(replacement ? [replacement] : [])]);
+  }
+}, 20000);
+
+test("an obsolete GitHub network failure cannot return the old identity's cached rows", async () => {
+  const f = await fixture();
+  f.identity("old-user");
+  const oldResponse = Promise.withResolvers<GitHubResponse>();
+  let requests = 0;
+  f.handler(async () => {
+    requests++;
+    if (requests === 2) return oldResponse.promise;
+    return response([row(requests === 1 ? 1 : 2)]);
+  });
+  await f.core.githubQuery(f.query);
+  const old = f.core.githubQuery({ ...f.query, refresh: true });
+  try {
+    await expect.poll(() => requests, { timeout: 5000 }).toBe(2);
+    f.identity("new-user");
+    expect(await f.core.githubQuery(f.query)).toMatchObject({
+      status: "ready",
+      identity: { login: "new-user" },
+      items: [{ number: 2 }],
+    });
+    oldResponse.reject(new Error("old network failed"));
+    const result = await old;
+    expect(result.status === "error" && result.cached).toBeUndefined();
+    expect(result).toMatchObject({ status: "error", code: "unauthenticated" });
+  } finally {
+    oldResponse.resolve(response([]));
+    await Promise.allSettled([old]);
+  }
+}, 20000);
+
 test("a project with no GitHub remote never sends a network request", async () => {
   const f = await fixture();
   await git(f.cwd, "remote", "remove", "origin");
@@ -208,6 +296,27 @@ test("an expired identity does not return cached private rows", async () => {
   expect(result).toMatchObject({ status: "error", code: "unauthenticated" });
   expect(result.status === "error" && result.cached).toBeUndefined();
 });
+
+test.each(["toString", "constructor", "__proto__"])(
+  "remote selection accepts own request record %s",
+  async (requestId) => {
+    const f = await fixture();
+    await git(f.cwd, "remote", "add", "upstream", "https://github.com/upstream/repo.git");
+    await f.core.selectGitHubRemote(f.project.id, "origin", "prime-request-table");
+    expect(await f.core.selectGitHubRemote(f.project.id, "upstream", requestId)).toMatchObject({
+      status: "ready",
+      github: { selection: { remote: "upstream" } },
+    });
+    await f.core.selectGitHubRemote(f.project.id, "origin", "later-request");
+    expect(await f.core.selectGitHubRemote(f.project.id, "upstream", requestId)).toMatchObject({
+      status: "ready",
+      github: { selection: { remote: "origin" } },
+    });
+    await expect(f.core.selectGitHubRemote(f.project.id, null, requestId)).rejects.toMatchObject({
+      code: "InvalidInput",
+    });
+  },
+);
 
 test("remote selection retries keep the same operation and conflicting reuse of its ID is rejected", async () => {
   const f = await fixture();

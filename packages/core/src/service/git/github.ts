@@ -65,21 +65,26 @@ export class GitHubRepositoryService extends Context.Service<
         page: number,
       ): Promise<GitHubPage> => {
         const cached = cache.get(key);
+        const currentIdentity = () => identities.get(input.projectId) === session.key;
+        const identityChangedMessage = "GitHub 访问身份已变更，请重新刷新。";
         const failure = (
           code: Extract<GitHubPage, { status: "error" }>["code"],
           message: string,
           retryAt?: number,
-        ): GitHubPage => ({
-          status: "error",
-          code,
-          message,
-          repository,
-          identity: publicIdentity(session),
-          ...(retryAt ? { retryAt } : {}),
-          ...(cached && ["network", "rate-limit", "unavailable"].includes(code)
-            ? { cached: { ...cached, stale: true } }
-            : {}),
-        });
+        ): GitHubPage => {
+          const current = currentIdentity();
+          return {
+            status: "error",
+            code: current ? code : "unauthenticated",
+            message: current ? message : identityChangedMessage,
+            repository,
+            identity: publicIdentity(session),
+            ...(current && retryAt ? { retryAt } : {}),
+            ...(current && cached && ["network", "rate-limit", "unavailable"].includes(code)
+              ? { cached: { ...cached, stale: true } }
+              : {}),
+          };
+        };
         try {
           const items: GitHubItem[] = [];
           let next: number | undefined = page;
@@ -148,9 +153,10 @@ export class GitHubRepositoryService extends Context.Service<
                 : undefined;
           }
           // Discard results if this project changed identity while the HTTP request was running.
-          if (identities.get(input.projectId) !== session.key)
-            return failure("unauthenticated", "GitHub 访问身份已变更，请重新刷新。");
+          if (!currentIdentity()) return failure("unauthenticated", identityChangedMessage);
           const latest = await Effect.runPromise(git.repository(repository.workspaceId));
+          // The filesystem/Git recheck also yields; a newer query can replace identity here.
+          if (!currentIdentity()) return failure("unauthenticated", identityChangedMessage);
           const selected = latest.status === "ready" && latest.github?.selection;
           if (
             !selected ||
