@@ -68,7 +68,7 @@ async function fixture() {
 }
 
 test("projectless threads isolate files, replay creation and retain their workspace across restart", async () => {
-  const { core, open, provider, workspace } = await fixture();
+  const { core, open, workspace } = await fixture();
   const [first, replay] = await Promise.all([
     core.createThread(null, "temporary-first"),
     core.createThread(null, "temporary-first"),
@@ -86,16 +86,7 @@ test("projectless threads isolate files, replay creation and retain their worksp
   expect(secondWorkspace.cwd).not.toBe(firstWorkspace.cwd);
   expect((await core.gitRepository(secondWorkspace.id)).status).toBe("not-repository");
   expect(await core.projects()).toHaveLength(1);
-  provider.setResponses([
-    fauxAssistantMessage(fauxToolCall("write", { path: "proof.txt", content: "Temporary work" }), {
-      stopReason: "toolUse",
-    }),
-    fauxAssistantMessage("Written"),
-  ]);
-  const run = await core.submit(first.id, "Write a file", "temporary-input");
-  await expect
-    .poll(async () => (await core.operation(first.id, run.operationId)).status, { timeout: 10000 })
-    .toBe("completed");
+  await writeFile(join(firstWorkspace.cwd, "proof.txt"), "Temporary work");
   expect(await readFile(join(firstWorkspace.cwd, "proof.txt"), "utf8")).toBe("Temporary work");
   await expect(readFile(join(secondWorkspace.cwd, "proof.txt"))).rejects.toMatchObject({
     code: "ENOENT",
@@ -112,6 +103,56 @@ test("projectless threads isolate files, replay creation and retain their worksp
   });
   expect((await reopened.openThread(second.id)).workspaceId).toBe(second.workspaceId);
 });
+
+test("a delayed native run writes only inside its temporary workspace", async () => {
+  const { core, provider } = await fixture();
+  const thread = await core.createThread(null, "temporary-native");
+  const workspace = (await core.workspaces()).find((value) => value.id === thread.workspaceId)!;
+  const response = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  let started = false;
+  provider.setResponses([
+    (_context, options) => {
+      started = true;
+      options?.signal?.addEventListener(
+        "abort",
+        () => response.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+        { once: true },
+      );
+      return response.promise;
+    },
+    fauxAssistantMessage("Written"),
+  ]);
+  try {
+    const run = await core.submit(thread.id, "Write a file", "temporary-input");
+    await expect.poll(() => started, { timeout: 10_000 }).toBe(true);
+    const other = await core.createThread(null, "temporary-other");
+    const otherWorkspace = (await core.workspaces()).find(
+      (value) => value.id === other.workspaceId,
+    )!;
+    expect((await core.operation(thread.id, run.operationId)).status).toBe("running");
+    await expect(readFile(join(workspace.cwd, "proof.txt"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    response.resolve(
+      fauxAssistantMessage(
+        fauxToolCall("write", { path: "proof.txt", content: "Temporary work" }),
+        { stopReason: "toolUse" },
+      ),
+    );
+    await expect
+      .poll(async () => (await core.operation(thread.id, run.operationId)).status, {
+        timeout: 10_000,
+      })
+      .toBe("completed");
+    expect(await readFile(join(workspace.cwd, "proof.txt"), "utf8")).toBe("Temporary work");
+    await expect(readFile(join(otherWorkspace.cwd, "proof.txt"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  } finally {
+    response.resolve(fauxAssistantMessage("", { stopReason: "aborted" }));
+  }
+  // Startup and completion each have a bounded 10-second wait for the native worker.
+}, 30_000);
 
 test("deleting a temporary chat preserves a directory adopted as a project", async () => {
   const { core } = await fixture();
