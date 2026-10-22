@@ -18,14 +18,16 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
     }
     const next = new ThreadAgentClient();
     setBinding({ id: threadId, client: next });
-    void next.connect(threadId);
     const dispose = () => next.dispose();
     window.addEventListener("pagehide", dispose);
     return () => {
       window.removeEventListener("pagehide", dispose);
       next.dispose();
     };
-  }, [threadId, version]);
+  }, [threadId]);
+  useEffect(() => {
+    if (client && threadId) void client.connect(threadId);
+  }, [client, threadId, version]);
   const current = useSyncExternalStore(
     active ? (client?.subscribe ?? noopSubscribe) : noopSubscribe,
     client?.getSnapshot ?? getInitialState,
