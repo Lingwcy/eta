@@ -118,6 +118,7 @@ async function mount(threadId: string | undefined, initial: DesktopLibrary, clou
   const activity = new ThreadActivity(bridge);
   const recents = new ThreadRecents({ getItem: () => null, setItem: () => {} });
   let view: ReturnType<typeof useDesktopController> | undefined;
+  let version = 0;
   function Host({ library: current }: { library: DesktopLibrary }) {
     const state = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
     const tab = tabs.activeTab;
@@ -148,7 +149,7 @@ async function mount(threadId: string | undefined, initial: DesktopLibrary, clou
         recordInput: recents.recordInput,
       },
       true,
-      0,
+      version,
     );
     return null;
   }
@@ -159,6 +160,10 @@ async function mount(threadId: string | undefined, initial: DesktopLibrary, clou
     view: () => view!,
     status: (next: DesktopLibrary) => render(next),
     history: () => view?.transcript.snapshot?.transcript.length,
+    reconnect: () => {
+      version++;
+      return render(initial);
+    },
   };
 }
 
@@ -216,4 +221,56 @@ test("catalog health does not gate or reload a local conversation", async () => 
   await mounted.status(library("connected"));
   expect(openThread).toHaveBeenCalledOnce();
   expect(mounted.history()).toBe(1);
+});
+
+test("catalog recovery preserves established history and lets its stream reconnect", async () => {
+  let listener: ((event: AgentEvent) => void) | undefined;
+  bridge.subscribe = (_id, next) => {
+    listener = next;
+    return () => {};
+  };
+  const mounted = await mount(cloudId, library("connected"));
+  const snapshot = mounted.view().transcript.snapshot;
+  await act(async () => {
+    listener?.({ type: "error", message: "Bot 请求失败 (502)" });
+  });
+  await mounted.status(library("error", "Bot 请求失败 (502)"));
+  await mounted.status(library("connected"));
+  expect(openThread).toHaveBeenCalledOnce();
+  expect(mounted.view().transcript.snapshot).toBe(snapshot);
+  expect(mounted.view().loading).toBeNull();
+  expect(mounted.view().composer.disabled).toBe(true);
+  await act(async () => {
+    listener?.({
+      type: "snapshot",
+      value: { snapshot: session(cloudId, "Recovered history").snapshot, contextTokens: 13 },
+    });
+  });
+  expect(mounted.view().composer.disabled).toBe(false);
+  expect(mounted.view().transcript.snapshot?.transcript[0]?.message.content).toBe(
+    "Recovered history",
+  );
+});
+
+test("explicit reconnect keeps history visible while a replacement read waits or fails", async () => {
+  const mounted = await mount(cloudId, library("connected"));
+  const snapshot = mounted.view().transcript.snapshot;
+  const held = Promise.withResolvers<SessionResponse>();
+  openThread.mockImplementationOnce(() => held.promise);
+  try {
+    await mounted.reconnect();
+    expect(openThread).toHaveBeenCalledTimes(2);
+    expect(mounted.view().transcript.snapshot).toBe(snapshot);
+    expect(mounted.view().loading).toBeNull();
+    expect(mounted.view().composer.disabled).toBe(true);
+  } finally {
+    await act(async () => {
+      held.reject(new Error("Unavailable"));
+    });
+  }
+  expect(mounted.view().transcript.snapshot).toBe(snapshot);
+  expect(mounted.view().composer.disabled).toBe(true);
+  await mounted.reconnect();
+  expect(mounted.history()).toBe(1);
+  expect(mounted.view().composer.disabled).toBe(false);
 });
