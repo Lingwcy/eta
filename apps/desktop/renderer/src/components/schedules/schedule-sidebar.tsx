@@ -15,7 +15,6 @@ import { ScheduleForm } from "./schedule-form";
 import { scheduleRuleText, scheduleTime } from "./format";
 import { scheduleRunStatus } from "./run-status";
 import { ToastNotice } from "@/components/ui/toast";
-import "./schedule-status.css";
 
 export function ScheduleSidebar({
   library,
@@ -253,7 +252,7 @@ export function ScheduleSidebar({
                     title={group.status.detail ?? group.status.label}
                     className={`absolute top-1.5 right-2 size-1.5 rounded-full ${
                       group.status.state === "running"
-                        ? "schedule-running-light bg-blue-500"
+                        ? "bg-blue-500"
                         : group.status.state === "succeeded"
                           ? "bg-green-500"
                           : group.status.state === "failed"
