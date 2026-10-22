@@ -1691,3 +1691,51 @@ test("shared streams keep subagent paths separate and a failing consumer cannot 
     bot.close();
   }
 });
+
+test("joining a disconnected shared stream receives cached history without being marked live", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const original = request.getMockImplementation()!;
+  let stream!: ReadableStreamDefaultController<Uint8Array>;
+  request.mockImplementation(async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (!url.endsWith("/events")) return original(input, init);
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(value) {
+          stream = value;
+        },
+      }),
+    );
+  });
+  const first = vi.fn();
+  const failed = vi.fn();
+  vi.useFakeTimers();
+  await bot.subscribeThread(prefix + "thread", first, failed);
+  try {
+    await vi.advanceTimersByTimeAsync(0);
+    stream.enqueue(
+      new TextEncoder().encode(
+        `event: snapshot\ndata: ${JSON.stringify({ snapshot: createdSession().snapshot, contextTokens: 1 })}\n\n`,
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    stream.close();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(failed).toHaveBeenCalledOnce();
+    const events: string[] = [];
+    await bot.subscribeThread(
+      prefix + "thread",
+      () => {
+        events.push("cached");
+      },
+      () => {
+        events.push("offline");
+      },
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(events).toEqual(["cached", "offline"]);
+  } finally {
+    bot.close();
+    vi.useRealTimers();
+  }
+});

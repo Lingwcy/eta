@@ -51,6 +51,7 @@ interface ThreadObservation {
   listeners: Set<ThreadObserver>;
   stop(): void;
   last?: SnapshotResponse;
+  failure?: string;
 }
 
 /** Remote identities never enter the local catalog, even while a Bot is unavailable. */
@@ -635,11 +636,13 @@ export class DesktopBot {
           if (event !== "snapshot" || this.observations.get(route) !== created) return;
           const value = this.snapshot(JSON.parse(data) as SnapshotResponse);
           created.last = value;
+          created.failure = undefined;
           const listeners = [...created.listeners];
           await Promise.all(listeners.map((current) => this.deliver(created, current, value)));
         },
         (message) => {
           if (this.observations.get(route) !== created) return;
+          created.failure = message;
           const listeners = [...created.listeners];
           for (const current of listeners) this.report(current, message);
         },
@@ -650,9 +653,15 @@ export class DesktopBot {
     const last = owner.last;
     if (last) {
       // A joining consumer gets the latest view without another remote history projection.
-      void Promise.resolve().then(() => {
-        if (this.observations.get(route) === owner && owner.last === last)
-          return this.deliver(owner, listener, last);
+      void Promise.resolve().then(async () => {
+        if (this.observations.get(route) !== owner || owner.last !== last) return;
+        await this.deliver(owner, listener, last);
+        if (
+          this.observations.get(route) === owner &&
+          owner.listeners.has(listener) &&
+          owner.failure
+        )
+          this.report(listener, owner.failure);
       });
     }
     return () => {
