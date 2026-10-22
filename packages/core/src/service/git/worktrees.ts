@@ -11,7 +11,7 @@ import { AppPathsService } from "../../platform/app-paths.ts";
 import { RuntimeRegistryService } from "../runtime/index.ts";
 import { WorkspaceService } from "../workspaces/index.ts";
 import { BRANCH_FORMAT, inspectRepository, parseBranches } from "./index.ts";
-import { GitStoreService } from "./store.ts";
+import { gitStoreEntry, GitStoreService } from "./store.ts";
 import type { WorktreeReceipt } from "./store.ts";
 import { WorkspaceAccessService } from "./workspace-access.ts";
 
@@ -113,7 +113,7 @@ export class WorktreeService extends Context.Service<
 
       const save = (requestId: string, change: (receipt: WorktreeReceipt) => WorktreeReceipt) =>
         store.update((state) => {
-          const current = state.worktrees?.[requestId];
+          const current = gitStoreEntry(state.worktrees, requestId);
           if (!current) return state;
           return { ...state, worktrees: { ...state.worktrees, [requestId]: change(current) } };
         });
@@ -219,13 +219,13 @@ export class WorktreeService extends Context.Service<
       const create = Effect.fn("WorktreeService.create")(function* (input: CreateWorktreeInput) {
         const key = fingerprint({ op: "create", ...input });
         const state = yield* store.read;
-        const known = state.requests?.[input.requestId];
+        const known = gitStoreEntry(state.requests, input.requestId);
         if (known && known !== key)
           return yield* new CoreError({
             code: "InvalidInput",
             message: "该请求 ID 已用于不同的参数",
           });
-        const existing = state.worktrees?.[input.requestId];
+        const existing = gitStoreEntry(state.worktrees, input.requestId);
         if (existing) {
           const settled = yield* settle(input.requestId, existing);
           if (settled.status !== "needs_reconciliation" || settled.workspaceId)
@@ -461,7 +461,7 @@ export class WorktreeService extends Context.Service<
             });
           const [key, savedReceipt] = entry;
           let receipt = savedReceipt;
-          const known = state.requests?.[requestId];
+          const known = gitStoreEntry(state.requests, requestId);
           const print = fingerprint({ op: "remove", workspaceId });
           if (known && known !== print)
             return yield* new CoreError({

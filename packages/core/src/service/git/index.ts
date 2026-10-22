@@ -17,7 +17,7 @@ import type {
 } from "../../shared/git.ts";
 import { CoreError } from "../errors.ts";
 import { WorkspaceService } from "../workspaces/index.ts";
-import { GitStoreService } from "./store.ts";
+import { gitStoreEntry, GitStoreService } from "./store.ts";
 
 type Ready = Extract<GitRepositoryInfo, { status: "ready" }>;
 
@@ -307,8 +307,9 @@ export class GitRepositoryService extends Context.Service<
             });
           yield* store.update((state) => {
             const fingerprint = JSON.stringify({ kind: "github-remote", projectId, remoteName });
-            if (requestId && state.requests?.[requestId]) {
-              if (state.requests[requestId] !== fingerprint)
+            const known = requestId ? gitStoreEntry(state.requests, requestId) : undefined;
+            if (known !== undefined) {
+              if (known !== fingerprint)
                 throw new CoreError({
                   code: "InvalidInput",
                   message: "该请求 ID 已用于不同的参数",
