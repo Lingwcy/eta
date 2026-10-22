@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     paddingBottom: 56,
   },
   emptyTitle: {
