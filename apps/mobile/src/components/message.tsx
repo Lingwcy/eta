@@ -418,7 +418,7 @@ const markdownStyles = StyleSheet.create({
   },
   paragraph: {
     marginTop: 0,
-    marginBottom: 10,
+    marginBottom: 12,
     fontSize: 16,
     lineHeight: 26,
   },
@@ -479,7 +479,7 @@ const markdownStyles = StyleSheet.create({
   list_item: {
     flexDirection: "row",
     justifyContent: "flex-start",
-    marginVertical: 2,
+    marginVertical: 4,
   },
   bullet_list_icon: {
     marginRight: 6,
