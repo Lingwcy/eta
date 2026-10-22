@@ -3,6 +3,9 @@ import {
   OpenThreadSchema,
   OperationSchema,
 } from "../../mobile/src/bot/contracts.ts";
+import { MobileStore } from "../../mobile/src/bot/store.ts";
+import { BotClient } from "../../mobile/src/bot/client.ts";
+import { memoryStorage } from "../../mobile/src/bot/fixtures.test-support.ts";
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { BotLibrary } from "@eta/core/shared/bot";
 import {
@@ -174,6 +177,105 @@ test("projectless HTTP threads remain visible, accept messages and replay on the
     await rename(`${cwd}-retained`, cwd);
   }
 });
+
+test.each([false, true])(
+  "Mobile new chat cannot silently reuse a temporary directory (newThread=%s)",
+  async (startNew) => {
+    const { bot, request, provider, config } = await fixture(true);
+    const firstResponse = await request("/v1/threads", {
+      workspaceId: null,
+      requestId: "first-temporary",
+    });
+    expect(firstResponse.status).toBe(201);
+    const first = OpenThreadSchema.parse(await firstResponse.json());
+    const workspace = (await bot.core.workspaces()).find(
+      (value) => value.id === first.thread.workspaceId,
+    )!;
+    await writeFile(join(workspace.cwd, "private.txt"), "First chat files");
+    let id = 0;
+    const store = new MobileStore(
+      memoryStorage().storage,
+      (connection) =>
+        new BotClient(connection, async (input, init) => bot.app.request(new Request(input, init))),
+      () => "mobile-" + ++id,
+    );
+    try {
+      await store.connect({ url: "http://bot", token: config.adminToken });
+      if (startNew) store.newThread();
+      store.setDraft("A separate new chat");
+      provider.setResponses([fauxAssistantMessage("Acknowledged")]);
+      let failure: unknown;
+      try {
+        await store.send();
+      } catch (error) {
+        failure = error;
+      }
+      const threads = await bot.core.threads();
+      const extra = threads.find((value) => value.id !== first.id);
+      const target = extra
+        ? (await bot.core.workspaces()).find((value) => value.id === extra.workspaceId)
+        : undefined;
+      expect({
+        failure: failure instanceof Error ? failure.message : undefined,
+        threads: threads.map((value) => ({ id: value.id, workspaceId: value.workspaceId })),
+        reusedFile: target ? await readFile(join(target.cwd, "private.txt"), "utf8") : undefined,
+      }).toEqual({
+        failure: expect.stringContaining("选择项目"),
+        threads: [{ id: first.id, workspaceId: workspace.id }],
+        reusedFile: undefined,
+      });
+      await store.open(first.id);
+      store.setDraft("Continue the original chat");
+      await store.send();
+      await expect
+        .poll(() => bot.controller.status().activeThreads, { timeout: 10_000 })
+        .toEqual([]);
+      expect(store.getSnapshot().threadId).toBe(first.id);
+      expect(await bot.core.threads()).toHaveLength(1);
+      expect(await readFile(join(workspace.cwd, "private.txt"), "utf8")).toBe("First chat files");
+    } finally {
+      store.dispose();
+    }
+  },
+  30_000,
+);
+
+test("Mobile can select a project for a new chat after viewing temporary history", async () => {
+  const { bot, request, provider, config, workspace: projectWorkspace, cwd } = await fixture();
+  const response = await request("/v1/threads", {
+    workspaceId: null,
+    requestId: "temporary-before-project",
+  });
+  expect(response.status).toBe(201);
+  const first = OpenThreadSchema.parse(await response.json());
+  const temporary = (await bot.core.workspaces()).find(
+    (value) => value.id === first.thread.workspaceId,
+  )!;
+  await writeFile(join(temporary.cwd, "private.txt"), "First chat files");
+  let id = 0;
+  const store = new MobileStore(
+    memoryStorage().storage,
+    (connection) =>
+      new BotClient(connection, async (input, init) => bot.app.request(new Request(input, init))),
+    () => "mobile-" + ++id,
+  );
+  try {
+    await store.connect({ url: "http://bot", token: config.adminToken });
+    await store.open(first.id);
+    store.newThread(projectWorkspace);
+    store.setDraft("A project chat");
+    provider.setResponses([fauxAssistantMessage("Acknowledged")]);
+    await store.send();
+    await expect.poll(() => bot.controller.status().activeThreads, { timeout: 10_000 }).toEqual([]);
+    expect(store.getSnapshot().thread?.thread.workspaceId).toBe(projectWorkspace);
+    expect(store.getSnapshot().threadId).not.toBe(first.id);
+    expect(await bot.core.threads()).toHaveLength(2);
+    await expect(readFile(join(cwd, "private.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(temporary.cwd, "private.txt"), "utf8")).toBe("First chat files");
+  } finally {
+    store.dispose();
+  }
+}, 30_000);
 
 test("status and credential management do not scan projects; catalog requests still do", async () => {
   const { bot, request } = await fixture(true);
