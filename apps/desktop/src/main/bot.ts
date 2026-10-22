@@ -42,6 +42,18 @@ import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/sh
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import type { GitHubIdentity, GitHubPage, GitHubQuery } from "@eta/core/shared/github";
 
+interface ThreadObserver {
+  snapshot(value: SnapshotResponse): void | Promise<void>;
+  error(message: string): void;
+}
+
+interface ThreadObservation {
+  listeners: Set<ThreadObserver>;
+  stop(): void;
+  last?: SnapshotResponse;
+  failure?: string;
+}
+
 /** Remote identities never enter the local catalog, even while a Bot is unavailable. */
 export class DesktopBot {
   private connection?: BotConnection;
@@ -49,6 +61,7 @@ export class DesktopBot {
   private prefix = "";
   private readonly listeners = new Set<() => void>();
   private readonly streams = new Set<AbortController>();
+  private readonly observations = new Map<string, ThreadObservation>();
   private timer?: ReturnType<typeof setInterval>;
   private refreshing?: Promise<void>;
   private refreshQueued = false;
@@ -120,6 +133,7 @@ export class DesktopBot {
   private cancelStreams() {
     this.stopScheduleEvents?.();
     this.stopScheduleEvents = undefined;
+    this.observations.clear();
     for (const controller of this.streams) controller.abort();
     this.streams.clear();
   }
@@ -132,7 +146,11 @@ export class DesktopBot {
       candidate.readCapabilities(),
     ]);
     ++this.generation;
-    if (this.connection?.url !== candidate.connection!.url) this.cancelStreams();
+    if (
+      this.connection?.url !== candidate.connection!.url ||
+      this.connection?.token !== candidate.connection!.token
+    )
+      this.cancelStreams();
     this.use(candidate.connection!);
     this.state = {
       status: "connected",
@@ -606,14 +624,75 @@ export class DesktopBot {
     path?: string,
   ) {
     const route = this.route(id) + "/events" + (path ? `?path=${encodeURIComponent(path)}` : "");
-    return this.subscribeEvents(
-      route,
-      async (event, data) => {
-        if (event === "snapshot")
-          await onSnapshot(this.snapshot(JSON.parse(data) as SnapshotResponse));
-      },
-      onError,
-    );
+    const listener: ThreadObserver = { snapshot: onSnapshot, error: onError };
+    let observation = this.observations.get(route);
+    if (!observation) {
+      const created: ThreadObservation = { listeners: new Set(), stop: () => {} };
+      observation = created;
+      this.observations.set(route, created);
+      created.stop = this.subscribeEvents(
+        route,
+        async (event, data) => {
+          if (event !== "snapshot" || this.observations.get(route) !== created) return;
+          const value = this.snapshot(JSON.parse(data) as SnapshotResponse);
+          created.last = value;
+          created.failure = undefined;
+          const listeners = [...created.listeners];
+          await Promise.all(listeners.map((current) => this.deliver(created, current, value)));
+        },
+        (message) => {
+          if (this.observations.get(route) !== created) return;
+          created.failure = message;
+          const listeners = [...created.listeners];
+          for (const current of listeners) this.report(current, message);
+        },
+      );
+    }
+    const owner = observation;
+    owner.listeners.add(listener);
+    const last = owner.last;
+    if (last) {
+      // A joining consumer gets the latest view without another remote history projection.
+      void Promise.resolve().then(async () => {
+        if (this.observations.get(route) !== owner || owner.last !== last) return;
+        await this.deliver(owner, listener, last);
+        if (
+          this.observations.get(route) === owner &&
+          owner.listeners.has(listener) &&
+          owner.failure
+        )
+          this.report(listener, owner.failure);
+      });
+    }
+    return () => {
+      owner.listeners.delete(listener);
+      if (!owner.listeners.size) {
+        owner.stop();
+        if (this.observations.get(route) === owner) this.observations.delete(route);
+      }
+    };
+  }
+
+  private async deliver(
+    owner: ThreadObservation,
+    listener: ThreadObserver,
+    value: SnapshotResponse,
+  ) {
+    if (!owner.listeners.has(listener)) return;
+    try {
+      await listener.snapshot(value);
+    } catch (error) {
+      if (owner.listeners.has(listener))
+        this.report(listener, error instanceof Error ? error.message : "Bot 连接失败");
+    }
+  }
+
+  private report(listener: ThreadObserver, message: string) {
+    try {
+      listener.error(message);
+    } catch {
+      // One disposed consumer must not tear down observations shared by other views.
+    }
   }
 
   private subscribeEvents(

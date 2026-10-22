@@ -1573,3 +1573,169 @@ test("a burst of schedule events coalesces the library refresh", async () => {
     bot.close();
   }
 });
+
+test("thread views share one stream, replay its latest snapshot and release only the last owner", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const original = request.getMockImplementation()!;
+  const streams: { stream: ReadableStreamDefaultController<Uint8Array>; signal: AbortSignal }[] =
+    [];
+  request.mockImplementation(async (input, init) => {
+    if (
+      !(typeof input === "string" ? input : input instanceof URL ? input.href : input.url).includes(
+        "/events",
+      )
+    )
+      return original(input, init);
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(stream) {
+          streams.push({ stream, signal: init!.signal! });
+        },
+      }),
+    );
+  });
+  const first = vi.fn();
+  const second = vi.fn();
+  const third = vi.fn();
+  const failed = vi.fn();
+  const stopFirst = await bot.subscribeThread(prefix + "thread", first, failed);
+  const stopSecond = await bot.subscribeThread(prefix + "thread", second, failed);
+  const emit = (index: number, tokens: number) =>
+    streams[index]!.stream.enqueue(
+      new TextEncoder().encode(
+        `event: snapshot\ndata: ${JSON.stringify({ snapshot: createdSession().snapshot, contextTokens: tokens })}\n\n`,
+      ),
+    );
+  try {
+    await expect.poll(() => streams.length).toBe(1);
+    emit(0, 42);
+    await expect.poll(() => second.mock.calls.length).toBe(1);
+    expect(first.mock.calls[0]![0].contextTokens).toBe(42);
+    const stopThird = await bot.subscribeThread(prefix + "thread", third, failed);
+    await expect.poll(() => third.mock.calls.length).toBe(1);
+    expect(streams).toHaveLength(1);
+    stopFirst();
+    stopFirst();
+    emit(0, 43);
+    await expect.poll(() => third.mock.calls.length).toBe(2);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(2);
+    stopSecond();
+    expect(streams[0]!.signal.aborted).toBe(false);
+    stopThird();
+    expect(streams[0]!.signal.aborted).toBe(true);
+    const replacement = vi.fn();
+    const stopReplacement = await bot.subscribeThread(prefix + "thread", replacement, failed);
+    await expect.poll(() => streams.length).toBe(2);
+    stopThird();
+    expect(streams[1]!.signal.aborted).toBe(false);
+    expect(replacement).not.toHaveBeenCalled();
+    emit(1, 44);
+    await expect.poll(() => replacement.mock.calls.length).toBe(1);
+    expect(replacement.mock.calls[0]![0].contextTokens).toBe(44);
+    stopReplacement();
+    expect(failed).not.toHaveBeenCalled();
+  } finally {
+    stopFirst();
+    stopSecond();
+    bot.close();
+  }
+});
+
+test("shared streams keep subagent paths separate and a failing consumer cannot disconnect its peers", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const original = request.getMockImplementation()!;
+  const streams = new Map<string, ReadableStreamDefaultController<Uint8Array>>();
+  request.mockImplementation(async (input, init) => {
+    if (
+      !(typeof input === "string" ? input : input instanceof URL ? input.href : input.url).includes(
+        "/events",
+      )
+    )
+      return original(input, init);
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(stream) {
+          streams.set(
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+            stream,
+          );
+        },
+      }),
+    );
+  });
+  const failed = vi.fn();
+  const good = vi.fn();
+  await bot.subscribeThread(
+    prefix + "thread",
+    () => {
+      throw new Error("view closed");
+    },
+    () => {
+      throw new Error("disposed");
+    },
+  );
+  await bot.subscribeThread(prefix + "thread", good, failed);
+  const child = vi.fn();
+  await bot.subscribeThread(prefix + "thread", child, failed, "/child");
+  try {
+    await expect.poll(() => streams.size).toBe(2);
+    const frame = new TextEncoder().encode(
+      `event: snapshot\ndata: ${JSON.stringify({ snapshot: createdSession().snapshot, contextTokens: 1 })}\n\n`,
+    );
+    for (const stream of streams.values()) stream.enqueue(frame);
+    await expect.poll(() => good.mock.calls.length).toBe(1);
+    await expect.poll(() => child.mock.calls.length).toBe(1);
+    expect(failed).not.toHaveBeenCalled();
+  } finally {
+    bot.close();
+  }
+});
+
+test("joining a disconnected shared stream receives cached history without being marked live", async () => {
+  const { bot, request, prefix } = await connect(true);
+  const original = request.getMockImplementation()!;
+  let stream!: ReadableStreamDefaultController<Uint8Array>;
+  request.mockImplementation(async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (!url.endsWith("/events")) return original(input, init);
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(value) {
+          stream = value;
+        },
+      }),
+    );
+  });
+  const first = vi.fn();
+  const failed = vi.fn();
+  vi.useFakeTimers();
+  await bot.subscribeThread(prefix + "thread", first, failed);
+  try {
+    await vi.advanceTimersByTimeAsync(0);
+    stream.enqueue(
+      new TextEncoder().encode(
+        `event: snapshot\ndata: ${JSON.stringify({ snapshot: createdSession().snapshot, contextTokens: 1 })}\n\n`,
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    stream.close();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(failed).toHaveBeenCalledOnce();
+    const events: string[] = [];
+    await bot.subscribeThread(
+      prefix + "thread",
+      () => {
+        events.push("cached");
+      },
+      () => {
+        events.push("offline");
+      },
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(events).toEqual(["cached", "offline"]);
+  } finally {
+    bot.close();
+    vi.useRealTimers();
+  }
+});
