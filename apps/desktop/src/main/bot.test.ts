@@ -1657,6 +1657,93 @@ test.each(
   },
 );
 
+test.each(["normal", "failure", "unsubscribe", "credentials"] as const)(
+  "shared replay preserves asynchronous consumer ordering (%s)",
+  async (action) => {
+    const { bot, request, prefix } = await connect(true);
+    const original = request.getMockImplementation()!;
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+    request.mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (!url.endsWith("/events")) return original(input, init);
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(value) {
+            stream = value;
+          },
+        }),
+      );
+    });
+    const received: number[] = [];
+    const peerError = vi.fn();
+    const stopPeer = await bot.subscribeThread(
+      prefix + "thread",
+      (value) => {
+        received.push(value.contextTokens);
+      },
+      peerError,
+    );
+    const emit = (tokens: number) =>
+      stream!.enqueue(
+        new TextEncoder().encode(
+          "event: snapshot\ndata: " +
+            JSON.stringify({ snapshot: createdSession().snapshot, contextTokens: tokens }) +
+            "\n\n",
+        ),
+      );
+    const release = Promise.withResolvers<void>();
+    const finished = Promise.withResolvers<void>();
+    const applied: string[] = [];
+    let entered = false;
+    let stop: (() => void) | undefined;
+    try {
+      await expect.poll(() => !!stream).toBe(true);
+      emit(1);
+      await expect.poll(() => received).toEqual([1]);
+      stop = await bot.subscribeThread(
+        prefix + "thread",
+        async (value) => {
+          if (value.contextTokens === 1) {
+            entered = true;
+            try {
+              await release.promise;
+            } finally {
+              finished.resolve();
+            }
+            if (action === "failure") throw new Error("Replay failed");
+          }
+          applied.push("snapshot:" + value.contextTokens);
+        },
+        () => {
+          applied.push("error");
+        },
+      );
+      await expect.poll(() => entered).toBe(true);
+      emit(2);
+      await expect.poll(() => received).toEqual([1, 2]);
+      if (action === "unsubscribe") stop();
+      if (action === "credentials")
+        await bot.connect({ url: "http://localhost:8080", token: "replacement" });
+      release.resolve();
+      await finished.promise;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(applied).toEqual(
+        action === "failure"
+          ? ["error", "snapshot:2"]
+          : action === "normal"
+            ? ["snapshot:1", "snapshot:2"]
+            : ["snapshot:1"],
+      );
+      expect(peerError).not.toHaveBeenCalled();
+    } finally {
+      release.resolve();
+      stop?.();
+      stopPeer();
+      bot.close();
+    }
+  },
+);
+
 test("thread views share one stream, replay its latest snapshot and release only the last owner", async () => {
   const { bot, request, prefix } = await connect(true);
   const original = request.getMockImplementation()!;
