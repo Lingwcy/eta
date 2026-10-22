@@ -191,7 +191,7 @@ async function createLocalDesktopApplication(
       registerProject: (rootPath: string, name?: string) =>
         run(projects.register({ rootPath, ...(name === undefined ? {} : { name }) })),
       createThread: (
-        workspaceId: string,
+        workspaceId: string | null,
         requestId?: string,
         configuration?: CreateThreadConfiguration,
       ) => selectThread(threads.create(workspaceId, requestId, configuration)),

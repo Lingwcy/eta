@@ -157,9 +157,10 @@ export interface DesktopBridge extends AgentBridge {
   createCloudProject(name: string, requestId: string): Promise<ProjectMetadata>;
   registerProject(rootPath: string, name: string): Promise<ProjectMetadata>;
   createThread(
-    workspaceId: string,
+    workspaceId: string | null,
     requestId: string,
     configuration?: CreateThreadConfiguration,
+    environment?: "local" | "cloud",
   ): Promise<SessionResponse>;
   renameThread(id: string, title: string): Promise<ThreadMetadata>;
   archiveThread(id: string, archived: boolean): Promise<ThreadMetadata>;

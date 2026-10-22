@@ -7,6 +7,7 @@ import { AppPathsService } from "@eta/core/platform/app-paths";
 import { CatalogService } from "@eta/core/service/catalog/index";
 import { CatalogStorageError, CatalogStoreService } from "@eta/core/service/catalog/json-store";
 import { ProjectService } from "@eta/core/service/projects/index";
+import { WorkspaceOwnershipService } from "@eta/core/service/workspaces/ownership";
 
 const directories: string[] = [];
 const runtimes: ManagedRuntime.ManagedRuntime<ProjectService | CatalogService, unknown>[] = [];
@@ -20,7 +21,12 @@ afterEach(async () => {
 
 function makeRuntime(storeLayer: Layer.Layer<CatalogStoreService>) {
   const catalogLayer = CatalogService.layer.pipe(Layer.provide(storeLayer));
-  const runtime = ManagedRuntime.make(ProjectService.layer.pipe(Layer.provideMerge(catalogLayer)));
+  const runtime = ManagedRuntime.make(
+    ProjectService.layer.pipe(
+      Layer.provideMerge(catalogLayer),
+      Layer.provide(WorkspaceOwnershipService.layer),
+    ),
+  );
   runtimes.push(runtime);
   return runtime;
 }

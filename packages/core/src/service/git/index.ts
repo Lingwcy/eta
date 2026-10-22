@@ -238,6 +238,9 @@ export class GitRepositoryService extends Context.Service<
         workspaceId: string,
       ) {
         const workspace = yield* workspaces.get(workspaceId);
+        if (workspace.kind === "temporary")
+          return yield* Effect.promise(() => inspectRepository(workspace.cwd, workspace.id));
+        const projectId = workspace.projectId;
         const saved = (yield* store.read).projects[workspace.projectId];
         let info = yield* Effect.promise(() =>
           inspectRepository(workspace.cwd, workspace.id, saved?.githubRemote),
@@ -262,8 +265,8 @@ export class GitRepositoryService extends Context.Service<
               ...state,
               projects: {
                 ...state.projects,
-                [workspace.projectId]: {
-                  ...(changed ? {} : state.projects[workspace.projectId]),
+                [projectId]: {
+                  ...(changed ? {} : state.projects[projectId]),
                   commonDir,
                 },
               },

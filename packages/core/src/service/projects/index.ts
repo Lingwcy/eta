@@ -3,6 +3,7 @@ import { realpath, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { Context, DateTime, Effect, Layer, Schema } from "effect";
 import { CatalogService } from "../catalog/index.ts";
+import { WorkspaceOwnershipService } from "../workspaces/ownership.ts";
 import type { CatalogError } from "../catalog/json-store.ts";
 import type { ProjectMetadata, RegisterProjectInput } from "../../shared/projects.ts";
 
@@ -28,7 +29,8 @@ export class ProjectService extends Context.Service<
     ProjectService,
     Effect.gen(function* () {
       const catalog = yield* CatalogService;
-      return make(catalog);
+      const ownership = yield* WorkspaceOwnershipService;
+      return make(catalog, ownership);
     }),
   );
 }
@@ -46,7 +48,7 @@ const decodeInput = Schema.decodeUnknownEffect(
   }),
 );
 
-function make(catalog: CatalogService["Service"]) {
+function make(catalog: CatalogService["Service"], ownership: WorkspaceOwnershipService["Service"]) {
   const register = Effect.fn("ProjectService.register")(function* (
     input: RegisterProjectInput,
   ): Effect.fn.Return<ProjectMetadata, ProjectError | CatalogError> {
@@ -131,5 +133,9 @@ function make(catalog: CatalogService["Service"]) {
     return project;
   });
 
-  return ProjectService.of({ register, list, get });
+  return ProjectService.of({
+    register: (input) => ownership.coordinate(register(input)),
+    list,
+    get,
+  });
 }

@@ -192,7 +192,7 @@ test("failed saving keeps the confirmed language and the unsent draft", async ()
 
 test("errors retain localization across IPC, and summaries update without rewriting diagnostics", async () => {
   const reply = await commandReply(async () => {
-    throw new LocalizedError("chat:draftThread.chooseAProjectFirst");
+    throw new LocalizedError("chat:draftThread.enterAMessage");
   });
   let message;
   try {
@@ -200,9 +200,9 @@ test("errors retain localization across IPC, and summaries update without rewrit
   } catch (error) {
     message = describeError(error);
   }
-  expect(renderMessage(message)).toBe("请先选择项目");
+  expect(renderMessage(message)).toBe("请输入消息");
   await i18n.changeLanguage("en");
-  expect(renderMessage(message)).toBe("Choose a project first");
+  expect(renderMessage(message)).toBe("Enter a message");
   const raw = Object.assign(new Error("原始诊断"), { code: "RecoveryRequired" });
   expect(renderMessage(describeError(raw))).toContain("Resume or stop it first.");
   expect(renderMessage(describeError(raw))).toContain("原始诊断");

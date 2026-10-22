@@ -4,6 +4,10 @@ import type { CreateThreadConfiguration, SnapshotResponse } from "../../agent/pr
 import type { ThreadRuntime } from "../runtime/index.ts";
 import type { ImageAttachment } from "../../images/types.ts";
 import { randomUUID } from "node:crypto";
+import { realpath, rm } from "node:fs/promises";
+import { dirname, sep } from "node:path";
+import { AppPathsService } from "../../platform/app-paths.ts";
+import { WorkspaceOwnershipService } from "../workspaces/ownership.ts";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, DateTime, Effect, Layer, SynchronizedRef } from "effect";
 import type { OperationAdmission, SessionResponse, ThinkingLevel } from "../../agent/protocol.ts";
@@ -52,7 +56,7 @@ export class ThreadService extends Context.Service<
     ): Effect.Effect<ReadonlyArray<ThreadMetadata>>;
     get(id: string): Effect.Effect<ThreadMetadata, CoreError>;
     create(
-      workspaceId: string,
+      workspaceId: string | null,
       requestId?: string,
       configuration?: CreateThreadConfiguration,
     ): Effect.Effect<OpenThread, ThreadError>;
@@ -112,6 +116,8 @@ export class ThreadService extends Context.Service<
     ThreadService,
     Effect.gen(function* () {
       const catalog = yield* CatalogService;
+      const paths = yield* AppPathsService;
+      const ownership = yield* WorkspaceOwnershipService;
       const schedules = yield* ScheduleLifecycleService;
       const workspaces = yield* WorkspaceService;
       const repository = yield* SessionRepositoryService;
@@ -177,7 +183,13 @@ export class ThreadService extends Context.Service<
         runtime.blockedReason =
           thread.archivedAt !== undefined ? "此会话已归档，请先恢复" : blocked;
         const observation = yield* observations.snapshot(runtime);
-        return { id, thread, model: yield* conversations.model(runtime), ...observation };
+        return {
+          id,
+          workspaceId: thread.workspaceId,
+          thread,
+          model: yield* conversations.model(runtime),
+          ...observation,
+        };
       });
       const change = Effect.fn("ThreadService.change")(function* (
         id: string,
@@ -364,7 +376,14 @@ export class ThreadService extends Context.Service<
                   (thread) => thread.requestId === requestId,
                 );
                 if (existing) {
-                  if (existing.workspaceId !== workspaceId)
+                  const bound = (yield* catalog.read).workspaces.find(
+                    (value) => value.id === existing.workspaceId,
+                  );
+                  if (
+                    workspaceId === null
+                      ? bound?.kind !== "temporary"
+                      : existing.workspaceId !== workspaceId
+                  )
                     return yield* new CoreError({
                       code: "InvalidInput",
                       message: "此创建请求已经绑定到另一个工作区",
@@ -372,7 +391,11 @@ export class ThreadService extends Context.Service<
                   return yield* open(existing.id);
                 }
               }
-              const workspace = yield* workspaces.validate(workspaceId);
+              const selectedWorkspace =
+                workspaceId === null
+                  ? yield* workspaces.temporary(requestId)
+                  : yield* workspaces.get(workspaceId);
+              const workspace = yield* workspaces.validate(selectedWorkspace.id);
               const defaults = yield* settings.read;
               const model = yield* models.select(
                 configuration
@@ -397,7 +420,7 @@ export class ThreadService extends Context.Service<
               const ref = yield* repository.create(workspace.cwd);
               const thread: ThreadMetadata = {
                 id: randomUUID(),
-                workspaceId,
+                workspaceId: workspace.id,
                 sessionRef: ref,
                 title: "新会话",
                 titleSource: "temporary",
@@ -481,6 +504,41 @@ export class ThreadService extends Context.Service<
                     ),
                   );
                 yield* removal.commit;
+                yield* ownership.coordinate(
+                  Effect.gen(function* () {
+                    const current = yield* catalog.read;
+                    const workspace = current.workspaces.find(
+                      (value) => value.id === thread.workspaceId,
+                    );
+                    if (
+                      workspace?.kind === "temporary" &&
+                      !current.threads.some((value) => value.workspaceId === workspace.id)
+                    ) {
+                      // A user can adopt this directory (or a child) as a project.
+                      const adopted = current.workspaces.some(
+                        (value) =>
+                          value.id !== workspace.id &&
+                          (value.cwd === workspace.cwd ||
+                            value.cwd.startsWith(`${workspace.cwd}${sep}`)),
+                      );
+                      if (!adopted)
+                        yield* adapter("无法清理临时工作区", async () => {
+                          const root = await realpath(paths.temporaryWorkspacesRoot).catch(
+                            (error: NodeJS.ErrnoException) => {
+                              if (error.code !== "ENOENT") throw error;
+                              return undefined;
+                            },
+                          );
+                          if (dirname(workspace.cwd) === root)
+                            await rm(workspace.cwd, { recursive: true, force: true });
+                        });
+                      yield* catalog.update((state) => ({
+                        ...state,
+                        workspaces: state.workspaces.filter((value) => value.id !== workspace.id),
+                      }));
+                    }
+                  }),
+                );
               }),
             ),
           ),

@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { Effect } from "effect";
 import { afterEach, expect, test } from "vite-plus/test";
 import { AppPathsService, makeAppPaths } from "@eta/core/platform/app-paths";
@@ -24,6 +24,7 @@ test("derives every application storage location from one data root", async () =
 
   expect(makeAppPaths(dataRoot)).toEqual({
     dataRoot,
+    temporaryWorkspacesRoot: join(dirname(dataRoot), `.${basename(dataRoot)}-workspaces`),
     sessionsRoot: join(dataRoot, "sessions"),
     catalogPath: join(dataRoot, "catalog.json"),
     settingsPath: join(dataRoot, "settings.json"),

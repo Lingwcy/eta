@@ -16,10 +16,10 @@ function setup() {
   };
 }
 
-test("a draft stays local until a nonempty message has a selected project", async () => {
+test("a draft stays local until a nonempty message is submitted", async () => {
   const { draft, createThread, submit } = setup();
   expect(draft.persistedId).toBeUndefined();
-  await expect(draft.submit(null, "Hello")).rejects.toThrow("选择项目");
+  await expect(draft.submit(null, "  ")).rejects.toThrow("请输入消息");
   await expect(draft.submit("selected-project", "  ")).rejects.toThrow("请输入消息");
   expect(createThread).not.toHaveBeenCalled();
   expect(submit).not.toHaveBeenCalled();
@@ -76,15 +76,47 @@ test("creation failures preserve the idempotency key for retry", async () => {
   ]);
 });
 
-test("an image-only draft still requires a project and forwards the image on first admission", async () => {
+test("an image-only draft can start without a project and forwards the image on first admission", async () => {
   const { draft, submit, createThread } = setup();
   const images = [
     { type: "image" as const, data: "aGVsbG8=", mimeType: "image/png", name: "shot.png" },
   ];
-  await expect(draft.submit(null, "", images)).rejects.toThrow("选择项目");
-  expect(createThread).not.toHaveBeenCalled();
-  await draft.submit("project", "", images);
+  await draft.submit(null, "", images);
+  expect(createThread).toHaveBeenCalledExactlyOnceWith(null, "draft-request");
   expect(submit).toHaveBeenCalledWith("persisted", "", images, expect.any(String));
+});
+
+test("a temporary creation binds its actual workspace before admission and reuses it after failure", async () => {
+  const createThread = vi
+    .fn()
+    .mockResolvedValue({ id: "temporary-thread", workspaceId: "temporary-workspace" });
+  const submit = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Provider unavailable"))
+    .mockResolvedValue({
+      operationId: "run",
+      kind: "run",
+      startedAt: 1,
+    });
+  const created = vi.fn();
+  const draft = new DraftThread("temporary-request", { createThread, submit }, created);
+  await expect(draft.submit(null, "Hello")).rejects.toThrow("Provider unavailable");
+  expect(created).toHaveBeenCalledExactlyOnceWith("temporary-thread", "temporary-workspace", true);
+  expect(draft.persistedWorkspaceId).toBe("temporary-workspace");
+  await expect(draft.submit("other-project", "Hello")).rejects.toThrow("不能切换项目");
+  await draft.submit(null, "Hello");
+  expect(createThread).toHaveBeenCalledTimes(1);
+  expect(submit).toHaveBeenCalledTimes(2);
+});
+
+test("a projectless cloud draft carries the environment across creation", async () => {
+  const createThread = vi
+    .fn()
+    .mockResolvedValue({ id: "cloud-thread", workspaceId: "cloud-workspace" });
+  const submit = vi.fn().mockResolvedValue({ operationId: "run", kind: "run", startedAt: 1 });
+  const draft = new DraftThread("cloud-request", { createThread, submit });
+  await draft.submit(null, "Hello", undefined, undefined, undefined, "cloud");
+  expect(createThread).toHaveBeenCalledExactlyOnceWith(null, "cloud-request", undefined, "cloud");
 });
 
 test("a creation that already applied the configuration adds no extra round trips", async () => {
@@ -322,7 +354,7 @@ test("a created draft reports its durable identity only when it creates the thre
     created,
   );
   await expect(draft.submit("project", "Hello")).resolves.toBe("persisted");
-  expect(created).toHaveBeenCalledExactlyOnceWith("persisted", "project");
+  expect(created).toHaveBeenCalledExactlyOnceWith("persisted", "project", false);
   await expect(draft.submit("project", "Again")).resolves.toBe("persisted");
   expect(created).toHaveBeenCalledTimes(1);
 });

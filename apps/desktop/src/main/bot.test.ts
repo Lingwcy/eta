@@ -61,6 +61,54 @@ function createdSession(): SessionResponse {
   };
 }
 
+test("a cloud temporary workspace keeps null project ownership and prefixes its execution identity", async () => {
+  const { bot, request, prefix } = await connect(true, ["temporary-workspace"]);
+  const original = request.getMockImplementation()!;
+  request.mockImplementation(async (input, init) => {
+    const path = new URL(
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+    ).pathname;
+    if (path === "/v1/threads") {
+      expect(JSON.parse(init!.body as string)).toMatchObject({
+        workspaceId: null,
+        requestId: "temporary-request",
+      });
+      return Response.json({ ...createdSession(), workspaceId: "temporary" });
+    }
+    if (path === "/v1/library")
+      return Response.json({
+        projects: [],
+        threads: [],
+        models: [],
+        workspaces: [
+          { id: "temporary", kind: "temporary", projectId: null, cwd: "/temporary", createdAt: 1 },
+        ],
+        settings: { defaultThinkingLevel: "off" },
+        allowedSandboxModes: ["workspace-write"],
+      });
+    return original(input, init);
+  });
+  try {
+    const created = await bot.create(null, "temporary-request");
+    expect(created.workspaceId).toBe(prefix + "temporary");
+    await expect
+      .poll(() => bot.status().library?.workspaces)
+      .toMatchObject([{ id: prefix + "temporary", kind: "temporary", projectId: null }]);
+  } finally {
+    await bot.disconnect();
+  }
+});
+
+test("an older Bot rejects temporary creation before issuing a request", async () => {
+  const { bot, request } = await connect(true, []);
+  try {
+    await expect(bot.create(null, "temporary-request")).rejects.toThrow();
+    expect(request).not.toHaveBeenCalled();
+  } finally {
+    await bot.disconnect();
+  }
+});
+
 test.each(["library", "status"])(
   "a cloud draft sends its first message while the post-create %s read is held",
   async (held) => {
@@ -126,7 +174,11 @@ test.each(["library", "status"])(
     try {
       await entered.promise;
       await expect.poll(() => sent).toBe(1);
-      expect(created).toHaveBeenCalledExactlyOnceWith(prefix + session.id, prefix + "workspace");
+      expect(created).toHaveBeenCalledExactlyOnceWith(
+        prefix + session.id,
+        prefix + "workspace",
+        false,
+      );
       await expect(sending).resolves.toBe(prefix + session.id);
       expect(published).not.toHaveBeenCalled();
       expect(bot.status().library?.threads).toEqual([]);

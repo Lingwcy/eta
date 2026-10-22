@@ -1,8 +1,9 @@
 export default {
+  "useDesktopController.temporaryWorkspaceUnsupported":
+    "升级此 Bot 后即可不在项目中工作，也可以先选择一个项目。",
   "client.theChatIsNotOpenYet": "会话尚未打开",
   "client.theAgentIsNotReadyYet": "Agent 尚未就绪",
   "draftThread.enterAMessage": "请输入消息",
-  "draftThread.chooseAProjectFirst": "请先选择项目",
   "draftThread.anExistingChatCannotSwitchProjects": "已创建的会话不能切换项目",
   "draftThread.thisEnvironmentDoesNotSupportWorktrees": "此执行环境不支持 worktree",
   "draftThread.theWorktreeIsNotReadyTryAgain": "worktree 尚未就绪，请稍后重试",

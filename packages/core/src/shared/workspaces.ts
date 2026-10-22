@@ -1,7 +1,11 @@
-export interface WorkspaceMetadata {
+interface WorkspaceBase {
   readonly id: string;
-  readonly projectId: string;
   readonly cwd: string;
-  readonly kind: "project-root" | "worktree";
   readonly createdAt: number;
 }
+
+export type WorkspaceMetadata = WorkspaceBase &
+  (
+    | { readonly kind: "project-root" | "worktree"; readonly projectId: string }
+    | { readonly kind: "temporary"; readonly projectId: null; readonly requestId?: string }
+  );

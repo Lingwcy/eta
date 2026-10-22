@@ -1,4 +1,7 @@
 export default {
+  "projectPicker.changeProject": "Change this chat's project",
+  "projectPicker.selectProjectToRun": "Choose a project to run this chat",
+  "projectPicker.workWithoutProject": "Work without a project",
   "desktopTabs.newTab": "New tab",
   "tabPresentations.settings": "Settings",
   "tabPresentations.manageAccountsApiKeysToolsAndImage":

@@ -78,11 +78,47 @@ test("a submitted draft allows one new chat, and closing it allows another", () 
   tabs.updateConversation(submitted, { threadId: "admitted", workspaceId: "workspace" });
   const fresh = tabs.newConversation();
   expect(fresh).not.toBe(submitted);
+  expect(tabs.activeTab).toMatchObject({ workspaceId: "workspace" });
   expect(tabs.newConversation()).toBe(fresh);
   tabs.close(fresh);
   const replacement = tabs.newConversation();
   expect(replacement).not.toBe(fresh);
   expect(tabs.getSnapshot().tabs).toHaveLength(2);
+});
+
+test("new chat inherits the current workspace instead of selecting another project's draft", () => {
+  const tabs = setup();
+  const other = tabs.newConversation("other-project");
+  tabs.updateConversation(other, { draft: "Keep other work" });
+  tabs.openThread("saved", "current-worktree");
+  tabs.newConversation();
+  expect(tabs.activeTab).toMatchObject({ workspaceId: "current-worktree", draft: "" });
+  expect(tabs.getSnapshot().tabs.find((tab) => tab.id === other)).toMatchObject({
+    draft: "Keep other work",
+  });
+  tabs.updateConversation(tabs.activeTab.id, { workspaceId: null });
+  tabs.openSettings();
+  tabs.newConversation();
+  expect(tabs.activeTab).toMatchObject({ workspaceId: null });
+});
+
+test("new chat from a temporary workspace remains projectless after catalog reconciliation", () => {
+  const tabs = setup();
+  tabs.openThread("temporary-thread", "temporary-workspace");
+  tabs.reconcileThreads(
+    [{ id: "temporary-thread", workspaceId: "temporary-workspace" }],
+    [
+      {
+        id: "temporary-workspace",
+        cwd: "/temporary",
+        projectId: null,
+        kind: "temporary",
+        createdAt: 1,
+      },
+    ],
+  );
+  tabs.newConversation();
+  expect(tabs.activeTab).toMatchObject({ workspaceId: null, draft: "" });
 });
 
 test("choosing a project reuses its draft without replacing another project's work", () => {

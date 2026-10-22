@@ -1,8 +1,9 @@
 export default {
+  "useDesktopController.temporaryWorkspaceUnsupported":
+    "Update this Bot to start a chat without a project, or choose a project.",
   "client.theChatIsNotOpenYet": "The chat is not open yet",
   "client.theAgentIsNotReadyYet": "The agent is not ready yet",
   "draftThread.enterAMessage": "Enter a message",
-  "draftThread.chooseAProjectFirst": "Choose a project first",
   "draftThread.anExistingChatCannotSwitchProjects": "An existing chat cannot switch projects",
   "draftThread.thisEnvironmentDoesNotSupportWorktrees":
     "This environment does not support worktrees",

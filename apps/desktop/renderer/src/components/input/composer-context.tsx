@@ -47,13 +47,6 @@ export function ComposerContext({
   useTranslation();
   return (
     <div className="mx-5 -mb-1 flex min-h-[38px] flex-wrap items-center gap-x-3 gap-y-1 rounded-t-2xl bg-neutral-200/60 px-3 py-1 text-[13px] text-neutral-500 min-[701px]:mx-7 min-[901px]:gap-x-5">
-      <EnvironmentPicker
-        cloud={cloud}
-        connected={library?.bot?.status === "connected"}
-        disabled={busy}
-        onChange={onEnvironment}
-        onSettings={onSettings}
-      />
       <Suspense
         fallback={
           <Button variant="ghost" size="pill" disabled>
@@ -72,6 +65,13 @@ export function ComposerContext({
           onCreate={onCreateProject}
         />
       </Suspense>
+      <EnvironmentPicker
+        cloud={cloud}
+        connected={library?.bot?.status === "connected"}
+        disabled={busy}
+        onChange={onEnvironment}
+        onSettings={onSettings}
+      />
       <span className="ml-auto flex min-w-0 items-center">
         <WorktreePicker
           workspaceId={workspaceId}

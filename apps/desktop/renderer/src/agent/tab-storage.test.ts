@@ -7,6 +7,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+test("restoring a temporary thread preserves projectless inheritance before the catalog loads", () => {
+  const restored = restoreTabs({
+    version: 1,
+    activeId: "temporary-tab",
+    tabs: [
+      {
+        id: "temporary-tab",
+        kind: "conversation",
+        threadId: "temporary-thread",
+        workspaceId: "temporary",
+        projectless: true,
+        draft: "",
+      },
+    ],
+  });
+  const tabs = new DesktopTabs(undefined, restored);
+  tabs.newConversation();
+  expect(tabs.activeTab).toMatchObject({ workspaceId: null, draft: "" });
+});
+
 test("a sandbox-only draft change is saved and restored before its first message", () => {
   vi.useFakeTimers();
   const tabs = new DesktopTabs();

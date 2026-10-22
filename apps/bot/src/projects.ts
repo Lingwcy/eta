@@ -3,6 +3,7 @@ import { isAbsolute, join, relative, resolve, dirname, basename, sep } from "nod
 import type { CoreClient } from "@eta/core";
 import type { BotConfig } from "./config.ts";
 import { BotHttpError } from "./errors.ts";
+import type { WorkspaceMetadata } from "@eta/core/shared/workspaces";
 
 async function canonical(path: string): Promise<string> {
   try {
@@ -44,6 +45,22 @@ export class BotProjects {
     return (
       suffix !== "" && suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix)
     );
+  }
+
+  private async temporaryAvailable(workspace: WorkspaceMetadata) {
+    if (workspace.kind !== "temporary") return false;
+    try {
+      const root = await canonical(join(this.config.workspaceRoot, ".eta-temporary"));
+      return (
+        root === join(await realpath(this.config.workspaceRoot), ".eta-temporary") &&
+        dirname(workspace.cwd) === root &&
+        // Missing directories retain readable history; Core still rejects execution there.
+        (await canonical(workspace.cwd)) === workspace.cwd
+      );
+    } catch (error) {
+      if (!unresolvable(error)) throw error;
+      return false;
+    }
   }
 
   async create(name: string) {
@@ -97,24 +114,31 @@ export class BotProjects {
       ]);
       const workspace = workspaces.find((value) => value.id === workspaceId);
       const project = projects.find((value) => value.id === workspace?.projectId);
-      if (!workspace || !project) return this.refresh();
+      if (!workspace || (!project && workspace.kind !== "temporary")) return this.refresh();
       await mkdir(this.config.workspaceRoot, { recursive: true });
       const root = await realpath(this.config.workspaceRoot);
-      const suffix = relative(root, project.rootPath);
+      const suffix = project ? relative(root, project.rootPath) : "";
       // Hidden/nested canonical paths depend on visible aliases; duplicate roots depend on
       // discovery ordering. Keep the full scan as their source of ownership truth.
       if (
-        !suffix ||
-        suffix.startsWith(".") ||
-        suffix.includes(sep) ||
-        isAbsolute(suffix) ||
-        projects.some((value) => value.id !== project.id && value.rootPath === project.rootPath)
+        workspace.kind !== "temporary" &&
+        (!suffix ||
+          suffix.startsWith(".") ||
+          suffix.includes(sep) ||
+          isAbsolute(suffix) ||
+          projects.some(
+            (value) => value.id !== project?.id && value.rootPath === project?.rootPath,
+          ))
       )
         return this.refresh();
       let available = false;
       try {
         available =
-          (await this.inside(project.rootPath, root)) && (await this.inside(workspace.cwd, root));
+          workspace.kind === "temporary"
+            ? await this.temporaryAvailable(workspace)
+            : !!project &&
+              (await this.inside(project.rootPath, root)) &&
+              (await this.inside(workspace.cwd, root));
       } catch (error) {
         if (!unresolvable(error)) throw error;
       }
@@ -139,7 +163,8 @@ export class BotProjects {
         this.publishedRoot = root;
       }
       this.publicationRevision++;
-      if (available) this.workspaceProjects.set(workspace.id, project.id);
+      if (available)
+        this.workspaceProjects.set(workspace.id, project?.id ?? `temporary:${workspace.id}`);
       else this.workspaceProjects.delete(workspace.id);
       return;
     }
@@ -183,6 +208,11 @@ export class BotProjects {
     const projectIds = new Set(projects.values());
     const workspaces = new Map<string, string>();
     for (const workspace of await this.core.workspaces()) {
+      if (workspace.kind === "temporary") {
+        if (await this.temporaryAvailable(workspace))
+          workspaces.set(workspace.id, `temporary:${workspace.id}`);
+        continue;
+      }
       if (!projectIds.has(workspace.projectId)) continue;
       try {
         if (await this.inside(workspace.cwd, root))

@@ -14,16 +14,18 @@ import {
 type DraftBridge = Pick<DesktopBridge, "submit" | "submitReply"> &
   Partial<Pick<DesktopBridge, "configureThread" | "configureSandbox" | "createWorktree">> & {
     createThread(
-      workspaceId: string,
+      workspaceId: string | null,
       requestId: string,
       configuration?: CreateThreadConfiguration,
-    ): Promise<{ id: string }>;
+      environment?: "local" | "cloud",
+    ): Promise<{ id: string; workspaceId?: string }>;
   };
 
 /** A draft has no session until its first submit; retries reuse the persisted binding. */
 export class DraftThread {
   private threadId?: string;
   private workspaceId?: string;
+  private selection?: string | null;
   private pending?: Promise<string>;
   private worktree?: { key: string; requestId: string; workspaceId?: string };
   private uncertainSubmission?: UncertainSubmission;
@@ -39,7 +41,11 @@ export class DraftThread {
     readonly requestId: string,
     private readonly bridge: DraftBridge,
     /** A created thread is visible and stoppable before the first admission settles. */
-    private readonly onCreated?: (id: string, workspaceId: string | undefined) => void,
+    private readonly onCreated?: (
+      id: string,
+      workspaceId: string | undefined,
+      projectless: boolean,
+    ) => void,
   ) {}
 
   submit(
@@ -48,14 +54,14 @@ export class DraftThread {
     images?: readonly ImageAttachment[],
     configuration?: CreateThreadConfiguration,
     worktree?: Omit<CreateWorktreeInput, "requestId">,
+    environment?: "local" | "cloud",
   ) {
     if (this.pending) return this.pending;
     if (!prompt.trim() && !images?.length)
       return Promise.reject(new LocalizedError("chat:draftThread.enterAMessage"));
-    if (!workspaceId)
-      return Promise.reject(new LocalizedError("chat:draftThread.chooseAProjectFirst"));
     if (
-      this.workspaceId &&
+      this.threadId &&
+      this.selection !== workspaceId &&
       this.workspaceId !== workspaceId &&
       (!worktree ||
         this.worktree?.key !== JSON.stringify(worktree) ||
@@ -64,21 +70,28 @@ export class DraftThread {
       return Promise.reject(
         new LocalizedError("chat:draftThread.anExistingChatCannotSwitchProjects"),
       );
-    this.pending = this.send(workspaceId, prompt.trim(), images, configuration, worktree).finally(
-      () => {
-        this.pending = undefined;
-      },
-    );
+    this.pending = this.send(
+      workspaceId,
+      prompt.trim(),
+      images,
+      configuration,
+      worktree,
+      environment,
+    ).finally(() => {
+      this.pending = undefined;
+    });
     return this.pending;
   }
 
   private async send(
-    workspaceId: string,
+    workspaceId: string | null,
     prompt: string,
     images?: readonly ImageAttachment[],
     configuration?: CreateThreadConfiguration,
     worktree?: Omit<CreateWorktreeInput, "requestId">,
+    environment?: "local" | "cloud",
   ) {
+    const selection = workspaceId;
     if (worktree && !this.threadId) {
       if (!this.bridge.createWorktree)
         throw new LocalizedError("chat:draftThread.thisEnvironmentDoesNotSupportWorktrees");
@@ -98,15 +111,19 @@ export class DraftThread {
     }
     if (this.threadId && this.workspaceId) workspaceId = this.workspaceId;
     if (!this.threadId) {
-      const created = await this.bridge.createThread(
-        workspaceId,
-        this.requestId,
-        ...(configuration ? [configuration] : []),
-      );
+      const created =
+        environment === "cloud" && workspaceId === null
+          ? await this.bridge.createThread(workspaceId, this.requestId, configuration, environment)
+          : await this.bridge.createThread(
+              workspaceId,
+              this.requestId,
+              ...(configuration ? [configuration] : []),
+            );
       this.threadId = created.id;
-      this.workspaceId = workspaceId;
+      this.selection = selection;
+      this.workspaceId = created.workspaceId ?? workspaceId ?? undefined;
       this.applied = configuration ? { ...configuration } : undefined;
-      this.onCreated?.(created.id, workspaceId);
+      this.onCreated?.(created.id, this.workspaceId, selection === null);
     }
     if (configuration) {
       const applied = this.applied;

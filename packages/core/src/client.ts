@@ -210,7 +210,7 @@ export async function createCore(options: CoreOptions) {
       threads: (workspaceId?: string, includeArchived?: boolean) =>
         runtime.runPromise(threads.list(workspaceId, includeArchived)),
       createThread: (
-        workspaceId: string,
+        workspaceId: string | null,
         requestId?: string,
         configuration?: CreateThreadConfiguration,
       ) => runtime.runPromise(threads.create(workspaceId, requestId, configuration)),

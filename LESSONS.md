@@ -228,6 +228,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: kill the process after filesystem staging and after Catalog persistence; prove the original transcript remains accessible when the operation did not commit and that committed deletion does not resurrect it. An in-memory rollback callback cannot cover process death.
 - Seen: 2026-10-13.
 
+**Coordinate directory adoption with destructive cleanup across services.**
+
+- Evidence: on 2026-10-22, #377's controlled temporary-workspace tests hold real path validation or removal while registering the same directory or a child. Without shared ownership coordination, all eight project/workspace and admission-order cases fail: registration can succeed while cleanup removes its files. Thread mutation and short Catalog update locks do not cover independent project/workspace registration.
+- Check: share ownership from path validation through Catalog publication or directory removal. Test both admission orders, preserve adopted files, and reject registration after removal. `packages/core/test/service/threads/temporary-ownership.test.ts` uses real services and filesystem gates; this reproduces the unmerged feature's race, not a production incident.
+- Seen: 2026-10-22.
+
 **Map environment entity IDs consistently in admission replies, observations and persisted provenance.**
 
 - Evidence: the 2026-10-13 source audit of `96d54e4` found prefixed cloud snapshot operation IDs paired with raw ordinary submission replies. The chat client acknowledges completion by comparing those identities, so mismatched mapping could leave its admission pending. The controlled SSE regression in `main/bot.test.ts` now drives a real `ThreadAgentClient` through the Bot transport and verifies completion clears the pending admission and preserves message provenance. The risk was found by source inspection; this does not claim a native UI reproduction.
@@ -441,6 +447,7 @@ allows native startup, before checking an operation's result.**
 - Check: use the operation's completion signal rather than a fixed sleep.
   Inspect initialization, cleanup, and timeout paths. Increasing a timeout
   alone is not evidence that a hang or flake's cause has been resolved.
+- Additional evidence: on 2026-10-22, #377's Linux CI run `39729783493` expires the projectless client test at 5,231 ms. That test combines native execution, a 10-second completion poll, restart and deletion under the default five-second test budget. Separate lifecycle persistence from a controlled-response native-write test, give startup and completion bounded waits, and release the response in `finally`. The CI log does not identify which phase exhausted the original budget.
 - Additional evidence: on 2026-10-16, PR #81's Linux CI failed the normal-shutdown test while waiting for a native child's PID with the default poll deadline. Injecting 1.5 seconds of model latency reproduces that assertion; bounded native-startup and process-exit waits pass the same delayed case while retaining the real child, shutdown and durable aborted-receipt checks. Disposal now runs in `finally` when startup assertions fail. This demonstrates the fixture's short readiness assumption, not the unrecorded startup timing of the original CI failure.
 - Additional evidence: on 2026-10-14, Linux CI diagnostics showed the real Core
   schedule delivery test stuck before `ThreadService.submit`; the occurrence

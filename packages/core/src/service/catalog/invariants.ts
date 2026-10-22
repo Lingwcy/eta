@@ -23,6 +23,7 @@ export function validateCatalog(state: CatalogState): ReadonlyArray<CatalogViola
   indexById("Thread", state.threads, violations);
 
   for (const workspace of state.workspaces) {
+    if (workspace.kind === "temporary") continue;
     const project = projects.get(workspace.projectId);
     if (!project) {
       violations.push({

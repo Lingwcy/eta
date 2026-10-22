@@ -19,7 +19,7 @@ import {
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   createModels,
   fauxProvider,
@@ -117,6 +117,63 @@ async function fixture(
   };
   return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
+
+test("projectless HTTP threads remain visible, accept messages and replay on the Bot", async () => {
+  const { bot, request, provider, config } = await fixture(true);
+  const body = { workspaceId: null, requestId: "temporary-http" };
+  const response = await request("/v1/threads", body);
+  expect(response.status).toBe(201);
+  const created = Schema.decodeUnknownSync(
+    Schema.Struct({ id: Schema.String, workspaceId: Schema.String }),
+  )(await response.json());
+  const replay = await request("/v1/threads", body);
+  expect(replay.status).toBe(201);
+  expect(await replay.json()).toMatchObject({ id: created.id, workspaceId: created.workspaceId });
+  expect(bot.workspaceProjects.has(created.workspaceId)).toBe(true);
+  const library = await request("/v1/library");
+  expect(library.status).toBe(200);
+  const parsed = LibrarySchema.parse(await library.json());
+  expect(parsed.projects).toEqual([]);
+  expect(parsed.workspaces).toMatchObject([{ kind: "temporary", projectId: null }]);
+  expect(parsed.threads).toMatchObject([{ id: created.id }]);
+  provider.setResponses([fauxAssistantMessage("Hello from the Bot")]);
+  const sent = await request(`/v1/threads/${created.id}/messages`, {
+    requestId: "temporary-message",
+    prompt: "Hello",
+  });
+  expect(sent.status).toBe(202);
+  const operation = Schema.decodeUnknownSync(admission)(await sent.json());
+  await expect
+    .poll(async () => (await bot.core.operation(created.id, operation.operationId)).status, {
+      timeout: 10000,
+    })
+    .toBe("completed");
+  expect((await request(`/v1/threads/${created.id}`)).status).toBe(200);
+  const cwd = parsed.workspaces[0]!.cwd;
+  expect(dirname(cwd)).toBe(await realpath(join(config.workspaceRoot, ".eta-temporary")));
+  await rename(cwd, `${cwd}-retained`);
+  try {
+    await symlink(config.workspaceRoot, cwd, "dir");
+    expect((await request(`/v1/threads/${created.id}`)).status).toBe(403);
+    expect(bot.workspaceProjects.has(created.workspaceId)).toBe(false);
+  } finally {
+    await rm(cwd, { force: true });
+    await rename(`${cwd}-retained`, cwd);
+  }
+  expect((await request(`/v1/threads/${created.id}`)).status).toBe(200);
+  await rename(cwd, `${cwd}-retained`);
+  try {
+    expect((await request(`/v1/threads/${created.id}`)).status).toBe(200);
+    const unavailable = await request(`/v1/threads/${created.id}/messages`, {
+      requestId: "missing-temporary-message",
+      prompt: "Continue",
+    });
+    expect(unavailable.status).toBe(409);
+    expect(await unavailable.json()).toMatchObject({ error: { code: "WorkspaceUnavailable" } });
+  } finally {
+    await rename(`${cwd}-retained`, cwd);
+  }
+});
 
 test("status and credential management do not scan projects; catalog requests still do", async () => {
   const { bot, request } = await fixture(true);
