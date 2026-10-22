@@ -316,8 +316,9 @@ const styles = StyleSheet.create({
   },
   messageImage: {
     width: 240,
-    height: 180,
-    borderRadius: 14,
+    maxWidth: "100%",
+    aspectRatio: 4 / 3,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
