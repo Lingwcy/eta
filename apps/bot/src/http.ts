@@ -1,3 +1,4 @@
+import { SnapshotDeltaEncoder } from "@eta/core/shared/snapshot-delta";
 import { heartbeat } from "./sse-heartbeat.ts";
 import { mountScheduleRoutes } from "./schedule-http.ts";
 import { Hono } from "hono";
@@ -208,6 +209,8 @@ export function createHttpApp(options: {
     await options.projects.refreshForThread(id);
     await controller.authorize(id);
     const signal = AbortSignal.any([shutdown, context.req.raw.signal]);
+    const encoder =
+      context.req.header("x-eta-snapshot") === "delta-v1" ? new SnapshotDeltaEncoder() : undefined;
     return streamSSE(context, async (stream) => {
       let stop: (() => void) | undefined;
       let stopHeartbeat: (() => void) | undefined;
@@ -229,10 +232,14 @@ export function createHttpApp(options: {
           id,
           async (snapshot) => {
             if (!signal.aborted && !stopped)
-              await stream.writeSSE({
-                event: "snapshot",
-                data: JSON.stringify(displaySnapshot(snapshot)),
-              });
+              await stream.writeSSE(
+                encoder
+                  ? encoder.encode(displaySnapshot(snapshot))
+                  : {
+                      event: "snapshot",
+                      data: JSON.stringify(displaySnapshot(snapshot)),
+                    },
+              );
           },
           (message) => {
             void stream
