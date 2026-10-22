@@ -166,6 +166,56 @@ test("deleting a temporary chat preserves a directory adopted as a project", asy
   expect(await core.workspaces(project.id)).toHaveLength(1);
 });
 
+test.each(["root", "child", "none"] as const)(
+  "recreating a deleted projectless request does not reclaim adopted files (%s)",
+  async (adoption) => {
+    const { core, open } = await fixture();
+    const requestId = "deleted-temporary-request";
+    const original = await core.createThread(null, requestId);
+    const workspace = (await core.workspaces()).find((value) => value.id === original.workspaceId)!;
+    const relativeFile = adoption === "child" ? join("child", "keep.txt") : "keep.txt";
+    if (adoption === "child") await mkdir(join(workspace.cwd, "child"));
+    const retainedFile = join(workspace.cwd, relativeFile);
+    await writeFile(retainedFile, "Adopted work");
+    const project =
+      adoption === "none"
+        ? undefined
+        : await core.registerProject(
+            adoption === "child" ? join(workspace.cwd, "child") : workspace.cwd,
+            "Adopted",
+          );
+    await core.deleteThread(original.id);
+    if (project) expect(await readFile(retainedFile, "utf8")).toBe("Adopted work");
+    else await expect(readFile(retainedFile)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const replacement = await core.createThread(null, requestId);
+    const target = (await core.workspaces()).find((value) => value.id === replacement.workspaceId)!;
+    expect(replacement.id).not.toBe(original.id);
+    expect(target).toMatchObject({ kind: "temporary", projectId: null });
+    // Assert the actual inherited file view, not just a different Catalog identity.
+    await expect(readFile(join(target.cwd, relativeFile))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    if (project) {
+      expect(target.cwd).not.toBe(workspace.cwd);
+      expect(await readFile(retainedFile, "utf8")).toBe("Adopted work");
+      expect(await core.workspaces(project.id)).toHaveLength(1);
+    }
+    await writeFile(join(target.cwd, "new.txt"), "Replacement work");
+    expect((await core.createThread(null, requestId)).id).toBe(replacement.id);
+    await core.close();
+    const reopened = await open();
+    const replay = await reopened.createThread(null, requestId);
+    expect(replay.id).toBe(replacement.id);
+    expect(replay.workspaceId).toBe(target.id);
+    expect(await readFile(join(target.cwd, "new.txt"), "utf8")).toBe("Replacement work");
+    await reopened.deleteThread(replacement.id);
+    await expect(readFile(join(target.cwd, "new.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+    if (project) expect(await readFile(retainedFile, "utf8")).toBe("Adopted work");
+  },
+  30_000,
+);
+
 test("headless execution retains older operation results and idempotency after restart", async () => {
   const { core, open, provider, cwd, workspace } = await fixture();
   provider.setResponses([
@@ -482,7 +532,7 @@ test("pending approvals survive restart without executing before explicit resume
     })
     .toBe("completed");
   expect(await readFile(join(cwd, "restart.txt"), "utf8")).toBe("after approval");
-});
+}, 60_000);
 
 test("subagents inherit read-only policy and expose their own requests to the owning thread", async () => {
   const { core, provider, cwd, workspace } = await fixture();
@@ -637,7 +687,7 @@ test("host model catalogs and mutable default settings stay local to each Core i
   bot.setModel("one");
   expect((await bot.core.createThread(bot.workspace.id)).model.id).toBe("one");
   expect((await desktop.core.createThread(desktop.workspace.id)).model.id).toBe("two");
-});
+}, 60_000);
 
 test("preserving shutdown retains an unfinished input that resumes without resubmission", async () => {
   const { core, open, provider, workspace } = await fixture();

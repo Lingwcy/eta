@@ -1,6 +1,6 @@
 {
   "name": "@eta/desktop",
-  "version": "0.1.114",
+  "version": "0.1.116",
   "private": true,
   "type": "module",
   "main": "dist/electron/main.cjs",
