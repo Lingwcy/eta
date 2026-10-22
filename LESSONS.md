@@ -230,6 +230,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Additional evidence: on 2026-10-22, #373 exercises Mobile's independent readEvents with a real byte stream carrying a 1 MiB snapshot in 1 KiB chunks: repeated growing-prefix newline searches offer 538,428,436 characters to the matcher. Incremental fragment assembly passes a linear search-input bound while preserving every LF/CRLF/CR byte split, UTF-8, incomplete-frame rejection, cancellation and the existing line/data size limits. #371 is independently scoped to Desktop; a shared protocol does not imply a shared parser. This is a deterministic algorithm regression, not a native-phone CPU or OOM measurement. Use constant-space observation: a spy retaining growing call arguments can manufacture a fixture OOM.
 - Seen: 2026-10-15, 2026-10-22.
 
+**A process-local runtime cache miss does not establish durable idleness.**
+
+- Evidence: on 2026-10-22, #418 preserves an ordinary input, restarts Core, then deletes/archives its chat or removes its real Git worktree without opening history first. Three cold controls bypass Busy; the same three already-loaded controls refuse. Definition-free storage checks retain files and pending receipts without resuming the model, while idle, stopped and corrupt/missing-history cleanup controls remain valid. Separate persisted-storage cases page past background titles and retain all four live task states.
+- Check: use live runtime state when owned, otherwise inspect durable submissions/tasks and close the storage handle. Do not open a Harness merely to check idleness, mistake every background task for a title, or remove the existing unreadable-history maintenance escape hatch. These are public Core/Git/filesystem controls, not native UI or cross-process race evidence.
+- Seen: 2026-10-22.
+
 **Recover filesystem staging before treating a cross-store lifecycle operation as rolled back.**
 
 - Evidence: on 2026-10-13, the scheduled-task `SIGKILL at delete-intent` fixture moved a real session into `.trash` and killed the host before its Catalog replacement. The reopened Catalog still contained the thread, but opening it failed with `StorageCorrupt`. Session removal now journals before renaming and reconciles that journal against Catalog before opening threads; six real archive/delete crash windows pass, including restore-after-archive without restarting plans.

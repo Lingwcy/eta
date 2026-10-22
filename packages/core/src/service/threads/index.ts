@@ -476,13 +476,7 @@ export class ThreadService extends Context.Service<
             locked(
               Effect.gen(function* () {
                 const thread = yield* get(id);
-                const runtime = yield* registry.peek(thread.sessionRef);
-                if (
-                  runtime &&
-                  (runtime.running ||
-                    runtime.recoveryRequired ||
-                    (yield* adapter("无法检查任务", runtime.hasWork)))
-                )
+                if (yield* registry.busy(thread.sessionRef))
                   return yield* new CoreError({
                     code: "Busy",
                     message: "请先停止未完成的任务，再删除会话",
@@ -554,13 +548,7 @@ export class ThreadService extends Context.Service<
               Effect.gen(function* () {
                 const existing = yield* get(id);
                 const runtime = yield* registry.peek(existing.sessionRef);
-                if (
-                  archived &&
-                  runtime &&
-                  (runtime.running ||
-                    runtime.recoveryRequired ||
-                    (yield* adapter("无法检查任务", runtime.hasWork)))
-                )
+                if (archived && (yield* registry.busy(existing.sessionRef)))
                   return yield* new CoreError({
                     code: "Busy",
                     message: "请先停止未完成的任务，再归档",

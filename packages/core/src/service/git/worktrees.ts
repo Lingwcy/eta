@@ -142,14 +142,7 @@ export class WorktreeService extends Context.Service<
       const busy = Effect.fn("WorktreeService.busy")(function* (workspaceId: string) {
         for (const thread of (yield* catalog.read).threads) {
           if (thread.workspaceId !== workspaceId) continue;
-          const runtime = yield* registry.peek(thread.sessionRef);
-          if (
-            runtime &&
-            (runtime.running ||
-              runtime.recoveryRequired ||
-              (yield* adapter("无法检查任务", runtime.hasWork)))
-          )
-            return true;
+          if (yield* registry.busy(thread.sessionRef)) return true;
         }
         return false;
       });
