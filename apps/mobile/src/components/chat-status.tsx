@@ -92,7 +92,7 @@ export function ConnectionBanner({
 }) {
   return (
     <View role="alert" style={styles.banner}>
-      <AlertTriangle size={15} color={toneColors.warning} />
+      <AlertTriangle size={16} color={toneColors.warning} />
       <View style={styles.bannerText}>
         <Text style={styles.bannerTitle}>{reconnecting ? "正在重连 Bot" : "Bot 连接不可用"}</Text>
         <Text numberOfLines={1} style={styles.bannerDetail}>
@@ -120,7 +120,7 @@ export function ConnectionBanner({
         onPress={onSettings}
         style={({ pressed }) => [styles.bannerGhost, pressed && styles.pressed]}
       >
-        <SlidersHorizontal size={14} color={colors.muted} />
+        <SlidersHorizontal size={16} color={colors.muted} />
       </Pressable>
     </View>
   );
@@ -130,7 +130,7 @@ export function ConnectionBanner({
 export function ErrorStrip({ message }: { message: string }) {
   return (
     <View role="alert" style={styles.error}>
-      <AlertTriangle size={14} color={colors.danger} />
+      <AlertTriangle size={16} color={colors.danger} />
       <Text numberOfLines={2} style={styles.errorText}>
         {message}
       </Text>
@@ -156,7 +156,7 @@ export function PendingNotice({
 }) {
   return (
     <View style={styles.pending}>
-      <CloudOff size={15} color={colors.muted} />
+      <CloudOff size={16} color={colors.muted} />
       <View style={styles.pendingText}>
         <Text style={styles.pendingTitle}>
           {sending ? "正在提交消息…" : "上次消息的接收状态待确认"}
@@ -178,7 +178,7 @@ export function PendingNotice({
             (!connected || busy) && styles.disabled,
           ]}
         >
-          <RefreshCw size={12} color={colors.text} />
+          <RefreshCw size={14} color={colors.text} />
           <Text style={styles.pendingActionText}>重试</Text>
         </Pressable>
       )}
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     borderColor: "#FDE68A",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   bannerText: { flex: 1, minWidth: 0 },
   bannerTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSoft,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   errorText: { flex: 1, fontSize: 14, lineHeight: 17, color: errorTextColor },
   pending: {
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   pendingText: { flex: 1, minWidth: 0 },
   pendingTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
