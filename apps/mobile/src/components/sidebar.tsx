@@ -175,7 +175,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                 !available && styles.buttonDisabled,
               ]}
             >
-              <SquarePen size={14} color={colors.text} />
+              <SquarePen size={16} color={colors.text} />
               <Text style={styles.newChatText}>新建会话</Text>
             </Pressable>
           </View>
@@ -543,15 +543,13 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   newChatButton: {
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.soft,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
   },
   newChatButtonPressed: {
     backgroundColor: colors.softHover,
@@ -560,7 +558,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   newChatText: {
-    fontSize: 13.5,
+    fontSize: 15,
     fontWeight: "600",
     color: colors.text,
   },
