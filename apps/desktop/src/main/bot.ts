@@ -1,3 +1,4 @@
+import { SnapshotDeltaDecoder } from "@eta/core/shared/snapshot-delta";
 import { LocalizedError, localizedMessage } from "../shared/i18n/messages.ts";
 import { BotRequestError } from "../shared/bot-request-error.ts";
 import {
@@ -352,6 +353,7 @@ export class DesktopBot {
     signal?: AbortSignal,
     method?: string,
     acceptedStatuses: readonly number[] = [],
+    headers?: Record<string, string>,
   ) {
     if (!this.connection) throw new LocalizedError("errors:bot.connectToABotFirst");
     const response = await fetch(this.connection.url + path, {
@@ -359,6 +361,7 @@ export class DesktopBot {
       headers: {
         authorization: `Bearer ${this.connection.token}`,
         "content-type": "application/json",
+        ...headers,
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: signal ?? AbortSignal.timeout(10000),
@@ -631,24 +634,29 @@ export class DesktopBot {
     let observation = this.observations.get(route);
     if (!observation) {
       const created: ThreadObservation = { listeners: new Set(), stop: () => {} };
+      const decoder = new SnapshotDeltaDecoder();
       observation = created;
       this.observations.set(route, created);
       created.stop = this.subscribeEvents(
         route,
         async (event, data) => {
-          if (event !== "snapshot" || this.observations.get(route) !== created) return;
-          const value = this.snapshot(JSON.parse(data) as SnapshotResponse);
+          if (this.observations.get(route) !== created) return;
+          const decoded = decoder.decode(event, data);
+          if (!decoded) return;
+          const value = this.snapshot(decoded);
           created.last = value;
           created.failure = undefined;
           const listeners = [...created.listeners];
           await Promise.all(listeners.map((current) => this.deliver(created, current, value)));
         },
         (message) => {
+          decoder.reset();
           if (this.observations.get(route) !== created) return;
           created.failure = message;
           const listeners = [...created.listeners];
           for (const current of listeners) this.report(current, message);
         },
+        true,
       );
     }
     const owner = observation;
@@ -703,6 +711,7 @@ export class DesktopBot {
     route: string,
     onEvent: (event: string | undefined, data: string) => void | Promise<void>,
     onError: (message: string) => void,
+    incremental = false,
   ) {
     const controller = new AbortController();
     this.streams.add(controller);
@@ -733,7 +742,14 @@ export class DesktopBot {
         let failure: unknown;
         try {
           const response = await Promise.race([
-            this.response(route, undefined, attempt.signal).then((response) => {
+            this.response(
+              route,
+              undefined,
+              attempt.signal,
+              undefined,
+              [],
+              incremental ? { "x-eta-snapshot": "delta-v1" } : undefined,
+            ).then((response) => {
               if (attempt.signal.aborted) {
                 void response.body?.cancel().catch(() => {});
                 throw attempt.signal.reason;

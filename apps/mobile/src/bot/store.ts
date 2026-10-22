@@ -460,6 +460,10 @@ export class MobileStore {
   }
   newThread(workspaceId = this.state.workspaceId) {
     if (this.state.sending) throw new Error("请等待当前消息提交完成");
+    if (
+      this.state.library?.workspaces.find((value) => value.id === workspaceId)?.kind === "temporary"
+    )
+      workspaceId = undefined;
     ++this.draftIntent;
     this.observer?.abort();
     this.opener?.abort();
@@ -538,7 +542,14 @@ export class MobileStore {
     const prompt = this.state.drafts[draftKey(this.state)] ?? "";
     const images = this.state.draftImages[draftKey(this.state)] ?? [];
     if (!prompt.trim() && !images.length) return;
-    if (!this.state.workspaceId || !this.state.configuration) throw new Error("请先选择项目和模型");
+    if (
+      !this.state.workspaceId ||
+      !this.state.configuration ||
+      (!this.state.threadId &&
+        this.state.library?.workspaces.find((value) => value.id === this.state.workspaceId)
+          ?.kind === "temporary")
+    )
+      throw new Error("请先选择项目和模型");
     if (this.state.threadId && !this.state.thread) throw new Error("请先等待会话加载完成");
     if (this.state.thread?.thread.archivedAt) throw new Error("请先取消归档再发送消息");
     if (this.state.thread?.snapshot.operation) throw new Error("当前会话正在执行任务");
