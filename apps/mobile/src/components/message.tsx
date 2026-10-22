@@ -331,8 +331,6 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
     aspectRatio: 4 / 3,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   fallbackContent: {
     color: colors.muted,
