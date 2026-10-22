@@ -43,6 +43,7 @@ import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import type { GitHubIdentity, GitHubPage, GitHubQuery } from "@eta/core/shared/github";
 
 interface ThreadObserver {
+  delivery?: Promise<void>;
   snapshot(value: SnapshotResponse): void | Promise<void>;
   error(message: string): void;
 }
@@ -675,18 +676,19 @@ export class DesktopBot {
     };
   }
 
-  private async deliver(
-    owner: ThreadObservation,
-    listener: ThreadObserver,
-    value: SnapshotResponse,
-  ) {
-    if (!owner.listeners.has(listener)) return;
-    try {
-      await listener.snapshot(value);
-    } catch (error) {
-      if (owner.listeners.has(listener))
-        this.report(listener, error instanceof Error ? error.message : "Bot 连接失败");
-    }
+  private deliver(owner: ThreadObservation, listener: ThreadObserver, value: SnapshotResponse) {
+    // Cached replay may still be pending when the next live frame arrives.
+    const next = (listener.delivery ?? Promise.resolve()).then(async () => {
+      if (!owner.listeners.has(listener)) return;
+      try {
+        await listener.snapshot(value);
+      } catch (error) {
+        if (owner.listeners.has(listener))
+          this.report(listener, error instanceof Error ? error.message : "Bot 连接失败");
+      }
+    });
+    listener.delivery = next;
+    return next;
   }
 
   private report(listener: ThreadObserver, message: string) {
