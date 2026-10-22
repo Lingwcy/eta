@@ -42,6 +42,27 @@ function fixture() {
   return { catalog, state, scheduleId: request.scheduleId! };
 }
 
+test.each(["toString", "constructor", "__proto__"])(
+  "archive rejects pending request %s unless it owns a lifecycle intent",
+  (requestId) => {
+    const { state } = fixture();
+    state.requests = {
+      ...state.requests,
+      [requestId]: {
+        requestId,
+        threadId: "thread",
+        fingerprint: "pending-user-request",
+        state: "pending",
+        createdAt: 2,
+      },
+    };
+    finishScheduleLifecycle(state, "thread", "archive", 3);
+    expect(state.requests[requestId]).toMatchObject({ state: "rejected", reason: "archive" });
+    expect(state.requests.archive.state).toBe("pending");
+    decodeScheduleStore(state);
+  },
+);
+
 test("crash after intent but before Catalog commit rolls back without pausing schedules", () => {
   const { catalog, state, scheduleId } = fixture();
   const reopened = scheduleDraft(decodeScheduleStore(JSON.parse(JSON.stringify(state))));

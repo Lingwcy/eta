@@ -43,7 +43,11 @@ export function finishScheduleLifecycle(
       state.proposals[id] = { ...proposal, state: "invalidated", reason: action };
   }
   for (const [id, request] of Object.entries(state.requests)) {
-    if (request.threadId === threadId && request.state === "pending" && !state.lifecycleIntents[id])
+    if (
+      request.threadId === threadId &&
+      request.state === "pending" &&
+      !Object.hasOwn(state.lifecycleIntents, id)
+    )
       state.requests[id] = { ...request, state: "rejected", reason: action, finishedAt: now };
   }
 }

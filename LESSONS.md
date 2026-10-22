@@ -101,6 +101,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: cache scan-invariant identity only for that scan, revalidate it before publishing, revoke both old ownership maps when a root change is detected, and finish awaited alias work before replacing related maps. Partial updates must coordinate with completed publications as well as currently pending scans; an older check cannot undo a newer revocation or clear a replacement namespace. Do not turn this optimization into a cross-request permission cache or assume missing-path canonicalization performs no additional parent reads.
 - Seen: 2026-10-20.
 
+**Treat external IDs as own data keys on both reads and writes.**
+
+- Evidence: on 2026-10-21, #361's real Core/Git calls reject toString, constructor and **proto** as already-used request IDs because JSON dictionaries inherit Object.prototype. On 2026-10-22, #367 finds the independent scheduler returning a function for an unknown request and rejecting create/propose/approve/manual-run requests for the same keys. Read guards alone are insufficient there: plain assignment to a new **proto** key invokes a setter. Real Core close/reopen tests preserve own durable receipts; separate lifecycle controls reject pending requests with these IDs without mistaking inherited names for active lifecycle intentions.
+- Check: test arbitrary IDs through real persistence and replay, distinguish absent entries with own-property checks, and publish data without invoking prototype setters. Check later lifecycle membership tests as well as admission; do not ban valid IDs or claim a prototype-pollution exploit from a false-collision regression.
+- Seen: 2026-10-21, 2026-10-22.
+
 **Do not use pathname contents as Git record boundaries.**
 
 - Evidence: on 2026-10-21, #348's real Git/Core branch listing turns a worktree path's second line into a false ref. Explicit NUL record framing fixes that producer/consumer pair. Follow-up #351 separately reproduces valid newline-root repositories reported unavailable and successful managed checkouts reported needs_reconciliation: rev-parse's bundled paths and worktree-list records also used LF as a boundary. POSIX regressions preserve embedded/trailing LF and complete create/list/replay/remove without mocking Git.
