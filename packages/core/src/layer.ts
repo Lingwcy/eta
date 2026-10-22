@@ -24,6 +24,7 @@ import { SkillsService } from "./service/skills/index.ts";
 import { ThreadTitleService } from "./service/titles/index.ts";
 import { ThreadService } from "./service/threads/index.ts";
 import { WorkspaceService } from "./service/workspaces/index.ts";
+import { WorkspaceOwnershipService } from "./service/workspaces/ownership.ts";
 import { GitRepositoryService } from "./service/git/index.ts";
 import { GitStoreService } from "./service/git/store.ts";
 import { WorktreeService } from "./service/git/worktrees.ts";
@@ -46,6 +47,7 @@ export function coreFoundation(
     SessionRepositoryService.layer.pipe(Layer.provide(catalog)),
     AgentResourcesService.layerWith(processImage, instructions),
     CoreEnvironmentService.layer(environment),
+    WorkspaceOwnershipService.layer,
     WorkspaceAccessService.layer.pipe(Layer.provideMerge(GitStoreService.layer)),
   ).pipe(Layer.provideMerge(AppPathsService.layer(dataRoot, environment?.temporaryWorkspacesRoot)));
 }

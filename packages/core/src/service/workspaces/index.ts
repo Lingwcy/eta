@@ -8,6 +8,7 @@ import { adapter, CoreError } from "../errors.ts";
 import type { WorkspaceMetadata } from "../../shared/workspaces.ts";
 import { WorkspaceAccessService } from "../git/workspace-access.ts";
 import { AppPathsService } from "../../platform/app-paths.ts";
+import { WorkspaceOwnershipService } from "./ownership.ts";
 
 export class WorkspaceService extends Context.Service<
   WorkspaceService,
@@ -28,6 +29,7 @@ export class WorkspaceService extends Context.Service<
       const catalog = yield* CatalogService;
       const access = yield* WorkspaceAccessService;
       const paths = yield* AppPathsService;
+      const ownership = yield* WorkspaceOwnershipService;
       const get = Effect.fn("WorkspaceService.get")(function* (id: string) {
         const workspace = (yield* catalog.read).workspaces.find((value) => value.id === id);
         if (!workspace) return yield* new CoreError({ code: "NotFound", message: "工作区不存在" });
@@ -104,41 +106,41 @@ export class WorkspaceService extends Context.Service<
           );
           return workspace;
         }),
-        register: Effect.fn("WorkspaceService.register")(function* (
-          projectId: string,
-          cwd: string,
-        ) {
-          const state = yield* catalog.read;
-          if (!state.projects.some((project) => project.id === projectId))
-            return yield* new CoreError({ code: "NotFound", message: "项目不存在" });
-          const canonical = yield* adapter(
-            "无法访问工作区目录",
-            async () => {
-              const path = await realpath(cwd);
-              if (!(await stat(path)).isDirectory()) throw new Error("Not a directory");
-              return path;
-            },
-            "WorkspaceUnavailable",
-          );
-          let result: WorkspaceMetadata = {
-            id: randomUUID(),
-            projectId,
-            cwd: canonical,
-            kind: "worktree",
-            createdAt: DateTime.toEpochMillis(yield* DateTime.now),
-          };
-          yield* catalog.update((state) => {
-            const existing = state.workspaces.find(
-              (value) => value.projectId === projectId && value.cwd === canonical,
+        register: Effect.fn("WorkspaceService.register")(
+          function* (projectId: string, cwd: string) {
+            const state = yield* catalog.read;
+            if (!state.projects.some((project) => project.id === projectId))
+              return yield* new CoreError({ code: "NotFound", message: "项目不存在" });
+            const canonical = yield* adapter(
+              "无法访问工作区目录",
+              async () => {
+                const path = await realpath(cwd);
+                if (!(await stat(path)).isDirectory()) throw new Error("Not a directory");
+                return path;
+              },
+              "WorkspaceUnavailable",
             );
-            if (existing) {
-              result = existing;
-              return state;
-            }
-            return { ...state, workspaces: [...state.workspaces, result] };
-          });
-          return result;
-        }),
+            let result: WorkspaceMetadata = {
+              id: randomUUID(),
+              projectId,
+              cwd: canonical,
+              kind: "worktree",
+              createdAt: DateTime.toEpochMillis(yield* DateTime.now),
+            };
+            yield* catalog.update((state) => {
+              const existing = state.workspaces.find(
+                (value) => value.projectId === projectId && value.cwd === canonical,
+              );
+              if (existing) {
+                result = existing;
+                return state;
+              }
+              return { ...state, workspaces: [...state.workspaces, result] };
+            });
+            return result;
+          },
+          (action) => ownership.coordinate(action),
+        ),
       });
     }),
   );

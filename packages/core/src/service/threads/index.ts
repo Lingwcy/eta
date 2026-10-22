@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { realpath, rm } from "node:fs/promises";
 import { dirname, sep } from "node:path";
 import { AppPathsService } from "../../platform/app-paths.ts";
+import { WorkspaceOwnershipService } from "../workspaces/ownership.ts";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, DateTime, Effect, Layer, SynchronizedRef } from "effect";
 import type { OperationAdmission, SessionResponse, ThinkingLevel } from "../../agent/protocol.ts";
@@ -116,6 +117,7 @@ export class ThreadService extends Context.Service<
     Effect.gen(function* () {
       const catalog = yield* CatalogService;
       const paths = yield* AppPathsService;
+      const ownership = yield* WorkspaceOwnershipService;
       const schedules = yield* ScheduleLifecycleService;
       const workspaces = yield* WorkspaceService;
       const repository = yield* SessionRepositoryService;
@@ -502,37 +504,41 @@ export class ThreadService extends Context.Service<
                     ),
                   );
                 yield* removal.commit;
-                const current = yield* catalog.read;
-                const workspace = current.workspaces.find(
-                  (value) => value.id === thread.workspaceId,
-                );
-                if (
-                  workspace?.kind === "temporary" &&
-                  !current.threads.some((value) => value.workspaceId === workspace.id)
-                ) {
-                  // A user can adopt this directory (or a child) as a project.
-                  const adopted = current.workspaces.some(
-                    (value) =>
-                      value.id !== workspace.id &&
-                      (value.cwd === workspace.cwd ||
-                        value.cwd.startsWith(`${workspace.cwd}${sep}`)),
-                  );
-                  if (!adopted)
-                    yield* adapter("无法清理临时工作区", async () => {
-                      const root = await realpath(paths.temporaryWorkspacesRoot).catch(
-                        (error: NodeJS.ErrnoException) => {
-                          if (error.code !== "ENOENT") throw error;
-                          return undefined;
-                        },
+                yield* ownership.coordinate(
+                  Effect.gen(function* () {
+                    const current = yield* catalog.read;
+                    const workspace = current.workspaces.find(
+                      (value) => value.id === thread.workspaceId,
+                    );
+                    if (
+                      workspace?.kind === "temporary" &&
+                      !current.threads.some((value) => value.workspaceId === workspace.id)
+                    ) {
+                      // A user can adopt this directory (or a child) as a project.
+                      const adopted = current.workspaces.some(
+                        (value) =>
+                          value.id !== workspace.id &&
+                          (value.cwd === workspace.cwd ||
+                            value.cwd.startsWith(`${workspace.cwd}${sep}`)),
                       );
-                      if (dirname(workspace.cwd) === root)
-                        await rm(workspace.cwd, { recursive: true, force: true });
-                    });
-                  yield* catalog.update((state) => ({
-                    ...state,
-                    workspaces: state.workspaces.filter((value) => value.id !== workspace.id),
-                  }));
-                }
+                      if (!adopted)
+                        yield* adapter("无法清理临时工作区", async () => {
+                          const root = await realpath(paths.temporaryWorkspacesRoot).catch(
+                            (error: NodeJS.ErrnoException) => {
+                              if (error.code !== "ENOENT") throw error;
+                              return undefined;
+                            },
+                          );
+                          if (dirname(workspace.cwd) === root)
+                            await rm(workspace.cwd, { recursive: true, force: true });
+                        });
+                      yield* catalog.update((state) => ({
+                        ...state,
+                        workspaces: state.workspaces.filter((value) => value.id !== workspace.id),
+                      }));
+                    }
+                  }),
+                );
               }),
             ),
           ),
