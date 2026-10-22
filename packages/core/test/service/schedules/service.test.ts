@@ -43,6 +43,7 @@ async function fixture() {
             list: () => Effect.succeed([workspace]),
             get: () => Effect.succeed(workspace),
             register: () => Effect.succeed(workspace),
+            temporary: () => Effect.die("Schedules do not allocate temporary workspaces"),
             validate: () =>
               Effect.suspend(() =>
                 unavailable

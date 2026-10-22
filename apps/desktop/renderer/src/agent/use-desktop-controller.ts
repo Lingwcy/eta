@@ -33,10 +33,11 @@ export function useDesktopController(
   const [draft] = useState(
     () =>
       // The created thread is bound to the tab before its first admission settles, so stop works.
-      new DraftThread(tab.id, window.eta, (id, workspaceId) =>
+      new DraftThread(tab.id, window.eta, (id, workspaceId, projectless) =>
         navigation.tabs.updateConversation(tab.id, {
           threadId: id,
           workspaceId: workspaceId ?? tab.workspaceId,
+          projectless,
         }),
       ),
   );
@@ -159,6 +160,13 @@ export function useDesktopController(
         ? (remote?.message ?? t("chat:useDesktopController.botIsDisconnectedReconnectInSettings"))
         : undefined) ??
       error ??
+      (!threadId &&
+      !tab.workspaceId &&
+      cloud &&
+      remote?.status === "connected" &&
+      !remote.capabilities?.includes("temporary-workspace")
+        ? t("chat:useDesktopController.temporaryWorkspaceUnsupported")
+        : undefined) ??
       agent.error ??
       snapshot?.blockedReason ??
       (!operation ? snapshot?.lastResult?.error?.message : undefined) ??
@@ -197,7 +205,7 @@ export function useDesktopController(
       },
     },
     composerContext:
-      threadId || pending
+      threadId || pending || !active
         ? null
         : {
             cloud,
@@ -223,7 +231,7 @@ export function useDesktopController(
               setWorktreeDraft({ enabled: false });
               navigation.tabs.updateConversation(tab.id, {
                 workspaceId: id,
-                environment: isCloudId(id) ? "cloud" : "local",
+                environment: id ? (isCloudId(id) ? "cloud" : "local") : cloud ? "cloud" : "local",
               });
             },
             onCreateProject: registerProject,
@@ -315,13 +323,14 @@ export function useDesktopController(
                       defaultSandboxMode,
                   }
                 : undefined,
-              worktreeDraft.enabled && worktreeDraft.branch && workspace
+              worktreeDraft.enabled && worktreeDraft.branch && workspace?.projectId
                 ? {
                     projectId: workspace.projectId,
                     baseWorkspaceId: workspace.id,
                     branch: worktreeDraft.branch,
                   }
                 : undefined,
+              cloud ? "cloud" : "local",
             );
             navigation.tabs.updateConversation(tab.id, {
               threadId: id,
@@ -352,7 +361,12 @@ export function useDesktopController(
       isRunning: (running || backgroundWork) && !creating,
       allowSubmitWhileRunning: backgroundWork,
       isStopping: agent.stopping || operation?.status === "aborting",
-      submitDisabled: (!threadId && !tab.workspaceId) || (directoryUnavailable && !liveObservation),
+      submitDisabled:
+        (directoryUnavailable && !liveObservation) ||
+        (!threadId &&
+          !tab.workspaceId &&
+          cloud &&
+          !remote?.capabilities?.includes("temporary-workspace")),
       disabled:
         desktop.busy ||
         (directoryUnavailable && !liveObservation) ||

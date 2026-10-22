@@ -15,6 +15,25 @@ test("reports malformed JSON", async () => {
   expect(error.reason).toBe("InvalidJson");
 });
 
+test("temporary execution workspaces round trip without creating a project", async () => {
+  const state = {
+    ...catalogFixture(),
+    projects: [],
+    workspaces: [
+      {
+        id: "root",
+        kind: "temporary" as const,
+        projectId: null,
+        cwd: "/repo",
+        createdAt: 1,
+        requestId: "temporary-create",
+      },
+    ],
+  };
+  const encoded = await Effect.runPromise(encodeCatalog(state));
+  expect(await Effect.runPromise(parseCatalog(encoded))).toEqual(state);
+});
+
 test("reports unsupported versions explicitly", async () => {
   const error = await Effect.runPromise(Effect.flip(decodeCatalog({ version: 2 })));
   expect(error.reason).toBe("UnsupportedVersion");
@@ -27,6 +46,8 @@ test.each([
   { threads: [{ ...catalogFixture().threads[0], createdAt: "today" }] },
   { threads: [{ ...catalogFixture().threads[0], archivedAt: -1 }] },
   { workspaces: [{ ...catalogFixture().workspaces[0], cwd: "relative/path" }] },
+  { workspaces: [{ ...catalogFixture().workspaces[0], kind: "temporary" }] },
+  { workspaces: [{ ...catalogFixture().workspaces[0], projectId: null }] },
   { unexpectedField: true },
 ])("rejects invalid or unknown fields: %j", async (overrides) => {
   const error = await Effect.runPromise(

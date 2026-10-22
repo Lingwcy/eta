@@ -272,11 +272,15 @@ export class DesktopBot {
     return {
       ...library,
       projects: library.projects.map((project) => ({ ...project, id: this.prefix + project.id })),
-      workspaces: library.workspaces.map((workspace) => ({
-        ...workspace,
-        id: this.prefix + workspace.id,
-        projectId: this.prefix + workspace.projectId,
-      })),
+      workspaces: library.workspaces.map((workspace) =>
+        workspace.kind === "temporary"
+          ? { ...workspace, id: this.prefix + workspace.id }
+          : {
+              ...workspace,
+              id: this.prefix + workspace.id,
+              projectId: this.prefix + workspace.projectId,
+            },
+      ),
       threads: library.threads.map((thread) => this.thread(thread)),
     };
   }
@@ -312,7 +316,12 @@ export class DesktopBot {
     };
   }
   private session(value: SessionResponse): SessionResponse {
-    return { ...value, ...this.snapshot(value), id: this.prefix + value.id };
+    return {
+      ...value,
+      ...this.snapshot(value),
+      id: this.prefix + value.id,
+      ...(value.workspaceId ? { workspaceId: this.prefix + value.workspaceId } : {}),
+    };
   }
 
   private async response(
@@ -396,11 +405,16 @@ export class DesktopBot {
       ...(result.originOperationId ? { originOperationId: prefix + result.originOperationId } : {}),
     };
   }
-  async create(workspaceId: string, requestId: string, configuration?: CreateThreadConfiguration) {
+  async create(
+    workspaceId: string | null,
+    requestId: string,
+    configuration?: CreateThreadConfiguration,
+  ) {
+    if (workspaceId === null) this.requireCapability("temporary-workspace");
     if (configuration?.sandboxMode) this.requireSandbox();
     const generation = this.generation;
     const created = await this.request<SessionResponse>("/v1/threads", {
-      workspaceId: this.raw(workspaceId),
+      workspaceId: workspaceId === null ? null : this.raw(workspaceId),
       requestId,
       ...(configuration ? { configuration } : {}),
     });
@@ -1042,8 +1056,13 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
       isCloudId(workspaceId)
         ? bot.removeWorktree(workspaceId, requestId)
         : local.removeWorktree(workspaceId, requestId),
-    createThread: (id: string, requestId?: string, configuration?: CreateThreadConfiguration) =>
-      isCloudId(id)
+    createThread: (
+      id: string | null,
+      requestId?: string,
+      configuration?: CreateThreadConfiguration,
+      environment?: "local" | "cloud",
+    ) =>
+      isCloudId(id) || (id === null && environment === "cloud")
         ? choose(bot.create(id, requestId ?? crypto.randomUUID(), configuration))
         : local.createThread(id, requestId, configuration),
     openThread: (id: string) => (isCloudId(id) ? choose(bot.open(id)) : local.openThread(id)),

@@ -31,7 +31,7 @@ export function useDesktopTabs(library: DesktopLibrary | null) {
     return persistTabs(tabs, windowThread ? sessionStorage : localStorage, window);
   }, [tabs, windowThread]);
   useEffect(() => {
-    if (library) tabs.reconcileThreads(library.threads);
+    if (library) tabs.reconcileThreads(library.threads, library.workspaces);
   }, [library, tabs]);
   useEffect(() => {
     const dispose = () => activity.dispose();

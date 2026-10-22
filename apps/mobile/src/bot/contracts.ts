@@ -39,7 +39,7 @@ export type Configuration = z.infer<typeof ConfigurationSchema>;
 export const ProjectSchema = z.object({ id: z.string(), name: z.string(), rootPath: z.string() });
 export const WorkspaceSchema = z.object({
   id: z.string(),
-  projectId: z.string(),
+  projectId: z.string().nullable(),
   cwd: z.string(),
   kind: z.string(),
 });

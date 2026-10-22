@@ -12,7 +12,9 @@ Use **Settings → Application → Appearance → 语言 / Language** to choose 
 
 Keep reference pages alongside your chats: open a web tab with **Cmd/Ctrl+T**, then enter a URL or search in its address bar.
 
-**New chat (新聊天)** returns to an existing unsent chat, keeping its draft and project selection. After submitting it, you can start another chat. Switching tabs preserves each chat's draft; closing a chat tab keeps its history and lets an admitted task continue. Use **Cmd/Ctrl+W** to close a tab and **Cmd/Ctrl+Shift+T** to reopen it.
+**New chat (新聊天)** inherits the current chat's workspace and reuses an unsent chat for that workspace when available, preserving its draft. From web or settings tabs, it uses the most recent chat context. Switching tabs preserves each chat's draft; closing a chat tab keeps its history and lets an admitted task continue. Use **Cmd/Ctrl+W** to close a tab and **Cmd/Ctrl+Shift+T** to reopen it.
+
+You can send a message while **Choose a project** is shown. Eta creates a separate temporary workspace for that chat and keeps its files across restarts until the chat is permanently deleted. Before the first message, hover over the project name to change it, or use its clear action or **Work without a project** in the project menu. Clearing the project preserves your draft and attachments. New chats from a chat without a project also start without one.
 
 Use the sidebar bell to find chats across projects by their latest successfully sent input. The order is saved on this computer; opening chats and background task updates leave it unchanged. Click the bell again to return to projects.
 

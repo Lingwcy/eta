@@ -62,7 +62,7 @@ let root: Root;
 let tabs: DesktopTabs;
 type HarnessBridge = AgentBridge & Pick<DesktopBridge, "createThread">;
 let bridge: HarnessBridge;
-let created: ReturnType<typeof Promise.withResolvers<{ id: string }>>;
+let created: ReturnType<typeof Promise.withResolvers<{ id: string; workspaceId?: string }>>;
 let submitted: ReturnType<typeof Promise.withResolvers<never>>;
 let stop: ReturnType<typeof vi.fn>;
 let view: ReturnType<typeof useDesktopController> | undefined;
@@ -193,5 +193,25 @@ test("a draft shows no stop control until its thread exists, then stops that thr
   const stopButton = button(stopLabel())!;
   expect(stopButton).toBeDefined();
   await act(async () => stopButton.click());
+  expect(stop).toHaveBeenCalledWith("thread");
+});
+
+test("a projectless composer sends and binds its temporary workspace before admission finishes", async () => {
+  tabs.updateConversation(tabs.activeTab.id, { workspaceId: null });
+  await mount();
+  expect(view!.composer.submitDisabled).toBe(false);
+  await send();
+  await expect
+    .poll(() => (bridge.createThread as ReturnType<typeof vi.fn>).mock.calls.length)
+    .toBe(1);
+  expect((bridge.createThread as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBeNull();
+  await act(async () => created.resolve({ id: "thread", workspaceId: "temporary" }));
+  await expect.poll(() => view!.composer.isRunning).toBe(true);
+  expect(tabs.activeTab).toMatchObject({
+    threadId: "thread",
+    workspaceId: "temporary",
+    projectless: true,
+  });
+  await act(async () => button(stopLabel())!.click());
   expect(stop).toHaveBeenCalledWith("thread");
 });

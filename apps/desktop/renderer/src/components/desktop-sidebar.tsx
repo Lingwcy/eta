@@ -83,26 +83,30 @@ export function DesktopSidebar(props: Props) {
         (thread.archivedAt !== undefined) === archived,
     ) ?? [];
   const groups =
-    props.library?.workspaces.map((workspace) => {
-      const project = props.library?.projects.find((project) => project.id === workspace.projectId);
-      const name = `${project?.name ?? t("navigation:desktopSidebar.projects")}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split("/").at(-1)}` : ""}`;
-      const threads =
-        props.library?.threads
-          .filter(
+    props.library?.workspaces
+      .filter((workspace) => workspace.kind !== "temporary")
+      .map((workspace) => {
+        const project = props.library?.projects.find(
+          (project) => project.id === workspace.projectId,
+        );
+        const name = `${project?.name ?? t("navigation:desktopSidebar.projects")}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split("/").at(-1)}` : ""}`;
+        const threads =
+          props.library?.threads
+            .filter(
+              (thread) =>
+                sidebarWorkspace(thread) === workspace.id &&
+                (thread.archivedAt !== undefined) === archived,
+            )
+            .toSorted(
+              (a, b) => b.sessionRef.metadata.modifiedAt - a.sessionRef.metadata.modifiedAt,
+            ) ?? [];
+        const running =
+          props.library?.threads.some(
             (thread) =>
-              sidebarWorkspace(thread) === workspace.id &&
-              (thread.archivedAt !== undefined) === archived,
-          )
-          .toSorted(
-            (a, b) => b.sessionRef.metadata.modifiedAt - a.sessionRef.metadata.modifiedAt,
-          ) ?? [];
-      const running =
-        props.library?.threads.some(
-          (thread) =>
-            sidebarWorkspace(thread) === workspace.id && props.runningThreadIds.has(thread.id),
-        ) ?? false;
-      return { workspace, name, threads, running };
-    }) ?? [];
+              sidebarWorkspace(thread) === workspace.id && props.runningThreadIds.has(thread.id),
+          ) ?? false;
+        return { workspace, name, threads, running };
+      }) ?? [];
   return (
     <>
       <NavigationRail

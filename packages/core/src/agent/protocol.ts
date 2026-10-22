@@ -116,5 +116,6 @@ export interface SnapshotResponse {
 
 export interface SessionResponse extends SnapshotResponse {
   id: string;
+  workspaceId?: string;
   model: AgentModel;
 }

@@ -1,3 +1,6 @@
+import { isCloudId } from "../../../src/shared/bot.ts";
+import type { WorkspaceMetadata } from "@eta/core/shared/workspaces";
+
 export interface ConversationTab {
   sandboxMode?: import("@eta/core/shared/sandbox").SandboxMode;
   id: string;
@@ -6,6 +9,7 @@ export interface ConversationTab {
   workspaceId: string | null;
   draft: string;
   environment?: "local" | "cloud";
+  projectless?: boolean;
 }
 
 export interface BrowserTab {
@@ -35,6 +39,7 @@ export interface DesktopTabState {
 export class DesktopTabs {
   private readonly listeners = new Set<() => void>();
   private state: DesktopTabState;
+  private temporaryWorkspaces = new Set<string>();
 
   constructor(
     private readonly makeId: () => string = () => crypto.randomUUID(),
@@ -82,17 +87,42 @@ export class DesktopTabs {
   }
 
   newConversation(workspaceId?: string | null) {
+    const context =
+      this.activeTab.kind === "conversation"
+        ? this.activeTab
+        : this.state.history
+            .slice(0, this.state.historyIndex + 1)
+            .toReversed()
+            .map((id) => this.state.tabs.find((tab) => tab.id === id))
+            .find((tab) => tab?.kind === "conversation");
+    const selected =
+      workspaceId === undefined
+        ? context?.projectless || this.temporaryWorkspaces.has(context?.workspaceId ?? "")
+          ? null
+          : (context?.workspaceId ?? null)
+        : workspaceId;
+    const environment = selected
+      ? isCloudId(selected)
+        ? "cloud"
+        : "local"
+      : workspaceId === undefined
+        ? context &&
+          (isCloudId(context.threadId ?? context.workspaceId) || context.environment === "cloud")
+          ? "cloud"
+          : "local"
+        : "local";
     const matches = (tab: DesktopTab) =>
       tab.kind === "conversation" &&
       !tab.threadId &&
-      (workspaceId === undefined || tab.workspaceId === workspaceId);
+      tab.workspaceId === selected &&
+      (isCloudId(tab.workspaceId) ? "cloud" : (tab.environment ?? "local")) === environment;
     const active = this.activeTab;
     const existing = matches(active) ? active : this.state.tabs.find(matches);
     if (existing) {
       this.select(existing.id);
       return existing.id;
     }
-    return this.add(this.conversation(workspaceId ?? null));
+    return this.add({ ...this.conversation(selected), environment });
   }
 
   openThread(threadId: string, workspaceId: string) {
@@ -141,6 +171,7 @@ export class DesktopTabs {
       return next.threadId === tab.threadId &&
         next.workspaceId === tab.workspaceId &&
         next.environment === tab.environment &&
+        next.projectless === tab.projectless &&
         next.sandboxMode === tab.sandboxMode &&
         next.draft === tab.draft
         ? tab
@@ -184,7 +215,14 @@ export class DesktopTabs {
   }
 
   /** Catalog updates remove deleted conversations from both open and recently closed tabs. */
-  reconcileThreads(threads: readonly { id: string; workspaceId: string }[]) {
+  reconcileThreads(
+    threads: readonly { id: string; workspaceId: string }[],
+    workspaces?: readonly WorkspaceMetadata[],
+  ) {
+    if (workspaces)
+      this.temporaryWorkspaces = new Set(
+        workspaces.filter((value) => value.kind === "temporary").map((value) => value.id),
+      );
     const catalog = new Map(threads.map((thread) => [thread.id, thread]));
     for (const tab of this.state.tabs) {
       if (tab.kind !== "conversation" || !tab.threadId) continue;

@@ -19,7 +19,7 @@ import { SandboxModeSchema, sandboxModes } from "@eta/core/shared/sandbox";
 
 const RequestId = Schema.NonEmptyString.check(Schema.isMaxLength(256));
 const Create = Schema.Struct({
-  workspaceId: Schema.NonEmptyString,
+  workspaceId: Schema.NullOr(Schema.NonEmptyString),
   requestId: RequestId,
   configuration: Schema.optionalKey(
     Schema.Struct({
@@ -54,6 +54,7 @@ export const BOT_CAPABILITIES = [
   "worktree",
   "github",
   "schedules",
+  "temporary-workspace",
 ] as const;
 
 function decode<A>(schema: Schema.ConstraintDecoder<A>, input: unknown): A {
@@ -415,8 +416,8 @@ export function createHttpApp(options: {
   });
   app.post("/v1/threads", async (context) => {
     const input = decode(Create, await readBody(context.req));
-    await options.projects.refreshForWorkspace(input.workspaceId);
-    if (!workspaceProjects.has(input.workspaceId))
+    if (input.workspaceId !== null) await options.projects.refreshForWorkspace(input.workspaceId);
+    if (input.workspaceId !== null && !workspaceProjects.has(input.workspaceId))
       throw new BotHttpError(
         403,
         "ProjectUnavailable",
@@ -432,6 +433,10 @@ export function createHttpApp(options: {
       () =>
         core.createThread(input.workspaceId, `http:create:${input.requestId}`, input.configuration),
     );
+    if (input.workspaceId === null) {
+      await options.projects.refreshForThread(result.id);
+      ownedWorkspace(result.thread.workspaceId);
+    }
     return context.json(displaySnapshot(result), 201);
   });
   // Known-project operations scope their owner before consuming project resources.

@@ -18,13 +18,24 @@ const ProjectSchema = Schema.Struct({
   createdAt: Timestamp,
 });
 
-const WorkspaceSchema = Schema.Struct({
+const WorkspaceFields = {
   id: Schema.NonEmptyString,
-  projectId: Schema.NonEmptyString,
   cwd: AbsolutePath,
-  kind: Schema.Literals(["project-root", "worktree"]),
   createdAt: Timestamp,
-});
+};
+const WorkspaceSchema = Schema.Union([
+  Schema.Struct({
+    ...WorkspaceFields,
+    projectId: Schema.NonEmptyString,
+    kind: Schema.Literals(["project-root", "worktree"]),
+  }),
+  Schema.Struct({
+    ...WorkspaceFields,
+    projectId: Schema.Null,
+    kind: Schema.Literal("temporary"),
+    requestId: Schema.optionalKey(Schema.NonEmptyString),
+  }),
+]);
 
 const ThreadSchema = Schema.Struct({
   projectId: Schema.optionalKey(Schema.NullOr(Schema.NonEmptyString)),

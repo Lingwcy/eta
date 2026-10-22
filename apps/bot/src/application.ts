@@ -82,6 +82,7 @@ export async function createBotApplication(
           : undefined,
         // A dot directory: project discovery skips it, yet it stays inside the workspace root's scope.
         worktreeRoot: join(config.workspaceRoot, ".eta-worktrees"),
+        temporaryWorkspacesRoot: join(config.workspaceRoot, ".eta-temporary"),
         ...dependencies.environment,
         authorizeScheduleWorkspace: async (workspaceId) => {
           if (!scheduleProjects)

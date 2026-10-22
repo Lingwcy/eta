@@ -1,4 +1,7 @@
 export default {
+  "projectPicker.changeProject": "更改此聊天的项目",
+  "projectPicker.selectProjectToRun": "选择一个项目来运行聊天",
+  "projectPicker.workWithoutProject": "不在项目中工作",
   "desktopTabs.newTab": "新标签页",
   "tabPresentations.settings": "设置",
   "tabPresentations.manageAccountsApiKeysToolsAndImage": "管理账户、API Key、工具和图片权限。",

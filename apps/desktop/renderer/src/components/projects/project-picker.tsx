@@ -2,12 +2,13 @@ import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
 import { isCloudId } from "../../../../src/shared/bot.ts";
 import { useEffect, useState } from "react";
-import { Check, FolderClosed, Plus } from "lucide-react";
+import { Check, FolderClosed, Plus, X } from "lucide-react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Command, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { CreateProjectDialog } from "./create-project-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export function ProjectPicker({
   library,
@@ -49,7 +50,7 @@ export function ProjectPicker({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [disabled, creating]);
   const options = (library?.workspaces ?? [])
-    .filter((workspace) => isCloudId(workspace.id) === cloud)
+    .filter((workspace) => workspace.kind !== "temporary" && isCloudId(workspace.id) === cloud)
     .map((workspace) => ({
       id: workspace.id,
       label: `${library?.projects.find((project) => project.id === workspace.projectId)?.name ?? t("navigation:projectPicker.projects")}${workspace.kind === "worktree" ? ` · ${workspace.cwd.split(/[\\/]/).at(-1)}` : ""}`,
@@ -62,7 +63,7 @@ export function ProjectPicker({
     );
   return (
     <>
-      <div className="flex min-w-0 items-center gap-1">
+      <div className="group/project relative flex min-w-0 items-center">
         <Popover
           open={open}
           onOpenChange={(next) => {
@@ -70,21 +71,47 @@ export function ProjectPicker({
             if (!next) setQuery("");
           }}
         >
-          <PopoverTrigger
-            disabled={disabled}
-            openOnHover
-            delay={120}
-            closeDelay={180}
-            aria-label={t("navigation:projectPicker.chooseAProject")}
-            aria-keyshortcuts="Control+Alt+Shift+O Meta+Alt+Shift+O"
-            aria-description={cwd}
-            render={<Button variant="ghost" size="pill" selected={open} />}
+          <Tooltip
+            content={t(
+              workspaceId
+                ? "navigation:projectPicker.changeProject"
+                : "navigation:projectPicker.selectProjectToRun",
+            )}
           >
-            <FolderClosed size={17} aria-hidden="true" />
-            <span className="max-w-28 truncate min-[901px]:max-w-40">
-              {projectName ?? t("navigation:projectPicker.chooseAProject")}
-            </span>
-          </PopoverTrigger>
+            <PopoverTrigger
+              disabled={disabled}
+              openOnHover
+              delay={120}
+              closeDelay={180}
+              aria-label={t(
+                workspaceId
+                  ? "navigation:projectPicker.changeProject"
+                  : "navigation:projectPicker.chooseAProject",
+              )}
+              aria-keyshortcuts="Control+Alt+Shift+O Meta+Alt+Shift+O"
+              aria-description={cwd}
+              render={
+                <Button
+                  variant={workspaceId ? "ghost" : "ghost-muted"}
+                  size="pill"
+                  selected={open}
+                />
+              }
+            >
+              <span
+                className={
+                  workspaceId
+                    ? "group-hover/project:opacity-0 group-focus-within/project:opacity-0"
+                    : undefined
+                }
+              >
+                <FolderClosed size={17} aria-hidden="true" />
+              </span>
+              <span className="max-w-28 truncate min-[901px]:max-w-40">
+                {projectName ?? t("navigation:projectPicker.chooseAProject")}
+              </span>
+            </PopoverTrigger>
+          </Tooltip>
           <PopoverContent variant="menu" aria-label={t("navigation:projectPicker.chooseAProject")}>
             <Command
               items={options}
@@ -147,9 +174,44 @@ export function ProjectPicker({
                   ? t("navigation:projectPicker.newCloudProject")
                   : t("navigation:projectPicker.newLocalProject")}
               </Button>
+              <Button
+                variant="menu"
+                size="menu-item"
+                disabled={disabled}
+                onClick={() => {
+                  onSelect(null);
+                  setOpen(false);
+                  setQuery("");
+                }}
+              >
+                <X size={17} aria-hidden="true" />
+                {t("navigation:projectPicker.workWithoutProject")}
+                {!workspaceId && <Check size={17} aria-hidden="true" />}
+              </Button>
             </div>
           </PopoverContent>
         </Popover>
+        {workspaceId && (
+          <span className="absolute top-1 left-1 opacity-0 group-hover/project:opacity-100 group-focus-within/project:opacity-100">
+            <Tooltip content={t("navigation:projectPicker.workWithoutProject")}>
+              <Button
+                variant="ghost-muted"
+                size="icon-tiny"
+                disabled={disabled}
+                aria-label={t("navigation:projectPicker.workWithoutProject")}
+                onClick={() => {
+                  onSelect(null);
+                  setOpen(false);
+                  setQuery("");
+                }}
+              >
+                <span className="flex size-4 items-center justify-center rounded-full bg-neutral-500 text-white">
+                  <X size={11} aria-hidden="true" />
+                </span>
+              </Button>
+            </Tooltip>
+          </span>
+        )}
       </div>
       <CreateProjectDialog
         cloud={cloud}

@@ -79,6 +79,7 @@ async function setup() {
   const project = await runtime.runPromise(projects.register({ rootPath: cwd }));
   const workspaces = await runtime.runPromise(WorkspaceService);
   const workspace = (await runtime.runPromise(workspaces.list(project.id)))[0];
+  if (workspace.kind === "temporary") throw new Error("Expected a project workspace");
   const threads = await runtime.runPromise(ThreadService);
   const schedules = await runtime.runPromise(ScheduleService);
   const library: DesktopLibrary = {

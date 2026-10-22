@@ -88,12 +88,13 @@ const bridge: DesktopBridge = {
     invoke("eta:command", { type: "create-cloud-project", name, requestId }),
   registerProject: (rootPath, name) =>
     invoke("eta:command", { type: "register-project", rootPath, name }),
-  createThread: (workspaceId, requestId, configuration) =>
+  createThread: (workspaceId, requestId, configuration, environment) =>
     invoke("eta:command", {
       type: "create",
       workspaceId,
       requestId,
       ...(configuration ? { configuration } : {}),
+      ...(environment ? { environment } : {}),
     }),
   openThread: (id) => invoke("eta:command", { type: "open", id }),
   openThreadReply: (id) => ipcRenderer.invoke("eta:command", { type: "open", id }),

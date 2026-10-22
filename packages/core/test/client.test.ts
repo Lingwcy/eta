@@ -67,6 +67,64 @@ async function fixture() {
   return { core, open, provider, cwd, workspace };
 }
 
+test("projectless threads isolate files, replay creation and retain their workspace across restart", async () => {
+  const { core, open, provider, workspace } = await fixture();
+  const [first, replay] = await Promise.all([
+    core.createThread(null, "temporary-first"),
+    core.createThread(null, "temporary-first"),
+  ]);
+  expect(replay.id).toBe(first.id);
+  await expect(core.createThread(workspace.id, "temporary-first")).rejects.toMatchObject({
+    code: "InvalidInput",
+  });
+  const second = await core.createThread(null, "temporary-second");
+  const firstWorkspace = (await core.workspaces()).find((value) => value.id === first.workspaceId)!;
+  const secondWorkspace = (await core.workspaces()).find(
+    (value) => value.id === second.workspaceId,
+  )!;
+  expect(firstWorkspace).toMatchObject({ kind: "temporary", projectId: null });
+  expect(secondWorkspace.cwd).not.toBe(firstWorkspace.cwd);
+  expect((await core.gitRepository(secondWorkspace.id)).status).toBe("not-repository");
+  expect(await core.projects()).toHaveLength(1);
+  provider.setResponses([
+    fauxAssistantMessage(fauxToolCall("write", { path: "proof.txt", content: "Temporary work" }), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage("Written"),
+  ]);
+  const run = await core.submit(first.id, "Write a file", "temporary-input");
+  await expect
+    .poll(async () => (await core.operation(first.id, run.operationId)).status, { timeout: 10000 })
+    .toBe("completed");
+  expect(await readFile(join(firstWorkspace.cwd, "proof.txt"), "utf8")).toBe("Temporary work");
+  await expect(readFile(join(secondWorkspace.cwd, "proof.txt"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  await core.close();
+  const reopened = await open();
+  expect((await reopened.createThread(null, "temporary-first")).id).toBe(first.id);
+  expect((await reopened.openThread(first.id)).workspaceId).toBe(first.workspaceId);
+  expect(await readFile(join(firstWorkspace.cwd, "proof.txt"), "utf8")).toBe("Temporary work");
+  await reopened.deleteThread(first.id);
+  expect((await reopened.workspaces()).some((value) => value.id === first.workspaceId)).toBe(false);
+  await expect(readFile(join(firstWorkspace.cwd, "proof.txt"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  expect((await reopened.openThread(second.id)).workspaceId).toBe(second.workspaceId);
+});
+
+test("deleting a temporary chat preserves a directory adopted as a project", async () => {
+  const { core } = await fixture();
+  const thread = await core.createThread(null, "adopted-temporary");
+  const workspace = (await core.workspaces()).find((value) => value.id === thread.workspaceId)!;
+  const file = join(workspace.cwd, "keep.txt");
+  await writeFile(file, "Adopted work");
+  const project = await core.registerProject(workspace.cwd, "Adopted");
+  await core.deleteThread(thread.id);
+  expect(await readFile(file, "utf8")).toBe("Adopted work");
+  expect(await core.workspaces(project.id)).toHaveLength(1);
+});
+
 test("headless execution retains older operation results and idempotency after restart", async () => {
   const { core, open, provider, cwd, workspace } = await fixture();
   provider.setResponses([

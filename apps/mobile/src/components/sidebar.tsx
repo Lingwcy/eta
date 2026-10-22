@@ -207,38 +207,40 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
             </View>
 
             {/* 项目列表 */}
-            {state.library?.workspaces.map((workspace) => {
-              const project = state.library?.projects.find(
-                (value) => value.id === workspace.projectId,
-              );
-              const isSelected = state.workspaceId === workspace.id;
-              return (
-                <Pressable
-                  key={workspace.id}
-                  accessibilityRole="button"
-                  disabled={!available}
-                  accessibilityState={{ selected: isSelected }}
-                  onPress={() => {
-                    void run(() => store.newThread(workspace.id));
-                  }}
-                  style={({ pressed }) => [
-                    styles.projectRow,
-                    isSelected && styles.rowSelected,
-                    pressed && styles.rowPressed,
-                  ]}
-                >
-                  <Folder size={14} color={isSelected ? colors.text : colors.muted} />
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.projectTitle, isSelected && styles.projectTitleSelected]}
+            {state.library?.workspaces
+              .filter((workspace) => workspace.kind !== "temporary")
+              .map((workspace) => {
+                const project = state.library?.projects.find(
+                  (value) => value.id === workspace.projectId,
+                );
+                const isSelected = state.workspaceId === workspace.id;
+                return (
+                  <Pressable
+                    key={workspace.id}
+                    accessibilityRole="button"
+                    disabled={!available}
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => {
+                      void run(() => store.newThread(workspace.id));
+                    }}
+                    style={({ pressed }) => [
+                      styles.projectRow,
+                      isSelected && styles.rowSelected,
+                      pressed && styles.rowPressed,
+                    ]}
                   >
-                    {project?.name ?? "项目"}
-                    {workspace.kind === "worktree" ? " · 工作树" : ""}
-                  </Text>
-                  {isSelected && <Check size={13} color={colors.blue} />}
-                </Pressable>
-              );
-            })}
+                    <Folder size={14} color={isSelected ? colors.text : colors.muted} />
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.projectTitle, isSelected && styles.projectTitleSelected]}
+                    >
+                      {project?.name ?? "项目"}
+                      {workspace.kind === "worktree" ? " · 工作树" : ""}
+                    </Text>
+                    {isSelected && <Check size={13} color={colors.blue} />}
+                  </Pressable>
+                );
+              })}
             {!state.library?.workspaces.length && (
               <Text style={styles.emptyHint}>还没有项目，点击上方新建。</Text>
             )}

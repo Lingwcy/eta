@@ -71,8 +71,9 @@ const Command = Schema.Union([
   Schema.Struct({ type: Schema.Literal("register-project"), rootPath: Id, name: Id }),
   Schema.Struct({
     type: Schema.Literal("create"),
-    workspaceId: Id,
+    workspaceId: Schema.NullOr(Id),
     requestId: Id,
+    environment: Schema.optionalKey(Schema.Literals(["local", "cloud"])),
     configuration: Schema.optional(
       Schema.Struct({
         provider: Id,
@@ -273,6 +274,7 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
         command.workspaceId,
         command.requestId,
         command.configuration,
+        command.environment,
       );
     case "open":
       return application.openThread(command.id);

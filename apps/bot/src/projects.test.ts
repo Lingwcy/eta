@@ -172,6 +172,7 @@ async function scopeFixture(count = 1) {
   });
   await discovery.refresh();
   const [workspace] = await core.workspaces();
+  if (!workspace || workspace.kind === "temporary") throw new Error("Expected a project workspace");
   const thread = await core.createThread(workspace!.id);
   return { root, core, workspaceRoot, workspace: workspace!, thread, discovery };
 }

@@ -47,7 +47,7 @@ export function coreFoundation(
     AgentResourcesService.layerWith(processImage, instructions),
     CoreEnvironmentService.layer(environment),
     WorkspaceAccessService.layer.pipe(Layer.provideMerge(GitStoreService.layer)),
-  ).pipe(Layer.provideMerge(AppPathsService.layer(dataRoot)));
+  ).pipe(Layer.provideMerge(AppPathsService.layer(dataRoot, environment?.temporaryWorkspacesRoot)));
 }
 
 /** Both applications provide the same domain graph with their own models and settings adapters. */

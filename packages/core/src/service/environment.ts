@@ -22,6 +22,8 @@ export interface CoreEnvironment {
   readonly codemodeAssets?: { worker: string; wasm: string };
   /** Where Eta creates managed worktrees; defaults to a sibling `<dataRoot>-worktrees` directory. */
   readonly worktreeRoot?: string;
+  /** Host-managed persistent chat directories, outside protected application data. */
+  readonly temporaryWorkspacesRoot?: string;
   readonly extensions: (
     ref: EtaSessionMetadata,
     models: Models,
@@ -43,6 +45,9 @@ export class CoreEnvironmentService extends Context.Service<
       sandboxWorkerPath: options.sandboxWorkerPath,
       codemodeAssets: options.codemodeAssets,
       ...(options.worktreeRoot ? { worktreeRoot: options.worktreeRoot } : {}),
+      ...(options.temporaryWorkspacesRoot
+        ? { temporaryWorkspacesRoot: options.temporaryWorkspacesRoot }
+        : {}),
       executionEnvironment:
         options.executionEnvironment ??
         ((_cwd, policy) =>
