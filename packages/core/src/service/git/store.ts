@@ -24,7 +24,7 @@ export const WorktreeReceiptSchema = Schema.Struct({
   /** Worktree root; the workspace cwd adds the project's prefix inside the repository. */
   path: Schema.NonEmptyString,
   prefix: Schema.String,
-  commonDir: Schema.NonEmptyString,
+  commonDir: Schema.String,
   branch: Schema.NonEmptyString,
   createdBranch: Schema.Boolean,
   baseSha: Schema.NonEmptyString,
@@ -35,7 +35,14 @@ export const WorktreeReceiptSchema = Schema.Struct({
   continues: Schema.optionalKey(Schema.NonEmptyString),
   createdAt: Schema.Number,
   removedAt: Schema.optionalKey(Schema.Number),
-});
+}).check(
+  Schema.makeFilter(
+    (receipt) =>
+      receipt.commonDir.length > 0 ||
+      (!receipt.managed && receipt.status === "needs_reconciliation"),
+    { message: "Only an unverified unmanaged worktree may have an unknown Git identity" },
+  ),
+);
 export type WorktreeReceipt = typeof WorktreeReceiptSchema.Type;
 
 export const GitStoreSchema = Schema.Struct({
@@ -77,14 +84,20 @@ export class GitStoreService extends Context.Service<
     Effect.gen(function* () {
       const { gitStorePath } = yield* AppPathsService;
       let queue = Promise.resolve();
-      const load = async () => {
-        const raw = await readJson(gitStorePath);
-        if (raw === undefined) return empty();
+      const validate = (raw: unknown, code: "StorageCorrupt" | "InvalidInput") => {
         try {
           return decode(raw);
         } catch {
-          throw new CoreError({ code: "StorageCorrupt", message: `${gitStorePath} 格式无效` });
+          throw new CoreError({
+            code,
+            message:
+              code === "StorageCorrupt" ? `${gitStorePath} 格式无效` : "Git 记录写入不满足存储格式",
+          });
         }
+      };
+      const load = async () => {
+        const raw = await readJson(gitStorePath);
+        return raw === undefined ? empty() : validate(raw, "StorageCorrupt");
       };
       const read = Effect.tryPromise({
         try: load,
@@ -99,7 +112,7 @@ export class GitStoreService extends Context.Service<
           Effect.tryPromise({
             try: () => {
               const next = queue.then(async () => {
-                const state = change(await load());
+                const state = validate(change(await load()), "InvalidInput");
                 await writeJson(gitStorePath, state);
                 return state;
               });

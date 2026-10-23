@@ -242,6 +242,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: kill the process after filesystem staging and after Catalog persistence; prove the original transcript remains accessible when the operation did not commit and that committed deletion does not resurrect it. An in-memory rollback callback cannot cover process death.
 - Seen: 2026-10-13.
 
+**Validate every persisted lifecycle variant on both read and write boundaries.**
+
+- Evidence: #427's public Core reconciliation writes an unmanaged, unverified worktree with an empty commonDir, while its reader requires a nonempty identity. A normal history then fails even after restart. The 2026-10-23 follow-up covers both non-repository and externally removed checkouts, preserves unrelated managed receipts and execution, and rejects unknown identities in every managed or verified state. Validating candidate writes before replacement keeps an invalid update from poisoning the next read and leaves the queue usable.
+- Check: represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
+- Seen: 2026-10-23.
+
 **Reject preflight configuration errors before allocating durable resources.**
 
 - Evidence: on 2026-10-22, #392 uses public Core with real temporary files and reopens the same data root after rejected projectless creations. Explicit unavailable models, unavailable defaults and an empty model catalog each leave three directories and Catalog workspaces without any thread. Deferring temporary allocation until model validation passes removes these side effects; corrected-model retry/replay and explicit-workspace validation-order controls still pass.
