@@ -15,6 +15,7 @@ const Requests = defineDoc<{
   history: "latest",
   fork: "initial",
   initial: () => ({ requests: {} }),
+  checkpointWhen: () => false,
 });
 const Identifier = Schema.NumberFromString.check(
   Schema.isInt(),

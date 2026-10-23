@@ -28,7 +28,7 @@ test("background title generation is the only pending task that can resume silen
   ).toBe(true);
 });
 
-test.each(["pending", "running", "waiting", "completing"] as const)(
+test.each(["pending", "running", "waiting", "sleeping", "completing"] as const)(
   "definition-free inspection scans past background title pages to %s work",
   async (status) => {
     const directory = await mkdtemp(join(tmpdir(), "eta-cold-inspection-"));
@@ -70,7 +70,9 @@ test.each(["pending", "running", "waiting", "completing"] as const)(
           ? { ...work, state: { status, outcome: { status: "completed", result: null } } }
           : status === "waiting"
             ? { ...work, state: { status, checkpoint: null, on: [], policy: "failFast" } }
-            : { ...work, state: { status, checkpoint: null } };
+            : status === "sleeping"
+              ? { ...work, state: { status, checkpoint: null, until: Date.now() + 60_000 } }
+              : { ...work, state: { status, checkpoint: null } };
       await storage.commit([{ type: "task", value: live }], BACKGROUND_CONTEXT);
       expect(await hasPersistedWork(storage)).toBe(true);
       await storage.commit(

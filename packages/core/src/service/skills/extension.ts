@@ -15,6 +15,7 @@ export const SkillsDoc = defineDoc<{ active: LoadedSkill[] }>({
   history: "rewindable",
   fork: "asOf",
   initial: () => ({ active: [] }),
+  checkpointWhen: () => false,
 });
 
 export function skillSummary(skill: LoadedSkill) {
