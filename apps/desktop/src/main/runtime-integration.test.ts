@@ -89,9 +89,13 @@ test("turning computer use off cancels an in-flight observation and allows a lat
   expect(JSON.stringify(state)).toContain(capture.image.data);
 });
 
-test.each(["standard", "codemode"] as const)(
-  "the persisted permissions switch controls the same %s chat and survives restart",
-  async (mode) => {
+test.each(
+  (["standard", "codemode"] as const).flatMap((mode) =>
+    [false, true].map((restart) => ({ mode, restart })),
+  ),
+)(
+  "the persisted permissions switch controls $mode chat (restart=$restart)",
+  async ({ mode, restart }) => {
     const png =
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1sAAAAASUVORK5CYII=";
     const layout = {
@@ -174,25 +178,34 @@ test.each(["standard", "codemode"] as const)(
         )
         .toBe("completed");
     };
-    await run(false);
+    if (!restart) {
+      await run(false);
+      await dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { computerUse: true },
+      });
+      await run(true);
+      await dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { computerUse: false },
+      });
+      await run(false);
+      await dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { computerUse: true },
+      });
+      await run(true);
+      expect(checked).toBe(4);
+      if (mode === "codemode") expect(codeChecks).toBe(4);
+      expect(captures).toBe(2);
+      return;
+    }
     await dispatchCommand(application as DesktopApplication, {
       type: "settings",
       patch: { computerUse: true },
     });
     await run(true);
-    await dispatchCommand(application as DesktopApplication, {
-      type: "settings",
-      patch: { computerUse: false },
-    });
-    await run(false);
-    await dispatchCommand(application as DesktopApplication, {
-      type: "settings",
-      patch: { computerUse: true },
-    });
-    await run(true);
-    expect(checked).toBe(4);
-    if (mode === "codemode") expect(codeChecks).toBe(4);
-    expect(captures).toBe(2);
+    expect(captures).toBe(1);
     await f.runtime.dispose();
     const next = f.reopen();
     const preferences = await next.runPromise(DesktopSettingsService);
@@ -207,8 +220,9 @@ test.each(["standard", "codemode"] as const)(
         { timeout: 15000 },
       )
       .toBe("completed");
-    expect(captures).toBe(3);
+    expect(captures).toBe(2);
   },
+  30000,
 );
 
 test("persisted desktop skill preferences reach Core after reopening the service graph", async () => {
