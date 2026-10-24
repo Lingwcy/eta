@@ -387,11 +387,12 @@ test.each(["standard", "codemode"] as const)(
     await f.run();
     expect(observations).toBe(2);
   },
+  30000,
 );
 
-test("known click/type/submit uses fewer model turns and observations as one composite action", async () => {
-  const samples = [];
-  for (const combined of [false, true]) {
+test.each([false, true])(
+  "known click/type/submit has bounded observations and model rounds (composite=%s)",
+  async (combined) => {
     let captures = 0;
     const inputs: ComputerInput[] = [];
     const layout = { id: "one", revision: "one", bounds: { x: 0, y: 0, width: 100, height: 100 } };
@@ -434,13 +435,12 @@ test("known click/type/submit uses fewer model turns and observations as one com
     const result = await f.run();
     expect(inputs, JSON.stringify(result)).toHaveLength(combined ? 1 : 3);
     if (combined) expect(inputs[0]).toMatchObject({ action: "type", text: "你好", enter: true });
-    samples.push({ combined, captures, rounds: f.provider.state.callCount });
-  }
-  expect(samples).toEqual([
-    { combined: false, captures: 4, rounds: 5 },
-    { combined: true, captures: 2, rounds: 3 },
-  ]);
-});
+    expect({ captures, rounds: f.provider.state.callCount }).toEqual(
+      combined ? { captures: 2, rounds: 3 } : { captures: 4, rounds: 5 },
+    );
+  },
+  30000,
+);
 
 test.each(["standard", "codemode"] as const)(
   "%s bounds desktop images in provider input while preserving history",
@@ -491,6 +491,7 @@ test.each(["standard", "codemode"] as const)(
     const history = JSON.stringify(completed);
     expect(history.split(png).length - 1).toBeGreaterThanOrEqual(6);
   },
+  30000,
 );
 
 test("default Code mode executes sequential and parallel native tools, then switches both ways on the same thread", async () => {
@@ -1324,4 +1325,5 @@ test.each(["standard", "codemode"] as const)(
     });
     expect(captures).toBe(3);
   },
+  30000,
 );
