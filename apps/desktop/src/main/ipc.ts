@@ -94,6 +94,11 @@ const Command = Schema.Union([
     reuse: Schema.optionalKey(Schema.Literals(["call", "run"])),
   }),
   Schema.Struct({ type: Schema.Literal("review-stats") }),
+  Schema.Struct({ type: Schema.Literal("computer-status") }),
+  Schema.Struct({
+    type: Schema.Literal("computer-permission"),
+    permission: Schema.Literals(["screen", "accessibility"]),
+  }),
   Schema.Struct({ type: Schema.Literal("github-identity"), projectId: Id }),
   Schema.Struct({
     type: Schema.Literal("github-query"),
@@ -192,6 +197,7 @@ const Command = Schema.Union([
       skillDirectories: Schema.optionalKey(Schema.Array(Id)),
       disabledSkills: Schema.optionalKey(Schema.Array(Id)),
       blockImages: Schema.optionalKey(Schema.Boolean),
+      computerUse: RuntimeSettingsSchema.fields.computerUse,
       agentThinkingVariant: Schema.optionalKey(Schema.Literals(agentThinkingVariants)),
       backgroundOnClose: Schema.optionalKey(Schema.Boolean),
       autoCheckUpdates: Schema.optionalKey(Schema.Boolean),
@@ -336,6 +342,10 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
         command.modelId,
         command.thinkingLevel,
       );
+    case "computer-status":
+      return application.computerStatus();
+    case "computer-permission":
+      return application.openComputerPermissions(command.permission);
     case "settings":
       return application.updateSettings(command.patch);
     case "login-start":

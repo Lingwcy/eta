@@ -348,6 +348,9 @@ importers:
       '@eta/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@eta/computer-use':
+        specifier: workspace:*
+        version: link:../../packages/computer-use
       '@eta/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -589,6 +592,22 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.19.0)(@vitest/browser-preview@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(@voidzero-dev/vite-plus-core@1.0.0-rc.0(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(typescript@7.0.2)(yaml@2.9.1))(jsdom@30.1.2(@noble/hashes@1.8.0))
 
+  packages/computer-use:
+    dependencies:
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-rc.117
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.0.0-rc.0(@types/node@24.19.0)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.2(@noble/hashes@1.8.0))(terser@5.51.2)(typescript@7.0.2)(yaml@2.9.1)
+
   packages/core:
     dependencies:
       '@cf-wasm/photon':
@@ -606,6 +625,9 @@ importers:
       '@eta/agent':
         specifier: workspace:*
         version: link:../agent
+      '@eta/computer-use':
+        specifier: workspace:*
+        version: link:../computer-use
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.117

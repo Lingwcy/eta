@@ -41,7 +41,10 @@ module.exports = {
     hardenedRuntime: signedRelease,
     identity: signedRelease ? undefined : "-",
     notarize: signedRelease,
-    binaries: ["Contents/Resources/app.asar.unpacked/dist/electron/sandbox-cleanup"],
+    binaries: [
+      "Contents/Resources/app.asar.unpacked/dist/electron/sandbox-cleanup",
+      "Contents/Resources/app.asar.unpacked/dist/electron/computer-native/eta-accessibility",
+    ],
   },
   win: {
     artifactName: "Eta-${version}-win-${arch}.${ext}",

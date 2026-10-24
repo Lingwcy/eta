@@ -4,7 +4,7 @@ import { defineConfig } from "vite-plus";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 const workspaceAliases = Object.fromEntries(
-  ["core", "agent"].flatMap((name) =>
+  ["core", "agent", "computer-use"].flatMap((name) =>
     globSync(`packages/${name}/src/**/*.ts`, { cwd: repository })
       .map((path) => path.replaceAll("\\", "/"))
       .filter((path) => !path.endsWith(".test.ts"))
@@ -78,6 +78,8 @@ export default defineConfig({
               "@eta/core/**",
               "@eta/agent",
               "@eta/agent/**",
+              "@eta/computer-use",
+              "@eta/computer-use/**",
               "effect",
               "effect/**",
               "@earendil-works/pi-ai",

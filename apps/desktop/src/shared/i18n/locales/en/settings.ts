@@ -1,4 +1,21 @@
 export default {
+  "permissionSettings.computerUse": "Allow computer use",
+  "permissionSettings.computerDescription":
+    "Let the main agent read app controls and operate apps in local chats, with screenshots when needed. Requires a vision model. Desktop actions can affect other applications. Turning this off cancels desktop operations.",
+  "permissionSettings.computerMacOnly": "Computer use is currently available on macOS only.",
+  "permissionSettings.screenRecording": "Screen recording",
+  "permissionSettings.accessibility": "Accessibility",
+  "permissionSettings.permissionGranted": "Allowed",
+  "permissionSettings.permissionRequired":
+    "Allow Eta in macOS System Settings, then return here. macOS may require restarting Eta.",
+  "permissionSettings.openSystemSettings": "Open System Settings",
+  "permissionSettings.computerImagesBlocked": "Computer use is paused",
+  "permissionSettings.computerEnableImages":
+    "Turn image access on below to let the agent see screenshots.",
+  "permissionSettings.computerStatusFailed":
+    "Unable to read desktop permissions. Reopen this page to retry.",
+  "permissionSettings.computerPermissionsFailed":
+    "Unable to open System Settings. Open Privacy & Security in macOS System Settings.",
   "appearance.languageSection": "Language",
   "aboutSettings.updatesHaveNotBeenCheckedYet": "Updates have not been checked yet",
   "aboutSettings.unavailableInDevelopmentMode": "Unavailable in development mode",

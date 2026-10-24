@@ -6,6 +6,7 @@ import type { CodemodeRunOptions } from "@earendil-works/pi-codemode";
 import type { AgentMode } from "../../shared/runtime-settings.ts";
 import { Predicate } from "effect";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import { computerImageDigests } from "../../computer/images.ts";
 
 /** Missing records belong to executions started before Code mode was introduced. */
 export const AgentModeDoc = defineDoc<{ mode: AgentMode }>({
@@ -88,15 +89,26 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
             ? result.details.calls
             : [];
         const enrichedCalls = [];
+        const computerImages: string[] = [];
+        let computerFailure = false;
         let remainingPreview = 32_000;
         for (const call of calls) {
           if (!Predicate.isObject(call) || typeof call.id !== "number") continue;
           const nested = await api.snapshot(NestedCallDoc, api.taskId, `c${call.id}`, context);
           const value = nested?.result?.structuredOutput;
+          if (call.name === "computer")
+            computerImages.push(...computerImageDigests(nested?.result?.details));
+          if (call.name === "computer" && nested?.result?.isError) computerFailure = true;
           const content = Array.isArray(value) ? value : [value];
           const structured = typeof call.name === "string" && structuredTools.has(call.name);
           const source = structured
-            ? (JSON.stringify(value) ?? "")
+            ? (JSON.stringify(
+                call.name === "computer" &&
+                  Predicate.isObject(value) &&
+                  Predicate.isObject(value.image)
+                  ? { ...value, image: { type: value.image.type, mimeType: value.image.mimeType } }
+                  : value,
+              ) ?? "")
             : typeof value === "string"
               ? value
               : Predicate.isObject(value) && !("type" in value)
@@ -153,7 +165,13 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
         return {
           ...result,
           ...(Predicate.isObject(result.details)
-            ? { details: { ...result.details, calls: enrichedCalls } }
+            ? {
+                details: {
+                  ...result.details,
+                  calls: enrichedCalls,
+                  ...(computerImages.length ? { computerImages } : {}),
+                },
+              }
             : {}),
           output: [
             ...output,
@@ -169,7 +187,9 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
               ? [
                   {
                     type: "text" as const,
-                    text: "Code mode 执行失败。可重试，或在设置 → 应用 → 权限切换普通模式后发起新任务。",
+                    text: computerFailure
+                      ? "computer 调用失败，请根据工具错误修正参数或重新观察。此前成功的动作不会撤销；不要盲目重放输入或发送。"
+                      : "Code mode 执行失败。可重试，或在设置 → 应用 → 权限切换普通模式后发起新任务。",
                   },
                 ]
               : []),

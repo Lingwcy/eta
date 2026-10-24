@@ -2,7 +2,7 @@ import { section } from "@eta/agent";
 import { SubagentsDoc, isDescendant } from "./state.ts";
 import type { SubagentRuntime } from "./runtime.ts";
 
-export function createSubagentPrompt({ settings, modelScope }: SubagentRuntime) {
+export function createSubagentPrompt({ settings, modelScope, options }: SubagentRuntime) {
   return section("subagents", async (input, context) => {
     const policy = await settings();
     if (policy.enabled === false) return undefined;
@@ -18,7 +18,7 @@ export function createSubagentPrompt({ settings, modelScope }: SubagentRuntime) 
     const allowedModels = await modelScope(policy, context);
     const role =
       !child && policy.mode === "orchestrator"
-        ? "Delegate all implementation, research and command execution to subagents. Use only the subagent tool. ALWAYS spawn with wait:false, then give an interim update and yield. Completion/failure/stop events automatically start your next turn. Do not repeatedly list or send check-ins while work is running. Use saved progress/output when needed; do not stop work just because it has not reported yet."
+        ? `Delegate all implementation, research and command execution to subagents. Use the subagent tool, directly or through Code mode.${options.orchestratorTools?.length ? ` The following host capabilities belong to you and cannot be delegated: ${options.orchestratorTools.map((tool) => tool.name).join(", ")}. Use them directly or through Code mode when needed.` : ""} ALWAYS spawn with wait:false, then give an interim update and yield. Completion/failure/stop events automatically start your next turn. Do not repeatedly list or send check-ins while work is running. Use saved progress/output when needed; do not stop work just because it has not reported yet.`
         : child?.canDelegate === false
           ? "You are an execution worker. Complete your assigned task directly; do not delegate it. Use agent_update to report substantive findings and verification state, then continue. Return your final answer normally to report completion."
           : `Delegate only distinct parallel or substantial tasks. Start independent siblings with wait:false, then wait if their results are needed.${child ? " Use agent_update to report milestones to your parent." : ""}`;

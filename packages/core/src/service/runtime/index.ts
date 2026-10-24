@@ -6,7 +6,14 @@ import { createSubagentsExtension, SubagentsDoc } from "../../agent/extension/su
 import { RuntimeSettingsService } from "../settings/index.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { Harness, ROOT_CONVERSATION_ID } from "@eta/agent";
-import type { AgentChange, Conversation, ConversationWatch, Registry, Storage } from "@eta/agent";
+import type {
+  AgentChange,
+  Conversation,
+  ConversationWatch,
+  Registry,
+  Storage,
+  ToolRegistration,
+} from "@eta/agent";
 import type { ExecutionEnv } from "@eta/agent/env";
 import { CoreEnvironmentService } from "../environment.ts";
 import { Context, Effect, Layer } from "effect";
@@ -41,6 +48,7 @@ import {
 } from "./codemode.ts";
 import { defaultAgentMode } from "../../shared/runtime-settings.ts";
 import { pathToFileURL } from "node:url";
+import { createComputerRuntime } from "../../computer/runtime.ts";
 
 export interface ThreadRuntime {
   readonly hasWork: () => Promise<boolean>;
@@ -111,6 +119,7 @@ export class RuntimeRegistryService extends Context.Service<
         const sandboxEnvironments = new Map<string, Promise<ExecutionEnv>>();
         let harness: Harness | undefined;
         let runtimeRecord: ThreadRuntime | undefined;
+        let computer: Awaited<ReturnType<typeof createComputerRuntime>> | undefined;
         const codemode = new RuntimeCodemodeSandbox(
           environment.codemodeAssets
             ? {
@@ -177,9 +186,12 @@ export class RuntimeRegistryService extends Context.Service<
           registry.install({ name: "desktop-thread-title", tasks: [titleTask] });
           const scheduled = createScheduleExtension({ ref, catalog, schedules, environment, run });
           registry.install(scheduled.extension);
+          const excludedChildTools: ToolRegistration[] = [scheduled.tool];
+          const orchestratorTools: ToolRegistration[] = [];
           const subagents = createSubagentsExtension({
             inheritExecution: inheritAgentMode,
-            excludedTools: [scheduled.tool],
+            excludedTools: excludedChildTools,
+            orchestratorTools,
             invalid: (message) => {
               throw new CoreError({ code: "InvalidInput", message });
             },
@@ -294,6 +306,23 @@ export class RuntimeRegistryService extends Context.Service<
               code: "StorageCorrupt",
               message: "持久会话缺少根 conversation",
             });
+          if (environment.computer) {
+            const capability = environment.computer;
+            computer = await createComputerRuntime({
+              harness,
+              service: capability.service,
+              allowed: async () => {
+                const settings = await Effect.runPromise(preferences.read);
+                return (
+                  capability.enabled() && settings.computerUse === true && !settings.blockImages
+                );
+              },
+            });
+            await computer.refresh();
+            registry.install(computer.extension);
+            excludedChildTools.push(...computer.extension.tools);
+            orchestratorTools.push(...computer.extension.tools);
+          }
           const { inspection, recoveryRequired } = await recoverRuntime(harness, subagents);
           // Idle history can contain levels saved before the picker respected model capabilities.
           // Pending work retains its pinned request configuration until it is resumed or stopped.
@@ -424,6 +453,7 @@ export class RuntimeRegistryService extends Context.Service<
             settingsDelivery = settingsDelivery
               .then(async () => {
                 if (record.disposed) return;
+                await computer?.refresh();
                 await approvals.withdrawAutoRunGrants(conversation.id);
                 await refreshTools();
                 await conversation.commit(async (tx) => {
@@ -449,6 +479,7 @@ export class RuntimeRegistryService extends Context.Service<
           const stopTitle = await Effect.runPromise(titles.watch(record));
           cleanups.set(record, async () => {
             record.disposed = true;
+            await computer?.close();
             unsubscribeSettings();
             await settingsDelivery;
             await subagentWatch?.stop();
@@ -475,6 +506,7 @@ export class RuntimeRegistryService extends Context.Service<
           if (!recoveryRequired && inspection.tasks.length) harness.resume();
           return record;
         } catch (error) {
+          await computer?.close();
           if (harness) await harness.close(BACKGROUND_CONTEXT);
           else await storage.close(BACKGROUND_CONTEXT);
           await codemode.close();

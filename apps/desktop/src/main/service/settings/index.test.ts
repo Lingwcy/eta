@@ -47,6 +47,52 @@ async function setup() {
   return { directory, open, runtime, settings };
 }
 
+test("obsolete grounding preferences are discarded without losing the desktop grant", async () => {
+  const { directory, runtime, settings, open } = await setup();
+  const settingsPath = join(directory, "settings.json");
+  await runtime.runPromise(settings.update({ computerUse: true }));
+  await runtime.dispose();
+  const saved = JSON.parse(await readFile(settingsPath, "utf8"));
+  saved.settings.computerGrounding = { provider: "old", modelId: "old", coordinates: "image" };
+  await writeFile(settingsPath, JSON.stringify(saved));
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect(await next.runPromise(restored.read)).toMatchObject({ computerUse: true });
+  expect(await next.runPromise(restored.read)).not.toHaveProperty("computerGrounding");
+  await next.runPromise(restored.update({ computerUse: false }));
+  expect(JSON.parse(await readFile(settingsPath, "utf8")).settings).not.toHaveProperty(
+    "computerGrounding",
+  );
+});
+
+test("computer-use grant crosses IPC, persists and can be revoked", async () => {
+  const { runtime, settings, open } = await setup();
+  const application = {
+    updateSettings: (patch) => runtime.runPromise(settings.update(patch)),
+  } satisfies Pick<DesktopApplication, "updateSettings">;
+  expect((await runtime.runPromise(settings.read)).computerUse).toBeUndefined();
+  for (const computerUse of [true, false, true]) {
+    await dispatchCommand(application as DesktopApplication, {
+      type: "settings",
+      patch: { computerUse },
+    });
+    expect((await runtime.runPromise(settings.read)).computerUse).toBe(computerUse);
+  }
+  for (const computerUse of ["true", null, 1])
+    await expect(
+      dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { computerUse },
+      }),
+    ).rejects.toMatchObject({ code: "InvalidInput" });
+  await runtime.dispose();
+  const restored = open();
+  expect(
+    (await restored.runPromise((await restored.runPromise(DesktopSettingsService)).read))
+      .computerUse,
+  ).toBe(true);
+});
+
 test("locale crosses IPC, persists, broadcasts and returns to the Chinese default", async () => {
   const { directory, runtime, settings, open } = await setup();
   const application = {
