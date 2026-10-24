@@ -1,4 +1,19 @@
 export default {
+  "permissionSettings.computerUse": "允许 Computer use",
+  "permissionSettings.computerDescription":
+    "允许主 agent 在本地聊天中读取应用控件并操作应用，按需查看截图，需要支持图片的模型。桌面操作可以影响其他应用；关闭后会取消桌面操作。",
+  "permissionSettings.computerMacOnly": "Computer use 目前仅支持 macOS。",
+  "permissionSettings.screenRecording": "屏幕录制",
+  "permissionSettings.accessibility": "辅助功能",
+  "permissionSettings.permissionGranted": "已允许",
+  "permissionSettings.permissionRequired":
+    "在 macOS 系统设置中允许 Eta 后返回此处。系统可能要求重新启动 Eta。",
+  "permissionSettings.openSystemSettings": "打开系统设置",
+  "permissionSettings.computerImagesBlocked": "Computer use 已暂停",
+  "permissionSettings.computerEnableImages": "请在下方开启图片访问，让 agent 能看到截图。",
+  "permissionSettings.computerStatusFailed": "无法读取桌面权限，请重新打开此页重试。",
+  "permissionSettings.computerPermissionsFailed":
+    "无法打开系统设置，请手动打开 macOS 系统设置中的隐私与安全性。",
   "appearance.languageSection": "语言",
   "aboutSettings.updatesHaveNotBeenCheckedYet": "尚未检查更新",
   "aboutSettings.unavailableInDevelopmentMode": "开发模式下不可用",

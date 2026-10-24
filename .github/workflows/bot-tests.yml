@@ -29,6 +29,11 @@ jobs:
         run: vp test run scripts/update-source.test.ts
       - name: Build agent
         run: vp run --no-cache @eta/agent#build
+      - name: Verify computer-use package
+        run: |
+          vp run --no-cache @eta/computer-use#build
+          vp run @eta/computer-use#typecheck
+          vp run @eta/computer-use#test
       - name: Verify Core
         run: |
           vp run --no-cache @eta/core#typecheck

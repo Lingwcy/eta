@@ -136,6 +136,9 @@ const bridge: DesktopBridge = {
   resume: (id) => invoke("eta:command", { type: "resume", id }),
   compact: (id) => invoke("eta:command", { type: "compact", id }),
   updateSettings: (patch) => invoke("eta:command", { type: "settings", patch }),
+  computerStatus: () => invoke("eta:command", { type: "computer-status" }),
+  openComputerPermissions: (permission) =>
+    invoke("eta:command", { type: "computer-permission", permission }),
   startLogin: (provider, method) =>
     invoke("eta:command", { type: "login-start", provider, method }),
   loginState: (id) => invoke("eta:command", { type: "login-state", id }),

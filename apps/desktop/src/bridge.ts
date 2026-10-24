@@ -28,6 +28,7 @@ import type { SkillCatalog } from "@eta/core/skills/types";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 import type { MessageReference } from "./shared/i18n/messages.ts";
 import type { AppLocale } from "./shared/i18n/locales.ts";
+import type { ComputerPermission, ComputerStatus } from "./shared/computer.ts";
 
 export type AgentEvent =
   | { type: "snapshot"; value: SnapshotResponse }
@@ -167,6 +168,8 @@ export interface DesktopBridge extends AgentBridge {
   resume(id: string): Promise<void>;
   compact(id: string): Promise<void>;
   updateSettings(patch: Partial<DesktopSettings>): Promise<DesktopSettings>;
+  computerStatus(): Promise<ComputerStatus>;
+  openComputerPermissions(permission: ComputerPermission): Promise<void>;
   startLogin(provider: string, method: LoginMethod): Promise<LoginState>;
   loginState(id: string): Promise<LoginState>;
   answerLogin(id: string, promptId: string, value: string): Promise<void>;

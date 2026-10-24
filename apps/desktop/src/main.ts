@@ -14,6 +14,8 @@ import { createAgentSubscriptions } from "./main/ipc/subscriptions.ts";
 import { registerDesktopIpc } from "./main/ipc/handlers.ts";
 import { mainI18n, t, errorMessage } from "./main/i18n.ts";
 import { defaultLocale } from "./shared/i18n/locales.ts";
+import { startComputerOverlayHost } from "./main/computer/overlay-host.ts";
+import { createElectronComputer } from "./main/computer/electron.ts";
 
 let agentService: DesktopApplication | undefined;
 let updater: Updater | undefined;
@@ -84,7 +86,9 @@ function notifyLibrary() {
 
 registerDesktopIpc({ service, updater: () => updater, windows, notifyLibrary });
 
-if (!app.requestSingleInstanceLock()) {
+if (process.argv.includes("--eta-computer-overlay")) {
+  startComputerOverlayHost();
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {
@@ -145,6 +149,7 @@ if (!app.requestSingleInstanceLock()) {
           const error = await shell.openPath(path);
           if (error) throw new Error(error);
         },
+        createElectronComputer(),
       );
 
       // 5. 监听项目与会话库变动，当会话/项目发生增删改时广播通知所有窗口刷新

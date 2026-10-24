@@ -47,6 +47,7 @@ export const RuntimeSettingsSchema = Schema.Struct({
   skillDirectories: Schema.optionalKey(Schema.Array(Schema.NonEmptyString)),
   disabledSkills: Schema.optionalKey(Schema.Array(Schema.NonEmptyString)),
   blockImages: Schema.optionalKey(Schema.Boolean),
+  computerUse: Schema.optionalKey(Schema.Boolean),
 });
 
 export type RuntimeSettings = typeof RuntimeSettingsSchema.Type;

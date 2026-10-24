@@ -36,7 +36,10 @@ export default defineConfig({
       ),
     },
   },
-  ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/agent", "@eta/core"] },
+  ssr: {
+    resolve: { conditions: ["source"] },
+    noExternal: ["@eta/agent", "@eta/core", "@eta/computer-use"],
+  },
   test: { environment: "node", include: ["src/**/*.test.ts", "renderer/src/**/*.test.ts"] },
   pack: {
     inputOptions: {
@@ -53,6 +56,19 @@ export default defineConfig({
                 `@eta/core/${path.replace("packages/core/src/", "").replace(/\.ts$/, "")}$`,
                 fileURLToPath(new URL(`../../${path}`, import.meta.url)),
               ]),
+          ),
+          ...Object.fromEntries(
+            globSync("packages/computer-use/src/**/*.ts", {
+              cwd: fileURLToPath(new URL("../../", import.meta.url)),
+            })
+              .map((path) => path.replaceAll("\\", "/"))
+              .map((path) => [
+                `@eta/computer-use/${path.replace("packages/computer-use/src/", "").replace(/\.ts$/, "")}$`,
+                fileURLToPath(new URL(`../../${path}`, import.meta.url)),
+              ]),
+          ),
+          "@eta/computer-use$": fileURLToPath(
+            new URL("../../packages/computer-use/src/index.ts", import.meta.url),
           ),
           "@eta/core$": fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
           "@eta/agent$": fileURLToPath(
@@ -79,6 +95,8 @@ export default defineConfig({
     entry: {
       main: "src/main.ts",
       preload: "src/preload.ts",
+      "computer-overlay-host": "src/main/computer/overlay-host.ts",
+      "computer-overlay-preload": "src/main/computer/overlay-preload.ts",
       "sandbox-worker": "../../packages/core/src/platform/sandbox/worker.ts",
       "codemode-worker": "../../packages/core/src/service/runtime/codemode-worker.ts",
     },
@@ -103,6 +121,8 @@ export default defineConfig({
         "@eta/agent/**",
         "@eta/core",
         "@eta/core/**",
+        "@eta/computer-use",
+        "@eta/computer-use/**",
         "@earendil-works/chord",
         "@earendil-works/chord/**",
         "electron-updater",
