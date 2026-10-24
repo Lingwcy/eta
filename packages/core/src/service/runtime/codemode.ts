@@ -15,6 +15,7 @@ export const AgentModeDoc = defineDoc<{ mode: AgentMode }>({
   history: "rewindable",
   fork: "asOf",
   initial: () => ({ mode: "standard" }),
+  checkpointWhen: () => false,
 });
 
 export const codemodeLimits = {

@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 import manifest from "./package.json" with { type: "json" };
 
@@ -13,7 +13,8 @@ export default defineConfig({
 	test: {
 		environment: "node",
 		// These live-provider probes depend on Pi's sibling ai sources and private OAuth test helper.
-		exclude: ["**/node_modules/**", "**/dist/**", "test/provider-session-cache-e2e.test.ts", "test/system-order-cache-e2e.test.ts"],
+		// Run in workerd by their own config: `npm run test:workers`.
+		exclude: [...configDefaults.exclude, "test-workers/**", "test/provider-session-cache-e2e.test.ts", "test/system-order-cache-e2e.test.ts"],
 		setupFiles: ["./test/setup-document-retention.ts"],
 	},
 	resolve: {

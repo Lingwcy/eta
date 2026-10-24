@@ -13,6 +13,7 @@ export const TitleDoc = defineDoc<{ taskId?: TaskId<string>; title?: string }>({
   history: "latest",
   fork: "initial",
   initial: () => ({}),
+  checkpointWhen: () => false,
 });
 
 type TitleInput = { entry: EntryId; model: ModelRef; sessionId: string };

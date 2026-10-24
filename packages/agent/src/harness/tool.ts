@@ -7,12 +7,14 @@ import {
 	type OutputLimits,
 	PROGRESS_BYTES_PER_SECOND,
 	Progress,
+	type ProgressClock,
 } from "@earendil-works/chord/output";
 import type { ImageContent, TextContent, ToolCall, ToolResultMessage } from "@earendil-works/pi-ai";
 import { validateToolArguments } from "@earendil-works/pi-ai/utils/validation";
 import { Compile } from "typebox/compile";
 import { defineDocFamily } from "../documents.ts";
 import { AssistantEntry, ToolResultEntry } from "../entries.ts";
+import type { ExecutionEnv } from "../env/index.ts";
 import { errorMessage } from "../errors.ts";
 import { defineTask } from "../tasks.ts";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, utf8ByteLength } from "../truncate.ts";
@@ -28,6 +30,7 @@ import type {
 	Tx,
 	TypedEntry,
 } from "../types.ts";
+import { toolExtension } from "./agent.ts";
 import { assignJson } from "./json.ts";
 import {
 	clearProgress,
@@ -51,6 +54,7 @@ import type {
 } from "./types.ts";
 import { intentText, supportsIntent } from "./tool-intent.ts";
 import { recordUsage } from "./usage.ts";
+import { optionalExtension } from "./util.ts";
 
 /**
  * A model-issued call, read from its assistant entry, or a nested call a running tool made through `executeTool()`,
@@ -107,6 +111,8 @@ export const NestedCallDoc = defineDocFamily<NestedCallState, null>({
 	scope: "task",
 	family: true,
 	initial: () => ({}),
+	// The document retires with its task.
+	checkpointWhen: () => false,
 });
 
 type Runtime = TaskRuntime<ToolTaskInput, ToolTaskCheckpoint, ToolTaskResult, ToolHooks>;
@@ -295,7 +301,13 @@ async function resolveTool(
 
 /** The call: from the input for a nested call, which hooks see with its parent, else from the assistant entry. */
 async function readCall(runtime: Runtime, input: ToolTaskInput, context: Context): Promise<ToolHookCall> {
-	if (input.kind === "nested") return { ...input.call, parent: { taskId: input.parent, callId: input.parentCallId } };
+	if (input.kind === "nested") {
+		context.telemetry.setAttributes({
+			"tool.name": input.call.name,
+			"tool.call_id": input.call.id,
+		});
+		return { ...input.call, parent: { taskId: input.parent, callId: input.parentCallId } };
+	}
 	const entry = await runtime.entry(AssistantEntry, input.assistant, context);
 	const message = entry?.model?.[0];
 	const call =
@@ -305,6 +317,10 @@ async function readCall(runtime: Runtime, input: ToolTaskInput, context: Context
 				)
 			: undefined;
 	if (call === undefined) throw new Error(`Entry ${input.assistant} has no tool call ${input.callId}`);
+	context.telemetry.setAttributes({
+		"tool.name": call.name,
+		"tool.call_id": call.id,
+	});
 	return call;
 }
 
@@ -372,13 +388,21 @@ async function run(
 	const assertLive = (): void => {
 		if (ended) throw new Error(`Tool call ${call.id} has settled`);
 	};
-	const api: Omit<ToolExecutionApi, "env"> = {
+	/** Built for this call, below, so a rerun after recovery gets the conversation's environment at that time. */
+	let env: ExecutionEnv | undefined;
+	const api: ToolExecutionApi = {
 		taskId: runtime.taskId,
 		conversationId: runtime.conversationId,
 		callId: call.id,
 		registry: runtime.registry,
 		agent: runtime.agent,
-		models: runtime.models,
+		get models() {
+			return runtime.models;
+		},
+		get env() {
+			return env;
+		},
+		now: () => runtime.now(),
 		output: (chunk, skipped) => {
 			assertLive();
 			if (reported.output.push(chunk, skipped)) progress.mark();
@@ -476,11 +500,10 @@ async function run(
 	// Execution time of this attempt; a rerun after recovery measures only itself.
 	let durationMs: number | undefined;
 	try {
-		// Built for this call, so a rerun after recovery gets the conversation's environment at that time.
-		const env = await runtime.env(context);
+		env = await runtime.env(context);
 		const startedAt = performance.now();
 		try {
-			result = await tool.execute(args, { ...api, env }, context);
+			result = await tool.execute(args, api, context);
 		} finally {
 			durationMs = Math.round(performance.now() - startedAt);
 		}
@@ -509,6 +532,25 @@ async function run(
 		throw error;
 	}
 	for (const waiter of pending) waiter.resolve();
+}
+
+/**
+ * The Harness clock and timers for progress pacing. After the invocation ends nothing more commits, and the clock
+ * answers with the last time it read.
+ */
+function progressClock(runtime: Runtime): ProgressClock {
+	let last = 0;
+	return {
+		now: () => {
+			try {
+				last = runtime.now();
+			} catch {
+				// The invocation ended.
+			}
+			return last;
+		},
+		setTimer: (callback, delayMs) => runtime.setTimer(callback, delayMs),
+	};
 }
 
 /**
@@ -562,6 +604,7 @@ function publishProgress(runtime: Runtime, reported: Reported, enabled: boolean,
 			if (!runtime.signal.aborted) runtime.report(error);
 		},
 		runtime.settings.progress.outputIntervalMs,
+		progressClock(runtime),
 	);
 }
 
@@ -608,7 +651,12 @@ async function finalResult(
 		} else {
 			// The model never sees structured output, so its call stands; the host learns of the broken tool.
 			final = rest;
-			runtime.report(new Error(broken));
+			// Only names the extension: a failed resolution leaves the report without the name.
+			const extension = await runtime.agent(context).then(
+				(agent) => toolExtension(agent, tool.name),
+				() => undefined,
+			);
+			runtime.report(new Error(broken), { type: "extension", ...optionalExtension(extension) });
 		}
 	}
 	// Programs get the tool's own value: without a schema, its output. The model reads only `output`, so model-issued
@@ -769,6 +817,7 @@ async function startNestedCall(
 		arguments: copyJson(args, { omitUndefinedProperties: true }) as JsonObject,
 	};
 	let id: TaskId<ToolTaskResult> | undefined;
+	let replayed = false;
 	await runtime.commit(async (tx) => {
 		// Opened, or created empty for a key not made yet.
 		const state = await tx.doc(NestedCallDoc, runtime.taskId, key, null);
@@ -781,6 +830,7 @@ async function startNestedCall(
 				jsonEqual(input.call.arguments as JsonValue, call.arguments as JsonValue);
 			if (!same) throw new Error(`Nested call ${call.id} was already made with another tool or other arguments`);
 			id = existing as TaskId<ToolTaskResult>;
+			replayed = state.result !== undefined;
 			return undefined;
 		}
 		const input: ToolTaskInput = {
@@ -811,6 +861,9 @@ async function startNestedCall(
 		id = created;
 		return undefined;
 	}, context);
+	if (replayed) {
+		context.telemetry.addEvent("pi.durable.replay", { "tool.name": name });
+	}
 	return id!;
 }
 

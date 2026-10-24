@@ -8,4 +8,5 @@ export const SandboxDoc = defineDoc<{ mode: SandboxMode; revision: number }>({
   version: 1,
   scope: "session",
   initial: () => ({ mode: defaultSandboxMode, revision: 0 }),
+  checkpointWhen: () => false,
 });
