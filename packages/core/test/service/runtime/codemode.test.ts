@@ -542,6 +542,74 @@ test.each(["standard", "codemode"] as const)(
   30000,
 );
 
+test.each(["standard", "codemode"] as const)(
+  "%s holds all chord modifiers before Enter reaches the computer adapter",
+  async (mode) => {
+    const inputs: ComputerInput[] = [];
+    const service = new ComputerService({
+      layout: async () => {
+        throw Error("unexpected layout");
+      },
+      capture: async () => {
+        throw Error("unexpected capture");
+      },
+      input: async () => {
+        throw Error("unexpected global input");
+      },
+      releaseInputs: async () => {},
+      accessibility: {
+        observe: async (target) => ({
+          id: "one",
+          app: target.app,
+          windowTitle: "test",
+          text: "[0] AXTextField",
+        }),
+        input: async (_state, input) => {
+          inputs.push(input);
+        },
+        reset: async () => {},
+      },
+    });
+    const f = await fixture({ agentMode: mode }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    f.provider.setResponses([
+      mode === "codemode"
+        ? script(
+            'const r=await tools.computer({action:"observe",app:"TextEdit"});if(!r.ok)throw Error(r.error.message);store("frame",r.frame.id);text(r);',
+          )
+        : fauxAssistantMessage(fauxToolCall("computer", { action: "observe", app: "TextEdit" }), {
+            stopReason: "toolUse",
+          }),
+      (context) => {
+        if (mode === "codemode")
+          return script(
+            'const r=await tools.computer({action:"key",frameId:load("frame"),keys:["ENTER","command","CTRL","control"]});if(!r.ok)throw Error(r.error.message);text(r);',
+          );
+        const message = context.messages.at(-1)!;
+        if (message.role !== "toolResult") throw Error("Expected observation result");
+        const content = message.content.find((part) => part.type === "text");
+        if (!content || content.type !== "text") throw Error("Missing observation metadata");
+        const { frame } = JSON.parse(content.text);
+        return fauxAssistantMessage(
+          fauxToolCall("computer", {
+            action: "key",
+            frameId: frame.id,
+            keys: ["ENTER", "command", "CTRL", "control"],
+          }),
+          { stopReason: "toolUse" },
+        );
+      },
+      fauxAssistantMessage("Chord completed"),
+    ]);
+    const result = await f.run();
+    expect(inputs, JSON.stringify(result)).toEqual([
+      { action: "key", keys: ["cmd", "control", "return"] },
+    ]);
+  },
+  30000,
+);
+
 test.each([false, true])(
   "known click/type/submit has bounded observations and model rounds (composite=%s)",
   async (combined) => {

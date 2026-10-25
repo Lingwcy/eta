@@ -104,7 +104,7 @@ export const computerParameters = Type.Object(
       Type.Array(
         Type.String({
           description:
-            "Case-insensitive chord: Enter/ENTER, Escape, Tab, ArrowLeft, command/cmd, control/ctrl, shift, option/alt.",
+            "Case-insensitive chord: Enter/ENTER, Escape, Tab, ArrowLeft, command/cmd, control/ctrl, shift, option/alt. Modifiers may appear anywhere in the array; all modifiers are held before the other keys.",
         }),
         { minItems: 1, maxItems: 8 },
       ),
