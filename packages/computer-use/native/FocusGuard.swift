@@ -213,7 +213,17 @@ final class BackgroundFocusGuard {
     guard !events.ownership.interrupted else {
       throw BridgeError("你已接管目标应用；本次任务的桌面控制已停止", reason: "user_interrupted")
     }
-    guard server.frontPID() == front, server.keyPID() == front else {
+    condition.lock()
+    let menuOpen = menuActive
+    condition.unlock()
+    let recovery = FocusRecovery.prepareInput(
+      front: front, targets: recipients, menuOpen: menuOpen, server: server,
+      allowed: recoveryAllowed)
+    if case .failed(let failure) = recovery {
+      fail(failure.message)
+      throw BridgeError(failure.message)
+    }
+    guard recovery == .restored, server.frontPID() == front, server.keyPID() == front else {
       throw BridgeError("前台输入所有权已变化；请重新观察后重试")
     }
     condition.lock()

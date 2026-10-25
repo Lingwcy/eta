@@ -112,6 +112,52 @@ async function fixture(
 const script = (code: string) =>
   fauxAssistantMessage(fauxToolCall("codemode", { code }), { stopReason: "toolUse" });
 
+test.each(["standard", "codemode"] as const)(
+  "desktop guidance is present before tool discovery and revoked with permissions in %s",
+  async (agentMode) => {
+    const service = new ComputerService({
+      layout: async () => {
+        throw new Error("unexpected desktop access");
+      },
+      capture: async () => {
+        throw new Error("unexpected desktop access");
+      },
+      input: async () => {
+        throw new Error("unexpected desktop access");
+      },
+      releaseInputs: async () => {},
+    });
+    const f = await fixture({ agentMode }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    for (const patch of [
+      { computerUse: true, blockImages: false },
+      { computerUse: false, blockImages: false },
+      { computerUse: true, blockImages: true },
+      { computerUse: true, blockImages: false },
+    ]) {
+      f.update(patch);
+      f.provider.setResponses([
+        (request) => {
+          const prompt = getCurrentSystemPrompt(request.messages);
+          expect(prompt.includes("<computer-use>")).toBe(patch.computerUse && !patch.blockImages);
+          if (patch.computerUse && !patch.blockImages) {
+            expect(prompt).toContain("tools.computer({action:'observe'");
+            expect(prompt).toContain("Every input already returns an updated accessibility tree");
+          }
+          if (agentMode === "codemode")
+            expect(getCurrentTools(request.messages).map((tool) => tool.name)).toEqual([
+              "codemode",
+            ]);
+          return fauxAssistantMessage("Guidance checked");
+        },
+      ]);
+      await f.run();
+    }
+  },
+  30000,
+);
+
 test("computer screenshots reach the main model, and a later run cannot reuse its frame", async () => {
   const png =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1sAAAAASUVORK5CYII=";
@@ -1281,6 +1327,7 @@ test.each(["standard", "codemode"] as const)(
         return call({
           action: "click",
           app: "Google Chrome",
+          windowTitle: "CANVAS",
           frameId: mode === "standard" ? frameId : "FRAME",
           point: { x: 0, y: 0 },
         });

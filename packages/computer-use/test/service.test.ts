@@ -796,7 +796,18 @@ test("redundant application hints match admitted aliases, cannot retarget a fram
         { action: "click", elementIndex: 0, button: "left", count: 1 },
         f.signal,
         undefined,
-        "TextEdit",
+        { app: "TextEdit" },
+      ),
+    ).rejects.toMatchObject({ code: "invalid_input", applied: "no" });
+    expect(f.inputs).toEqual([]);
+    await expect(
+      f.service.input(
+        f.owner,
+        first.frame.id,
+        { action: "click", elementIndex: 0, button: "left", count: 1 },
+        f.signal,
+        undefined,
+        { app: "Google Chrome", windowTitle: "another window" },
       ),
     ).rejects.toMatchObject({ code: "invalid_input", applied: "no" });
     expect(f.inputs).toEqual([]);
@@ -806,7 +817,7 @@ test("redundant application hints match admitted aliases, cannot retarget a fram
       { action: "click", elementIndex: 0, button: "left", count: 1 },
       f.signal,
       undefined,
-      "google chrome",
+      { app: "google chrome", windowTitle: "TES" },
     );
     await f.service.input(
       f.owner,
@@ -814,7 +825,7 @@ test("redundant application hints match admitted aliases, cannot retarget a fram
       { action: "click", elementIndex: 0, button: "left", count: 1 },
       f.signal,
       undefined,
-      "Google Chrome",
+      { app: "Google Chrome", windowTitle: "test" },
     );
     expect(f.inputs).toHaveLength(2);
   } finally {

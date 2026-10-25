@@ -19,6 +19,32 @@ precondition(DesktopSession.issue(in: [:]) != nil)
 precondition(DesktopSession.issue(in: nil) != nil)
 print("Native desktop-session policy: 6 cases passed; no desktop access.")
 
+let titles = ["Notes", "Computer Use Benchmark - Google Chrome (Incognito)", "Release Notes"]
+precondition(TargetSelection.matching("Computer Use Benchmark", in: titles) == [1])
+precondition(TargetSelection.matching("computer use benchmark", in: titles) == [1])
+precondition(TargetSelection.matching(titles[1], in: titles) == [1])
+precondition(TargetSelection.matching("Notes", in: titles) == [0])
+precondition(TargetSelection.matching("notes", in: titles) == [0, 2])
+precondition(TargetSelection.matching("Missing", in: titles).isEmpty)
+precondition(TargetSelection.matching("   ", in: titles).isEmpty)
+precondition(TargetSelection.matching("Notes", in: ["Notes", "Notes"]) == [0, 1])
+precondition(TargetSelection.matching("[draft]", in: ["Notes [draft]", "Notes draft"]) == [0])
+precondition(TargetSelection.matching("Notes", in: []).isEmpty)
+precondition(TargetSelection.matching("Chrome", in: ["Google Chrome", "TextEdit"]) == [0])
+precondition(TargetSelection.matching("chrome", in: ["Google Chrome", "Chrome Canary"]) == [0, 1])
+precondition(TargetSelection.matching("Google Chrome", in: ["Google Chrome", "Google Chrome Canary"]) == [0])
+precondition(TargetSelection.matching("TextEdit", in: ["TextEdit", "TextEdit"]) == [0, 1])
+print("Native application/window-name selection: 14 cases passed; no desktop access.")
+let apps = [(name: "Google Chrome", regular: true),
+            (name: "Google Chrome Helper (Capture)", regular: false),
+            (name: "TextEdit", regular: true)]
+precondition(TargetSelection.applicationAliases("Chrome", in: apps) == [0])
+precondition(TargetSelection.applicationAliases("chrome", in: apps) == [0])
+precondition(TargetSelection.applicationAliases("Chrome", in: apps + [("Chrome Canary", true)]) == [0, 3])
+precondition(TargetSelection.applicationAliases("Helper", in: apps).isEmpty)
+precondition(TargetSelection.applicationAliases("Chrome", in: [("Google Chrome Helper", false)]).isEmpty)
+print("Native regular-application alias admission: 5 cases passed; no desktop access.")
+
 // An isolated WindowServer fixture: no event taps, windows, focus RPCs or keyboard input.
 final class FocusServerFixture: KeyFocusServer {
   var front: pid_t? = 10
@@ -154,6 +180,39 @@ scenario("a user target click during lookup prevents further foreign releases") 
   precondition(s.calls == ["borrow", "release:105", "release:104"] && s.key == 20)
 }
 print("Native focus recovery: \(focusCases) cases passed; no desktop access.")
+
+func menuAdmission(_ s: FocusServerFixture, open: Bool = true) -> FocusRecovery.Outcome {
+  FocusRecovery.prepareInput(
+    front: 10, targets: [20], menuOpen: open, server: s, allowed: { s.allowed })
+}
+scenario("an owned menu with no activation notice returns focus before the next input") { s in
+  precondition(menuAdmission(s) == .restored && s.key == 10)
+  precondition(s.calls == ["borrow", "release:102", "release:101"])
+}
+scenario("ordinary input does not recover unowned target focus") { s in
+  precondition(menuAdmission(s, open: false) == .superseded && s.calls.isEmpty)
+}
+scenario("a ready foreground needs no menu recovery") { s in
+  s.key = 10
+  precondition(menuAdmission(s) == .restored && s.calls.isEmpty)
+}
+scenario("a system panel cannot be released as the preceding menu") { s in
+  s.key = 40
+  precondition(menuAdmission(s) == .superseded && s.calls.isEmpty)
+}
+scenario("a human app switch supersedes the previous menu") { s in
+  s.front = 40
+  precondition(menuAdmission(s) == .superseded && s.calls.isEmpty)
+}
+scenario("human takeover revokes menu recovery even with unchanged foreground") { s in
+  s.allowed = false
+  precondition(menuAdmission(s) == .superseded && s.calls.isEmpty)
+}
+scenario("a failed menu calibration cannot admit the next input") { s in
+  s.available = false
+  precondition(menuAdmission(s) == .failed(.unavailable) && s.calls == ["borrow"])
+}
+print("Native menu input admission: 7 cases passed; no desktop access.")
 
 let ownership = InputOwnership(pid: 30, marker: 123)
 ownership.pointerDown(sourcePID: 30, marker: 123)

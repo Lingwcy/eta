@@ -17,6 +17,7 @@ if (process.platform === "darwin") {
         fileURLToPath(new URL("../native/FocusRecovery.swift", import.meta.url)),
         fileURLToPath(new URL("../native/InputOwnership.swift", import.meta.url)),
         fileURLToPath(new URL("../native/WindowIdentity.swift", import.meta.url)),
+        fileURLToPath(new URL("../native/TargetSelection.swift", import.meta.url)),
         fileURLToPath(new URL("../native/KeyboardTarget.swift", import.meta.url)),
         fileURLToPath(new URL("../native/PublishedWindows.swift", import.meta.url)),
         fileURLToPath(new URL("../native/WindowOrderRecovery.swift", import.meta.url)),
