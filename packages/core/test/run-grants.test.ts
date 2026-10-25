@@ -187,9 +187,9 @@ test.each([false, true])(
       await expect.poll(f.held, { timeout: 10_000 }).toBe(true);
       expect(await f.subject()).toBe("first");
       const second = await f.submit("A new run needs new authorization");
-      await expect
-        .poll(() => f.boundary(second.operationId), { timeout: 15_000 })
-        .not.toBe("running");
+      // submit() initially returns a pending operation before it reaches authorization;
+      // wait for the second request itself, not merely for a non-running operation state.
+      await f.pending();
       expect({
         state: await f.boundary(second.operationId),
         subject: await f.subject(),
