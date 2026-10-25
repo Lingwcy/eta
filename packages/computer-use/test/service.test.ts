@@ -301,6 +301,37 @@ function accessibleFixture() {
   return { ...f, events, counts: () => ({ observations, captures, resets }) };
 }
 
+test.each([false, true])(
+  "chords press modifiers before action keys on the AX path=%s",
+  async (ax) => {
+    const cases = [
+      { keys: ["Enter", "Command"], expected: ["cmd", "return"] },
+      { keys: ["A", "Shift", "Command", "shift"], expected: ["shift", "cmd", "a"] },
+      { keys: ["Command", "a"], expected: ["cmd", "a"] },
+      { keys: ["ArrowLeft", "CTRL", "Option"], expected: ["control", "alt", "left"] },
+      { keys: ["Shift", "shift"], expected: ["shift"] },
+      { keys: ["a", "b", "Fn"], expected: ["fn", "a", "b"] },
+    ];
+    const f = accessibleFixture();
+    try {
+      for (const { keys, expected } of cases) {
+        const original = [...keys];
+        const frame = ax
+          ? await f.service.observe(f.owner, { app: "TextEdit" }, f.signal)
+          : await f.service.screenshot(f.owner, f.signal);
+        await f.service.input(f.owner, frame.frame.id, { action: "key", keys }, f.signal);
+        expect(ax ? f.events.at(-1)?.input : f.inputs.at(-1)).toEqual({
+          action: "key",
+          keys: expected,
+        });
+        expect(keys).toEqual(original);
+      }
+    } finally {
+      await f.service.release(f.owner);
+    }
+  },
+);
+
 test("AX observations and value changes return fresh controls without capturing images", async () => {
   const f = accessibleFixture();
   try {

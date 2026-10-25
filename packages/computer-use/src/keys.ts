@@ -1,13 +1,10 @@
 import { ComputerError } from "./protocol.ts";
 
+const modifiers = new Set(["cmd", "control", "shift", "alt", "fn"]);
 const supported = new Set([
   ..."abcdefghijklmnopqrstuvwxyz0123456789".split(""),
   ...Array.from({ length: 20 }, (_, index) => `f${index + 1}`),
-  "cmd",
-  "control",
-  "shift",
-  "alt",
-  "fn",
+  ...modifiers,
   "return",
   "tab",
   "space",
@@ -55,5 +52,11 @@ export function normalizeComputerKeys(keys: readonly string[]): string[] {
       );
     return key;
   });
-  return [...new Set(normalized)];
+  const unique = [...new Set(normalized)];
+  // Native input presses keys in order and releases them in reverse. Never send an
+  // action key (especially Return) before the chord's modifiers are held.
+  return [
+    ...unique.filter((key) => modifiers.has(key)),
+    ...unique.filter((key) => !modifiers.has(key)),
+  ];
 }
