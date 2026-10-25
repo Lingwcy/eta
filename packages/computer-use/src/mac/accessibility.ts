@@ -15,7 +15,7 @@ const Reply = Schema.Union([
     ok: Schema.Literal(false),
     message: Schema.String,
     applied: Schema.Literals(["no", "yes", "unknown"]),
-    reason: Schema.optionalKey(Schema.Literal("user_interrupted")),
+    reason: Schema.optionalKey(Schema.Literals(["user_interrupted", "stale_frame"])),
   }),
 ]);
 const Point = Schema.Struct({ x: Schema.Number, y: Schema.Number });

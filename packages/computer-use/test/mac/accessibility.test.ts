@@ -194,3 +194,19 @@ test.skipIf(process.platform === "win32")(
     expect(pointers).toMatchObject([{ snapshot: "one", windowId: 42, phase: "up", visible: true }]);
   },
 );
+
+test.skipIf(process.platform === "win32")(
+  "manual interaction returns a recoverable stale frame over native JSONL",
+  async () => {
+    const bridge = await fixture(
+      `console.log(JSON.stringify(r.operation==='observe'?{ok:true,result:{id:'one',app:r.app,windowTitle:'test',text:'ready'}}:{ok:false,message:'Manual interaction',applied:'unknown',reason:'stale_frame'}));`,
+    );
+    const state = await bridge.observe({ app: "TextEdit" }, AbortSignal.timeout(5000));
+    await expect(
+      bridge.execute(state, "type", { text: "once" }, AbortSignal.timeout(5000)),
+    ).rejects.toMatchObject({ code: "stale_frame", applied: "unknown" });
+    expect((await bridge.observe({ app: "TextEdit" }, AbortSignal.timeout(5000))).text).toBe(
+      "ready",
+    );
+  },
+);

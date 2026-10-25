@@ -7,6 +7,15 @@ extension Bridge {
   func observe(_ args: [String: Any]) throws -> [String: Any] {
     presentation = args["presentation"] as? Bool == true
     if let issue = DesktopSession.issue { throw BridgeError(issue) }
+    // Looking at the target or interacting with it does not revoke the task. Retire
+    // protection for the previous foreground before admitting a fresh observation.
+    if events.ownership.interrupted
+      || (focusGuard != nil && focusGuard?.front != WindowServerFocus.shared?.frontPID())
+    {
+      releaseFocus()
+      guard !cleanupFailed else { throw BridgeError("无法完成旧输入的清理；请重启 Eta", "unknown") }
+      events.ownership.beginObservation()
+    }
     try assertOwnership()
     snapshot = ""
     indexed = []

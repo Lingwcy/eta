@@ -211,7 +211,7 @@ final class BackgroundFocusGuard {
   func arm() throws {
     try assertHealthy()
     guard !events.ownership.interrupted else {
-      throw BridgeError("你已接管目标应用；本次任务的桌面控制已停止", reason: "user_interrupted")
+      throw BridgeError("目标应用发生了手动交互；请重新 observe 后继续", reason: "stale_frame")
     }
     condition.lock()
     let menuOpen = menuActive

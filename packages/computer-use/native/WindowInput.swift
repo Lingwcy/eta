@@ -7,7 +7,7 @@ extension Bridge {
   func assertOwnership(_ applied: String = "no") throws {
     try focusGuard?.assertHealthy()
     if events.ownership.interrupted {
-      throw BridgeError("你已接管目标应用；本次任务的桌面控制已停止，请等待新的用户指令", applied, reason: "user_interrupted")
+      throw BridgeError("目标应用发生了手动交互；旧观察已失效，请重新 observe 后继续", applied, reason: "stale_frame")
     }
   }
   func releaseFocus(closeGuard: Bool = true) {
@@ -64,7 +64,7 @@ extension Bridge {
         equal: { CFEqual($0, $1) })
     else {
       throw BridgeError(
-        "你正在前台使用同一应用的其他窗口；为避免转移你的输入焦点，本次桌面操作已停止", reason: "user_interrupted")
+        "当前输入窗口与观察不一致；本次未执行，请重新 observe 目标窗口", reason: "stale_frame")
     }
     guard front != pid else { return }
     if focusGuard?.front != front || focusGuard?.target != pid
@@ -238,7 +238,7 @@ extension Bridge {
           focused: front == pid ? axNode(root, kAXFocusedWindowAttribute) : nil,
           equal: { CFEqual($0, $1) })
       else {
-        throw BridgeError("你已切换到同一应用的其他窗口；本次桌面操作已停止", "unknown", reason: "user_interrupted")
+        throw BridgeError("输入窗口已变化；已停止后续输入，请重新 observe 后继续", "unknown", reason: "stale_frame")
       }
       guard !app.isTerminated,
         appWindows(AXUIElementCreateApplication(pid)).contains(where: {

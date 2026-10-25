@@ -1,7 +1,7 @@
 import Foundation
 
-// One helper owns one admission. A click from any other input source yields that admission,
-// including clicks during a menu's temporary key-focus theft with no foreground-PID change.
+// Foreign clicks invalidate the current observation, including clicks during a menu's
+// temporary key-focus theft. A new observation starts a fresh interaction boundary.
 final class InputOwnership {
   let pid: Int64
   let marker: Int64
@@ -16,6 +16,12 @@ final class InputOwnership {
     lock.lock()
     defer { lock.unlock() }
     return yielded
+  }
+  // Called only after the old focus guard has drained, before reading a new frame.
+  func beginObservation() {
+    lock.lock()
+    yielded = false
+    lock.unlock()
   }
   func pointerDown(sourcePID: Int64, marker: Int64) {
     // SLPSPostEventRecordTo's key-window records arrive as mouse-downs carrying this
