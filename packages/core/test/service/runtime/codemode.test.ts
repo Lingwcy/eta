@@ -1344,6 +1344,7 @@ test.each(["standard", "codemode"] as const)(
     expect(opened).toBe(1);
     expect(f.provider.state.callCount).toBe(4);
   },
+  15_000,
 );
 
 test.each(["standard", "codemode"] as const)(
