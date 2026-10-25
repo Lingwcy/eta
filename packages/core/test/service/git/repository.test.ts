@@ -180,6 +180,76 @@ test("GitHub remotes are recognised without leaking credentials", () => {
   );
 });
 
+// All userinfo here is synthetic. Build the URLs at runtime instead of storing
+// literal Basic Auth URLs that secret scanners cannot distinguish from real ones.
+const syntheticRemoteUrl = (scheme: string, userinfo: string, rest: string) =>
+  [scheme, "://", userinfo, "@", rest].join("");
+
+test.each([
+  {
+    url: syntheticRemoteUrl("https", "audit@example.com:fixture-secret", "github.com/eta/app.git"),
+    redacted: "https://github.com/eta/app.git",
+  },
+  {
+    url: syntheticRemoteUrl(
+      "ssh",
+      "audit@example.com:fixture-secret",
+      "git.example.org/eta/app.git",
+    ),
+    redacted: "ssh://git.example.org/eta/app.git",
+  },
+])("public Git remote DTO removes all userinfo from $url", async ({ url, redacted }) => {
+  const { directory, root } = await committed();
+  await git(root, "remote", "add", "origin", url);
+  expect((await git(root, "remote", "get-url", "origin")).stdout.trim()).toBe(url);
+  const core = await createCore({
+    dataRoot: join(directory, "data"),
+    home: directory,
+    models: createModels(),
+    settings: { read: Effect.succeed({ defaultThinkingLevel: "off" }), subscribe: () => () => {} },
+    environment: { userAgent: "eta-core-test", shutdown: "preserve" },
+  });
+  clients.push(core);
+  const project = await core.registerProject(root);
+  const workspace = (await core.workspaces(project.id))[0]!;
+  const info = await core.gitRepository(workspace.id);
+  expect(info).toMatchObject({ status: "ready", remotes: [{ name: "origin", url: redacted }] });
+  expect(JSON.stringify(info)).not.toContain("fixture-secret");
+  // Redaction is a DTO boundary, not permission to rewrite the user's transport configuration.
+  expect((await git(root, "remote", "get-url", "origin")).stdout.trim()).toBe(url);
+});
+
+test.each([
+  {
+    url: syntheticRemoteUrl(
+      "https",
+      "user:p@fixture-secret",
+      "[::1]:8443/audit@app.git?contact=audit@example.com#user@ref",
+    ),
+    redacted: "https://[::1]:8443/audit@app.git?contact=audit@example.com#user@ref",
+  },
+  {
+    url: syntheticRemoteUrl(
+      "https",
+      "audit%40example.com:fixture-secret",
+      "github.com/eta/app.git",
+    ),
+    redacted: "https://github.com/eta/app.git",
+  },
+])("remote redaction retains the URL after the authority in $url", ({ url, redacted }) => {
+  expect(redactRemoteUrl(url)).toBe(redacted);
+});
+
+test.each([
+  "https://git.example.org?contact=audit@example.com",
+  "https://git.example.org#contact=audit@example.com",
+  "https://git.example.org/eta/audit@app.git",
+  "git@git.example.org:eta/app.git",
+  "/local/audit@app.git",
+])("remote redaction preserves non-userinfo @ in %s", (url) => {
+  expect(redactRemoteUrl(url)).toBe(url);
+});
+
 test("remote selection prefers a saved choice, then origin, then the only GitHub remote", () => {
   const remote = (name: string, owner: string) => ({
     name,
