@@ -186,7 +186,7 @@ export class ComputerService {
     input: Exclude<ComputerInput, { action: "open" }>,
     signal: AbortSignal,
     limits?: CaptureLimits,
-    appHint?: string,
+    targetHint?: { app?: string; windowTitle?: string },
   ) {
     if (
       input.action === "drag" &&
@@ -202,12 +202,26 @@ export class ComputerService {
       );
     if (input.action === "key") input = { ...input, keys: normalizeComputerKeys(input.keys) };
     return this.operate(owner, signal, async (lease, current) => {
-      if (appHint !== undefined && !lease.appAliases?.names.has(appHint.trim().toLowerCase()))
+      if (
+        targetHint?.app !== undefined &&
+        !lease.appAliases?.names.has(targetHint.app.trim().toLowerCase())
+      )
         throw new ComputerError(
           "invalid_input",
-          `app does not match the observed target; use observe(app:${JSON.stringify(appHint)}) to select another application. This frame was not retargeted.`,
+          `app does not match the observed target; use observe(app:${JSON.stringify(targetHint.app)}) to select another application. This frame was not retargeted.`,
         );
       const accessibility = lease.accessibility;
+      if (
+        targetHint?.windowTitle !== undefined &&
+        (!targetHint.windowTitle.trim() ||
+          !accessibility?.state.windowTitle
+            .toLowerCase()
+            .includes(targetHint.windowTitle.toLowerCase()))
+      )
+        throw new ComputerError(
+          "invalid_input",
+          "windowTitle does not match the observed target; use observe(app,windowTitle) to select another window. This frame was not retargeted.",
+        );
       if (accessibility?.frame.id === frameId) {
         let mapped = input;
         if (("point" in input && input.point) || input.action === "drag") {

@@ -24,6 +24,20 @@ enum FocusRecovery {
     case failed(Failure)
   }
 
+  // A browser menu may acquire key focus without delivering the activation notice our
+  // event tap watches. Reconcile only a menu left open by the preceding owned input.
+  static func prepareInput(
+    front: pid_t, targets: Set<pid_t>, menuOpen: Bool, server: any KeyFocusServer,
+    allowed: () -> Bool
+  ) -> Outcome {
+    guard allowed(), server.frontPID() == front, let key = server.keyPID() else {
+      return .superseded
+    }
+    if key == front { return .restored }
+    guard menuOpen, targets.contains(key) else { return .superseded }
+    return restore(front: front, target: key, server: server, allowed: allowed)
+  }
+
   // The counter and bounded lookup follow Cua Driver (MIT; see THIRD_PARTY_NOTICES.txt).
   // The only foreign token we may release is below our calibration token while the same
   // background target still owns key focus. A user's newer owner always takes precedence.

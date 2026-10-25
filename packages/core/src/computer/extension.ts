@@ -1,4 +1,4 @@
-import { defineTool, ROOT_CONVERSATION_ID } from "@eta/agent";
+import { defineTool, ROOT_CONVERSATION_ID, section } from "@eta/agent";
 import type { ToolExecutionApi, ToolExecutionResult } from "@eta/agent";
 import type { Context } from "@earendil-works/chord";
 import type { ComputerService, ComputerOwner } from "@eta/computer-use/service";
@@ -8,26 +8,33 @@ import { computerParameters, computerResult } from "./schema.ts";
 import { computerImageDigest } from "./images.ts";
 
 // The tool schema validates field types; this table owns per-action field requirements.
+const targetHints = ["app", "windowTitle"];
 const actions: Record<string, { required: string[]; optional: string[] }> = {
   observe: { required: ["app"], optional: ["windowTitle", "screenshot"] },
   screenshot: { required: [], optional: ["app", "windowTitle"] },
   release: { required: [], optional: [] },
   wait: { required: [], optional: ["durationMs"] },
   open: { required: ["app"], optional: [] },
-  click: { required: ["frameId"], optional: ["app", "point", "elementIndex", "button", "count"] },
+  click: {
+    required: ["frameId"],
+    optional: [...targetHints, "point", "elementIndex", "button", "count"],
+  },
   type: {
     required: ["frameId", "text"],
-    optional: ["app", "point", "elementIndex", "overwrite", "enter"],
+    optional: [...targetHints, "point", "elementIndex", "overwrite", "enter"],
   },
-  key: { required: ["frameId", "keys"], optional: ["app"] },
-  scroll: { required: ["frameId"], optional: ["app", "point", "elementIndex", "deltaX", "deltaY"] },
-  drag: { required: ["frameId"], optional: ["app", "point", "to", "path", "durationMs"] },
-  set_value: { required: ["frameId", "elementIndex", "text"], optional: ["app"] },
+  key: { required: ["frameId", "keys"], optional: targetHints },
+  scroll: {
+    required: ["frameId"],
+    optional: [...targetHints, "point", "elementIndex", "deltaX", "deltaY"],
+  },
+  drag: { required: ["frameId"], optional: [...targetHints, "point", "to", "path", "durationMs"] },
+  set_value: { required: ["frameId", "elementIndex", "text"], optional: targetHints },
   select_text: {
     required: ["frameId", "elementIndex", "text"],
-    optional: ["app", "prefix", "suffix", "selectionType"],
+    optional: [...targetHints, "prefix", "suffix", "selectionType"],
   },
-  perform_action: { required: ["frameId", "elementIndex", "name"], optional: ["app"] },
+  perform_action: { required: ["frameId", "elementIndex", "name"], optional: targetHints },
 };
 
 /** The runtime supplies an admission-bound owner; native element identities never enter durable replay. */
@@ -215,14 +222,10 @@ export function createComputerExtension(options: {
             default:
               throw new ComputerError("invalid_input", "未知桌面动作");
           }
-          result = await options.service.input(
-            owner,
-            args.frameId!,
-            input,
-            signal,
-            limits,
-            args.app,
-          );
+          result = await options.service.input(owner, args.frameId!, input, signal, limits, {
+            app: args.app,
+            windowTitle: args.windowTitle,
+          });
         }
         const notes = [
           "Element indexes belong to this frame only. Read the returned state before deciding the next target.",
@@ -278,5 +281,20 @@ export function createComputerExtension(options: {
       }
     },
   });
-  return { name: "computer", tools: [tool] };
+  return {
+    name: "computer",
+    tools: [tool],
+    sections: [
+      section("computer-use", async ({ conversationId }) =>
+        conversationId === ROOT_CONVERSATION_ID && (await options.allowed())
+          ? [
+              "The computer tool is available for local desktop UI, including existing browser windows. Native browser UI control requires no browser connector or browser skill.",
+              "Start with computer({action:'observe',app:'APP'}); add windowTitle only to select a specific window. A unique partial title is accepted. Use the returned frame.id and numbered controls for input. Every input already returns an updated accessibility tree: inspect it before choosing the next target. Chain only already-decided steps with each preceding frame.id. If that state proves the task is complete, report the result; request a screenshot only when visual evidence is needed.",
+              "Common inputs: {action:'click',frameId,elementIndex}, {action:'set_value',frameId,elementIndex,text}, or {action:'drag',frameId,point:{x,y},to:{x,y}}. A frame already selects the app/window; optional target hints only validate that selection.",
+              "In Code mode, tools.computer is already callable; no ALL_TOOLS search or schema-discovery call is needed. First call: const r=await tools.computer({action:'observe',app:'APP'});text(r); For screenshots, output text({frame:r.frame,accessibility:r.accessibility,notes:r.notes});if(r.image)image(r.image); never print image base64. End the script to inspect unknown targets before input.",
+            ].join("\n")
+          : undefined,
+      ),
+    ],
+  };
 }

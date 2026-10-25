@@ -30,6 +30,12 @@ extension Bridge {
       if let explicitPID { return $0.processIdentifier == explicitPID }
       return $0.bundleIdentifier == name || $0.localizedName == name || $0.bundleURL?.path == name
     }
+    if candidates.isEmpty && explicitPID == nil {
+      let running = NSWorkspace.shared.runningApplications
+      candidates = TargetSelection.applicationAliases(
+        name, in: running.map { (name: $0.localizedName ?? "", regular: $0.activationPolicy == .regular) }
+      ).map { running[$0] }
+    }
     if let previousId = args["previousId"] as? String {
       guard previousId == observedSnapshot, let previousApp = application, !previousApp.isTerminated
       else { throw BridgeError("原观察应用已失效；请重新 observe") }
@@ -57,9 +63,15 @@ extension Bridge {
       }
       selected = previous
     } else if let title = args["windowTitle"] as? String {
-      let matching = windows.filter { string($0, kAXTitleAttribute) == title }
-      guard matching.count == 1 else { throw BridgeError("未找到唯一窗口 \(title)；请重新指定 windowTitle") }
-      selected = matching.first
+      let titles = windows.map { string($0, kAXTitleAttribute) }
+      let matching = TargetSelection.matching(title, in: titles)
+      guard matching.count == 1, let index = matching.first else {
+        let choices = (matching.isEmpty ? titles : matching.map { titles[$0] })
+          .map(quoted).joined(separator: ", ")
+        throw BridgeError(
+          "\(matching.isEmpty ? "未找到窗口" : "窗口标题不唯一") \(quoted(title))；请使用完整 windowTitle。可选标题: [\(choices)]")
+      }
+      selected = windows[index]
     } else if let focused = attribute(root, kAXFocusedWindowAttribute),
       CFGetTypeID(focused) == AXUIElementGetTypeID()
     {

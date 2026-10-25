@@ -59,14 +59,14 @@ export const computerParameters = Type.Object(
         minLength: 1,
         maxLength: 256,
         description:
-          "REQUIRED for observe/open; screenshot may omit app only after selecting a target. Application name or bundle identifier, e.g. TextEdit or com.apple.TextEdit. observe/screenshot also accept pid:123 to select one running instance. open launches an app name or bundle identifier in the background; it does not accept pid selectors. On input actions, an optional app hint must match the already-observed app; it never retargets a frame.",
+          "REQUIRED for observe/open; screenshot may omit app only after selecting a target. Application name or bundle identifier, e.g. TextEdit or com.apple.TextEdit. observe/screenshot also accept a unique case-insensitive application-name substring or pid:123 to select one running instance. open launches an app name or bundle identifier in the background; it does not accept pid selectors. On input actions, an optional app hint must match the already-observed app; it never retargets a frame.",
       }),
     ),
     windowTitle: Type.Optional(
       Type.String({
         maxLength: 512,
         description:
-          "observe/screenshot: exact title of the intended window. Omit to use the focused window.",
+          "observe/screenshot: exact title or a unique case-insensitive substring. Exact matches take priority; ambiguous titles are rejected with candidate titles. Omit to use the app's focused window. On input, an optional title hint must match the observed window; it never retargets a frame.",
       }),
     ),
     screenshot: Type.Optional(
