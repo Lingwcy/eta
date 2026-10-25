@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -104,6 +104,60 @@ test("linked worktrees and subdirectories share the main repository's common dir
   });
   expect(worktree.gitDir).toBe(join(main.commonDir, "worktrees", "linked"));
 });
+
+test.each(["index", "remote"] as const)(
+  "failed %s reads are unavailable rather than a ready snapshot, and recover after repair",
+  async (fault) => {
+    const { directory, root } = await committed();
+    await git(root, "remote", "add", "origin", "https://github.com/eta/app.git");
+    const core = await createCore({
+      dataRoot: join(directory, "data"),
+      home: directory,
+      models: createModels(),
+      settings: {
+        read: Effect.succeed({ defaultThinkingLevel: "off" }),
+        subscribe: () => () => {},
+      },
+      environment: { userAgent: "eta-core-test", shutdown: "preserve" },
+    });
+    clients.push(core);
+    const project = await core.registerProject(root);
+    const workspace = (await core.workspaces(project.id))[0]!;
+    expect(await core.gitRepository(workspace.id)).toMatchObject({
+      status: "ready",
+      changes: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+    });
+    await writeFile(join(root, "README.md"), "world\n");
+    await writeFile(join(root, "untracked.txt"), "keep me\n");
+    const index = await readFile(join(root, ".git", "index"));
+    if (fault === "index") await writeFile(join(root, ".git", "index"), "broken index");
+    else await git(root, "config", "remote.origin.fetch", "not a refspec");
+    try {
+      await expect(
+        git(root, ...(fault === "index" ? ["status", "--porcelain=v1", "-z"] : ["remote", "-v"])),
+      ).rejects.toMatchObject({ code: 128 });
+      const failed = await core.gitRepository(workspace.id);
+      expect(failed).toMatchObject({
+        status: "unavailable",
+        workspaceId: workspace.id,
+        reason: "error",
+      });
+      expect(failed).not.toHaveProperty("changes");
+      expect(failed).not.toHaveProperty("remotes");
+      expect(failed).not.toHaveProperty("github");
+    } finally {
+      if (fault === "index") await writeFile(join(root, ".git", "index"), index);
+      else await git(root, "config", "--unset", "remote.origin.fetch");
+    }
+    expect(await core.gitRepository(workspace.id)).toMatchObject({
+      status: "ready",
+      changes: { staged: 0, unstaged: 1, untracked: 1, conflicted: 0 },
+      github: { selection: { owner: "eta", repo: "app" } },
+    });
+    expect(await readFile(join(root, "README.md"), "utf8")).toBe("world\n");
+    expect(await readFile(join(root, "untracked.txt"), "utf8")).toBe("keep me\n");
+  },
+);
 
 test("status counts staged, unstaged, untracked and conflicted entries", () => {
   expect(

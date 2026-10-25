@@ -93,6 +93,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Check command success before treating machine-readable stdout as a complete observation.**
+
+- Evidence: on 2026-10-25, #448's real Core/Git controls on `c718f7c` corrupt a temporary index or configure an invalid fetch refspec. The corresponding `status`/`remote -v` exits 128, but unchecked stdout still produces `ready`: empty status becomes clean and a failed remote read becomes no remotes. Rejecting the failed read returns `unavailable`; repairing only the fixture restores its dirty-file counts and GitHub selection without losing files.
+- Check: command wrappers may resolve nonzero exits rather than throw. Validate the exit code before interpreting empty or partial output; preserve legitimate empty/unborn states and verify recovery after repair. Report the failed stage without blindly copying sensitive repository diagnostics. These are controlled read failures, not evidence that Git deleted user data.
+- Seen: 2026-10-25.
+
 **Check actual desktop-session ownership before interpreting AX or injecting input.**
 
 - Evidence: on 2026-10-24, both TextEdit and an isolated Electron fixture returned `AXApplication` roots in `AXWindows` with AX success and `AXIsProcessTrusted() == true`. The session dictionary reported `CGSSessionScreenIsLocked == true`; synchronous WindowServer foreground/key ownership was `loginwindow`, while NSWorkspace still reported the previous foreground app. A native observation now reports locked-session non-execution before AX traversal. Six native policy cases cover active, locked, inactive, incomplete-login and unknown sessions without accessing the desktop.
