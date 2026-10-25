@@ -492,6 +492,56 @@ test.each(["standard", "codemode"] as const)(
   30000,
 );
 
+test.each(["standard", "codemode"] as const)(
+  "%s admits a menu-bar target through the chat tool schema",
+  async (mode) => {
+    const targets: unknown[] = [];
+    const service = new ComputerService({
+      layout: async () => {
+        throw Error("unexpected layout");
+      },
+      capture: async () => {
+        throw Error("unexpected capture");
+      },
+      input: async () => {
+        throw Error("unexpected input");
+      },
+      releaseInputs: async () => {},
+      accessibility: {
+        observe: async (target) => {
+          targets.push(target);
+          return {
+            id: "status",
+            app: target.app,
+            windowTitle: "magpie menu bar",
+            text: "[0] AXMenuBarItem actions=AXPress",
+          };
+        },
+        input: async () => {
+          throw Error("unexpected AX input");
+        },
+        reset: async () => {},
+      },
+    });
+    const f = await fixture({ agentMode: mode }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    const args = { action: "observe", app: "magpie", surface: "menu_bar" };
+    f.provider.setResponses([
+      mode === "codemode"
+        ? script(`text(await tools.computer(${JSON.stringify(args)}));`)
+        : fauxAssistantMessage(fauxToolCall("computer", args), { stopReason: "toolUse" }),
+      (context) => {
+        expect(JSON.stringify(context.messages.at(-1))).toContain("AXMenuBarItem");
+        return fauxAssistantMessage("Status item found");
+      },
+    ]);
+    await f.run();
+    expect(targets).toEqual([{ app: "magpie", surface: "menu_bar" }]);
+  },
+  30000,
+);
+
 test.each([false, true])(
   "known click/type/submit has bounded observations and model rounds (composite=%s)",
   async (combined) => {

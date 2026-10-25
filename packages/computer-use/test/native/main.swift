@@ -43,7 +43,9 @@ precondition(TargetSelection.applicationAliases("chrome", in: apps) == [0])
 precondition(TargetSelection.applicationAliases("Chrome", in: apps + [("Chrome Canary", true)]) == [0, 3])
 precondition(TargetSelection.applicationAliases("Helper", in: apps).isEmpty)
 precondition(TargetSelection.applicationAliases("Chrome", in: [("Google Chrome Helper", false)]).isEmpty)
-print("Native regular-application alias admission: 5 cases passed; no desktop access.")
+precondition(TargetSelection.applicationAliases("Magpie", in: [("magpie", false)]) == [0])
+precondition(TargetSelection.applicationAliases("mag", in: [("magpie", false)]).isEmpty)
+print("Native application alias admission: 7 cases passed; no desktop access.")
 
 // An isolated WindowServer fixture: no event taps, windows, focus RPCs or keyboard input.
 final class FocusServerFixture: KeyFocusServer {
@@ -541,3 +543,19 @@ precondition(
 print(
   "Native continuous drag: corners, complete-route bounds, timing, finite coordinates and sampling limits passed."
 )
+
+
+let popover = NativeWindowIdentity.Record(id: 60, pid: 20, layer: 25, bounds: bounds)
+let panel = NativeWindowIdentity.Record(id: 61, pid: 20, layer: 101, bounds: bounds)
+let menuBar = NativeWindowIdentity.Record(id: 62, pid: 30, layer: 24, bounds: bounds)
+precondition(NativeWindowIdentity.resolve(axID: 60, pid: 20, bounds: bounds, windows: [popover]) == nil)
+precondition(NativeWindowIdentity.resolve(axID: 60, pid: 20, bounds: bounds, windows: [popover], surface: .transient) == 60)
+precondition(NativeWindowIdentity.resolve(axID: 61, pid: 20, bounds: bounds, windows: [panel], surface: .transient) == 61)
+let contentBounds = CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: bounds.height - 5)
+precondition(NativeWindowIdentity.resolve(axID: 61, pid: 20, bounds: contentBounds, windows: [panel], surface: .transient) == 61)
+precondition(NativeWindowIdentity.resolve(axID: 61, pid: 99, bounds: bounds, windows: [panel], surface: .transient) == nil)
+precondition(NativeWindowIdentity.resolve(axID: 62, pid: 30, bounds: bounds, windows: [menuBar], surface: .menuBar) == 62)
+precondition(NativeWindowIdentity.resolve(axID: 62, pid: 30, bounds: bounds, windows: [menuBar], surface: .transient) == nil)
+precondition(NativeWindowIdentity.resolve(axID: 60, pid: 20, bounds: bounds.offsetBy(dx: 10, dy: 0), windows: [popover], surface: .transient) == nil)
+precondition(NativeWindowIdentity.keyboardRecipient(axPID: 20, axWindowID: 61, windows: [panel]) == 20)
+print("Native transient/status surface identities: 9 cases passed; no desktop access.")

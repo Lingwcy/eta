@@ -12,6 +12,7 @@ final class Bridge {
       self?.presentPointer(point, bounds, pid, id, phase)
     }
   }
+  var menuBarTarget: MenuBarTarget?
   var windowID: UInt32 = 0
   var cursor: CGPoint?
   var cleanupFailed = false

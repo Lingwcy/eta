@@ -27,10 +27,16 @@ func completed<T>(_ start: (@escaping (Result<T, Error>) -> Void) -> Void) throw
 
 extension Bridge {
   func layout(_ args: [String: Any]) throws -> [String: Any] {
-    guard let app = application, let window,
-      try identifyWindow(app.processIdentifier, window) == windowID
-    else { throw BridgeError("目标窗口身份已变化；请重新 observe") }
-    let bounds = boundsJSON(try rect(window))
+    guard let app = application else { throw BridgeError("请先 observe") }
+    let geometry: CGRect
+    if let target = menuBarTarget {
+      geometry = try target.validate(app)
+    } else {
+      guard let window, try identifyWindow(app.processIdentifier, window) == windowID
+      else { throw BridgeError("目标窗口身份已变化；请重新 observe") }
+      geometry = try rect(window)
+    }
+    let bounds = boundsJSON(geometry)
     let revision = String(
       data: try JSONSerialization.data(withJSONObject: bounds, options: [.sortedKeys]),
       encoding: .utf8)!
@@ -51,7 +57,7 @@ extension Bridge {
         }
       }
     }
-    guard let target = content.windows.first(where: { $0.windowID == windowID }), let window else {
+    guard let target = content.windows.first(where: { $0.windowID == windowID }) else {
       throw BridgeError("目标窗口无法截图；请确认窗口未最小化")
     }
     // ScreenCaptureKit fails with -3811 for off-Space menus, even when capturing
@@ -59,7 +65,13 @@ extension Bridge {
     // scope; the AX tree still exposes numbered menu actions without switching Space.
     var excludesChildWindows = false
     if #available(macOS 14.2, *), !target.isOnScreen { excludesChildWindows = true }
-    let r = try rect(window)
+    guard let app = application else { throw BridgeError("请先 observe") }
+    let r: CGRect
+    if let menuBarTarget {
+      r = try menuBarTarget.validate(app)
+    } else if let window {
+      r = try rect(window)
+    } else { throw BridgeError("观察已失效；请重新 observe") }
     let limits = args["limits"] as? [String: Any] ?? [:]
     let scale = min(
       1.0, 1280 / max(r.width, r.height), (limits["maxWidth"] as? Double ?? 1280) / r.width,

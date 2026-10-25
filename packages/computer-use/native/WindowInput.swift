@@ -326,7 +326,14 @@ extension Bridge {
         return NativeWindowIdentity.keyboardRecipient(
           axPID: recipient, axWindowID: id, windows: windows)
       },
-      enclosingWindow: { axNode($0, kAXWindowAttribute) },
+      enclosingWindow: {
+        // WKWebView status panels can publish an inaccessible AXWindow proxy.
+        // Treat that as absent so KeyboardScope requires the actual parent path;
+        // a live, different AXWindow still rejects input.
+        guard let node = axNode($0, kAXWindowAttribute),
+          !string(node, kAXRoleAttribute).isEmpty else { return nil }
+        return node
+      },
       parent: { axNode($0, kAXParentAttribute) })
     var keyboardTarget: KeyboardTarget<AXUIElement>?
     func currentKeyboardTarget() throws -> KeyboardTarget<AXUIElement> {
@@ -432,7 +439,9 @@ extension Bridge {
       cursor = CGPoint(x: to.x - bounds.minX, y: to.y - bounds.minY)
     default: throw BridgeError("未知定向输入动作")
     }
-    try checkContext()
+    // Escape and other completed shortcuts may destroy a transient panel. All
+    // events have already been sent; a vanished surface is not non-execution.
+    if (try? rect(window)) != nil { try checkContext() }
     completed = true
     return [:]
   }
@@ -440,6 +449,25 @@ extension Bridge {
   func input(_ args: [String: Any]) throws -> [String: Any] {
     try assertOwnership()
     if args["operation"] as? String == "check_ownership" { return [:] }
+    if let target = menuBarTarget {
+      guard let app = application, !app.isTerminated,
+        args["id"] as? String == snapshot, !snapshot.isEmpty
+      else { throw BridgeError("菜单栏观察已失效；请重新 observe", reason: "stale_frame") }
+      _ = try target.validate(app)
+      let operation = args["operation"] as? String ?? ""
+      if operation == "layout" { return try layout(args) }
+      if operation == "capture" { return try capture(args) }
+      guard args["elementIndex"] as? Int == 0,
+        (operation == "click" && (args["button"] as? String ?? "left") == "left"
+          && (args["count"] as? Int ?? 1) == 1)
+          || (operation == "perform_action" && args["name"] as? String == kAXPressAction)
+      else { throw BridgeError("菜单栏入口请使用 click(elementIndex:0) 打开，再观察面板") }
+      snapshot = ""
+      try checkCancellation()
+      guard AXUIElementPerformAction(target.item, kAXPressAction as CFString) == .success
+      else { throw BridgeError("菜单栏图标 AXPress 失败；请重新观察确认状态", "unknown") }
+      return [:]
+    }
     guard let id = args["id"] as? String, id == snapshot, !snapshot.isEmpty,
       let app = application, !app.isTerminated, let window
     else {

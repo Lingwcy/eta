@@ -43,7 +43,12 @@ export type ComputerAccessibility = {
   cursor?: Point;
 };
 
-export type ComputerTarget = { app: string; windowTitle?: string; previousId?: string };
+export type ComputerTarget = {
+  app: string;
+  windowTitle?: string;
+  surface?: "menu_bar";
+  previousId?: string;
+};
 
 export type DisplayLayout = {
   id: string;

@@ -56,15 +56,37 @@ extension Bridge {
     }
     let root = AXUIElementCreateApplication(app.processIdentifier)
     AXUIElementSetMessagingTimeout(root, 0.4)
-    var windows = appWindows(root)
+    let previousMenuBar = menuBarTarget != nil
+    if args["surface"] as? String == "menu_bar" {
+      releaseFocus()
+      let target = try MenuBarTarget.find(app)
+      let bounds = try target.validate(app)
+      application = app
+      menuBarTarget = target
+      window = nil
+      windowID = target.windowID
+      cursor = nil
+      deadline = Date().addingTimeInterval(8)
+      // Index only the selected wrapper. Its embedded application root would expose
+      // unrelated windows, and the rest of the host menu bar belongs to other apps.
+      indexed = [target.item]
+      lines = ["[0] AXMenuBarItem AXTitle=\(quoted(app.localizedName ?? name)) actions=AXPress",
+        "[Use click(elementIndex:0) to open this app's menu or popover; then inspect the returned state.]"]
+      snapshot = UUID().uuidString
+      observedSnapshot = snapshot
+      return ["id": snapshot, "app": app.bundleIdentifier ?? name,
+        "windowTitle": "\(app.localizedName ?? name) menu bar", "text": lines.joined(separator: "\n"),
+        "windowId": windowID, "bounds": boundsJSON(bounds)]
+    }
+    var windows = appWindows(root).filter { validWindowSurface($0, app.processIdentifier) && (try? rect($0)) != nil }
     let ready = Date().addingTimeInterval(1.5)
     while windows.isEmpty && Date() < ready && !app.isTerminated {
       try checkCancellation()
       RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-      windows = appWindows(root)
+      windows = appWindows(root).filter { validWindowSurface($0, app.processIdentifier) && (try? rect($0)) != nil }
     }
     let selected: AXUIElement?
-    if let previousId = args["previousId"] as? String {
+    if let previousId = args["previousId"] as? String, !previousMenuBar {
       guard previousId == observedSnapshot, application?.processIdentifier == app.processIdentifier,
         let previous = window, windows.contains(where: { CFEqual($0, previous) })
       else {
@@ -82,13 +104,14 @@ extension Bridge {
       }
       selected = windows[index]
     } else if let focused = attribute(root, kAXFocusedWindowAttribute),
-      CFGetTypeID(focused) == AXUIElementGetTypeID()
+      CFGetTypeID(focused) == AXUIElementGetTypeID(),
+      windows.contains(where: { CFEqual($0, focused) })
     {
       selected = (focused as! AXUIElement)
     } else {
       selected = windows.first
     }
-    guard let selected else { throw BridgeError("应用没有可观察窗口；请先打开窗口或使用 screenshot") }
+    guard let selected else { throw BridgeError("应用没有可观察窗口；菜单栏应用请使用 observe(app,surface:'menu_bar') 打开图标") }
     // Some AX servers answer success with their application root in AXWindows. That is not
     // a window identity and must never be matched to a CGWindow by application-wide bounds.
     guard validWindowSurface(selected, app.processIdentifier), !CFEqual(selected, root)
@@ -100,6 +123,7 @@ extension Bridge {
       releaseFocus()
       cursor = nil
     }
+    menuBarTarget = nil
     application = app
     window = selected
     windowID = try identifyWindow(app.processIdentifier, selected)
@@ -140,7 +164,10 @@ extension Bridge {
     }
     guard
       let number = NativeWindowIdentity.resolve(
-        axID: NativeWindowIdentity.windowID(window), pid: pid, bounds: r, windows: windows)
+        axID: NativeWindowIdentity.windowID(window), pid: pid, bounds: r, windows: windows,
+        surface: string(window, kAXRoleAttribute) == "AXPopover"
+          || ["AXSystemDialog", "AXFloatingWindow", "AXDialog"].contains(string(window, kAXSubroleAttribute))
+          ? .transient : .window)
     else {
       throw BridgeError("无法确认目标窗口身份；不会通过位置猜测窗口，请重新 observe")
     }

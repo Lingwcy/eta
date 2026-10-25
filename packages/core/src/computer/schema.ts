@@ -69,6 +69,12 @@ export const computerParameters = Type.Object(
           "observe/screenshot: exact title or a unique case-insensitive substring. Exact matches take priority; ambiguous titles are rejected with candidate titles. Omit to use the app's focused window. On input, an optional title hint must match the observed window; it never retargets a frame.",
       }),
     ),
+    surface: Type.Optional(
+      Type.Literal("menu_bar", {
+        description:
+          "observe/screenshot: select this app's menu-bar status icon, even when it has no window. Click its numbered item to open the menu or popover; subsequent input returns the opened panel. Omit for normal windows.",
+      }),
+    ),
     screenshot: Type.Optional(
       Type.Boolean({
         description:

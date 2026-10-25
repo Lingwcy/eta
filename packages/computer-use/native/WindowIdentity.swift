@@ -20,17 +20,29 @@ enum NativeWindowIdentity {
     guard let lookup, lookup(element, &id) == 0, id != 0 else { return nil }
     return id
   }
+  enum Surface {
+    case window, transient, menuBar
+    func allows(_ layer: Int) -> Bool {
+      switch self {
+      case .window: return layer == 0
+      case .transient: return [0, 3, 8, 25, 101].contains(layer)
+      case .menuBar: return layer == 24
+      }
+    }
+  }
   // Geometry confirms a live identity; it never chooses an identity. Equal-sized, overlapping
   // windows are common, and a stale AX window must not bind to its replacement at the same bounds.
-  static func resolve(axID: UInt32?, pid: pid_t, bounds: CGRect, windows: [Record]) -> UInt32? {
+  static func resolve(axID: UInt32?, pid: pid_t, bounds: CGRect, windows: [Record], surface: Surface = .window) -> UInt32? {
     guard let axID, axID != 0 else { return nil }
     let matching = windows.filter { $0.id == axID }
     guard matching.count == 1, let window = matching.first,
-      window.pid == pid, window.layer == 0,
+      window.pid == pid, surface.allows(window.layer),
       abs(window.bounds.minX - bounds.minX) < 2,
       abs(window.bounds.minY - bounds.minY) < 2,
       abs(window.bounds.width - bounds.width) < 2,
-      abs(window.bounds.height - bounds.height) < 2
+      (abs(window.bounds.height - bounds.height) < 2
+        || (surface == .transient && window.bounds.contains(bounds)
+          && window.bounds.height - bounds.height <= 16))
     else { return nil }
     return axID
   }
@@ -41,7 +53,7 @@ enum NativeWindowIdentity {
     guard axPID > 0 else { return nil }
     guard let axWindowID else { return axPID }
     let matches = windows.filter { $0.id == axWindowID }
-    guard matches.count == 1, let window = matches.first, window.pid > 0, window.layer == 0
+    guard matches.count == 1, let window = matches.first, window.pid > 0, Surface.transient.allows(window.layer)
     else { return nil }
     return window.pid
   }
