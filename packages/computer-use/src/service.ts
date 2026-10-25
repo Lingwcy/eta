@@ -33,7 +33,7 @@ type Lease = {
 /** Serializes observation and input across every conversation using the host's desktop. */
 export class ComputerService {
   private lease?: Lease;
-  private readonly interrupted = new WeakSet<ComputerOwner>();
+  private readonly stopped = new WeakSet<ComputerOwner>();
 
   constructor(
     private readonly adapter: ComputerAdapter,
@@ -53,7 +53,7 @@ export class ComputerService {
   stopPresentation(id: string) {
     const lease = this.lease;
     if (!lease || lease.id !== id) return Promise.resolve();
-    this.interrupted.add(lease.owner);
+    this.stopped.add(lease.owner);
     return this.release(lease.owner);
   }
 
@@ -262,8 +262,9 @@ export class ComputerService {
           );
         } catch (error) {
           throw new ComputerError(
-            error instanceof ComputerError && error.code === "user_interrupted"
-              ? "user_interrupted"
+            error instanceof ComputerError &&
+              (error.code === "user_interrupted" || error.code === "stale_frame")
+              ? error.code
               : "observation_failed",
             error instanceof Error ? error.message : String(error),
             "yes",
@@ -303,8 +304,9 @@ export class ComputerService {
         return await this.capture(lease, current, limits, true);
       } catch (error) {
         throw new ComputerError(
-          error instanceof ComputerError && error.code === "user_interrupted"
-            ? "user_interrupted"
+          error instanceof ComputerError &&
+            (error.code === "user_interrupted" || error.code === "stale_frame")
+            ? error.code
             : "observation_failed",
           error instanceof Error ? error.message : String(error),
           "yes",
@@ -389,8 +391,8 @@ export class ComputerService {
         await this.adapter.checkOwnership?.(AbortSignal.timeout(4500));
       } catch (error) {
         if (error instanceof ComputerError && error.code === "user_interrupted")
-          this.interrupted.add(owner);
-        else throw error;
+          this.stopped.add(owner);
+        else if (!(error instanceof ComputerError && error.code === "stale_frame")) throw error;
       } finally {
         await this.releaseInputs(lease);
         await this.adapter.accessibility?.reset();
@@ -473,10 +475,10 @@ export class ComputerService {
   ): Promise<T> {
     signal.throwIfAborted();
     if (!owner.active()) throw new ComputerError("cancelled", "本次桌面操作已失效");
-    if (this.interrupted.has(owner))
+    if (this.stopped.has(owner))
       throw new ComputerError(
         "user_interrupted",
-        "你已接管目标应用；本次任务不能恢复桌面控制，请等待新的用户指令",
+        "你已停止桌面控制；本次任务不能恢复，请等待新的用户指令",
       );
     if (!this.lease) {
       const lease: Lease = { id: randomUUID(), owner, controller: new AbortController() };
@@ -501,7 +503,7 @@ export class ComputerService {
         return await action(lease, current);
       } catch (error) {
         if (error instanceof ComputerError && error.code === "user_interrupted") {
-          this.interrupted.add(owner);
+          this.stopped.add(owner);
           lease.frame = undefined;
           lease.accessibility = undefined;
         }

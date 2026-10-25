@@ -265,8 +265,10 @@ export function createComputerExtension(options: {
         const applied = error instanceof ComputerError ? error.applied : "no";
         const recovery =
           code === "user_interrupted"
-            ? "The user took over the target app. Stop computer-use for this task and wait for a new user instruction. Do not retry, re-observe, reopen, or release-and-reacquire control."
-            : undefined;
+            ? "The user explicitly stopped desktop control. Stop computer-use for this task and wait for a new user instruction. Do not retry, re-observe, reopen, or release-and-reacquire control."
+            : code === "stale_frame"
+              ? "The interface or input target changed. Observe the target again and continue from its current state. Do not blindly replay an input with applied=yes or unknown."
+              : undefined;
         const failure = {
           ok: false,
           error: { code, message },

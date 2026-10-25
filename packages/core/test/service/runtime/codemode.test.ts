@@ -436,6 +436,62 @@ test.each(["standard", "codemode"] as const)(
   30000,
 );
 
+test.each(["standard", "codemode"] as const)(
+  "%s re-observes after manual interaction within the same user submission",
+  async (mode) => {
+    let observations = 0;
+    const service = new ComputerService({
+      layout: async () => {
+        throw Error("unexpected layout");
+      },
+      capture: async () => {
+        throw Error("unexpected capture");
+      },
+      input: async () => {
+        throw Error("unexpected input");
+      },
+      releaseInputs: async () => {},
+      accessibility: {
+        observe: async (target) => {
+          if (++observations === 1)
+            throw new ComputerError("stale_frame", "Manual interaction", "unknown");
+          return { id: "fresh", app: target.app, windowTitle: "test", text: "[1] AXTextField" };
+        },
+        input: async () => {
+          throw Error("unexpected AX input");
+        },
+        reset: async () => {},
+      },
+    });
+    const f = await fixture({ agentMode: mode }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    const observe = () =>
+      mode === "codemode"
+        ? script('text(await tools.computer({action:"observe",app:"TextEdit"}));')
+        : fauxAssistantMessage(fauxToolCall("computer", { action: "observe", app: "TextEdit" }), {
+            stopReason: "toolUse",
+          });
+    f.provider.setResponses([
+      observe(),
+      (context) => {
+        const result = JSON.stringify(context.messages.at(-1));
+        expect(result).toContain("stale_frame");
+        expect(result).toContain("Observe the target again");
+        expect(result).not.toContain("Stop computer-use for this task");
+        return observe();
+      },
+      (context) => {
+        expect(JSON.stringify(context.messages.at(-1))).toContain("AXTextField");
+        return fauxAssistantMessage("Continue together");
+      },
+    ]);
+    await f.run();
+    expect(observations).toBe(2);
+  },
+  30000,
+);
+
 test.each([false, true])(
   "known click/type/submit has bounded observations and model rounds (composite=%s)",
   async (combined) => {

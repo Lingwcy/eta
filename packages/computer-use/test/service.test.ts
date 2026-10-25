@@ -832,3 +832,57 @@ test("redundant application hints match admitted aliases, cannot retarget a fram
     await f.service.release(f.owner);
   }
 });
+
+test.each(["no", "unknown"] as const)(
+  "manual interaction with applied=%s invalidates the frame but permits the same task to continue",
+  async (applied) => {
+    const f = accessibleFixture();
+    const originalInput = f.adapter.accessibility!.input.bind(f.adapter.accessibility);
+    try {
+      const first = await f.service.observe(f.owner, { app: "TextEdit" }, f.signal);
+      let attempts = 0;
+      f.adapter.accessibility!.input = async () => {
+        attempts++;
+        throw new ComputerError("stale_frame", "Manual interaction", applied);
+      };
+      await expect(
+        f.service.input(f.owner, first.frame.id, { action: "type", text: "once" }, f.signal),
+      ).rejects.toMatchObject({ code: "stale_frame", applied });
+      await expect(
+        f.service.input(f.owner, first.frame.id, { action: "type", text: "replay" }, f.signal),
+      ).rejects.toMatchObject({ code: "stale_frame", applied: "no" });
+      expect(attempts).toBe(1);
+      f.adapter.accessibility!.input = originalInput;
+      const next = await f.service.observe(f.owner, { app: "TextEdit" }, f.signal);
+      await f.service.input(f.owner, next.frame.id, { action: "type", text: "continue" }, f.signal);
+      expect(f.events).toHaveLength(1);
+      // Release must drain the old helper, without permanently stopping this owner.
+      f.adapter.checkOwnership = async () => {
+        throw new ComputerError("stale_frame", "Manual interaction");
+      };
+      await f.service.release(f.owner);
+      await f.service.observe(f.owner, { app: "TextEdit" }, f.signal);
+    } finally {
+      await f.service.release(f.owner);
+    }
+  },
+);
+
+test("manual interaction after applied input preserves execution certainty and allows re-observation", async () => {
+  const f = accessibleFixture();
+  const originalObserve = f.adapter.accessibility!.observe.bind(f.adapter.accessibility);
+  try {
+    const first = await f.service.observe(f.owner, { app: "TextEdit" }, f.signal);
+    f.adapter.accessibility!.observe = async () => {
+      throw new ComputerError("stale_frame", "Manual interaction");
+    };
+    await expect(
+      f.service.input(f.owner, first.frame.id, { action: "type", text: "once" }, f.signal),
+    ).rejects.toMatchObject({ code: "stale_frame", applied: "yes" });
+    f.adapter.accessibility!.observe = originalObserve;
+    await f.service.observe(f.owner, { app: "TextEdit" }, f.signal);
+    expect(f.events).toHaveLength(1);
+  } finally {
+    await f.service.release(f.owner);
+  }
+});
