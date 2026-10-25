@@ -196,6 +196,147 @@ test("rate limits preserve stale data and respect retry deadlines; unauthenticat
   });
 });
 
+test("a delayed old GitHub session cannot replace a newer identity or clear its cache", async () => {
+  const f = await fixture();
+  f.identity("old-user");
+  const held = Promise.withResolvers<void>();
+  let sessions = 0;
+  f.beforeSession(async () => {
+    if (++sessions === 1) await held.promise;
+  });
+  f.handler(async () => response([row(2)]));
+  const old = f.core.githubQuery(f.query);
+  try {
+    await expect.poll(() => sessions, { timeout: 5000 }).toBe(1);
+    f.identity("new-user");
+    expect(await f.core.githubQuery(f.query)).toMatchObject({
+      status: "ready",
+      identity: { login: "new-user" },
+      items: [{ number: 2 }],
+    });
+    f.handler(async () => response([row(1)]));
+    held.resolve();
+    const stale = await old;
+    f.handler(async () => response([row(2)]));
+    expect(await f.core.githubQuery(f.query)).toMatchObject({
+      status: "ready",
+      identity: { login: "new-user" },
+      items: [{ number: 2 }],
+    });
+    // Only B may send a request; A must neither fetch with obsolete credentials nor evict B.
+    expect({ status: stale.status, requests: f.paths.length }).toEqual({
+      status: "error",
+      requests: 1,
+    });
+    expect(stale).toMatchObject({ status: "error", code: "unauthenticated" });
+    expect(stale).not.toHaveProperty("items");
+    expect(stale).not.toHaveProperty("cached");
+  } finally {
+    held.resolve();
+    await Promise.allSettled([old]);
+  }
+}, 20000);
+
+test("a late GitHub session with the same identity can reuse the newer cached result", async () => {
+  const f = await fixture();
+  f.identity("same-user");
+  const held = Promise.withResolvers<void>();
+  let sessions = 0;
+  f.beforeSession(async () => {
+    if (++sessions === 1) await held.promise;
+  });
+  f.handler(async () => response([row(3)]));
+  const old = f.core.githubQuery(f.query);
+  try {
+    await expect.poll(() => sessions, { timeout: 5000 }).toBe(1);
+    expect(await f.core.githubQuery(f.query)).toMatchObject({
+      status: "ready",
+      identity: { login: "same-user" },
+      items: [{ number: 3 }],
+    });
+    held.resolve();
+    expect(await old).toMatchObject({
+      status: "ready",
+      identity: { login: "same-user" },
+      items: [{ number: 3 }],
+    });
+    expect(f.paths).toHaveLength(1);
+  } finally {
+    held.resolve();
+    await Promise.allSettled([old]);
+  }
+}, 20000);
+
+test("a same-identity late session cannot make an intermediate session current", async () => {
+  const f = await fixture();
+  const first = Promise.withResolvers<void>();
+  const middle = Promise.withResolvers<void>();
+  let sessions = 0;
+  f.beforeSession(async () => {
+    const order = ++sessions;
+    if (order === 1) await first.promise;
+    if (order === 2) await middle.promise;
+  });
+  f.identity("current-user");
+  f.handler(async () => response([row(3)]));
+  const old = f.core.githubQuery(f.query);
+  let intermediate: ReturnType<typeof f.core.githubQuery> | undefined;
+  try {
+    await expect.poll(() => sessions, { timeout: 5000 }).toBe(1);
+    f.identity("middle-user");
+    intermediate = f.core.githubQuery(f.query);
+    await expect.poll(() => sessions, { timeout: 5000 }).toBe(2);
+    f.identity("current-user");
+    expect(await f.core.githubQuery(f.query)).toMatchObject({
+      status: "ready",
+      identity: { login: "current-user" },
+      items: [{ number: 3 }],
+    });
+    first.resolve();
+    expect(await old).toMatchObject({ status: "ready", identity: { login: "current-user" } });
+    middle.resolve();
+    expect(await intermediate).toMatchObject({ status: "error", code: "unauthenticated" });
+    expect(await f.core.githubQuery(f.query)).toMatchObject({
+      status: "ready",
+      identity: { login: "current-user" },
+      items: [{ number: 3 }],
+    });
+    expect(f.paths).toHaveLength(1);
+  } finally {
+    first.resolve();
+    middle.resolve();
+    await Promise.allSettled([old, ...(intermediate ? [intermediate] : [])]);
+  }
+}, 20000);
+
+test("a newer invalid query does not withdraw an older session that is still being discovered", async () => {
+  const f = await fixture();
+  f.identity("current-user");
+  const held = Promise.withResolvers<void>();
+  let sessions = 0;
+  f.beforeSession(async () => {
+    if (++sessions === 1) await held.promise;
+  });
+  f.handler(async () => response([row(5)]));
+  const old = f.core.githubQuery(f.query);
+  try {
+    await expect.poll(() => sessions, { timeout: 5000 }).toBe(1);
+    await expect(f.core.githubQuery({ ...f.query, cursor: "invalid" })).rejects.toMatchObject({
+      code: "InvalidInput",
+    });
+    held.resolve();
+    expect(await old).toMatchObject({
+      status: "ready",
+      identity: { login: "current-user" },
+      items: [{ number: 5 }],
+    });
+    expect(f.paths).toHaveLength(1);
+  } finally {
+    held.resolve();
+    await Promise.allSettled([old]);
+  }
+}, 20000);
+
 test("an identity replaced during final repository validation cannot publish an old reply", async () => {
   const f = await fixture();
   f.identity("old-user");
