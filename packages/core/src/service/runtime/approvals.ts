@@ -248,6 +248,8 @@ export function createSandboxApprovals(
       hooks: [
         hook(ToolTask, {
           authorizeTool: async (call, api, context) => {
+            const rootRunId = (await api.snapshot(LiveDoc, ROOT_CONVERSATION_ID, context))?.run
+              ?.inputs[0];
             const sandbox = await api.snapshot(SandboxDoc, context);
             if (sandbox?.mode === "danger-full-access") return;
             const mode = sandbox?.mode ?? "workspace-write";
@@ -272,8 +274,6 @@ export function createSandboxApprovals(
                 };
               if (previous.status === "pending") return { waitFor: previous.taskId };
             }
-            const rootRunId = (await api.snapshot(LiveDoc, ROOT_CONVERSATION_ID, context))?.run
-              ?.inputs[0];
             const { requiresUser: userOnly, reusable, ...fields } = scope;
             const grant = {
               ...fields,
