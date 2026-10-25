@@ -82,5 +82,7 @@ export function parseGitHubRemote(url: string): GitHubRepository | undefined {
 
 /** Remote URLs may embed tokens; DTOs only ever carry the URL without user info. */
 export function redactRemoteUrl(url: string) {
-  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/]+@/i, "$1");
+  // Userinfo can contain unescaped @ in stored Git config. Remove through the last
+  // authority separator, but never consume @ in the path, query or fragment.
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i, "$1");
 }

@@ -93,6 +93,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Redact complete URL userinfo without consuming path, query or fragment data.**
+
+- Evidence: on 2026-10-25, #452's real Core/Git controls on `a9208d9` store HTTPS/SSH remotes with an unescaped email-style username. First-`@` redaction leaves the complete fake password in the public repository DTO; separate query/fragment controls instead lose their host. Redact through the last authority separator, bounded by `/`, `?` and `#`, and leave the original Git transport configuration untouched.
+- Check: cover raw and percent-encoded userinfo, extra password delimiters, IPv6/ports and non-userinfo `@`. Use fake credentials and real DTO reads; do not infer production leakage, remote authentication success or protection of arbitrary query secrets from these tests.
+- Seen: 2026-10-25.
+
 **Check command success before treating machine-readable stdout as a complete observation.**
 
 - Evidence: on 2026-10-25, #448's real Core/Git controls on `c718f7c` corrupt a temporary index or configure an invalid fetch refspec. The corresponding `status`/`remote -v` exits 128, but unchecked stdout still produces `ready`: empty status becomes clean and a failed remote read becomes no remotes. Rejecting the failed read returns `unavailable`; repairing only the fixture restores its dirty-file counts and GitHub selection without losing files.
