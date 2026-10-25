@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import type { Context } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { defineTask, hook, ToolTask } from "@eta/agent";
+import { defineTask, hook, LiveDoc, ROOT_CONVERSATION_ID, ToolTask } from "@eta/agent";
 import type { ConversationId, Harness, JsonObject, TaskId, Tx } from "@eta/agent";
 import type { ToolCall } from "@earendil-works/pi-ai";
 import { Schema } from "effect";
@@ -14,7 +14,7 @@ import { SandboxDoc } from "./sandbox.ts";
 import { canonicalRoot } from "../../platform/sandbox/backend.ts";
 import { CoreError } from "../errors.ts";
 import { ApprovalsDoc } from "./approval-doc.ts";
-import { runGrant } from "./approval-doc.ts";
+import { activeRootRun, runGrant } from "./approval-doc.ts";
 import type { Approval } from "./approval-doc.ts";
 import { createReviewTask } from "./review.ts";
 import { gitMetadataScope } from "../git/metadata.ts";
@@ -26,6 +26,8 @@ export { ApprovalsDoc } from "./approval-doc.ts";
 
 const sameRoots = (left: readonly string[], right: readonly string[]) =>
   JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
+
+const publicApproval = ({ rootRunId: _rootRunId, ...request }: Approval) => request;
 
 /** Consecutive automatic denials in one conversation before review hands every request to the user. */
 export const REVIEW_DENIAL_LIMIT = 3;
@@ -270,13 +272,27 @@ export function createSandboxApprovals(
                 };
               if (previous.status === "pending") return { waitFor: previous.taskId };
             }
-            const { requiresUser: userOnly, ...grant } = scope;
+            const rootRunId = (await api.snapshot(LiveDoc, ROOT_CONVERSATION_ID, context))?.run
+              ?.inputs[0];
+            const { requiresUser: userOnly, reusable, ...fields } = scope;
+            const grant = {
+              ...fields,
+              ...(reusable && rootRunId !== undefined ? { reusable: true } : {}),
+            };
             const automatic = reviewTask && (await reviewerMode()) === "auto";
+            const checkAdmission = async (tx: Tx) => {
+              if (
+                (await activeRootRun(tx)) !== rootRunId ||
+                (await tx.doc(SandboxDoc)).revision !== (sandbox?.revision ?? 0)
+              )
+                throw new Error("审批请求的运行或沙盒配置已失效");
+            };
             const reused =
               grant.reusable &&
               state?.runGrants?.find(
                 (candidate) =>
                   candidate.conversationId === String(api.conversationId) &&
+                  candidate.rootRunId === rootRunId &&
                   candidate.revision === (sandbox?.revision ?? 0) &&
                   sameRoots(candidate.readableRoots, grant.readableRoots) &&
                   sameRoots(candidate.writableRoots, grant.writableRoots) &&
@@ -287,8 +303,13 @@ export function createSandboxApprovals(
               await commit(
                 api.conversationId,
                 async (tx) => {
-                  (await tx.doc(ApprovalsDoc)).requests.push({
+                  await checkAdmission(tx);
+                  const doc = await tx.doc(ApprovalsDoc);
+                  if (!doc.runGrants?.some((candidate) => candidate.id === reused.id))
+                    throw new Error("本次运行的 Git 授权已失效");
+                  doc.requests.push({
                     id: randomUUID(),
+                    ...(rootRunId === undefined ? {} : { rootRunId }),
                     taskId: reused.taskId,
                     toolTaskId: String(api.taskId),
                     conversationId: String(api.conversationId),
@@ -311,6 +332,7 @@ export function createSandboxApprovals(
             await commit(
               api.conversationId,
               async (tx) => {
+                await checkAdmission(tx);
                 const doc = await tx.doc(ApprovalsDoc);
                 taskId = await tx.createTask(
                   task,
@@ -332,6 +354,7 @@ export function createSandboxApprovals(
                   );
                 doc.requests.push({
                   id,
+                  ...(rootRunId === undefined ? {} : { rootRunId }),
                   taskId,
                   toolTaskId: String(api.taskId),
                   conversationId: String(api.conversationId),
@@ -372,9 +395,9 @@ export function createSandboxApprovals(
       ],
     },
     list: async () =>
-      (await harness().snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.requests.filter(
-        (request) => request.status === "pending",
-      ) ?? [],
+      ((await harness().snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.requests ?? [])
+        .filter((request) => request.status === "pending")
+        .map(publicApproval),
     /** Recent decisions made without the user, so the client can show what was granted on its behalf. */
     history: async (limit = 20) =>
       ((await harness().snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.requests ?? [])
@@ -383,7 +406,8 @@ export function createSandboxApprovals(
             request.status !== "pending" &&
             (request.decidedBy === "auto" || request.decidedBy === "reuse"),
         )
-        .slice(-limit),
+        .slice(-limit)
+        .map(publicApproval),
     invalidate: async (conversationId: ConversationId) => {
       await commit(
         conversationId,
@@ -396,13 +420,17 @@ export function createSandboxApprovals(
         BACKGROUND_CONTEXT,
       );
     },
-    /** Run-scoped grants end with the root run that earned them. */
+    /** A late idle cleanup may retire old grants, never those of a replacement root run. */
     expireRunGrants: async (conversationId: ConversationId) => {
       await commit(
         conversationId,
         async (tx) => {
           const doc = await tx.doc(ApprovalsDoc);
-          if (doc.runGrants?.length) doc.runGrants = [];
+          const rootRunId = await activeRootRun(tx);
+          if (doc.runGrants?.length)
+            doc.runGrants = doc.runGrants.filter(
+              (grant) => rootRunId !== undefined && grant.rootRunId === rootRunId,
+            );
         },
         BACKGROUND_CONTEXT,
       );
@@ -438,7 +466,13 @@ export function createSandboxApprovals(
             throw new CoreError({ code: "InvalidInput", message: "审批请求已失效" });
           request.status = approved ? "approved" : "denied";
           request.decidedBy = "user";
-          if (approved && reuse === "run" && request.reusable) {
+          if (
+            approved &&
+            reuse === "run" &&
+            request.reusable &&
+            request.rootRunId !== undefined &&
+            request.rootRunId === (await activeRootRun(tx))
+          ) {
             request.reuse = "run";
             // Assign a new array: values pushed onto an array after assigning it are not tracked.
             doc.runGrants = [...(doc.runGrants ?? []), runGrant(request, "user")];
