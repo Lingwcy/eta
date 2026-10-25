@@ -41,6 +41,7 @@ export const SubagentsDoc = defineDoc<{
   version: 1,
   scope: "session",
   initial: () => ({ stopping: false, revision: 0, agents: [], requests: {} }),
+  checkpointWhen: () => false,
 });
 
 export function childPath(

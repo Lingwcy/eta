@@ -1,4 +1,9 @@
 export default {
+  "computerOverlay.unavailable": "预览暂不可用",
+  "computerOverlay.active": "正在操作",
+  "computerOverlay.waiting": "正在获取目标窗口…",
+  "computerOverlay.stop": "停止桌面控制",
+
   "background.tooltip": "Eta · 后台运行",
   "background.open": "打开 Eta",
   "background.quit": "退出 Eta",

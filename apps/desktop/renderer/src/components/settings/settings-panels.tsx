@@ -75,6 +75,9 @@ export const settingsPanels = {
     <PermissionSettings
       agentMode={props.library.settings.agentMode ?? defaultAgentMode}
       onAgentModeChange={(agentMode) => update(props, { agentMode })}
+      onComputerUseChange={(computerUse) =>
+        update(props, computerUse ? { computerUse, blockImages: false } : { computerUse })
+      }
       library={props.library}
       active={props.active}
       reviewer={props.library.settings.approvalReviewer}

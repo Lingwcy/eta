@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { Module, createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -31,14 +32,50 @@ try {
   const electron = {
     app: { requestSingleInstanceLock: () => false, quit() {} },
     ipcMain: { on() {}, handle() {} },
+    systemPreferences: {
+      getMediaAccessStatus: () => "granted",
+      isTrustedAccessibilityClient: () => true,
+    },
   };
   const require = compiled.require.bind(compiled);
   compiled.require = (id) => (id === "electron" ? electron : require(id));
-  compiled._compile(
-    (await readFile(entry, "utf8")) +
-      "\nmodule.exports = { createDesktopApplication, processImage, RuntimeCodemodeSandbox };\n",
-    entry,
-  );
+  // Multiple Electron entries share generated chunks. Scope the test shim to their
+  // synchronous load as well as the entry; RUN_AS_NODE has no Electron built-in.
+  const sourceText = await readFile(entry, "utf8");
+  const load = Module._load;
+  try {
+    Module._load = function (id, ...args) {
+      return id === "electron" ? electron : load.call(this, id, ...args);
+    };
+    compiled._compile(
+      sourceText +
+        "\nmodule.exports = { createDesktopApplication, processImage, RuntimeCodemodeSandbox, createElectronComputer };\n",
+      entry,
+    );
+  } finally {
+    Module._load = load;
+  }
+  // Construct the settings-controlled host from the staged entry without capturing or injecting input.
+  if (process.platform === "darwin") {
+    const native = join(
+      isolated,
+      asar ? "app.asar.unpacked/dist/electron" : "dist/electron",
+      "computer-native/eta-accessibility",
+    );
+    assert.deepEqual(
+      JSON.parse(execFileSync(native, ["--self-test"], { encoding: "utf8", timeout: 10_000 })),
+      { protocol: 1, accessibility: true, backgroundInput: true },
+      "Packaged helper must execute with its required native symbols outside the workspace",
+    );
+    const computer = compiled.exports.createElectronComputer();
+    assert.ok(computer?.enabled(), "Packaged native desktop capability must load");
+    assert.equal(
+      computer.status().status,
+      "ready",
+      "The desktop host must resolve the packaged helper",
+    );
+    assert.equal(typeof computer.service.screenshot, "function");
+  }
   const image = await compiled.exports.processImage(
     Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"),
     "test.gif",

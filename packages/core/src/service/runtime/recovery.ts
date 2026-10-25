@@ -30,7 +30,7 @@ export async function hasPersistedWork(storage: Storage) {
     if ((await storage.scanSubmissions({ status }, 1, undefined, BACKGROUND_CONTEXT)).items.length)
       return true;
   }
-  for (const status of ["pending", "running", "waiting", "completing"] as const) {
+  for (const status of ["pending", "running", "waiting", "sleeping", "completing"] as const) {
     let page = await storage.scanTasks({ status }, 64, undefined, BACKGROUND_CONTEXT);
     for (;;) {
       if (requiresRecovery({ submissions: [], tasks: page.items.map((record) => ({ record })) }))

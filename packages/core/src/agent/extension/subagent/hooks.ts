@@ -120,7 +120,9 @@ export function createSubagentHooks({
           api.conversationId === ROOT_CONVERSATION_ID &&
           policy.enabled !== false &&
           policy.mode === "orchestrator" &&
-          call.name !== "subagent"
+          call.name !== "subagent" &&
+          call.name !== "codemode" &&
+          !options.orchestratorTools?.some((tool) => tool.name === call.name)
         )
           return { block: "Orchestrator mode: delegate execution with the subagent tool." };
         return undefined;

@@ -13,6 +13,7 @@ import { desktopServices } from "../service/layer.ts";
 import { ModelCatalogService } from "../service/models/index.ts";
 import { DesktopSettingsService } from "../service/settings/index.ts";
 import { SkillsService } from "../service/skills/index.ts";
+import type { CoreEnvironment } from "@eta/core/service/environment";
 
 const directories: string[] = [];
 const runtimes: { dispose(): Promise<void> }[] = [];
@@ -24,7 +25,7 @@ afterEach(async () => {
 });
 
 /** Uses Desktop's real host adapters for IPC and settings integration tests. */
-export async function setup(withImages = false) {
+export async function setup(withImages = false, computer?: CoreEnvironment["computer"]) {
   const directory = await mkdtemp(join(tmpdir(), "eta-desktop-integration-"));
   directories.push(directory);
   const cwd = join(directory, "project");
@@ -36,7 +37,9 @@ export async function setup(withImages = false) {
   );
   const provider = fauxProvider({
     provider: "eta-test",
-    models: [{ id: "one" }],
+    models: [
+      { id: "one", ...(withImages ? { input: ["text", "image"] as ("text" | "image")[] } : {}) },
+    ],
     tokensPerSecond: 1000,
   });
   const title = fauxProvider({
@@ -59,6 +62,7 @@ export async function setup(withImages = false) {
         ModelCatalogService.layerWith(models),
         withImages ? processImage : undefined,
         SkillsService.layerWith(directory),
+        computer,
       ),
     );
     runtimes.push(runtime);

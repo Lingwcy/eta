@@ -1,11 +1,12 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { GenerationTask, ROOT_CONVERSATION_ID, hook } from "@eta/agent";
-import type { Harness, Registry, Conversation } from "@eta/agent";
+import type { Harness, Registry, Conversation, Extension } from "@eta/agent";
 import { omitImages } from "../../images/content.ts";
 import type { RuntimeSettings } from "../../shared/runtime-settings.ts";
 import type { SkillCatalog } from "../../skills/types.ts";
 import type { createSubagentsExtension } from "../../agent/extension/subagent/index.ts";
 import { createSkillsExtension, SkillsDoc } from "../skills/extension.ts";
+import { boundComputerImages } from "../../computer/images.ts";
 
 export function createRuntimeTools({
   registry,
@@ -24,12 +25,19 @@ export function createRuntimeTools({
 }) {
   const codingTools = registry.snapshot().extension("coding-tools")!;
   const codemode = registry.snapshot().extension("codemode")!.tools![0]!;
+  let computer: Extension | undefined;
   let skills = createSkillsExtension(
     { directories: [], skills: [], issues: [] },
     { defaultThinkingLevel: "off" },
   );
   const refreshTools = async () => {
     const settings = await readSettings();
+    computer ??= registry.snapshot().extension("computer");
+    if (computer)
+      registry.install({
+        ...computer,
+        tools: settings.computerUse && !settings.blockImages ? computer.tools : [],
+      });
     const subagentsEnabled = settings.subagents?.enabled !== false;
     // Keep task definitions installed so existing delegates can finish or be stopped while disabled.
     registry.install({
@@ -51,7 +59,12 @@ export function createRuntimeTools({
         {
           tools:
             subagentsEnabled && settings.subagents?.mode === "orchestrator"
-              ? [codemode, subagents.tool, schedule]
+              ? [
+                  codemode,
+                  subagents.tool,
+                  schedule,
+                  ...(registry.snapshot().extension("computer")?.tools ?? []),
+                ]
               : { remove: [subagents.updateTool] },
         },
         BACKGROUND_CONTEXT,
@@ -62,8 +75,11 @@ export function createRuntimeTools({
     name: "desktop-image-settings",
     hooks: [
       hook(GenerationTask, {
-        beforeRequest: async ({ messages }) =>
-          (await readSettings()).blockImages ? { messages: omitImages(messages) } : undefined,
+        beforeRequest: async ({ messages }) => ({
+          messages: (await readSettings()).blockImages
+            ? omitImages(messages)
+            : boundComputerImages(messages),
+        }),
       }),
     ],
   });

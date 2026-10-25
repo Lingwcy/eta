@@ -1,7 +1,11 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { fauxAssistantMessage } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
+import type { TranscriptContext } from "@earendil-works/pi-ai";
+import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
+import { ComputerService } from "@eta/computer-use/service";
+import type { ComputerAdapter } from "@eta/computer-use/protocol";
 import { expect, test } from "vite-plus/test";
 import { commandReply, dispatchCommand } from "./ipc.ts";
 import type { DesktopApplication } from "./bootstrap.ts";
@@ -9,6 +13,217 @@ import { setup } from "./tests/runtime-fixture.ts";
 import { SkillsService } from "./service/skills/index.ts";
 import { DesktopSettingsService } from "./service/settings/index.ts";
 import { ThreadService } from "@eta/core/service/threads/index";
+
+test("turning computer use off cancels an in-flight observation and allows a later grant", async () => {
+  const entered = Promise.withResolvers<AbortSignal>();
+  const held = Promise.withResolvers<void>();
+  const layout = { id: "one", revision: "one", bounds: { x: 0, y: 0, width: 100, height: 100 } };
+  const capture = {
+    width: 1,
+    height: 1,
+    layout,
+    image: {
+      type: "image" as const,
+      mimeType: "image/png",
+      data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1sAAAAASUVORK5CYII=",
+    },
+  };
+  let cleaned = 0;
+  const adapter: ComputerAdapter = {
+    layout: async () => layout,
+    capture: async (signal) => {
+      entered.resolve(signal);
+      await held.promise;
+      signal.throwIfAborted();
+      return capture;
+    },
+    input: async () => {
+      throw new Error("unexpected input");
+    },
+    releaseInputs: async () => {
+      cleaned++;
+    },
+  };
+  const f = await setup(true, { service: new ComputerService(adapter), enabled: () => true });
+  await f.runtime.runPromise(f.settings.update({ agentMode: "standard", computerUse: true }));
+  f.provider.setResponses([
+    fauxAssistantMessage(fauxToolCall("computer", { action: "screenshot" }), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage("Stopped observation"),
+  ]);
+  const admission = await f.runtime.runPromise(f.threads.submit(f.created.id, "Observe"));
+  try {
+    const signal = await entered.promise;
+    await f.runtime.runPromise(f.settings.update({ computerUse: false }));
+    await expect.poll(() => signal.aborted).toBe(true);
+  } finally {
+    held.resolve();
+  }
+  await expect
+    .poll(
+      async () =>
+        (await f.runtime.runPromise(f.threads.operation(f.created.id, admission.operationId)))
+          .status,
+      { timeout: 15000 },
+    )
+    .toBe("completed");
+  expect(cleaned).toBeGreaterThan(0);
+  adapter.capture = async () => capture;
+  await f.runtime.runPromise(f.settings.update({ computerUse: true }));
+  f.provider.setResponses([
+    fauxAssistantMessage(fauxToolCall("computer", { action: "screenshot" }), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage("New observation"),
+  ]);
+  const next = await f.runtime.runPromise(f.threads.submit(f.created.id, "Observe again"));
+  await expect
+    .poll(
+      async () =>
+        (await f.runtime.runPromise(f.threads.operation(f.created.id, next.operationId))).status,
+      { timeout: 15000 },
+    )
+    .toBe("completed");
+  const state = await f.runtime.runPromise(f.threads.open(f.created.id));
+  expect(JSON.stringify(state)).toContain(capture.image.data);
+});
+
+test.each(
+  (["standard", "codemode"] as const).flatMap((mode) =>
+    [false, true].map((restart) => ({ mode, restart })),
+  ),
+)(
+  "the persisted permissions switch controls $mode chat (restart=$restart)",
+  async ({ mode, restart }) => {
+    const png =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1sAAAAASUVORK5CYII=";
+    const layout = {
+      id: "primary",
+      revision: "one",
+      bounds: { x: 0, y: 0, width: 100, height: 100 },
+    };
+    let captures = 0;
+    const service = new ComputerService({
+      layout: async () => layout,
+      capture: async () => {
+        captures++;
+        return {
+          width: 1,
+          height: 1,
+          layout,
+          image: { type: "image", mimeType: "image/png", data: png },
+        };
+      },
+      input: async () => {},
+      releaseInputs: async () => {},
+    });
+    const f = await setup(true, { service, enabled: () => true });
+    const application = {
+      updateSettings: (patch) => f.runtime.runPromise(f.settings.update(patch)),
+    } satisfies Pick<DesktopApplication, "updateSettings">;
+    await f.runtime.runPromise(f.settings.update({ agentMode: mode }));
+    let checked = 0;
+    let codeChecks = 0;
+    const observe = () =>
+      mode === "standard"
+        ? fauxAssistantMessage(fauxToolCall("computer", { action: "screenshot" }), {
+            stopReason: "toolUse",
+          })
+        : fauxAssistantMessage(
+            fauxToolCall("codemode", {
+              code: 'const r=await tools.computer({action:"screenshot"});if(!r.ok)throw Error(r.error.message);image(r.image);',
+            }),
+            { stopReason: "toolUse" },
+          );
+    const run = async (enabled: boolean) => {
+      f.provider.setResponses([
+        (context) => {
+          if (mode === "standard")
+            expect(getCurrentTools(context.messages).some((tool) => tool.name === "computer")).toBe(
+              enabled,
+            );
+          checked++;
+          if (mode === "codemode")
+            return fauxAssistantMessage(
+              fauxToolCall("codemode", {
+                code: `if(ALL_TOOLS.some(t=>t.name==="computer")!==${enabled})throw Error("Incorrect computer availability");${enabled ? 'const r=await tools.computer({action:"screenshot"});if(!r.ok)throw Error(r.error.message);image(r.image);' : ""}text("Permission checked");`,
+              }),
+              { stopReason: "toolUse" },
+            );
+          return enabled ? observe() : fauxAssistantMessage("Disabled");
+        },
+        ...(mode === "codemode"
+          ? [
+              (context: TranscriptContext) => {
+                const result = context.messages.findLast(
+                  (message) => message.role === "toolResult",
+                );
+                expect(result?.role === "toolResult" && result.isError).toBe(false);
+                codeChecks++;
+                return fauxAssistantMessage("Observed");
+              },
+            ]
+          : enabled
+            ? [fauxAssistantMessage("Observed")]
+            : []),
+      ]);
+      const admission = await f.runtime.runPromise(f.threads.submit(f.created.id, "Use desktop"));
+      await expect
+        .poll(
+          async () =>
+            (await f.runtime.runPromise(f.threads.operation(f.created.id, admission.operationId)))
+              .status,
+          { timeout: 15000 },
+        )
+        .toBe("completed");
+    };
+    if (!restart) {
+      await run(false);
+      await dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { computerUse: true },
+      });
+      await run(true);
+      await dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { computerUse: false },
+      });
+      await run(false);
+      await dispatchCommand(application as DesktopApplication, {
+        type: "settings",
+        patch: { computerUse: true },
+      });
+      await run(true);
+      expect(checked).toBe(4);
+      if (mode === "codemode") expect(codeChecks).toBe(4);
+      expect(captures).toBe(2);
+      return;
+    }
+    await dispatchCommand(application as DesktopApplication, {
+      type: "settings",
+      patch: { computerUse: true },
+    });
+    await run(true);
+    expect(captures).toBe(1);
+    await f.runtime.dispose();
+    const next = f.reopen();
+    const preferences = await next.runPromise(DesktopSettingsService);
+    expect((await next.runPromise(preferences.read)).computerUse).toBe(true);
+    const threads = await next.runPromise(ThreadService);
+    f.provider.setResponses([observe(), fauxAssistantMessage("Observed after restart")]);
+    const admission = await next.runPromise(threads.submit(f.created.id, "Observe after restart"));
+    await expect
+      .poll(
+        async () =>
+          (await next.runPromise(threads.operation(f.created.id, admission.operationId))).status,
+        { timeout: 15000 },
+      )
+      .toBe("completed");
+    expect(captures).toBe(2);
+  },
+  30000,
+);
 
 test("persisted desktop skill preferences reach Core after reopening the service graph", async () => {
   const { runtime, settings, cwd, created, reopen } = await setup();

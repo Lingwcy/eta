@@ -24,6 +24,7 @@ export const ApprovalsDoc = defineDoc<{ requests: Approval[]; runGrants?: RunGra
   version: 1,
   scope: "session",
   initial: () => ({ requests: [] }),
+  checkpointWhen: () => false,
 });
 
 /** Snapshot a request's scope; call inside the transaction that reads it. */

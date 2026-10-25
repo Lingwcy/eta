@@ -106,7 +106,8 @@ export function createDesktopWindows(
       browsers.delete(contentsId);
       if (window === currentWindow)
         window = BrowserWindow.getAllWindows().find(
-          (value) => value !== currentWindow && !value.isDestroyed(),
+          (value) =>
+            value !== currentWindow && !value.isDestroyed() && browsers.has(value.webContents.id),
         );
     });
     const url = new URL(renderTarget);

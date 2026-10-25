@@ -30,26 +30,26 @@ export function createIssueTask(capabilities: IssueCapabilities) {
     },
     phases: {
       result: async (task, runtime, context) => {
-        while (true) {
-          runtime.signal.throwIfAborted();
-          const result = await capabilities
-            .core()
-            .operation(task.input.etaThreadId, task.input.operationId);
-          runtime.signal.throwIfAborted();
-          if (["completed", "failed", "aborted"].includes(result.status)) {
-            capabilities.stage(task.input, result);
-            await runtime.commit(
-              () => ({ status: "running", checkpoint: { phase: "delivery" } }),
-              context,
-            );
-            return;
-          }
-          await runtime.sleep(runtime.now() + 100, context);
+        runtime.signal.throwIfAborted();
+        const result = await capabilities
+          .core()
+          .operation(task.input.etaThreadId, task.input.operationId);
+        runtime.signal.throwIfAborted();
+        if (["completed", "failed", "aborted"].includes(result.status)) {
+          capabilities.stage(task.input, result);
+          await runtime.commit(
+            () => ({ status: "running", checkpoint: { phase: "delivery" } }),
+            context,
+          );
+          return;
         }
+        await runtime.sleepUntil(runtime.now() + 100, { phase: "result" }, context);
       },
       delivery: async (task, runtime, context) => {
-        while (!(await capabilities.deliver(task.input.inboxId, runtime.signal)))
-          await runtime.sleep(runtime.now() + 1000, context);
+        if (!(await capabilities.deliver(task.input.inboxId, runtime.signal))) {
+          await runtime.sleepUntil(runtime.now() + 1000, { phase: "delivery" }, context);
+          return;
+        }
         runtime.signal.throwIfAborted();
         capabilities.finish(task.input.inboxId);
         await runtime.commit(
