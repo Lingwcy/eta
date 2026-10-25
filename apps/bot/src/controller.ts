@@ -3,7 +3,12 @@ import type { CoreClient, OperationAdmission, ImageAttachment } from "@eta/core"
 import { BotHttpError } from "./errors.ts";
 import type { BotLog } from "./log.ts";
 
-type AdmissionLease = { projectId: string; stopResult?: Promise<boolean> };
+type AdmissionLease = {
+  projectId: string;
+  stopResult?: Promise<boolean>;
+  pendingSubagentAdmissions: number;
+  observation: object;
+};
 
 /** Serialize writers to a checkout while allowing unrelated projects to run concurrently. */
 export class BotController {
@@ -89,7 +94,7 @@ export class BotController {
         "The project is already executing work or the concurrency limit was reached.",
       );
     // Object identity separates successive admissions of the same thread.
-    const lease = { projectId: project };
+    const lease = { projectId: project, pendingSubagentAdmissions: 0, observation: {} };
     this.active.set(id, lease);
     return lease;
   }
@@ -117,22 +122,29 @@ export class BotController {
     if (!current()) return;
     let checking = false;
     const check = async () => {
-      if (!current() || checking) return;
+      if (!current() || checking || lease.pendingSubagentAdmissions) return;
       checking = true;
+      const observation = lease.observation;
+      const ownsObservation = () => current() && lease.observation === observation;
       try {
         const state = await this.core.recovery(id);
-        if (current() && !state.pending) {
+        if (ownsObservation() && !state.pending) {
           this.release(id, lease);
           await this.pumpRecovery();
-        } else if (current() && state.queuedOnly && !state.required && !state.blockedTasks.length) {
+        } else if (
+          ownsObservation() &&
+          state.queuedOnly &&
+          !state.required &&
+          !state.blockedTasks.length
+        ) {
           const { snapshot } = await this.core.openThread(id);
           // Model errors leave follow-ups queued for the next input. End this failed turn's
           // delegated work before releasing its checkout; recurring plans can try again later.
-          if (current() && !snapshot.operation && snapshot.lastResult?.status === "failed")
+          if (ownsObservation() && !snapshot.operation && snapshot.lastResult?.status === "failed")
             await this.stopAdmission(id, lease);
         }
       } catch (error) {
-        if (current())
+        if (ownsObservation())
           this.block(id, error instanceof Error ? error.message : "Recovery inspection failed.");
       } finally {
         checking = false;
@@ -252,8 +264,20 @@ export class BotController {
     return this.track(
       (async () => {
         await this.authorize(id);
-        if (!["spawn", "send", "resume"].includes(command.action) || this.active.has(id))
+        if (!["spawn", "send", "resume"].includes(command.action))
           return this.core.subagent(id, command, requestId);
+        const existing = this.active.get(id);
+        if (existing) {
+          existing.pendingSubagentAdmissions++;
+          existing.observation = {};
+          try {
+            return await this.core.subagent(id, command, requestId);
+          } finally {
+            existing.pendingSubagentAdmissions--;
+            // A command can start and settle entirely while an older recovery read awaits.
+            existing.observation = {};
+          }
+        }
         const lease = await this.claim(id);
         try {
           const result = await this.core.subagent(id, command, requestId);
@@ -272,8 +296,13 @@ export class BotController {
   }
 
   private async stopAdmission(id: string, expectedLease?: AdmissionLease) {
+    const observation = expectedLease?.observation;
     await this.authorize(id);
-    if (expectedLease && this.active.get(id) !== expectedLease) return;
+    if (
+      expectedLease &&
+      (this.active.get(id) !== expectedLease || expectedLease.observation !== observation)
+    )
+      return;
     this.recoveryQueue.delete(id);
     const lease = this.active.get(id);
     const stopResult = Promise.withResolvers<boolean>();
