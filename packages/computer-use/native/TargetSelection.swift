@@ -6,6 +6,10 @@ enum TargetSelection {
   ) -> [Int] {
     // Accessory processes can include browser capture helpers with similar names.
     // They remain selectable by an exact name, bundle ID or PID in the caller.
+    let exact = applications.indices.filter {
+      applications[$0].name.compare(name, options: .caseInsensitive) == .orderedSame
+    }
+    if !exact.isEmpty { return exact }
     let regular = applications.indices.filter { applications[$0].regular }
     return matching(name, in: regular.map { applications[$0].name }).map { regular[$0] }
   }

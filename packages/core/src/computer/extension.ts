@@ -10,8 +10,8 @@ import { computerImageDigest } from "./images.ts";
 // The tool schema validates field types; this table owns per-action field requirements.
 const targetHints = ["app", "windowTitle"];
 const actions: Record<string, { required: string[]; optional: string[] }> = {
-  observe: { required: ["app"], optional: ["windowTitle", "screenshot"] },
-  screenshot: { required: [], optional: ["app", "windowTitle"] },
+  observe: { required: ["app"], optional: ["windowTitle", "screenshot", "surface"] },
+  screenshot: { required: [], optional: ["app", "windowTitle", "surface"] },
   release: { required: [], optional: [] },
   wait: { required: [], optional: ["durationMs"] },
   open: { required: ["app"], optional: [] },
@@ -47,6 +47,7 @@ export function createComputerExtension(options: {
     name: "computer",
     description: [
       "Observe and operate a selected local app without moving the system cursor or activating it. Prefer observe(app,windowTitle?) for an accessibility tree; choose elementIndex from that tree. observe(screenshot:true) or screenshot returns a target-window image when visual context is needed; screenshot may omit app after a target is selected. Coordinates are pixels in that image.",
+      "For menu-bar apps use observe({app,surface:'menu_bar'}) and click the numbered status item to open its menu or popover. Opening a status menu can display a panel on the current desktop. ",
       "Input requires the latest result.frame.id. Every input refreshes the tree; unchanged indexed lines may be omitted from updates. Explicit observe returns the full tree. Never reuse removed indexes or earlier frames. AX click uses AXPress or a validated element-center click when AXPress is absent; failed AX actions are not automatically retried.",
       "set_value replaces an editable value. type simulates text and optionally focuses elementIndex/point, overwrites, and presses Enter. drag takes point/to or path:[{x,y},...] for one continuous stroke; prefer path over loops of short drags for an already-decided route. durationMs controls the entire drag. Observe before choosing unknown targets; chain only already-decided steps with each preceding frame.id.",
       "Background input support varies by app. Check the returned state to confirm the effect. Post-input screenshots settle for a bounded interval; quiet pixels do not prove loading or sending finished. On error inspect applied before retrying input or sending.",
@@ -85,8 +86,13 @@ export function createComputerExtension(options: {
             "invalid_input",
             "drag requires either path (2–256 points including start/end) or point and to; do not combine them",
           );
-        if (args.action === "screenshot" && args.windowTitle && !args.app)
-          throw new ComputerError("invalid_input", "screenshot(windowTitle) requires app");
+        if (args.action === "screenshot" && (args.windowTitle || args.surface) && !args.app)
+          throw new ComputerError("invalid_input", "screenshot(windowTitle/surface) requires app");
+        if (args.surface && args.windowTitle)
+          throw new ComputerError(
+            "invalid_input",
+            "surface:menu_bar cannot be combined with windowTitle",
+          );
         if (args.point && args.elementIndex !== undefined)
           throw new ComputerError(
             "invalid_input",
@@ -134,6 +140,7 @@ export function createComputerExtension(options: {
             {
               app: args.app!,
               ...(args.windowTitle === undefined ? {} : { windowTitle: args.windowTitle }),
+              ...(args.surface === undefined ? {} : { surface: args.surface }),
             },
             signal,
             limits,
@@ -148,6 +155,7 @@ export function createComputerExtension(options: {
               ? {
                   app: args.app,
                   ...(args.windowTitle === undefined ? {} : { windowTitle: args.windowTitle }),
+                  ...(args.surface === undefined ? {} : { surface: args.surface }),
                 }
               : undefined,
           );
@@ -291,6 +299,7 @@ export function createComputerExtension(options: {
         conversationId === ROOT_CONVERSATION_ID && (await options.allowed())
           ? [
               "The computer tool is available for local desktop UI, including existing browser windows. Native browser UI control requires no browser connector or browser skill.",
+              "Menu-bar status apps: computer({action:'observe',app:'APP',surface:'menu_bar'}) selects only that app's icon. Click its numbered item to open the menu or popover on the current desktop, then inspect the returned state. A visible popover can also be observed directly by app.",
               "Start with computer({action:'observe',app:'APP'}); add windowTitle only to select a specific window. A unique partial title is accepted. Use the returned frame.id and numbered controls for input. Every input already returns an updated accessibility tree: inspect it before choosing the next target. Chain only already-decided steps with each preceding frame.id. If that state proves the task is complete, report the result; request a screenshot only when visual evidence is needed.",
               "Common inputs: {action:'click',frameId,elementIndex}, {action:'set_value',frameId,elementIndex,text}, or {action:'drag',frameId,point:{x,y},to:{x,y}}. A frame already selects the app/window; optional target hints only validate that selection.",
               "In Code mode, tools.computer is already callable; no ALL_TOOLS search or schema-discovery call is needed. First call: const r=await tools.computer({action:'observe',app:'APP'});text(r); For screenshots, output text({frame:r.frame,accessibility:r.accessibility,notes:r.notes});if(r.image)image(r.image); never print image base64. End the script to inspect unknown targets before input.",

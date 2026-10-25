@@ -24,7 +24,12 @@ type Lease = {
   owner: ComputerOwner;
   controller: AbortController;
   frame?: { capture: ComputerCapture; frame: ComputerFrame };
-  accessibility?: { state: ComputerAccessibility; frame: ComputerFrame; screenshot: boolean };
+  accessibility?: {
+    state: ComputerAccessibility;
+    frame: ComputerFrame;
+    screenshot: boolean;
+    surface?: "menu_bar";
+  };
   pending?: Promise<unknown>;
   releasing?: Promise<void>;
   timer?: ReturnType<typeof setTimeout>;
@@ -115,6 +120,7 @@ export class ComputerService {
         (lease.accessibility && {
           app: lease.accessibility.state.app,
           previousId: lease.accessibility.state.id,
+          ...(lease.accessibility.surface ? { surface: lease.accessibility.surface } : {}),
         });
       return selected
         ? await this.observeApp(lease, selected, current, limits, true)
@@ -170,7 +176,11 @@ export class ComputerService {
       return lease.accessibility
         ? this.observeApp(
             lease,
-            { app: lease.accessibility.state.app, previousId: lease.accessibility.state.id },
+            {
+              app: lease.accessibility.state.app,
+              previousId: lease.accessibility.state.id,
+              ...(lease.accessibility.surface ? { surface: lease.accessibility.surface } : {}),
+            },
             current,
             limits,
             lease.accessibility.screenshot,
@@ -365,7 +375,12 @@ export class ComputerService {
     const preview = !state.cursor || limits?.includeCursor === false ? captured?.image : undefined;
     await this.present(lease, state, signal, preview);
     this.check(lease, signal);
-    lease.accessibility = { state, frame, screenshot };
+    lease.accessibility = {
+      state,
+      frame,
+      screenshot,
+      ...(target.surface ? { surface: target.surface } : {}),
+    };
     return {
       frame,
       ...(captured ? { image: captured.image } : {}),

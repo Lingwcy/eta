@@ -886,3 +886,36 @@ test("manual interaction after applied input preserves execution certainty and a
     await f.service.release(f.owner);
   }
 });
+
+test("menu-bar screenshots stay on the selected icon and pressing it observes the opened panel", async () => {
+  const f = accessibleFixture();
+  const targets: unknown[] = [];
+  const original = f.adapter.accessibility!.observe.bind(f.adapter.accessibility);
+  f.adapter.accessibility!.observe = async (target, signal) => {
+    targets.push(target);
+    const state = await original(target, signal);
+    return { ...state, windowTitle: target.surface ? "TextEdit menu bar" : "panel" };
+  };
+  try {
+    const icon = await f.service.observe(
+      f.owner,
+      { app: "TextEdit", surface: "menu_bar" },
+      f.signal,
+    );
+    expect(icon.windowTitle).toBe("TextEdit menu bar");
+    const screenshot = await f.service.screenshot(f.owner, f.signal);
+    expect(screenshot).toHaveProperty("windowTitle", "TextEdit menu bar");
+    expect(targets.at(-1)).toMatchObject({ app: "TextEdit", surface: "menu_bar" });
+    const panel = await f.service.input(
+      f.owner,
+      screenshot.frame.id,
+      { action: "click", elementIndex: 0, button: "left", count: 1 },
+      f.signal,
+    );
+    expect(panel).toHaveProperty("windowTitle", "panel");
+    expect(targets.at(-1)).not.toHaveProperty("surface");
+    expect(f.events).toHaveLength(1);
+  } finally {
+    await f.service.release(f.owner);
+  }
+});

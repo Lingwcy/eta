@@ -37,7 +37,7 @@ func validWindowSurface(_ element: AXUIElement, _ pid: pid_t) -> Bool {
   var owner: pid_t = 0
   guard AXUIElementGetPid(element, &owner) == .success, owner == pid else { return false }
   let role = string(element, kAXRoleAttribute)
-  if role == kAXWindowRole { return true }
+  if role == kAXWindowRole || role == "AXPopover" { return true }
   // A modal sheet can be the app's AXFocusedWindow. Admit its native window only when
   // AX still anchors it to an actual window of this app; never accept an application root.
   guard role == kAXSheetRole,
