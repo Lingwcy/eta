@@ -23,6 +23,10 @@ const FileSchema = Schema.Struct({
   credentials: Schema.Record(Schema.String, CredentialSchema),
 });
 
+function credentialFor(values: Record<string, Credential>, provider: string) {
+  return Object.hasOwn(values, provider) ? values[provider] : undefined;
+}
+
 export class CredentialService extends Context.Service<
   CredentialService,
   {
@@ -76,7 +80,9 @@ export class CredentialService extends Context.Service<
       const store: CredentialStore = {
         read: async (provider, options) => {
           options?.signal?.throwIfAborted();
-          return structuredClone((await Effect.runPromise(SynchronizedRef.get(state)))[provider]);
+          return structuredClone(
+            credentialFor(await Effect.runPromise(SynchronizedRef.get(state)), provider),
+          );
         },
         list: async (options) => {
           options?.signal?.throwIfAborted();
@@ -91,11 +97,11 @@ export class CredentialService extends Context.Service<
               Effect.fnUntraced(function* (current) {
                 options?.signal?.throwIfAborted();
                 const updated = yield* Effect.tryPromise({
-                  try: () => fn(structuredClone(current[provider])),
+                  try: () => fn(structuredClone(credentialFor(current, provider))),
                   catch: (error) => error,
                 });
                 if (updated === undefined)
-                  return [structuredClone(current[provider]), current] as const;
+                  return [structuredClone(credentialFor(current, provider)), current] as const;
                 // Preserve provider-specific OAuth fields, but validate required fields without printing secrets.
                 yield* Schema.decodeUnknownEffect(CredentialSchema)(updated).pipe(
                   Effect.mapError(
@@ -166,13 +172,15 @@ export class CredentialService extends Context.Service<
             Effect.fnUntraced(function* (current) {
               if ((yield* adapter("无法读取认证文件", () => readJson(path))) !== undefined)
                 return [undefined, current] as const;
-              const next = { ...current };
-              yield* adapter("无法导入已有认证", async () => {
+              const next = yield* adapter("无法导入已有认证", async () => {
+                const entries = Object.entries(current);
                 for (const { providerId } of await source.list()) {
                   const value = await source.read(providerId);
-                  if (value) next[providerId] = value;
+                  if (value) entries.push([providerId, value]);
                 }
-                await writeJson(path, { version: 1, credentials: next });
+                const imported = Object.fromEntries(entries);
+                await writeJson(path, { version: 1, credentials: imported });
+                return imported;
               });
               return [undefined, next] as const;
             }),
