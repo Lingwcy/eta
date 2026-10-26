@@ -15,7 +15,7 @@ export const CredentialSchema = Schema.Union([
     type: Schema.Literal("oauth"),
     refresh: Schema.NonEmptyString,
     access: Schema.NonEmptyString,
-    expires: Schema.Number,
+    expires: Schema.Number.check(Schema.isFinite()),
   }),
 ]);
 const FileSchema = Schema.Struct({
@@ -170,7 +170,11 @@ export class CredentialService extends Context.Service<
               yield* adapter("无法导入已有认证", async () => {
                 for (const { providerId } of await source.list()) {
                   const value = await source.read(providerId);
-                  if (value) next[providerId] = value;
+                  if (value) {
+                    if (!Schema.is(CredentialSchema)(value))
+                      throw new CoreError({ code: "InvalidInput", message: "认证格式无效" });
+                    next[providerId] = value;
+                  }
                 }
                 await writeJson(path, { version: 1, credentials: next });
               });

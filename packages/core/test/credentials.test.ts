@@ -121,3 +121,105 @@ test("bulk import is atomic, preserves OAuth fields, and copies independent snap
     refresh: "private-refresh",
   });
 });
+
+test.each([NaN, Infinity, -Infinity])(
+  "OAuth writes reject non-finite expiry %s without replacing durable credentials",
+  async (expires) => {
+    const { directory, runtime, credentials, open } = await setup();
+    const original = {
+      type: "oauth" as const,
+      refresh: "fake-refresh",
+      access: "fake-access",
+      expires: 1234,
+      accountId: "retained",
+    };
+    await credentials.store.modify("stable", async () => original);
+    const path = join(directory, "credentials.json");
+    const before = await readFile(path, "utf8");
+    await expect(
+      credentials.store.modify("stable", async () => ({ ...original, expires })),
+    ).rejects.toMatchObject({ code: "InvalidInput" });
+    await expect(
+      runtime.runPromise(
+        credentials.import({
+          stable: { ...original, expires },
+          added: { type: "api_key", key: "fake-added" },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "InvalidInput" });
+    expect(await readFile(path, "utf8")).toBe(before);
+    expect(await runtime.runPromise(credentials.export)).toEqual({ stable: original });
+    await runtime.dispose();
+    const restored = await open().runPromise(CredentialService);
+    expect(await restored.store.read("stable")).toEqual(original);
+    await expect(restored.store.read("added")).resolves.toBeUndefined();
+  },
+);
+
+test.each([NaN, Infinity, -Infinity])(
+  "first-run migration rejects non-finite OAuth expiry %s atomically and can retry",
+  async (expires) => {
+    const { directory, runtime, credentials, open } = await setup();
+    const source = new InMemoryCredentialStore();
+    await source.modify("ordinary", async () => ({ type: "api_key", key: "fake-key" }));
+    const valid = {
+      type: "oauth" as const,
+      refresh: "fake-refresh",
+      access: "fake-access",
+      expires: 1234,
+      accountId: "retained",
+    };
+    await source.modify("oauth", async () => ({ ...valid, expires }));
+    await expect(runtime.runPromise(credentials.importOnce(source))).rejects.toMatchObject({
+      code: "InvalidInput",
+    });
+    expect(await runtime.runPromise(credentials.export)).toEqual({});
+    await expect(readFile(join(directory, "credentials.json"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await source.modify("oauth", async () => valid);
+    await runtime.runPromise(credentials.importOnce(source));
+    await runtime.dispose();
+    const restored = await open().runPromise(CredentialService);
+    expect(await restored.store.read("oauth")).toEqual(valid);
+    expect(await restored.store.read("ordinary")).toEqual({ type: "api_key", key: "fake-key" });
+  },
+);
+
+test.each([0, -1, 1234.5, Number.MAX_VALUE])(
+  "finite OAuth expiry %s survives JSON persistence without coercion",
+  async (expires) => {
+    const { runtime, credentials, open } = await setup();
+    const value = {
+      type: "oauth" as const,
+      refresh: "fake-refresh",
+      access: "fake-access",
+      expires,
+      accountId: "retained",
+    };
+    const source = new InMemoryCredentialStore();
+    await source.modify("oauth", async () => value);
+    await runtime.runPromise(credentials.importOnce(source));
+    await credentials.store.modify("oauth", async () => value);
+    await runtime.runPromise(credentials.import({ oauth: value }));
+    await runtime.dispose();
+    const restored = await open().runPromise(CredentialService);
+    expect(await restored.store.read("oauth")).toEqual(value);
+  },
+);
+
+test("overflowed OAuth expiry in an existing JSON file is rejected without rewriting secrets", async () => {
+  const { directory, runtime, open } = await setup();
+  await runtime.dispose();
+  const path = join(directory, "credentials.json");
+  const original =
+    '{"version":1,"credentials":{"oauth":{"type":"oauth","refresh":"fake-refresh","access":"fake-access","expires":1e400}}}';
+  await writeFile(path, original);
+  const error: unknown = await open()
+    .runPromise(CredentialService)
+    .catch((error: unknown) => error);
+  expect(error).toMatchObject({ code: "StorageCorrupt" });
+  expect(String(error)).not.toContain("fake-refresh");
+  expect(String(error)).not.toContain("fake-access");
+  expect(await readFile(path, "utf8")).toBe(original);
+});
