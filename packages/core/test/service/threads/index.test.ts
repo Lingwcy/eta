@@ -2867,3 +2867,116 @@ test("a new thread applies the requested configuration before its first message"
   });
   expect(created.snapshot.sandbox?.mode).toBe("read-only");
 });
+
+test.each([8000, undefined])(
+  "closing Core settles external subagent wait timeout=%s",
+  async (timeoutMs) => {
+    const { runtime, threads, registry, workspace, provider, reopen } = await setup();
+    const owner = await runtime.runPromise(threads.create(workspace.id));
+    const record = await runtime.runPromise(registry.acquire(owner.thread.sessionRef));
+    const cleanup = new AbortController();
+    const run = record.subagents.execute.bind(record.subagents);
+    let waitSignal: AbortSignal | undefined;
+    let gateSignal: AbortSignal | undefined;
+    const execute = vi
+      .spyOn(record.subagents, "execute")
+      .mockImplementation((command, actor, requestId, context = BACKGROUND_CONTEXT) => {
+        if (command.action !== "wait") return run(command, actor, requestId, context);
+        waitSignal = context.abortSignal;
+        // This extra signal is only fired in finally, so an old uninterruptible implementation can clean up.
+        gateSignal = waitSignal ? AbortSignal.any([waitSignal, cleanup.signal]) : cleanup.signal;
+        return run(command, actor, requestId, { ...context, abortSignal: gateSignal });
+      });
+    const watchDoc = vi.spyOn(record.harness, "watchDoc");
+    const isWaitWatch = ([definition, context]: readonly unknown[]) =>
+      definition === SubagentsDoc &&
+      typeof context === "object" &&
+      context !== null &&
+      "abortSignal" in context &&
+      context.abortSignal === gateSignal;
+    let watchStopped = () => false;
+    const held = holdResponse(provider, "Delegated result");
+    let ready = false;
+    void held.ready.then(() => {
+      ready = true;
+    });
+    let waiting: Promise<unknown> | undefined;
+    let closing: Promise<void> | undefined;
+    try {
+      const children = await runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "spawn",
+            name: "held",
+            message: "Hold work across close",
+            wait: false,
+          },
+          "wait-close-spawn",
+        ),
+      );
+      await expect.poll(() => ready, { timeout: 5000 }).toBe(true);
+      let waitSettled = false;
+      waiting = runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "wait",
+            path: children[0]!.path,
+            ...(timeoutMs === undefined ? {} : { timeoutMs }),
+          },
+          "wait-close-read",
+        ),
+      );
+      void waiting.then(
+        () => {
+          waitSettled = true;
+        },
+        () => {
+          waitSettled = true;
+        },
+      );
+      await expect
+        .poll(() => execute.mock.calls.some(([command]) => command.action === "wait"), {
+          timeout: 5000,
+        })
+        .toBe(true);
+      await expect.poll(() => watchDoc.mock.calls.some(isWaitWatch), { timeout: 5000 }).toBe(true);
+      const index = watchDoc.mock.calls.findIndex(isWaitWatch);
+      const watch = await watchDoc.mock.results[index]!.value;
+      if (!watch) throw new Error("Expected an actual wait watch");
+      const stopWatch = vi.spyOn(watch, "stop");
+      watchStopped = () => stopWatch.mock.calls.length > 0;
+      expect(waitSettled).toBe(false);
+      let disposed = false;
+      closing = runtime.dispose();
+      void closing.then(
+        () => {
+          disposed = true;
+        },
+        () => {
+          disposed = true;
+        },
+      );
+      await expect.poll(() => disposed, { timeout: 3000 }).toBe(true);
+      await closing;
+      await expect.poll(() => waitSettled, { timeout: 2000 }).toBe(true);
+      expect(waitSignal?.aborted).toBe(true);
+      await expect.poll(watchStopped, { timeout: 2000 }).toBe(true);
+      const next = reopen();
+      const other = await next.runPromise(ThreadService);
+      const recovered = await next.runPromise(other.open(owner.id));
+      expect(recovered.snapshot.recoveryRequired).toBe(true);
+      expect(recovered.snapshot.subagents).toHaveLength(1);
+      expect(recovered.snapshot.subagents?.[0]?.status).not.toBe("stopped");
+      await next.runPromise(other.stop(owner.id));
+    } finally {
+      cleanup.abort();
+      held.release();
+      await Promise.allSettled([...(waiting ? [waiting] : []), ...(closing ? [closing] : [])]);
+      execute.mockRestore();
+      watchDoc.mockRestore();
+    }
+  },
+  15000,
+);

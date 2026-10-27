@@ -262,18 +262,26 @@ export class ThreadService extends Context.Service<
               });
             if (command.action === "spawn" || command.action === "send")
               yield* adapter("无法更新工具", runtime.refreshTools);
-            yield* adapter("无法管理子智能体", async () => {
+            yield* adapter("无法管理子智能体", async (signal) => {
               const actor =
                 command.parent && command.parent !== "/root"
                   ? (await childRuntime(runtime, command.parent)).conversation.id
                   : runtime.conversation.id;
-              await runtime.subagents.execute(command, actor, requestId);
+              await runtime.subagents.execute(
+                command,
+                actor,
+                requestId,
+                command.action === "wait"
+                  ? { ...BACKGROUND_CONTEXT, abortSignal: signal }
+                  : BACKGROUND_CONTEXT,
+              );
+              if (command.action === "wait") signal.throwIfAborted();
               runtime.harness.resume();
             });
             return yield* adapter("无法读取子智能体", runtime.subagents.list);
           });
-          // Waiting must not hold the lock needed by stop or unrelated thread mutations.
-          return command.action === "wait" ? execute.pipe(Effect.uninterruptible) : locked(execute);
+          // A read wait must yield both the mutation lock and its fiber when Core closes.
+          return command.action === "wait" ? execute : locked(execute);
         },
         openSubagent: (id, path) =>
           Effect.gen(function* () {
