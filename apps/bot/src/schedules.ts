@@ -26,6 +26,7 @@ export function botScheduleAdapter(
   );
   return {
     ...adapter,
+    stop: (id) => controller.stop(id),
     subscribe: (listener) => controller.subscribeCapacity(listener),
     submit: async (input) => {
       try {
