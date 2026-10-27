@@ -37,13 +37,21 @@ export class ScheduleService extends Context.Service<
     proposals(threadId?: string): Effect.Effect<readonly ScheduleProposal[], CoreError>;
     runs(scheduleId: string): Effect.Effect<readonly ScheduleOccurrence[], CoreError>;
     request(requestId: string): Effect.Effect<ScheduleRequest | undefined, CoreError>;
-    write(input: ScheduleWriteInput): Effect.Effect<ScheduleRequest, CoreError>;
+    /** User controls stop execution here; agent tool writes must not cancel their own turn. */
+    write<E = never>(
+      input: ScheduleWriteInput,
+      beforeDelete?: Effect.Effect<void, E>,
+    ): Effect.Effect<ScheduleRequest, CoreError | E>;
     propose(input: ScheduleProposeInput): Effect.Effect<ScheduleRequest, CoreError>;
     decide(
       input: ScheduleDecisionInput,
       approved: boolean,
     ): Effect.Effect<ScheduleRequest, CoreError>;
-    runNow(input: ScheduleRunInput): Effect.Effect<ScheduleRequest, CoreError>;
+    /** Restart is inspected only for a validated, fresh manual request inside the admission gate. */
+    runNow<E = never>(
+      input: ScheduleRunInput,
+      restart?: Effect.Effect<boolean, E>,
+    ): Effect.Effect<ScheduleRequest, CoreError | E>;
     subscribe(listener: () => void): () => void;
   }
 >()("eta/core/service/schedules/ScheduleService") {
@@ -81,7 +89,10 @@ export class ScheduleService extends Context.Service<
           yield* workspaces.validate(thread.workspaceId);
         }
       });
-      const write = Effect.fn("ScheduleService.write")(function* (raw: ScheduleWriteInput) {
+      const write = Effect.fn("ScheduleService.write")(function* <E = never>(
+        raw: ScheduleWriteInput,
+        beforeDelete?: Effect.Effect<void, E>,
+      ) {
         const input = yield* decodeWrite(raw).pipe(Effect.mapError(inputError));
         return yield* gate.withThread(
           input.threadId,
@@ -89,13 +100,30 @@ export class ScheduleService extends Context.Service<
             yield* validateWorkspace(input.threadId, input.requestId);
             const currentCatalog = yield* catalog.read;
             const now = DateTime.toEpochMillis(yield* DateTime.now);
+            if (input.change.action === "delete" && beforeDelete) {
+              const before = yield* store.read;
+              const preview = writeScheduleChange(
+                scheduleDraft(before),
+                input,
+                currentCatalog,
+                now,
+              );
+              if (!getScheduleRequest(before, input.requestId) && preview.state !== "rejected") {
+                if (preview.state === "pending")
+                  return yield* new CoreError({
+                    code: "Busy",
+                    message: "定时任务投递结果正在核对，请稍后重试",
+                  });
+                yield* beforeDelete;
+              }
+            }
             const state = yield* store.update((state) => {
               const draft = scheduleDraft(state);
               writeScheduleChange(draft, input, currentCatalog, now);
               return draft;
             });
             return state.requests[input.requestId];
-          }),
+          }).pipe(Effect.uninterruptible),
         );
       });
       const propose = Effect.fn("ScheduleService.propose")(function* (raw: ScheduleProposeInput) {
@@ -142,7 +170,10 @@ export class ScheduleService extends Context.Service<
           }),
         );
       });
-      const runNow = Effect.fn("ScheduleService.runNow")(function* (raw: ScheduleRunInput) {
+      const runNow = Effect.fn("ScheduleService.runNow")(function* <E = never>(
+        raw: ScheduleRunInput,
+        restart?: Effect.Effect<boolean, E>,
+      ) {
         const input = yield* decodeRun(raw).pipe(Effect.mapError(inputError));
         return yield* gate.withThread(
           input.threadId,
@@ -150,13 +181,36 @@ export class ScheduleService extends Context.Service<
             yield* validateWorkspace(input.threadId, input.requestId);
             const currentCatalog = yield* catalog.read;
             const now = DateTime.toEpochMillis(yield* DateTime.now);
+            let restarted = false;
+            if (restart) {
+              const before = yield* store.read;
+              const preview = runScheduleNow(
+                scheduleDraft(before),
+                input,
+                currentCatalog,
+                now,
+                true,
+              );
+              if (!getScheduleRequest(before, input.requestId) && preview.state === "applied") {
+                if (
+                  Object.values(before.occurrences).some(
+                    (run) => run.threadId === input.threadId && run.state === "dispatching",
+                  )
+                )
+                  return yield* new CoreError({
+                    code: "Busy",
+                    message: "定时任务投递结果正在核对，请稍后重试",
+                  });
+                restarted = yield* restart;
+              }
+            }
             const state = yield* store.update((state) => {
               const draft = scheduleDraft(state);
-              runScheduleNow(draft, input, currentCatalog, now);
+              runScheduleNow(draft, input, currentCatalog, now, restarted);
               return draft;
             });
             return state.requests[input.requestId];
-          }),
+          }).pipe(Effect.uninterruptible),
         );
       });
       return ScheduleService.of({

@@ -17,6 +17,8 @@ import { BotController } from "./controller.ts";
 import { BotProjects } from "./projects.ts";
 import { BotStore } from "./store.ts";
 import { SandboxModeSchema, sandboxModes } from "@eta/core/shared/sandbox";
+import { diagnoseRequest } from "./request-diagnostics.ts";
+import type { BotLog } from "./log.ts";
 
 const RequestId = Schema.NonEmptyString.check(Schema.isMaxLength(256));
 const Create = Schema.Struct({
@@ -88,6 +90,7 @@ export function createHttpApp(options: {
   workspaceProjects: ReadonlyMap<string, string>;
   shutdown: AbortSignal;
   extensionStatus?: () => unknown;
+  log?: BotLog;
 }) {
   const { config, core, controller, store, workspaceProjects, shutdown } = options;
   const app = new Hono();
@@ -192,22 +195,35 @@ export function createHttpApp(options: {
   // Single-thread reads need fresh target scope, not unrelated project discovery.
   app.get("/v1/threads/:id", async (context) => {
     const id = context.req.param("id");
-    await options.projects.refreshForThread(id);
-    await controller.authorize(id);
-    return context.json(displaySnapshot(await core.openThread(id)));
+    return diagnoseRequest(options.log, "thread.read", async (phase) => {
+      await options.projects.refreshForThread(id);
+      phase("authorize");
+      await controller.authorize(id);
+      phase("open");
+      const snapshot = await core.openThread(id);
+      phase("encode");
+      return context.json(displaySnapshot(snapshot));
+    });
   });
   app.get("/v1/threads/:id/operations/:operationId", async (context) => {
     const id = context.req.param("id");
-    await options.projects.refreshForThread(id);
-    await controller.authorize(id);
-    return context.json(
-      displayOperation(await core.operation(id, context.req.param("operationId"))),
-    );
+    return diagnoseRequest(options.log, "thread.operation", async (phase) => {
+      await options.projects.refreshForThread(id);
+      phase("authorize");
+      await controller.authorize(id);
+      phase("open");
+      const operation = await core.operation(id, context.req.param("operationId"));
+      phase("encode");
+      return context.json(displayOperation(operation));
+    });
   });
   app.get("/v1/threads/:id/events", async (context) => {
     const id = context.req.param("id");
-    await options.projects.refreshForThread(id);
-    await controller.authorize(id);
+    await diagnoseRequest(options.log, "thread.subscribe", async (phase) => {
+      await options.projects.refreshForThread(id);
+      phase("authorize");
+      await controller.authorize(id);
+    });
     const signal = AbortSignal.any([shutdown, context.req.raw.signal]);
     const encoder =
       context.req.header("x-eta-snapshot") === "delta-v1" ? new SnapshotDeltaEncoder() : undefined;
@@ -228,27 +244,30 @@ export function createHttpApp(options: {
       try {
         if (signal.aborted) return;
         stopHeartbeat = heartbeat(stream, end);
-        stop = await core.subscribe(
-          id,
-          async (snapshot) => {
-            if (!signal.aborted && !stopped)
-              await stream.writeSSE(
-                encoder
-                  ? encoder.encode(displaySnapshot(snapshot))
-                  : {
-                      event: "snapshot",
-                      data: JSON.stringify(displaySnapshot(snapshot)),
-                    },
-              );
-          },
-          (message) => {
-            void stream
-              .writeSSE({ event: "error", data: JSON.stringify({ message }) })
-              .catch(() => {});
-            end();
-          },
-          context.req.query("path"),
-        );
+        stop = await diagnoseRequest(options.log, "thread.subscribe", async (phase) => {
+          phase("subscribe");
+          return core.subscribe(
+            id,
+            async (snapshot) => {
+              if (!signal.aborted && !stopped)
+                await stream.writeSSE(
+                  encoder
+                    ? encoder.encode(displaySnapshot(snapshot))
+                    : {
+                        event: "snapshot",
+                        data: JSON.stringify(displaySnapshot(snapshot)),
+                      },
+                );
+            },
+            (message) => {
+              void stream
+                .writeSSE({ event: "error", data: JSON.stringify({ message }) })
+                .catch(() => {});
+              end();
+            },
+            context.req.query("path"),
+          );
+        });
         if (signal.aborted || stopped) end();
         await ended.promise;
       } finally {
@@ -392,8 +411,13 @@ export function createHttpApp(options: {
   };
   app.get("/v1/workspaces/:id/git", async (context) => {
     const id = context.req.param("id");
-    await options.projects.refreshForWorkspace(id);
-    return context.json(await core.gitRepository(ownedWorkspace(id)));
+    return diagnoseRequest(options.log, "workspace.git", async (phase) => {
+      await options.projects.refreshForWorkspace(id);
+      phase("git");
+      const repository = await core.gitRepository(ownedWorkspace(id));
+      phase("encode");
+      return context.json(repository);
+    });
   });
   app.get("/v1/workspaces/:id/branches", async (context) => {
     const id = context.req.param("id");

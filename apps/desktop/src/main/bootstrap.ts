@@ -123,11 +123,23 @@ async function createLocalDesktopApplication(
     };
     return {
       scheduleSnapshot: () => run(schedules.snapshot),
-      writeSchedule: (input: ScheduleWriteInput) => run(schedules.write(input)),
+      writeSchedule: (input: ScheduleWriteInput) =>
+        run(schedules.write(input, threads.stop(input.threadId))),
       proposeSchedule: (input: ScheduleProposeInput) => run(schedules.propose(input)),
       decideSchedule: (input: ScheduleDecisionInput, approved: boolean) =>
         run(schedules.decide(input, approved)),
-      runSchedule: (input: ScheduleRunInput) => run(schedules.runNow(input)),
+      runSchedule: (input: ScheduleRunInput) =>
+        run(
+          schedules.runNow(
+            input,
+            Effect.gen(function* () {
+              const recovery = yield* threads.recovery(input.threadId);
+              if (!recovery.required && !recovery.blockedTasks.length) return false;
+              yield* threads.stop(input.threadId);
+              return true;
+            }),
+          ),
+        ),
       scheduleRuns: (scheduleId: string) => run(schedules.runs(scheduleId)),
       scheduleRequest: (_threadId: string, requestId: string) => run(schedules.request(requestId)),
       subscribeSchedules: (listener: () => void) => schedules.subscribe(listener),

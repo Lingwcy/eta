@@ -128,6 +128,7 @@ export async function createBotApplication(
       store,
       workspaceProjects,
       shutdown: shutdown.signal,
+      log,
       extensionStatus: () => registered.status(),
     });
     extensions.mount(app);

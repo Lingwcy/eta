@@ -117,7 +117,7 @@ test.each([
   ["worktree", false],
   ["worktree", true],
 ] as const)(
-  "persisted work blocks %s before and after opening history (warm=%s)",
+  "persisted work is stopped by delete and blocks other lifecycle changes: %s (warm=%s)",
   async (action, warm) => {
     const state = await fixture(action === "worktree");
     try {
@@ -136,6 +136,15 @@ test.each([
           : action === "archive"
             ? restored.archiveThread(state.thread.id, true)
             : restored.removeWorktree(state.workspace.id, "worktree-remove");
+      if (action === "delete") {
+        await mutate();
+        expect(
+          (await restored.threads(undefined, true)).find((value) => value.id === state.thread.id),
+        ).toBeUndefined();
+        expect(state.calls()).toBe(1);
+        await expect(readFile(state.file)).rejects.toMatchObject({ code: "ENOENT" });
+        return;
+      }
       let failure: unknown;
       try {
         await mutate();
