@@ -4016,6 +4016,52 @@ test("coalesced folder requests revalidate their own scope after the creator pub
   }
 }, 15000);
 
+test("a project request reading its body at shutdown rejects closed-store ingress", async () => {
+  const { bot, config } = await fixture(true);
+  const release = Promise.withResolvers<void>();
+  let reading = false;
+  const body = new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        reading = true;
+        await release.promise;
+        controller.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({
+              name: "late-folder",
+              requestId: "late-body-at-shutdown",
+            }),
+          ),
+        );
+        controller.close();
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const init = {
+    method: "POST",
+    headers: { authorization: "Bearer " + config.adminToken, "content-type": "application/json" },
+    body,
+    duplex: "half" as const,
+  };
+  const pending = Promise.resolve(
+    bot.app.request(new Request("http://localhost/v1/projects", init)),
+  );
+  try {
+    // Zero buffering means a pull starts only when the authenticated handler reads the body.
+    await expect.poll(() => reading, { timeout: 5000 }).toBe(true);
+    await bot.close();
+    release.resolve();
+    const response = await pending;
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: { code: "RuntimeClosing" } });
+    expect(await readdir(config.workspaceRoot)).toEqual([]);
+  } finally {
+    release.resolve();
+    await Promise.allSettled([pending]);
+  }
+}, 15000);
+
 test("project folder creation retains authentication, size, input and shutdown guards", async () => {
   const { bot, request, config } = await fixture(true);
   await bot.core.stopScheduler();
