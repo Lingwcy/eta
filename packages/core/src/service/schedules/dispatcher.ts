@@ -25,6 +25,7 @@ export type ScheduleAdmissionLookup =
   | { status: "absent"; settled: boolean }
   | { status: "unknown"; reason: string };
 export interface ScheduleHostAdapter {
+  stop?(this: void, threadId: string): Promise<void>;
   submit(input: {
     threadId: string;
     prompt: string;
@@ -47,6 +48,7 @@ export class ScheduleDispatcherService extends Context.Service<
   {
     start(host: ScheduleHostAdapter): Effect.Effect<void, CoreError>;
     stop: Effect.Effect<void, CoreError>;
+    interrupt(threadId: string): Effect.Effect<boolean, CoreError>;
     /** A deterministic pass is also used by focused clock/crash tests. No model completion is awaited. */
     tick(host: ScheduleHostAdapter, at?: number): Effect.Effect<void, CoreError>;
   }
@@ -360,7 +362,27 @@ export class ScheduleDispatcherService extends Context.Service<
             loop = yield* Effect.forkIn(run, scope);
           }),
         );
-      return ScheduleDispatcherService.of({ start, stop, tick });
+      return ScheduleDispatcherService.of({
+        interrupt: (threadId) =>
+          Effect.gen(function* () {
+            const stopThread = activeHost?.stop;
+            if (!stopThread) return false;
+            yield* Effect.tryPromise({
+              try: () => stopThread(threadId),
+              catch: (error) =>
+                error instanceof CoreError
+                  ? error
+                  : new CoreError({
+                      code: "InvalidInput",
+                      message: error instanceof Error ? error.message : "无法停止旧任务",
+                    }),
+            });
+            return true;
+          }),
+        start,
+        stop,
+        tick,
+      });
     }),
   );
 }

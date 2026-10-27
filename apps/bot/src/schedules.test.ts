@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DateTime, Effect, Schema } from "effect";
-import { defineTool } from "@eta/agent";
+import { defineTask, defineTool } from "@eta/agent";
 import { createCore } from "@eta/core";
 import type { CoreEnvironment } from "@eta/core";
 import { ScheduleStoreSchema } from "@eta/core/shared/schedules";
@@ -615,7 +615,9 @@ test.each([
   { source: "automatic", replay: "unsafe", recovery: "normal" },
   { source: "manual", replay: "unsafe", recovery: "normal" },
   { source: "ordinary", replay: "unsafe", recovery: "normal" },
+  { source: "ordinary", replay: "unsafe", recovery: "manual-run" },
   { source: "automatic", replay: "safe", recovery: "normal" },
+  { source: "manual", replay: "safe", recovery: "deleted" },
   { source: "automatic", replay: "unsafe", recovery: "dispatching" },
   { source: "automatic", replay: "unsafe", recovery: "stop-failed" },
   { source: "automatic", replay: "unsafe", recovery: "nested" },
@@ -737,6 +739,27 @@ test.each([
           }),
         );
       }
+      if (recovery === "deleted") {
+        const path = join(config.dataRoot, "schedules.json");
+        const state = Schema.decodeUnknownSync(ScheduleStoreSchema)(
+          JSON.parse(await readFile(path, "utf8")),
+        );
+        await writeFile(
+          path,
+          JSON.stringify({
+            ...state,
+            schedules: {
+              ...state.schedules,
+              [scheduleId]: {
+                ...state.schedules[scheduleId],
+                state: "paused",
+                nextRunAt: null,
+                deletedAt: Date.now(),
+              },
+            },
+          }),
+        );
+      }
       fast.setResponses([
         fauxAssistantMessage("Finished after restart"),
         fauxAssistantMessage("Finished queued work"),
@@ -786,7 +809,32 @@ test.each([
           .poll(() => scheduledRunState(restored, peer, queued.scheduleId!), { timeout: 10000 })
           .toMatchObject({ state: "pending", reason: "projectBlocked" });
         expect((await restored.core.openThread(peer)).snapshot.operation).toBeNull();
-        await restored.controller.stop(id);
+        if (recovery === "manual-run") {
+          fast.setResponses([
+            fauxAssistantMessage("Fresh scheduled work"),
+            fauxAssistantMessage("Queued work complete"),
+            fauxAssistantMessage("Title"),
+          ]);
+          const fresh = await restored.core.runScheduleNow({
+            scheduleId,
+            expectedRevision: 1,
+            requestId: "restart-interrupted",
+          });
+          expect(fresh.state).toBe("applied");
+          expect((await restored.core.operation(id, operationId)).status).toBe("aborted");
+          await expect
+            .poll(
+              async () =>
+                (await restored.core.listScheduleRuns({ scheduleId })).find(
+                  (run) => run.id === fresh.occurrenceId,
+                )?.state,
+              { timeout: 10000 },
+            )
+            .toBe("succeeded");
+          expect(executions).toBe(1);
+        } else {
+          await restored.controller.stop(id);
+        }
         expect(restored.controller.status().blocked).toEqual({});
         expect(restored.controller.scheduleBlockReason(peer)).toBeUndefined();
       } else {
@@ -794,14 +842,16 @@ test.each([
           .poll(async () => (await restored.core.operation(id, operationId)).status, {
             timeout: 10000,
           })
-          .toBe(replay === "unsafe" ? "aborted" : "completed");
+          .toBe(replay === "unsafe" || recovery === "deleted" ? "aborted" : "completed");
         await expect
           .poll(async () => (await restored.core.listScheduleRuns({ scheduleId }))[0]?.state, {
             timeout: 10000,
           })
-          .toBe(replay === "unsafe" ? "cancelled" : "succeeded");
-        expect((await restored.core.listSchedules({ threadId: id }))[0].state).toBe("active");
-        expect(executions).toBe(replay === "unsafe" ? 1 : 2);
+          .toBe(replay === "unsafe" || recovery === "deleted" ? "cancelled" : "succeeded");
+        if (recovery === "deleted")
+          expect(await restored.core.listSchedules({ threadId: id })).toEqual([]);
+        else expect((await restored.core.listSchedules({ threadId: id }))[0].state).toBe("active");
+        expect(executions).toBe(replay === "unsafe" || recovery === "deleted" ? 1 : 2);
         expect(restored.controller.status().blocked[id]).toBeUndefined();
       }
       await expect
@@ -1123,3 +1173,154 @@ test.each(["running", "receipt-error", "receipt-timeout"] as const)(
   },
   20000,
 );
+
+test.each(["delete", "thread-delete", "run"] as const)(
+  "%s clears an interrupted task whose definition is unavailable",
+  async (action) => {
+    let installed = true;
+    let entered = false;
+    const task = defineTask<{}, { phase: "wait" }, string>({
+      name: "test.required-schedule-task",
+      version: 1,
+      initial: () => ({ phase: "wait" }),
+      phases: {
+        wait: async (_task, runtime) => {
+          entered = true;
+          await new Promise<void>((resolve) =>
+            runtime.signal.addEventListener("abort", () => resolve(), { once: true }),
+          );
+          runtime.signal.throwIfAborted();
+        },
+      },
+      abort: (_task, runtime, context) =>
+        runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
+    });
+    const { bot, open, thread, releaseModel, fast } = await fixture(1, {
+      extensions: () => (installed ? [{ name: "required-task", tasks: [task] }] : []),
+    });
+    releaseModel();
+    const id = await thread("Interrupted schedule");
+    const plan = await bot.core.createSchedule({
+      threadId: id,
+      requestId: "plan",
+      name: "Review",
+      prompt: "Fresh scheduled review",
+      rule: { type: "interval", everyMs: 300_000, anchorAt: Date.now() + 86400_000 },
+    });
+    await bot.core.enqueueTask(id, task.definition.name, {}, "interrupted-task");
+    await expect.poll(() => entered, { timeout: 10000 }).toBe(true);
+    await bot.close();
+    installed = false;
+    const restored = await open();
+    fast.setResponses([fauxAssistantMessage("Fresh work complete"), fauxAssistantMessage("Title")]);
+    expect(restored.controller.status().blocked[id]).toContain("maintainer review");
+    expect((await restored.core.recovery(id)).blockedTasks).toHaveLength(1);
+    if (action === "delete" || action === "thread-delete") {
+      const workspaceId = (await restored.core.threadMetadata(id)).workspaceId;
+      if (action === "thread-delete") {
+        await restored.core.deleteThread(id);
+        expect((await restored.core.threads()).find((thread) => thread.id === id)).toBeUndefined();
+      } else {
+        expect(
+          (
+            await restored.core.deleteSchedule({
+              scheduleId: plan.scheduleId!,
+              expectedRevision: 1,
+              requestId: "delete",
+            })
+          ).state,
+        ).toBe("applied");
+        expect(await restored.core.listSchedules({ threadId: id })).toEqual([]);
+        expect(await restored.core.recovery(id)).toMatchObject({
+          required: false,
+          pending: false,
+          blockedTasks: [],
+        });
+      }
+      const peer = await restored.core.createThread(workspaceId);
+      const admission = await restored.controller.submit(
+        peer.id,
+        "Project is available",
+        "peer-input",
+      );
+      await expect
+        .poll(async () => (await restored.core.operation(peer.id, admission.operationId)).status, {
+          timeout: 10000,
+        })
+        .toBe("completed");
+    } else {
+      const input = { scheduleId: plan.scheduleId!, expectedRevision: 1, requestId: "fresh-run" };
+      const run = await restored.core.runScheduleNow(input);
+      expect(run.state).toBe("applied");
+      expect(await restored.core.runScheduleNow(input)).toEqual(run);
+      await expect
+        .poll(
+          async () =>
+            (await restored.core.listScheduleRuns({ scheduleId: plan.scheduleId! }))[0]?.state,
+          { timeout: 10000 },
+        )
+        .toBe("succeeded");
+      expect(await restored.core.listScheduleRuns({ scheduleId: plan.scheduleId! })).toHaveLength(
+        1,
+      );
+      expect(
+        (await restored.core.openThread(id)).snapshot.transcript.filter(
+          (entry) => entry.message.role === "user",
+        ),
+      ).toHaveLength(1);
+    }
+    expect(restored.controller.status().blocked[id]).toBeUndefined();
+  },
+  30000,
+);
+
+test("deleting a plan waits for its live tool to stop and frees the Controller checkout", async () => {
+  let entered = false;
+  const release = Promise.withResolvers<void>();
+  let terminated = false;
+  const tool = defineTool({
+    name: "held_work",
+    description: "Work that terminates on cancellation",
+    parameters: Type.Object({}),
+    replay: "unsafe",
+    execute: async (_input, _api, context) => {
+      const stop = () => release.resolve();
+      context.abortSignal?.addEventListener("abort", stop, { once: true });
+      entered = true;
+      try {
+        if (!context.abortSignal?.aborted) await release.promise;
+        return {};
+      } finally {
+        context.abortSignal?.removeEventListener("abort", stop);
+        terminated = true;
+      }
+    },
+  });
+  const { bot, thread, fast, releaseModel } = await fixture(1, {
+    extensions: () => [{ name: "held", tools: [tool] }],
+  });
+  releaseModel();
+  try {
+    const id = await thread("Live scheduled work");
+    const plan = await bot.core.createSchedule({
+      threadId: id,
+      requestId: "plan",
+      name: "Review",
+      prompt: "Review",
+      rule: { type: "once", at: Date.now() + 86400_000 },
+    });
+    fast.setResponses([
+      fauxAssistantMessage(fauxToolCall(tool.name, {}), { stopReason: "toolUse" }),
+    ]);
+    const admission = await bot.controller.submit(id, "Start held work", "work");
+    await expect.poll(() => entered, { timeout: 10000 }).toBe(true);
+    const input = { scheduleId: plan.scheduleId!, expectedRevision: 1, requestId: "delete" };
+    expect((await bot.core.deleteSchedule(input)).state).toBe("applied");
+    expect(terminated).toBe(true);
+    expect((await bot.core.operation(id, admission.operationId)).status).toBe("aborted");
+    expect(bot.controller.status().activeThreads).not.toContain(id);
+    expect(await bot.core.listSchedules()).toEqual([]);
+  } finally {
+    release.resolve();
+  }
+}, 20000);

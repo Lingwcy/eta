@@ -310,16 +310,20 @@ export class BotController {
         return undefined;
       });
       if (state?.required) {
-        if (state.unsafeTool && !state.blockedTasks.length) {
-          try {
-            if (await this.cancelInterruptedSchedule(thread.id)) continue;
-          } catch (error) {
-            this.block(
+        try {
+          if (
+            await this.cancelInterruptedSchedule(
               thread.id,
-              error instanceof Error ? error.message : "Interrupted schedule cleanup failed.",
-            );
+              !state.unsafeTool || state.blockedTasks.length > 0,
+            )
+          )
             continue;
-          }
+        } catch (error) {
+          this.block(
+            thread.id,
+            error instanceof Error ? error.message : "Interrupted schedule cleanup failed.",
+          );
+          continue;
         }
         if (state.unsafeTool || state.blockedTasks.length) {
           this.blocked.set(
@@ -334,13 +338,20 @@ export class BotController {
   }
 
   /** Cancel an interrupted scheduled run rather than replaying a tool with uncertain side effects. */
-  private async cancelInterruptedSchedule(id: string) {
+  private async cancelInterruptedSchedule(id: string, deletedOnly = false) {
     const operation = (await this.core.openThread(id)).snapshot.operation;
     if (!operation) return false;
     const { originOperationId } = await this.core.operation(id, operation.id);
     const snapshot = await this.core.scheduleSnapshot();
     for (const run of snapshot.occurrences ?? []) {
       if (run.threadId !== id) continue;
+      if (
+        deletedOnly &&
+        !snapshot.schedules.some(
+          (plan) => plan.id === run.scheduleId && plan.deletedAt !== undefined,
+        )
+      )
+        continue;
       const inFlight = ["dispatching", "admitted"].includes(run.state);
       if (!inFlight && (originOperationId === undefined || run.operationId !== originOperationId))
         continue;
