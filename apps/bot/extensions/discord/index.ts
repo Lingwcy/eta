@@ -19,6 +19,8 @@ interface Context {
   log: BotLog;
 }
 
+type IssueAction = "stop" | "resume" | "close" | "reopen";
+
 function chunks(text: string) {
   const result: string[] = [];
   let current = "";
@@ -44,6 +46,7 @@ export class DiscordExtension {
   private filling: Promise<void> | undefined;
   private error: string | null = null;
   private readonly limited = new Set<string>();
+  private readonly controlOwners = new Map<string, object>();
   private lastFill = 0;
   private readonly task;
   private readonly port: DiscordPort;
@@ -458,7 +461,15 @@ export class DiscordExtension {
       if (complete) for (const message of collected) this.store.advance(channel.id, message.id);
     }
   }
-  async control(id: string, action: "stop" | "resume" | "close" | "reopen") {
+  control(id: string, action: IssueAction) {
+    const owner = {};
+    this.controlOwners.set(id, owner);
+    const current = () => this.controlOwners.get(id) === owner;
+    return this.applyControl(id, action, current).finally(() => {
+      if (current()) this.controlOwners.delete(id);
+    });
+  }
+  private async applyControl(id: string, action: IssueAction, current: () => boolean) {
     const issue = this.store.issue(id);
     if (!issue) throw new BotHttpError(404, "NotFound", "Discord issue not found.");
     if (action === "stop" || action === "close") {
@@ -476,12 +487,14 @@ export class DiscordExtension {
       if (action === "close" && issue.discordThreadId)
         await this.syncArchive(this.store.issue(id)!);
     } else {
-      if (
-        action === "resume" &&
-        issue.etaThreadId &&
-        (await this.host().core.recovery(issue.etaThreadId)).required
-      )
-        await this.host().controller.resume(issue.etaThreadId);
+      if (action === "resume" && issue.etaThreadId) {
+        const recovery = await this.host().core.recovery(issue.etaThreadId);
+        if (!current()) return this.store.issue(id)!;
+        if (recovery.required) {
+          await this.host().controller.resume(issue.etaThreadId);
+          if (!current()) return this.store.issue(id)!;
+        }
+      }
       this.store.updateIssue(id, {
         state: "waiting",
         error: null,

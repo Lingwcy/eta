@@ -7,7 +7,7 @@ import {
   fauxAssistantMessage,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { createBotApplication } from "../../src/application.ts";
 import type { BotApplication } from "../../src/application.ts";
 import type { BotConfig } from "../../src/config.ts";
@@ -485,3 +485,60 @@ test("Bot releases Discord storage and its data-root lock when transport stop re
     await app.discord!.close().catch(() => {});
   }
 });
+
+test.each(["close", "stop", "close-then-stop", "peer"] as const)(
+  "a late resume inspection respects newer %s controls",
+  async (action) => {
+    const { app, port, provider, finished } = await fixture();
+    provider.setResponses([
+      fauxAssistantMessage("Initial reply"),
+      fauxAssistantMessage("Must not run"),
+    ]);
+    await port.emit(message("102"));
+    await finished(app, "102");
+    if (action === "peer") {
+      await port.emit(message("202"));
+      await finished(app, "202");
+    }
+    await app.discord!.control("102", "stop");
+    const issue = app.discord!.store.issue("102")!;
+    const original = app.core.recovery;
+    const release = Promise.withResolvers<void>();
+    let entered = false;
+    let hold = true;
+    const inspecting = vi.spyOn(app.core, "recovery").mockImplementation(async (...args) => {
+      const result = await original(...args);
+      if (args[0] === issue.etaThreadId && hold) {
+        hold = false;
+        entered = true;
+        await release.promise;
+      }
+      return result;
+    });
+    const resuming = app.discord!.control("102", "resume");
+    try {
+      await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+      if (action === "peer") await app.discord!.control("202", "close");
+      else {
+        await app.discord!.control("102", action === "stop" ? "stop" : "close");
+        if (action === "close-then-stop") await app.discord!.control("102", "stop");
+      }
+      const expected = action === "close" ? "closed" : "stopped";
+      expect(app.discord!.store.issue("102")?.state).toBe(expected);
+      release.resolve();
+      await resuming;
+      const state = app.discord!.store.issue("102")?.state;
+      await port.emit(message("103", "Followup after close", issue.discordThreadId!));
+      expect({
+        state,
+        accepted: app.discord!.store.input("103") !== undefined,
+      }).toEqual({ state: action === "peer" ? "waiting" : expected, accepted: action === "peer" });
+      if (action === "peer") await finished(app, "103");
+    } finally {
+      release.resolve();
+      await resuming.catch(() => {});
+      inspecting.mockRestore();
+    }
+  },
+  15000,
+);
