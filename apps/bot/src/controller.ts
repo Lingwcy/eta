@@ -134,14 +134,13 @@ export class BotController {
         } else if (
           ownsObservation() &&
           state.queuedOnly &&
+          state.failedTurn &&
           !state.required &&
           !state.blockedTasks.length
         ) {
-          const { snapshot } = await this.core.openThread(id);
           // Model errors leave follow-ups queued for the next input. End this failed turn's
           // delegated work before releasing its checkout; recurring plans can try again later.
-          if (ownsObservation() && !snapshot.operation && snapshot.lastResult?.status === "failed")
-            await this.stopAdmission(id, lease);
+          await this.stopAdmission(id, lease);
         }
       } catch (error) {
         if (ownsObservation())
@@ -150,17 +149,14 @@ export class BotController {
         checking = false;
       }
     };
-    const stop = await this.core.subscribe(id, check, (message) => {
-      if (current()) this.block(id, message);
-    });
-    // Host tasks can settle without changing the UI snapshot. Inspect their durable state as well.
+    // Admission needs durable recovery state, not a detached full transcript on every commit.
+    // Host tasks can also settle without a conversation revision, so keep polling that state.
     const timer = setInterval(() => {
       void check();
     }, 250);
     timer.unref();
     const dispose = () => {
       clearInterval(timer);
-      stop();
     };
     if (!current()) dispose();
     else this.monitors.set(id, dispose);
@@ -339,16 +335,20 @@ export class BotController {
         return undefined;
       });
       if (state?.required) {
-        if (state.unsafeTool && !state.blockedTasks.length) {
-          try {
-            if (await this.cancelInterruptedSchedule(thread.id)) continue;
-          } catch (error) {
-            this.block(
+        try {
+          if (
+            await this.cancelInterruptedSchedule(
               thread.id,
-              error instanceof Error ? error.message : "Interrupted schedule cleanup failed.",
-            );
+              !state.unsafeTool || state.blockedTasks.length > 0,
+            )
+          )
             continue;
-          }
+        } catch (error) {
+          this.block(
+            thread.id,
+            error instanceof Error ? error.message : "Interrupted schedule cleanup failed.",
+          );
+          continue;
         }
         if (state.unsafeTool || state.blockedTasks.length) {
           this.blocked.set(
@@ -363,13 +363,20 @@ export class BotController {
   }
 
   /** Cancel an interrupted scheduled run rather than replaying a tool with uncertain side effects. */
-  private async cancelInterruptedSchedule(id: string) {
+  private async cancelInterruptedSchedule(id: string, deletedOnly = false) {
     const operation = (await this.core.openThread(id)).snapshot.operation;
     if (!operation) return false;
     const { originOperationId } = await this.core.operation(id, operation.id);
     const snapshot = await this.core.scheduleSnapshot();
     for (const run of snapshot.occurrences ?? []) {
       if (run.threadId !== id) continue;
+      if (
+        deletedOnly &&
+        !snapshot.schedules.some(
+          (plan) => plan.id === run.scheduleId && plan.deletedAt !== undefined,
+        )
+      )
+        continue;
       const inFlight = ["dispatching", "admitted"].includes(run.state);
       if (!inFlight && (originOperationId === undefined || run.operationId !== originOperationId))
         continue;

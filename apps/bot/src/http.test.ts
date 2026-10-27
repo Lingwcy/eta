@@ -47,6 +47,7 @@ import { createBotApplication } from "./application.ts";
 import type { BotApplication } from "./application.ts";
 import type { BotConfig } from "./config.ts";
 import type { SnapshotResponse } from "@eta/core/agent/protocol";
+import type { BotLog } from "./log.ts";
 
 const bots: BotApplication[] = [];
 const roots: string[] = [];
@@ -62,6 +63,7 @@ async function fixture(
   defaultProvider?: string,
   allowedSandboxModes?: BotConfig["allowedSandboxModes"],
   initialEnvironment?: Partial<CoreEnvironment>,
+  log?: BotLog,
 ) {
   const root = await mkdtemp(join(tmpdir(), "eta-bot-http-"));
   roots.push(root);
@@ -100,6 +102,7 @@ async function fixture(
   const open = async (environment?: Partial<CoreEnvironment>) => {
     const bot = await createBotApplication(config, {
       models,
+      log,
       ...(environment ? { environment } : {}),
     });
     bots.push(bot);
@@ -120,6 +123,67 @@ async function fixture(
   };
   return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
+
+test.each(["thread", "git"] as const)(
+  "a stalled %s read reports its backend phase without changing the HTTP result",
+  async (kind) => {
+    const log = vi.fn<BotLog>();
+    const { bot, request, create, workspace } = await fixture(
+      false,
+      undefined,
+      undefined,
+      undefined,
+      log,
+    );
+    const id = await create("slow-read");
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const originalOpen = bot.core.openThread;
+    const originalGit = bot.core.gitRepository;
+    const held =
+      kind === "thread"
+        ? vi.spyOn(bot.core, "openThread").mockImplementation(async (...args) => {
+            entered.resolve();
+            await release.promise;
+            return originalOpen(...args);
+          })
+        : vi.spyOn(bot.core, "gitRepository").mockImplementation(async (...args) => {
+            entered.resolve();
+            await release.promise;
+            return originalGit(...args);
+          });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const reading = request(
+      kind === "thread" ? `/v1/threads/${id}` : `/v1/workspaces/${workspace}/git`,
+    );
+    try {
+      await entered.promise;
+      await vi.advanceTimersByTimeAsync(5000);
+      const pending = log.mock.calls
+        .map(([event]) => event)
+        .find((event) => event.event === "http.slow");
+      expect(pending).toMatchObject({
+        operation: kind === "thread" ? "thread.read" : "workspace.git",
+        phase: kind === "thread" ? "open" : "git",
+        outcome: "pending",
+      });
+      release.resolve();
+      expect((await reading).status).toBe(200);
+      expect(
+        log.mock.calls.map(([event]) => event).filter((event) => event.event === "http.slow"),
+      ).toMatchObject([
+        { outcome: "pending", request: pending!.request },
+        { outcome: "completed", request: pending!.request, phase: "encode" },
+      ]);
+      expect(JSON.stringify(log.mock.calls)).not.toContain("test-admin-token");
+    } finally {
+      release.resolve();
+      vi.useRealTimers();
+      await reading;
+      held.mockRestore();
+    }
+  },
+);
 
 test("projectless HTTP threads remain visible, accept messages and replay on the Bot", async () => {
   const { bot, request, provider, config } = await fixture(true);
@@ -151,6 +215,7 @@ test("projectless HTTP threads remain visible, accept messages and replay on the
       timeout: 10000,
     })
     .toBe("completed");
+  await expect.poll(() => bot.controller.status().activeThreads).toEqual([]);
   expect((await request(`/v1/threads/${created.id}`)).status).toBe(200);
   const cwd = parsed.workspaces[0]!.cwd;
   expect(dirname(cwd)).toBe(await realpath(join(config.workspaceRoot, ".eta-temporary")));
@@ -1022,6 +1087,13 @@ test("subagent writers retain project leases and cannot resolve another thread's
   }
 }, 15000);
 
+// The timer callback is fire-and-forget; await its actual Core reads, then its continuation.
+async function advanceRecoveryPoll(inspections: readonly Promise<unknown>[]) {
+  await vi.advanceTimersByTimeAsync(250);
+  await Promise.allSettled(inspections);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
 test.each(["during-admission", "after-admission", "failed-inspection"] as const)(
   "a recovery check cannot release a checkout %s of a borrowed subagent writer",
   async (phase) => {
@@ -1032,7 +1104,8 @@ test.each(["during-admission", "after-admission", "failed-inspection"] as const)
     const admit = Promise.withResolvers<void>();
     const inspect = Promise.withResolvers<void>();
     const finish = Promise.withResolvers<void>();
-    const checks: Array<() => Promise<void>> = [];
+    const inspections: Promise<unknown>[] = [];
+    const tick = () => advanceRecoveryPoll(inspections);
     let admitting = false;
     let inspecting = false;
     let holdInspection = false;
@@ -1041,23 +1114,22 @@ test.each(["during-admission", "after-admission", "failed-inspection"] as const)
     const controller = new BotController(
       {
         ...bot.core,
-        subscribe: async (threadId, listener) => {
-          checks.push(async () => {
-            await listener(await bot.core.openThread(threadId));
-          });
-          return () => {};
-        },
-        recovery: async (threadId) => {
-          const state = await bot.core.recovery(threadId);
-          if (failCurrent && threadId === id) throw new Error("Current recovery inspection failed");
-          if (holdInspection && threadId === id) {
-            holdInspection = false;
-            inspecting = true;
-            await inspect.promise;
-            if (phase === "failed-inspection")
-              throw new Error("Previous recovery inspection failed");
-          }
-          return state;
+        recovery: (threadId) => {
+          const inspection = (async () => {
+            const state = await bot.core.recovery(threadId);
+            if (failCurrent && threadId === id)
+              throw new Error("Current recovery inspection failed");
+            if (holdInspection && threadId === id) {
+              holdInspection = false;
+              inspecting = true;
+              await inspect.promise;
+              if (phase === "failed-inspection")
+                throw new Error("Previous recovery inspection failed");
+            }
+            return state;
+          })();
+          inspections.push(inspection);
+          return inspection;
         },
         subagent: async (...args) => {
           admitting = true;
@@ -1084,7 +1156,7 @@ test.each(["during-admission", "after-admission", "failed-inspection"] as const)
       );
       if (phase !== "during-admission") {
         holdInspection = true;
-        checking = checks[0]!();
+        checking = tick();
         await expect.poll(() => inspecting, { timeout: 5000 }).toBe(true);
       }
       spawning = controller.subagent(
@@ -1101,7 +1173,7 @@ test.each(["during-admission", "after-admission", "failed-inspection"] as const)
       const observed = Promise.allSettled([spawning]);
       await expect.poll(() => admitting, { timeout: 5000 }).toBe(true);
       if (phase === "during-admission") {
-        await checks[0]!();
+        await tick();
       } else {
         admit.resolve();
         await spawning;
@@ -1131,20 +1203,23 @@ test.each(["during-admission", "after-admission", "failed-inspection"] as const)
         activeThreads: [id],
         blocked: {},
       });
-      finish.resolve();
-      await expect
-        .poll(async () => (await bot.core.recovery(id)).pending, { timeout: 5000 })
-        .toBe(false);
       if (phase === "failed-inspection") {
         failCurrent = true;
-        await checks[0]!();
+        await tick();
         expect(controller.status().blocked).toEqual({ [id]: "Current recovery inspection failed" });
         await expect(
           controller.submit(other, "Competing work", "borrowed-contender"),
         ).rejects.toMatchObject({ code: "Busy" });
+        finish.resolve();
         failCurrent = false;
         await controller.stop(id);
-      } else await checks[0]!();
+      } else {
+        finish.resolve();
+        await expect
+          .poll(async () => (await bot.core.recovery(id)).pending, { timeout: 5000 })
+          .toBe(false);
+        await tick();
+      }
       expect(controller.status().activeThreads).toEqual([]);
       await expect(
         controller.submit(other, "Competing work", "borrowed-contender"),
@@ -1176,17 +1251,17 @@ test("a rejected borrowed writer cannot release another pending writer's checkou
   const other = await create("overlapping-borrowed-contender");
   const admit = Promise.withResolvers<void>();
   const finish = Promise.withResolvers<void>();
-  const checks: Array<() => Promise<void>> = [];
+  const inspections: Promise<unknown>[] = [];
+  const tick = () => advanceRecoveryPoll(inspections);
   let admitting = false;
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   const controller = new BotController(
     {
       ...bot.core,
-      subscribe: async (threadId, listener) => {
-        checks.push(async () => {
-          await listener(await bot.core.openThread(threadId));
-        });
-        return () => {};
+      recovery: (threadId) => {
+        const inspection = bot.core.recovery(threadId);
+        inspections.push(inspection);
+        return inspection;
       },
       subagent: async (...args) => {
         if (args[2] === "overlapping-held-spawn") {
@@ -1231,7 +1306,7 @@ test("a rejected borrowed writer cannot release another pending writer's checkou
       ),
     ).rejects.toThrow(/只能管理当前智能体的下级/);
     expect((await bot.core.recovery(id)).pending).toBe(false);
-    await checks[0]!();
+    await tick();
     expect(controller.status().activeThreads).toEqual([id]);
     await expect(
       controller.submit(other, "Competing", "overlapping-contender"),
@@ -1250,7 +1325,7 @@ test("a rejected borrowed writer cannot release another pending writer's checkou
     await expect
       .poll(async () => (await bot.core.recovery(id)).pending, { timeout: 5000 })
       .toBe(false);
-    await checks[0]!();
+    await tick();
     expect(controller.status().activeThreads).toEqual([]);
     await expect(
       controller.submit(other, "Competing", "overlapping-contender"),
@@ -2686,6 +2761,45 @@ test("a stalled SSE reader receives the latest snapshot without a backlog of rev
   }
 });
 
+test("admission monitoring releases capacity without projecting conversation snapshots", async () => {
+  const { bot, provider, create } = await fixture();
+  const id = await create("lightweight-admission-monitor");
+  const entered = Promise.withResolvers<void>();
+  const finish = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  const observing = vi.spyOn(bot.core, "subscribe");
+  const reading = vi.spyOn(bot.core, "openThread");
+  const inspecting = vi.spyOn(bot.core, "recovery").mockResolvedValue({
+    required: false,
+    pending: true,
+    queuedOnly: true,
+    unsafeTool: false,
+    blockedTasks: [],
+  });
+  provider.setResponses([
+    () => {
+      entered.resolve();
+      return finish.promise;
+    },
+  ]);
+  try {
+    await bot.controller.submit(id, "Work", "lightweight-monitor");
+    await entered.promise;
+    expect(bot.controller.status().activeThreads).toContain(id);
+    expect(observing).not.toHaveBeenCalled();
+    await expect.poll(() => inspecting.mock.calls.length).toBeGreaterThan(0);
+    expect(reading).not.toHaveBeenCalled();
+    inspecting.mockRestore();
+    finish.resolve(fauxAssistantMessage("Completed"));
+    await expect.poll(() => bot.controller.status().activeThreads).toEqual([]);
+    expect(observing).not.toHaveBeenCalled();
+  } finally {
+    finish.resolve(fauxAssistantMessage("Cleanup"));
+    inspecting.mockRestore();
+    reading.mockRestore();
+    observing.mockRestore();
+  }
+});
+
 test.each(["completed", "failed"] as const)(
   "an old recovery check (%s) cannot change a replacement admission",
   async (outcome) => {
@@ -2696,19 +2810,12 @@ test.each(["completed", "failed"] as const)(
     const release = Promise.withResolvers<void>();
     const modelEntered = Promise.withResolvers<void>();
     const finishModel = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
-    const checks: Array<() => Promise<void>> = [];
     let hold = false;
     // Drive monitor callbacks explicitly; native execution and all non-interval timers stay real.
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const controller = new BotController(
       {
         ...bot.core,
-        subscribe: async (threadId, listener) => {
-          checks.push(async () => {
-            await listener(await bot.core.openThread(threadId));
-          });
-          return () => {};
-        },
         recovery: async (threadId) => {
           const state = await bot.core.recovery(threadId);
           if (hold && threadId === id) {
@@ -2728,7 +2835,7 @@ test.each(["completed", "failed"] as const)(
       await controller.submit(id, "First work", "first-admission");
       await expect.poll(async () => (await bot.core.recovery(id)).pending).toBe(false);
       hold = true;
-      const checking = checks[0]!();
+      const checking = vi.advanceTimersByTimeAsync(250);
       await entered.promise;
       await controller.stop(id);
       provider.setResponses([
@@ -2746,6 +2853,7 @@ test.each(["completed", "failed"] as const)(
       await modelEntered.promise;
       release.resolve();
       await checking;
+      await vi.advanceTimersByTimeAsync(0);
       expect((await bot.core.operation(id, replacement.operationId)).status).toBe("running");
       await expect(controller.submit(other, "Competing work", "competitor")).rejects.toMatchObject({
         code: "Busy",
@@ -2757,7 +2865,7 @@ test.each(["completed", "failed"] as const)(
       });
       finishModel.resolve(fauxAssistantMessage("Replacement completed"));
       await expect.poll(async () => (await bot.core.recovery(id)).pending).toBe(false);
-      await checks[1]!();
+      await vi.advanceTimersByTimeAsync(250);
       expect(controller.status().activeThreads).toEqual([]);
       await expect(controller.submit(other, "Competing work", "competitor")).resolves.toMatchObject(
         {
