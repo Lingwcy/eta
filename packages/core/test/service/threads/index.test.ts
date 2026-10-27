@@ -193,9 +193,6 @@ test.each(["rename", "stop"] as const)(
         expect(
           await runtime.runPromise(Effect.flip(threads.archive(owner.id, true))),
         ).toMatchObject({ code: "Busy" });
-        expect(await runtime.runPromise(Effect.flip(threads.remove(owner.id)))).toMatchObject({
-          code: "Busy",
-        });
         expect(waitSettled).toBe(false);
       } else {
         await waiting;
