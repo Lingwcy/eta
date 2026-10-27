@@ -14,6 +14,8 @@ import type { BotConfig } from "../../src/config.ts";
 import type { DiscordMessage, DiscordPort } from "./types.ts";
 import { PhaseLog } from "./fixtures/phases.ts";
 import { DeliveryError } from "./types.ts";
+import { DiscordExtension } from "./index.ts";
+import { DiscordStore } from "./store.ts";
 
 const applications: BotApplication[] = [];
 const roots: string[] = [];
@@ -416,4 +418,70 @@ test("the allowlist also covers followups posted in an issue thread", async () =
   expect(scoped.app.discord!.store.input("321")).toBeUndefined();
   await scoped.port.emit(message("322", "allowed followup", threadId, false, "20"));
   await expect.poll(() => scoped.app.discord!.store.input("322")?.state).toBeDefined();
+});
+
+test.each([false, true])(
+  "Discord close releases actual SQLite when transport stop fails=%s",
+  async (fails) => {
+    const root = await mkdtemp(join(tmpdir(), "eta-discord-close-"));
+    roots.push(root);
+    const path = join(root, "discord.sqlite");
+    const seed = new DiscordStore(path);
+    seed.advance("10", "100");
+    seed.close();
+    const port = new FakeDiscord();
+    const stop = port.stop.bind(port);
+    const failure = new Error("Transport cleanup failed");
+    if (fails)
+      port.stop = async () => {
+        throw failure;
+      };
+    const extension = new DiscordExtension(
+      { tokenEnv: "UNUSED_TEST_TOKEN", channels: [] },
+      path,
+      port,
+    );
+    try {
+      expect(extension.status().issues).toEqual([]);
+      if (fails) await expect(extension.close()).rejects.toBe(failure);
+      else await extension.close();
+      // status performs real SQLite reads: a closed handle, not a callback count, is the postcondition.
+      expect(() => extension.status()).toThrow(/not open|closed/i);
+      const reopened = new DiscordStore(path);
+      try {
+        expect(reopened.cursor("10")).toBe("100");
+      } finally {
+        reopened.close();
+      }
+    } finally {
+      // Only after the assertions: let the old implementation release its leaked handle too.
+      port.stop = stop;
+      await extension.close().catch(() => {});
+    }
+  },
+);
+
+test("Bot releases Discord storage and its data-root lock when transport stop rejects", async () => {
+  const { app, port, open } = await fixture();
+  const stop = port.stop.bind(port);
+  const cursor = app.discord!.store.cursor("10");
+  expect(cursor).toBeDefined();
+  port.stop = async () => {
+    throw new Error("Transport cleanup failed");
+  };
+  // Application.close coalesces its rejected result; cleanup must not ask afterEach to rethrow it.
+  applications.splice(applications.indexOf(app), 1);
+  try {
+    await expect(app.close()).rejects.toThrow("An extension could not release its resources.");
+    expect(() => app.discord!.store.cursor("10")).toThrow(/not open|closed/i);
+    port.stop = stop;
+    await stop();
+    const reopened = await open();
+    expect(reopened.discord!.store.cursor("10")).toBe(cursor);
+    expect(reopened.discord!.status().connected).toBe(true);
+  } finally {
+    port.stop = stop;
+    await stop();
+    await app.discord!.close().catch(() => {});
+  }
 });

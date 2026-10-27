@@ -549,7 +549,10 @@ export class DiscordExtension {
   }
   async close() {
     await this.stopIngress();
-    await this.port.stop();
-    this.store.close();
+    try {
+      await this.port.stop();
+    } finally {
+      this.store.close();
+    }
   }
 }
