@@ -398,6 +398,38 @@ test.each(["scan", "target"])(
   },
 );
 
+test("an unrelated workspace publication does not restart a held target check", async () => {
+  const { core, workspaceRoot, workspace, thread, discovery } = await scopeFixture(2);
+  const other = (await core.workspaces()).find((value) => value.id !== workspace.id)!;
+  const original = io.realpath.getMockImplementation()!;
+  const release = Promise.withResolvers<void>();
+  const entered = Promise.withResolvers<void>();
+  let rootReads = 0;
+  io.realpath.mockImplementation(async (...args) => {
+    const path = await original(...args);
+    if (args[0] === workspaceRoot && ++rootReads === 2) {
+      entered.resolve();
+      await release.promise;
+    }
+    return path;
+  });
+  const reads = vi.spyOn(core, "projects");
+  const checking = discovery.refreshForThread(thread.id);
+  try {
+    await entered.promise;
+    await discovery.refreshForWorkspace(other.id);
+    release.resolve();
+    await checking;
+    expect(discovery.workspaceProjects.get(workspace.id)).toBe(workspace.projectId);
+    expect(discovery.workspaceProjects.get(other.id)).toBe(other.projectId);
+    expect(reads).toHaveBeenCalledTimes(2);
+  } finally {
+    release.resolve();
+    await checking.catch(() => {});
+    io.realpath.mockImplementation(original);
+  }
+});
+
 test("a late old-root check cannot replace the newer root's ownership", async () => {
   const { root, core, workspaceRoot, thread } = await scopeFixture(2);
   const active = join(root, "active");

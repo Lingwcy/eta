@@ -34,6 +34,7 @@ export class BotProjects {
   private refreshing: Promise<void> | undefined;
   private publishedRoot: string | undefined;
   private publicationRevision = 0;
+  private readonly workspaceRevisions = new Map<string, number>();
   constructor(
     private readonly core: CoreClient,
     private readonly config: BotConfig,
@@ -108,6 +109,7 @@ export class BotProjects {
       await this.refreshing;
       const revision = this.publicationRevision;
       const workspaceId = await resolveWorkspace();
+      const workspaceRevision = this.workspaceRevisions.get(workspaceId);
       const [projects, workspaces] = await Promise.all([
         this.core.projects(),
         this.core.workspaces(),
@@ -145,11 +147,17 @@ export class BotProjects {
       const currentRoot = await realpath(this.config.workspaceRoot);
       // Recheck after any newer publication, including scans that already finished and
       // target checks that revoked this workspace or changed the root namespace.
-      if (this.refreshing || this.publicationRevision !== revision) continue;
+      if (
+        this.refreshing ||
+        this.publicationRevision !== revision ||
+        this.workspaceRevisions.get(workspaceId) !== workspaceRevision
+      )
+        continue;
       if (currentRoot !== root) {
         this.workspaceProjects.clear();
         this.projectKeys.clear();
         this.publishedRoot = undefined;
+        this.workspaceRevisions.clear();
         this.publicationRevision++;
         throw new BotHttpError(
           403,
@@ -161,8 +169,11 @@ export class BotProjects {
         this.workspaceProjects.clear();
         this.projectKeys.clear();
         this.publishedRoot = root;
+        this.workspaceRevisions.clear();
+        this.publicationRevision++;
       }
-      this.publicationRevision++;
+      // Unrelated target checks cannot invalidate this workspace's filesystem observation.
+      this.workspaceRevisions.set(workspaceId, (workspaceRevision ?? 0) + 1);
       if (available)
         this.workspaceProjects.set(workspace.id, project?.id ?? `temporary:${workspace.id}`);
       else this.workspaceProjects.delete(workspace.id);
@@ -239,6 +250,7 @@ export class BotProjects {
       this.workspaceProjects.clear();
       this.projectKeys.clear();
       this.publishedRoot = undefined;
+      this.workspaceRevisions.clear();
       this.publicationRevision++;
       throw new BotHttpError(403, "ProjectUnavailable", "Workspace root changed during discovery.");
     }
@@ -247,6 +259,7 @@ export class BotProjects {
     this.projectKeys.clear();
     for (const [key, id] of keys) this.projectKeys.set(key, id);
     this.publishedRoot = root;
+    this.workspaceRevisions.clear();
     this.publicationRevision++;
   }
 }

@@ -98,7 +98,10 @@ test.each([
   async ({ status, task, pending, queuedOnly }) => {
     const runtime = {
       recoveryRequired: false,
+      conversation: { id: 1 },
+      storage: { scanSubmissions: async () => ({ items: [] }) },
       harness: {
+        snapshot: async () => undefined,
         inspect: async () => ({
           submissions: status ? [{ status }] : [],
           tasks: task ? [{ record: { kind: task }, state: { kind: "running" } }] : [],
@@ -106,5 +109,34 @@ test.each([
       },
     } as unknown as RecoveryRuntime;
     expect(await readRecovery(runtime)).toMatchObject({ pending, queuedOnly });
+  },
+);
+
+test.each([
+  { status: "unanswered", reason: "error", running: false, failed: true },
+  { status: "unanswered", reason: "aborted", running: false, failed: false },
+  { status: "done", reason: undefined, running: false, failed: false },
+  { status: "unanswered", reason: "error", running: true, failed: false },
+] as const)(
+  "queued recovery reports a failed idle turn for $status/$reason with running=$running",
+  async ({ status, reason, running, failed }) => {
+    let page = 0;
+    const runtime = {
+      recoveryRequired: false,
+      conversation: { id: 1 },
+      harness: {
+        inspect: async () => ({ submissions: [{ status: "queued" }], tasks: [] }),
+        snapshot: async () => (running ? { run: { inputs: [9] } } : {}),
+      },
+      storage: {
+        scanSubmissions: async () =>
+          page++ === 0
+            ? { items: [{ type: "input", status: "queued" }], next: "older" }
+            : { items: [{ type: "input", status, reason, answer: 4 }] },
+        entry: async () => ({ entry: {} }),
+      },
+    } as unknown as RecoveryRuntime;
+    expect((await readRecovery(runtime)).failedTurn ?? false).toBe(failed);
+    expect(page).toBe(running ? 0 : 2);
   },
 );

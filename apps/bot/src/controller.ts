@@ -3,7 +3,12 @@ import type { CoreClient, OperationAdmission, ImageAttachment } from "@eta/core"
 import { BotHttpError } from "./errors.ts";
 import type { BotLog } from "./log.ts";
 
-type AdmissionLease = { projectId: string; stopResult?: Promise<boolean> };
+type AdmissionLease = {
+  projectId: string;
+  stopResult?: Promise<boolean>;
+  pendingSubagentAdmissions: number;
+  observation: object;
+};
 
 /** Serialize writers to a checkout while allowing unrelated projects to run concurrently. */
 export class BotController {
@@ -89,7 +94,7 @@ export class BotController {
         "The project is already executing work or the concurrency limit was reached.",
       );
     // Object identity separates successive admissions of the same thread.
-    const lease = { projectId: project };
+    const lease = { projectId: project, pendingSubagentAdmissions: 0, observation: {} };
     this.active.set(id, lease);
     return lease;
   }
@@ -117,38 +122,41 @@ export class BotController {
     if (!current()) return;
     let checking = false;
     const check = async () => {
-      if (!current() || checking) return;
+      if (!current() || checking || lease.pendingSubagentAdmissions) return;
       checking = true;
+      const observation = lease.observation;
+      const ownsObservation = () => current() && lease.observation === observation;
       try {
         const state = await this.core.recovery(id);
-        if (current() && !state.pending) {
+        if (ownsObservation() && !state.pending) {
           this.release(id, lease);
           await this.pumpRecovery();
-        } else if (current() && state.queuedOnly && !state.required && !state.blockedTasks.length) {
-          const { snapshot } = await this.core.openThread(id);
+        } else if (
+          ownsObservation() &&
+          state.queuedOnly &&
+          state.failedTurn &&
+          !state.required &&
+          !state.blockedTasks.length
+        ) {
           // Model errors leave follow-ups queued for the next input. End this failed turn's
           // delegated work before releasing its checkout; recurring plans can try again later.
-          if (current() && !snapshot.operation && snapshot.lastResult?.status === "failed")
-            await this.stopAdmission(id, lease);
+          await this.stopAdmission(id, lease);
         }
       } catch (error) {
-        if (current())
+        if (ownsObservation())
           this.block(id, error instanceof Error ? error.message : "Recovery inspection failed.");
       } finally {
         checking = false;
       }
     };
-    const stop = await this.core.subscribe(id, check, (message) => {
-      if (current()) this.block(id, message);
-    });
-    // Host tasks can settle without changing the UI snapshot. Inspect their durable state as well.
+    // Admission needs durable recovery state, not a detached full transcript on every commit.
+    // Host tasks can also settle without a conversation revision, so keep polling that state.
     const timer = setInterval(() => {
       void check();
     }, 250);
     timer.unref();
     const dispose = () => {
       clearInterval(timer);
-      stop();
     };
     if (!current()) dispose();
     else this.monitors.set(id, dispose);
@@ -252,8 +260,20 @@ export class BotController {
     return this.track(
       (async () => {
         await this.authorize(id);
-        if (!["spawn", "send", "resume"].includes(command.action) || this.active.has(id))
+        if (!["spawn", "send", "resume"].includes(command.action))
           return this.core.subagent(id, command, requestId);
+        const existing = this.active.get(id);
+        if (existing) {
+          existing.pendingSubagentAdmissions++;
+          existing.observation = {};
+          try {
+            return await this.core.subagent(id, command, requestId);
+          } finally {
+            existing.pendingSubagentAdmissions--;
+            // A command can start and settle entirely while an older recovery read awaits.
+            existing.observation = {};
+          }
+        }
         const lease = await this.claim(id);
         try {
           const result = await this.core.subagent(id, command, requestId);
@@ -272,8 +292,13 @@ export class BotController {
   }
 
   private async stopAdmission(id: string, expectedLease?: AdmissionLease) {
+    const observation = expectedLease?.observation;
     await this.authorize(id);
-    if (expectedLease && this.active.get(id) !== expectedLease) return;
+    if (
+      expectedLease &&
+      (this.active.get(id) !== expectedLease || expectedLease.observation !== observation)
+    )
+      return;
     this.recoveryQueue.delete(id);
     const lease = this.active.get(id);
     const stopResult = Promise.withResolvers<boolean>();
@@ -310,16 +335,20 @@ export class BotController {
         return undefined;
       });
       if (state?.required) {
-        if (state.unsafeTool && !state.blockedTasks.length) {
-          try {
-            if (await this.cancelInterruptedSchedule(thread.id)) continue;
-          } catch (error) {
-            this.block(
+        try {
+          if (
+            await this.cancelInterruptedSchedule(
               thread.id,
-              error instanceof Error ? error.message : "Interrupted schedule cleanup failed.",
-            );
+              !state.unsafeTool || state.blockedTasks.length > 0,
+            )
+          )
             continue;
-          }
+        } catch (error) {
+          this.block(
+            thread.id,
+            error instanceof Error ? error.message : "Interrupted schedule cleanup failed.",
+          );
+          continue;
         }
         if (state.unsafeTool || state.blockedTasks.length) {
           this.blocked.set(
@@ -334,13 +363,20 @@ export class BotController {
   }
 
   /** Cancel an interrupted scheduled run rather than replaying a tool with uncertain side effects. */
-  private async cancelInterruptedSchedule(id: string) {
+  private async cancelInterruptedSchedule(id: string, deletedOnly = false) {
     const operation = (await this.core.openThread(id)).snapshot.operation;
     if (!operation) return false;
     const { originOperationId } = await this.core.operation(id, operation.id);
     const snapshot = await this.core.scheduleSnapshot();
     for (const run of snapshot.occurrences ?? []) {
       if (run.threadId !== id) continue;
+      if (
+        deletedOnly &&
+        !snapshot.schedules.some(
+          (plan) => plan.id === run.scheduleId && plan.deletedAt !== undefined,
+        )
+      )
+        continue;
       const inFlight = ["dispatching", "admitted"].includes(run.state);
       if (!inFlight && (originOperationId === undefined || run.operationId !== originOperationId))
         continue;
