@@ -298,7 +298,28 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
       : {}),
   };
   return {
-    snapshot: JSON.parse(JSON.stringify(snapshot)) as SnapshotResponse["snapshot"],
+    // Detach mutable containers without encoding and reallocating large image/history strings.
+    snapshot: copySnapshot(snapshot),
     contextTokens: estimateContextTokens(view.entries.flatMap((entry) => entry.model ?? [])).tokens,
   };
+}
+
+/** Persisted payloads are JSON; copy their containers and omit optional object fields. */
+function copySnapshot<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => copySnapshot(item)) as T;
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item === undefined) continue;
+    const copied = copySnapshot(item);
+    if (key === "__proto__") {
+      Object.defineProperty(result, key, {
+        value: copied,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    } else result[key] = copied;
+  }
+  return result as T;
 }

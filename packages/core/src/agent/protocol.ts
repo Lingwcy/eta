@@ -48,6 +48,8 @@ export interface RecoveryState {
   pending: boolean;
   /** Only queued submissions remain; no foreground task or placed input is executing them. */
   queuedOnly: boolean;
+  /** The idle root turn failed while follow-up inputs remain queued. */
+  failedTurn?: boolean;
   unsafeTool: boolean;
   blockedTasks: readonly { taskId: string; kind: string; reason: string }[];
 }

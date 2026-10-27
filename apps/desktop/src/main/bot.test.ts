@@ -382,7 +382,11 @@ test("restoring a large thread can read its body beyond the ordinary request dea
   try {
     const ordinary = bot.request("/v1/library");
     const restored = bot.request<{ history: string }>("/v1/threads/thread");
-    const timedOut = expect(ordinary).rejects.toThrow("连接 Bot 超时，请检查网络后重试。");
+    const timedOut = expect(ordinary).rejects.toMatchObject({
+      message: "Bot 已响应，但读取响应内容超过 10 秒，请稍后重试。",
+      retryable: true,
+    });
+    await expect.poll(() => streams.length).toBe(2);
     controllers[0]!.abort(new DOMException("timeout", "TimeoutError"));
     await timedOut;
     streams[1]!.enqueue(new TextEncoder().encode(JSON.stringify({ history: "restored" })));
@@ -391,6 +395,30 @@ test("restoring a large thread can read its body beyond the ordinary request dea
     expect(deadline).toHaveBeenCalledWith(10000);
     expect(deadline).toHaveBeenCalledWith(120000);
     expect(request).toHaveBeenCalledTimes(2);
+  } finally {
+    bot.close();
+  }
+});
+
+test("a thread request timeout before headers reports its deadline without blaming the network", async () => {
+  const { bot, request } = await connect(true);
+  const controller = new AbortController();
+  vi.spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal);
+  request.mockImplementation(
+    (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true });
+      }),
+  );
+  try {
+    const pending = bot.request("/v1/threads/thread");
+    const rejected = expect(pending).rejects.toMatchObject({
+      message: "Bot 请求超过 120 秒，可能是服务繁忙或连接异常，请稍后重试。",
+      retryable: true,
+    });
+    controller.abort(new DOMException("timeout", "TimeoutError"));
+    await rejected;
+    expect(request).toHaveBeenCalledTimes(1);
   } finally {
     bot.close();
   }
