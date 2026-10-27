@@ -309,6 +309,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: validate compatibility with the serialized read contract, not only the in-memory schema. Represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
 - Seen: 2026-10-23, 2026-10-26.
 
+**Release local resources even when remote teardown fails.**
+
+- Evidence: on 2026-10-27, #486 injects a rejected DiscordPort.stop into the real DiscordExtension with real SQLite. The normal control closes the handle; the failure control still permits status SQL reads because sequential teardown skips store.close. A finally around transport stop closes the database while preserving the original transport error, and a real reopen retains its cursor. The after-assertion cleanup lets the old implementation terminate without masking the resource postcondition.
+- Check: order ingress shutdown before storage release, but do not make independent local cleanup conditional on remote success. Assert actual resource usability and persisted data, not only that a close callback ran. Transport failure is still failure; local cleanup does not prove the remote client disconnected.
+- Seen: 2026-10-27.
+
 **Reject preflight configuration errors before allocating durable resources.**
 
 - Evidence: on 2026-10-22, #392 uses public Core with real temporary files and reopens the same data root after rejected projectless creations. Explicit unavailable models, unavailable defaults and an empty model catalog each leave three directories and Catalog workspaces without any thread. Deferring temporary allocation until model validation passes removes these side effects; corrected-model retry/replay and explicit-workspace validation-order controls still pass.
