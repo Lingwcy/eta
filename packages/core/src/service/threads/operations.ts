@@ -1,5 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import type { EntryId, SubmissionId } from "@eta/agent";
+import { LiveDoc } from "@eta/agent";
+import type { Cursor, EntryId, SubmissionId } from "@eta/agent";
 import { Schema } from "effect";
 import type { OperationResult, RecoveryState } from "../../agent/protocol.ts";
 import { CoreError } from "../errors.ts";
@@ -95,6 +96,39 @@ export async function readOperation(
 
 export async function readRecovery(runtime: ThreadRuntime): Promise<RecoveryState> {
   const inspection = await runtime.harness.inspect(BACKGROUND_CONTEXT);
+  const queuedOnly =
+    inspection.submissions.length > 0 &&
+    inspection.submissions.every((submission) => submission.status === "queued") &&
+    !hasForegroundWork({ tasks: inspection.tasks, submissions: [] });
+  let failedTurn = false;
+  if (
+    queuedOnly &&
+    !(await runtime.harness.snapshot(LiveDoc, runtime.conversation.id, BACKGROUND_CONTEXT))?.run
+  ) {
+    let cursor: Cursor | undefined;
+    search: do {
+      const page = await runtime.storage.scanSubmissions(
+        { conversationId: runtime.conversation.id, order: "descending" },
+        64,
+        cursor,
+        BACKGROUND_CONTEXT,
+      );
+      for (const receipt of page.items) {
+        if (receipt.type !== "input") continue;
+        if (receipt.status === "unanswered") {
+          failedTurn = receipt.reason !== "aborted";
+          break search;
+        }
+        if (
+          receipt.status === "done" &&
+          receipt.answer !== undefined &&
+          (await runtime.storage.entry(receipt.answer, BACKGROUND_CONTEXT))
+        )
+          break search;
+      }
+      cursor = page.next;
+    } while (cursor !== undefined);
+  }
   let unsafeTool = false;
   for (const { record } of inspection.tasks) {
     if (record.kind !== "pi.tool" || !Schema.is(ToolIntent)(record.state.checkpoint)) continue;
@@ -130,10 +164,8 @@ export async function readRecovery(runtime: ThreadRuntime): Promise<RecoveryStat
   return {
     required: runtime.recoveryRequired,
     pending: hasForegroundWork(inspection),
-    queuedOnly:
-      inspection.submissions.length > 0 &&
-      inspection.submissions.every((submission) => submission.status === "queued") &&
-      !hasForegroundWork({ tasks: inspection.tasks, submissions: [] }),
+    queuedOnly,
+    ...(failedTurn ? { failedTurn: true } : {}),
     unsafeTool,
     blockedTasks: inspection.tasks.flatMap(({ record, state }) =>
       state.kind === "blocked"

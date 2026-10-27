@@ -124,12 +124,16 @@ export class BotController {
         if (current() && !state.pending) {
           this.release(id, lease);
           await this.pumpRecovery();
-        } else if (current() && state.queuedOnly && !state.required && !state.blockedTasks.length) {
-          const { snapshot } = await this.core.openThread(id);
+        } else if (
+          current() &&
+          state.queuedOnly &&
+          state.failedTurn &&
+          !state.required &&
+          !state.blockedTasks.length
+        ) {
           // Model errors leave follow-ups queued for the next input. End this failed turn's
           // delegated work before releasing its checkout; recurring plans can try again later.
-          if (current() && !snapshot.operation && snapshot.lastResult?.status === "failed")
-            await this.stopAdmission(id, lease);
+          await this.stopAdmission(id, lease);
         }
       } catch (error) {
         if (current())
@@ -138,17 +142,14 @@ export class BotController {
         checking = false;
       }
     };
-    const stop = await this.core.subscribe(id, check, (message) => {
-      if (current()) this.block(id, message);
-    });
-    // Host tasks can settle without changing the UI snapshot. Inspect their durable state as well.
+    // Admission needs durable recovery state, not a detached full transcript on every commit.
+    // Host tasks can also settle without a conversation revision, so keep polling that state.
     const timer = setInterval(() => {
       void check();
     }, 250);
     timer.unref();
     const dispose = () => {
       clearInterval(timer);
-      stop();
     };
     if (!current()) dispose();
     else this.monitors.set(id, dispose);
