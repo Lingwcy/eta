@@ -113,6 +113,77 @@ function holdResponse(provider: ReturnType<typeof fauxProvider>, text: string) {
   return { ready: ready.promise, release: () => answer.resolve(fauxAssistantMessage(text)) };
 }
 
+test.each([false, true])(
+  "model configuration remains editable with a peer running and target running=%s",
+  async (running) => {
+    const { runtime, threads, registry, workspace, provider } = await setup();
+    const peer = await runtime.runPromise(threads.create(workspace.id));
+    const target = await runtime.runPromise(threads.create(workspace.id));
+    const peerAnswer = holdResponse(provider, "Peer answer");
+    const targetAnswer = running ? Promise.withResolvers<void>() : undefined;
+    try {
+      const peerAdmission = await runtime.runPromise(threads.submit(peer.id, "Peer work"));
+      await peerAnswer.ready;
+      let targetAdmission;
+      if (targetAnswer) {
+        const ready = Promise.withResolvers<void>();
+        provider.setResponses([
+          async (_context, options, _state, model) => {
+            expect(model.id).toBe("one");
+            ready.resolve();
+            options?.signal?.addEventListener("abort", () => targetAnswer.resolve(), {
+              once: true,
+            });
+            await targetAnswer.promise;
+            return fauxAssistantMessage("Original answer");
+          },
+        ]);
+        targetAdmission = await runtime.runPromise(threads.submit(target.id, "Target work"));
+        await ready.promise;
+      }
+      const configured = await runtime.runPromise(
+        threads.configure(target.id, "eta-test", "two", "high"),
+      );
+      expect(configured.snapshot.configuration).toMatchObject({
+        model: { provider: "eta-test", modelId: "two" },
+        thinkingLevel: "high",
+      });
+      expect(configured.snapshot.operation?.id).toBe(targetAdmission?.operationId);
+      const peerState = await runtime.runPromise(threads.open(peer.id));
+      expect(peerState.snapshot.operation?.id).toBe(peerAdmission.operationId);
+      expect(peerState.snapshot.configuration.model.modelId).toBe("one");
+      if (targetAnswer) {
+        targetAnswer.resolve();
+        const record = await runtime.runPromise(registry.acquire(target.thread.sessionRef));
+        await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+        await expect.poll(() => record.running).toBe(false);
+        const operation = await runtime.runPromise(
+          threads.operation(target.id, targetAdmission!.operationId),
+        );
+        expect(operation.status).toBe("completed");
+        expect(operation.messages[0]).toMatchObject({ model: "one" });
+      }
+      let requested: { model: string; reasoning: SimpleStreamOptions["reasoning"] } | undefined;
+      provider.setResponses([
+        (_context, options, _state, model) => {
+          requested = { model: model.id, reasoning: options?.reasoning };
+          return fauxAssistantMessage("New configuration");
+        },
+      ]);
+      await runtime.runPromise(threads.submit(target.id, "Next request"));
+      const record = await runtime.runPromise(registry.acquire(target.thread.sessionRef));
+      await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+      expect(requested).toEqual({ model: "two", reasoning: "high" });
+      expect((await runtime.runPromise(threads.open(peer.id))).snapshot.operation?.id).toBe(
+        peerAdmission.operationId,
+      );
+    } finally {
+      targetAnswer?.resolve();
+      peerAnswer.release();
+    }
+  },
+);
+
 test.each(["rename", "stop"] as const)(
   "waiting for a subagent does not block %s behind the global mutation lock",
   async (action) => {
@@ -1306,6 +1377,16 @@ test("opening admitted unfinished work is paused until explicit resume", async (
   expect((await recovered.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
   expect(
     await next.runPromise(Effect.flip(other.submit(created.id, "Don't implicitly resume"))),
+  ).toMatchObject({ code: "RecoveryRequired" });
+  const configured = await next.runPromise(other.configure(created.id, "eta-test", "two", "high"));
+  expect(configured.snapshot.configuration).toMatchObject({
+    model: { provider: "eta-test", modelId: "two" },
+    thinkingLevel: "high",
+  });
+  expect(configured.snapshot.recoveryRequired).toBe(true);
+  expect((await recovered.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
+  expect(
+    await next.runPromise(Effect.flip(other.submit(created.id, "Still do not resume"))),
   ).toMatchObject({ code: "RecoveryRequired" });
   await next.runPromise(other.stop(created.id));
   expect((await next.runPromise(other.open(created.id))).snapshot.recoveryRequired).toBe(false);
