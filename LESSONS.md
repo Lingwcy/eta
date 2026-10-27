@@ -58,10 +58,11 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## UI scope
 
-**Separate model configuration from execution admission.**
+**Separate passive reads and configuration from execution admission.**
 
 - Evidence: on 2026-10-27, a maintainer reported scheduled-task model edits rejected while another task was running. Focused Core controls found that an idle peer already remains editable, but active or recoverable work in the target chat rejects configuration with `Busy`. Agent's generation checkpoint pins each prepared request's model and thinking level; removing the configuration guard lets future requests use the saved settings while the held response completes with its original model and recovery stays paused.
-- Check: exercise the edited target separately from the selected chat and a running peer. Verify active requests, subsequent requests and recovery state rather than treating a configuration save as a new execution. The sidebar DOM and Desktop-to-Bot HTTP controls cover their respective paths; they do not reproduce the maintainer's live server state.
+- Additional evidence: #475 on `2dda40a` permits subagent list while recovery is required, then unconditionally resumes the whole Harness. A registered host task commits a checkpoint, survives actual preserve shutdown and reopens paused; listing an empty child set executes its finish phase, writes a real temporary file and commits terminal completion. Skipping resume for list preserves the paused task, and explicit resume still finishes it exactly once. This is a real Core-layer control, not a production write incident or proof of a new model request.
+- Check: exercise the edited target separately from the selected chat and a running peer. Verify active requests, subsequent requests and recovery state rather than treating a configuration save or passive query as a new execution. Check actual scheduling and task effects across restart, not only returned metadata or callback counts. The sidebar DOM and Desktop-to-Bot HTTP controls cover their respective paths; they do not reproduce the maintainer's live server state.
 - Seen: 2026-10-27.
 
 **Detach observation containers without serializing their large strings.**

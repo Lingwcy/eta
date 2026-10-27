@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { CompactionEntry } from "@eta/agent";
+import { CompactionEntry, defineTask } from "@eta/agent";
+import { coreServices } from "../../../src/layer.ts";
 import {
   createModels,
   fauxAssistantMessage,
@@ -2980,3 +2981,102 @@ test.each([8000, undefined])(
   },
   15000,
 );
+
+test("listing subagents preserves recovery pause until explicit resume", async () => {
+  const { runtime, directory, cwd, models, workspace, threads } = await setup();
+  const owner = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.dispose();
+  let checkpointed = false;
+  let executions = 0;
+  const marker = join(cwd, "recovered-host-task.txt");
+  const task = defineTask<null, { phase: "start" } | { phase: "finish" }, string>({
+    name: "test.list-recovery",
+    version: 1,
+    initial: () => ({ phase: "start" }),
+    phases: {
+      start: async (_task, runtime, context) => {
+        await runtime.commit(
+          () => ({ status: "running", checkpoint: { phase: "finish" } }),
+          context,
+        );
+        checkpointed = true;
+        await new Promise<void>((resolve) =>
+          runtime.signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+        runtime.signal.throwIfAborted();
+      },
+      finish: async (_task, runtime, context) => {
+        await writeFile(marker, "Executed persisted checkpoint");
+        executions++;
+        return runtime.commit(
+          () => ({ status: "terminal", outcome: { status: "completed", result: "done" } }),
+          context,
+        );
+      },
+    },
+    abort: (_task, runtime, context) =>
+      runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
+  });
+  const open = () => {
+    const runtime = ManagedRuntime.make(
+      coreServices({
+        dataRoot: join(directory, "data"),
+        home: directory,
+        models,
+        settings: {
+          read: Effect.succeed({ defaultThinkingLevel: "off" }),
+          subscribe: () => () => {},
+        },
+        environment: {
+          shutdown: "preserve",
+          extensions: () => [{ name: "test-host", tasks: [task] }],
+        },
+      }),
+    );
+    runtimes.push(runtime);
+    return runtime;
+  };
+  const before = open();
+  const beforeThreads = await before.runPromise(ThreadService);
+  const accepted = await before.runPromise(
+    beforeThreads.enqueueTask(owner.id, "test.list-recovery", null, "host-checkpoint"),
+  );
+  await expect.poll(() => checkpointed, { timeout: 5000 }).toBe(true);
+  await before.dispose();
+  const next = open();
+  const restoredThreads = await next.runPromise(ThreadService);
+  expect((await next.runPromise(restoredThreads.open(owner.id))).snapshot.recoveryRequired).toBe(
+    true,
+  );
+  const registry = await next.runPromise(RuntimeRegistryService);
+  const restored = await next.runPromise(registry.acquire(owner.thread.sessionRef));
+  expect((await restored.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
+  expect(executions).toBe(0);
+  expect(
+    await next.runPromise(restoredThreads.subagent(owner.id, { action: "list" }, "read-only-list")),
+  ).toEqual([]);
+  const scheduling = (await restored.harness.inspect(BACKGROUND_CONTEXT)).scheduling;
+  const state = async () =>
+    (await next.runPromise(restoredThreads.task(owner.id, accepted.taskId))).state;
+  // On the old implementation, observe actual checkpoint execution rather than just a resume callback.
+  if (scheduling !== "paused") {
+    await expect
+      .poll(state, { timeout: 5000 })
+      .toMatchObject({ status: "terminal", outcome: { status: "completed" } });
+    expect(await readFile(marker, "utf8")).toBe("Executed persisted checkpoint");
+  }
+  expect({ scheduling, executions }).toEqual({ scheduling: "paused", executions: 0 });
+  await expect(readFile(marker)).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await next.runPromise(restoredThreads.open(owner.id))).snapshot.recoveryRequired).toBe(
+    true,
+  );
+  await next.runPromise(restoredThreads.resume(owner.id));
+  await expect
+    .poll(state, { timeout: 5000 })
+    .toMatchObject({ status: "terminal", outcome: { status: "completed" } });
+  expect(executions).toBe(1);
+  expect(await readFile(marker, "utf8")).toBe("Executed persisted checkpoint");
+  expect((await next.runPromise(restoredThreads.open(owner.id))).snapshot.recoveryRequired).toBe(
+    false,
+  );
+}, 15000);
