@@ -4303,3 +4303,106 @@ test.each([8000, undefined])(
   },
   15000,
 );
+
+test.each([
+  ["metadata", false, false],
+  ["metadata", true, false],
+  ["subagent", false, false],
+  ["subagent", true, false],
+  ["schedule", false, false],
+  ["schedule", true, false],
+  ["metadata", false, true],
+  ["metadata", true, true],
+] as const)(
+  "late %s body with declared length=%s malformed=%s cannot enter closed backends",
+  async (kind, declared, malformed) => {
+    const { bot, config, create } = await fixture();
+    const id = await create("late-body-target");
+    const payload =
+      kind === "metadata"
+        ? { action: "rename", title: "Too late" }
+        : kind === "subagent"
+          ? { command: { action: "list" }, requestId: "late-list" }
+          : {
+              name: "Too late",
+              prompt: "No execution",
+              rule: { type: "daily", time: "10:00", timeZone: "UTC" },
+              requestId: "late-schedule",
+            };
+    const text = malformed ? "{" : JSON.stringify(payload);
+    const bytes = new TextEncoder().encode(text);
+    if (malformed) {
+      const response = await bot.app.request(`/v1/threads/${id}/metadata`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${config.adminToken}`,
+          "content-type": "application/json",
+        },
+        body: text,
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: { code: "InvalidInput" } });
+    }
+    const release = Promise.withResolvers<void>();
+    let reading = false;
+    const body = new ReadableStream<Uint8Array>(
+      {
+        async pull(controller) {
+          reading = true;
+          await release.promise;
+          controller.enqueue(bytes);
+          controller.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const suffix = kind === "schedule" ? "schedules" : kind;
+    const pending = Promise.resolve(
+      bot.app.request(
+        new Request(`http://localhost/v1/threads/${id}/${suffix}`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${config.adminToken}`,
+            "content-type": "application/json",
+            ...(declared ? { "content-length": String(bytes.length) } : {}),
+          },
+          body,
+          duplex: "half",
+        }),
+      ),
+    );
+    let restore = () => {};
+    try {
+      await expect.poll(() => reading, { timeout: 5000 }).toBe(true);
+      await bot.close();
+      const late = !declared
+        ? vi.spyOn(BotProjects.prototype, kind === "schedule" ? "refresh" : "refreshForThread")
+        : kind === "schedule"
+          ? vi.spyOn(bot.core, "threads")
+          : kind === "metadata"
+            ? vi.spyOn(bot.core, "renameThread")
+            : vi.spyOn(bot.controller, "subagent");
+      restore = () => late.mockRestore();
+      release.resolve();
+      const result = await pending.then(
+        async (response) => ({
+          status: response.status,
+          code: Schema.decodeUnknownSync(
+            Schema.Struct({ error: Schema.Struct({ code: Schema.String }) }),
+          )(await response.json()).error.code,
+        }),
+        (error: unknown) => ({ status: "rejected", code: String(error) }),
+      );
+      expect({ ...result, calls: late.mock.calls.length }).toEqual({
+        status: 503,
+        code: "RuntimeClosing",
+        calls: 0,
+      });
+    } finally {
+      release.resolve();
+      await pending.catch(() => {});
+      restore();
+    }
+  },
+  15000,
+);
