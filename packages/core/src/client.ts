@@ -57,6 +57,19 @@ export async function createCore(options: CoreOptions) {
       if (!schedule) return yield* new CoreError({ code: "NotFound", message: "定时任务不存在" });
       return schedule.threadId;
     });
+    const stopScheduledThread = Effect.fn("CoreClient.stopScheduledThread")(function* (
+      threadId: string,
+    ) {
+      if (!(yield* scheduler.interrupt(threadId))) yield* threads.stop(threadId);
+    });
+    const restartScheduledThread = Effect.fn("CoreClient.restartScheduledThread")(function* (
+      threadId: string,
+    ) {
+      const recovery = yield* threads.recovery(threadId);
+      if (!recovery.required && !recovery.blockedTasks.length) return false;
+      yield* stopScheduledThread(threadId);
+      return true;
+    });
     const changeSchedule = (input: {
       requestId: string;
       change: Exclude<ScheduleChange, { action: "create" }>;
@@ -64,11 +77,14 @@ export async function createCore(options: CoreOptions) {
       runtime.runPromise(
         Effect.gen(function* () {
           const threadId = yield* scheduleThread(input.change.scheduleId);
-          return yield* schedules.write({
-            threadId,
-            requestId: input.requestId,
-            change: input.change,
-          });
+          return yield* schedules.write(
+            {
+              threadId,
+              requestId: input.requestId,
+              change: input.change,
+            },
+            stopScheduledThread(threadId),
+          );
         }),
       );
     let closing: Promise<void> | undefined;
@@ -99,7 +115,8 @@ export async function createCore(options: CoreOptions) {
             change: { action: "create", name: input.name, prompt: input.prompt, rule: input.rule },
           }),
         ),
-      changeSchedule: (input: ScheduleWriteInput) => runtime.runPromise(schedules.write(input)),
+      changeSchedule: (input: ScheduleWriteInput) =>
+        runtime.runPromise(schedules.write(input, stopScheduledThread(input.threadId))),
       updateSchedule: (input: {
         scheduleId: string;
         expectedRevision: number;
@@ -158,7 +175,10 @@ export async function createCore(options: CoreOptions) {
         runtime.runPromise(
           Effect.gen(function* () {
             const threadId = yield* scheduleThread(input.scheduleId);
-            return yield* schedules.runNow({ ...input, threadId });
+            return yield* schedules.runNow(
+              { ...input, threadId },
+              restartScheduledThread(threadId),
+            );
           }),
         ),
       listScheduleRuns: (input: { scheduleId: string }) =>
@@ -223,7 +243,13 @@ export async function createCore(options: CoreOptions) {
       renameThread: (id: string, title: string) => runtime.runPromise(threads.rename(id, title)),
       archiveThread: (id: string, archived: boolean) =>
         runtime.runPromise(threads.archive(id, archived)),
-      deleteThread: (id: string) => runtime.runPromise(threads.remove(id)),
+      deleteThread: (id: string) =>
+        runtime.runPromise(
+          Effect.gen(function* () {
+            yield* scheduler.interrupt(id);
+            yield* threads.remove(id);
+          }),
+        ),
       moveThread: (id: string, projectId: string | null) =>
         runtime.runPromise(threads.move(id, projectId)),
       configureThread: (id: string, provider: string, modelId: string, level: ThinkingLevel) =>

@@ -18,7 +18,7 @@ You can send a message while **Choose a project** is shown. Eta creates a separa
 
 Use the sidebar bell to find chats across projects by their latest successfully sent input. The order is saved on this computer; opening chats and background task updates leave it unchanged. Click the bell again to return to projects.
 
-Right-click a saved chat to rename it, change its project grouping, archive or restore it, open it in another Eta window, or permanently delete its local history. Changing project grouping does not change the directory where the agent executes work. **Open with (打开方式)** opens the main JSONL transcript in the default or a selected application; use a text editor to inspect it.
+Right-click a saved chat to rename it, change its project grouping, archive or restore it, open it in another Eta window, or permanently delete its local history. Deleting first stops the chat and its child tasks, then removes the history. Changing project grouping does not change the directory where the agent executes work. **Open with (打开方式)** opens the main JSONL transcript in the default or a selected application; use a text editor to inspect it.
 
 Use **Settings → Application → Storage (设置 → 应用 → 存储)** to check local session usage and locate session folders for inspection or backup.
 
@@ -92,9 +92,9 @@ Open **Scheduled tasks** in the sidebar and create a task with a workspace, prom
 
 Agents create and manage plans immediately. The tool message shows the result and lets you cancel a plan; all plans remain manageable in the sidebar. Choose the model and permissions in Advanced when creating a task; new task chats default to Full access, and you can select the workspace sandbox instead. Existing chats keep their current permissions unless you change them. Tasks use that chat’s model, workspace and approvals and may change files and consume model usage.
 
-Busy chats finish their current work first. Missed recurring slots coalesce into the latest one within a 24-hour window; failed runs do not retry automatically. Archiving pauses plans, and restoring a chat does not resume them. Closing a chat tab keeps schedules active. Pausing or deleting a plan stops future triggers; stop already-started work in the chat. Pending management requests retain the effective state until their result is confirmed.
+Busy chats finish their current work first. Missed recurring slots coalesce into the latest one within a 24-hour window; failed runs do not retry automatically. Archiving pauses plans, and restoring a chat does not resume them. Closing a chat tab keeps schedules active. Pausing a plan stops future triggers. Deleting a plan yourself first stops its chat and child tasks, then removes the plan. Pending management requests retain the effective state until their result is confirmed.
 
-**Run now** queues a run and opens its chat, where its status and any waiting reason appear above the input. An interrupted chat can block other tasks in the same project: open that chat and resume or stop its unfinished task to free the project.
+**Run now** queues a run and opens its chat, where its status and any waiting reason appear above the input. If that chat is interrupted, it ends the unfinished turn and starts a new run with the current plan, preserving history and scheduled times. An interrupted chat can block other tasks in the same project: open that chat and resume or stop its unfinished task to free the project.
 
 Local tasks require Eta to be running and the computer awake. macOS keeps running after windows close. Windows exits by default; enable **Keep running after closing windows** in **Settings → App → About → Background** to keep a visible tray with Open and Quit actions. Explicitly quitting stops local scheduling.
 
