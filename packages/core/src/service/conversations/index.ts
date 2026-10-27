@@ -47,15 +47,6 @@ export class ConversationService extends Context.Service<
           modelId: string,
           thinkingLevel: ThinkingLevel,
         ) {
-          if (
-            runtime.running ||
-            runtime.recoveryRequired ||
-            (yield* adapter("无法检查任务", runtime.hasWork))
-          )
-            return yield* new CoreError({
-              code: "Busy",
-              message: "请先停止或完成当前任务，再修改模型",
-            });
           if (!(yield* models.available(provider, modelId)))
             return yield* new CoreError({
               code: "ModelUnavailable",
@@ -68,6 +59,8 @@ export class ConversationService extends Context.Service<
               message: "模型不可用",
             });
           const level = clampThinkingLevel(model, thinkingLevel);
+          // Prepared requests retain their model and thinking level; this updates future requests
+          // without stopping active work or resuming a conversation that requires recovery.
           yield* adapter("无法保存会话配置", () =>
             runtime.conversation.configure(
               {

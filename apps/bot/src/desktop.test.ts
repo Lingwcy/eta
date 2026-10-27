@@ -28,7 +28,7 @@ async function fixture(defaultProvider?: string) {
   await mkdir(dataRoot);
   const provider = fauxProvider({
     provider: "remote-test",
-    models: [{ id: "one" }],
+    models: [{ id: "one" }, { id: "two", reasoning: true }],
     tokensPerSecond: 10000,
   });
   const titles = fauxProvider({
@@ -160,6 +160,58 @@ test("Desktop executes and observes cloud work, persists its connection and neve
   expect(remote.status().status).toBe("disconnected");
   await expect(remote.open(created.id)).rejects.toThrow("未连接");
 }, 20_000);
+test("cloud scheduled model edits stay available while another task holds the checkout", async () => {
+  const { remote, bot, url, provider } = await fixture();
+  const state = await remote.connect({ url, token: "remote-secret" });
+  const workspace = state.library!.workspaces[0]!.id;
+  const peer = await remote.create(workspace, "model-edit-peer");
+  const target = await remote.create(workspace, "model-edit-target");
+  const plan = await remote.writeSchedule({
+    threadId: target.id,
+    requestId: "model-edit-plan",
+    change: {
+      action: "create",
+      name: "Editable schedule",
+      prompt: "Review",
+      rule: { type: "interval", everyMs: 3600000, anchorAt: Date.now() },
+    },
+  });
+  const release = Promise.withResolvers<void>();
+  let started = false;
+  provider.setResponses([
+    async (_context, options) => {
+      started = true;
+      options?.signal?.addEventListener("abort", () => release.resolve(), { once: true });
+      await release.promise;
+      return fauxAssistantMessage("Peer answer");
+    },
+  ]);
+  try {
+    const admission = await remote.submit(peer.id, "Peer work", "model-edit-running");
+    await expect.poll(() => started).toBe(true);
+    const active = bot.controller.status().activeThreads;
+    expect(active.some((id) => peer.id.endsWith(`:${id}`))).toBe(true);
+    const configured = await remote.configure(target.id, "remote-test", "two", "high");
+    expect(configured.id).toBe(target.id);
+    expect(configured.snapshot.configuration).toMatchObject({
+      model: { provider: "remote-test", modelId: "two" },
+      thinkingLevel: "high",
+    });
+    expect(bot.controller.status().activeThreads).toEqual(active);
+    expect((await remote.open(peer.id)).snapshot.operation?.id).toBe(admission.operationId);
+    await remote.configure(peer.id, "remote-test", "two", "high");
+    expect((await remote.open(peer.id)).snapshot.operation?.id).toBe(admission.operationId);
+    expect(bot.controller.status().activeThreads).toEqual(active);
+    const schedules = await remote.scheduleSnapshot();
+    expect(schedules?.data.schedules.find((item) => item.id === plan.scheduleId)?.threadId).toBe(
+      target.id,
+    );
+  } finally {
+    release.resolve();
+    await remote.command(peer.id, "stop");
+  }
+});
+
 test("failed authentication preserves the prior connection; offline catalogs never become local work", async () => {
   const { remote, url, dataRoot, server } = await fixture();
   await remote.connect({ url, token: "remote-secret" });

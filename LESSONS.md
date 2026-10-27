@@ -58,6 +58,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## UI scope
 
+**Separate model configuration from execution admission.**
+
+- Evidence: on 2026-10-27, a maintainer reported scheduled-task model edits rejected while another task was running. Focused Core controls found that an idle peer already remains editable, but active or recoverable work in the target chat rejects configuration with `Busy`. Agent's generation checkpoint pins each prepared request's model and thinking level; removing the configuration guard lets future requests use the saved settings while the held response completes with its original model and recovery stays paused.
+- Check: exercise the edited target separately from the selected chat and a running peer. Verify active requests, subsequent requests and recovery state rather than treating a configuration save as a new execution. The sidebar DOM and Desktop-to-Bot HTTP controls cover their respective paths; they do not reproduce the maintainer's live server state.
+- Seen: 2026-10-27.
+
 **Detach observation containers without serializing their large strings.**
 
 - Evidence: on 2026-10-27, a 15-second eta-server CPU profile attributed 2,114 of 3,036 samples to the full snapshot JSON stringify/parse round trip, with another 515 samples in garbage collection. The service had repeated JavaScript heap OOM crashes; this profile identifies the current CPU hotspot, not every historical OOM allocation. A real ObservationService read/subscription fixture containing a 24 MiB image aborts under a 64 MiB heap with the old round trip and passes with container-only copying, including mutation isolation and omitted optional properties.
