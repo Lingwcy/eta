@@ -427,12 +427,13 @@ and inspect every build configuration that derives those keys.**
 - Check: treat streamed tool arguments as active model generation; distinguish submission and queuing from admitted execution. Keep approval pauses, retries and deferred responses visible, and consume available state notifications instead of waiting for a polling interval.
 - Seen: 2026-10-13, 2026-10-15.
 
-**Propagate a shared deadline through every asynchronous stage, including tools and the final decision check.**
+**Propagate cancellation through every asynchronous stage, not only its waiter.**
 
 - Why: a model timeout alone does not bound context gathering or prevent a late approval.
 - Evidence: the 2026-10-13 sandbox review follow-up found `review.ts` passing its timeout only to the model, while `tools.execute` received the original context. The focused `packages/core/test/service/runtime/review-task.test.ts` now blocks a tool, model availability and the final settings read, and verifies timeout leaves the request pending for the user.
-- Check: cancel the actual operation as well as its waiter; retain a non-cancelled context for recording the fallback and cleanup.
-- Seen 1× (2026-10-13).
+- Additional evidence: on 2026-10-27, #471's real Core-layer controls on `9a2fafc` enter external subagent waits before disposing the service graph. Uninterruptible waits delay disposal until their deadline; removing only that wrapper would leave the underlying gate outside the owner's cancellation. Forward the Effect signal into the actual wait Context and check it before resume. Finite/no-deadline controls verify prompt disposal, aborted owner signal, the exact wait watch stopped, and recoverable child work after reopening. A finally-only test abort keeps the old no-deadline implementation bounded without making the shutdown assertion pass.
+- Check: cancel the actual operation as well as its waiter; retain a non-cancelled context for recording the fallback and cleanup. Keep atomic writer policy separate from cancellable read waits, and verify resource cleanup and preserved work through actual reopen.
+- Seen: 2026-10-13, 2026-10-27.
 
 ## Defaults and explicit choices
 
