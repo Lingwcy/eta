@@ -430,10 +430,11 @@ and inspect every build configuration that derives those keys.**
 
 **Propagate cancellation through every asynchronous stage, not only its waiter.**
 
-- Why: a model timeout alone does not bound context gathering or prevent a late approval.
+- Why: a model timeout alone does not bound context gathering or prevent a late approval. A cancellable operation still blocks shutdown if its owner drains it before reaching cancellation.
 - Evidence: the 2026-10-13 sandbox review follow-up found `review.ts` passing its timeout only to the model, while `tools.execute` received the original context. The focused `packages/core/test/service/runtime/review-task.test.ts` now blocks a tool, model availability and the final settings read, and verifies timeout leaves the request pending for the user.
 - Additional evidence: on 2026-10-27, #471's real Core-layer controls on `9a2fafc` enter external subagent waits before disposing the service graph. Uninterruptible waits delay disposal until their deadline; removing only that wrapper would leave the underlying gate outside the owner's cancellation. Forward the Effect signal into the actual wait Context and check it before resume. Finite/no-deadline controls verify prompt disposal, aborted owner signal, the exact wait watch stopped, and recoverable child work after reopening. A finally-only test abort keeps the old no-deadline implementation bounded without making the shutdown assertion pass.
-- Check: cancel the actual operation as well as its waiter; retain a non-cancelled context for recording the fallback and cleanup. Keep atomic writer policy separate from cancellable read waits, and verify resource cleanup and preserved work through actual reopen.
+- Additional evidence: #478 on `b078397` exercises actual authenticated Bot HTTP waits with finite/no deadline. Controller drains its in-flight reads before application shutdown reaches Core.close, so the Core cancellation capability cannot unblock the host. Both controls fail the close-completion condition on main. A Controller-owned wait signal passed through the local CoreClient aborts the actual Effect before drain; HTTP returns RuntimeClosing, cold Core reopen preserves recovery work, and Bot reopen verifies its writer lock is released. This does not establish TCP/OS-signal or Discord shutdown behavior.
+- Check: cancel the actual operation as well as its waiter; retain a non-cancelled context for recording the fallback and cleanup. Cancel owned read waits before draining them, not at a downstream close step that drain itself prevents. Keep atomic writer policy separate from cancellable read waits, and verify resource cleanup and preserved work through actual reopen.
 - Seen: 2026-10-13, 2026-10-27.
 
 ## Defaults and explicit choices

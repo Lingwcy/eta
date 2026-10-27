@@ -271,8 +271,8 @@ export async function createCore(options: CoreOptions) {
       stop: (id: string) => runtime.runPromise(threads.stop(id)),
       resume: (id: string) => runtime.runPromise(threads.resume(id)),
       compact: (id: string) => runtime.runPromise(threads.compact(id)),
-      subagent: (id: string, command: SubagentCommand, requestId: string) =>
-        runtime.runPromise(threads.subagent(id, command, requestId)),
+      subagent: (id: string, command: SubagentCommand, requestId: string, signal?: AbortSignal) =>
+        runtime.runPromise(threads.subagent(id, command, requestId), { signal }),
       unloadSkill: (id: string, name: string) => runtime.runPromise(threads.unloadSkill(id, name)),
       subscribe: (
         id: string,
