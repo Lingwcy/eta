@@ -510,6 +510,7 @@ export class DiscordExtension {
         .filter((input) => input.issueId === id && input.state === "blocked")) {
         if (input.taskId && issue.etaThreadId) {
           const task = await this.host().core.task(issue.etaThreadId, input.taskId);
+          if (!current()) return this.store.issue(id)!;
           if (task.state.status === "terminal" && task.state.outcome.status !== "completed")
             this.store.updateInput(input.id, { taskId: null, taskAttempt: input.taskAttempt + 1 });
         }
