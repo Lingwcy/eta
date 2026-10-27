@@ -47,6 +47,7 @@ export class DiscordExtension {
   private error: string | null = null;
   private readonly limited = new Set<string>();
   private readonly controlOwners = new Map<string, object>();
+  private readonly archiveOwners = new Map<string, object>();
   private lastFill = 0;
   private readonly task;
   private readonly port: DiscordPort;
@@ -462,6 +463,7 @@ export class DiscordExtension {
     }
   }
   control(id: string, action: IssueAction) {
+    this.archiveOwners.delete(id);
     const owner = {};
     this.controlOwners.set(id, owner);
     const current = () => this.controlOwners.get(id) === owner;
@@ -547,18 +549,25 @@ export class DiscordExtension {
   }
   private async syncArchive(issue: Issue) {
     if (!issue.discordThreadId) return;
+    const owner = {};
+    this.archiveOwners.set(issue.id, owner);
+    const current = () => this.archiveOwners.get(issue.id) === owner;
     try {
       await this.port.archive(issue.discordThreadId, issue.state === "closed");
-      this.store.updateIssue(issue.id, { archivePending: false, error: null });
+      if (current()) this.store.updateIssue(issue.id, { archivePending: false, error: null });
     } catch {
-      this.store.updateIssue(issue.id, {
-        error: "Discord archive update failed; repeat close or reopen after checking permissions.",
-      });
+      if (current())
+        this.store.updateIssue(issue.id, {
+          error:
+            "Discord archive update failed; repeat close or reopen after checking permissions.",
+        });
       throw new BotHttpError(
         503,
         "DiscordUnavailable",
         "The issue state was saved but its Discord archive update needs retrying.",
       );
+    } finally {
+      if (current()) this.archiveOwners.delete(issue.id);
     }
   }
   async close() {

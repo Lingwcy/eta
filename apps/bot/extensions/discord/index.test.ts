@@ -617,3 +617,101 @@ test.each(["stop", "close"] as const)(
   },
   15000,
 );
+
+test.each(["new-fails", "old-fails", "new-stop", "peer", "pending-new"] as const)(
+  "archive acknowledgements respect %s ownership",
+  async (scenario) => {
+    const { app, port, provider, finished } = await fixture();
+    provider.setResponses([fauxAssistantMessage("Initial reply")]);
+    await port.emit(message("102"));
+    await finished(app, "102");
+    if (scenario === "peer") {
+      await port.emit(message("202"));
+      await finished(app, "202");
+    }
+    // Administrative controls remain available while ingress is paused; avoid unrelated pump retries.
+    await app.discord!.stopIngress();
+    const issue = app.discord!.store.issue("102")!;
+    const archive = port.archive.bind(port);
+    const release = Promise.withResolvers<void>();
+    const releaseNew = Promise.withResolvers<void>();
+    let newEntered = false;
+    let newer: Promise<unknown> | undefined;
+    let entered = false;
+    let first = true;
+    port.archive = async (id, archived) => {
+      if (id === issue.discordThreadId && first) {
+        first = false;
+        await archive(id, archived);
+        entered = true;
+        await release.promise;
+        if (scenario === "old-fails" || scenario === "new-stop")
+          throw new Error("Old response failed");
+        return;
+      }
+      if (scenario === "new-fails" && id === issue.discordThreadId)
+        throw new Error("New archive failed");
+      await archive(id, archived);
+      if (scenario === "pending-new" && id === issue.discordThreadId) {
+        newEntered = true;
+        await releaseNew.promise;
+      }
+    };
+    const older = app.discord!.control("102", "close").then(
+      () => "ok",
+      () => "failed",
+    );
+    try {
+      await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+      if (scenario === "pending-new") {
+        newer = app.discord!.control("102", "reopen");
+        await expect.poll(() => newEntered, { timeout: 5000 }).toBe(true);
+      } else if (scenario === "new-fails")
+        await expect(app.discord!.control("102", "reopen")).rejects.toThrow();
+      else if (scenario === "new-stop") await app.discord!.control("102", "stop");
+      else if (scenario === "peer") await app.discord!.control("202", "stop");
+      else await app.discord!.control("102", "reopen");
+      const latest = app.discord!.store.issue("102")!;
+      if (scenario === "new-fails") {
+        expect(latest.archivePending).toBe(true);
+        expect(latest.error).not.toBeNull();
+      }
+      if (scenario === "old-fails" || scenario === "new-stop") {
+        expect(latest.archivePending).toBe(false);
+        expect(latest.error).toBeNull();
+      }
+      release.resolve();
+      expect(await older).toBe(
+        scenario === "old-fails" || scenario === "new-stop" ? "failed" : "ok",
+      );
+      if (scenario === "pending-new") {
+        releaseNew.resolve();
+        await newer;
+      }
+      const current = app.discord!.store.issue("102")!;
+      expect({
+        state: current.state,
+        archivePending: current.archivePending,
+        error: current.error,
+      }).toEqual(
+        scenario === "peer" || scenario === "pending-new"
+          ? {
+              state: scenario === "peer" ? "closed" : "waiting",
+              archivePending: false,
+              error: null,
+            }
+          : { state: latest.state, archivePending: latest.archivePending, error: latest.error },
+      );
+      expect(port.archived.get(issue.discordThreadId!)).toBe(
+        scenario !== "old-fails" && scenario !== "pending-new",
+      );
+    } finally {
+      release.resolve();
+      releaseNew.resolve();
+      await older;
+      await newer?.catch(() => {});
+      port.archive = archive;
+    }
+  },
+  15000,
+);
