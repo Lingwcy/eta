@@ -177,6 +177,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: gate the full fingerprint/receipt lookup, intent publication and execution for one logical request. Retain live validation of completed receipts, allow different request IDs to proceed independently, and release gate entries only after their last owner/waiter leaves.
 - Seen: 2026-10-21.
 
+**Do not hold a shared mutation lock while waiting for work that its control path must stop.**
+
+- Evidence: on 2026-10-25, #461's real Core controls on `6b73a44` hold a delegated model response and enter external `subagent wait`. Both another thread's rename and the owner's stop remain queued behind ThreadService's shared mutation lock until the fixture releases the model. Excluding only wait from that lock lets rename complete while the child remains pending and lets stop settle the wait without manual model release.
+- Check: separate long observation from mutation serialization, preserve writer locks and runtime/target validation, and verify that timeout returns do not cancel work. Active-task archive/removal must still return Busy while a wait is live. This does not prove HTTP disconnect cancellation or a production deadlock.
+- Seen: 2026-10-25.
+
 **Do not make a durable creation receipt wait for its derived directory.**
 
 - Evidence: on 2026-10-19, BDS-05 still awaited DesktopBot's library/status refresh after the configured thread was already created. Holding either read blocks the first message in two real DraftThread/HTTP-adapter regressions before the change. Returning the creation first admits the prompt while both held-read and later catalog-publication controls pass. Background failure, an older poll, connection replacement and explicit disposal are covered without a production latency claim.
