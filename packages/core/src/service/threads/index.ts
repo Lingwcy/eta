@@ -251,32 +251,30 @@ export class ThreadService extends Context.Service<
               return yield* open(id);
             }),
           ),
-        subagent: (id, command, requestId) =>
-          locked(
-            Effect.gen(function* () {
-              const runtime = yield* runtimeFor(id, command.action !== "list");
-              if (
-                runtime.recoveryRequired &&
-                command.action !== "list" &&
-                command.action !== "stop"
-              )
-                return yield* new CoreError({
-                  code: "RecoveryRequired",
-                  message: "请先恢复或停止未完成任务",
-                });
-              if (command.action === "spawn" || command.action === "send")
-                yield* adapter("无法更新工具", runtime.refreshTools);
-              yield* adapter("无法管理子智能体", async () => {
-                const actor =
-                  command.parent && command.parent !== "/root"
-                    ? (await childRuntime(runtime, command.parent)).conversation.id
-                    : runtime.conversation.id;
-                await runtime.subagents.execute(command, actor, requestId);
-                runtime.harness.resume();
+        subagent: (id, input, requestId) => {
+          const command = { ...input };
+          const execute = Effect.gen(function* () {
+            const runtime = yield* runtimeFor(id, command.action !== "list");
+            if (runtime.recoveryRequired && command.action !== "list" && command.action !== "stop")
+              return yield* new CoreError({
+                code: "RecoveryRequired",
+                message: "请先恢复或停止未完成任务",
               });
-              return yield* adapter("无法读取子智能体", runtime.subagents.list);
-            }),
-          ),
+            if (command.action === "spawn" || command.action === "send")
+              yield* adapter("无法更新工具", runtime.refreshTools);
+            yield* adapter("无法管理子智能体", async () => {
+              const actor =
+                command.parent && command.parent !== "/root"
+                  ? (await childRuntime(runtime, command.parent)).conversation.id
+                  : runtime.conversation.id;
+              await runtime.subagents.execute(command, actor, requestId);
+              runtime.harness.resume();
+            });
+            return yield* adapter("无法读取子智能体", runtime.subagents.list);
+          });
+          // Waiting must not hold the lock needed by stop or unrelated thread mutations.
+          return command.action === "wait" ? execute.pipe(Effect.uninterruptible) : locked(execute);
+        },
         openSubagent: (id, path) =>
           Effect.gen(function* () {
             const runtime = yield* runtimeFor(id);

@@ -1087,6 +1087,263 @@ test("subagent writers retain project leases and cannot resolve another thread's
   }
 }, 15000);
 
+// The timer callback is fire-and-forget; await its actual Core reads, then its continuation.
+async function advanceRecoveryPoll(inspections: readonly Promise<unknown>[]) {
+  await vi.advanceTimersByTimeAsync(250);
+  await Promise.allSettled(inspections);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
+test.each(["during-admission", "after-admission", "failed-inspection"] as const)(
+  "a recovery check cannot release a checkout %s of a borrowed subagent writer",
+  async (phase) => {
+    const { bot, provider, workspace, create } = await fixture();
+    await bot.core.stopScheduler();
+    const id = await create("borrowed-writer-" + phase);
+    const other = await create("borrowed-contender-" + phase);
+    const admit = Promise.withResolvers<void>();
+    const inspect = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    const inspections: Promise<unknown>[] = [];
+    const tick = () => advanceRecoveryPoll(inspections);
+    let admitting = false;
+    let inspecting = false;
+    let holdInspection = false;
+    let failCurrent = false;
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const controller = new BotController(
+      {
+        ...bot.core,
+        recovery: (threadId) => {
+          const inspection = (async () => {
+            const state = await bot.core.recovery(threadId);
+            if (failCurrent && threadId === id)
+              throw new Error("Current recovery inspection failed");
+            if (holdInspection && threadId === id) {
+              holdInspection = false;
+              inspecting = true;
+              await inspect.promise;
+              if (phase === "failed-inspection")
+                throw new Error("Previous recovery inspection failed");
+            }
+            return state;
+          })();
+          inspections.push(inspection);
+          return inspection;
+        },
+        subagent: async (...args) => {
+          admitting = true;
+          await admit.promise;
+          return bot.core.subagent(...args);
+        },
+      },
+      new Map([[workspace, bot.workspaceProjects.get(workspace)!]]),
+      2,
+    );
+    let spawning: Promise<unknown> | undefined;
+    let checking: Promise<void> | undefined;
+    try {
+      provider.setResponses([fauxAssistantMessage("Root work completed")]);
+      await controller.submit(id, "Root work", "borrowed-root");
+      await expect
+        .poll(async () => (await bot.core.recovery(id)).pending, { timeout: 5000 })
+        .toBe(false);
+      provider.setResponses(
+        Array.from({ length: 4 }, () => async () => {
+          await finish.promise;
+          return fauxAssistantMessage("Held work completed");
+        }),
+      );
+      if (phase !== "during-admission") {
+        holdInspection = true;
+        checking = tick();
+        await expect.poll(() => inspecting, { timeout: 5000 }).toBe(true);
+      }
+      spawning = controller.subagent(
+        id,
+        {
+          action: "spawn",
+          name: "borrowed",
+          message: "Hold this delegated task",
+          wait: false,
+        },
+        "borrowed-spawn",
+      );
+      // Observe every rejection even if a readiness assertion fails before awaiting the call.
+      const observed = Promise.allSettled([spawning]);
+      await expect.poll(() => admitting, { timeout: 5000 }).toBe(true);
+      if (phase === "during-admission") {
+        await tick();
+      } else {
+        admit.resolve();
+        await spawning;
+        inspect.resolve();
+        await checking;
+      }
+      const contender = await controller.submit(other, "Competing work", "borrowed-contender").then(
+        () => ({ admitted: true }),
+        (error: unknown) => ({
+          admitted: false,
+          code: error instanceof Error && "code" in error ? error.code : undefined,
+        }),
+      );
+      admit.resolve();
+      await spawning;
+      await observed;
+      expect({
+        contender,
+        ownerPending: (await bot.core.recovery(id)).pending,
+        contenderPending: (await bot.core.recovery(other)).pending,
+        activeThreads: controller.status().activeThreads,
+        blocked: controller.status().blocked,
+      }).toEqual({
+        contender: { admitted: false, code: "Busy" },
+        ownerPending: true,
+        contenderPending: false,
+        activeThreads: [id],
+        blocked: {},
+      });
+      if (phase === "failed-inspection") {
+        failCurrent = true;
+        await tick();
+        expect(controller.status().blocked).toEqual({ [id]: "Current recovery inspection failed" });
+        await expect(
+          controller.submit(other, "Competing work", "borrowed-contender"),
+        ).rejects.toMatchObject({ code: "Busy" });
+        finish.resolve();
+        failCurrent = false;
+        await controller.stop(id);
+      } else {
+        finish.resolve();
+        await expect
+          .poll(async () => (await bot.core.recovery(id)).pending, { timeout: 5000 })
+          .toBe(false);
+        await tick();
+      }
+      expect(controller.status().activeThreads).toEqual([]);
+      await expect(
+        controller.submit(other, "Competing work", "borrowed-contender"),
+      ).resolves.toMatchObject({ kind: "run" });
+    } finally {
+      admit.resolve();
+      inspect.resolve();
+      finish.resolve();
+      try {
+        await Promise.allSettled([
+          ...(spawning ? [spawning] : []),
+          ...(checking ? [checking] : []),
+        ]);
+        await controller.stop(id);
+        await controller.stop(other);
+        await controller.close(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  },
+  15000,
+);
+
+test("a rejected borrowed writer cannot release another pending writer's checkout", async () => {
+  const { bot, provider, workspace, create } = await fixture();
+  await bot.core.stopScheduler();
+  const id = await create("overlapping-borrowed-owner");
+  const other = await create("overlapping-borrowed-contender");
+  const admit = Promise.withResolvers<void>();
+  const finish = Promise.withResolvers<void>();
+  const inspections: Promise<unknown>[] = [];
+  const tick = () => advanceRecoveryPoll(inspections);
+  let admitting = false;
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  const controller = new BotController(
+    {
+      ...bot.core,
+      recovery: (threadId) => {
+        const inspection = bot.core.recovery(threadId);
+        inspections.push(inspection);
+        return inspection;
+      },
+      subagent: async (...args) => {
+        if (args[2] === "overlapping-held-spawn") {
+          admitting = true;
+          await admit.promise;
+        }
+        return bot.core.subagent(...args);
+      },
+    },
+    new Map([[workspace, bot.workspaceProjects.get(workspace)!]]),
+    2,
+  );
+  let spawning: Promise<unknown> | undefined;
+  try {
+    provider.setResponses([fauxAssistantMessage("Root completed")]);
+    await controller.submit(id, "Root work", "overlapping-root");
+    await expect
+      .poll(async () => (await bot.core.recovery(id)).pending, { timeout: 5000 })
+      .toBe(false);
+    spawning = controller.subagent(
+      id,
+      {
+        action: "spawn",
+        name: "held",
+        message: "Hold this task",
+        wait: false,
+      },
+      "overlapping-held-spawn",
+    );
+    const observed = Promise.allSettled([spawning]);
+    await expect.poll(() => admitting, { timeout: 5000 }).toBe(true);
+    await expect(
+      controller.subagent(
+        id,
+        {
+          action: "send",
+          path: "/root/missing",
+          message: "No such worker",
+          wait: false,
+        },
+        "overlapping-invalid-send",
+      ),
+    ).rejects.toThrow(/只能管理当前智能体的下级/);
+    expect((await bot.core.recovery(id)).pending).toBe(false);
+    await tick();
+    expect(controller.status().activeThreads).toEqual([id]);
+    await expect(
+      controller.submit(other, "Competing", "overlapping-contender"),
+    ).rejects.toMatchObject({ code: "Busy" });
+    provider.setResponses([
+      async () => {
+        await finish.promise;
+        return fauxAssistantMessage("Delegated work completed");
+      },
+    ]);
+    admit.resolve();
+    await spawning;
+    await observed;
+    expect((await bot.core.recovery(id)).pending).toBe(true);
+    finish.resolve();
+    await expect
+      .poll(async () => (await bot.core.recovery(id)).pending, { timeout: 5000 })
+      .toBe(false);
+    await tick();
+    expect(controller.status().activeThreads).toEqual([]);
+    await expect(
+      controller.submit(other, "Competing", "overlapping-contender"),
+    ).resolves.toMatchObject({ kind: "run" });
+  } finally {
+    admit.resolve();
+    finish.resolve();
+    try {
+      await Promise.allSettled(spawning ? [spawning] : []);
+      await controller.stop(id);
+      await controller.stop(other);
+      await controller.close(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+}, 15000);
+
 test.each(["list", "spawn", "send", "stop"] as const)(
   "subagent %s rechecks a formerly visible workspace before reaching Core",
   async (action) => {
@@ -3759,6 +4016,52 @@ test("coalesced folder requests revalidate their own scope after the creator pub
   }
 }, 15000);
 
+test("a project request reading its body at shutdown rejects closed-store ingress", async () => {
+  const { bot, config } = await fixture(true);
+  const release = Promise.withResolvers<void>();
+  let reading = false;
+  const body = new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        reading = true;
+        await release.promise;
+        controller.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({
+              name: "late-folder",
+              requestId: "late-body-at-shutdown",
+            }),
+          ),
+        );
+        controller.close();
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const init = {
+    method: "POST",
+    headers: { authorization: "Bearer " + config.adminToken, "content-type": "application/json" },
+    body,
+    duplex: "half" as const,
+  };
+  const pending = Promise.resolve(
+    bot.app.request(new Request("http://localhost/v1/projects", init)),
+  );
+  try {
+    // Zero buffering means a pull starts only when the authenticated handler reads the body.
+    await expect.poll(() => reading, { timeout: 5000 }).toBe(true);
+    await bot.close();
+    release.resolve();
+    const response = await pending;
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: { code: "RuntimeClosing" } });
+    expect(await readdir(config.workspaceRoot)).toEqual([]);
+  } finally {
+    release.resolve();
+    await Promise.allSettled([pending]);
+  }
+}, 15000);
+
 test("project folder creation retains authentication, size, input and shutdown guards", async () => {
   const { bot, request, config } = await fixture(true);
   await bot.core.stopScheduler();
@@ -3856,3 +4159,37 @@ test.each([undefined, "delta-v1", "unknown-version"])(
   },
   10000,
 );
+
+test("JSON numeric overflow in credential import cannot corrupt the next Bot startup", async () => {
+  const { bot, config, request, open } = await fixture(true);
+  expect(
+    (
+      await request("/v1/credentials/import", {
+        credentials: { stable: { type: "api_key", key: "fake-stable-key" } },
+      })
+    ).status,
+  ).toBe(200);
+  const path = join(config.dataRoot, "credentials.json");
+  const before = await readFile(path, "utf8");
+  const response = await bot.app.request("/v1/credentials/import", {
+    method: "POST",
+    headers: { authorization: "Bearer " + config.adminToken, "content-type": "application/json" },
+    body: '{"credentials":{"stable":{"type":"oauth","refresh":"fake-refresh","access":"fake-access","expires":1e400}}}',
+  });
+  const body: unknown = await response.json();
+  const unchanged = (await readFile(path, "utf8")) === before;
+  await bot.close();
+  const reopened = await open().then(
+    () => ({ opened: true }),
+    (error: unknown) => ({
+      opened: false,
+      code: error instanceof Error && "code" in error ? error.code : undefined,
+    }),
+  );
+  expect({ status: response.status, body, unchanged, reopened }).toEqual({
+    status: 400,
+    body: { error: { code: "InvalidInput", message: "认证格式无效" } },
+    unchanged: true,
+    reopened: { opened: true },
+  });
+}, 15000);

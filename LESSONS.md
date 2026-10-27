@@ -165,12 +165,6 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: cache scan-invariant identity only for that scan, revalidate it before publishing, revoke both old ownership maps when a root change is detected, and finish awaited alias work before replacing related maps. Partial updates must coordinate with completed publications as well as currently pending scans; an older check cannot undo a newer revocation or clear a replacement namespace. Do not turn this optimization into a cross-request permission cache or assume missing-path canonicalization performs no additional parent reads.
 - Seen: 2026-10-20, 2026-10-27.
 
-**Treat external IDs as own data keys on both reads and writes.**
-
-- Evidence: on 2026-10-21, #361's real Core/Git calls reject toString, constructor and **proto** as already-used request IDs because JSON dictionaries inherit Object.prototype. On 2026-10-22, #367 finds the independent scheduler returning a function for an unknown request and rejecting create/propose/approve/manual-run requests for the same keys. Read guards alone are insufficient there: plain assignment to a new **proto** key invokes a setter. Real Core close/reopen tests preserve own durable receipts; separate lifecycle controls reject pending requests with these IDs without mistaking inherited names for active lifecycle intentions.
-- Check: test arbitrary IDs through real persistence and replay, distinguish absent entries with own-property checks, and publish data without invoking prototype setters. Check later lifecycle membership tests as well as admission; do not ban valid IDs or claim a prototype-pollution exploit from a false-collision regression.
-- Seen: 2026-10-21, 2026-10-22.
-
 **Do not use pathname contents as Git record boundaries.**
 
 - Evidence: on 2026-10-21, #348's real Git/Core branch listing turns a worktree path's second line into a false ref. Explicit NUL record framing fixes that producer/consumer pair. Follow-up #351 separately reproduces valid newline-root repositories reported unavailable and successful managed checkouts reported needs_reconciliation: rev-parse's bundled paths and worktree-list records also used LF as a boundary. POSIX regressions preserve embedded/trailing LF and complete create/list/replay/remove without mocking Git.
@@ -182,6 +176,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Evidence: on 2026-10-21, #344's real Core/Git worktree regressions concurrently submit one creation ID. Identical inputs produce one failure; different branch parameters both succeed, even though sequential reuse already conflicts. Git's repository lock starts after both callers read and write the shared intent, and serial JSON writes alone cannot protect that read-check-write sequence. A service-local request gate makes identical callers replay one ready receipt and rejects the conflicting caller; a failed empty-repository attempt can still retry after the first commit.
 - Check: gate the full fingerprint/receipt lookup, intent publication and execution for one logical request. Retain live validation of completed receipts, allow different request IDs to proceed independently, and release gate entries only after their last owner/waiter leaves.
 - Seen: 2026-10-21.
+
+**Do not hold a shared mutation lock while waiting for work that its control path must stop.**
+
+- Evidence: on 2026-10-25, #461's real Core controls on `6b73a44` hold a delegated model response and enter external `subagent wait`. Both another thread's rename and the owner's stop remain queued behind ThreadService's shared mutation lock until the fixture releases the model. Excluding only wait from that lock lets rename complete while the child remains pending and lets stop settle the wait without manual model release.
+- Check: separate long observation from mutation serialization, preserve writer locks and runtime/target validation, and verify that timeout returns do not cancel work. Active-task archive/removal must still return Busy while a wait is live. This does not prove HTTP disconnect cancellation or a production deadlock.
+- Seen: 2026-10-25.
 
 **Do not make a durable creation receipt wait for its derived directory.**
 
@@ -300,11 +300,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: kill the process after filesystem staging and after Catalog persistence; prove the original transcript remains accessible when the operation did not commit and that committed deletion does not resurrect it. An in-memory rollback callback cannot cover process death.
 - Seen: 2026-10-13.
 
-**Validate every persisted lifecycle variant on both read and write boundaries.**
+**Validate persisted state on both read and write boundaries.**
 
 - Evidence: #427's public Core reconciliation writes an unmanaged, unverified worktree with an empty commonDir, while its reader requires a nonempty identity. A normal history then fails even after restart. The 2026-10-23 follow-up covers both non-repository and externally removed checkouts, preserves unrelated managed receipts and execution, and rejects unknown identities in every managed or verified state. Validating candidate writes before replacement keeps an invalid update from poisoning the next read and leaves the queue usable.
-- Check: represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
-- Seen: 2026-10-23.
+- Additional evidence: on 2026-10-26, #465's real Bot/Hono administrator import accepts JSON numeric overflow as an OAuth expiry and returns 200, but the rewritten file makes the next real startup fail with StorageCorrupt. Number schemas accepted non-finite values that JSON turns into null; migration also lacked source validation. Finite checks at all write ingress preserve old bytes, while real reopen, atomic migration retry, finite expired/fractional values and corrupt-file rejection remain covered. Fake-token fixtures are not production outage evidence.
+- Check: validate compatibility with the serialized read contract, not only the in-memory schema. Represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
+- Seen: 2026-10-23, 2026-10-26.
 
 **Reject preflight configuration errors before allocating durable resources.**
 
@@ -484,6 +485,14 @@ model choice must still be validated as an explicit choice.**
 
 ## Promoted lessons
 
+**Treat external IDs as own data keys on both reads and writes.**
+
+- Promoted on 2026-10-26 to [Verifying](AGENTS.md#verifying).
+- Evidence: on 2026-10-21, #361's real Core/Git calls reject toString, constructor and `__proto__` as already-used request IDs because JSON dictionaries inherit Object.prototype. On 2026-10-22, #367 finds the independent scheduler returning a function for an unknown request and rejecting create/propose/approve/manual-run requests for the same keys. Read guards alone are insufficient there: plain assignment to a new `__proto__` key invokes a setter. Real Core close/reopen tests preserve own durable receipts; separate lifecycle controls reject pending requests with these IDs without mistaking inherited names for active lifecycle intentions.
+- Additional evidence: on 2026-10-26, #463's real CredentialService controls on `6b73a44` clone inherited provider functions, return a phantom `__proto__` credential and reject direct API-key creation as StorageUnavailable. First-run migration from the real third-party memory store omits its `__proto__` OAuth entry from both export and the actual file. Own-key reads and Object.fromEntries retain those providers through reopen and logout without restoring logged-out entries; fake-token controls do not establish production loss or global prototype pollution.
+- Check: test arbitrary IDs through real persistence and replay, distinguish absent entries with own-property checks, and publish data without invoking prototype setters. Check later lifecycle membership tests as well as admission; do not ban valid IDs or claim a prototype-pollution exploit from a false-collision regression.
+- Seen: 2026-10-21, 2026-10-22, 2026-10-26.
+
 **Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
 
 - Evidence: on 2026-10-16, #57 holds a real Core recovery result across stop and resubmit of the same Bot thread. The old successful check releases the replacement's checkout reservation and admits a competing writer; an old failed check marks the replacement blocked. Two native regressions reproduce both outcomes before the fix and verify current completion still releases capacity afterward.
@@ -508,6 +517,8 @@ model choice must still be validated as an explicit choice.**
 - Additional evidence: on 2026-10-23, the computer tool's real Core/Code mode fixture received a screenshot but rejected its next-round click as stale when ownership used `LiveDoc.run.taskId`: that ID changes during generation handoffs. Binding to the first admitted submission in `run.inputs`, plus a distinct owner instance, preserves the screenshot across model rounds and rejects reuse by a later submission. `test/service/runtime/codemode.test.ts` exercises both outcomes with a controlled adapter; this does not establish real model targeting accuracy.
 - Additional evidence: on 2026-10-25, #430's real Core/Git fixtures on `319d644` hold run-grant expiry after a root finishes: separate user/automatic runs commit without a new decision, and releasing old expiry revokes a replacement's fresh grant. Bind requests/grants to the first root `LiveDoc.run.inputs` submission, recheck it in the authorization transaction, and retain current-owner grants during idle cleanup. Seven focused cases cover both expiry orders, legacy grants, root-idle/active children and a real Core reopen; these are controlled schedules, not a production exploit-frequency claim.
 - Additional evidence: on 2026-10-25, #454 holds an old GitHub session discovery while a later query publishes another identity and its cache. On `2c4a063`, the old discovery resets the identity, returns ready and evicts the newer cache (three network calls instead of one). Carry query admission across discovery and preserve the highest published order even for an accepted same-key completion. Four public Core controls cover stale discovery, same-key cache reuse, identity switching back and an invalid newer preflight; they do not measure real credential rotation or production disclosure.
+- Additional evidence: on 2026-10-25, #459 holds a borrowed subagent writer before actual Core admission, or returns an older idle read after the child is admitted. Both native controls on `6b73a44` release the same checkout lease and admit another thread while both Core runtimes are pending; a controlled old inspection failure instead pollutes blocked state. Pending admissions must retain the lease against monitor release and invalidate earlier observations even when they settle during a read. Controls retain overlapping-writer rejection, current inspection protection, and eventual capacity release; no filesystem conflict or production incident is asserted. After #468 replaces subscriptions with polling-only monitoring, `a246b15` still fails all four borrowed-admission controls. The updated fix keeps recovery/failedTurn polling without history projection; fixtures await actual read settlement and its check-phase continuation. This recheck of the same incident does not add a Seen date.
+- Additional evidence: on 2026-10-25, #457's real BotStore/SQLite controls admit a callback after close snapshots in-flight work; the database closes before that callback saves its receipt, producing `ERR_INVALID_STATE`. Parallel closes fail the second native close, and a Hono body held across application close resumes with 500. Close store admission before awaiting the drain and coalesce the terminal close Promise. Controls retain pre-close coalescing and a durable receipt after reopening; this does not establish a complete application shutdown barrier or production data loss.
 - Seen: 2026-10-16, 2026-10-17, 2026-10-18, 2026-10-21, 2026-10-22, 2026-10-23, 2026-10-25.
 - Promoted on 2026-10-18 to [Verifying](AGENTS.md#verifying).
 

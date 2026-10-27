@@ -15,7 +15,7 @@ import {
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { Clock, Effect, ManagedRuntime } from "effect";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { CatalogService } from "@eta/core/service/catalog/index";
 import { testServices, TestSettings } from "../../support/runtime.ts";
 import { ProjectService } from "@eta/core/service/projects/index";
@@ -183,6 +183,191 @@ test.each([false, true])(
     }
   },
 );
+
+test.each(["rename", "stop"] as const)(
+  "waiting for a subagent does not block %s behind the global mutation lock",
+  async (action) => {
+    const { runtime, threads, registry, workspace, provider } = await setup();
+    const owner = await runtime.runPromise(threads.create(workspace.id));
+    const other = await runtime.runPromise(threads.create(workspace.id));
+    const record = await runtime.runPromise(registry.acquire(owner.thread.sessionRef));
+    const execute = vi.spyOn(record.subagents, "execute");
+    const held = holdResponse(provider, "Delegated work completed");
+    let ready = false;
+    void held.ready.then(() => {
+      ready = true;
+    });
+    let waiting: Promise<unknown> | undefined;
+    let mutation: Promise<unknown> | undefined;
+    try {
+      const children = await runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "spawn",
+            name: "held",
+            message: "Wait for release",
+            wait: false,
+          },
+          "wait-lock-spawn",
+        ),
+      );
+      const path = children[0]!.path;
+      await expect.poll(() => ready, { timeout: 5000 }).toBe(true);
+      let waitSettled = false;
+      waiting = runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs: 60000,
+          },
+          "wait-lock-read",
+        ),
+      );
+      void waiting.then(
+        () => {
+          waitSettled = true;
+        },
+        () => {
+          waitSettled = true;
+        },
+      );
+      // The pass-through spy proves the wait entered Core, not merely that it was scheduled.
+      await expect
+        .poll(() => execute.mock.calls.some(([command]) => command.action === "wait"), {
+          timeout: 5000,
+        })
+        .toBe(true);
+      let changed = false;
+      mutation =
+        action === "rename"
+          ? runtime.runPromise(threads.rename(other.id, "Changed while another thread waits"))
+          : runtime.runPromise(threads.stop(owner.id));
+      void mutation.then(
+        () => {
+          changed = true;
+        },
+        () => {
+          changed = true;
+        },
+      );
+      await expect.poll(() => changed, { timeout: 3000 }).toBe(true);
+      await mutation;
+      if (action === "rename") {
+        expect((await runtime.runPromise(threads.get(other.id))).title).toBe(
+          "Changed while another thread waits",
+        );
+        expect(waitSettled).toBe(false);
+        expect((await runtime.runPromise(threads.recovery(owner.id))).pending).toBe(true);
+        expect(
+          await runtime.runPromise(Effect.flip(threads.archive(owner.id, true))),
+        ).toMatchObject({ code: "Busy" });
+        expect(waitSettled).toBe(false);
+      } else {
+        await waiting;
+        expect((await runtime.runPromise(threads.recovery(owner.id))).pending).toBe(false);
+      }
+    } finally {
+      held.release();
+      await Promise.allSettled([...(waiting ? [waiting] : []), ...(mutation ? [mutation] : [])]);
+      execute.mockRestore();
+      await runtime.runPromise(threads.stop(owner.id));
+    }
+  },
+  15000,
+);
+
+test("unlocked subagent waits retain timeout, target scope and archived-thread guards", async () => {
+  const { runtime, threads, workspace, provider } = await setup();
+  const owner = await runtime.runPromise(threads.create(workspace.id));
+  const other = await runtime.runPromise(threads.create(workspace.id));
+  const held = holdResponse(provider, "Delegated result");
+  let ready = false;
+  void held.ready.then(() => {
+    ready = true;
+  });
+  try {
+    const children = await runtime.runPromise(
+      threads.subagent(
+        owner.id,
+        {
+          action: "spawn",
+          name: "held",
+          message: "Hold this task",
+          wait: false,
+        },
+        "wait-guards-spawn",
+      ),
+    );
+    const path = children[0]!.path;
+    await expect.poll(() => ready, { timeout: 5000 }).toBe(true);
+    const command = { action: "wait" as const, path, timeoutMs: 0 };
+    const deferred = threads.subagent(owner.id, command, "wait-command-snapshot");
+    Object.assign(command, { action: "spawn", name: "unexpected", message: "Must not spawn" });
+    expect(await runtime.runPromise(deferred)).toEqual([expect.objectContaining({ path })]);
+    for (const timeoutMs of [0, 50]) {
+      const result = await runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs,
+          },
+          "wait-guards-" + timeoutMs,
+        ),
+      );
+      expect(result).toEqual([expect.objectContaining({ path, status: "running" })]);
+      expect((await runtime.runPromise(threads.recovery(owner.id))).pending).toBe(true);
+    }
+    await expect(
+      runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs: -1,
+          },
+          "wait-invalid-timeout",
+        ),
+      ),
+    ).rejects.toThrow(/等待超时必须/);
+    await expect(
+      runtime.runPromise(
+        threads.subagent(
+          other.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs: 0,
+          },
+          "wait-foreign-target",
+        ),
+      ),
+    ).rejects.toThrow(/只能管理当前智能体的下级/);
+    await runtime.runPromise(threads.archive(other.id, true));
+    await expect(
+      runtime.runPromise(
+        threads.subagent(
+          other.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs: 0,
+          },
+          "wait-archived",
+        ),
+      ),
+    ).rejects.toThrow(/归档会话需要先恢复/);
+    expect((await runtime.runPromise(threads.recovery(owner.id))).pending).toBe(true);
+  } finally {
+    held.release();
+    await runtime.runPromise(threads.stop(owner.id));
+  }
+}, 15000);
 
 test("title generation runs beside the main answer using the thread's selected model and stays out of its transcript", async () => {
   const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
