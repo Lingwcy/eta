@@ -542,3 +542,78 @@ test.each(["close", "stop", "close-then-stop", "peer"] as const)(
   },
   15000,
 );
+
+test.each(["stop", "close"] as const)(
+  "late %s cleanup cannot cancel work admitted by a newer reopen",
+  async (action) => {
+    const { app, port, provider, finished } = await fixture();
+    provider.setResponses([fauxAssistantMessage("Initial reply")]);
+    await port.emit(message("102"));
+    await finished(app, "102");
+    const issue = app.discord!.store.issue("102")!;
+    const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+    let started = false;
+    provider.setResponses([
+      (_context, options) => {
+        started = true;
+        options?.signal?.addEventListener(
+          "abort",
+          () => answer.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+          { once: true },
+        );
+        return answer.promise;
+      },
+    ]);
+    const original = app.controller.stop.bind(app.controller);
+    const release = Promise.withResolvers<void>();
+    let entered = false;
+    let hold = true;
+    const stoppingCore = vi.spyOn(app.controller, "stop").mockImplementation(async (...args) => {
+      const result = await original(...args);
+      if (args[0] === issue.etaThreadId && hold) {
+        hold = false;
+        entered = true;
+        await release.promise;
+      }
+      return result;
+    });
+    const stopping = app.discord!.control("102", action);
+    try {
+      await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+      await app.discord!.control("102", "reopen");
+      await port.emit(message("103", "Replacement work", issue.discordThreadId!));
+      await expect.poll(() => started, { timeout: 5000 }).toBe(true);
+      const input = app.discord!.store.input("103")!;
+      expect(input.state).toBe("admitted");
+      expect((await app.core.operation(issue.etaThreadId!, input.operationId!)).status).toBe(
+        "running",
+      );
+      release.resolve();
+      await stopping;
+      const state = app.discord!.store.input("103")?.state;
+      const operation = (await app.core.operation(issue.etaThreadId!, input.operationId!)).status;
+      port.failure = new DeliveryError(false);
+      answer.resolve(fauxAssistantMessage("Replacement reply"));
+      await expect
+        .poll(() => app.discord!.store.outputs("103")[0]?.state, { timeout: 5000 })
+        .toBe("failed");
+      const delivery = app.discord!.store.outputs("103")[0]!;
+      const retry = await app.discord!.retryDelivery(delivery.id).then(
+        () => "accepted",
+        (error: unknown) => (error instanceof Error ? error.message : String(error)),
+      );
+      expect({ state, operation, retry }).toEqual({
+        state: "admitted",
+        operation: "running",
+        retry: "accepted",
+      });
+      await finished(app, "103");
+    } finally {
+      release.resolve();
+      answer.resolve(fauxAssistantMessage("Cleanup"));
+      await stopping.catch(() => {});
+      stoppingCore.mockRestore();
+    }
+  },
+  15000,
+);
