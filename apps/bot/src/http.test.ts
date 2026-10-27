@@ -4159,3 +4159,37 @@ test.each([undefined, "delta-v1", "unknown-version"])(
   },
   10000,
 );
+
+test("JSON numeric overflow in credential import cannot corrupt the next Bot startup", async () => {
+  const { bot, config, request, open } = await fixture(true);
+  expect(
+    (
+      await request("/v1/credentials/import", {
+        credentials: { stable: { type: "api_key", key: "fake-stable-key" } },
+      })
+    ).status,
+  ).toBe(200);
+  const path = join(config.dataRoot, "credentials.json");
+  const before = await readFile(path, "utf8");
+  const response = await bot.app.request("/v1/credentials/import", {
+    method: "POST",
+    headers: { authorization: "Bearer " + config.adminToken, "content-type": "application/json" },
+    body: '{"credentials":{"stable":{"type":"oauth","refresh":"fake-refresh","access":"fake-access","expires":1e400}}}',
+  });
+  const body: unknown = await response.json();
+  const unchanged = (await readFile(path, "utf8")) === before;
+  await bot.close();
+  const reopened = await open().then(
+    () => ({ opened: true }),
+    (error: unknown) => ({
+      opened: false,
+      code: error instanceof Error && "code" in error ? error.code : undefined,
+    }),
+  );
+  expect({ status: response.status, body, unchanged, reopened }).toEqual({
+    status: 400,
+    body: { error: { code: "InvalidInput", message: "认证格式无效" } },
+    unchanged: true,
+    reopened: { opened: true },
+  });
+}, 15000);

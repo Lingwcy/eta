@@ -15,7 +15,7 @@ export const CredentialSchema = Schema.Union([
     type: Schema.Literal("oauth"),
     refresh: Schema.NonEmptyString,
     access: Schema.NonEmptyString,
-    expires: Schema.Number,
+    expires: Schema.Number.check(Schema.isFinite()),
   }),
 ]);
 const FileSchema = Schema.Struct({
@@ -176,7 +176,11 @@ export class CredentialService extends Context.Service<
                 const entries = Object.entries(current);
                 for (const { providerId } of await source.list()) {
                   const value = await source.read(providerId);
-                  if (value) entries.push([providerId, value]);
+                  if (value) {
+                    if (!Schema.is(CredentialSchema)(value))
+                      throw new CoreError({ code: "InvalidInput", message: "认证格式无效" });
+                    entries.push([providerId, value]);
+                  }
                 }
                 const imported = Object.fromEntries(entries);
                 await writeJson(path, { version: 1, credentials: imported });
