@@ -19,6 +19,7 @@ export class BotController {
   private readonly blockedProjects = new Map<string, string>();
   private readonly threadProjects = new Map<string, string>();
   private readonly inFlight = new Set<Promise<unknown>>();
+  private readonly waitAbort = new AbortController();
   private closing = false;
   private readonly capacityListeners = new Set<() => void>();
   constructor(
@@ -260,6 +261,15 @@ export class BotController {
     return this.track(
       (async () => {
         await this.authorize(id);
+        if (command.action === "wait") {
+          try {
+            return await this.core.subagent(id, command, requestId, this.waitAbort.signal);
+          } catch (error) {
+            if (this.waitAbort.signal.aborted)
+              throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
+            throw error;
+          }
+        }
         if (!["spawn", "send", "resume"].includes(command.action))
           return this.core.subagent(id, command, requestId);
         const existing = this.active.get(id);
@@ -424,6 +434,7 @@ export class BotController {
 
   async close(graceMs = 250) {
     this.closing = true;
+    this.waitAbort.abort();
     for (const stop of this.monitors.values()) stop();
     this.monitors.clear();
     await Promise.allSettled(this.inFlight);

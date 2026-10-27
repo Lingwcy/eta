@@ -1344,7 +1344,7 @@ test("a rejected borrowed writer cannot release another pending writer's checkou
   }
 }, 15000);
 
-test.each(["list", "spawn", "send", "stop"] as const)(
+test.each(["list", "spawn", "send", "stop", "wait"] as const)(
   "subagent %s rechecks a formerly visible workspace before reaching Core",
   async (action) => {
     const { bot, request, create, config, cwd, workspace } = await fixture();
@@ -4193,3 +4193,113 @@ test("JSON numeric overflow in credential import cannot corrupt the next Bot sta
     reopened: { opened: true },
   });
 }, 15000);
+
+test.each([8000, undefined])(
+  "Bot shutdown cancels HTTP subagent wait timeout=%s before draining ingress",
+  async (timeoutMs) => {
+    const { bot, provider, models, config, create, request, open } = await fixture();
+    const id = await create("shutdown-wait");
+    const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+    let started = false;
+    provider.setResponses([
+      (_context, options) => {
+        started = true;
+        options?.signal?.addEventListener(
+          "abort",
+          () => answer.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+          { once: true },
+        );
+        return answer.promise;
+      },
+    ]);
+    const original = bot.core.subagent;
+    let entered = false;
+    let settled = false;
+    const executing = vi.spyOn(bot.core, "subagent").mockImplementation((...args) => {
+      const work = original(...args);
+      if (args[1].action === "wait") {
+        entered = true;
+        void work.then(
+          () => {
+            settled = true;
+          },
+          () => {
+            settled = true;
+          },
+        );
+      }
+      return work;
+    });
+    let pending: Promise<Response> | undefined;
+    let closing: Promise<void> | undefined;
+    try {
+      const children = await bot.controller.subagent(
+        id,
+        { action: "spawn", name: "worker", message: "Held work", wait: false },
+        "shutdown-child",
+      );
+      await expect.poll(() => started, { timeout: 5000 }).toBe(true);
+      const immediate = await request(`/v1/threads/${id}/subagent`, {
+        command: { action: "wait", path: children[0]!.path, timeoutMs: 0 },
+        requestId: "immediate-read",
+      });
+      expect(immediate.status).toBe(200);
+      expect(await immediate.json()).toMatchObject([{ path: children[0]!.path }]);
+      entered = false;
+      settled = false;
+      pending = Promise.resolve(
+        request(`/v1/threads/${id}/subagent`, {
+          command: {
+            action: "wait",
+            path: children[0]!.path,
+            ...(timeoutMs === undefined ? {} : { timeoutMs }),
+          },
+          requestId: "shutdown-read",
+        }),
+      );
+      await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+      expect(settled).toBe(false);
+      expect((await bot.core.recovery(id)).pending).toBe(true);
+      let closed = false;
+      closing = bot.close();
+      void closing.then(
+        () => {
+          closed = true;
+        },
+        () => {},
+      );
+      await expect.poll(() => closed, { timeout: 3000 }).toBe(true);
+      await closing;
+      await expect.poll(() => settled, { timeout: 2000 }).toBe(true);
+      const response = await pending;
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({ error: { code: "RuntimeClosing" } });
+      const preserved = await createCore({
+        dataRoot: config.dataRoot,
+        home: config.home ?? join(config.dataRoot, "home"),
+        models,
+        settings: { read: Effect.succeed(config.runtime), subscribe: () => () => {} },
+        environment: { shutdown: "preserve" },
+      });
+      try {
+        const restored = await preserved.openThread(id);
+        expect(restored.snapshot.recoveryRequired).toBe(true);
+        expect(restored.snapshot.subagents).toHaveLength(1);
+        expect(restored.snapshot.subagents![0]!.status).not.toBe("stopped");
+      } finally {
+        await preserved.close();
+      }
+      provider.setResponses([fauxAssistantMessage("Recovered")]);
+      const reopened = await open();
+      expect((await reopened.core.openThread(id)).id).toBe(id);
+      await reopened.controller.stop(id);
+    } finally {
+      answer.resolve(fauxAssistantMessage("Cleanup"));
+      // This explicit Core close only runs after the assertions: old Bot ordering can still terminate.
+      await bot.core.close();
+      await Promise.allSettled([...(pending ? [pending] : []), ...(closing ? [closing] : [])]);
+      executing.mockRestore();
+    }
+  },
+  15000,
+);
