@@ -522,7 +522,7 @@ export class DiscordExtension {
     await this.wake();
     return this.store.issue(id)!;
   }
-  async retryDelivery(id: string) {
+  private deliveryForRetry(id: string) {
     const record = this.store.delivery(id);
     if (!record) throw new BotHttpError(404, "NotFound", "Discord delivery not found.");
     if (record.state === "sent") return record;
@@ -533,7 +533,14 @@ export class DiscordExtension {
       this.store.input(record.inboxId)?.state === "cancelled"
     )
       throw new BotHttpError(409, "IssueStopped", "A cancelled delivery cannot be retried.");
+    return record;
+  }
+  async retryDelivery(id: string) {
+    const record = this.deliveryForRetry(id);
+    if (record.state === "sent") return record;
     const remoteId = await this.port.findDelivery(record.threadId, record.marker);
+    const current = this.deliveryForRetry(id);
+    if (current.state === "sent") return current;
     this.store.updateOutput(
       id,
       remoteId ? { state: "sent", remoteId, error: null } : { state: "pending", error: null },

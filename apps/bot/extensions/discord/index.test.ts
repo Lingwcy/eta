@@ -715,3 +715,95 @@ test.each(["new-fails", "old-fails", "new-stop", "peer", "pending-new"] as const
   },
   15000,
 );
+
+test.each(["stop", "close", "stop-reopen", "sent", "peer", "unchanged"])(
+  "a delayed manual delivery retry respects newer %s state",
+  async (scenario) => {
+    const { app, port, provider, finished } = await fixture();
+    provider.setResponses([fauxAssistantMessage("Retry this reply")]);
+    port.failure = new DeliveryError(false);
+    await port.emit(message("102"));
+    await expect
+      .poll(() => app.discord!.store.outputs()[0]?.state, { timeout: 5000 })
+      .toBe("failed");
+    const record = app.discord!.store.outputs()[0]!;
+    const input = app.discord!.store.input("102")!;
+    const issue = app.discord!.store.issue("102")!;
+    if (scenario === "peer") {
+      provider.setResponses([fauxAssistantMessage("Peer reply")]);
+      await port.emit(message("202"));
+      await expect.poll(() => app.discord!.store.issue("202")?.etaThreadId).toBeTruthy();
+    }
+    const find = port.findDelivery.bind(port);
+    const release = Promise.withResolvers<void>();
+    let entered = false;
+    port.findDelivery = async (threadId, marker) => {
+      const result = await find(threadId, marker);
+      if (!entered && marker === record.marker) {
+        entered = true;
+        await release.promise;
+      }
+      return result;
+    };
+    const older = Promise.resolve(
+      app.app.request("/v1/extensions/discord/deliveries/" + record.id + "/retry", {
+        method: "POST",
+        headers: { authorization: "Bearer test-admin" },
+      }),
+    );
+    try {
+      await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+      if (scenario === "sent") {
+        await app.discord!.retryDelivery(record.id);
+        await finished(app, "102");
+        await expect
+          .poll(async () => (await app.core.task(issue.etaThreadId!, input.taskId!)).state, {
+            timeout: 5000,
+          })
+          .toMatchObject({ status: "terminal", outcome: { status: "completed" } });
+      } else if (scenario !== "unchanged") {
+        await app.discord!.control(
+          scenario === "peer" ? "202" : "102",
+          scenario === "close" ? "close" : "stop",
+        );
+        if (scenario === "stop-reopen") await app.discord!.control("102", "reopen");
+      }
+      const before = app.discord!.store.delivery(record.id)!;
+      const cancelled = ["stop", "close", "stop-reopen"].includes(scenario);
+      if (cancelled) {
+        expect((await app.core.task(issue.etaThreadId!, input.taskId!)).state).toMatchObject({
+          status: "terminal",
+          outcome: { status: "aborted" },
+        });
+        expect(app.discord!.store.input("102")?.state).toBe("cancelled");
+        expect(before.state).toBe("failed");
+      }
+      release.resolve();
+      const response = await older;
+      expect(response.status).toBe(cancelled ? 409 : 200);
+      if (cancelled) {
+        expect(await response.json()).toMatchObject({ error: { code: "IssueStopped" } });
+        expect(app.discord!.store.input("102")?.state).toBe("cancelled");
+        expect(app.discord!.store.delivery(record.id)).toEqual(before);
+        await expect(app.discord!.retryDelivery(record.id)).rejects.toMatchObject({
+          code: "IssueStopped",
+        });
+        expect(await find(record.threadId, record.marker)).toBeUndefined();
+      } else {
+        await finished(app, "102");
+        const current = app.discord!.store.delivery(record.id)!;
+        expect(current).toMatchObject({ state: "sent", error: null });
+        expect(await find(record.threadId, record.marker)).toBe(current.remoteId);
+        expect(port.messages.get(record.threadId)).toHaveLength(1);
+        if (scenario === "sent") {
+          expect(current).toEqual(before);
+          expect(await response.json()).toEqual(before);
+        }
+      }
+    } finally {
+      release.resolve();
+      await older;
+      port.findDelivery = find;
+    }
+  },
+);
