@@ -276,7 +276,7 @@ export class ThreadService extends Context.Service<
                   : BACKGROUND_CONTEXT,
               );
               if (command.action === "wait") signal.throwIfAborted();
-              runtime.harness.resume();
+              if (command.action !== "list") runtime.harness.resume();
             });
             return yield* adapter("无法读取子智能体", runtime.subagents.list);
           });
