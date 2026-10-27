@@ -424,9 +424,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   ).toBe("admitted");
   // A durable terminal receipt does not imply that the supervisor released its lease.
   expect(record.running).toBe(true);
-  expect(await runtime.runPromise(Effect.flip(threads.remove(thread.id)))).toMatchObject({
-    code: "Busy",
-  });
+  const deletion = runtime.runPromise(threads.remove(thread.id));
   releaseSettlement.resolve();
   await expect
     .poll(
@@ -438,7 +436,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
       { timeout: 10_000 },
     )
     .toEqual({ running: false, recoveryRequired: false, pending: false });
-  await runtime.runPromise(threads.remove(thread.id));
+  await deletion;
   expect(
     (await runtime.runPromise(schedules.runs(schedule.id))).find((run) => run.id === manual.id)
       ?.state,

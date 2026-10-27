@@ -475,10 +475,7 @@ export class ThreadService extends Context.Service<
               Effect.gen(function* () {
                 const thread = yield* get(id);
                 if (yield* registry.busy(thread.sessionRef))
-                  return yield* new CoreError({
-                    code: "Busy",
-                    message: "请先停止未完成的任务，再删除会话",
-                  });
+                  yield* runs.stop(yield* registry.acquire(thread.sessionRef));
                 yield* captureScheduledResults(id);
                 yield* registry.close(thread.sessionRef);
                 const removal = yield* repository.stageRemoval(thread.sessionRef);

@@ -394,11 +394,20 @@ export class DesktopBot {
       /^\/v1\/threads\/[^/]+(?:\/(?:configure|sandbox|approvals\/[^/]+))?$/.test(path);
     const timeout = snapshotResponse ? 120000 : 10000;
     const signal = AbortSignal.timeout(timeout);
+    let received = false;
     try {
-      return (await (await this.response(path, body, signal)).json()) as T;
+      const response = await this.response(path, body, signal);
+      received = true;
+      return (await response.json()) as T;
     } catch (error) {
       if (signal.aborted)
-        throw new BotRequestError("连接 Bot 超时，请检查网络后重试。", true, { cause: error });
+        throw new BotRequestError(
+          received
+            ? `Bot 已响应，但读取响应内容超过 ${timeout / 1000} 秒，请稍后重试。`
+            : `Bot 请求超过 ${timeout / 1000} 秒，可能是服务繁忙或连接异常，请稍后重试。`,
+          true,
+          { cause: error },
+        );
       if (error instanceof TypeError)
         throw new BotRequestError(error.message, true, { cause: error });
       throw error;

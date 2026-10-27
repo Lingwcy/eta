@@ -1413,54 +1413,79 @@ test("SIGKILL during streaming reopens paused and explicit resume settles the sa
   }
 }, 15000);
 
-test("normal shutdown settles a running tool, cleans its child process and preserves an aborted receipt", async () => {
-  const { cwd, runtime, threads, workspace, provider, reopen } = await setup();
-  const pidPath = join(cwd, "child.pid");
-  provider.setResponses([
-    fauxAssistantMessage(
-      fauxToolCall(
-        "bash",
-        {
-          command: `${JSON.stringify(process.execPath)} -e 'require("node:fs").writeFileSync("child.pid", String(process.pid)); setInterval(() => {}, 1000)'`,
-        },
-        { id: "long-process" },
+test.each(["shutdown", "delete"] as const)(
+  "%s stops a native tool process before completing",
+  async (action) => {
+    const { cwd, runtime, threads, workspace, provider, reopen } = await setup();
+    const pidPath = join(cwd, "child.pid");
+    provider.setResponses([
+      fauxAssistantMessage(
+        fauxToolCall(
+          "bash",
+          {
+            command: `${JSON.stringify(process.execPath)} -e 'require("node:fs").writeFileSync("child.pid", String(process.pid)); setInterval(() => {}, 1000)'`,
+          },
+          { id: "long-process" },
+        ),
+        { stopReason: "toolUse" },
       ),
-      { stopReason: "toolUse" },
-    ),
-  ]);
-  const created = await runtime.runPromise(threads.create(workspace.id));
-  let pid = 0;
-  try {
-    await runtime.runPromise(threads.submit(created.id, "Start a long-running tool"));
-    // Submission precedes model generation and native worker/child startup.
+    ]);
+    const created = await runtime.runPromise(threads.create(workspace.id));
+    let pid = 0;
+    try {
+      await runtime.runPromise(threads.submit(created.id, "Start a long-running tool"));
+      // Submission precedes model generation and native worker/child startup.
+      await expect
+        .poll(() => readFile(pidPath, "utf8").catch(() => ""), { timeout: 10_000 })
+        .toMatch(/^\d+$/);
+      pid = Number(await readFile(pidPath, "utf8"));
+      expect(pid).toBeGreaterThan(0);
+      expect(() => process.kill(pid, 0)).not.toThrow();
+      if (action === "delete") {
+        await runtime.runPromise(threads.remove(created.id));
+        await expect
+          .poll(
+            () => {
+              try {
+                process.kill(pid, 0);
+                return true;
+              } catch {
+                return false;
+              }
+            },
+            { timeout: 10_000 },
+          )
+          .toBe(false);
+        expect(await runtime.runPromise(threads.list())).toEqual([]);
+      }
+    } finally {
+      await runtime.dispose();
+    }
     await expect
-      .poll(() => readFile(pidPath, "utf8").catch(() => ""), { timeout: 10_000 })
-      .toMatch(/^\d+$/);
-    pid = Number(await readFile(pidPath, "utf8"));
-    expect(pid).toBeGreaterThan(0);
-    expect(() => process.kill(pid, 0)).not.toThrow();
-  } finally {
-    await runtime.dispose();
-  }
-  await expect
-    .poll(
-      () => {
-        try {
-          process.kill(pid, 0);
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      { timeout: 10_000 },
-    )
-    .toBe(false);
-  const next = reopen();
-  const other = await next.runPromise(ThreadService);
-  const restored = await next.runPromise(other.open(created.id));
-  expect(restored.snapshot.recoveryRequired).toBe(false);
-  expect(restored.snapshot.lastResult?.status).toBe("aborted");
-}, 30_000);
+      .poll(
+        () => {
+          try {
+            process.kill(pid, 0);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 10_000 },
+      )
+      .toBe(false);
+    const next = reopen();
+    const other = await next.runPromise(ThreadService);
+    if (action === "delete") {
+      expect(await next.runPromise(other.list())).toEqual([]);
+    } else {
+      const restored = await next.runPromise(other.open(created.id));
+      expect(restored.snapshot.recoveryRequired).toBe(false);
+      expect(restored.snapshot.lastResult?.status).toBe("aborted");
+    }
+  },
+  30_000,
+);
 
 test("image attachments and read images survive restart; disabling reading only changes provider input", async () => {
   const { runtime, threads, registry, provider, cwd, workspace, reopen } = await setup(true);
@@ -1696,22 +1721,19 @@ test("failed deletion publication restores the session directory and leaves it o
   expect((await runtime.runPromise(threads.open(created.id))).id).toBe(created.id);
 });
 
-test("running and recovery-required threads cannot be permanently removed", async () => {
-  const { runtime, threads, registry, workspace } = await setup();
-  const created = await runtime.runPromise(threads.create(workspace.id));
-  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
-  record.running = true;
-  await expect(Effect.runPromiseExit(threads.remove(created.id))).resolves.toMatchObject({
-    _tag: "Failure",
-  });
-  record.running = false;
-  record.recoveryRequired = true;
-  await expect(Effect.runPromiseExit(threads.remove(created.id))).resolves.toMatchObject({
-    _tag: "Failure",
-  });
-  record.recoveryRequired = false;
-  expect((await runtime.runPromise(threads.get(created.id))).id).toBe(created.id);
-});
+test.each(["running", "recoveryRequired"] as const)(
+  "deleting a %s thread stops and disposes it",
+  async (state) => {
+    const { runtime, threads, registry, workspace } = await setup();
+    const created = await runtime.runPromise(threads.create(workspace.id));
+    const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+    record[state] = true;
+    await runtime.runPromise(threads.remove(created.id));
+    expect(record.disposed).toBe(true);
+    expect(record.recoveryRequired).toBe(false);
+    expect(await runtime.runPromise(threads.list())).toEqual([]);
+  },
+);
 
 test("corrupt and missing session data can still be permanently removed from the catalog", async () => {
   const { runtime, threads, workspace, reopen } = await setup();
@@ -2170,7 +2192,7 @@ test("parent cancellation exposes stopped child and tool states live and after r
   ).toMatchObject({ toolStatus: "stopped" });
 }, 30_000);
 
-test("background delegates block archive and deletion and thread stop releases their work", async () => {
+test("background delegates block archive while deletion stops their work", async () => {
   const { runtime, threads, workspace, provider } = await setup();
   const created = await runtime.runPromise(threads.create(workspace.id));
   const held = holdResponse(provider, "delegate answer");
@@ -2188,14 +2210,8 @@ test("background delegates block archive and deletion and thread stop releases t
   expect(await runtime.runPromise(Effect.flip(threads.archive(created.id, true)))).toMatchObject({
     code: "Busy",
   });
-  expect(await runtime.runPromise(Effect.flip(threads.remove(created.id)))).toMatchObject({
-    code: "Busy",
-  });
-  await runtime.runPromise(threads.stop(created.id));
-  expect((await runtime.runPromise(threads.open(created.id))).snapshot.subagents).toMatchObject([
-    { status: "stopped" },
-  ]);
-  await runtime.runPromise(threads.archive(created.id, true));
+  await runtime.runPromise(threads.remove(created.id));
+  expect(await runtime.runPromise(threads.list())).toEqual([]);
 });
 
 test("the subagent switch updates open threads, restores coding in orchestrator mode and survives reopening", async () => {

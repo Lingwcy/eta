@@ -473,6 +473,7 @@ export function runScheduleNow(
   input: ScheduleRunInput,
   catalog: CatalogState,
   now: number,
+  restart = false,
 ): ScheduleRequest {
   const fingerprint = scheduleFingerprint({ kind: "manual", ...input });
   const existing = replay(state, input.requestId, fingerprint);
@@ -505,10 +506,21 @@ export function runScheduleNow(
         (occurrence) =>
           occurrence.scheduleId === input.scheduleId &&
           occurrence.source === "manual" &&
-          ["pending", "dispatching"].includes(occurrence.state),
+          (occurrence.state === "dispatching" || (!restart && occurrence.state === "pending")),
       )
     )
       invalid("已有立即运行请求正在等待投递");
+    if (restart) {
+      for (const [id, occurrence] of Object.entries(state.occurrences)) {
+        if (occurrence.scheduleId === input.scheduleId && occurrence.state === "pending")
+          state.occurrences[id] = {
+            ...occurrence,
+            state: "cancelled",
+            reason: "restart",
+            finishedAt: now,
+          };
+      }
+    }
     const schedule = state.schedules[input.scheduleId];
     const occurrenceId = randomUUID();
     state.occurrences[occurrenceId] = {
