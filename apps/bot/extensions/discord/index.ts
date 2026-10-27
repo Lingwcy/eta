@@ -480,6 +480,7 @@ export class DiscordExtension {
         archivePending: action === "close",
       });
       if (issue.etaThreadId) await this.host().controller.stop(issue.etaThreadId);
+      if (!current()) return this.store.issue(id)!;
       for (const input of this.store
         .inputs()
         .filter((input) => input.issueId === id && input.state !== "done"))
