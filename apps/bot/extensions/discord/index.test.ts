@@ -807,3 +807,107 @@ test.each(["stop", "close", "stop-reopen", "sent", "peer", "unchanged"])(
     }
   },
 );
+
+test.each(["stop", "close", "replacement", "peer", "unchanged"])(
+  "a late blocked-task inspection respects newer %s control",
+  async (scenario) => {
+    const { app, port, provider, finished } = await fixture();
+    provider.setResponses([fauxAssistantMessage("Retained model result")]);
+    const output = app.discord!.store.output.bind(app.discord!.store);
+    let fail = true;
+    app.discord!.store.output = (record) => {
+      if (fail) {
+        fail = false;
+        throw new Error("Temporary output persistence failure");
+      }
+      output(record);
+    };
+    await port.emit(message("102"));
+    await expect
+      .poll(() => app.discord!.store.input("102")?.state, { timeout: 5000 })
+      .toBe("blocked");
+    app.discord!.store.output = output;
+    const issue = app.discord!.store.issue("102")!;
+    const input = app.discord!.store.input("102")!;
+    expect((await app.core.task(issue.etaThreadId!, input.taskId!)).state).toMatchObject({
+      status: "terminal",
+      outcome: { status: "faulted" },
+    });
+    if (scenario === "peer") {
+      await port.emit(message("202"));
+      await expect.poll(() => app.discord!.store.issue("202")?.etaThreadId).toBeTruthy();
+    }
+    const inspect = app.core.task.bind(app.core);
+    const release = Promise.withResolvers<void>();
+    let entered = false;
+    app.core.task = async (threadId, taskId) => {
+      const result = await inspect(threadId, taskId);
+      if (!entered && threadId === issue.etaThreadId && taskId === input.taskId) {
+        entered = true;
+        await release.promise;
+      }
+      return result;
+    };
+    const action = scenario === "close" ? "reopen" : "resume";
+    const older = Promise.resolve(
+      app.app.request("/v1/extensions/discord/issues/102/" + action, {
+        method: "POST",
+        headers: { authorization: "Bearer test-admin" },
+      }),
+    );
+    try {
+      await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+      if (scenario === "replacement") {
+        await app.discord!.control("102", "resume");
+        await finished(app, "102");
+        const replacement = app.discord!.store.input("102")!;
+        expect(replacement.taskId).not.toBe(input.taskId);
+        expect((await inspect(issue.etaThreadId!, replacement.taskId!)).state).toMatchObject({
+          status: "terminal",
+          outcome: { status: "completed" },
+        });
+      } else if (scenario !== "unchanged") {
+        await app.discord!.control(
+          scenario === "peer" ? "202" : "102",
+          scenario === "close" ? "close" : "stop",
+        );
+      }
+      const before = app.discord!.store.input("102")!;
+      if (scenario === "stop" || scenario === "close") expect(before.state).toBe("cancelled");
+      release.resolve();
+      expect((await older).status).toBe(200);
+      if (["stop", "close", "replacement"].includes(scenario))
+        expect(app.discord!.store.input("102")).toEqual(before);
+      if (scenario === "stop" || scenario === "close") {
+        expect(app.discord!.store.issue("102")?.state).toBe(
+          scenario === "close" ? "closed" : "stopped",
+        );
+        expect(app.discord!.store.outputs("102")).toEqual([]);
+      } else {
+        await finished(app, "102");
+        expect(app.discord!.store.input("102")).toMatchObject({
+          operationId: input.operationId,
+          taskAttempt: 1,
+        });
+        const record = app.discord!.store.outputs("102")[0]!;
+        expect(record.state).toBe("sent");
+        expect(await port.findDelivery(record.threadId, record.marker)).toBe(record.remoteId);
+        if (scenario === "replacement") {
+          provider.setResponses([fauxAssistantMessage("Followup after replacement")]);
+          await port.emit(message("103", "Followup", issue.discordThreadId!));
+          await finished(app, "103");
+        }
+        expect(
+          (await app.core.openThread(issue.etaThreadId!)).snapshot.transcript.filter(
+            ({ message }) => message.role === "user",
+          ),
+        ).toHaveLength(scenario === "replacement" ? 2 : 1);
+      }
+    } finally {
+      release.resolve();
+      await older;
+      app.core.task = inspect;
+    }
+  },
+  10_000,
+);
