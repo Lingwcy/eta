@@ -583,7 +583,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: colors.muted,
-    letterSpacing: 0.3,
   },
   sectionAction: {
     minHeight: 32,

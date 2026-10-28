@@ -3,6 +3,8 @@ import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from "rea
 import Markdown from "react-native-markdown-display";
 import {
   Brain,
+  ChevronDown,
+  ChevronRight,
   CircleX,
   FileCode2,
   FilePenLine,
@@ -89,6 +91,11 @@ export function ToolCard({
           {description ?? (summary ? `${name} · ${summary}` : name)}
         </Text>
         {status !== "settled" && <Text style={styles.toolState}>{state}</Text>}
+        {expanded ? (
+          <ChevronDown size={14} color={colors.muted} />
+        ) : (
+          <ChevronRight size={14} color={colors.muted} />
+        )}
       </Pressable>
 
       {expanded && (
@@ -147,6 +154,11 @@ function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
           {expanded ? "思考内容" : preview}
         </Text>
         {active && <Text style={styles.toolState}>正在思考</Text>}
+        {expanded ? (
+          <ChevronDown size={14} color={colors.muted} />
+        ) : (
+          <ChevronRight size={14} color={colors.muted} />
+        )}
       </Pressable>
       {expanded && (
         <ScrollArea maxHeight={240} contentContainerStyle={styles.toolScrollContent}>
@@ -311,7 +323,7 @@ const styles = StyleSheet.create({
   },
   userText: {
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
     color: colors.text,
   },
   messageImage: {
@@ -319,8 +331,6 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
     aspectRatio: 4 / 3,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   fallbackContent: {
     color: colors.muted,
@@ -348,8 +358,8 @@ const styles = StyleSheet.create({
   toolSummary: { flex: 1, fontSize: 14, color: colors.muted },
   toolState: { fontSize: 13, color: colors.muted },
   toolScrollContent: {
-    padding: 10,
-    gap: 8,
+    padding: 12,
+    gap: 10,
   },
   toolSection: {
     gap: 4,
@@ -358,8 +368,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   codeText: {
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
@@ -399,26 +407,26 @@ const markdownStyles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "600",
     color: colors.text,
-    marginTop: 14,
+    marginTop: 18,
     marginBottom: 6,
   },
   heading2: {
     fontSize: 19,
     fontWeight: "600",
     color: colors.text,
-    marginTop: 12,
+    marginTop: 16,
     marginBottom: 6,
   },
   heading3: {
     fontSize: 17,
     fontWeight: "600",
     color: colors.text,
-    marginTop: 10,
+    marginTop: 14,
     marginBottom: 4,
   },
   paragraph: {
     marginTop: 0,
-    marginBottom: 10,
+    marginBottom: 12,
     fontSize: 16,
     lineHeight: 26,
   },
@@ -452,21 +460,21 @@ const markdownStyles = StyleSheet.create({
   },
   fence: {
     backgroundColor: "#18181B",
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 19,
     color: "#F4F4F5",
     marginVertical: 6,
   },
   code_block: {
     backgroundColor: "#18181B",
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 19,
     color: "#F4F4F5",
     marginVertical: 6,
   },
@@ -479,7 +487,7 @@ const markdownStyles = StyleSheet.create({
   list_item: {
     flexDirection: "row",
     justifyContent: "flex-start",
-    marginVertical: 2,
+    marginVertical: 4,
   },
   bullet_list_icon: {
     marginRight: 6,
