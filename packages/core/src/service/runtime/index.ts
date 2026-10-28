@@ -120,6 +120,8 @@ export class RuntimeRegistryService extends Context.Service<
         let harness: Harness | undefined;
         let runtimeRecord: ThreadRuntime | undefined;
         let computer: Awaited<ReturnType<typeof createComputerRuntime>> | undefined;
+        let settingsDelivery = Promise.resolve();
+        let unsubscribeSettings: (() => void) | undefined;
         const codemode = new RuntimeCodemodeSandbox(
           environment.codemodeAssets
             ? {
@@ -448,8 +450,7 @@ export class RuntimeRegistryService extends Context.Service<
           await approvals.invalidate(conversation.id);
           if (!recoveryRequired) await subagents.wake();
           await refreshTools();
-          let settingsDelivery = Promise.resolve();
-          const unsubscribeSettings = preferences.subscribe(() => {
+          unsubscribeSettings = preferences.subscribe(() => {
             settingsDelivery = settingsDelivery
               .then(async () => {
                 if (record.disposed) return;
@@ -481,7 +482,7 @@ export class RuntimeRegistryService extends Context.Service<
             record.disposed = true;
             await closeAll([
               () => computer?.close(),
-              unsubscribeSettings,
+              () => unsubscribeSettings?.(),
               () => settingsDelivery,
               () => subagentWatch?.stop(),
               () => approvalWatch?.stop(),
@@ -506,12 +507,20 @@ export class RuntimeRegistryService extends Context.Service<
           if (!recoveryRequired && inspection.tasks.length) harness.resume();
           return record;
         } catch (error) {
-          await computer?.close();
-          if (harness) await harness.close(BACKGROUND_CONTEXT);
-          else await storage.close(BACKGROUND_CONTEXT);
-          await codemode.close();
-          await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
-          await rm(scratchRoot, { recursive: true, force: true });
+          if (runtimeRecord) runtimeRecord.disposed = true;
+          await closeAll(
+            [
+              () => unsubscribeSettings?.(),
+              () => settingsDelivery,
+              () => computer?.close(),
+              () =>
+                harness ? harness.close(BACKGROUND_CONTEXT) : storage.close(BACKGROUND_CONTEXT),
+              () => codemode.close(),
+              () => closeAll([...environments].map((env) => () => env.cleanup(BACKGROUND_CONTEXT))),
+              () => rm(scratchRoot, { recursive: true, force: true }),
+            ],
+            [error],
+          );
           throw error;
         }
       };
@@ -614,9 +623,8 @@ export class RuntimeRegistryService extends Context.Service<
   );
 }
 
-/** Attempt every owned cleanup before returning the first failure. */
-async function closeAll(actions: readonly (() => unknown)[]) {
-  const failures: unknown[] = [];
+/** Attempt every owned cleanup, keeping an earlier startup failure primary when supplied. */
+async function closeAll(actions: readonly (() => unknown)[], failures: unknown[] = []) {
   for (const action of actions) {
     try {
       await action();
