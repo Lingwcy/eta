@@ -224,6 +224,8 @@ export class DiscordExtension {
         await this.admit(issue, first);
       } catch (error) {
         if (error instanceof BotHttpError && error.code === "Busy") continue;
+        const current = this.store.issue(issue.id)!;
+        if (current.state === "closed" || current.state === "stopped") continue;
         this.store.updateIssue(issue.id, {
           state: "review",
           error:

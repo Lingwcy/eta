@@ -911,3 +911,101 @@ test.each(["stop", "close", "replacement", "peer", "unchanged"])(
   },
   10_000,
 );
+
+test.each(["stop", "close", "peer", "unchanged"])(
+  "a delayed admission failure preserves newer %s intent",
+  async (scenario) => {
+    const { app, port, provider, finished } = await fixture();
+    if (scenario === "peer") {
+      provider.setResponses([fauxAssistantMessage("Peer result")]);
+      await port.emit(message("202"));
+      await finished(app, "202");
+    }
+    const model = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+    let modelEntered = false;
+    provider.setResponses([
+      (_context, options) => {
+        modelEntered = true;
+        const abort = () => model.resolve(fauxAssistantMessage("", { stopReason: "aborted" }));
+        if (options?.signal?.aborted) abort();
+        else options?.signal?.addEventListener("abort", abort, { once: true });
+        return model.promise;
+      },
+      fauxAssistantMessage("Followup result"),
+    ]);
+    const submit = app.core.submit.bind(app.core);
+    const release = Promise.withResolvers<void>();
+    let entered = false;
+    let operationId: string | undefined;
+    app.core.submit = async (...args) => {
+      const result = await submit(...args);
+      if (!entered) {
+        entered = true;
+        operationId = result.operationId;
+        await release.promise;
+        throw new Error("Core admission outcome is uncertain");
+      }
+      return result;
+    };
+    const receiving = port.emit(message("102"));
+    let newer: ReturnType<DiscordExtension["control"]> | undefined;
+    try {
+      await expect.poll(() => entered && modelEntered, { timeout: 5000 }).toBe(true);
+      const issue = app.discord!.store.issue("102")!;
+      const stopped = scenario === "stop" || scenario === "close";
+      if (scenario !== "unchanged") {
+        newer = app.discord!.control(
+          scenario === "peer" ? "202" : "102",
+          scenario === "close" ? "close" : "stop",
+        );
+        await expect
+          .poll(() => app.discord!.store.issue(scenario === "peer" ? "202" : "102")?.state)
+          .toBe(scenario === "close" ? "closed" : "stopped");
+        if (stopped) {
+          await expect.poll(() => app.discord!.store.input("102")?.state).toBe("cancelled");
+          expect((await app.core.operation(issue.etaThreadId!, operationId!)).status).toBe(
+            "aborted",
+          );
+        }
+      }
+      // The business stop has persisted and cancelled actual Core work; control still drains pump.
+      release.resolve();
+      await receiving;
+      await newer;
+      if (stopped) {
+        await port.emit(message("103", "Followup while stopped", issue.discordThreadId!));
+        if (app.discord!.store.input("103")) {
+          await finished(app, "103");
+          const reply = app.discord!.store.outputs("103")[0]!;
+          expect(await port.findDelivery(reply.threadId, reply.marker)).toBe(reply.remoteId);
+        }
+        expect(app.discord!.store.input("103")).toBeUndefined();
+        expect(app.discord!.store.issue("102")).toMatchObject({
+          state: scenario === "close" ? "closed" : "stopped",
+          error: null,
+        });
+        expect(app.discord!.store.input("102")?.state).toBe("cancelled");
+      } else {
+        expect(app.discord!.store.issue("102")?.state).toBe("review");
+        expect(app.discord!.store.input("102")?.state).toBe("blocked");
+        model.resolve(fauxAssistantMessage("Retained initial result"));
+        await app.discord!.control("102", "resume");
+        await finished(app, "102");
+        expect(app.discord!.store.input("102")?.operationId).toBe(operationId);
+        expect(
+          (await app.core.openThread(issue.etaThreadId!)).snapshot.transcript.filter(
+            ({ message }) => message.role === "user",
+          ),
+        ).toHaveLength(1);
+        expect(app.discord!.store.outputs("102")[0]?.state).toBe("sent");
+      }
+    } finally {
+      release.resolve();
+      model.resolve(fauxAssistantMessage("Cleanup result"));
+      await receiving;
+      await newer;
+      app.core.submit = submit;
+    }
+  },
+  10_000,
+);
