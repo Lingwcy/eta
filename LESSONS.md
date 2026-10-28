@@ -309,11 +309,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: validate compatibility with the serialized read contract, not only the in-memory schema. Represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
 - Seen: 2026-10-23, 2026-10-26.
 
-**Release local resources even when remote teardown fails.**
+**Release remaining resources even when an earlier teardown fails.**
 
 - Evidence: on 2026-10-27, #486 injects a rejected DiscordPort.stop into the real DiscordExtension with real SQLite. The normal control closes the handle; the failure control still permits status SQL reads because sequential teardown skips store.close. A finally around transport stop closes the database while preserving the original transport error, and a real reopen retains its cursor. The after-assertion cleanup lets the old implementation terminate without masking the resource postcondition.
 - Check: order ingress shutdown before storage release, but do not make independent local cleanup conditional on remote success. Assert actual resource usability and persisted data, not only that a close callback ran. Transport failure is still failure; local cleanup does not prove the remote client disconnected.
-- Seen: 2026-10-27.
+- Additional evidence: on 2026-10-28, #514 on `2cb8339` declares a rejection after one or both real ConversationWatch stops. The established runtime is already marked disposed, but its actual Harness still reads and its cached record remains disposed. Attempt every owned cleanup in its existing resource stage, rethrow failure after draining, and evict the terminal cache entry in finally. Four native controls cover first/second/both/no rejection, real closed-session reads, fresh acquire and a second completed model operation with retained history. A cache-only mutant proves that closing the actual session is not enough if the old disposed record remains cached. No production failure frequency or startup rollback is inferred.
+- Seen: 2026-10-27, 2026-10-28.
 
 **Reject preflight configuration errors before allocating durable resources.**
 
