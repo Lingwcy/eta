@@ -158,8 +158,13 @@ export class RunSupervisorService extends Context.Service<
         // A queued submission is not yet a task, so idleness only counts once the input has been taken up.
         void started
           .then(() => runtime.conversation.waitForIdle(BACKGROUND_CONTEXT))
-          .then(() => runtime.approvals.expireRunGrants(runtime.conversation.id))
-          .catch((error: unknown) => Effect.runFork(Effect.logError(error)));
+          .then(() => {
+            if (!runtime.disposed)
+              return runtime.approvals.expireRunGrants(runtime.conversation.id);
+          })
+          .catch((error: unknown) => {
+            if (!runtime.disposed) Effect.runFork(Effect.logError(error));
+          });
       };
       const supervise = (runtime: ThreadRuntime, settled: Promise<unknown>) => {
         const execution = settled
