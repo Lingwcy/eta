@@ -1009,3 +1009,112 @@ test.each(["stop", "close", "peer", "unchanged"])(
   },
   10_000,
 );
+
+test.each(
+  ["send", "history-missing", "history-error"].flatMap((mode) =>
+    ["stop", "close", "peer", "unchanged"].map((scenario) => [mode, scenario] as const),
+  ),
+)(
+  "a delayed %s outcome preserves newer %s delivery control",
+  async (mode, scenario) => {
+    const { app, port, provider, finished } = await fixture();
+    if (scenario === "peer") {
+      provider.setResponses([fauxAssistantMessage("Peer reply")]);
+      await port.emit(message("202"));
+      await finished(app, "202");
+    }
+    provider.setResponses([
+      fauxAssistantMessage("Initial reply"),
+      fauxAssistantMessage("Followup reply"),
+    ]);
+    const send = port.send.bind(port);
+    const find = port.findDelivery.bind(port);
+    const release = Promise.withResolvers<void>();
+    let firstSend = true;
+    let entered = false;
+    let settled = false;
+    port.send = async (...args) => {
+      if (firstSend) {
+        firstSend = false;
+        if (mode === "send") {
+          entered = true;
+          await release.promise;
+          settled = true;
+          throw new DeliveryError(false);
+        }
+        throw new Error("Delivery outcome is uncertain");
+      }
+      return send(...args);
+    };
+    port.findDelivery = async (...args) => {
+      const result = await find(...args);
+      if (mode !== "send" && !entered) {
+        entered = true;
+        await release.promise;
+        settled = true;
+        if (mode === "history-error") throw new Error("History is unavailable");
+      }
+      return result;
+    };
+    let newer: ReturnType<DiscordExtension["control"]> | undefined;
+    try {
+      await port.emit(message("102"));
+      await expect.poll(() => entered, { timeout: 5000 }).toBe(true);
+      const issue = app.discord!.store.issue("102")!;
+      const input = app.discord!.store.input("102")!;
+      expect((await app.core.operation(issue.etaThreadId!, input.operationId!)).status).toBe(
+        "completed",
+      );
+      const stopped = scenario === "stop" || scenario === "close";
+      if (scenario !== "unchanged") {
+        newer = app.discord!.control(
+          scenario === "peer" ? "202" : "102",
+          scenario === "close" ? "close" : "stop",
+        );
+        await expect
+          .poll(() => app.discord!.store.issue(scenario === "peer" ? "202" : "102")?.state)
+          .toBe(scenario === "close" ? "closed" : "stopped");
+      }
+      // Stop waits for this actual reply phase to drain; its persisted intent must already win.
+      release.resolve();
+      await expect.poll(() => settled).toBe(true);
+      await newer;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      if (stopped) {
+        expect((await app.core.task(issue.etaThreadId!, input.taskId!)).state).toMatchObject({
+          status: "terminal",
+          outcome: { status: "aborted" },
+        });
+        expect(app.discord!.store.input("102")?.state).toBe("cancelled");
+        await port.emit(message("103", "Followup after cancellation", issue.discordThreadId!));
+        if (app.discord!.store.input("103")) {
+          await finished(app, "103");
+          const reply = app.discord!.store.outputs("103")[0]!;
+          expect(await find(reply.threadId, reply.marker)).toBe(reply.remoteId);
+        }
+        expect(app.discord!.store.input("103")).toBeUndefined();
+        expect(app.discord!.store.issue("102")).toMatchObject({
+          state: scenario === "close" ? "closed" : "stopped",
+          error: null,
+        });
+      } else {
+        await expect
+          .poll(() => app.discord!.store.outputs("102")[0]?.state)
+          .toBe(mode === "send" ? "failed" : "review");
+        expect(app.discord!.store.issue("102")?.state).toBe("review");
+        await app.discord!.retryDelivery(app.discord!.store.outputs("102")[0]!.id);
+        await finished(app, "102");
+        expect(app.discord!.store.input("102")?.operationId).toBe(input.operationId);
+        const reply = app.discord!.store.outputs("102")[0]!;
+        expect(reply.state).toBe("sent");
+        expect(await find(reply.threadId, reply.marker)).toBe(reply.remoteId);
+      }
+    } finally {
+      release.resolve();
+      await newer;
+      port.send = send;
+      port.findDelivery = find;
+    }
+  },
+  10_000,
+);
