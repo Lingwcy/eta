@@ -6,7 +6,14 @@ import { createSubagentsExtension, SubagentsDoc } from "../../agent/extension/su
 import { RuntimeSettingsService } from "../settings/index.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { Harness, ROOT_CONVERSATION_ID } from "@eta/agent";
-import type { AgentChange, Conversation, ConversationWatch, Registry, Storage } from "@eta/agent";
+import type {
+  AgentChange,
+  Conversation,
+  ConversationWatch,
+  Registry,
+  Storage,
+  ToolRegistration,
+} from "@eta/agent";
 import type { ExecutionEnv } from "@eta/agent/env";
 import { CoreEnvironmentService } from "../environment.ts";
 import { Context, Effect, Layer } from "effect";
@@ -21,7 +28,7 @@ import { CatalogService } from "../catalog/index.ts";
 import { ScheduleService } from "../schedules/index.ts";
 import { createScheduleExtension } from "../schedules/extension.ts";
 import { createRuntimeTools } from "./tools.ts";
-import { recoverRuntime, hasForegroundWork } from "./recovery.ts";
+import { recoverRuntime, hasForegroundWork, hasPersistedWork } from "./recovery.ts";
 import { createTitleTask, TitleDoc } from "../../agent/extension/title/task.ts";
 import { SkillsService } from "../skills/index.ts";
 import { SkillsDoc } from "../skills/extension.ts";
@@ -41,6 +48,7 @@ import {
 } from "./codemode.ts";
 import { defaultAgentMode } from "../../shared/runtime-settings.ts";
 import { pathToFileURL } from "node:url";
+import { createComputerRuntime } from "../../computer/runtime.ts";
 
 export interface ThreadRuntime {
   readonly hasWork: () => Promise<boolean>;
@@ -76,6 +84,7 @@ export class RuntimeRegistryService extends Context.Service<
       sandboxMode?: SandboxMode,
     ): Effect.Effect<ThreadRuntime, CoreError>;
     peek(ref: EtaSessionMetadata): Effect.Effect<ThreadRuntime | undefined, CoreError>;
+    busy(ref: EtaSessionMetadata): Effect.Effect<boolean, CoreError>;
     close(ref: EtaSessionMetadata): Effect.Effect<void, CoreError>;
     readonly shutdown: Effect.Effect<void, CoreError>;
   }
@@ -110,6 +119,9 @@ export class RuntimeRegistryService extends Context.Service<
         const sandboxEnvironments = new Map<string, Promise<ExecutionEnv>>();
         let harness: Harness | undefined;
         let runtimeRecord: ThreadRuntime | undefined;
+        let computer: Awaited<ReturnType<typeof createComputerRuntime>> | undefined;
+        let settingsDelivery = Promise.resolve();
+        let unsubscribeSettings: (() => void) | undefined;
         const codemode = new RuntimeCodemodeSandbox(
           environment.codemodeAssets
             ? {
@@ -176,9 +188,12 @@ export class RuntimeRegistryService extends Context.Service<
           registry.install({ name: "desktop-thread-title", tasks: [titleTask] });
           const scheduled = createScheduleExtension({ ref, catalog, schedules, environment, run });
           registry.install(scheduled.extension);
+          const excludedChildTools: ToolRegistration[] = [scheduled.tool];
+          const orchestratorTools: ToolRegistration[] = [];
           const subagents = createSubagentsExtension({
             inheritExecution: inheritAgentMode,
-            excludedTools: [scheduled.tool],
+            excludedTools: excludedChildTools,
+            orchestratorTools,
             invalid: (message) => {
               throw new CoreError({ code: "InvalidInput", message });
             },
@@ -293,6 +308,23 @@ export class RuntimeRegistryService extends Context.Service<
               code: "StorageCorrupt",
               message: "持久会话缺少根 conversation",
             });
+          if (environment.computer) {
+            const capability = environment.computer;
+            computer = await createComputerRuntime({
+              harness,
+              service: capability.service,
+              allowed: async () => {
+                const settings = await Effect.runPromise(preferences.read);
+                return (
+                  capability.enabled() && settings.computerUse === true && !settings.blockImages
+                );
+              },
+            });
+            await computer.refresh();
+            registry.install(computer.extension);
+            excludedChildTools.push(...computer.extension.tools);
+            orchestratorTools.push(...computer.extension.tools);
+          }
           const { inspection, recoveryRequired } = await recoverRuntime(harness, subagents);
           // Idle history can contain levels saved before the picker respected model capabilities.
           // Pending work retains its pinned request configuration until it is resumed or stopped.
@@ -418,11 +450,11 @@ export class RuntimeRegistryService extends Context.Service<
           await approvals.invalidate(conversation.id);
           if (!recoveryRequired) await subagents.wake();
           await refreshTools();
-          let settingsDelivery = Promise.resolve();
-          const unsubscribeSettings = preferences.subscribe(() => {
+          unsubscribeSettings = preferences.subscribe(() => {
             settingsDelivery = settingsDelivery
               .then(async () => {
                 if (record.disposed) return;
+                await computer?.refresh();
                 await approvals.withdrawAutoRunGrants(conversation.id);
                 await refreshTools();
                 await conversation.commit(async (tx) => {
@@ -448,37 +480,47 @@ export class RuntimeRegistryService extends Context.Service<
           const stopTitle = await Effect.runPromise(titles.watch(record));
           cleanups.set(record, async () => {
             record.disposed = true;
-            unsubscribeSettings();
-            await settingsDelivery;
-            await subagentWatch?.stop();
-            await approvalWatch?.stop();
-            await stopTitle();
-            await Promise.all([...record.watches].map((watch) => watch.stop()));
-            record.watches.clear();
-            record.changes.clear();
-            try {
-              // Keep background delegates recoverable while preserving the root's normal stop-on-close behavior.
-              if (record.running && environment.shutdown === "abortForeground")
-                await conversation.abort(BACKGROUND_CONTEXT);
-            } finally {
-              try {
-                await harness!.close(BACKGROUND_CONTEXT);
-              } finally {
-                await codemode.close();
-                await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
-                await rm(scratchRoot, { recursive: true, force: true });
-              }
-            }
+            await closeAll([
+              () => computer?.close(),
+              () => unsubscribeSettings?.(),
+              () => settingsDelivery,
+              () => subagentWatch?.stop(),
+              () => approvalWatch?.stop(),
+              stopTitle,
+              () => closeAll([...record.watches].map((watch) => () => watch.stop())),
+              () => {
+                record.watches.clear();
+                record.changes.clear();
+              },
+              async () => {
+                // Keep background delegates recoverable while preserving the root's normal stop-on-close behavior.
+                if (record.running && environment.shutdown === "abortForeground")
+                  await conversation.abort(BACKGROUND_CONTEXT);
+              },
+              () => harness!.close(BACKGROUND_CONTEXT),
+              () => codemode.close(),
+              () => closeAll([...environments].map((env) => () => env.cleanup(BACKGROUND_CONTEXT))),
+              () => rm(scratchRoot, { recursive: true, force: true }),
+            ]);
           });
           // Only the title task may resume silently; foreground work still requires explicit recovery.
           if (!recoveryRequired && inspection.tasks.length) harness.resume();
           return record;
         } catch (error) {
-          if (harness) await harness.close(BACKGROUND_CONTEXT);
-          else await storage.close(BACKGROUND_CONTEXT);
-          await codemode.close();
-          await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
-          await rm(scratchRoot, { recursive: true, force: true });
+          if (runtimeRecord) runtimeRecord.disposed = true;
+          await closeAll(
+            [
+              () => unsubscribeSettings?.(),
+              () => settingsDelivery,
+              () => computer?.close(),
+              () =>
+                harness ? harness.close(BACKGROUND_CONTEXT) : storage.close(BACKGROUND_CONTEXT),
+              () => codemode.close(),
+              () => closeAll([...environments].map((env) => () => env.cleanup(BACKGROUND_CONTEXT))),
+              () => rm(scratchRoot, { recursive: true, force: true }),
+            ],
+            [error],
+          );
           throw error;
         }
       };
@@ -489,8 +531,11 @@ export class RuntimeRegistryService extends Context.Service<
         const pending = opening.get(key(ref));
         if (!pending) return Promise.resolve();
         const release = pending.then(async (record) => {
-          await cleanups.get(record)?.();
-          opening.delete(key(ref));
+          try {
+            await cleanups.get(record)?.();
+          } finally {
+            opening.delete(key(ref));
+          }
         });
         releasing.set(key(ref), release);
         void release
@@ -545,10 +590,47 @@ export class RuntimeRegistryService extends Context.Service<
             });
           }).pipe(Effect.uninterruptible),
         peek: (ref) => adapter("无法读取运行资源状态", async () => opening.get(key(ref))),
+        busy: Effect.fn("RuntimeRegistryService.busy")(function* (ref: EtaSessionMetadata) {
+          const pending = opening.get(key(ref));
+          if (pending) {
+            const record = yield* adapter("无法读取运行资源状态", () => pending);
+            return (
+              record.running ||
+              record.recoveryRequired ||
+              (yield* adapter("无法检查任务", record.hasWork))
+            );
+          }
+          const storage = yield* repository.open(ref).pipe(
+            // Unreadable histories must retain their existing maintenance escape hatch.
+            Effect.catch((error) =>
+              error.code === "StorageCorrupt" ? Effect.succeed(undefined) : Effect.fail(error),
+            ),
+          );
+          if (!storage) return false;
+          return yield* adapter("无法检查持久任务", async () => {
+            try {
+              return await hasPersistedWork(storage);
+            } finally {
+              await storage.close(BACKGROUND_CONTEXT);
+            }
+          });
+        }),
         close: (ref) =>
           adapter("无法关闭会话运行资源", () => closeOne(ref)).pipe(Effect.uninterruptible),
         shutdown,
       });
     }),
   );
+}
+
+/** Attempt every owned cleanup, keeping an earlier startup failure primary when supplied. */
+async function closeAll(actions: readonly (() => unknown)[], failures: unknown[] = []) {
+  for (const action of actions) {
+    try {
+      await action();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length) throw failures[0];
 }

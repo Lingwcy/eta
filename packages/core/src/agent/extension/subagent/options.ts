@@ -15,6 +15,8 @@ export type SubagentOptions = {
   instructions: () => Promise<string>;
   ready?: () => boolean;
   excludedTools?: readonly ToolRegistration[];
+  /** Host capabilities that cannot be delegated, such as the shared local desktop. */
+  orchestratorTools?: readonly ToolRegistration[];
   maximumImages?: (model: { provider: string; modelId: string }) => number | undefined;
   inheritExecution?: (tx: Tx, parent: ConversationId, child: ConversationId) => Promise<void>;
 };

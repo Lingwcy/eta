@@ -13,6 +13,30 @@ permissions:
   contents: read
 
 jobs:
+  computer-native:
+    name: Verify macOS computer-use native helper
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      # These scripts use only Node built-ins and the runner's Swift toolchain.
+      # Keep native policy checks independent of workspace package installation.
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Test native input and window policies
+        run: node packages/computer-use/scripts/test-native.mjs
+
+      - name: Build universal native helper
+        run: node apps/desktop/scripts/build-computer.mjs "$RUNNER_TEMP/eta-computer-ci"
+
+      - name: Verify isolated native helper
+        run: node scripts/verify-computer-native.mjs "$RUNNER_TEMP/eta-computer-ci/computer-native"
+
   test:
     name: Test Electron desktop
     runs-on: ubuntu-latest
@@ -31,6 +55,12 @@ jobs:
 
       - name: Build agent package
         run: vp run --no-cache @eta/agent#build
+
+      - name: Verify computer-use package
+        run: |
+          vp run --no-cache @eta/computer-use#build
+          vp run @eta/computer-use#typecheck
+          vp run @eta/computer-use#test
 
       - name: Verify shared Core
         run: |

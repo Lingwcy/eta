@@ -119,17 +119,29 @@ export class RunSupervisorService extends Context.Service<
             normalizeThinkingLevel(runtime.conversation, models.models),
           );
       });
-      const claim = async (runtime: ThreadRuntime) => {
-        const reason = await Effect.runPromise(access.reason(runtime.ref.metadata.cwd));
-        if (reason || access.removing(runtime.ref.metadata.cwd))
-          throw new CoreError({
-            code: "WorkspaceUnavailable",
-            message: reason ?? "工作区正在移除",
-          });
+      const reserve = (runtime: ThreadRuntime) => {
         if (leases.has(runtime))
           throw new CoreError({ code: "Busy", message: "此会话已有任务运行" });
         leases.add(runtime);
         runtime.running = true;
+      };
+      const claim = async (runtime: ThreadRuntime) => {
+        if (access.removing(runtime.ref.metadata.cwd))
+          throw new CoreError({ code: "WorkspaceUnavailable", message: "工作区正在移除" });
+        // Removal must see this claim while its last asynchronous eligibility read is pending.
+        reserve(runtime);
+        try {
+          const reason = await Effect.runPromise(access.reason(runtime.ref.metadata.cwd));
+          if (reason || access.removing(runtime.ref.metadata.cwd))
+            throw new CoreError({
+              code: "WorkspaceUnavailable",
+              message: reason ?? "工作区正在移除",
+            });
+        } catch (error) {
+          leases.delete(runtime);
+          runtime.running = false;
+          throw error;
+        }
       };
       const release = (runtime: ThreadRuntime) => {
         leases.delete(runtime);
@@ -146,8 +158,13 @@ export class RunSupervisorService extends Context.Service<
         // A queued submission is not yet a task, so idleness only counts once the input has been taken up.
         void started
           .then(() => runtime.conversation.waitForIdle(BACKGROUND_CONTEXT))
-          .then(() => runtime.approvals.expireRunGrants(runtime.conversation.id))
-          .catch((error: unknown) => Effect.runFork(Effect.logError(error)));
+          .then(() => {
+            if (!runtime.disposed)
+              return runtime.approvals.expireRunGrants(runtime.conversation.id);
+          })
+          .catch((error: unknown) => {
+            if (!runtime.disposed) Effect.runFork(Effect.logError(error));
+          });
       };
       const supervise = (runtime: ThreadRuntime, settled: Promise<unknown>) => {
         const execution = settled
@@ -276,7 +293,8 @@ export class RunSupervisorService extends Context.Service<
         stop: (runtime) =>
           adapter("无法停止任务", async () => {
             // abort also settles queued work; recovery is only resumed here to converge cancellation.
-            if (!runtime.running) await claim(runtime);
+            // Cancellation must remain possible after the checkout is lost or tombstoned.
+            if (!runtime.running) reserve(runtime);
             try {
               runtime.recoveryRequired = false;
               await runtime.subagents.stopAll();

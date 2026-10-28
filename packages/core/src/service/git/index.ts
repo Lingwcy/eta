@@ -160,10 +160,20 @@ export async function inspectRepository(
         ? { kind: "branch", name: branch, sha }
         : { kind: "unborn", name: branch }
       : { kind: "detached", sha };
-    const remotes = parseRemotes((await runGit(cwd, ["remote", "-v"])).stdout);
-    const changes = parseStatus(
-      (await runGit(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"])).stdout,
-    );
+    const remoteResult = await runGit(cwd, ["remote", "-v"]);
+    if (remoteResult.exitCode !== 0)
+      throw new Error(`无法读取 Git 远端（退出码 ${remoteResult.exitCode}）`);
+    const remotes = parseRemotes(remoteResult.stdout);
+    const statusResult = await runGit(cwd, [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=normal",
+    ]);
+    // A failed status may have empty or partial stdout; neither proves a clean checkout.
+    if (statusResult.exitCode !== 0)
+      throw new Error(`无法读取 Git 工作区状态（退出码 ${statusResult.exitCode}）`);
+    const changes = parseStatus(statusResult.stdout);
     const github = selectGitHub(remotes, savedRemote);
     const current = await operation(absoluteGitDir);
     return {

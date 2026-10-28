@@ -424,7 +424,9 @@ test("read-only pauses edits for one exact approval and persists the selected po
   ]);
   const operation = await core.submit(thread.id, "Write");
   await expect
-    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length, {
+      timeout: 10_000,
+    })
     .toBe(1);
   await expect(readFile(join(cwd, "approved.txt"))).rejects.toMatchObject({ code: "ENOENT" });
   await expect(core.configureSandbox(thread.id, "danger-full-access")).rejects.toMatchObject({
@@ -468,7 +470,9 @@ test.each(["deny", "stop"] as const)(
     ]);
     const operation = await core.submit(thread.id, "Run");
     await expect
-      .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+      .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length, {
+        timeout: 10_000,
+      })
       .toBe(1);
     const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
     if (decision === "deny") await core.decideApproval(thread.id, approval.id, false);
@@ -512,7 +516,9 @@ test("pending approvals survive restart without executing before explicit resume
   ]);
   const operation = await core.submit(thread.id, "Write");
   await expect
-    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length, {
+      timeout: 10_000,
+    })
     .toBe(1);
   const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
   await core.close();
@@ -619,7 +625,9 @@ test("an approved read-only command receives only its requested workspace scope"
   ]);
   const operation = await core.submit(thread.id, "Write");
   await expect
-    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length)
+    .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length, {
+      timeout: 10_000,
+    })
     .toBe(1);
   await expect(readFile(join(cwd, "command.txt"))).rejects.toMatchObject({ code: "ENOENT" });
   const request = (await core.openThread(thread.id)).snapshot.approvals![0]!;

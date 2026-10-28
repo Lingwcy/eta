@@ -258,3 +258,124 @@ test("an unavailable workspace blocks approval but still permits proposal reject
   expect((await runtime.runPromise(service.proposals()))[0].state).toBe("rejected");
   expect(await runtime.runPromise(service.list())).toEqual([]);
 });
+
+test("user deletion stops before removing the plan and never stops on replay or stale input", async () => {
+  const { runtime, service } = await fixture();
+  const { scheduleId } = await runtime.runPromise(service.write(create));
+  const input = {
+    threadId: "thread",
+    requestId: "delete",
+    change: { action: "delete" as const, scheduleId: scheduleId!, expectedRevision: 1 },
+  };
+  let stops = 0;
+  const stop = Effect.gen(function* () {
+    expect((yield* service.list())[0].id).toBe(scheduleId);
+    stops++;
+  });
+  const stale = await runtime.runPromise(
+    service.write(
+      { ...input, requestId: "stale", change: { ...input.change, expectedRevision: 2 } },
+      stop,
+    ),
+  );
+  expect(stale.state).toBe("rejected");
+  expect(stops).toBe(0);
+  await expect(
+    runtime.runPromise(
+      service.write(input, Effect.fail(new CoreError({ code: "Busy", message: "stop failed" }))),
+    ),
+  ).rejects.toMatchObject({ code: "Busy" });
+  expect(await runtime.runPromise(service.list())).toHaveLength(1);
+  const deleted = await runtime.runPromise(service.write(input, stop));
+  expect(deleted.state).toBe("applied");
+  expect(await runtime.runPromise(service.list())).toEqual([]);
+  expect(await runtime.runPromise(service.write(input, stop))).toEqual(deleted);
+  expect(stops).toBe(1);
+});
+
+test("a manual restart replaces waiting deliveries once and retains the recurring cursor", async () => {
+  const { runtime, service } = await fixture();
+  const { scheduleId } = await runtime.runPromise(service.write(create));
+  const before = (await runtime.runPromise(service.list()))[0];
+  const input = {
+    threadId: "thread",
+    scheduleId: scheduleId!,
+    expectedRevision: 1,
+    requestId: "old-run",
+  };
+  const old = await runtime.runPromise(service.runNow(input));
+  const other = await runtime.runPromise(service.write({ ...create, requestId: "other-plan" }));
+  const otherRun = await runtime.runPromise(
+    service.runNow({ ...input, scheduleId: other.scheduleId!, requestId: "other-run" }),
+  );
+  let restarts = 0;
+  const restart = Effect.sync(() => {
+    restarts++;
+    return true;
+  });
+  const fresh = { ...input, requestId: "fresh-run" };
+  const request = await runtime.runPromise(service.runNow(fresh, restart));
+  expect(request.state).toBe("applied");
+  expect(request.occurrenceId).not.toBe(old.occurrenceId);
+  expect(await runtime.runPromise(service.runNow(fresh, restart))).toEqual(request);
+  expect(restarts).toBe(1);
+  const runs = await runtime.runPromise(service.runs(scheduleId!));
+  expect(runs.find((run) => run.id === old.occurrenceId)).toMatchObject({
+    state: "cancelled",
+    reason: "restart",
+  });
+  expect(runs.find((run) => run.id === request.occurrenceId)).toMatchObject({
+    state: "pending",
+    prompt: create.change.prompt,
+  });
+  expect((await runtime.runPromise(service.list()))[0]).toEqual(before);
+  expect(
+    (await runtime.runPromise(service.runs(other.scheduleId!))).find(
+      (run) => run.id === otherRun.occurrenceId,
+    )?.state,
+  ).toBe("pending");
+});
+
+test("an uncertain admission prevents deletion or restart from stopping the wrong run", async () => {
+  const { runtime, service } = await fixture();
+  const { scheduleId } = await runtime.runPromise(service.write(create));
+  const runInput = {
+    threadId: "thread",
+    scheduleId: scheduleId!,
+    expectedRevision: 1,
+    requestId: "old",
+  };
+  const run = await runtime.runPromise(service.runNow(runInput));
+  const store = await runtime.runPromise(ScheduleStoreService);
+  await runtime.runPromise(
+    store.update((state) => ({
+      ...state,
+      occurrences: {
+        ...state.occurrences,
+        [run.occurrenceId!]: { ...state.occurrences[run.occurrenceId!], state: "dispatching" },
+      },
+    })),
+  );
+  let stopped = false;
+  const stop = Effect.sync(() => {
+    stopped = true;
+  });
+  await expect(
+    runtime.runPromise(
+      service.write(
+        {
+          threadId: "thread",
+          requestId: "delete",
+          change: { action: "delete", scheduleId: scheduleId!, expectedRevision: 1 },
+        },
+        stop,
+      ),
+    ),
+  ).rejects.toMatchObject({ code: "Busy" });
+  const fresh = await runtime.runPromise(
+    service.runNow({ ...runInput, requestId: "fresh" }, stop.pipe(Effect.as(true))),
+  );
+  expect(fresh.state).toBe("rejected");
+  expect(stopped).toBe(false);
+  expect(await runtime.runPromise(service.list())).toHaveLength(1);
+});

@@ -1,15 +1,25 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
+import { inspect, promisify } from "node:util";
 import { Effect } from "effect";
 import { createModels } from "@earendil-works/pi-ai";
 import { afterEach, expect, test } from "vite-plus/test";
 import { createCore } from "../../../src/client.ts";
 import type { CoreClient } from "../../../src/client.ts";
 import { inspectRepository, parseStatus, selectGitHub } from "../../../src/service/git/index.ts";
-import { parseGitHubRemote, redactRemoteUrl } from "../../../src/platform/git.ts";
+import { parseGitHubRemote, redactRemoteUrl, runGit } from "../../../src/platform/git.ts";
 
 const run = promisify(execFile);
 const git = (cwd: string, ...args: string[]) =>
@@ -105,6 +115,110 @@ test("linked worktrees and subdirectories share the main repository's common dir
   expect(worktree.gitDir).toBe(join(main.commonDir, "worktrees", "linked"));
 });
 
+test.each([
+  { fault: "index", coarseStat: false },
+  { fault: "remote", coarseStat: false },
+  { fault: "index", coarseStat: true },
+] as const)(
+  "failed $fault reads are unavailable rather than a ready snapshot, and recover after repair (coarse stat=$coarseStat)",
+  async ({ fault, coarseStat }) => {
+    const { directory, root } = await committed();
+    if (coarseStat) {
+      await git(root, "config", "core.trustctime", "false");
+      await git(root, "config", "core.checkStat", "minimal");
+    }
+    const original = await stat(join(root, "README.md"), { bigint: true });
+    const cachedSeconds = Number(original.mtimeNs / 1_000_000_000n);
+    const modified = "changed content\n";
+
+    await git(root, "remote", "add", "origin", "https://github.com/eta/app.git");
+    const core = await createCore({
+      dataRoot: join(directory, "data"),
+      home: directory,
+      models: createModels(),
+      settings: {
+        read: Effect.succeed({ defaultThinkingLevel: "off" }),
+        subscribe: () => () => {},
+      },
+      environment: { userAgent: "eta-core-test", shutdown: "preserve" },
+    });
+    clients.push(core);
+    const project = await core.registerProject(root);
+    const workspace = (await core.workspaces(project.id))[0]!;
+    expect(await core.gitRepository(workspace.id)).toMatchObject({
+      status: "ready",
+      changes: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+    });
+    // A different size forces content inspection even when restored index timestamps match.
+    await writeFile(join(root, "README.md"), modified);
+    if (coarseStat) await utimes(join(root, "README.md"), cachedSeconds, cachedSeconds);
+    await writeFile(join(root, "untracked.txt"), "keep me\n");
+    const index = await readFile(join(root, ".git", "index"));
+    if (fault === "index") await writeFile(join(root, ".git", "index"), "broken index");
+    else await git(root, "config", "remote.origin.fetch", "not a refspec");
+    try {
+      await expect(
+        git(root, ...(fault === "index" ? ["status", "--porcelain=v1", "-z"] : ["remote", "-v"])),
+      ).rejects.toMatchObject({ code: 128 });
+      const failed = await core.gitRepository(workspace.id);
+      expect(failed).toMatchObject({
+        status: "unavailable",
+        workspaceId: workspace.id,
+        reason: "error",
+      });
+      expect(failed).not.toHaveProperty("changes");
+      expect(failed).not.toHaveProperty("remotes");
+      expect(failed).not.toHaveProperty("github");
+    } finally {
+      if (fault === "index") {
+        await writeFile(join(root, ".git", "index"), index);
+        // Rewriting an old index after the file timestamp can remove Git's racy-clean fallback.
+        if (coarseStat) {
+          await utimes(join(root, ".git", "index"), cachedSeconds + 2, cachedSeconds + 2);
+        }
+      } else await git(root, "config", "--unset", "remote.origin.fetch");
+    }
+    const repaired = await core.gitRepository(workspace.id);
+    try {
+      expect(repaired).toMatchObject({
+        status: "ready",
+        changes: { staged: 0, unstaged: 1, untracked: 1, conflicted: 0 },
+        github: { selection: { owner: "eta", repo: "app" } },
+      });
+    } catch (error) {
+      console.error(
+        "Git repair diagnostics",
+        inspect(
+          {
+            fault,
+            coarseStat,
+            repaired,
+            reads: await Promise.allSettled([
+              runGit(root, ["--version"], { timeoutMs: 1000 }),
+              runGit(root, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"], {
+                timeoutMs: 1000,
+              }),
+              runGit(root, ["ls-files", "--debug"], { timeoutMs: 1000 }),
+              runGit(
+                root,
+                ["config", "--get-regexp", "^core\.(trustctime|checkstat|ignorestat|fsmonitor)$"],
+                { timeoutMs: 1000 },
+              ),
+              stat(join(root, "README.md"), { bigint: true }),
+              stat(join(root, ".git", "index"), { bigint: true }),
+              readFile(join(root, "README.md"), "utf8"),
+            ]),
+          },
+          { depth: null, colors: false },
+        ),
+      );
+      throw error;
+    }
+    expect(await readFile(join(root, "README.md"), "utf8")).toBe(modified);
+    expect(await readFile(join(root, "untracked.txt"), "utf8")).toBe("keep me\n");
+  },
+);
+
 test("status counts staged, unstaged, untracked and conflicted entries", () => {
   expect(
     parseStatus(["M  a", " M b", "MM c", "?? d", "UU e", "R  new", "old", ""].join("\0")),
@@ -124,6 +238,76 @@ test("GitHub remotes are recognised without leaking credentials", () => {
   expect(redactRemoteUrl("https://user:secret@github.com/eta/app.git")).toBe(
     "https://github.com/eta/app.git",
   );
+});
+
+// All userinfo here is synthetic. Build the URLs at runtime instead of storing
+// literal Basic Auth URLs that secret scanners cannot distinguish from real ones.
+const syntheticRemoteUrl = (scheme: string, userinfo: string, rest: string) =>
+  [scheme, "://", userinfo, "@", rest].join("");
+
+test.each([
+  {
+    url: syntheticRemoteUrl("https", "audit@example.com:fixture-secret", "github.com/eta/app.git"),
+    redacted: "https://github.com/eta/app.git",
+  },
+  {
+    url: syntheticRemoteUrl(
+      "ssh",
+      "audit@example.com:fixture-secret",
+      "git.example.org/eta/app.git",
+    ),
+    redacted: "ssh://git.example.org/eta/app.git",
+  },
+])("public Git remote DTO removes all userinfo from $url", async ({ url, redacted }) => {
+  const { directory, root } = await committed();
+  await git(root, "remote", "add", "origin", url);
+  expect((await git(root, "remote", "get-url", "origin")).stdout.trim()).toBe(url);
+  const core = await createCore({
+    dataRoot: join(directory, "data"),
+    home: directory,
+    models: createModels(),
+    settings: { read: Effect.succeed({ defaultThinkingLevel: "off" }), subscribe: () => () => {} },
+    environment: { userAgent: "eta-core-test", shutdown: "preserve" },
+  });
+  clients.push(core);
+  const project = await core.registerProject(root);
+  const workspace = (await core.workspaces(project.id))[0]!;
+  const info = await core.gitRepository(workspace.id);
+  expect(info).toMatchObject({ status: "ready", remotes: [{ name: "origin", url: redacted }] });
+  expect(JSON.stringify(info)).not.toContain("fixture-secret");
+  // Redaction is a DTO boundary, not permission to rewrite the user's transport configuration.
+  expect((await git(root, "remote", "get-url", "origin")).stdout.trim()).toBe(url);
+});
+
+test.each([
+  {
+    url: syntheticRemoteUrl(
+      "https",
+      "user:p@fixture-secret",
+      "[::1]:8443/audit@app.git?contact=audit@example.com#user@ref",
+    ),
+    redacted: "https://[::1]:8443/audit@app.git?contact=audit@example.com#user@ref",
+  },
+  {
+    url: syntheticRemoteUrl(
+      "https",
+      "audit%40example.com:fixture-secret",
+      "github.com/eta/app.git",
+    ),
+    redacted: "https://github.com/eta/app.git",
+  },
+])("remote redaction retains the URL after the authority in $url", ({ url, redacted }) => {
+  expect(redactRemoteUrl(url)).toBe(redacted);
+});
+
+test.each([
+  "https://git.example.org?contact=audit@example.com",
+  "https://git.example.org#contact=audit@example.com",
+  "https://git.example.org/eta/audit@app.git",
+  "git@git.example.org:eta/app.git",
+  "/local/audit@app.git",
+])("remote redaction preserves non-userinfo @ in %s", (url) => {
+  expect(redactRemoteUrl(url)).toBe(url);
 });
 
 test("remote selection prefers a saved choice, then origin, then the only GitHub remote", () => {

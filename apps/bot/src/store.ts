@@ -10,6 +10,7 @@ interface RequestRecord {
 export class BotStore {
   private readonly database: DatabaseSync;
   private readonly inFlight = new Map<string, Promise<unknown>>();
+  private closing: Promise<void> | undefined;
   constructor(path: string) {
     this.database = new DatabaseSync(path, { timeout: 5000 });
     this.database.exec(`
@@ -28,6 +29,7 @@ export class BotStore {
     payload: string,
     execute: () => Promise<T>,
   ): Promise<T> {
+    if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
     const record = this.database
       .prepare("SELECT payload, result FROM requests WHERE scope=? AND request_id=?")
       .get(scope, id) as RequestRecord | undefined;
@@ -60,9 +62,12 @@ export class BotStore {
     return execution;
   }
 
-  async close() {
-    await Promise.allSettled(this.inFlight.values());
-    this.database.close();
+  close() {
+    // Admission stops before the first await; every accepted request is in this drain.
+    return (this.closing ??= Promise.resolve().then(async () => {
+      await Promise.allSettled(this.inFlight.values());
+      this.database.close();
+    }));
   }
 }
 

@@ -47,6 +47,8 @@ import { WorktreeService } from "@eta/core/service/git/worktrees";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import { makeAppPaths } from "@eta/core/platform/app-paths";
 import type { StorageTarget } from "../shared/storage.ts";
+import type { DesktopComputer } from "./computer/capability.ts";
+import type { ComputerPermission, ComputerStatus } from "../shared/computer.ts";
 
 async function createLocalDesktopApplication(
   root: string,
@@ -62,10 +64,13 @@ async function createLocalDesktopApplication(
   openDirectory: (path: string) => Promise<void> = async () => {
     throw new LocalizedError("errors:bootstrap.theFileManagerIsUnavailable");
   },
+  computer?: DesktopComputer,
 ) {
   registerBundledOAuthFlows();
   await loadProjectEnvironment(root);
-  const runtime = ManagedRuntime.make(desktopServices(dataRoot, undefined, processImage));
+  const runtime = ManagedRuntime.make(
+    desktopServices(dataRoot, undefined, processImage, undefined, computer),
+  );
   try {
     const projects = await runtime.runPromise(ProjectService);
     const threads = await runtime.runPromise(ThreadService);
@@ -118,11 +123,23 @@ async function createLocalDesktopApplication(
     };
     return {
       scheduleSnapshot: () => run(schedules.snapshot),
-      writeSchedule: (input: ScheduleWriteInput) => run(schedules.write(input)),
+      writeSchedule: (input: ScheduleWriteInput) =>
+        run(schedules.write(input, threads.stop(input.threadId))),
       proposeSchedule: (input: ScheduleProposeInput) => run(schedules.propose(input)),
       decideSchedule: (input: ScheduleDecisionInput, approved: boolean) =>
         run(schedules.decide(input, approved)),
-      runSchedule: (input: ScheduleRunInput) => run(schedules.runNow(input)),
+      runSchedule: (input: ScheduleRunInput) =>
+        run(
+          schedules.runNow(
+            input,
+            Effect.gen(function* () {
+              const recovery = yield* threads.recovery(input.threadId);
+              if (!recovery.required && !recovery.blockedTasks.length) return false;
+              yield* threads.stop(input.threadId);
+              return true;
+            }),
+          ),
+        ),
       scheduleRuns: (scheduleId: string) => run(schedules.runs(scheduleId)),
       scheduleRequest: (_threadId: string, requestId: string) => run(schedules.request(requestId)),
       subscribeSchedules: (listener: () => void) => schedules.subscribe(listener),
@@ -224,6 +241,12 @@ async function createLocalDesktopApplication(
       resume: (id: string) => run(threads.resume(id)),
       compact: (id: string) => run(threads.compact(id)),
       updateSettings: (patch: Partial<DesktopSettings>) => run(settings.update(patch)),
+      computerStatus: async (): Promise<ComputerStatus> =>
+        computer?.status() ?? { status: "unsupported" },
+      openComputerPermissions: async (permission: ComputerPermission) => {
+        if (!computer) throw new Error("当前平台不支持桌面控制");
+        await computer.openPermissions(permission);
+      },
       exportBotCredentials: () => run(credentials.export),
       startLogin: (provider: string, method: LoginMethod) => authentication.start(provider, method),
       loginState: (id: string) => authentication.read(id),

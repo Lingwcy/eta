@@ -1,7 +1,13 @@
-import { join } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { Context, Effect, Layer } from "effect";
 import { GitStoreService } from "./store.ts";
 import { CoreError } from "../errors.ts";
+
+/** Both paths are canonical; sibling names must not count as descendants. */
+export function containsDirectory(root: string, cwd: string) {
+  const path = relative(root, cwd);
+  return path === "" || (!isAbsolute(path) && path !== ".." && !path.startsWith(`..${sep}`));
+}
 
 /** Removal excludes new execution claims; persistent tombstones stay blocked even if the directory is recreated. */
 export class WorkspaceAccessService extends Context.Service<
@@ -17,19 +23,29 @@ export class WorkspaceAccessService extends Context.Service<
     Effect.gen(function* () {
       const store = yield* GitStoreService;
       const removals = new Set<string>();
+      const removing = (cwd: string) => {
+        for (const root of removals) if (containsDirectory(root, cwd)) return true;
+        return false;
+      };
       return WorkspaceAccessService.of({
-        removing: (cwd) => removals.has(cwd),
+        removing,
         reserveRemoval: (cwd) => {
-          if (removals.has(cwd)) throw new CoreError({ code: "Busy", message: "工作区正在移除" });
+          for (const root of removals)
+            if (containsDirectory(root, cwd) || containsDirectory(cwd, root))
+              throw new CoreError({ code: "Busy", message: "工作区正在移除" });
           removals.add(cwd);
           return () => {
             removals.delete(cwd);
           };
         },
         reason: Effect.fn("WorkspaceAccessService.reason")(function* (cwd: string) {
-          if (removals.has(cwd)) return "工作区正在移除，暂不能执行";
+          if (removing(cwd)) return "工作区正在移除，暂不能执行";
           const receipt = Object.values((yield* store.read).worktrees ?? {}).find(
-            (value) => join(value.path, value.prefix) === cwd,
+            (value) =>
+              value.status !== "ready" &&
+              (value.managed
+                ? containsDirectory(value.path, cwd)
+                : join(value.path, value.prefix) === cwd),
           );
           if (receipt && receipt.status !== "ready")
             return receipt.status === "removed"

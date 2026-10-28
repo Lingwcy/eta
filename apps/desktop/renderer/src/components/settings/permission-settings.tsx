@@ -14,6 +14,7 @@ import {
 import type { AgentMode, ApprovalReviewer } from "@eta/core/shared/runtime-settings";
 import type { ReviewStats } from "@eta/core/service/runtime/review-log";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
+import { ComputerSettings } from "./computer-settings";
 
 function ReviewerSettings({
   library,
@@ -155,6 +156,7 @@ export function PermissionSettings({
   onReviewerChange,
   agentMode,
   onAgentModeChange,
+  onComputerUseChange,
 }: {
   library: DesktopLibrary;
   blockImages: boolean;
@@ -167,6 +169,7 @@ export function PermissionSettings({
   onReviewerChange: (reviewer: ApprovalReviewer | null) => void;
   agentMode: AgentMode;
   onAgentModeChange: (mode: AgentMode) => void;
+  onComputerUseChange: (enabled: boolean) => void;
 }) {
   useTranslation();
   return (
@@ -243,6 +246,13 @@ export function PermissionSettings({
           </SettingsRow>
         </SettingsSection>
       )}
+      <ComputerSettings
+        enabled={library.settings.computerUse === true}
+        blockImages={blockImages}
+        busy={busy}
+        active={active}
+        onChange={onComputerUseChange}
+      />
       <SettingsSection title={t("settings:permissionSettings.imageAccess")}>
         <SettingsRow
           title={t("settings:permissionSettings.allowTheModelToReadImages")}

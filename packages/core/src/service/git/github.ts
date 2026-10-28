@@ -30,6 +30,7 @@ const Row = Schema.Struct({
 });
 const decode = Schema.decodeUnknownSync(Schema.Array(Row));
 const FRESH_MS = 60_000;
+const identityChangedMessage = "GitHub 访问身份已变更，请重新刷新。";
 
 /** Repository selection and pagination stay on the host; network queries never hold a Git write lock. */
 export class GitHubRepositoryService extends Context.Service<
@@ -49,7 +50,8 @@ export class GitHubRepositoryService extends Context.Service<
       const cache = new Map<string, Extract<GitHubPage, { status: "ready" }>>();
       const failures = new Map<string, Extract<GitHubPage, { status: "error" }>>();
       const pending = new Map<string, Promise<GitHubPage>>();
-      const identities = new Map<string, string>();
+      const identities = new Map<string, { key: string; admission: number }>();
+      let nextAdmission = 0;
       const rateLimits = new Map<string, number>();
       const identityIds = new Map<string, string>();
       const publicIdentity = (session: GitHubSession): GitHubIdentity => {
@@ -65,8 +67,7 @@ export class GitHubRepositoryService extends Context.Service<
         page: number,
       ): Promise<GitHubPage> => {
         const cached = cache.get(key);
-        const currentIdentity = () => identities.get(input.projectId) === session.key;
-        const identityChangedMessage = "GitHub 访问身份已变更，请重新刷新。";
+        const currentIdentity = () => identities.get(input.projectId)?.key === session.key;
         const failure = (
           code: Extract<GitHubPage, { status: "error" }>["code"],
           message: string,
@@ -193,6 +194,8 @@ export class GitHubRepositoryService extends Context.Service<
             publicIdentity(await transport.session()),
           ),
         query: Effect.fn("GitHubRepositoryService.query")(function* (input: GitHubQuery) {
+          // Keep this query's order across repository and credential-discovery awaits.
+          const admission = ++nextAdmission;
           const root = (yield* workspaces.list(input.projectId)).find(
             (workspace) => workspace.kind === "project-root",
           );
@@ -225,13 +228,27 @@ export class GitHubRepositoryService extends Context.Service<
           if (!Number.isSafeInteger(page) || page < 1)
             return yield* new CoreError({ code: "InvalidInput", message: "分页游标无效" });
           const session = yield* adapter("无法检查 GitHub 登录状态", () => transport.session());
-          if (identities.get(input.projectId) !== session.key) {
+          const previousIdentity = identities.get(input.projectId);
+          if (
+            previousIdentity &&
+            previousIdentity.admission > admission &&
+            previousIdentity.key !== session.key
+          )
+            return {
+              status: "error",
+              code: "unauthenticated",
+              message: identityChangedMessage,
+            };
+          if (previousIdentity?.key !== session.key) {
             for (const key of cache.keys())
               if (key.startsWith(`${input.projectId}:`)) cache.delete(key);
             for (const key of failures.keys())
               if (key.startsWith(`${input.projectId}:`)) failures.delete(key);
           }
-          identities.set(input.projectId, session.key);
+          identities.set(input.projectId, {
+            key: session.key,
+            admission: Math.max(previousIdentity?.admission ?? 0, admission),
+          });
           const key = `${input.projectId}:${JSON.stringify([info.commonDir, selection, session.key, input.kind, input.state, page])}`;
           const limited = failures.get(key);
           if (limited?.retryAt && limited.retryAt > Date.now()) return limited;

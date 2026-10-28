@@ -9,7 +9,7 @@ import type { SandboxReview, SandboxReviewSkip } from "../../shared/sandbox.ts";
 import { defaultApprovalReviewerMode } from "../../shared/runtime-settings.ts";
 import type { ExecutionEnv } from "@eta/agent/env";
 import { awaitWithContext, withAbortSignal } from "@earendil-works/chord/context";
-import { ApprovalsDoc, runGrant } from "./approval-doc.ts";
+import { activeRootRun, ApprovalsDoc, runGrant } from "./approval-doc.ts";
 import { createReviewToolRunner, reviewTools } from "./review-tools.ts";
 import type { Approval } from "./approval-doc.ts";
 
@@ -222,7 +222,13 @@ export function createReviewTask(options: ReviewOptions) {
                 request.status = outcome.status;
                 request.decidedBy = "auto";
               }
-              if (outcome.status === "approved" && reuse === "run" && request.reusable) {
+              if (
+                outcome.status === "approved" &&
+                reuse === "run" &&
+                request.reusable &&
+                request.rootRunId !== undefined &&
+                request.rootRunId === (await activeRootRun(tx))
+              ) {
                 request.reuse = "run";
                 const doc = await tx.doc(ApprovalsDoc);
                 // Assign a new array: values pushed onto an array after assigning it are not tracked.

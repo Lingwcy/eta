@@ -1,4 +1,9 @@
 export default {
+  "computerOverlay.unavailable": "Preview unavailable",
+  "computerOverlay.active": "Computer use",
+  "computerOverlay.waiting": "Waiting for the target window…",
+  "computerOverlay.stop": "Stop computer use",
+
   "background.tooltip": "Eta · Running in background",
   "background.open": "Open Eta",
   "background.quit": "Quit Eta",

@@ -13,7 +13,7 @@ import { WorkspaceService } from "../workspaces/index.ts";
 import { BRANCH_FORMAT, inspectRepository, parseBranches } from "./index.ts";
 import { gitStoreEntry, GitStoreService } from "./store.ts";
 import type { WorktreeReceipt } from "./store.ts";
-import { WorkspaceAccessService } from "./workspace-access.ts";
+import { containsDirectory, WorkspaceAccessService } from "./workspace-access.ts";
 
 export type WorktreeBranch =
   | { readonly kind: "new"; readonly name: string; readonly baseRef?: string }
@@ -139,17 +139,10 @@ export class WorktreeService extends Context.Service<
             ([, receipt]) => receipt.projectId === projectId,
           ),
         );
-      const busy = Effect.fn("WorktreeService.busy")(function* (workspaceId: string) {
+      const busy = Effect.fn("WorktreeService.busy")(function* (root: string) {
         for (const thread of (yield* catalog.read).threads) {
-          if (thread.workspaceId !== workspaceId) continue;
-          const runtime = yield* registry.peek(thread.sessionRef);
-          if (
-            runtime &&
-            (runtime.running ||
-              runtime.recoveryRequired ||
-              (yield* adapter("无法检查任务", runtime.hasWork)))
-          )
-            return true;
+          if (!containsDirectory(root, thread.sessionRef.metadata.cwd)) continue;
+          if (yield* registry.busy(thread.sessionRef)) return true;
         }
         return false;
       });
@@ -474,11 +467,9 @@ export class WorktreeService extends Context.Service<
               code: "InvalidInput",
               message: "该 worktree 不是由 Eta 创建的，请在 Git 中自行移除",
             });
-          const release = yield* Effect.sync(() =>
-            access.reserveRemoval(join(receipt.path, receipt.prefix)),
-          );
+          const release = yield* Effect.sync(() => access.reserveRemoval(receipt.path));
           yield* Effect.addFinalizer(() => Effect.sync(release));
-          if (yield* busy(workspaceId))
+          if (yield* busy(receipt.path))
             return yield* new CoreError({ code: "Busy", message: "请先停止该工作区中的任务" });
           const info = yield* Effect.promise(() => inspectRepository(receipt.path, workspaceId));
           if (info.status === "ready") {
@@ -528,8 +519,8 @@ export class WorktreeService extends Context.Service<
           const removedAt = yield* now;
           // The workspace stays in the Catalog as a tombstone so its threads remain readable.
           yield* save(key, (current) => ({ ...current, status: "removed", removedAt }));
-          for (const thread of (yield* catalog.read).threads.filter(
-            (value) => value.workspaceId === workspaceId,
+          for (const thread of (yield* catalog.read).threads.filter((value) =>
+            containsDirectory(receipt.path, value.sessionRef.metadata.cwd),
           )) {
             const runtime = yield* registry.peek(thread.sessionRef);
             if (runtime) {

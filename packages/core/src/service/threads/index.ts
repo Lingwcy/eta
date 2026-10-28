@@ -251,32 +251,38 @@ export class ThreadService extends Context.Service<
               return yield* open(id);
             }),
           ),
-        subagent: (id, command, requestId) =>
-          locked(
-            Effect.gen(function* () {
-              const runtime = yield* runtimeFor(id, command.action !== "list");
-              if (
-                runtime.recoveryRequired &&
-                command.action !== "list" &&
-                command.action !== "stop"
-              )
-                return yield* new CoreError({
-                  code: "RecoveryRequired",
-                  message: "请先恢复或停止未完成任务",
-                });
-              if (command.action === "spawn" || command.action === "send")
-                yield* adapter("无法更新工具", runtime.refreshTools);
-              yield* adapter("无法管理子智能体", async () => {
-                const actor =
-                  command.parent && command.parent !== "/root"
-                    ? (await childRuntime(runtime, command.parent)).conversation.id
-                    : runtime.conversation.id;
-                await runtime.subagents.execute(command, actor, requestId);
-                runtime.harness.resume();
+        subagent: (id, input, requestId) => {
+          const command = { ...input };
+          const execute = Effect.gen(function* () {
+            const runtime = yield* runtimeFor(id, command.action !== "list");
+            if (runtime.recoveryRequired && command.action !== "list" && command.action !== "stop")
+              return yield* new CoreError({
+                code: "RecoveryRequired",
+                message: "请先恢复或停止未完成任务",
               });
-              return yield* adapter("无法读取子智能体", runtime.subagents.list);
-            }),
-          ),
+            if (command.action === "spawn" || command.action === "send")
+              yield* adapter("无法更新工具", runtime.refreshTools);
+            yield* adapter("无法管理子智能体", async (signal) => {
+              const actor =
+                command.parent && command.parent !== "/root"
+                  ? (await childRuntime(runtime, command.parent)).conversation.id
+                  : runtime.conversation.id;
+              await runtime.subagents.execute(
+                command,
+                actor,
+                requestId,
+                command.action === "wait"
+                  ? { ...BACKGROUND_CONTEXT, abortSignal: signal }
+                  : BACKGROUND_CONTEXT,
+              );
+              if (command.action === "wait") signal.throwIfAborted();
+              if (command.action !== "list") runtime.harness.resume();
+            });
+            return yield* adapter("无法读取子智能体", runtime.subagents.list);
+          });
+          // A read wait must yield both the mutation lock and its fiber when Core closes.
+          return command.action === "wait" ? execute : locked(execute);
+        },
         openSubagent: (id, path) =>
           Effect.gen(function* () {
             const runtime = yield* runtimeFor(id);
@@ -476,17 +482,8 @@ export class ThreadService extends Context.Service<
             locked(
               Effect.gen(function* () {
                 const thread = yield* get(id);
-                const runtime = yield* registry.peek(thread.sessionRef);
-                if (
-                  runtime &&
-                  (runtime.running ||
-                    runtime.recoveryRequired ||
-                    (yield* adapter("无法检查任务", runtime.hasWork)))
-                )
-                  return yield* new CoreError({
-                    code: "Busy",
-                    message: "请先停止未完成的任务，再删除会话",
-                  });
+                if (yield* registry.busy(thread.sessionRef))
+                  yield* runs.stop(yield* registry.acquire(thread.sessionRef));
                 yield* captureScheduledResults(id);
                 yield* registry.close(thread.sessionRef);
                 const removal = yield* repository.stageRemoval(thread.sessionRef);
@@ -554,13 +551,7 @@ export class ThreadService extends Context.Service<
               Effect.gen(function* () {
                 const existing = yield* get(id);
                 const runtime = yield* registry.peek(existing.sessionRef);
-                if (
-                  archived &&
-                  runtime &&
-                  (runtime.running ||
-                    runtime.recoveryRequired ||
-                    (yield* adapter("无法检查任务", runtime.hasWork)))
-                )
+                if (archived && (yield* registry.busy(existing.sessionRef)))
                   return yield* new CoreError({
                     code: "Busy",
                     message: "请先停止未完成的任务，再归档",

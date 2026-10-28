@@ -7,8 +7,13 @@ import type { Extension } from "@eta/agent";
 import type { Models } from "@earendil-works/pi-ai";
 import type { EtaSessionMetadata } from "../shared/sessions.ts";
 import type { GitHubAdapter } from "../platform/github.ts";
+import type { ComputerService } from "@eta/computer-use/service";
 
 export interface CoreEnvironment {
+  readonly computer?: {
+    service: ComputerService;
+    enabled: () => boolean;
+  };
   readonly github?: GitHubAdapter;
   readonly userAgent: string;
   readonly authorizeScheduleWorkspace: (workspaceId: string) => Promise<void>;
@@ -40,6 +45,7 @@ export class CoreEnvironmentService extends Context.Service<
       userAgent: options.userAgent ?? "eta",
       authorizeScheduleWorkspace: options.authorizeScheduleWorkspace ?? (async () => {}),
       github: options.github,
+      computer: options.computer,
       shutdown: options.shutdown ?? "preserve",
       allowedSandboxModes: options.allowedSandboxModes ?? sandboxModes,
       sandboxWorkerPath: options.sandboxWorkerPath,
