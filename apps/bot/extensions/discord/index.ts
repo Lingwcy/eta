@@ -326,6 +326,11 @@ export class DiscordExtension {
     if (result.status !== "completed")
       this.store.updateIssue(issue.id, { state: "failed", error: `Operation ${result.status}.` });
   }
+  private reviewDelivery(issueId: string, error: string) {
+    const issue = this.store.issue(issueId)!;
+    if (issue.state === "closed" || issue.state === "stopped") return;
+    this.store.updateIssue(issueId, { state: "review", error });
+  }
   private async deliver(inboxId: string, signal: AbortSignal) {
     if (this.config.enabled === false || !this.port.connected()) return false;
     for (const record of this.store.outputs(inboxId)) {
@@ -349,10 +354,10 @@ export class DiscordExtension {
             error: "Previous delivery could not be inspected.",
           });
         }
-        this.store.updateIssue(record.issueId, {
-          state: "review",
-          error: "A delivery needs reconciliation or an explicit retry.",
-        });
+        this.reviewDelivery(
+          record.issueId,
+          "A delivery needs reconciliation or an explicit retry.",
+        );
         return false;
       }
       this.store.updateOutput(record.id, { state: "sending" });
@@ -373,10 +378,10 @@ export class DiscordExtension {
           error: "Discord delivery failed or its outcome is uncertain.",
         });
         if (state === "failed")
-          this.store.updateIssue(record.issueId, {
-            state: "review",
-            error: "Discord rejected a reply; check permissions before retrying.",
-          });
+          this.reviewDelivery(
+            record.issueId,
+            "Discord rejected a reply; check permissions before retrying.",
+          );
         signal.throwIfAborted();
         return false;
       }
