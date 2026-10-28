@@ -124,7 +124,7 @@ test.each(["closed-before-expiry", "closed-during-expiry", "active-error", "acti
             {
               id: "legacy-expiry-proof",
               taskId: task.id,
-              conversationId: record.conversation.id,
+              conversationId: String(record.conversation.id),
               revision: 1,
               readableRoots: [],
               writableRoots: [],
