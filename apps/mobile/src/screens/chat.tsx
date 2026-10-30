@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
   messages: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 12,
+    paddingBottom: 16,
     maxWidth: 760,
     width: "100%",
     alignSelf: "center",

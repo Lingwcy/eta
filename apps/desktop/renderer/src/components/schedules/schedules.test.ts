@@ -6,7 +6,7 @@ import { act, createElement, useState, useSyncExternalStore, Fragment } from "re
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { ManagedRuntime } from "effect";
-import { createModels, fauxProvider } from "@earendil-works/pi-ai";
+import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
 import type { SessionResponse } from "@eta/core/agent/protocol";
 import { ProjectService } from "@eta/core/service/projects/index";
 import { WorkspaceService } from "@eta/core/service/workspaces/index";
@@ -14,6 +14,9 @@ import { ThreadService } from "@eta/core/service/threads/index";
 import { ScheduleService } from "@eta/core/service/schedules/index";
 import { desktopServices } from "../../../../src/main/service/layer.ts";
 import { ModelCatalogService } from "../../../../src/main/service/models/index.ts";
+import { DesktopSettingsService } from "../../../../src/main/service/settings/index.ts";
+import { CoreEnvironmentService } from "@eta/core/service/environment";
+import { NodeExecutionEnv } from "@eta/agent/env/node";
 import { dispatchCommand } from "../../../../src/main/ipc.ts";
 import {
   mapScheduleSnapshot,
@@ -519,6 +522,118 @@ test("sidebar filters multiple states and creates a task through its dialog with
   });
   await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull();
 });
+
+test.each([false, true])(
+  "sidebar edits the target model while another thread is selected and target running=%s",
+  async (running) => {
+    const { runtime, schedules, threads, workspace, library, provider } = await setup();
+    const settings = await runtime.runPromise(DesktopSettingsService);
+    await runtime.runPromise(settings.update({ agentMode: "standard" }));
+    // jsdom transforms the native worker's import.meta.url; this interaction only needs model calls.
+    const environment = await runtime.runPromise(CoreEnvironmentService);
+    const execution = vi
+      .spyOn(environment, "executionEnvironment")
+      .mockImplementation((cwd) => new NodeExecutionEnv({ cwd }));
+    cleanups.push(async () => execution.mockRestore());
+    const peer = await runtime.runPromise(threads.create(workspace.id));
+    const target = await runtime.runPromise(threads.create(workspace.id));
+    await runtime.runPromise(threads.configureSandbox(peer.id, "danger-full-access"));
+    await runtime.runPromise(threads.configureSandbox(target.id, "danger-full-access"));
+    library.threads = [peer.thread, target.thread];
+    const catalog = await runtime.runPromise(ModelCatalogService);
+    library.models = await runtime.runPromise(catalog.list);
+    await runtime.runPromise(
+      schedules.write({
+        threadId: target.id,
+        requestId: "editable-plan",
+        change: {
+          action: "create",
+          name: "Editable review",
+          prompt: "Review",
+          rule: { type: "interval", everyMs: 3600000, anchorAt: Date.now() },
+        },
+      }),
+    );
+    const release = Promise.withResolvers<void>();
+    provider.setResponses(
+      Array.from({ length: 4 }, () => async (_context, options) => {
+        options?.signal?.addEventListener("abort", () => release.resolve(), { once: true });
+        await release.promise;
+        return fauxAssistantMessage("Finished");
+      }),
+    );
+    try {
+      const peerAdmission = await runtime.runPromise(threads.submit(peer.id, "Peer work"));
+      expect((await runtime.runPromise(threads.open(peer.id))).snapshot.lastResult).toBeNull();
+      const targetAdmission = running
+        ? await runtime.runPromise(threads.submit(target.id, "Target work"))
+        : undefined;
+      let saved: string | undefined;
+      function Sidebar() {
+        const controller = useSchedules();
+        return createElement(ScheduleSidebar, {
+          library,
+          controller,
+          selectedThreadId: peer.id,
+          onSelect: () => {},
+          onSaved: (id) => {
+            saved = id;
+          },
+        });
+      }
+      await act(async () =>
+        root.render(createElement(ToastProvider, null, createElement(Sidebar))),
+      );
+      await expect
+        .poll(() => document.querySelector('[aria-label="Editable review的任务操作"]'))
+        .not.toBeNull();
+      await act(async () =>
+        document
+          .querySelector<HTMLButtonElement>('[aria-label="Editable review的任务操作"]')!
+          .click(),
+      );
+      await act(async () =>
+        [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+          .find((item) => item.textContent === "编辑")!
+          .click(),
+      );
+      await click("高级");
+      await expect
+        .poll(
+          () =>
+            document.querySelector<HTMLButtonElement>('[aria-label="选择模型与思考级别"]')
+              ?.disabled,
+        )
+        .toBe(false);
+      await act(async () =>
+        document.querySelector<HTMLButtonElement>('[aria-label="选择模型与思考级别"]')!.click(),
+      );
+      await act(async () =>
+        document.querySelector<HTMLButtonElement>('button[title="schedule-ui/two"]')!.click(),
+      );
+      await act(async () =>
+        document
+          .querySelector<HTMLInputElement>('[aria-label="搜索模型或服务"]')!
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+      );
+      await click("保存");
+      await expect.poll(() => saved).toBe(target.id);
+      const targetState = await runtime.runPromise(threads.open(target.id));
+      expect(targetState.snapshot.configuration.model.modelId).toBe("two");
+      expect(targetState.snapshot.operation?.id).toBe(targetAdmission?.operationId);
+      const peerState = await runtime.runPromise(threads.open(peer.id));
+      expect(peerState.snapshot.configuration.model.modelId).toBe("one");
+      expect(peerState.snapshot.operation?.id).toBe(peerAdmission.operationId);
+      expect((await runtime.runPromise(schedules.list(target.id)))[0].revision).toBe(2);
+    } finally {
+      await act(async () => {
+        release.resolve();
+        await runtime.runPromise(threads.stop(peer.id));
+        if (running) await runtime.runPromise(threads.stop(target.id));
+      });
+    }
+  },
+);
 
 test.each([
   { everyMs: 330_000, minutes: undefined },

@@ -19,6 +19,8 @@ interface Context {
   log: BotLog;
 }
 
+type IssueAction = "stop" | "resume" | "close" | "reopen";
+
 function chunks(text: string) {
   const result: string[] = [];
   let current = "";
@@ -44,6 +46,8 @@ export class DiscordExtension {
   private filling: Promise<void> | undefined;
   private error: string | null = null;
   private readonly limited = new Set<string>();
+  private readonly controlOwners = new Map<string, object>();
+  private readonly archiveOwners = new Map<string, object>();
   private lastFill = 0;
   private readonly task;
   private readonly port: DiscordPort;
@@ -220,6 +224,8 @@ export class DiscordExtension {
         await this.admit(issue, first);
       } catch (error) {
         if (error instanceof BotHttpError && error.code === "Busy") continue;
+        const current = this.store.issue(issue.id)!;
+        if (current.state === "closed" || current.state === "stopped") continue;
         this.store.updateIssue(issue.id, {
           state: "review",
           error:
@@ -320,6 +326,11 @@ export class DiscordExtension {
     if (result.status !== "completed")
       this.store.updateIssue(issue.id, { state: "failed", error: `Operation ${result.status}.` });
   }
+  private reviewDelivery(issueId: string, error: string) {
+    const issue = this.store.issue(issueId)!;
+    if (issue.state === "closed" || issue.state === "stopped") return;
+    this.store.updateIssue(issueId, { state: "review", error });
+  }
   private async deliver(inboxId: string, signal: AbortSignal) {
     if (this.config.enabled === false || !this.port.connected()) return false;
     for (const record of this.store.outputs(inboxId)) {
@@ -343,10 +354,10 @@ export class DiscordExtension {
             error: "Previous delivery could not be inspected.",
           });
         }
-        this.store.updateIssue(record.issueId, {
-          state: "review",
-          error: "A delivery needs reconciliation or an explicit retry.",
-        });
+        this.reviewDelivery(
+          record.issueId,
+          "A delivery needs reconciliation or an explicit retry.",
+        );
         return false;
       }
       this.store.updateOutput(record.id, { state: "sending" });
@@ -367,10 +378,10 @@ export class DiscordExtension {
           error: "Discord delivery failed or its outcome is uncertain.",
         });
         if (state === "failed")
-          this.store.updateIssue(record.issueId, {
-            state: "review",
-            error: "Discord rejected a reply; check permissions before retrying.",
-          });
+          this.reviewDelivery(
+            record.issueId,
+            "Discord rejected a reply; check permissions before retrying.",
+          );
         signal.throwIfAborted();
         return false;
       }
@@ -458,7 +469,16 @@ export class DiscordExtension {
       if (complete) for (const message of collected) this.store.advance(channel.id, message.id);
     }
   }
-  async control(id: string, action: "stop" | "resume" | "close" | "reopen") {
+  control(id: string, action: IssueAction) {
+    this.archiveOwners.delete(id);
+    const owner = {};
+    this.controlOwners.set(id, owner);
+    const current = () => this.controlOwners.get(id) === owner;
+    return this.applyControl(id, action, current).finally(() => {
+      if (current()) this.controlOwners.delete(id);
+    });
+  }
+  private async applyControl(id: string, action: IssueAction, current: () => boolean) {
     const issue = this.store.issue(id);
     if (!issue) throw new BotHttpError(404, "NotFound", "Discord issue not found.");
     if (action === "stop" || action === "close") {
@@ -469,6 +489,7 @@ export class DiscordExtension {
         archivePending: action === "close",
       });
       if (issue.etaThreadId) await this.host().controller.stop(issue.etaThreadId);
+      if (!current()) return this.store.issue(id)!;
       for (const input of this.store
         .inputs()
         .filter((input) => input.issueId === id && input.state !== "done"))
@@ -476,12 +497,14 @@ export class DiscordExtension {
       if (action === "close" && issue.discordThreadId)
         await this.syncArchive(this.store.issue(id)!);
     } else {
-      if (
-        action === "resume" &&
-        issue.etaThreadId &&
-        (await this.host().core.recovery(issue.etaThreadId)).required
-      )
-        await this.host().controller.resume(issue.etaThreadId);
+      if (action === "resume" && issue.etaThreadId) {
+        const recovery = await this.host().core.recovery(issue.etaThreadId);
+        if (!current()) return this.store.issue(id)!;
+        if (recovery.required) {
+          await this.host().controller.resume(issue.etaThreadId);
+          if (!current()) return this.store.issue(id)!;
+        }
+      }
       this.store.updateIssue(id, {
         state: "waiting",
         error: null,
@@ -494,6 +517,7 @@ export class DiscordExtension {
         .filter((input) => input.issueId === id && input.state === "blocked")) {
         if (input.taskId && issue.etaThreadId) {
           const task = await this.host().core.task(issue.etaThreadId, input.taskId);
+          if (!current()) return this.store.issue(id)!;
           if (task.state.status === "terminal" && task.state.outcome.status !== "completed")
             this.store.updateInput(input.id, { taskId: null, taskAttempt: input.taskAttempt + 1 });
         }
@@ -506,7 +530,7 @@ export class DiscordExtension {
     await this.wake();
     return this.store.issue(id)!;
   }
-  async retryDelivery(id: string) {
+  private deliveryForRetry(id: string) {
     const record = this.store.delivery(id);
     if (!record) throw new BotHttpError(404, "NotFound", "Discord delivery not found.");
     if (record.state === "sent") return record;
@@ -517,7 +541,14 @@ export class DiscordExtension {
       this.store.input(record.inboxId)?.state === "cancelled"
     )
       throw new BotHttpError(409, "IssueStopped", "A cancelled delivery cannot be retried.");
+    return record;
+  }
+  async retryDelivery(id: string) {
+    const record = this.deliveryForRetry(id);
+    if (record.state === "sent") return record;
     const remoteId = await this.port.findDelivery(record.threadId, record.marker);
+    const current = this.deliveryForRetry(id);
+    if (current.state === "sent") return current;
     this.store.updateOutput(
       id,
       remoteId ? { state: "sent", remoteId, error: null } : { state: "pending", error: null },
@@ -533,23 +564,33 @@ export class DiscordExtension {
   }
   private async syncArchive(issue: Issue) {
     if (!issue.discordThreadId) return;
+    const owner = {};
+    this.archiveOwners.set(issue.id, owner);
+    const current = () => this.archiveOwners.get(issue.id) === owner;
     try {
       await this.port.archive(issue.discordThreadId, issue.state === "closed");
-      this.store.updateIssue(issue.id, { archivePending: false, error: null });
+      if (current()) this.store.updateIssue(issue.id, { archivePending: false, error: null });
     } catch {
-      this.store.updateIssue(issue.id, {
-        error: "Discord archive update failed; repeat close or reopen after checking permissions.",
-      });
+      if (current())
+        this.store.updateIssue(issue.id, {
+          error:
+            "Discord archive update failed; repeat close or reopen after checking permissions.",
+        });
       throw new BotHttpError(
         503,
         "DiscordUnavailable",
         "The issue state was saved but its Discord archive update needs retrying.",
       );
+    } finally {
+      if (current()) this.archiveOwners.delete(issue.id);
     }
   }
   async close() {
     await this.stopIngress();
-    await this.port.stop();
-    this.store.close();
+    try {
+      await this.port.stop();
+    } finally {
+      this.store.close();
+    }
   }
 }

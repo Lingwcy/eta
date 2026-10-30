@@ -1,7 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DateTime, Effect, Layer, ManagedRuntime } from "effect";
+import { Clock, DateTime, Duration, Effect, Layer, ManagedRuntime } from "effect";
+import { TestClock } from "effect/testing";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
 import { AppPathsService } from "@eta/core/platform/app-paths";
@@ -27,7 +28,7 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
-async function fixture() {
+async function fixture(clock?: Clock.Clock) {
   const root = await mkdtemp(join(tmpdir(), "eta-dispatcher-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const runtime = ManagedRuntime.make(
@@ -43,6 +44,7 @@ async function fixture() {
           }),
         ),
       ),
+      Layer.provideMerge(clock ? Layer.succeed(Clock.Clock, clock) : Layer.empty),
     ),
   );
   cleanups.push(() => runtime.dispose());
@@ -91,6 +93,28 @@ async function fixture() {
         : { status: "absent", settled: true },
   };
   return { runtime, store, dispatcher, calls, host, operations };
+}
+
+async function controlledFixture() {
+  const timing = ManagedRuntime.make(TestClock.layer());
+  cleanups.push(() => timing.dispose());
+  const clock = await timing.runPromise(TestClock.testClockWith(Effect.succeed));
+  const sleeping = new Set<{ at: number; until: number }>();
+  let sleeps = 0;
+  const observed: Clock.Clock = {
+    ...clock,
+    sleep: (duration) =>
+      Effect.suspend(() => {
+        sleeps++;
+        const at = clock.currentTimeMillisUnsafe();
+        const sleep = { at, until: at + Duration.toMillis(duration) };
+        sleeping.add(sleep);
+        return clock
+          .sleep(duration)
+          .pipe(Effect.ensuring(Effect.sync(() => sleeping.delete(sleep))));
+      }),
+  };
+  return { ...(await fixture(observed)), timing, clock, sleeping, sleeps: () => sleeps };
 }
 
 test("delivers saved prompt and persists actual operation success, not merely submission success", async () => {
@@ -424,6 +448,7 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   ).toBe("admitted");
   // A durable terminal receipt does not imply that the supervisor released its lease.
   expect(record.running).toBe(true);
+  expect(await record.hasWork()).toBe(false);
   const deletion = runtime.runPromise(threads.remove(thread.id));
   releaseSettlement.resolve();
   await expect
@@ -431,11 +456,10 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
       async () => ({
         running: record.running,
         recoveryRequired: record.recoveryRequired,
-        pending: await record.hasWork(),
       }),
       { timeout: 10_000 },
     )
-    .toEqual({ running: false, recoveryRequired: false, pending: false });
+    .toEqual({ running: false, recoveryRequired: false });
   await deletion;
   expect(
     (await runtime.runPromise(schedules.runs(schedule.id))).find((run) => run.id === manual.id)
@@ -588,41 +612,54 @@ test("a schedule update after start wakes delivery without a manual tick", async
   }
 });
 
-test("busy admission does not wake itself continuously from its own receipt writes", async () => {
-  const { runtime, store, dispatcher, host, calls } = await fixture();
-  const now = DateTime.toEpochMillis(DateTime.nowUnsafe());
-  await runtime.runPromise(
-    store.update((state) => {
-      const draft = scheduleDraft(state);
-      const schedule = Object.values(draft.schedules)[0];
-      writeScheduleChange(
-        draft,
-        {
-          threadId: "thread",
-          requestId: "future",
-          change: {
-            action: "update",
-            scheduleId: schedule.id,
-            expectedRevision: 1,
-            patch: { rule: { type: "once", at: now + 100 } },
-          },
-        },
-        catalogFixture(),
-        now,
-      );
-      return draft;
-    }),
-  );
+test("busy receipt writes do not self-wake, but the timer still retries", async () => {
+  const { runtime, store, dispatcher, host, calls, timing, clock, sleeping, sleeps } =
+    await controlledFixture();
   host.submit = async (input) => {
     calls.push(input);
     return { status: "blocked", reason: "busy" };
   };
-  await runtime.runPromise(dispatcher.start(host));
-  await expect.poll(() => calls.length > 0, { timeout: 5000 }).toBe(true);
-  await new Promise<void>((resolve) => setTimeout(resolve, 250));
-  expect(calls).toHaveLength(1);
-  expect(Object.values((await runtime.runPromise(store.read)).occurrences)[0].state).toBe(
-    "pending",
-  );
-  await runtime.runPromise(dispatcher.stop);
-});
+  const progress = async () => ({
+    now: clock.currentTimeMillisUnsafe(),
+    calls: calls.length,
+    sleeping: [...sleeping],
+    occurrences: Object.values((await runtime.runPromise(store.read)).occurrences),
+  });
+  try {
+    await runtime.runPromise(dispatcher.start(host));
+    // Drain the fixture creation notification while its deadline (100) is safely future.
+    // The first sleep loses to that queued notification; the second must remain armed.
+    await expect.poll(sleeps, { timeout: 5000 }).toBe(2);
+    await expect.poll(progress, { timeout: 5000 }).toMatchObject({
+      now: 0,
+      calls: 0,
+      sleeping: [{ at: 0, until: 1000 }],
+      occurrences: [],
+    });
+    await timing.runPromise(clock.adjust(1000));
+    await expect.poll(progress, { timeout: 5000 }).toMatchObject({
+      now: 1000,
+      calls: 1,
+      sleeping: [{ at: 1000, until: 16000 }],
+      occurrences: [{ state: "pending", reason: "busy" }],
+    });
+    // A delayed assertion below the next retry cannot be mistaken for a self-wake.
+    await timing.runPromise(clock.adjust(14999));
+    expect(await progress()).toMatchObject({
+      now: 15999,
+      calls: 1,
+      sleeping: [{ at: 1000, until: 16000 }],
+      occurrences: [{ state: "pending", reason: "busy" }],
+    });
+    await timing.runPromise(clock.adjust(1));
+    await expect.poll(progress, { timeout: 5000 }).toMatchObject({
+      now: 16000,
+      calls: 2,
+      sleeping: [{ at: 16000, until: 31000 }],
+      occurrences: [{ state: "pending", reason: "busy" }],
+    });
+    expect(calls[1].requestId).toBe(calls[0].requestId);
+  } finally {
+    await runtime.runPromise(dispatcher.stop);
+  }
+}, 10_000);

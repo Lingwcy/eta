@@ -121,3 +121,204 @@ test("bulk import is atomic, preserves OAuth fields, and copies independent snap
     refresh: "private-refresh",
   });
 });
+
+test.each([NaN, Infinity, -Infinity])(
+  "OAuth writes reject non-finite expiry %s without replacing durable credentials",
+  async (expires) => {
+    const { directory, runtime, credentials, open } = await setup();
+    const original = {
+      type: "oauth" as const,
+      refresh: "fake-refresh",
+      access: "fake-access",
+      expires: 1234,
+      accountId: "retained",
+    };
+    await credentials.store.modify("stable", async () => original);
+    const path = join(directory, "credentials.json");
+    const before = await readFile(path, "utf8");
+    await expect(
+      credentials.store.modify("stable", async () => ({ ...original, expires })),
+    ).rejects.toMatchObject({ code: "InvalidInput" });
+    await expect(
+      runtime.runPromise(
+        credentials.import({
+          stable: { ...original, expires },
+          added: { type: "api_key", key: "fake-added" },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "InvalidInput" });
+    expect(await readFile(path, "utf8")).toBe(before);
+    expect(await runtime.runPromise(credentials.export)).toEqual({ stable: original });
+    await runtime.dispose();
+    const restored = await open().runPromise(CredentialService);
+    expect(await restored.store.read("stable")).toEqual(original);
+    await expect(restored.store.read("added")).resolves.toBeUndefined();
+  },
+);
+
+test.each([NaN, Infinity, -Infinity])(
+  "first-run migration rejects non-finite OAuth expiry %s atomically and can retry",
+  async (expires) => {
+    const { directory, runtime, credentials, open } = await setup();
+    const source = new InMemoryCredentialStore();
+    await source.modify("ordinary", async () => ({ type: "api_key", key: "fake-key" }));
+    const valid = {
+      type: "oauth" as const,
+      refresh: "fake-refresh",
+      access: "fake-access",
+      expires: 1234,
+      accountId: "retained",
+    };
+    await source.modify("oauth", async () => ({ ...valid, expires }));
+    await expect(runtime.runPromise(credentials.importOnce(source))).rejects.toMatchObject({
+      code: "InvalidInput",
+    });
+    expect(await runtime.runPromise(credentials.export)).toEqual({});
+    await expect(readFile(join(directory, "credentials.json"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await source.modify("oauth", async () => valid);
+    await runtime.runPromise(credentials.importOnce(source));
+    await runtime.dispose();
+    const restored = await open().runPromise(CredentialService);
+    expect(await restored.store.read("oauth")).toEqual(valid);
+    expect(await restored.store.read("ordinary")).toEqual({ type: "api_key", key: "fake-key" });
+  },
+);
+
+test.each([0, -1, 1234.5, Number.MAX_VALUE])(
+  "finite OAuth expiry %s survives JSON persistence without coercion",
+  async (expires) => {
+    const { runtime, credentials, open } = await setup();
+    const value = {
+      type: "oauth" as const,
+      refresh: "fake-refresh",
+      access: "fake-access",
+      expires,
+      accountId: "retained",
+    };
+    const source = new InMemoryCredentialStore();
+    await source.modify("oauth", async () => value);
+    await runtime.runPromise(credentials.importOnce(source));
+    await credentials.store.modify("oauth", async () => value);
+    await runtime.runPromise(credentials.import({ oauth: value }));
+    await runtime.dispose();
+    const restored = await open().runPromise(CredentialService);
+    expect(await restored.store.read("oauth")).toEqual(value);
+  },
+);
+
+test("overflowed OAuth expiry in an existing JSON file is rejected without rewriting secrets", async () => {
+  const { directory, runtime, open } = await setup();
+  await runtime.dispose();
+  const path = join(directory, "credentials.json");
+  const original =
+    '{"version":1,"credentials":{"oauth":{"type":"oauth","refresh":"fake-refresh","access":"fake-access","expires":1e400}}}';
+  await writeFile(path, original);
+  const error: unknown = await open()
+    .runPromise(CredentialService)
+    .catch((error: unknown) => error);
+  expect(error).toMatchObject({ code: "StorageCorrupt" });
+  expect(String(error)).not.toContain("fake-refresh");
+  expect(String(error)).not.toContain("fake-access");
+  expect(await readFile(path, "utf8")).toBe(original);
+});
+
+test.each(["constructor", "toString", "__proto__"])(
+  "provider %s is an own credential key through set, reopen and logout",
+  async (providerId) => {
+    const { runtime, credentials, open } = await setup();
+    await expect(credentials.store.read(providerId)).resolves.toBeUndefined();
+    await expect(
+      credentials.store.modify(providerId, async (current) => {
+        expect(current).toBeUndefined();
+        return undefined;
+      }),
+    ).resolves.toBeUndefined();
+    await runtime.runPromise(credentials.setApiKey(providerId, "fake-provider-key"));
+    expect(await credentials.store.read(providerId)).toEqual({
+      type: "api_key",
+      key: "fake-provider-key",
+    });
+    expect(await credentials.store.modify(providerId, async () => undefined)).toEqual({
+      type: "api_key",
+      key: "fake-provider-key",
+    });
+    expect(await runtime.runPromise(credentials.list)).toEqual([{ providerId, type: "api_key" }]);
+    expect(Object.hasOwn(await runtime.runPromise(credentials.export), providerId)).toBe(true);
+    await runtime.dispose();
+    const next = open();
+    const restored = await next.runPromise(CredentialService);
+    expect(await restored.store.read(providerId)).toEqual({
+      type: "api_key",
+      key: "fake-provider-key",
+    });
+    await next.runPromise(restored.remove(providerId));
+    await expect(restored.store.read(providerId)).resolves.toBeUndefined();
+    expect(await next.runPromise(restored.list)).toEqual([]);
+    await next.dispose();
+    const empty = await open().runPromise(CredentialService);
+    await expect(empty.store.read(providerId)).resolves.toBeUndefined();
+  },
+);
+
+test("first-run import preserves special provider IDs and OAuth fields as durable own keys", async () => {
+  const { directory, runtime, credentials, open } = await setup();
+  const source = new InMemoryCredentialStore();
+  const oauth = {
+    type: "oauth" as const,
+    refresh: "fake-refresh",
+    access: "fake-access",
+    expires: 1234,
+    accountId: "kept",
+  };
+  const entries = ["ordinary", "constructor", "toString", "__proto__"].map(
+    (providerId) =>
+      [
+        providerId,
+        providerId === "__proto__"
+          ? oauth
+          : { type: "api_key" as const, key: "fake-" + providerId },
+      ] as const,
+  );
+  const expected = Object.fromEntries(entries);
+  for (const [providerId, value] of entries) await source.modify(providerId, async () => value);
+  await runtime.runPromise(credentials.importOnce(source));
+  const exported = await runtime.runPromise(credentials.export);
+  const persisted: unknown = JSON.parse(
+    await readFile(join(directory, "credentials.json"), "utf8"),
+  );
+  expect({ exported, persisted }).toEqual({
+    exported: expected,
+    persisted: { version: 1, credentials: expected },
+  });
+  expect((await credentials.store.list()).map((item) => item.providerId).sort()).toEqual(
+    entries.map(([id]) => id).sort(),
+  );
+  await expect(credentials.store.read("accountId")).resolves.toBeUndefined();
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(CredentialService);
+  for (const [providerId, value] of entries)
+    expect(await restored.store.read(providerId)).toEqual(value);
+  await next.runPromise(restored.remove("__proto__"));
+  await next.runPromise(restored.importOnce(source));
+  await expect(restored.store.read("__proto__")).resolves.toBeUndefined();
+  expect(await restored.store.read("ordinary")).toEqual(expected.ordinary);
+  await next.runPromise(restored.import(expected));
+  expect(await next.runPromise(restored.export)).toEqual(expected);
+  expect(await restored.store.read("__proto__")).toEqual(oauth);
+});
+
+test("API key creation handles inherited provider names without a prior read", async () => {
+  const { runtime, credentials } = await setup();
+  for (const providerId of ["constructor", "toString", "__proto__"]) {
+    await expect(
+      runtime.runPromise(credentials.setApiKey(providerId, "fake-provider-key")),
+    ).resolves.toBeUndefined();
+    expect(await credentials.store.read(providerId)).toEqual({
+      type: "api_key",
+      key: "fake-provider-key",
+    });
+  }
+});

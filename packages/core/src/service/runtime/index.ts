@@ -122,6 +122,8 @@ export class RuntimeRegistryService extends Context.Service<
         let harness: Harness | undefined;
         let runtimeRecord: ThreadRuntime | undefined;
         let computer: Awaited<ReturnType<typeof createComputerRuntime>> | undefined;
+        let settingsDelivery = Promise.resolve();
+        let unsubscribeSettings: (() => void) | undefined;
         const codemode = new RuntimeCodemodeSandbox(
           environment.codemodeAssets
             ? {
@@ -450,8 +452,7 @@ export class RuntimeRegistryService extends Context.Service<
           await approvals.invalidate(conversation.id);
           if (!recoveryRequired) await subagents.wake();
           await refreshTools();
-          let settingsDelivery = Promise.resolve();
-          const unsubscribeSettings = preferences.subscribe(() => {
+          unsubscribeSettings = preferences.subscribe(() => {
             settingsDelivery = settingsDelivery
               .then(async () => {
                 if (record.disposed) return;
@@ -481,39 +482,47 @@ export class RuntimeRegistryService extends Context.Service<
           const stopTitle = await Effect.runPromise(titles.watch(record));
           cleanups.set(record, async () => {
             record.disposed = true;
-            await computer?.close();
-            unsubscribeSettings();
-            await settingsDelivery;
-            await subagentWatch?.stop();
-            await approvalWatch?.stop();
-            await stopTitle();
-            await Promise.all([...record.watches].map((watch) => watch.stop()));
-            record.watches.clear();
-            record.changes.clear();
-            try {
-              // Keep background delegates recoverable while preserving the root's normal stop-on-close behavior.
-              if (record.running && environment.shutdown === "abortForeground")
-                await conversation.abort(BACKGROUND_CONTEXT);
-            } finally {
-              try {
-                await harness!.close(BACKGROUND_CONTEXT);
-              } finally {
-                await codemode.close();
-                await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
-                await rm(scratchRoot, { recursive: true, force: true });
-              }
-            }
+            await closeAll([
+              () => computer?.close(),
+              () => unsubscribeSettings?.(),
+              () => settingsDelivery,
+              () => subagentWatch?.stop(),
+              () => approvalWatch?.stop(),
+              stopTitle,
+              () => closeAll([...record.watches].map((watch) => () => watch.stop())),
+              () => {
+                record.watches.clear();
+                record.changes.clear();
+              },
+              async () => {
+                // Keep background delegates recoverable while preserving the root's normal stop-on-close behavior.
+                if (record.running && environment.shutdown === "abortForeground")
+                  await conversation.abort(BACKGROUND_CONTEXT);
+              },
+              () => harness!.close(BACKGROUND_CONTEXT),
+              () => codemode.close(),
+              () => closeAll([...environments].map((env) => () => env.cleanup(BACKGROUND_CONTEXT))),
+              () => rm(scratchRoot, { recursive: true, force: true }),
+            ]);
           });
           // Only the title task may resume silently; foreground work still requires explicit recovery.
           if (!recoveryRequired && inspection.tasks.length) harness.resume();
           return record;
         } catch (error) {
-          await computer?.close();
-          if (harness) await harness.close(BACKGROUND_CONTEXT);
-          else await storage.close(BACKGROUND_CONTEXT);
-          await codemode.close();
-          await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
-          await rm(scratchRoot, { recursive: true, force: true });
+          if (runtimeRecord) runtimeRecord.disposed = true;
+          await closeAll(
+            [
+              () => unsubscribeSettings?.(),
+              () => settingsDelivery,
+              () => computer?.close(),
+              () =>
+                harness ? harness.close(BACKGROUND_CONTEXT) : storage.close(BACKGROUND_CONTEXT),
+              () => codemode.close(),
+              () => closeAll([...environments].map((env) => () => env.cleanup(BACKGROUND_CONTEXT))),
+              () => rm(scratchRoot, { recursive: true, force: true }),
+            ],
+            [error],
+          );
           throw error;
         }
       };
@@ -524,8 +533,11 @@ export class RuntimeRegistryService extends Context.Service<
         const pending = opening.get(key(ref));
         if (!pending) return Promise.resolve();
         const release = pending.then(async (record) => {
-          await cleanups.get(record)?.();
-          opening.delete(key(ref));
+          try {
+            await cleanups.get(record)?.();
+          } finally {
+            opening.delete(key(ref));
+          }
         });
         releasing.set(key(ref), release);
         void release
@@ -611,4 +623,16 @@ export class RuntimeRegistryService extends Context.Service<
       });
     }),
   );
+}
+
+/** Attempt every owned cleanup, keeping an earlier startup failure primary when supplied. */
+async function closeAll(actions: readonly (() => unknown)[], failures: unknown[] = []) {
+  for (const action of actions) {
+    try {
+      await action();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length) throw failures[0];
 }

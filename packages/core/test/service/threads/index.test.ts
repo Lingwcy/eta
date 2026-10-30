@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { CompactionEntry } from "@eta/agent";
+import { CompactionEntry, defineTask } from "@eta/agent";
+import { coreServices } from "../../../src/layer.ts";
 import {
   createModels,
   fauxAssistantMessage,
@@ -15,7 +16,7 @@ import {
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { Clock, Effect, ManagedRuntime } from "effect";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { CatalogService } from "@eta/core/service/catalog/index";
 import { testServices, TestSettings } from "../../support/runtime.ts";
 import { ProjectService } from "@eta/core/service/projects/index";
@@ -112,6 +113,262 @@ function holdResponse(provider: ReturnType<typeof fauxProvider>, text: string) {
   ]);
   return { ready: ready.promise, release: () => answer.resolve(fauxAssistantMessage(text)) };
 }
+
+test.each([false, true])(
+  "model configuration remains editable with a peer running and target running=%s",
+  async (running) => {
+    const { runtime, threads, registry, workspace, provider } = await setup();
+    const peer = await runtime.runPromise(threads.create(workspace.id));
+    const target = await runtime.runPromise(threads.create(workspace.id));
+    const peerAnswer = holdResponse(provider, "Peer answer");
+    const targetAnswer = running ? Promise.withResolvers<void>() : undefined;
+    try {
+      const peerAdmission = await runtime.runPromise(threads.submit(peer.id, "Peer work"));
+      await peerAnswer.ready;
+      let targetAdmission;
+      if (targetAnswer) {
+        const ready = Promise.withResolvers<void>();
+        provider.setResponses([
+          async (_context, options, _state, model) => {
+            expect(model.id).toBe("one");
+            ready.resolve();
+            options?.signal?.addEventListener("abort", () => targetAnswer.resolve(), {
+              once: true,
+            });
+            await targetAnswer.promise;
+            return fauxAssistantMessage("Original answer");
+          },
+        ]);
+        targetAdmission = await runtime.runPromise(threads.submit(target.id, "Target work"));
+        await ready.promise;
+      }
+      const configured = await runtime.runPromise(
+        threads.configure(target.id, "eta-test", "two", "high"),
+      );
+      expect(configured.snapshot.configuration).toMatchObject({
+        model: { provider: "eta-test", modelId: "two" },
+        thinkingLevel: "high",
+      });
+      expect(configured.snapshot.operation?.id).toBe(targetAdmission?.operationId);
+      const peerState = await runtime.runPromise(threads.open(peer.id));
+      expect(peerState.snapshot.operation?.id).toBe(peerAdmission.operationId);
+      expect(peerState.snapshot.configuration.model.modelId).toBe("one");
+      if (targetAnswer) {
+        targetAnswer.resolve();
+        const record = await runtime.runPromise(registry.acquire(target.thread.sessionRef));
+        await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+        await expect.poll(() => record.running).toBe(false);
+        const operation = await runtime.runPromise(
+          threads.operation(target.id, targetAdmission!.operationId),
+        );
+        expect(operation.status).toBe("completed");
+        expect(operation.messages[0]).toMatchObject({ model: "one" });
+      }
+      let requested: { model: string; reasoning: SimpleStreamOptions["reasoning"] } | undefined;
+      provider.setResponses([
+        (_context, options, _state, model) => {
+          requested = { model: model.id, reasoning: options?.reasoning };
+          return fauxAssistantMessage("New configuration");
+        },
+      ]);
+      await runtime.runPromise(threads.submit(target.id, "Next request"));
+      const record = await runtime.runPromise(registry.acquire(target.thread.sessionRef));
+      await record.conversation.waitForIdle(BACKGROUND_CONTEXT);
+      expect(requested).toEqual({ model: "two", reasoning: "high" });
+      expect((await runtime.runPromise(threads.open(peer.id))).snapshot.operation?.id).toBe(
+        peerAdmission.operationId,
+      );
+    } finally {
+      targetAnswer?.resolve();
+      peerAnswer.release();
+    }
+  },
+);
+
+test.each(["rename", "stop"] as const)(
+  "waiting for a subagent does not block %s behind the global mutation lock",
+  async (action) => {
+    const { runtime, threads, registry, workspace, provider } = await setup();
+    const owner = await runtime.runPromise(threads.create(workspace.id));
+    const other = await runtime.runPromise(threads.create(workspace.id));
+    const record = await runtime.runPromise(registry.acquire(owner.thread.sessionRef));
+    const execute = vi.spyOn(record.subagents, "execute");
+    const held = holdResponse(provider, "Delegated work completed");
+    let ready = false;
+    void held.ready.then(() => {
+      ready = true;
+    });
+    let waiting: Promise<unknown> | undefined;
+    let mutation: Promise<unknown> | undefined;
+    try {
+      const children = await runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "spawn",
+            name: "held",
+            message: "Wait for release",
+            wait: false,
+          },
+          "wait-lock-spawn",
+        ),
+      );
+      const path = children[0]!.path;
+      await expect.poll(() => ready, { timeout: 5000 }).toBe(true);
+      let waitSettled = false;
+      waiting = runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs: 60000,
+          },
+          "wait-lock-read",
+        ),
+      );
+      void waiting.then(
+        () => {
+          waitSettled = true;
+        },
+        () => {
+          waitSettled = true;
+        },
+      );
+      // The pass-through spy proves the wait entered Core, not merely that it was scheduled.
+      await expect
+        .poll(() => execute.mock.calls.some(([command]) => command.action === "wait"), {
+          timeout: 5000,
+        })
+        .toBe(true);
+      let changed = false;
+      mutation =
+        action === "rename"
+          ? runtime.runPromise(threads.rename(other.id, "Changed while another thread waits"))
+          : runtime.runPromise(threads.stop(owner.id));
+      void mutation.then(
+        () => {
+          changed = true;
+        },
+        () => {
+          changed = true;
+        },
+      );
+      await expect.poll(() => changed, { timeout: 3000 }).toBe(true);
+      await mutation;
+      if (action === "rename") {
+        expect((await runtime.runPromise(threads.get(other.id))).title).toBe(
+          "Changed while another thread waits",
+        );
+        expect(waitSettled).toBe(false);
+        expect((await runtime.runPromise(threads.recovery(owner.id))).pending).toBe(true);
+        expect(
+          await runtime.runPromise(Effect.flip(threads.archive(owner.id, true))),
+        ).toMatchObject({ code: "Busy" });
+        expect(waitSettled).toBe(false);
+      } else {
+        await waiting;
+        expect((await runtime.runPromise(threads.recovery(owner.id))).pending).toBe(false);
+      }
+    } finally {
+      held.release();
+      await Promise.allSettled([...(waiting ? [waiting] : []), ...(mutation ? [mutation] : [])]);
+      execute.mockRestore();
+      await runtime.runPromise(threads.stop(owner.id));
+    }
+  },
+  15000,
+);
+
+test("unlocked subagent waits retain timeout, target scope and archived-thread guards", async () => {
+  const { runtime, threads, workspace, provider } = await setup();
+  const owner = await runtime.runPromise(threads.create(workspace.id));
+  const other = await runtime.runPromise(threads.create(workspace.id));
+  const held = holdResponse(provider, "Delegated result");
+  let ready = false;
+  void held.ready.then(() => {
+    ready = true;
+  });
+  try {
+    const children = await runtime.runPromise(
+      threads.subagent(
+        owner.id,
+        {
+          action: "spawn",
+          name: "held",
+          message: "Hold this task",
+          wait: false,
+        },
+        "wait-guards-spawn",
+      ),
+    );
+    const path = children[0]!.path;
+    await expect.poll(() => ready, { timeout: 5000 }).toBe(true);
+    const command = { action: "wait" as const, path, timeoutMs: 0 };
+    const deferred = threads.subagent(owner.id, command, "wait-command-snapshot");
+    Object.assign(command, { action: "spawn", name: "unexpected", message: "Must not spawn" });
+    expect(await runtime.runPromise(deferred)).toEqual([expect.objectContaining({ path })]);
+    for (const timeoutMs of [0, 50]) {
+      const result = await runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs,
+          },
+          "wait-guards-" + timeoutMs,
+        ),
+      );
+      expect(result).toEqual([expect.objectContaining({ path, status: "running" })]);
+      expect((await runtime.runPromise(threads.recovery(owner.id))).pending).toBe(true);
+    }
+    await expect(
+      runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs: -1,
+          },
+          "wait-invalid-timeout",
+        ),
+      ),
+    ).rejects.toThrow(/等待超时必须/);
+    await expect(
+      runtime.runPromise(
+        threads.subagent(
+          other.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs: 0,
+          },
+          "wait-foreign-target",
+        ),
+      ),
+    ).rejects.toThrow(/只能管理当前智能体的下级/);
+    await runtime.runPromise(threads.archive(other.id, true));
+    await expect(
+      runtime.runPromise(
+        threads.subagent(
+          other.id,
+          {
+            action: "wait",
+            path,
+            timeoutMs: 0,
+          },
+          "wait-archived",
+        ),
+      ),
+    ).rejects.toThrow(/归档会话需要先恢复/);
+    expect((await runtime.runPromise(threads.recovery(owner.id))).pending).toBe(true);
+  } finally {
+    held.release();
+    await runtime.runPromise(threads.stop(owner.id));
+  }
+}, 15000);
 
 test("title generation runs beside the main answer using the thread's selected model and stays out of its transcript", async () => {
   const { runtime, threads, registry, workspace, provider, titleProvider } = await setup();
@@ -1121,6 +1378,16 @@ test("opening admitted unfinished work is paused until explicit resume", async (
   expect((await recovered.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
   expect(
     await next.runPromise(Effect.flip(other.submit(created.id, "Don't implicitly resume"))),
+  ).toMatchObject({ code: "RecoveryRequired" });
+  const configured = await next.runPromise(other.configure(created.id, "eta-test", "two", "high"));
+  expect(configured.snapshot.configuration).toMatchObject({
+    model: { provider: "eta-test", modelId: "two" },
+    thinkingLevel: "high",
+  });
+  expect(configured.snapshot.recoveryRequired).toBe(true);
+  expect((await recovered.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
+  expect(
+    await next.runPromise(Effect.flip(other.submit(created.id, "Still do not resume"))),
   ).toMatchObject({ code: "RecoveryRequired" });
   await next.runPromise(other.stop(created.id));
   expect((await next.runPromise(other.open(created.id))).snapshot.recoveryRequired).toBe(false);
@@ -2601,3 +2868,215 @@ test("a new thread applies the requested configuration before its first message"
   });
   expect(created.snapshot.sandbox?.mode).toBe("read-only");
 });
+
+test.each([8000, undefined])(
+  "closing Core settles external subagent wait timeout=%s",
+  async (timeoutMs) => {
+    const { runtime, threads, registry, workspace, provider, reopen } = await setup();
+    const owner = await runtime.runPromise(threads.create(workspace.id));
+    const record = await runtime.runPromise(registry.acquire(owner.thread.sessionRef));
+    const cleanup = new AbortController();
+    const run = record.subagents.execute.bind(record.subagents);
+    let waitSignal: AbortSignal | undefined;
+    let gateSignal: AbortSignal | undefined;
+    const execute = vi
+      .spyOn(record.subagents, "execute")
+      .mockImplementation((command, actor, requestId, context = BACKGROUND_CONTEXT) => {
+        if (command.action !== "wait") return run(command, actor, requestId, context);
+        waitSignal = context.abortSignal;
+        // This extra signal is only fired in finally, so an old uninterruptible implementation can clean up.
+        gateSignal = waitSignal ? AbortSignal.any([waitSignal, cleanup.signal]) : cleanup.signal;
+        return run(command, actor, requestId, { ...context, abortSignal: gateSignal });
+      });
+    const watchDoc = vi.spyOn(record.harness, "watchDoc");
+    const isWaitWatch = ([definition, context]: readonly unknown[]) =>
+      definition === SubagentsDoc &&
+      typeof context === "object" &&
+      context !== null &&
+      "abortSignal" in context &&
+      context.abortSignal === gateSignal;
+    let watchStopped = () => false;
+    const held = holdResponse(provider, "Delegated result");
+    let ready = false;
+    void held.ready.then(() => {
+      ready = true;
+    });
+    let waiting: Promise<unknown> | undefined;
+    let closing: Promise<void> | undefined;
+    try {
+      const children = await runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "spawn",
+            name: "held",
+            message: "Hold work across close",
+            wait: false,
+          },
+          "wait-close-spawn",
+        ),
+      );
+      await expect.poll(() => ready, { timeout: 5000 }).toBe(true);
+      let waitSettled = false;
+      waiting = runtime.runPromise(
+        threads.subagent(
+          owner.id,
+          {
+            action: "wait",
+            path: children[0]!.path,
+            ...(timeoutMs === undefined ? {} : { timeoutMs }),
+          },
+          "wait-close-read",
+        ),
+      );
+      void waiting.then(
+        () => {
+          waitSettled = true;
+        },
+        () => {
+          waitSettled = true;
+        },
+      );
+      await expect
+        .poll(() => execute.mock.calls.some(([command]) => command.action === "wait"), {
+          timeout: 5000,
+        })
+        .toBe(true);
+      await expect.poll(() => watchDoc.mock.calls.some(isWaitWatch), { timeout: 5000 }).toBe(true);
+      const index = watchDoc.mock.calls.findIndex(isWaitWatch);
+      const watch = await watchDoc.mock.results[index]!.value;
+      if (!watch) throw new Error("Expected an actual wait watch");
+      const stopWatch = vi.spyOn(watch, "stop");
+      watchStopped = () => stopWatch.mock.calls.length > 0;
+      expect(waitSettled).toBe(false);
+      let disposed = false;
+      closing = runtime.dispose();
+      void closing.then(
+        () => {
+          disposed = true;
+        },
+        () => {
+          disposed = true;
+        },
+      );
+      await expect.poll(() => disposed, { timeout: 3000 }).toBe(true);
+      await closing;
+      await expect.poll(() => waitSettled, { timeout: 2000 }).toBe(true);
+      expect(waitSignal?.aborted).toBe(true);
+      await expect.poll(watchStopped, { timeout: 2000 }).toBe(true);
+      const next = reopen();
+      const other = await next.runPromise(ThreadService);
+      const recovered = await next.runPromise(other.open(owner.id));
+      expect(recovered.snapshot.recoveryRequired).toBe(true);
+      expect(recovered.snapshot.subagents).toHaveLength(1);
+      expect(recovered.snapshot.subagents?.[0]?.status).not.toBe("stopped");
+      await next.runPromise(other.stop(owner.id));
+    } finally {
+      cleanup.abort();
+      held.release();
+      await Promise.allSettled([...(waiting ? [waiting] : []), ...(closing ? [closing] : [])]);
+      execute.mockRestore();
+      watchDoc.mockRestore();
+    }
+  },
+  15000,
+);
+
+test("listing subagents preserves recovery pause until explicit resume", async () => {
+  const { runtime, directory, cwd, models, workspace, threads } = await setup();
+  const owner = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.dispose();
+  let checkpointed = false;
+  let executions = 0;
+  const marker = join(cwd, "recovered-host-task.txt");
+  const task = defineTask<null, { phase: "start" } | { phase: "finish" }, string>({
+    name: "test.list-recovery",
+    version: 1,
+    initial: () => ({ phase: "start" }),
+    phases: {
+      start: async (_task, runtime, context) => {
+        await runtime.commit(
+          () => ({ status: "running", checkpoint: { phase: "finish" } }),
+          context,
+        );
+        checkpointed = true;
+        await new Promise<void>((resolve) =>
+          runtime.signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+        runtime.signal.throwIfAborted();
+      },
+      finish: async (_task, runtime, context) => {
+        await writeFile(marker, "Executed persisted checkpoint");
+        executions++;
+        return runtime.commit(
+          () => ({ status: "terminal", outcome: { status: "completed", result: "done" } }),
+          context,
+        );
+      },
+    },
+    abort: (_task, runtime, context) =>
+      runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
+  });
+  const open = () => {
+    const runtime = ManagedRuntime.make(
+      coreServices({
+        dataRoot: join(directory, "data"),
+        home: directory,
+        models,
+        settings: {
+          read: Effect.succeed({ defaultThinkingLevel: "off" }),
+          subscribe: () => () => {},
+        },
+        environment: {
+          shutdown: "preserve",
+          extensions: () => [{ name: "test-host", tasks: [task] }],
+        },
+      }),
+    );
+    runtimes.push(runtime);
+    return runtime;
+  };
+  const before = open();
+  const beforeThreads = await before.runPromise(ThreadService);
+  const accepted = await before.runPromise(
+    beforeThreads.enqueueTask(owner.id, "test.list-recovery", null, "host-checkpoint"),
+  );
+  await expect.poll(() => checkpointed, { timeout: 5000 }).toBe(true);
+  await before.dispose();
+  const next = open();
+  const restoredThreads = await next.runPromise(ThreadService);
+  expect((await next.runPromise(restoredThreads.open(owner.id))).snapshot.recoveryRequired).toBe(
+    true,
+  );
+  const registry = await next.runPromise(RuntimeRegistryService);
+  const restored = await next.runPromise(registry.acquire(owner.thread.sessionRef));
+  expect((await restored.harness.inspect(BACKGROUND_CONTEXT)).scheduling).toBe("paused");
+  expect(executions).toBe(0);
+  expect(
+    await next.runPromise(restoredThreads.subagent(owner.id, { action: "list" }, "read-only-list")),
+  ).toEqual([]);
+  const scheduling = (await restored.harness.inspect(BACKGROUND_CONTEXT)).scheduling;
+  const state = async () =>
+    (await next.runPromise(restoredThreads.task(owner.id, accepted.taskId))).state;
+  // On the old implementation, observe actual checkpoint execution rather than just a resume callback.
+  if (scheduling !== "paused") {
+    await expect
+      .poll(state, { timeout: 5000 })
+      .toMatchObject({ status: "terminal", outcome: { status: "completed" } });
+    expect(await readFile(marker, "utf8")).toBe("Executed persisted checkpoint");
+  }
+  expect({ scheduling, executions }).toEqual({ scheduling: "paused", executions: 0 });
+  await expect(readFile(marker)).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await next.runPromise(restoredThreads.open(owner.id))).snapshot.recoveryRequired).toBe(
+    true,
+  );
+  await next.runPromise(restoredThreads.resume(owner.id));
+  await expect
+    .poll(state, { timeout: 5000 })
+    .toMatchObject({ status: "terminal", outcome: { status: "completed" } });
+  expect(executions).toBe(1);
+  expect(await readFile(marker, "utf8")).toBe("Executed persisted checkpoint");
+  expect((await next.runPromise(restoredThreads.open(owner.id))).snapshot.recoveryRequired).toBe(
+    false,
+  );
+}, 15000);

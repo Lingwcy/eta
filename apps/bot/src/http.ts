@@ -71,14 +71,6 @@ function decode<A>(schema: Schema.ConstraintDecoder<A>, input: unknown): A {
   }
 }
 
-async function readBody(request: { json(): Promise<unknown> }) {
-  try {
-    return await request.json();
-  } catch {
-    throw new BotHttpError(400, "InvalidInput", "Request must be JSON.");
-  }
-}
-
 export function createHttpApp(options: {
   config: BotConfig;
   projects: BotProjects;
@@ -96,6 +88,19 @@ export function createHttpApp(options: {
   log?: BotLog;
 }) {
   const { config, core, controller, store, workspaceProjects, shutdown } = options;
+  const ensureOpen = () => {
+    if (shutdown.aborted) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
+  };
+  const readBody = async (request: { json(): Promise<unknown> }) => {
+    ensureOpen();
+    try {
+      return await request.json();
+    } catch {
+      throw new BotHttpError(400, "InvalidInput", "Request must be JSON.");
+    } finally {
+      ensureOpen();
+    }
+  };
   const app = new Hono();
   app.use("/v1/*", compressJson, compressEvents);
   app.onError((error, context) => {
@@ -115,21 +120,22 @@ export function createHttpApp(options: {
     context.json({ ready: !shutdown.aborted }, shutdown.aborted ? 503 : 200),
   );
   app.use("/v1/*", bearerAuth({ token: config.adminToken }));
-  app.use("/v1/*", async (_context, next) => {
-    if (shutdown.aborted) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
-    await next();
+  const limitBody = bodyLimit({
+    maxSize: 48 * 1024 * 1024,
+    onError: (context) =>
+      context.json(
+        { error: { code: "PayloadTooLarge", message: "Request body exceeds 48 MiB." } },
+        413,
+      ),
   });
-  app.use(
-    "/v1/*",
-    bodyLimit({
-      maxSize: 48 * 1024 * 1024,
-      onError: (context) =>
-        context.json(
-          { error: { code: "PayloadTooLarge", message: "Request body exceeds 48 MiB." } },
-          413,
-        ),
-    }),
-  );
+  app.use("/v1/*", async (context, next) => {
+    ensureOpen();
+    return limitBody(context, async () => {
+      // Unknown-length bodies are buffered by the limiter before any route runs.
+      ensureOpen();
+      await next();
+    });
+  });
   app.get("/v1/status", (context) =>
     context.json({
       ...controller.status(),

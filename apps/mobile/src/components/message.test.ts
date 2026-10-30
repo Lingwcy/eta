@@ -56,6 +56,8 @@ vi.mock("react-native-markdown-display", async () => {
 });
 vi.mock("lucide-react-native", () => ({
   Brain: () => null,
+  ChevronDown: () => null,
+  ChevronRight: () => null,
   CircleX: () => null,
   FileCode2: () => null,
   FilePenLine: () => null,
