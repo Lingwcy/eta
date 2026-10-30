@@ -170,7 +170,7 @@ test("real published Pierre renderer shows both sides, changes layout and releas
   expect(observed.size).toBe(0);
 });
 
-test("hidden panels do not load; selecting files and scopes only loads the selected content", async () => {
+test("hidden panels do not load; file selection and refresh retain the all-changes comparison", async () => {
   const api = bridge();
   await render(createElement(DiffPanel, { workspaceId: "workspace", active: false }));
   expect(api.workspaceChanges).not.toHaveBeenCalled();
@@ -186,18 +186,12 @@ test("hidden panels do not load; selecting files and scopes only loads the selec
     entryId: "all:second.ts",
     expectedRevision: "revision-all",
   });
-  await click("Staged");
+  await click("Refresh changes");
+  expect(api.workspaceChanges).toHaveBeenCalledTimes(2);
   expect(api.workspaceChanges).toHaveBeenLastCalledWith({
     workspaceId: "workspace",
-    scope: "staged",
+    scope: "all",
   });
-  expect(api.workspaceFileDiff).toHaveBeenLastCalledWith({
-    workspaceId: "workspace",
-    scope: "staged",
-    entryId: "staged:example.ts",
-    expectedRevision: "revision-staged",
-  });
-  await click("All");
   expect(api.workspaceFileDiff).toHaveBeenLastCalledWith({
     workspaceId: "workspace",
     scope: "all",
@@ -217,6 +211,8 @@ test("historical and current data remain separate when switching sources", async
   expect(api.workspaceChanges).not.toHaveBeenCalled();
   expect(api.fileChangeDiff).toHaveBeenCalledWith({ threadId: "thread", changeId: "change" });
   await expectCode("after historical");
+  expect(button("Workspace changes").textContent).toBe("");
+  expect(button("This modification").textContent).toBe("");
   await click("Workspace changes");
   await expectCode("const value = 2;");
   await click("This modification");
@@ -549,3 +545,27 @@ test("an unrecorded legacy write opens an explicit history gap without reading t
   expect(api.workspaceChanges).not.toHaveBeenCalled();
   expect(api.workspaceFileDiff).not.toHaveBeenCalled();
 });
+
+test.each([
+  ["en", ["Workspace changes", "All", "Staged", "Unstaged"]],
+  ["zh-CN", ["工作区变更", "全部", "已暂存", "未暂存"]],
+] as const)(
+  "%s file browser omits source and scope labels while keeping file navigation",
+  async (locale, labels) => {
+    const api = bridge();
+    await i18n.changeLanguage(locale);
+    await render(createElement(DiffPanel, { workspaceId: "workspace", active: true }));
+    await expectCode("const value = 2;");
+    for (const label of labels) expect(document.body.textContent).not.toContain(label);
+    expect(api.workspaceChanges).toHaveBeenCalledWith({ workspaceId: "workspace", scope: "all" });
+    const files = document.querySelector("nav");
+    expect(files?.querySelectorAll("button")).toHaveLength(2);
+    await act(async () => files!.querySelector<HTMLButtonElement>('[title="second.ts"]')!.click());
+    expect(api.workspaceFileDiff).toHaveBeenLastCalledWith({
+      workspaceId: "workspace",
+      scope: "all",
+      entryId: "all:second.ts",
+      expectedRevision: "revision-all",
+    });
+  },
+);

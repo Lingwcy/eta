@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshCw } from "lucide-react";
-import type {
-  DiffContent,
-  DiffFile,
-  WorkspaceChanges,
-  WorkspaceDiffScope,
-} from "@eta/core/shared/diff";
+import { Files, History, RefreshCw } from "lucide-react";
+import type { DiffContent, DiffFile, WorkspaceChanges } from "@eta/core/shared/diff";
 import { t } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { useDiffQuery } from "@/agent/use-diff-query";
@@ -59,7 +54,9 @@ function FileRow({
       )}
       title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
     >
-      <span className="min-w-0 flex-1 truncate font-mono">{file.path}</span>
+      <span className="min-w-0 flex-1 truncate text-left font-mono [direction:rtl]">
+        <bdi dir="ltr">{file.path}</bdi>
+      </span>
       <span
         className={cn(
           "shrink-0 text-[10px]",
@@ -104,7 +101,7 @@ export function DiffPanel({
         : { navigationKey, source: history ? "history" : "workspace" },
     );
   }, [navigationKey, Boolean(history)]);
-  const [scope, setScope] = useState<WorkspaceDiffScope>("all");
+  const scope = "all";
   const [selectedPaths, setSelectedPaths] = useState<Record<string, string>>({});
   const [layout, setLayout] = useState<DiffLayout>("unified");
   const [refresh, setRefresh] = useState(0);
@@ -200,60 +197,37 @@ export function DiffPanel({
         positions={positions.current}
       />
     );
+  const showFiles = source === "workspace" && files.length > 0;
   return (
     <section aria-label={t("diff:title")} className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex min-w-0 items-center gap-1 border-b border-neutral-200/70 px-2">
-        <div role="group" aria-label={t("diff:source")} className="flex min-w-0 flex-1 gap-1">
-          {history && (
+      <div className="flex shrink-0 items-center gap-2 border-b border-neutral-200/70 px-2">
+        {history && (
+          <div role="group" aria-label={t("diff:source")} className="flex shrink-0 gap-1">
             <Button
               variant="ghost"
-              size="toolbar"
+              size="icon-tiny"
               selected={source === "history"}
+              aria-label={t("diff:history")}
+              title={t("diff:history")}
               aria-pressed={source === "history"}
               onClick={() => setSelection({ navigationKey, source: "history" })}
             >
-              {t("diff:history")}
+              <History size={13} aria-hidden="true" />
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="toolbar"
-            selected={source === "workspace"}
-            aria-pressed={source === "workspace"}
-            onClick={() => setSelection({ navigationKey, source: "workspace" })}
-          >
-            {t("diff:workspace")}
-          </Button>
-        </div>
-        <Button
-          variant="ghost-muted"
-          size="icon-tiny"
-          aria-label={t("diff:refresh")}
-          title={t("diff:refresh")}
-          onClick={() => setRefresh((value) => value + 1)}
-          disabled={source === "workspace" && !workspaceId}
-        >
-          <RefreshCw size={13} aria-hidden="true" />
-        </Button>
-      </div>
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 border-b border-neutral-200/70 px-2">
-        {source === "workspace" && (
-          <div role="group" aria-label={t("diff:scope")} className="flex gap-1">
-            {(["all", "staged", "unstaged"] as const).map((value) => (
-              <Button
-                key={value}
-                variant="ghost"
-                size="toolbar"
-                selected={scope === value}
-                aria-pressed={scope === value}
-                onClick={() => setScope(value)}
-              >
-                {t(`diff:${value}`)}
-              </Button>
-            ))}
+            <Button
+              variant="ghost"
+              size="icon-tiny"
+              selected={source === "workspace"}
+              aria-label={t("diff:workspace")}
+              title={t("diff:workspace")}
+              aria-pressed={source === "workspace"}
+              onClick={() => setSelection({ navigationKey, source: "workspace" })}
+            >
+              <Files size={13} aria-hidden="true" />
+            </Button>
           </div>
         )}
-        <div role="group" aria-label={t("diff:layout")} className="flex gap-1">
+        <div role="group" aria-label={t("diff:layout")} className="flex min-w-0 flex-1 gap-1">
           {(["unified", "split"] as const).map((value) => (
             <Button
               key={value}
@@ -267,36 +241,57 @@ export function DiffPanel({
             </Button>
           ))}
         </div>
+        <Button
+          variant="ghost-muted"
+          size="icon-tiny"
+          aria-label={t("diff:refresh")}
+          title={t("diff:refresh")}
+          onClick={() => setRefresh((value) => value + 1)}
+          disabled={source === "workspace" && !workspaceId}
+        >
+          <RefreshCw size={13} aria-hidden="true" />
+        </Button>
       </div>
-      {source === "workspace" && files.length > 0 && (
-        <div
-          aria-label={t("diff:files")}
-          className="max-h-40 shrink-0 overflow-y-auto border-b border-neutral-200/70 px-1 py-1"
-        >
-          {files.map((entry) => (
-            <FileRow
-              key={entry.id}
-              file={entry}
-              selected={file?.id === entry.id}
-              onSelect={() =>
-                setSelectedPaths((previous) => ({ ...previous, [workspaceKey]: entry.path }))
-              }
-            />
-          ))}
-          {list.status === "ready" && list.value.status === "ready" && list.value.truncated && (
-            <Notice>{t("diff:truncated")}</Notice>
+      <div
+        className={cn(
+          "min-h-0 min-w-0 flex-1",
+          showFiles
+            ? "grid grid-cols-[minmax(0,clamp(112px,30%,220px))_minmax(0,1fr)]"
+            : "flex flex-col",
+        )}
+      >
+        {showFiles && (
+          <nav
+            aria-label={t("diff:files")}
+            className="min-h-0 min-w-0 overflow-y-auto border-r border-neutral-200/70 px-1 py-1"
+          >
+            {files.map((entry) => (
+              <FileRow
+                key={entry.id}
+                file={entry}
+                selected={file?.id === entry.id}
+                onSelect={() =>
+                  setSelectedPaths((previous) => ({ ...previous, [workspaceKey]: entry.path }))
+                }
+              />
+            ))}
+            {list.status === "ready" && list.value.status === "ready" && list.value.truncated && (
+              <Notice>{t("diff:truncated")}</Notice>
+            )}
+          </nav>
+        )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {path && (
+            <div
+              className="shrink-0 truncate border-b border-neutral-200/70 px-2 py-1 font-mono text-[11px] text-neutral-500"
+              title={path}
+            >
+              {path}
+            </div>
           )}
+          {body}
         </div>
-      )}
-      {path && (
-        <div
-          className="shrink-0 truncate border-b border-neutral-200/70 px-2 py-1 font-mono text-[11px] text-neutral-500"
-          title={path}
-        >
-          {path}
-        </div>
-      )}
-      {body}
+      </div>
     </section>
   );
 }
