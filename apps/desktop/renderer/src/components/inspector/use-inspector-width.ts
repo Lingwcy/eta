@@ -112,13 +112,15 @@ export function useInspectorWidth<T extends HTMLElement = HTMLElement>(
   finishRef.current = finish;
   useEffect(() => {
     const parent = ref.current?.parentElement;
-    let previousWidth: number | undefined;
+    let previousAnchor: number | undefined;
     const measure = () => {
-      const available = parent?.getBoundingClientRect().width || window.innerWidth;
-      const geometryChanged = previousWidth !== undefined && previousWidth !== available;
-      previousWidth = available;
+      const rect = parent?.getBoundingClientRect();
+      const available = rect?.width || window.innerWidth;
+      const anchor = rect?.right ?? available;
+      const geometryChanged = previousAnchor !== undefined && previousAnchor !== anchor;
+      previousAnchor = anchor;
       setAvailable(available);
-      // A new policy is not a new layout. Reattaching observation here used to drop pointer capture.
+      // Width policy and left-edge changes do not move this right-anchored drag baseline.
       if (geometryChanged) finishRef.current(false);
     };
     measure();
@@ -209,6 +211,7 @@ export function useInspectorWidth<T extends HTMLElement = HTMLElement>(
   return {
     ref,
     width,
+    preferredWidth: preferred ?? defaultWidth,
     min: bounds.min,
     max: bounds.max,
     dragging: draggingOwner === owner,

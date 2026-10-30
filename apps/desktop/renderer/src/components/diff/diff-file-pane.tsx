@@ -15,7 +15,7 @@ export function DiffFilePane({ children }: { children: ReactNode }) {
     defaultWidth: 240,
     bounds: filePaneBounds,
   });
-  useInspectorMinimumWidth(resize.width + 80);
+  useInspectorMinimumWidth(resize.preferredWidth + 80);
   return (
     <div
       ref={resize.ref}

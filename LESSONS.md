@@ -109,7 +109,7 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Keep resize observation independent of width policy, and scope preferences to the content.**
 
 - Evidence: on 2026-10-31, the maintainer reported #521’s sidebar springing back. A controlled `desktop-inspector.test.ts` drag loses pointer capture when the child’s minimum width changes, before the pointer is released: policy-dependent effect cleanup was treated as unmount cleanup. The fix keeps observation alive, binds the gesture and saved preference to its module, and removes width easing on release. Isolated Chrome interactions verify distinct defaults, independent saved widths, repeated drags, refresh/reload and a fixed-width file tree; this is not native Electron or Windows acceptance.
-- Check: distinguish a policy update from an actual geometry change, module replacement or unmount. Commit only the admitted gesture’s final coordinates to its own preference; do not animate a completed drag toward its final width.
+- Check: distinguish policy or left-edge changes from a moved drag anchor, module replacement or unmount. Base nested minimums on the preferred width, not its viewport-clamped result, or restoring a narrow window can feed repeated layout growth. Commit only the admitted gesture’s final coordinates to its own preference; do not animate a completed drag toward its final width.
 - Seen: 2026-10-31.
 
 ## Build and runtime boundaries

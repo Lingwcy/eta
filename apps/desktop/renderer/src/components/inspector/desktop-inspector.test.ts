@@ -387,7 +387,7 @@ test("outer width and file-list width resize and persist independently, with a f
   await dispatch(inner, pointer("pointercancel", 450));
   expect(inner.getAttribute("aria-valuenow")).toBe("256");
   await key(outer, "Home");
-  expect(width()).toBe(341);
+  expect(width()).toBe(340.5);
   expect(inner.getAttribute("aria-valuenow")).toBe("256");
   await render(true);
   await key(divider(), "Home");
@@ -475,4 +475,20 @@ test("a queued drag belongs to its module and cannot save into a replacement mod
   expect(width()).toBe(800);
   await show("github");
   expect(width()).toBe(380);
+});
+
+test("a parent width change with a stationary right edge preserves the admitted drag", async () => {
+  available = 1600;
+  host.getBoundingClientRect = () => new DOMRect(1600 - available, 0, available, 800);
+  await render(true, undefined, 800);
+  const separator = divider();
+  await dispatch(separator, pointer("pointerdown", 800));
+  await dispatch(separator, pointer("pointermove", 700));
+  await flushFrame();
+  available = 1500;
+  await dispatch(window, new Event("resize"));
+  expect(captured.has(1)).toBe(true);
+  await dispatch(separator, pointer("pointerup", 680));
+  expect(width()).toBe(920);
+  expect(localStorage.getItem(STORAGE_KEY)).toBe("920");
 });

@@ -43,7 +43,7 @@ export function DesktopInspector({
     defaultWidth,
     storageKey: `eta.inspector-width.${content}.v1`,
     // Include the inspector’s border and outer margin, not just its content slot.
-    minimumWidth: constraint?.content === content ? constraint.width + 5 : 0,
+    minimumWidth: constraint?.content === content ? constraint.width + 4.5 : 0,
   });
   return (
     <aside
