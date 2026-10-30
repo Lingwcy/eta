@@ -58,7 +58,7 @@ export function App() {
             <DesktopPanels shell={shell} />
           </div>
           {shell.inspectorAvailable && (
-            <DesktopInspector open={shell.inspectorOpen}>
+            <DesktopInspector open={shell.inspectorOpen} content={shell.inspectorContent}>
               <InspectorTabs
                 value={shell.inspectorContent}
                 onChange={shell.selectInspectorContent}
@@ -70,6 +70,8 @@ export function App() {
                         history={shell.diff.history}
                         active={shell.inspectorOpen && shell.inspectorContent === "diff"}
                         revision={shell.diff.revision}
+                        workspace={shell.diff.workspace}
+                        onWorkspaceSelect={shell.diff.showWorkspace}
                         connectionKey={shell.diff.connectionKey}
                       />
                     </Suspense>

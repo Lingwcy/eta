@@ -134,7 +134,9 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
                   tab.workspaceId ??
                   undefined
                 }
-                onOpen={active.id === tab.id && shell.diff.available ? shell.diff.open : undefined}
+                onOpen={
+                  active.id === tab.id && shell.diff.canOpenHistory ? shell.diff.open : undefined
+                }
               >
                 <ConversationPanel
                   tab={tab}

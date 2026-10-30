@@ -95,7 +95,7 @@ function listing(
 function bridge() {
   const api = {
     workspaceChanges: vi.fn(async (input: { scope: WorkspaceDiffScope }) => listing(input.scope)),
-    workspaceFileDiff: vi.fn(async () => ready()),
+    workspaceFileDiff: vi.fn(async (_input: { entryId: string }) => ready()),
     fileChangeDiff: vi.fn(async () =>
       ready("historical.ts", "before historical", "after historical"),
     ),
@@ -123,6 +123,20 @@ function button(text: string) {
 
 async function click(text: string) {
   await act(async () => button(text).click());
+}
+
+async function focusWorkspace() {
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
+}
+
+async function selectFile(path: string) {
+  const file = [...document.querySelectorAll<HTMLButtonElement>("nav button")].find(
+    (node) => node.title === path,
+  );
+  if (!file) throw new Error("Missing file: " + path);
+  await act(async () => file.click());
 }
 
 async function expectCode(text: string) {
@@ -170,7 +184,7 @@ test("real published Pierre renderer shows both sides, changes layout and releas
   expect(observed.size).toBe(0);
 });
 
-test("hidden panels do not load; file selection and refresh retain the all-changes comparison", async () => {
+test("hidden panels do not load; file selection and focus refresh retain the all-changes comparison", async () => {
   const api = bridge();
   await render(createElement(DiffPanel, { workspaceId: "workspace", active: false }));
   expect(api.workspaceChanges).not.toHaveBeenCalled();
@@ -186,7 +200,7 @@ test("hidden panels do not load; file selection and refresh retain the all-chang
     entryId: "all:second.ts",
     expectedRevision: "revision-all",
   });
-  await click("Refresh changes");
+  await focusWorkspace();
   expect(api.workspaceChanges).toHaveBeenCalledTimes(2);
   expect(api.workspaceChanges).toHaveBeenLastCalledWith({
     workspaceId: "workspace",
@@ -200,27 +214,41 @@ test("hidden panels do not load; file selection and refresh retain the all-chang
   });
 });
 
-test("historical and current data remain separate when switching sources", async () => {
+test("history stays frozen while the live tree refreshes; file selection returns to current content", async () => {
   const api = bridge();
   const props = {
     workspaceId: "workspace",
     active: true,
-    history: { threadId: "thread", changeId: "change", path: "historical.ts" },
+    history: { threadId: "thread", changeId: "change", path: "historical.ts", requestId: "first" },
   };
   await render(createElement(DiffPanel, props));
-  expect(api.workspaceChanges).not.toHaveBeenCalled();
+  expect(api.workspaceChanges).toHaveBeenCalledWith({ workspaceId: "workspace", scope: "all" });
+  expect(api.workspaceFileDiff).not.toHaveBeenCalled();
   expect(api.fileChangeDiff).toHaveBeenCalledWith({ threadId: "thread", changeId: "change" });
   await expectCode("after historical");
-  expect(button("Workspace changes").textContent).toBe("");
-  expect(button("This modification").textContent).toBe("");
-  await click("Workspace changes");
+  await selectFile("example.ts");
   await expectCode("const value = 2;");
-  await click("This modification");
+  await render(
+    createElement(DiffPanel, { ...props, history: { ...props.history, requestId: "second" } }),
+  );
   await expectCode("after historical");
   expect(api.fileChangeDiff).toHaveBeenCalledTimes(2);
-  const calls = api.workspaceChanges.mock.calls.length;
-  await render(createElement(DiffPanel, { ...props, revision: 4 }));
-  expect(api.workspaceChanges).toHaveBeenCalledTimes(calls);
+  await focusWorkspace();
+  expect(api.workspaceChanges).toHaveBeenCalledTimes(2);
+  expect(api.fileChangeDiff).toHaveBeenCalledTimes(2);
+  expect(api.workspaceFileDiff).toHaveBeenCalledTimes(1);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  await render(
+    createElement(DiffPanel, {
+      ...props,
+      revision: 4,
+      history: { ...props.history, requestId: "second" },
+    }),
+  );
+  await act(async () => vi.advanceTimersByTimeAsync(100));
+  expect(api.workspaceChanges).toHaveBeenCalledTimes(3);
+  await expectCode("after historical");
+  expect(api.fileChangeDiff).toHaveBeenCalledTimes(2);
 });
 
 test("late file replies and errors cannot replace the current file or connection", async () => {
@@ -245,7 +273,7 @@ test("late file replies and errors cannot replace the current file or connection
   );
   const pending = deferred<WorkspaceChanges>();
   api.workspaceChanges.mockImplementationOnce(() => pending.promise);
-  await click("Refresh changes");
+  await focusWorkspace();
   api.workspaceChanges.mockResolvedValue(listing("all", ["replacement.ts"]));
   api.workspaceFileDiff.mockResolvedValue(
     ready("replacement.ts", "replacement old", "replacement new"),
@@ -269,14 +297,14 @@ test("unavailable content, empty repositories and failures remain distinct and r
   await render(createElement(DiffPanel, { workspaceId: "workspace", active: true }));
   expect(document.body.textContent).toContain("Binary files cannot be previewed as text");
   api.workspaceChanges.mockRejectedValueOnce(new Error("git failed"));
-  await click("Refresh changes");
+  await focusWorkspace();
   expect(document.body.textContent).toContain("Could not load changes");
   expect(document.body.textContent).not.toContain("No changes in this comparison");
   api.workspaceChanges.mockResolvedValue(listing("all", []));
   await click("Retry");
   expect(document.body.textContent).toContain("No changes in this comparison");
   api.workspaceChanges.mockResolvedValue({ status: "not-repository", workspaceId: "workspace" });
-  await click("Refresh changes");
+  await focusWorkspace();
   expect(document.body.textContent).toContain("not a Git repository");
 });
 
@@ -365,18 +393,18 @@ test("chat modification action opens saved history while the workspace source re
   api.workspaceFileDiff.mockResolvedValue(
     ready("historical.ts", "after historical", "newer workspace value"),
   );
-  await click("Workspace changes");
+  await selectFile("example.ts");
   await expectCode("newer workspace value");
-  await click("This modification");
+  await click("View modification");
   await expectCode("after historical");
   expect(document.querySelector("diffs-container")?.shadowRoot?.textContent).not.toContain(
     "newer workspace value",
   );
-  await click("Workspace changes");
+  await selectFile("example.ts");
   await expectCode("newer workspace value");
   await click("View modification");
   await expectCode("after historical");
-  expect(button("This modification").getAttribute("aria-pressed")).toBe("true");
+  expect(document.querySelector('nav button[aria-pressed="true"]')).toBeNull();
 });
 
 test("a many-thousand-line patch does not mount its complete line DOM", async () => {
@@ -513,7 +541,7 @@ test("Unicode content and missing final newlines are previewed without reading a
   await expectCode("新的内容 🚀");
 });
 
-test("an unrecorded legacy write opens an explicit history gap without reading today's workspace", async () => {
+test("an unrecorded legacy write shows a history gap, not the current file content", async () => {
   const api = bridge();
   api.fileChangeDiff.mockResolvedValue({ status: "unavailable", reason: "not-recorded" });
   const tool: SnapshotTool = {
@@ -542,15 +570,15 @@ test("an unrecorded legacy write opens an explicit history gap without reading t
   expect(api.fileChangeDiff).toHaveBeenCalledWith({ threadId: "thread", changeId: "not-recorded" });
   expect(document.body.textContent).toContain(i18n.t("diff:reason.not-recorded"));
   expect(document.querySelector("diffs-container")).toBeNull();
-  expect(api.workspaceChanges).not.toHaveBeenCalled();
+  expect(api.workspaceChanges).toHaveBeenCalledWith({ workspaceId: "workspace", scope: "all" });
   expect(api.workspaceFileDiff).not.toHaveBeenCalled();
 });
 
 test.each([
-  ["en", ["Workspace changes", "All", "Staged", "Unstaged"]],
-  ["zh-CN", ["工作区变更", "全部", "已暂存", "未暂存"]],
+  ["en", ["Workspace changes", "All", "Staged", "Unstaged", "Unified", "Split"]],
+  ["zh-CN", ["工作区变更", "全部", "已暂存", "未暂存", "单栏", "双栏"]],
 ] as const)(
-  "%s file browser omits source and scope labels while keeping file navigation",
+  "%s file browser has no source, scope or layout toolbar while keeping file navigation",
   async (locale, labels) => {
     const api = bridge();
     await i18n.changeLanguage(locale);
@@ -560,6 +588,9 @@ test.each([
     expect(api.workspaceChanges).toHaveBeenCalledWith({ workspaceId: "workspace", scope: "all" });
     const files = document.querySelector("nav");
     expect(files?.querySelectorAll("button")).toHaveLength(2);
+    expect(document.querySelectorAll("section > div button").length).toBe(
+      files?.querySelectorAll("button").length,
+    );
     await act(async () => files!.querySelector<HTMLButtonElement>('[title="second.ts"]')!.click());
     expect(api.workspaceFileDiff).toHaveBeenLastCalledWith({
       workspaceId: "workspace",
@@ -569,3 +600,102 @@ test.each([
     });
   },
 );
+
+test("directory collapse survives parent toggles and focus refresh; duplicate basenames select their own content", async () => {
+  const api = bridge();
+  api.workspaceChanges.mockResolvedValue(
+    listing("all", [
+      "src/components/a.tsx",
+      "src/components/z.tsx",
+      "src/utils/a.tsx",
+      "README.md",
+    ]),
+  );
+  api.workspaceFileDiff.mockImplementation(async ({ entryId }) => {
+    const path = entryId.slice(4);
+    return ready(path, "before " + path, "after " + path);
+  });
+  await render(createElement(DiffPanel, { workspaceId: "workspace", active: true }));
+  await expectCode("after src/components/a.tsx");
+  await click("src/components");
+  expect(document.querySelector('nav button[title="src/components/a.tsx"]')).toBeNull();
+  await click("src");
+  await click("src");
+  expect(document.querySelector('nav button[title="src/components/a.tsx"]')).toBeNull();
+  await focusWorkspace();
+  expect(document.querySelector('nav button[title="src/components/a.tsx"]')).toBeNull();
+  await act(async () =>
+    button("src/components").dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+    ),
+  );
+  expect(document.querySelector('nav button[title="src/components/a.tsx"]')).not.toBeNull();
+  await selectFile("src/utils/a.tsx");
+  await expectCode("after src/utils/a.tsx");
+  expect(api.workspaceFileDiff).toHaveBeenLastCalledWith({
+    workspaceId: "workspace",
+    scope: "all",
+    entryId: "all:src/utils/a.tsx",
+    expectedRevision: "revision-all",
+  });
+});
+
+test("history and live-tree failures retry independently without substituting current content", async () => {
+  const api = bridge();
+  api.workspaceChanges.mockRejectedValueOnce(new Error("workspace gone"));
+  api.fileChangeDiff.mockRejectedValueOnce(new Error("history read failed"));
+  await render(
+    createElement(DiffPanel, {
+      workspaceId: "workspace",
+      active: true,
+      history: { threadId: "thread", changeId: "change", path: "historical.ts" },
+    }),
+  );
+  await click("Retry");
+  await expectCode("after historical");
+  expect(api.fileChangeDiff).toHaveBeenCalledTimes(2);
+  expect(api.workspaceChanges).toHaveBeenCalledTimes(1);
+  expect(api.workspaceFileDiff).not.toHaveBeenCalled();
+  await click("Retry");
+  expect(api.workspaceChanges).toHaveBeenCalledTimes(2);
+  expect(api.fileChangeDiff).toHaveBeenCalledTimes(2);
+  await expectCode("after historical");
+  await selectFile("second.ts");
+  await expectCode("const value = 2;");
+});
+
+test("a missing Git workspace does not block or replace recorded history", async () => {
+  const api = bridge();
+  api.workspaceChanges.mockResolvedValue({ status: "not-repository", workspaceId: "workspace" });
+  await render(
+    createElement(DiffPanel, {
+      workspaceId: "workspace",
+      active: true,
+      history: { threadId: "thread", changeId: "change", path: "historical.ts" },
+    }),
+  );
+  await expectCode("after historical");
+  expect(api.workspaceFileDiff).not.toHaveBeenCalled();
+  expect(document.body.textContent).toContain("This modification");
+  expect(document.body.textContent).toContain("not a Git repository");
+});
+
+test("a historical reply arriving after file-tree selection cannot replace the current diff", async () => {
+  const api = bridge();
+  const historical = deferred<DiffContent>();
+  api.fileChangeDiff.mockImplementationOnce(() => historical.promise);
+  await render(
+    createElement(DiffPanel, {
+      workspaceId: "workspace",
+      active: true,
+      history: { threadId: "thread", changeId: "change", path: "historical.ts" },
+    }),
+  );
+  await selectFile("second.ts");
+  await expectCode("const value = 2;");
+  await act(async () => historical.resolve(ready("historical.ts", "old history", "late history")));
+  await expectCode("const value = 2;");
+  expect(document.querySelector("diffs-container")?.shadowRoot?.textContent).not.toContain(
+    "late history",
+  );
+});

@@ -2,9 +2,10 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { act, createElement, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { DesktopInspector } from "./desktop-inspector";
+import { DesktopInspector, useInspectorMinimumWidth } from "./desktop-inspector";
+import { DiffFilePane } from "../diff/diff-file-pane";
 
-const STORAGE_KEY = "eta.inspector-width.v1";
+const STORAGE_KEY = "eta.inspector-width.subagents.v1";
 let root: Root;
 let host: HTMLDivElement;
 let available: number;
@@ -41,8 +42,14 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function render(open = true, children: ReactNode = createElement("div", null, "Content")) {
-  await act(async () => root.render(createElement(DesktopInspector, { open, children })));
+async function render(
+  open = true,
+  children: ReactNode = createElement("div", null, "Content"),
+  defaultWidth = 320,
+) {
+  await act(async () =>
+    root.render(createElement(DesktopInspector, { open, children, defaultWidth })),
+  );
 }
 
 function sidebar() {
@@ -53,8 +60,8 @@ function width() {
   return Number.parseFloat(sidebar().style.width);
 }
 
-function divider() {
-  const element = document.querySelector<HTMLDivElement>('[role="separator"]')!;
+function divider(index = 0) {
+  const element = document.querySelectorAll<HTMLDivElement>('[role="separator"]')[index]!;
   element.setPointerCapture = (id) => captured.add(id);
   element.hasPointerCapture = (id) => captured.has(id);
   element.releasePointerCapture = (id) => {
@@ -99,7 +106,6 @@ test("captured divider drag resizes once per frame and saves only on release", a
   await dispatch(separator, pointer("pointerdown", 880));
   expect(captured.has(1)).toBe(true);
   expect(document.body.style.userSelect).toBe("none");
-  expect(sidebar().className).not.toContain("transition-[width]");
   await dispatch(separator, pointer("pointermove", 760));
   await dispatch(separator, pointer("pointermove", 700));
   expect(frames.size).toBe(1);
@@ -113,7 +119,6 @@ test("captured divider drag resizes once per frame and saves only on release", a
   expect(document.body.style.userSelect).toBe("text");
   expect(document.body.style.cursor).toBe("crosshair");
   expect(writes).toHaveBeenCalledExactlyOnceWith(STORAGE_KEY, "500");
-  expect(sidebar().className).toContain("transition-[width]");
   await render(false);
   expect(width()).toBe(0);
   expect(document.querySelector('[role="separator"]')).toBeNull();
@@ -328,4 +333,146 @@ test("wrong pointer and secondary button cannot resize or finish the active gest
   await dispatch(separator, pointer("pointermove", 800));
   await dispatch(separator, pointer("pointerup", 800));
   expect(width()).toBe(400);
+});
+
+test("content-specific defaults apply until a user saves a width, without writing defaults to storage", async () => {
+  available = 1600;
+  await render(true, undefined, 800);
+  expect(width()).toBe(800);
+  expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  await render(true, undefined, 320);
+  expect(width()).toBe(320);
+  await render(true, undefined, 800);
+  expect(width()).toBe(800);
+  await key(divider(), "ArrowRight");
+  expect(width()).toBe(784);
+  await render(true, undefined, 320);
+  expect(width()).toBe(784);
+  expect(localStorage.getItem(STORAGE_KEY)).toBe("784");
+});
+
+test("cancelled and no-motion gestures do not turn the default into a saved preference", async () => {
+  available = 1600;
+  await render();
+  const separator = divider();
+  await dispatch(separator, pointer("pointerdown", 880));
+  await dispatch(separator, pointer("pointerup", 880));
+  await dispatch(separator, pointer("pointerdown", 880));
+  await dispatch(separator, pointer("pointermove", 700));
+  await flushFrame();
+  await dispatch(separator, pointer("pointercancel", 700));
+  await render(true, undefined, 800);
+  expect(width()).toBe(800);
+  expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+});
+
+test("outer width and file-list width resize and persist independently, with a fixed file column", async () => {
+  available = 1600;
+  await render(true, createElement(DiffFilePane, { children: "Files" }), 800);
+  const outer = divider();
+  const inner = divider(1);
+  expect(inner.getAttribute("aria-valuenow")).toBe("240");
+  await key(outer, "ArrowLeft");
+  expect(width()).toBe(816);
+  expect(inner.getAttribute("aria-valuenow")).toBe("240");
+  await key(inner, "ArrowLeft");
+  expect(width()).toBe(816);
+  expect(inner.getAttribute("aria-valuenow")).toBe("256");
+  expect(localStorage.getItem(STORAGE_KEY)).toBe("816");
+  expect(localStorage.getItem("eta.diff-tree-width.v1")).toBe("256");
+  await dispatch(inner, pointer("pointerdown", 500));
+  await dispatch(inner, pointer("pointermove", 450));
+  await flushFrame();
+  expect(inner.getAttribute("aria-valuenow")).toBe("306");
+  await dispatch(inner, pointer("pointercancel", 450));
+  expect(inner.getAttribute("aria-valuenow")).toBe("256");
+  await key(outer, "Home");
+  expect(width()).toBe(341);
+  expect(inner.getAttribute("aria-valuenow")).toBe("256");
+  await render(true);
+  await key(divider(), "Home");
+  expect(width()).toBe(220);
+  expect(localStorage.getItem("eta.diff-tree-width.v1")).toBe("256");
+});
+
+test("content-bound updates during dragging do not release the pointer or discard the final width", async () => {
+  function Content({ minimum }: { minimum: number }) {
+    useInspectorMinimumWidth(minimum);
+    return null;
+  }
+  available = 1600;
+  await render(true, createElement(Content, { minimum: 300 }), 800);
+  const separator = divider();
+  await dispatch(separator, pointer("pointerdown", 800));
+  await dispatch(separator, pointer("pointermove", 700));
+  await flushFrame();
+  expect(width()).toBe(900);
+  await render(true, createElement(Content, { minimum: 320 }), 800);
+  expect(captured.has(1)).toBe(true);
+  await dispatch(separator, pointer("pointermove", 680));
+  await dispatch(separator, pointer("pointerup", 680));
+  expect(width()).toBe(920);
+  expect(localStorage.getItem(STORAGE_KEY)).toBe("920");
+});
+
+test("module defaults and saved widths are independent without remounting the content", async () => {
+  available = 1600;
+  function Content() {
+    const [count, setCount] = useState(0);
+    return createElement("button", { onClick: () => setCount(count + 1) }, "Count " + count);
+  }
+  async function show(content: "diff" | "github" | "subagents") {
+    await act(async () =>
+      root.render(
+        createElement(DesktopInspector, { open: true, content, children: createElement(Content) }),
+      ),
+    );
+  }
+  await show("diff");
+  expect(width()).toBe(800);
+  await act(async () => document.querySelector("button")!.click());
+  await key(divider(), "ArrowRight");
+  expect(width()).toBe(784);
+  await show("github");
+  expect(width()).toBe(360);
+  await key(divider(), "ArrowLeft");
+  expect(width()).toBe(376);
+  await show("subagents");
+  expect(width()).toBe(320);
+  await show("diff");
+  expect(width()).toBe(784);
+  await show("github");
+  expect(width()).toBe(376);
+  expect(document.querySelector("button")!.textContent).toBe("Count 1");
+  expect(localStorage.getItem("eta.inspector-width.diff.v1")).toBe("784");
+  expect(localStorage.getItem("eta.inspector-width.github.v1")).toBe("376");
+  expect(localStorage.getItem("eta.inspector-width.subagents.v1")).toBeNull();
+});
+
+test("a queued drag belongs to its module and cannot save into a replacement module", async () => {
+  available = 1600;
+  async function show(content: "diff" | "github") {
+    await act(async () =>
+      root.render(createElement(DesktopInspector, { open: true, content, children: "Content" })),
+    );
+  }
+  await show("diff");
+  const separator = divider();
+  await dispatch(separator, pointer("pointerdown", 800));
+  await dispatch(separator, pointer("pointermove", 700));
+  expect(frames.size).toBe(1);
+  await show("github");
+  await flushFrame();
+  await dispatch(separator, pointer("pointerup", 700));
+  expect(width()).toBe(360);
+  expect(captured.size).toBe(0);
+  expect(localStorage.getItem("eta.inspector-width.github.v1")).toBeNull();
+  expect(localStorage.getItem("eta.inspector-width.diff.v1")).toBeNull();
+  await dispatch(divider(), pointer("pointerdown", 800, 2));
+  await dispatch(divider(), pointer("pointerup", 780, 2));
+  expect(width()).toBe(380);
+  await show("diff");
+  expect(width()).toBe(800);
+  await show("github");
+  expect(width()).toBe(380);
 });

@@ -12,7 +12,7 @@ import { useDesktopShortcuts } from "./use-desktop-shortcuts";
 import { useTabPresentations } from "./use-tab-presentations";
 import { useBrowserPages } from "@/browser/use-browser-pages";
 import type { InspectorContent } from "@/components/inspector/inspector-tabs";
-import type { FileDiffSelection } from "./file-diff-actions";
+import { useCodeDiff } from "./use-code-diff";
 
 export function useDesktopShell() {
   const desktop = useDesktopLibrary();
@@ -59,16 +59,20 @@ export function useDesktopShell() {
     inspectorConversation?.threadId,
     version,
   ]);
-  const [fileDiffSelection, setFileDiffSelection] = useState<
-    FileDiffSelection & { connectionKey: string; requestId: string }
-  >();
-  const diffHistory =
-    fileDiffSelection?.threadId === inspectorConversation?.threadId &&
-    fileDiffSelection?.connectionKey === diffConnectionKey
-      ? fileDiffSelection
-      : undefined;
-  const diffAvailable = diffSupported && Boolean(contextWorkspace || diffHistory);
   const [inspectorContent, setInspectorContent] = useState<InspectorContent>("subagents");
+  const [inspectorExpanded, setInspectorExpanded] = useState(true);
+  const diff = useCodeDiff({
+    workspaceId: contextWorkspace?.id,
+    threadId: inspectorConversation?.threadId ?? undefined,
+    connectionKey: diffConnectionKey,
+    revision: version + inspectorActivity.revision,
+    supported: diffSupported && (!diffRemote || desktop.library?.bot?.status === "connected"),
+    onOpen: () => {
+      setInspectorContent("diff");
+      setInspectorExpanded(true);
+    },
+  });
+  const diffAvailable = diff.available;
   const activeInspectorContent: InspectorContent =
     inspectorContent === "diff" && diffAvailable
       ? "diff"
@@ -82,7 +86,6 @@ export function useDesktopShell() {
               ? "github"
               : "diff";
   const inspectorAvailable = subagents.length > 0 || githubAvailable || diffAvailable;
-  const [inspectorExpanded, setInspectorExpanded] = useState(true);
   const inspectorOpen = inspectorAvailable && inspectorExpanded;
   useEffect(() => {
     githubClient.clear();
@@ -177,21 +180,9 @@ export function useDesktopShell() {
     inspectorContent: activeInspectorContent,
     selectInspectorContent,
     diff: {
-      available: diffAvailable,
-      workspaceId: diffHistory?.workspaceId ?? contextWorkspace?.id,
-      history: diffHistory,
+      ...diff,
       connectionKey: diffConnectionKey,
       revision: version + inspectorActivity.revision,
-      open: (selection: FileDiffSelection) => {
-        if (!diffSupported || selection.threadId !== inspectorConversation?.threadId) return;
-        setFileDiffSelection({
-          ...selection,
-          connectionKey: diffConnectionKey,
-          requestId: crypto.randomUUID(),
-        });
-        setInspectorContent("diff");
-        setInspectorExpanded(true);
-      },
     },
     github: {
       client: githubClient,

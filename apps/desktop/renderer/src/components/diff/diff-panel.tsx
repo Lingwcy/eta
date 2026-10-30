@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Files, History, RefreshCw } from "lucide-react";
-import type { DiffContent, DiffFile, WorkspaceChanges } from "@eta/core/shared/diff";
+import type { DiffContent } from "@eta/core/shared/diff";
+import { useWorkspaceDiff, type WorkspaceDiffQuery } from "@/agent/use-code-diff";
 import { t } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { useDiffQuery } from "@/agent/use-diff-query";
-import { cn } from "@/lib/utils";
-import { DiffPreview, type DiffLayout } from "./diff-preview";
+import { DiffPreview } from "./diff-preview";
+import { DiffFileTree } from "./diff-file-tree";
+import { DiffFilePane } from "./diff-file-pane";
 
 export interface DiffHistorySelection {
   threadId: string;
@@ -24,6 +25,8 @@ interface DiffPanelProps {
   revision?: number;
   /** Includes the remote connection admission, not only a URL or workspace ID. */
   connectionKey?: string;
+  workspace?: WorkspaceDiffQuery;
+  onWorkspaceSelect?: () => void;
 }
 
 function Notice({ children }: { children: React.ReactNode }) {
@@ -34,45 +37,6 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
-function FileRow({
-  file,
-  selected,
-  onSelect,
-}: {
-  file: DiffFile;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      className={cn(
-        "flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs outline-none hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-neutral-400",
-        selected && "bg-neutral-200/70",
-      )}
-      title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
-    >
-      <span className="min-w-0 flex-1 truncate text-left font-mono [direction:rtl]">
-        <bdi dir="ltr">{file.path}</bdi>
-      </span>
-      <span
-        className={cn(
-          "shrink-0 text-[10px]",
-          file.kind === "added" || file.kind === "untracked"
-            ? "text-emerald-700"
-            : file.kind === "deleted" || file.kind === "conflicted"
-              ? "text-red-600"
-              : "text-neutral-500",
-        )}
-      >
-        {t(`diff:kind.${file.kind}`)}
-      </span>
-    </button>
-  );
-}
-
 /** One inspector view shares the renderer, but never the data source, of historical and live diffs. */
 export function DiffPanel({
   workspaceId,
@@ -80,6 +44,8 @@ export function DiffPanel({
   active,
   revision = 0,
   connectionKey = "local",
+  workspace,
+  onWorkspaceSelect,
 }: DiffPanelProps) {
   useTranslation();
   const historyKey = JSON.stringify([connectionKey, history?.threadId, history?.changeId]);
@@ -103,33 +69,26 @@ export function DiffPanel({
   }, [navigationKey, Boolean(history)]);
   const scope = "all";
   const [selectedPaths, setSelectedPaths] = useState<Record<string, string>>({});
-  const [layout, setLayout] = useState<DiffLayout>("unified");
-  const [refresh, setRefresh] = useState(0);
+  const [collapsedPaths, setCollapsedPaths] = useState<Record<string, ReadonlySet<string>>>({});
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const positions = useRef(new Map<string, number>());
   const workspaceKey = JSON.stringify([connectionKey, workspaceId, scope]);
-  const listKey = JSON.stringify([workspaceKey, refresh]);
-  const previousRevision = useRef(revision);
-  useEffect(() => {
-    const previous = previousRevision.current;
-    previousRevision.current = revision;
-    if (previous === revision || !active || source !== "workspace") return;
-    // Nested tools can finish together; invalidate once after the burst, not once per result.
-    const timer = setTimeout(() => setRefresh((value) => value + 1), 100);
-    return () => clearTimeout(timer);
-  }, [revision, active, source]);
-  const list = useDiffQuery<WorkspaceChanges>(
-    listKey,
-    active && source === "workspace" && Boolean(workspaceId),
-    () => window.eta.workspaceChanges({ workspaceId: workspaceId!, scope }),
-  );
+  // The shell probes availability even while closed; reuse that admission when present.
+  const localWorkspace = useWorkspaceDiff({
+    workspaceId,
+    connectionKey,
+    revision,
+    enabled: active && !workspace,
+  });
+  const list = workspace ?? localWorkspace;
   const files = list.status === "ready" && list.value.status === "ready" ? list.value.files : [];
   const file = files.find((entry) => entry.path === selectedPaths[workspaceKey]) ?? files[0];
   const listRevision =
     list.status === "ready" && list.value.status === "ready" ? list.value.revision : undefined;
   const contentKey =
     source === "history"
-      ? JSON.stringify([historyKey, refresh])
-      : JSON.stringify([workspaceKey, listRevision, file?.id, refresh]);
+      ? JSON.stringify([navigationKey, historyRefresh])
+      : JSON.stringify([workspaceKey, listRevision, file?.id, list.generation]);
   const content = useDiffQuery<DiffContent>(
     contentKey,
     active && (source === "history" ? Boolean(history) : Boolean(file && listRevision)),
@@ -143,37 +102,25 @@ export function DiffPanel({
             expectedRevision: listRevision!,
           }),
   );
-  useEffect(() => {
-    if (!active || source !== "workspace") return;
-    const onFocus = () => setRefresh((value) => value + 1);
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [active, source]);
   const location = source === "history" ? historyKey : JSON.stringify([workspaceKey, file?.path]);
-  const path = source === "history" ? history?.path : file?.path;
   const retry = (
-    <Button variant="ghost" size="toolbar" onClick={() => setRefresh((value) => value + 1)}>
+    <Button
+      variant="ghost"
+      size="toolbar"
+      onClick={() =>
+        source === "history" ? setHistoryRefresh((value) => value + 1) : list.refresh()
+      }
+    >
       {t("diff:retry")}
     </Button>
   );
   if (!active) return null;
   let body;
-  if (source === "workspace" && !workspaceId) body = <Notice>{t("diff:noWorkspace")}</Notice>;
-  else if (source === "workspace" && list.status === "loading")
-    body = <Notice>{t("diff:loading")}</Notice>;
-  else if (source === "workspace" && list.status === "error")
-    body = (
-      <Notice>
-        {t("diff:error")} {retry}
-      </Notice>
-    );
-  else if (
+  if (
     source === "workspace" &&
-    list.status === "ready" &&
-    list.value.status === "not-repository"
+    (!workspaceId || list.status !== "ready" || list.value.status !== "ready" || !file)
   )
-    body = <Notice>{t("diff:notRepository")}</Notice>;
-  else if (source === "workspace" && !file) body = <Notice>{t("diff:noChanges")}</Notice>;
+    body = null;
   else if (content.status === "loading") body = <Notice>{t("diff:loading")}</Notice>;
   else if (content.status === "error")
     body = (
@@ -192,106 +139,68 @@ export function DiffPanel({
     body = (
       <DiffPreview
         patch={content.value.patch}
-        layout={layout}
+        layout="unified"
         location={location}
         positions={positions.current}
       />
     );
-  const showFiles = source === "workspace" && files.length > 0;
+  let fileTree;
+  if (!workspaceId) fileTree = <Notice>{t("diff:noWorkspace")}</Notice>;
+  else if (list.status === "loading") fileTree = <Notice>{t("diff:loading")}</Notice>;
+  else if (list.status === "error")
+    fileTree = (
+      <Notice>
+        {t("diff:error")}{" "}
+        <Button variant="ghost" size="toolbar" onClick={list.refresh}>
+          {t("diff:retry")}
+        </Button>
+      </Notice>
+    );
+  else if (list.value.status === "not-repository")
+    fileTree = <Notice>{t("diff:notRepository")}</Notice>;
+  else if (!files.length) fileTree = <Notice>{t("diff:noChanges")}</Notice>;
+  else
+    fileTree = (
+      <DiffFileTree
+        key={workspaceKey}
+        files={files}
+        collapsed={collapsedPaths[workspaceKey] ?? new Set()}
+        onToggle={(path) =>
+          setCollapsedPaths((previous) => {
+            const next = new Set(previous[workspaceKey]);
+            if (next.has(path)) next.delete(path);
+            else next.add(path);
+            return { ...previous, [workspaceKey]: next };
+          })
+        }
+        selectedId={source === "workspace" ? file?.id : undefined}
+        onSelect={(entry) => {
+          setSelectedPaths((previous) => ({ ...previous, [workspaceKey]: entry.path }));
+          setSelection({ navigationKey, source: "workspace" });
+          onWorkspaceSelect?.();
+        }}
+      />
+    );
   return (
-    <section aria-label={t("diff:title")} className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-neutral-200/70 px-2">
-        {history && (
-          <div role="group" aria-label={t("diff:source")} className="flex shrink-0 gap-1">
-            <Button
-              variant="ghost"
-              size="icon-tiny"
-              selected={source === "history"}
-              aria-label={t("diff:history")}
-              title={t("diff:history")}
-              aria-pressed={source === "history"}
-              onClick={() => setSelection({ navigationKey, source: "history" })}
-            >
-              <History size={13} aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-tiny"
-              selected={source === "workspace"}
-              aria-label={t("diff:workspace")}
-              title={t("diff:workspace")}
-              aria-pressed={source === "workspace"}
-              onClick={() => setSelection({ navigationKey, source: "workspace" })}
-            >
-              <Files size={13} aria-hidden="true" />
-            </Button>
+    <section aria-label={t("diff:title")} className="flex min-h-0 min-w-0 flex-1 dark:bg-[#141414]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{body}</div>
+      <DiffFilePane>
+        {source === "history" && history && (
+          <div
+            className="flex items-center gap-2 px-2 py-1 text-[11px] text-neutral-500 dark:text-neutral-400"
+            title={history.path}
+          >
+            <span className="shrink-0">{t("diff:history")}</span>
+            <span className="min-w-0 truncate">
+              {history.path.split("/").at(-1) || history.path}
+            </span>
           </div>
         )}
-        <div role="group" aria-label={t("diff:layout")} className="flex min-w-0 flex-1 gap-1">
-          {(["unified", "split"] as const).map((value) => (
-            <Button
-              key={value}
-              variant="ghost"
-              size="toolbar"
-              selected={layout === value}
-              aria-pressed={layout === value}
-              onClick={() => setLayout(value)}
-            >
-              {t(`diff:${value}`)}
-            </Button>
-          ))}
-        </div>
-        <Button
-          variant="ghost-muted"
-          size="icon-tiny"
-          aria-label={t("diff:refresh")}
-          title={t("diff:refresh")}
-          onClick={() => setRefresh((value) => value + 1)}
-          disabled={source === "workspace" && !workspaceId}
-        >
-          <RefreshCw size={13} aria-hidden="true" />
-        </Button>
-      </div>
-      <div
-        className={cn(
-          "min-h-0 min-w-0 flex-1",
-          showFiles
-            ? "grid grid-cols-[minmax(0,clamp(112px,30%,220px))_minmax(0,1fr)]"
-            : "flex flex-col",
+        {fileTree}
+        {list.status === "ready" && list.value.status === "ready" && list.value.truncated && (
+          <Notice>{t("diff:truncated")}</Notice>
         )}
-      >
-        {showFiles && (
-          <nav
-            aria-label={t("diff:files")}
-            className="min-h-0 min-w-0 overflow-y-auto border-r border-neutral-200/70 px-1 py-1"
-          >
-            {files.map((entry) => (
-              <FileRow
-                key={entry.id}
-                file={entry}
-                selected={file?.id === entry.id}
-                onSelect={() =>
-                  setSelectedPaths((previous) => ({ ...previous, [workspaceKey]: entry.path }))
-                }
-              />
-            ))}
-            {list.status === "ready" && list.value.status === "ready" && list.value.truncated && (
-              <Notice>{t("diff:truncated")}</Notice>
-            )}
-          </nav>
-        )}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {path && (
-            <div
-              className="shrink-0 truncate border-b border-neutral-200/70 px-2 py-1 font-mono text-[11px] text-neutral-500"
-              title={path}
-            >
-              {path}
-            </div>
-          )}
-          {body}
-        </div>
-      </div>
+      </DiffFilePane>
     </section>
   );
 }

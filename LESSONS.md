@@ -102,8 +102,15 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 - Evidence: on 2026-10-13, the maintainer rejected this branch's persistent composer context after thread creation, worktree management dialog, and new project settings category. The requested worktree configuration belonged in the draft's compact gear menu; these additions were removed.
 - The same day's follow-up rejected the wide new-branch form and outlined input. Compact styling must cover naming states as well as the initial menu; naming now uses one borderless menu row. The maintainer explicitly requested the lasting constraints in [AGENTS.md](AGENTS.md#ui).
-- Check: compare the final entry points and visibility conditions with the supplied UI reference and maintainer instructions before calling frontend work complete.
-- Seen: 2026-10-13.
+- Additional evidence: on 2026-10-30, the maintainer corrected #521’s `068257f30` UI: its file list was on the left instead of the supplied reference’s right, and removing source/scope labels still left an unwanted layout/refresh row. The revised real-component fixture checks left-content/right-tree geometry and the absence of that entire toolbar; text-removal tests alone did not establish the intended layout.
+- Check: compare final entry points, visibility, column order and removed rows with the supplied UI reference and maintainer instructions before calling frontend work complete.
+- Seen: 2026-10-13, 2026-10-30.
+
+**Keep resize observation independent of width policy, and scope preferences to the content.**
+
+- Evidence: on 2026-10-31, the maintainer reported #521’s sidebar springing back. A controlled `desktop-inspector.test.ts` drag loses pointer capture when the child’s minimum width changes, before the pointer is released: policy-dependent effect cleanup was treated as unmount cleanup. The fix keeps observation alive, binds the gesture and saved preference to its module, and removes width easing on release. Isolated Chrome interactions verify distinct defaults, independent saved widths, repeated drags, refresh/reload and a fixed-width file tree; this is not native Electron or Windows acceptance.
+- Check: distinguish a policy update from an actual geometry change, module replacement or unmount. Commit only the admitted gesture’s final coordinates to its own preference; do not animate a completed drag toward its final width.
+- Seen: 2026-10-31.
 
 ## Build and runtime boundaries
 

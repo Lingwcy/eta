@@ -1,5 +1,5 @@
 import { useMemo, useRef } from "react";
-import { parsePatchFiles } from "@pierre/diffs";
+import { DEFAULT_VIRTUAL_FILE_METRICS, parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, Virtualizer } from "@pierre/diffs/react";
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
@@ -7,6 +7,7 @@ import { t } from "@/i18n";
 export type DiffLayout = "unified" | "split";
 const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_PATCH_LINES = 20_000;
+const metrics = { ...DEFAULT_VIRTUAL_FILE_METRICS, paddingTop: 0 };
 
 /** Only a selected, bounded patch reaches Pierre; no editor or historical file loader is installed. */
 export function DiffPreview({
@@ -46,7 +47,8 @@ export function DiffPreview({
       tokenizeMaxLineLength: 2000,
       tokenizeMaxLength: 200_000,
       maxLineDiffLength: 2000,
-      unsafeCSS: ":host { --diffs-font-size: 12px; --diffs-line-height: 20px; }",
+      unsafeCSS:
+        ":host { --diffs-font-size: 12px; --diffs-line-height: 20px; } [data-code] { padding-top: 0; }",
       onPostRender: () => {
         if (restored.current === location) return;
         const scroller = container.current?.firstElementChild;
@@ -88,7 +90,7 @@ export function DiffPreview({
         className="min-h-0 min-w-0 flex-1 overflow-auto"
         config={{ overscrollSize: 500 }}
       >
-        <FileDiff fileDiff={parsed} options={options} disableWorkerPool />
+        <FileDiff fileDiff={parsed} options={options} metrics={metrics} disableWorkerPool />
       </Virtualizer>
     </div>
   );

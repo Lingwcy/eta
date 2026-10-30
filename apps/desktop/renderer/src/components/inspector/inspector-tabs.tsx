@@ -6,6 +6,7 @@ import { Bot, Github, FileDiff } from "lucide-react";
 
 export type InspectorContent = "github" | "subagents" | "diff";
 import { Tabs, TabsList, TabsTrigger, TabsPanel } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 const ToolbarContext = createContext<HTMLDivElement | null>(null);
 
@@ -47,9 +48,14 @@ export function InspectorTabs({
       onValueChange={(next) => {
         if (next === "github" || next === "subagents" || next === "diff") onChange(next);
       }}
-      render={<div className="flex min-h-0 flex-1 flex-col" />}
+      render={<div className="relative flex min-h-0 flex-1 flex-col" />}
     >
-      <div className="flex h-8 shrink-0 items-center justify-between gap-1 px-2">
+      <div
+        className={cn(
+          "flex h-8 shrink-0 items-center justify-between gap-1 px-2",
+          active === "diff" && "absolute top-0 right-0 z-20",
+        )}
+      >
         <div ref={setToolbar} className="flex min-w-0 flex-1 items-center gap-0.5" />
         <TabsList
           aria-label={t("inspector:inspectorTabs.sidebarFeatures")}

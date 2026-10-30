@@ -1,45 +1,40 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 
-const STORAGE_KEY = "eta.inspector-width.v1";
-const DEFAULT_WIDTH = 320;
-const MIN_WIDTH = 220;
-const MAIN_WIDTH = 420;
-
-function readWidth() {
+function readWidth(storageKey: string) {
   try {
-    const saved = Number(localStorage.getItem(STORAGE_KEY));
+    const saved = Number(localStorage.getItem(storageKey));
     if (Number.isFinite(saved) && saved > 0) return saved;
   } catch {
-    // Layout remains usable when browser storage is unavailable.
+    /* Resizing must work without storage. */
   }
-  return DEFAULT_WIDTH;
+  return undefined;
 }
-
-function saveWidth(width: number) {
+function saveWidth(storageKey: string, width: number) {
   try {
-    localStorage.setItem(STORAGE_KEY, String(width));
+    localStorage.setItem(storageKey, String(width));
   } catch {
-    // A layout preference must not make resizing fail.
+    /* A preference cannot block input. */
   }
 }
-
 function widthBounds(available: number) {
-  // Keep the main region usable even below the desktop's normal minimum window width.
-  const max = Math.max(0, Math.floor(available - Math.min(MAIN_WIDTH, available * 0.7)));
-  return { min: Math.min(MIN_WIDTH, max), max };
+  const max = Math.max(0, Math.floor(available - Math.min(420, available * 0.7)));
+  return { min: Math.min(220, max), max };
 }
-
 function clamp(width: number, bounds: { min: number; max: number }) {
   return Math.min(bounds.max, Math.max(bounds.min, width));
 }
-
+interface Owner {
+  storageKey: string;
+  defaultWidth: number;
+}
 interface Drag {
+  owner: Owner;
   pointerId: number;
   target: HTMLDivElement;
   startX: number;
   startWidth: number;
-  preference: number;
+  preference: number | undefined;
   next: number;
   changed: boolean;
   userSelect: string;
@@ -47,23 +42,49 @@ interface Drag {
   onBlur: () => void;
 }
 
-/** Keep the saved preference independent of viewport clamping, and commit only completed gestures. */
-export function useInspectorWidth(open: boolean) {
-  const ref = useRef<HTMLElement>(null);
-  const [preferred, setPreferred] = useState(readWidth);
+/** Persist only completed gestures, separately from defaults and temporary viewport clamps. */
+export function useInspectorWidth<T extends HTMLElement = HTMLElement>(
+  open: boolean,
+  {
+    defaultWidth = 320,
+    storageKey = "eta.inspector-width.v1",
+    bounds: boundsFor = widthBounds,
+    minimumWidth = 0,
+  }: {
+    defaultWidth?: number;
+    storageKey?: string;
+    bounds?: typeof widthBounds;
+    minimumWidth?: number;
+  } = {},
+) {
+  const ref = useRef<T>(null);
+  const owner = useMemo(() => ({ storageKey, defaultWidth }), [storageKey, defaultWidth]);
+  const admitted = useRef(owner);
+  admitted.current = owner;
+  const [preferences, setPreferences] = useState(
+    () => new Map([[storageKey, readWidth(storageKey)]]),
+  );
+  const preferred = preferences.has(storageKey)
+    ? preferences.get(storageKey)
+    : readWidth(storageKey);
   const preference = useRef(preferred);
-  const [bounds, setBounds] = useState(() => widthBounds(window.innerWidth));
+  preference.current = preferred;
+  const measureBounds = (available: number) => {
+    const next = boundsFor(available);
+    return { min: Math.min(next.max, Math.max(next.min, minimumWidth)), max: next.max };
+  };
+  const [available, setAvailable] = useState(window.innerWidth);
+  const bounds = measureBounds(available);
   const limits = useRef(bounds);
-  const [dragging, setDragging] = useState(false);
+  limits.current = bounds;
+  const [draggingOwner, setDraggingOwner] = useState<Owner>();
   const drag = useRef<Drag | null>(null);
   const frame = useRef<number | null>(null);
-  const width = clamp(preferred, bounds);
-
-  const update = (next: number) => {
-    preference.current = next;
-    setPreferred(next);
+  const width = clamp(preferred ?? defaultWidth, bounds);
+  const update = (next: number | undefined, target = owner) => {
+    if (admitted.current === target) preference.current = next;
+    setPreferences((previous) => new Map(previous).set(target.storageKey, next));
   };
-
   const finish = (commit: boolean, mounted = true) => {
     const current = drag.current;
     if (!current) return;
@@ -72,13 +93,14 @@ export function useInspectorWidth(open: boolean) {
       cancelAnimationFrame(frame.current);
       frame.current = null;
     }
-    const next = commit && current.changed ? current.next : current.preference;
-    preference.current = next;
+    const accept = commit && current.changed && current.owner === admitted.current;
+    const next = accept ? current.next : current.preference;
+    if (current.owner === admitted.current) preference.current = next;
     if (mounted) {
-      setPreferred(next);
-      setDragging(false);
+      update(next, current.owner);
+      setDraggingOwner(undefined);
     }
-    if (commit && current.changed) saveWidth(next);
+    if (accept) saveWidth(current.owner.storageKey, current.next);
     if (document.body.style.userSelect === "none")
       document.body.style.userSelect = current.userSelect;
     if (document.body.style.cursor === "col-resize") document.body.style.cursor = current.cursor;
@@ -88,18 +110,16 @@ export function useInspectorWidth(open: boolean) {
   };
   const finishRef = useRef(finish);
   finishRef.current = finish;
-
   useEffect(() => {
     const parent = ref.current?.parentElement;
+    let previousWidth: number | undefined;
     const measure = () => {
-      const next = widthBounds(parent?.getBoundingClientRect().width || window.innerWidth);
-      const changed = limits.current.min !== next.min || limits.current.max !== next.max;
-      limits.current = next;
-      setBounds((previous) =>
-        previous.min === next.min && previous.max === next.max ? previous : next,
-      );
-      // Geometry changes invalidate the pointer's original layout baseline.
-      if (changed) finishRef.current(false);
+      const available = parent?.getBoundingClientRect().width || window.innerWidth;
+      const geometryChanged = previousWidth !== undefined && previousWidth !== available;
+      previousWidth = available;
+      setAvailable(available);
+      // A new policy is not a new layout. Reattaching observation here used to drop pointer capture.
+      if (geometryChanged) finishRef.current(false);
     };
     measure();
     const observer =
@@ -112,23 +132,28 @@ export function useInspectorWidth(open: boolean) {
       finishRef.current(false, false);
     };
   }, []);
-
   useEffect(() => {
-    if (!open) finishRef.current(false);
-  }, [open]);
-
+    finishRef.current(false);
+    setPreferences((previous) =>
+      previous.has(owner.storageKey)
+        ? previous
+        : new Map(previous).set(owner.storageKey, readWidth(owner.storageKey)),
+    );
+  }, [owner, open]);
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (!open || drag.current || event.button !== 0 || event.isPrimary === false) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     const onBlur = () => finishRef.current(false);
+    const startWidth = clamp(preference.current ?? owner.defaultWidth, limits.current);
     drag.current = {
+      owner,
       pointerId: event.pointerId,
       target: event.currentTarget,
       startX: event.clientX,
-      startWidth: clamp(preference.current, limits.current),
+      startWidth,
       preference: preference.current,
-      next: clamp(preference.current, limits.current),
+      next: startWidth,
       changed: false,
       userSelect: document.body.style.userSelect,
       cursor: document.body.style.cursor,
@@ -137,21 +162,21 @@ export function useInspectorWidth(open: boolean) {
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
     window.addEventListener("blur", onBlur);
-    setDragging(true);
+    setDraggingOwner(owner);
   };
-
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current;
-    if (!current || current.pointerId !== event.pointerId) return;
+    if (!current || current.pointerId !== event.pointerId || current.owner !== admitted.current)
+      return;
     current.next = clamp(current.startWidth + current.startX - event.clientX, limits.current);
     current.changed ||= current.next !== current.startWidth;
     if (frame.current !== null) return;
     frame.current = requestAnimationFrame(() => {
       frame.current = null;
-      if (drag.current === current) update(current.next);
+      if (drag.current === current && current.owner === admitted.current)
+        update(current.next, current.owner);
     });
   };
-
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId) return;
@@ -164,7 +189,7 @@ export function useInspectorWidth(open: boolean) {
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!open || drag.current) return;
-    const current = clamp(preference.current, limits.current);
+    const current = clamp(preference.current ?? defaultWidth, limits.current);
     const next =
       event.key === "ArrowLeft"
         ? current + 16
@@ -179,15 +204,14 @@ export function useInspectorWidth(open: boolean) {
     event.preventDefault();
     const result = clamp(next, limits.current);
     update(result);
-    saveWidth(result);
+    saveWidth(storageKey, result);
   };
-
   return {
     ref,
     width,
     min: bounds.min,
     max: bounds.max,
-    dragging,
+    dragging: draggingOwner === owner,
     onPointerDown,
     onPointerMove,
     onPointerUp,
