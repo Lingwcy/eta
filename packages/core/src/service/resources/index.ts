@@ -3,7 +3,8 @@ import type { ImageProcessor } from "../../images/types.ts";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRegistry } from "@eta/agent";
-import { CodingTools, createReadTool } from "@eta/agent/tools";
+import { createCodingTools, createReadTool } from "@eta/agent/tools";
+import type { FileChangeRecorder } from "@eta/agent/tools";
 import { Context, Effect, Layer } from "effect";
 import { adapter } from "../errors.ts";
 import type { CoreError } from "../errors.ts";
@@ -12,7 +13,7 @@ export class AgentResourcesService extends Context.Service<
   AgentResourcesService,
   {
     readonly processImage?: ImageProcessor;
-    registry(models?: Models): ReturnType<typeof createRegistry>;
+    registry(models?: Models, fileChanges?: FileChangeRecorder): ReturnType<typeof createRegistry>;
     instructions(cwd: string): Effect.Effect<string, CoreError>;
   }
 >()("eta/core/service/resources/AgentResourcesService") {
@@ -24,14 +25,15 @@ export class AgentResourcesService extends Context.Service<
       AgentResourcesService,
       AgentResourcesService.of({
         processImage,
-        registry: (models) => {
+        registry: (models, fileChanges) => {
           const registry = createRegistry();
+          const codingTools = createCodingTools({ fileChanges });
           registry.install(
             processImage
               ? {
-                  ...CodingTools,
+                  ...codingTools,
                   tools: [
-                    ...(CodingTools.tools ?? []).filter((tool) => tool.name !== "read"),
+                    ...(codingTools.tools ?? []).filter((tool) => tool.name !== "read"),
                     createReadTool({
                       readImage: async (bytes, _mimeType, api, context) => {
                         const agent = await api.agent(context);
@@ -59,7 +61,7 @@ export class AgentResourcesService extends Context.Service<
                     }),
                   ],
                 }
-              : CodingTools,
+              : codingTools,
           );
           return registry;
         },

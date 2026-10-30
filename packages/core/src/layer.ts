@@ -26,6 +26,8 @@ import { ThreadService } from "./service/threads/index.ts";
 import { WorkspaceService } from "./service/workspaces/index.ts";
 import { WorkspaceOwnershipService } from "./service/workspaces/ownership.ts";
 import { GitRepositoryService } from "./service/git/index.ts";
+import { WorkspaceDiffService } from "./service/git/diff.ts";
+import { FileChangeService } from "./service/file-changes/index.ts";
 import { GitStoreService } from "./service/git/store.ts";
 import { WorktreeService } from "./service/git/worktrees.ts";
 import { WorkspaceAccessService } from "./service/git/workspace-access.ts";
@@ -65,9 +67,10 @@ export function coreDomainServices(skillLayer: ReturnType<typeof SkillsService.l
     ConversationService.layer,
     RunSupervisorService.layer,
     ObservationService.layer,
-  ).pipe(Layer.provideMerge(skills));
+  ).pipe(Layer.provideMerge(FileChangeService.layer), Layer.provideMerge(skills));
   return Layer.mergeAll(
     ThreadService.layer,
+    WorkspaceDiffService.layer,
     GitHubRepositoryService.layer.pipe(Layer.provideMerge(GitRepositoryService.layer)),
     WorktreeService.layer,
   ).pipe(Layer.provideMerge(domain));

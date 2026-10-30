@@ -113,6 +113,9 @@ const bridge: DesktopBridge = {
   githubQuery: (input) => invoke("eta:command", { type: "github-query", input }),
   gitRepository: (workspaceId) => invoke("eta:command", { type: "git-repository", workspaceId }),
   gitBranches: (workspaceId) => invoke("eta:command", { type: "git-branches", workspaceId }),
+  workspaceChanges: (input) => invoke("eta:command", { type: "workspace-changes", input }),
+  workspaceFileDiff: (input) => invoke("eta:command", { type: "workspace-file-diff", input }),
+  fileChangeDiff: (input) => invoke("eta:command", { type: "file-change-diff", input }),
   selectGitHubRemote: (projectId, remoteName, requestId) =>
     invoke("eta:command", {
       type: "select-github-remote",

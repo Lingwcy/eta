@@ -23,6 +23,7 @@
     "@eta/agent": "workspace:*",
     "@eta/computer-use": "workspace:*",
     "@eta/core": "workspace:*",
+    "@pierre/diffs": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "class-variance-authority": "^0.7.1",
     "effect": "catalog:",

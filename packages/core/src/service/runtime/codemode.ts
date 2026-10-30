@@ -132,13 +132,30 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
           const detailsLength = details === undefined ? Infinity : JSON.stringify(details).length;
           const includeDetails = detailsLength <= Math.min(8000, remainingPreview);
           if (includeDetails) remainingPreview -= detailsLength;
+          // History references survive the text/details preview budget; the artifact is loaded on demand.
+          const change =
+            Predicate.isObject(details) && Predicate.isObject(details.fileChange)
+              ? details.fileChange
+              : undefined;
+          const fileChange =
+            change &&
+            typeof change.id === "string" &&
+            change.id.length <= 128 &&
+            typeof change.path === "string" &&
+            typeof change.status === "string"
+              ? { id: change.id, path: change.path.slice(0, 4096), status: change.status }
+              : undefined;
           enrichedCalls.push({
             ...call,
             ...(nested?.taskId === undefined ? {} : { taskId: String(nested.taskId) }),
             parentTaskId: String(api.taskId),
             result: {
               content: text ? [{ type: "text" as const, text }] : [],
-              ...(includeDetails ? { details } : {}),
+              ...(includeDetails && details !== undefined
+                ? { details }
+                : fileChange
+                  ? { details: { fileChange } }
+                  : {}),
             },
           });
           if (call.name !== "read") continue;

@@ -8,6 +8,7 @@ import { BotClient } from "../../mobile/src/bot/client.ts";
 import { memoryStorage } from "../../mobile/src/bot/fixtures.test-support.ts";
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { BotLibrary } from "@eta/core/shared/bot";
+import type { WorkspaceChanges } from "@eta/core/shared/diff";
 import {
   mkdtemp,
   mkdir,
@@ -3313,6 +3314,96 @@ test("worktrees are created inside the workspace root without becoming new proje
     ).json(),
   ).toMatchObject({ status: "removed" });
   expect((await request(`/v1/projects/not-a-project/worktrees`)).status).toBe(403);
+});
+
+test("code diff HTTP reads real workspace changes and rejects caller paths, stale revisions and unowned targets", async () => {
+  const { bot, request, cwd, workspace, config } = await fixture();
+  const git = (...args: string[]) =>
+    promisify(execFile)(
+      "git",
+      ["-c", "user.name=Eta", "-c", "user.email=eta@example.com", ...args],
+      { cwd },
+    );
+  await git("init", "-q", "-b", "main");
+  await writeFile(join(cwd, "file.ts"), "before\n");
+  await git("add", ".");
+  await git("commit", "-q", "-m", "init");
+  await writeFile(join(cwd, "file.ts"), "after\n");
+  const response = await request(`/v1/workspaces/${workspace}/changes`, { scope: "all" });
+  expect(response.status).toBe(200);
+  const changes = (await response.json()) as WorkspaceChanges;
+  expect(changes.status).toBe("ready");
+  if (changes.status !== "ready") throw new Error("Expected Git changes");
+  expect(changes.files).toMatchObject([{ path: "file.ts" }]);
+  const input = { scope: "all", entryId: changes.files[0]!.id, expectedRevision: changes.revision };
+  const diff = await request(`/v1/workspaces/${workspace}/diff`, input);
+  expect(diff.status).toBe(200);
+  expect(await diff.json()).toMatchObject({
+    status: "ready",
+    path: "file.ts",
+    patch: expect.stringContaining("+after"),
+  });
+  expect(
+    (await request(`/v1/workspaces/${workspace}/changes`, { scope: "all", path: "/secret" }))
+      .status,
+  ).toBe(400);
+  expect((await request(`/v1/workspaces/${workspace}/changes`, { scope: "invalid" })).status).toBe(
+    400,
+  );
+  expect(
+    (await request(`/v1/workspaces/${workspace}/diff`, { ...input, path: "/secret" })).status,
+  ).toBe(400);
+  expect(
+    (await request(`/v1/workspaces/${workspace}/diff`, { scope: "all", entryId: input.entryId }))
+      .status,
+  ).toBe(400);
+  expect((await request("/v1/workspaces/outside/changes", { scope: "all" })).status).toBe(403);
+  expect((await request("/v1/workspaces/outside/diff", input)).status).toBe(403);
+  expect(
+    (
+      await bot.app.request(`/v1/workspaces/${workspace}/changes`, {
+        method: "POST",
+        body: JSON.stringify({ scope: "all" }),
+      })
+    ).status,
+  ).toBe(401);
+  await writeFile(join(cwd, "file.ts"), "changed again\n");
+  expect(await (await request(`/v1/workspaces/${workspace}/diff`, input)).json()).toMatchObject({
+    status: "unavailable",
+    reason: "stale",
+  });
+  expect(await (await request("/v1/status")).json()).toMatchObject({
+    capabilities: expect.arrayContaining(["code-diff"]),
+  });
+  const outside = join(config.dataRoot, "outside-diff");
+  await mkdir(outside);
+  await rename(cwd, `${cwd}-saved`);
+  await symlink(outside, cwd);
+  const read = vi.spyOn(bot.core, "workspaceFileDiff");
+  expect((await request(`/v1/workspaces/${workspace}/diff`, input)).status).toBe(403);
+  expect(read).not.toHaveBeenCalled();
+});
+
+test("code diff history HTTP authorizes the owning thread and never accepts a caller-supplied workspace or path", async () => {
+  const { bot, request, create, cwd } = await fixture();
+  const threadId = await create("diff-history");
+  const patch = { status: "ready" as const, path: "file.ts", patch: "stored historical content" };
+  const read = vi.spyOn(bot.core, "fileChangeDiff").mockResolvedValue(patch);
+  const route = `/v1/threads/${threadId}/file-change-diff`;
+  expect((await request(route, { changeId: "change", path: "/secret" })).status).toBe(400);
+  expect((await request(route, { changeId: "change", workspaceId: "outside" })).status).toBe(400);
+  expect((await request(route, { changeId: "" })).status).toBe(400);
+  expect(
+    (await request("/v1/threads/missing/file-change-diff", { changeId: "change" })).status,
+  ).toBe(404);
+  expect(read).not.toHaveBeenCalled();
+  expect(await (await request(route, { changeId: "opaque/change" })).json()).toEqual(patch);
+  expect(read).toHaveBeenLastCalledWith({ threadId, changeId: "opaque/change" });
+  // Losing the directory does not revoke in-scope history or require executing the thread.
+  await rm(cwd, { recursive: true });
+  expect(await (await request(route, { changeId: "opaque/change" })).json()).toEqual(patch);
+  expect(bot.controller.status().activeThreads).toEqual([]);
+  expect(read.mock.calls).toHaveLength(2);
 });
 
 test("GitHub HTTP queries enforce project ownership and reject caller-supplied repositories", async () => {

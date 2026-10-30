@@ -10,6 +10,13 @@ import type { ReviewStats } from "@eta/core/service/runtime/review-log";
 import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/shared/git";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import type { GitHubIdentity, GitHubPage, GitHubQuery } from "@eta/core/shared/github";
+import type {
+  DiffContent,
+  FileChangeDiffInput,
+  WorkspaceChanges,
+  WorkspaceChangesInput,
+  WorkspaceFileDiffInput,
+} from "@eta/core/shared/diff";
 import type { CreateThreadConfiguration } from "@eta/core/agent/protocol";
 import type { BotConnection, BotState } from "./shared/bot.ts";
 import type { SubagentCommand, SubagentSummary } from "@eta/core/shared/subagents";
@@ -119,6 +126,9 @@ export interface DesktopBridge extends AgentBridge {
   /** Live repository state of a workspace in its own environment (this computer or the Bot). */
   gitRepository(workspaceId: string): Promise<GitRepositoryInfo>;
   gitBranches(workspaceId: string): Promise<readonly GitBranch[]>;
+  workspaceChanges(input: WorkspaceChangesInput): Promise<WorkspaceChanges>;
+  workspaceFileDiff(input: WorkspaceFileDiffInput): Promise<DiffContent>;
+  fileChangeDiff(input: FileChangeDiffInput): Promise<DiffContent>;
   selectGitHubRemote(
     projectId: string,
     remoteName: string | null,

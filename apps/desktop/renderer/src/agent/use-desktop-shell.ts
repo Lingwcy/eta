@@ -11,6 +11,8 @@ import { useDesktopTabs } from "./use-desktop-tabs";
 import { useDesktopShortcuts } from "./use-desktop-shortcuts";
 import { useTabPresentations } from "./use-tab-presentations";
 import { useBrowserPages } from "@/browser/use-browser-pages";
+import type { InspectorContent } from "@/components/inspector/inspector-tabs";
+import type { FileDiffSelection } from "./file-diff-actions";
 
 export function useDesktopShell() {
   const desktop = useDesktopLibrary();
@@ -27,7 +29,8 @@ export function useDesktopShell() {
     setSelectedSubagents((current) => ({ ...current, [threadId]: path }));
   const [version, setVersion] = useState(0);
   const inspectorConversation = inspectedConversation(navigation.state);
-  const subagents = useSubagents(inspectorConversation?.threadId, version);
+  const inspectorActivity = useSubagents(inspectorConversation?.threadId, version);
+  const subagents = inspectorActivity.agents;
   const contextWorkspace = inspectedWorkspace(inspectorConversation, desktop.library);
   const project = desktop.library?.projects.find(
     (value) => value.id === contextWorkspace?.projectId,
@@ -46,15 +49,47 @@ export function useDesktopShell() {
     !remote || Boolean(desktop.library?.bot?.capabilities?.includes("github"));
   const githubAvailable =
     githubSupported && projectGit.info?.status === "ready" && Boolean(projectGit.info.github);
-  const [inspectorContent, setInspectorContent] = useState<"subagents" | "github">("subagents");
-  const inspectorAvailable = subagents.length > 0 || githubAvailable;
+  const diffRemote = isCloudId(contextWorkspace?.id ?? inspectorConversation?.threadId);
+  const diffSupported =
+    !diffRemote || Boolean(desktop.library?.bot?.capabilities?.includes("code-diff"));
+  const diffConnectionKey = JSON.stringify([
+    diffRemote ? desktop.library?.bot?.url : "local",
+    diffRemote ? desktop.library?.bot?.status : "connected",
+    inspectorConversation?.id,
+    inspectorConversation?.threadId,
+    version,
+  ]);
+  const [fileDiffSelection, setFileDiffSelection] = useState<
+    FileDiffSelection & { connectionKey: string; requestId: string }
+  >();
+  const diffHistory =
+    fileDiffSelection?.threadId === inspectorConversation?.threadId &&
+    fileDiffSelection?.connectionKey === diffConnectionKey
+      ? fileDiffSelection
+      : undefined;
+  const diffAvailable = diffSupported && Boolean(contextWorkspace || diffHistory);
+  const [inspectorContent, setInspectorContent] = useState<InspectorContent>("subagents");
+  const activeInspectorContent: InspectorContent =
+    inspectorContent === "diff" && diffAvailable
+      ? "diff"
+      : inspectorContent === "github" && githubAvailable
+        ? "github"
+        : inspectorContent === "subagents" && subagents.length
+          ? "subagents"
+          : subagents.length
+            ? "subagents"
+            : githubAvailable
+              ? "github"
+              : "diff";
+  const inspectorAvailable = subagents.length > 0 || githubAvailable || diffAvailable;
   const [inspectorExpanded, setInspectorExpanded] = useState(true);
   const inspectorOpen = inspectorAvailable && inspectorExpanded;
   useEffect(() => {
     githubClient.clear();
   }, [githubClient, desktop.library?.bot?.url, desktop.library?.bot?.status]);
-  const selectInspectorContent = (next: "github" | "subagents") => {
-    if (next === "github" ? !githubAvailable : !subagents.length) return;
+  const selectInspectorContent = (next: InspectorContent) => {
+    if (next === "diff" ? !diffAvailable : next === "github" ? !githubAvailable : !subagents.length)
+      return;
     setInspectorContent(next);
   };
   const toggleInspector = useCallback(() => {
@@ -139,8 +174,25 @@ export function useDesktopShell() {
     inspectorAvailable,
     inspectorOpen,
     toggleInspector,
-    inspectorContent,
+    inspectorContent: activeInspectorContent,
     selectInspectorContent,
+    diff: {
+      available: diffAvailable,
+      workspaceId: diffHistory?.workspaceId ?? contextWorkspace?.id,
+      history: diffHistory,
+      connectionKey: diffConnectionKey,
+      revision: version + inspectorActivity.revision,
+      open: (selection: FileDiffSelection) => {
+        if (!diffSupported || selection.threadId !== inspectorConversation?.threadId) return;
+        setFileDiffSelection({
+          ...selection,
+          connectionKey: diffConnectionKey,
+          requestId: crypto.randomUUID(),
+        });
+        setInspectorContent("diff");
+        setInspectorExpanded(true);
+      },
+    },
     github: {
       client: githubClient,
       project,

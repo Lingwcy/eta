@@ -41,6 +41,13 @@ import { SkillsService } from "./service/skills/index.ts";
 import { scanStorage, storageTargetPath } from "./storage/index.ts";
 import { readReviewStats } from "@eta/core/service/runtime/review-log";
 import { GitRepositoryService } from "@eta/core/service/git/index";
+import { WorkspaceDiffService } from "@eta/core/service/git/diff";
+import { FileChangeService } from "@eta/core/service/file-changes/index";
+import type {
+  WorkspaceChangesInput,
+  WorkspaceFileDiffInput,
+  FileChangeDiffInput,
+} from "@eta/core/shared/diff";
 import { GitHubRepositoryService } from "@eta/core/service/git/github";
 import type { GitHubQuery } from "@eta/core/shared/github";
 import { WorktreeService } from "@eta/core/service/git/worktrees";
@@ -78,6 +85,8 @@ async function createLocalDesktopApplication(
     const credentials = await runtime.runPromise(CredentialService);
     const models = await runtime.runPromise(ModelCatalogService);
     const git = await runtime.runPromise(GitRepositoryService);
+    const workspaceDiff = await runtime.runPromise(WorkspaceDiffService);
+    const fileChanges = await runtime.runPromise(FileChangeService);
     const github = await runtime.runPromise(GitHubRepositoryService);
     const worktrees = await runtime.runPromise(WorktreeService);
     const catalog = await runtime.runPromise(CatalogService);
@@ -152,6 +161,11 @@ async function createLocalDesktopApplication(
       subscribeLibrary: (listener: () => void) => catalog.subscribe(listener),
       storage: async () => scanStorage(dataRoot, await run(catalog.read)),
       reviewStats: () => readReviewStats(makeAppPaths(dataRoot).reviewLogPath),
+      workspaceChanges: (input: WorkspaceChangesInput) =>
+        run(workspaceDiff.workspaceChanges(input)),
+      workspaceFileDiff: (input: WorkspaceFileDiffInput) =>
+        run(workspaceDiff.workspaceFileDiff(input)),
+      fileChangeDiff: (input: FileChangeDiffInput) => run(fileChanges.fileChangeDiff(input)),
       gitRepository: (workspaceId: string) => run(git.repository(workspaceId)),
       githubIdentity: (_projectId: string) => run(github.identity()),
       githubQuery: (input: GitHubQuery) => run(github.query(input)),

@@ -15,6 +15,7 @@ import {
 } from "./edit-diff.ts";
 import { requireEnv } from "./env.ts";
 import { withFileMutationQueue } from "./file-mutation-queue.ts";
+import { completeFileChange, fileChangeBaseline, prepareFileChange, type FileChangeRecorder, type FileChangeReference } from "./file-change.ts";
 import { resolveToolPath } from "./path-utils.ts";
 
 const replaceEditSchema = Type.Object({
@@ -76,9 +77,10 @@ function prepareEditArguments(input: unknown): EditToolInput {
 }
 
 export type EditToolDetails = {
-	diff: string;
-	patch: string;
+	diff?: string;
+	patch?: string;
 	firstChangedLine?: number;
+	fileChange?: FileChangeReference;
 };
 
 function validateEditInput(input: EditToolInput): { path: string; edits: Edit[] } {
@@ -92,7 +94,7 @@ function editAccessError(path: string, error: FileError): Error {
 	return new Error(`Could not edit file: ${path}. Error code: ${error.code}.`, { cause: error });
 }
 
-export function createEditTool(): ToolRegistration<typeof editSchema, EditToolDetails> {
+export function createEditTool(options: { fileChanges?: FileChangeRecorder } = {}): ToolRegistration<typeof editSchema, EditToolDetails> {
 	return defineTool({
 		name: "edit",
 		description:
@@ -125,15 +127,20 @@ export function createEditTool(): ToolRegistration<typeof editSchema, EditToolDe
 					if (context.abortSignal?.aborted) throw new Error("Operation aborted");
 
 					const finalContent = bom + restoreLineEndings(newContent, originalEnding);
+					const capture = options.fileChanges ? await prepareFileChange(
+						options.fileChanges, path, await fileChangeBaseline(env, absolutePath, context), finalContent, api, context,
+					) : undefined;
+					if (context.abortSignal?.aborted) throw new Error("Operation aborted");
 					const writeResult = await env.writeFile(absolutePath, finalContent, context);
 					if (!writeResult.ok) throw editAccessError(path, writeResult.error);
+					const fileChange = await completeFileChange(capture, api);
 					if (context.abortSignal?.aborted) throw new Error("Operation aborted");
 
-					const diffResult = generateDiffString(baseContent, newContent);
+					const diffResult = options.fileChanges ? undefined : generateDiffString(baseContent, newContent);
 					const details: EditToolDetails = {
-						diff: diffResult.diff,
-						patch: generateUnifiedPatch(path, baseContent, newContent),
-						...(diffResult.firstChangedLine === undefined ? {} : { firstChangedLine: diffResult.firstChangedLine }),
+						...(fileChange ? { fileChange } : {}),
+						...(diffResult ? { diff: diffResult.diff, patch: generateUnifiedPatch(path, baseContent, newContent),
+							...(diffResult.firstChangedLine === undefined ? {} : { firstChangedLine: diffResult.firstChangedLine }) } : {}),
 					};
 					return {
 						output: [{ type: "text", text: `Successfully replaced ${edits.length} block(s) in ${path}.` }],

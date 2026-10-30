@@ -41,6 +41,7 @@ catalog:
   "@fontsource/space-mono": ^5.3.0
   expo-image-picker: ~57.0.20
   expo-file-system: ~57.0.7
+  "@pierre/diffs": 1.6.2
 overrides:
   # The adapter's ^rc range also accepts incompatible stable releases.
   "@effect/platform-node-shared": "catalog:"

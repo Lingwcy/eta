@@ -24,6 +24,7 @@ import {
 
 const Id = Schema.NonEmptyString;
 const Method = Schema.Literals(["oauth", "api_key"]);
+const DiffScope = Schema.Literals(["all", "staged", "unstaged"]);
 const Command = Schema.Union([
   Schema.Struct({ type: Schema.Literal("schedule-snapshot") }),
   Schema.Struct({ type: Schema.Literal("schedule-write"), input: ScheduleWriteInputSchema }),
@@ -112,6 +113,18 @@ const Command = Schema.Union([
   }),
   Schema.Struct({ type: Schema.Literal("git-repository"), workspaceId: Id }),
   Schema.Struct({ type: Schema.Literal("git-branches"), workspaceId: Id }),
+  Schema.Struct({
+    type: Schema.Literal("workspace-changes"),
+    input: Schema.Struct({ workspaceId: Id, scope: DiffScope }),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("workspace-file-diff"),
+    input: Schema.Struct({ workspaceId: Id, scope: DiffScope, entryId: Id, expectedRevision: Id }),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("file-change-diff"),
+    input: Schema.Struct({ threadId: Id, changeId: Id }),
+  }),
   Schema.Struct({
     type: Schema.Literal("select-github-remote"),
     projectId: Id,
@@ -305,6 +318,12 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       return application.gitRepository(command.workspaceId);
     case "git-branches":
       return application.gitBranches(command.workspaceId);
+    case "workspace-changes":
+      return application.workspaceChanges(command.input);
+    case "workspace-file-diff":
+      return application.workspaceFileDiff(command.input);
+    case "file-change-diff":
+      return application.fileChangeDiff(command.input);
     case "select-github-remote":
       return application.selectGitHubRemote(
         command.projectId,

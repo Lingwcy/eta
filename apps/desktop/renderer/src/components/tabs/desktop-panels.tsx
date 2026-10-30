@@ -7,6 +7,7 @@ import { DesktopLayout } from "@/components/desktop-layout";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { BrowserPanel } from "@/components/browser/browser-panel";
 import { ConversationPanel } from "./conversation-panel";
+import { FileDiffActions } from "@/agent/file-diff-actions";
 import { cn } from "@/lib/utils";
 
 const DesktopSettings = lazy(() =>
@@ -125,19 +126,32 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
               aria-labelledby={`tab-${tab.id}`}
               className={cn("min-h-0 flex-1 flex-col", active.id === tab.id ? "flex" : "hidden")}
             >
-              <ConversationPanel
-                tab={tab}
-                desktop={desktop}
-                schedules={shell.schedules}
-                navigation={navigation}
-                active={active.id === tab.id}
-                selectedSubagent={tab.threadId ? shell.selectedSubagents[tab.threadId] : undefined}
-                onRoot={() => {
-                  if (tab.threadId) shell.selectSubagent(tab.threadId);
-                }}
-                version={version}
-                onPreview={savePreview}
-              />
+              <FileDiffActions
+                threadId={tab.threadId ?? undefined}
+                workspaceId={
+                  desktop.library?.threads.find((thread) => thread.id === tab.threadId)
+                    ?.workspaceId ??
+                  tab.workspaceId ??
+                  undefined
+                }
+                onOpen={active.id === tab.id && shell.diff.available ? shell.diff.open : undefined}
+              >
+                <ConversationPanel
+                  tab={tab}
+                  desktop={desktop}
+                  schedules={shell.schedules}
+                  navigation={navigation}
+                  active={active.id === tab.id}
+                  selectedSubagent={
+                    tab.threadId ? shell.selectedSubagents[tab.threadId] : undefined
+                  }
+                  onRoot={() => {
+                    if (tab.threadId) shell.selectSubagent(tab.threadId);
+                  }}
+                  version={version}
+                  onPreview={savePreview}
+                />
+              </FileDiffActions>
             </section>
           ))}
       </DesktopLayout>

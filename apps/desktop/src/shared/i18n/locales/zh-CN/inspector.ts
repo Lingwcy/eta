@@ -1,4 +1,7 @@
 export default {
+  "desktopInspector.resizeSidebar": "调整右侧栏宽度",
+  "inspectorTabs.diff": "代码差异",
+  "fileChange.view": "查看修改",
   "desktopInspector.rightSidebar": "右侧栏",
   "inspectorTabs.sidebarFeatures": "右侧栏功能",
   "inspectorTabs.subagents": "子智能体",

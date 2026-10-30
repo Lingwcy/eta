@@ -42,6 +42,13 @@ import type { LocalDesktopApplication } from "./bootstrap.ts";
 import type { GitBranch, GitRepositoryInfo, WorktreeSummary } from "@eta/core/shared/git";
 import type { CreateWorktreeInput } from "@eta/core/service/git/worktrees";
 import type { GitHubIdentity, GitHubPage, GitHubQuery } from "@eta/core/shared/github";
+import type {
+  DiffContent,
+  FileChangeDiffInput,
+  WorkspaceChanges,
+  WorkspaceChangesInput,
+  WorkspaceFileDiffInput,
+} from "@eta/core/shared/diff";
 
 interface ThreadObserver {
   delivery?: Promise<void>;
@@ -392,7 +399,9 @@ export class DesktopBot {
     // while ordinary control requests retain their short timeout and SSE has its own lifetime.
     const snapshotResponse =
       /^\/v1\/threads\/[^/]+(?:\/(?:configure|sandbox|approvals\/[^/]+))?$/.test(path);
-    const timeout = snapshotResponse ? 120000 : 10000;
+    const diffResponse =
+      /^\/v1\/(?:workspaces\/[^/]+\/(?:changes|diff)|threads\/[^/]+\/file-change-diff)$/.test(path);
+    const timeout = snapshotResponse ? 120000 : diffResponse ? 45000 : 10000;
     const signal = AbortSignal.timeout(timeout);
     let received = false;
     try {
@@ -541,6 +550,41 @@ export class DesktopBot {
       `/v1/workspaces/${encodeURIComponent(this.raw(workspaceId))}/git`,
     );
     return { ...info, workspaceId };
+  }
+  /** A diff belongs to the connection that admitted it, including same-URL token changes. */
+  private async diffRequest<T>(path: string, body: object): Promise<T> {
+    this.requireCapability("code-diff");
+    const connection = this.connection;
+    const generation = this.generation;
+    try {
+      const result = await this.request<T>(path, body);
+      if (this.connection !== connection || this.generation !== generation)
+        throw new LocalizedError("errors:bot.theBotForThisCloudProjectOrChat");
+      return result;
+    } catch (error) {
+      if (this.connection !== connection || this.generation !== generation)
+        throw new LocalizedError("errors:bot.theBotForThisCloudProjectOrChat");
+      throw error;
+    }
+  }
+  async workspaceChanges(input: WorkspaceChangesInput): Promise<WorkspaceChanges> {
+    const prefix = this.prefix;
+    const result = await this.diffRequest<WorkspaceChanges>(
+      `/v1/workspaces/${encodeURIComponent(this.raw(input.workspaceId))}/changes`,
+      { scope: input.scope },
+    );
+    return { ...result, workspaceId: prefix + result.workspaceId };
+  }
+  workspaceFileDiff(input: WorkspaceFileDiffInput): Promise<DiffContent> {
+    return this.diffRequest<DiffContent>(
+      `/v1/workspaces/${encodeURIComponent(this.raw(input.workspaceId))}/diff`,
+      { scope: input.scope, entryId: input.entryId, expectedRevision: input.expectedRevision },
+    );
+  }
+  fileChangeDiff(input: FileChangeDiffInput): Promise<DiffContent> {
+    return this.diffRequest<DiffContent>(this.route(input.threadId) + "/file-change-diff", {
+      changeId: input.changeId,
+    });
   }
   githubIdentity(projectId: string) {
     this.requireCapability("github");
@@ -1147,6 +1191,12 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
       isCloudId(input.projectId) ? bot.githubQuery(input) : local.githubQuery(input),
     gitBranches: (workspaceId: string) =>
       isCloudId(workspaceId) ? bot.gitBranches(workspaceId) : local.gitBranches(workspaceId),
+    workspaceChanges: (input: WorkspaceChangesInput) =>
+      isCloudId(input.workspaceId) ? bot.workspaceChanges(input) : local.workspaceChanges(input),
+    workspaceFileDiff: (input: WorkspaceFileDiffInput) =>
+      isCloudId(input.workspaceId) ? bot.workspaceFileDiff(input) : local.workspaceFileDiff(input),
+    fileChangeDiff: (input: FileChangeDiffInput) =>
+      isCloudId(input.threadId) ? bot.fileChangeDiff(input) : local.fileChangeDiff(input),
     selectGitHubRemote: (projectId: string, remoteName: string | null, requestId?: string) =>
       isCloudId(projectId)
         ? bot.selectGitHubRemote(projectId, remoteName, requestId)

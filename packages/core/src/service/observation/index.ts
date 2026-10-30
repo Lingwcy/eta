@@ -3,7 +3,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { CompactionEntry, ToolResultEntry, UserEntry } from "@eta/agent";
 import type { AgentState, ConversationView, Cursor, LiveState, SubmissionRecord } from "@eta/agent";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Predicate } from "effect";
 import type { SnapshotResponse } from "../../agent/protocol.ts";
 import { adapter, CoreError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
@@ -156,17 +156,30 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     )
     .flatMap((entry) =>
       (entry.model ?? [])
-        .filter((message) => message.role !== "system")
         .map((message, index) => ({
           id: `${entry.id}:${index}`,
           type: "message" as const,
-          message,
+          message:
+            message.role === "toolResult" &&
+            message.toolName === "edit" &&
+            !message.isError &&
+            Predicate.isObject(message.details) &&
+            typeof message.details.patch === "string" &&
+            !Predicate.isObject(message.details.fileChange)
+              ? {
+                  ...message,
+                  details: {
+                    fileChange: { id: `legacy:${entry.id}:${index}`, path: "", status: "recorded" },
+                  },
+                }
+              : message,
           ...(message.role === "toolResult" &&
           ToolResultEntry.is(entry) &&
           entry.data?.diagnostics.some((diagnostic) => diagnostic.code === "aborted")
             ? { toolStatus: "stopped" as const }
             : {}),
-        })),
+        }))
+        .filter(({ message }) => message.role !== "system"),
     );
   const failed = terminal?.status === "unanswered" && terminal.reason !== "aborted";
   // 1.0 receipts do not contain wall-clock times; use persisted transcript timestamps, not reload time.

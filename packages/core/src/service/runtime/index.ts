@@ -49,6 +49,7 @@ import {
 import { defaultAgentMode } from "../../shared/runtime-settings.ts";
 import { pathToFileURL } from "node:url";
 import { createComputerRuntime } from "../../computer/runtime.ts";
+import { FileChangeService } from "../file-changes/index.ts";
 
 export interface ThreadRuntime {
   readonly hasWork: () => Promise<boolean>;
@@ -97,6 +98,7 @@ export class RuntimeRegistryService extends Context.Service<
       const preferences = yield* RuntimeSettingsService;
       const skillsService = yield* SkillsService;
       const resources = yield* AgentResourcesService;
+      const fileChanges = yield* FileChangeService;
       const titles = yield* ThreadTitleService;
       const environment = yield* CoreEnvironmentService;
       const paths = yield* AppPathsService;
@@ -129,7 +131,7 @@ export class RuntimeRegistryService extends Context.Service<
             : undefined,
         );
         try {
-          const registry = resources.registry(models);
+          const registry = resources.registry(models, fileChanges.recorder(ref));
           registry.install(runtimeCodemode(codemode));
           // A worktree's shared Git metadata is readable without approval so status, log and diff work.
           const gitReadable = gitReadRoots(ref.metadata.cwd).catch(() => []);
@@ -320,8 +322,8 @@ export class RuntimeRegistryService extends Context.Service<
             });
             await computer.refresh();
             registry.install(computer.extension);
-            excludedChildTools.push(...computer.extension.tools);
-            orchestratorTools.push(...computer.extension.tools);
+            excludedChildTools.push(...(computer.extension.tools ?? []));
+            orchestratorTools.push(...(computer.extension.tools ?? []));
           }
           const { inspection, recoveryRequired } = await recoverRuntime(harness, subagents);
           // Idle history can contain levels saved before the picker respected model capabilities.
