@@ -84,7 +84,13 @@ async function artifactDirectory(path: string, create = false) {
 async function readArtifact(path: string) {
   let file;
   try {
-    file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    // Reject a FIFO through fstat without first waiting for a writer to open it.
+    file = await open(
+      path,
+      constants.O_RDONLY |
+        (constants.O_NOFOLLOW ?? 0) |
+        (process.platform === "win32" ? 0 : constants.O_NONBLOCK),
+    );
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
     throw error;
