@@ -124,6 +124,14 @@ export class RuntimeRegistryService extends Context.Service<
         let computer: Awaited<ReturnType<typeof createComputerRuntime>> | undefined;
         let settingsDelivery = Promise.resolve();
         let unsubscribeSettings: (() => void) | undefined;
+        const adoptEnvironment = async (env: ExecutionEnv) => {
+          if (runtimeRecord?.disposed) {
+            await env.cleanup(BACKGROUND_CONTEXT);
+            throw new CoreError({ code: "RuntimeClosing", message: "会话运行资源已关闭" });
+          }
+          environments.add(env);
+          return env;
+        };
         const codemode = new RuntimeCodemodeSandbox(
           environment.codemodeAssets
             ? {
@@ -283,17 +291,18 @@ export class RuntimeRegistryService extends Context.Service<
                           }
                         : {}),
                     }),
-                  ).then((env) => {
-                    environments.add(env);
-                    if (taskKind === "pi.tool") {
-                      const abort = () => {
-                        void env.cleanup(BACKGROUND_CONTEXT).catch(() => {});
-                      };
-                      if (context.abortSignal?.aborted) abort();
-                      else context.abortSignal?.addEventListener("abort", abort, { once: true });
-                    }
-                    return env;
-                  });
+                  )
+                    .then(adoptEnvironment)
+                    .then((env) => {
+                      if (taskKind === "pi.tool") {
+                        const abort = () => {
+                          void env.cleanup(BACKGROUND_CONTEXT).catch(() => {});
+                        };
+                        if (context.abortSignal?.aborted) abort();
+                        else context.abortSignal?.addEventListener("abort", abort, { once: true });
+                      }
+                      return env;
+                    });
                   sandboxEnvironments.set(key, opening);
                   void opening.catch(() => sandboxEnvironments.delete(key));
                 }
@@ -379,10 +388,7 @@ export class RuntimeRegistryService extends Context.Service<
                       deniedRoots: [paths.dataRoot],
                       scratchRoot,
                     }),
-                  ).then((env) => {
-                    environments.add(env);
-                    return env;
-                  });
+                  ).then(adoptEnvironment);
                   sandboxEnvironments.set(key, pending);
                   void pending.catch(() => sandboxEnvironments.delete(key));
                 }
