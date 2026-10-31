@@ -89,11 +89,11 @@ export async function prepareFileChange(
 	context: Context,
 ): Promise<FileChangeCapture | undefined> {
 	if (!recorder) return undefined;
-	try {
-		const capture = await recorder(changeContent(path, before, after), path, api, context);
-		await api.details({ fileChange: capture.reference }, context);
-		return capture;
-	} catch { return undefined; }
+	let capture: FileChangeCapture;
+	try { capture = await recorder(changeContent(path, before, after), path, api, context); }
+	catch { return undefined; }
+	try { await api.details({ fileChange: capture.reference }, context); } catch {}
+	return capture;
 }
 
 /** Recording errors after write must never prompt the caller to replay the file operation. */
