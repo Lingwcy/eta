@@ -456,6 +456,59 @@ test("read-only pauses edits for one exact approval and persists the selected po
   expect((await restored.openThread(thread.id)).snapshot.sandbox?.mode).toBe("read-only");
 });
 
+async function waitForCommandDecision(
+  core: CoreClient,
+  threadId: string,
+  operationId: string,
+  decision: "deny" | "stop",
+) {
+  const started = performance.now();
+  let status: string | undefined;
+  try {
+    await expect
+      .poll(
+        async () => {
+          status = (await core.operation(threadId, operationId)).status;
+          return status;
+        },
+        // Denial still resumes a model stream and finalizes the durable receipt (see #59).
+        { timeout: decision === "deny" ? 10_000 : 1_000 },
+      )
+      .toBe(decision === "deny" ? "completed" : "aborted");
+  } catch (error) {
+    let phase: unknown;
+    try {
+      const { snapshot } = await core.openThread(threadId);
+      phase = {
+        operation: snapshot.operation?.status ?? null,
+        waitingForApproval: snapshot.operation?.waitingForApproval ?? false,
+        tools:
+          snapshot.operation?.runningTools.map(({ taskId, toolName, status }) => ({
+            taskId,
+            toolName,
+            status,
+          })) ?? [],
+        approvals: snapshot.approvals?.length ?? 0,
+        lastResult: snapshot.lastResult?.status ?? null,
+        faulted: snapshot.faulted,
+        recoveryRequired: snapshot.recoveryRequired ?? false,
+      };
+    } catch {
+      phase = { snapshotUnavailable: true };
+    }
+    throw new Error(
+      JSON.stringify({
+        decision,
+        operationId,
+        elapsedMs: Math.round(performance.now() - started),
+        status,
+        phase,
+      }),
+      { cause: error },
+    );
+  }
+}
+
 test.each(["deny", "stop"] as const)(
   "%s cancels a waiting command without executing it",
   async (decision) => {
@@ -477,13 +530,62 @@ test.each(["deny", "stop"] as const)(
     const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
     if (decision === "deny") await core.decideApproval(thread.id, approval.id, false);
     else await core.stop(thread.id);
-    await expect
-      .poll(async () => (await core.operation(thread.id, operation.operationId)).status)
-      .toBe(decision === "deny" ? "completed" : "aborted");
+    await waitForCommandDecision(core, thread.id, operation.operationId, decision);
     await expect(readFile(join(cwd, "command.txt"))).rejects.toMatchObject({ code: "ENOENT" });
     expect((await core.openThread(thread.id)).snapshot.approvals).toEqual([]);
   },
+  30_000,
 );
+
+test("denial settlement waits for its actual post-denial model response", async () => {
+  const { core, provider, cwd, workspace } = await fixture();
+  const thread = await core.createThread(workspace.id);
+  await core.configureSandbox(thread.id, "read-only");
+  const response = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  let replying = false;
+  provider.setResponses([
+    fauxAssistantMessage(fauxToolCall("bash", { command: "printf escaped > command.txt" }), {
+      stopReason: "toolUse",
+    }),
+    () => {
+      replying = true;
+      return response.promise;
+    },
+  ]);
+  let settlement: Promise<{ completed: true } | { error: unknown }> | undefined;
+  try {
+    const operation = await core.submit(thread.id, "Run");
+    await expect
+      .poll(async () => (await core.openThread(thread.id)).snapshot.approvals?.length, {
+        timeout: 10_000,
+      })
+      .toBe(1);
+    const approval = (await core.openThread(thread.id)).snapshot.approvals![0]!;
+    await core.decideApproval(thread.id, approval.id, false);
+    await expect.poll(() => replying, { timeout: 10_000 }).toBe(true);
+    settlement = waitForCommandDecision(core, thread.id, operation.operationId, "deny").then(
+      () => ({ completed: true as const }),
+      (error: unknown) => ({ error }),
+    );
+    // Keep a legal second model response pending beyond the old 1s observation window.
+    await expect(
+      expect
+        .poll(async () => (await core.operation(thread.id, operation.operationId)).status, {
+          timeout: 1_100,
+        })
+        .toBe("completed"),
+    ).rejects.toThrow();
+    expect((await core.operation(thread.id, operation.operationId)).status).toBe("running");
+    await expect(readFile(join(cwd, "command.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await core.openThread(thread.id)).snapshot.approvals).toEqual([]);
+    response.resolve(fauxAssistantMessage("Denied"));
+    expect(await settlement).toEqual({ completed: true });
+    await expect(readFile(join(cwd, "command.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    response.resolve(fauxAssistantMessage("Denied"));
+    await settlement;
+  }
+}, 45_000);
 
 test("environment ceilings reject full access for new and existing threads", async () => {
   const { core, open, workspace } = await fixture();
