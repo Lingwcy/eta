@@ -3,6 +3,9 @@ import { createBashTool } from "./bash.ts";
 import { createEditTool } from "./edit.ts";
 import { createReadTool, type ReadToolOptions } from "./read.ts";
 import { createWriteTool } from "./write.ts";
+import type { FileChangeRecorder } from "./file-change.ts";
+
+export type { FileChangeRecorder, FileChangeCapture, FileChangeContent, FileChangeReference } from "./file-change.ts";
 
 export {
 	type BashExecution,
@@ -17,17 +20,17 @@ export {
 export { createEditTool, type EditToolDetails, type EditToolInput } from "./edit.ts";
 export { DEFAULT_IMAGE_LIMITS, type ImageLimits, type ImageProcessor, type PreparedImage } from "./image-processor.ts";
 export { createReadTool, type ReadToolDetails, type ReadToolInput, type ReadToolOptions } from "./read.ts";
-export { createWriteTool, type WriteToolInput } from "./write.ts";
+export { createWriteTool, type WriteToolInput, type WriteToolDetails } from "./write.ts";
 export { toolIntents } from "../harness/tool-intent.ts";
 
 /**
  * The `coding-tools` extension: `read`, `write`, `edit`, and `bash`; nothing installs it automatically.
  * `createPowerShellTool()` adds `powershell`. `images` prepares the images `read` returns (see `ReadToolOptions`).
  */
-export function createCodingTools(options: ReadToolOptions = {}) {
+export function createCodingTools(options: ReadToolOptions & { fileChanges?: FileChangeRecorder } = {}) {
 	return defineExtension({
 		name: "coding-tools",
-		tools: [createReadTool(options), createWriteTool(), createEditTool(), createBashTool()],
+		tools: [createReadTool(options), createWriteTool(options), createEditTool(options), createBashTool()],
 	});
 }
 

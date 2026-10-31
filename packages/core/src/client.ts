@@ -28,6 +28,13 @@ import { ThreadService } from "./service/threads/index.ts";
 import { SkillsService } from "./service/skills/index.ts";
 import { ModelCatalogService } from "./service/models/index.ts";
 import { GitRepositoryService } from "./service/git/index.ts";
+import { WorkspaceDiffService } from "./service/git/diff.ts";
+import { FileChangeService } from "./service/file-changes/index.ts";
+import type {
+  WorkspaceChangesInput,
+  WorkspaceFileDiffInput,
+  FileChangeDiffInput,
+} from "./shared/diff.ts";
 import { WorktreeService } from "./service/git/worktrees.ts";
 import { GitHubRepositoryService } from "./service/git/github.ts";
 import type { GitHubQuery } from "./shared/github.ts";
@@ -46,6 +53,8 @@ export async function createCore(options: CoreOptions) {
     const skills = await runtime.runPromise(SkillsService);
     const catalog = await runtime.runPromise(CatalogService);
     const git = await runtime.runPromise(GitRepositoryService);
+    const workspaceDiff = await runtime.runPromise(WorkspaceDiffService);
+    const fileChanges = await runtime.runPromise(FileChangeService);
     const worktrees = await runtime.runPromise(WorktreeService);
     const github = await runtime.runPromise(GitHubRepositoryService);
     const paths = await runtime.runPromise(AppPathsService);
@@ -216,6 +225,12 @@ export async function createCore(options: CoreOptions) {
       workspaces: (projectId?: string) => runtime.runPromise(workspaces.list(projectId)),
       registerWorkspace: (projectId: string, cwd: string) =>
         runtime.runPromise(workspaces.register(projectId, cwd)),
+      workspaceChanges: (input: WorkspaceChangesInput) =>
+        runtime.runPromise(workspaceDiff.workspaceChanges(input)),
+      workspaceFileDiff: (input: WorkspaceFileDiffInput) =>
+        runtime.runPromise(workspaceDiff.workspaceFileDiff(input)),
+      fileChangeDiff: (input: FileChangeDiffInput) =>
+        runtime.runPromise(fileChanges.fileChangeDiff(input)),
       gitRepository: (workspaceId: string) => runtime.runPromise(git.repository(workspaceId)),
       gitBranches: (workspaceId: string) => runtime.runPromise(git.branches(workspaceId)),
       selectGitHubRemote: (projectId: string, remoteName: string | null, requestId?: string) =>

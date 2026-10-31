@@ -1,4 +1,7 @@
 export default {
+  "desktopInspector.resizeSidebar": "Resize right sidebar",
+  "inspectorTabs.diff": "Code diff",
+  "fileChange.view": "View modification",
   "desktopInspector.rightSidebar": "Right sidebar",
   "inspectorTabs.sidebarFeatures": "Sidebar features",
   "inspectorTabs.subagents": "Subagents",

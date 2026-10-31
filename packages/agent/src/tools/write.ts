@@ -5,6 +5,7 @@ import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";
 import type { ToolRegistration } from "../harness/types.ts";
 import { requireEnv } from "./env.ts";
 import { withFileMutationQueue } from "./file-mutation-queue.ts";
+import { completeFileChange, fileChangeBaseline, prepareFileChange, type FileChangeRecorder, type FileChangeReference } from "./file-change.ts";
 import { resolveToolPath } from "./path-utils.ts";
 
 const writeSchema = Type.Object(
@@ -18,7 +19,9 @@ const writeSchema = Type.Object(
 
 export type WriteToolInput = Static<typeof writeSchema>;
 
-export function createWriteTool(): ToolRegistration<typeof writeSchema> {
+export type WriteToolDetails = { fileChange?: FileChangeReference };
+
+export function createWriteTool(options: { fileChanges?: FileChangeRecorder } = {}): ToolRegistration<typeof writeSchema, WriteToolDetails> {
 	return defineTool({
 		name: "write",
 		description:
@@ -33,9 +36,14 @@ export function createWriteTool(): ToolRegistration<typeof writeSchema> {
 				absolutePath,
 				async () => {
 					if (context.abortSignal?.aborted) throw new Error("Operation aborted");
-					getOrThrow(await env.writeFile(absolutePath, content, context));
+					const capture = options.fileChanges ? await prepareFileChange(
+						options.fileChanges, path, await fileChangeBaseline(env, absolutePath, context), content, api, context,
+					) : undefined;
 					if (context.abortSignal?.aborted) throw new Error("Operation aborted");
-					return { output: [{ type: "text", text: `Successfully wrote to ${path}` }] };
+					getOrThrow(await env.writeFile(absolutePath, content, context));
+					const fileChange = await completeFileChange(capture, api);
+					if (context.abortSignal?.aborted) throw new Error("Operation aborted");
+					return { output: [{ type: "text", text: `Successfully wrote to ${path}` }], ...(fileChange ? { details: { fileChange } } : {}) };
 				},
 				context,
 			);

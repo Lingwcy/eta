@@ -67,6 +67,32 @@ test.each([
     input: { projectId: "project", kind: "issues", state: "all", owner: "arbitrary" },
   },
   { type: "github-query", input: { projectId: "", kind: "issues", state: "open" } },
+  { type: "workspace-changes", input: { workspaceId: "workspace", scope: "unknown" } },
+  { type: "workspace-changes", input: { workspaceId: "", scope: "all" } },
+  { type: "workspace-changes", input: { workspaceId: "workspace", scope: "all", path: "/secret" } },
+  {
+    type: "workspace-file-diff",
+    input: { workspaceId: "workspace", scope: "all", entryId: "file" },
+  },
+  {
+    type: "workspace-file-diff",
+    input: { workspaceId: "workspace", scope: "staged", entryId: "", expectedRevision: "revision" },
+  },
+  {
+    type: "workspace-file-diff",
+    input: {
+      workspaceId: "workspace",
+      scope: "unstaged",
+      entryId: "file",
+      expectedRevision: "revision",
+      path: "/secret",
+    },
+  },
+  { type: "file-change-diff", input: { threadId: "thread", changeId: "" } },
+  {
+    type: "file-change-diff",
+    input: { threadId: "thread", changeId: "change", workspaceId: "other" },
+  },
   { type: "storage", path: "/arbitrary-path" },
   { type: "reveal-storage", target: { kind: "configuration", id: "" } },
   { type: "reveal-storage", target: { kind: "sessions", path: "/arbitrary-path" } },

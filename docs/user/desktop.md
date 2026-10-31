@@ -32,6 +32,14 @@ See the [sandbox guide](./sandbox.md#在-worktree-中提交) for Git approvals a
 
 Desktop stores new worktrees in a separate directory beside its protected data directory. Existing chats keep their execution directories.
 
+## Review code changes
+
+**Code diff** appears in the right sidebar when the current chat’s execution workspace has Git changes. The file list compares HEAD with the working tree and includes untracked files. Ignored files are excluded. A file can have staged and unstaged changes even when its overall difference is empty. This viewer is read-only.
+
+Choose **View modification** beside a recorded file operation in chat to see that operation’s saved difference, then select a file in the tree to inspect its current state. Saved differences do not change when the file is edited again, committed or deleted. Recording covers Eta’s edit and write tools, including Code mode and subagents. Shell commands and external editors affect the workspace view but do not have an individually attributed history. Older operations may not have a saved difference; unavailable, binary and oversized content is identified rather than reconstructed from today’s files. A non-Git workspace can still show recorded modifications.
+
+Drag the divider at the left edge of the right sidebar to adjust its width; the divider also supports arrow keys. Each sidebar feature remembers its own width across restarts, while keeping space for the main area. The changed-file tree has its own divider and width; resizing the sidebar changes the code area, not the tree.
+
 ## Browse GitHub PRs and issues
 
 The right sidebar opens by default when it has available content. Select its GitHub tab, then choose PR or Issues in the header to browse open entries. The options menu retains repository selection, state filters, refresh and access status. The GitHub tab appears when the project has a GitHub remote and its host supports GitHub queries; the subagent tab appears when the current chat has subagents. Entries open in your external browser. Repository context follows the chat’s actual execution workspace. **Alt+←** collapses or restores the current sidebar, including from web and settings tabs.

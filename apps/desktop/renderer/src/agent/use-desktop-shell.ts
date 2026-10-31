@@ -11,6 +11,8 @@ import { useDesktopTabs } from "./use-desktop-tabs";
 import { useDesktopShortcuts } from "./use-desktop-shortcuts";
 import { useTabPresentations } from "./use-tab-presentations";
 import { useBrowserPages } from "@/browser/use-browser-pages";
+import type { InspectorContent } from "@/components/inspector/inspector-tabs";
+import { useCodeDiff } from "./use-code-diff";
 
 export function useDesktopShell() {
   const desktop = useDesktopLibrary();
@@ -27,7 +29,8 @@ export function useDesktopShell() {
     setSelectedSubagents((current) => ({ ...current, [threadId]: path }));
   const [version, setVersion] = useState(0);
   const inspectorConversation = inspectedConversation(navigation.state);
-  const subagents = useSubagents(inspectorConversation?.threadId, version);
+  const inspectorActivity = useSubagents(inspectorConversation?.threadId, version);
+  const subagents = inspectorActivity.agents;
   const contextWorkspace = inspectedWorkspace(inspectorConversation, desktop.library);
   const project = desktop.library?.projects.find(
     (value) => value.id === contextWorkspace?.projectId,
@@ -46,15 +49,50 @@ export function useDesktopShell() {
     !remote || Boolean(desktop.library?.bot?.capabilities?.includes("github"));
   const githubAvailable =
     githubSupported && projectGit.info?.status === "ready" && Boolean(projectGit.info.github);
-  const [inspectorContent, setInspectorContent] = useState<"subagents" | "github">("subagents");
-  const inspectorAvailable = subagents.length > 0 || githubAvailable;
+  const diffRemote = isCloudId(contextWorkspace?.id ?? inspectorConversation?.threadId);
+  const diffSupported =
+    !diffRemote || Boolean(desktop.library?.bot?.capabilities?.includes("code-diff"));
+  const diffConnectionKey = JSON.stringify([
+    diffRemote ? desktop.library?.bot?.url : "local",
+    diffRemote ? desktop.library?.bot?.status : "connected",
+    inspectorConversation?.id,
+    inspectorConversation?.threadId,
+    version,
+  ]);
+  const [inspectorContent, setInspectorContent] = useState<InspectorContent>("subagents");
   const [inspectorExpanded, setInspectorExpanded] = useState(true);
+  const diff = useCodeDiff({
+    workspaceId: contextWorkspace?.id,
+    threadId: inspectorConversation?.threadId ?? undefined,
+    connectionKey: diffConnectionKey,
+    revision: version + inspectorActivity.revision,
+    supported: diffSupported && (!diffRemote || desktop.library?.bot?.status === "connected"),
+    onOpen: () => {
+      setInspectorContent("diff");
+      setInspectorExpanded(true);
+    },
+  });
+  const diffAvailable = diff.available;
+  const activeInspectorContent: InspectorContent =
+    inspectorContent === "diff" && diffAvailable
+      ? "diff"
+      : inspectorContent === "github" && githubAvailable
+        ? "github"
+        : inspectorContent === "subagents" && subagents.length
+          ? "subagents"
+          : subagents.length
+            ? "subagents"
+            : githubAvailable
+              ? "github"
+              : "diff";
+  const inspectorAvailable = subagents.length > 0 || githubAvailable || diffAvailable;
   const inspectorOpen = inspectorAvailable && inspectorExpanded;
   useEffect(() => {
     githubClient.clear();
   }, [githubClient, desktop.library?.bot?.url, desktop.library?.bot?.status]);
-  const selectInspectorContent = (next: "github" | "subagents") => {
-    if (next === "github" ? !githubAvailable : !subagents.length) return;
+  const selectInspectorContent = (next: InspectorContent) => {
+    if (next === "diff" ? !diffAvailable : next === "github" ? !githubAvailable : !subagents.length)
+      return;
     setInspectorContent(next);
   };
   const toggleInspector = useCallback(() => {
@@ -139,8 +177,13 @@ export function useDesktopShell() {
     inspectorAvailable,
     inspectorOpen,
     toggleInspector,
-    inspectorContent,
+    inspectorContent: activeInspectorContent,
     selectInspectorContent,
+    diff: {
+      ...diff,
+      connectionKey: diffConnectionKey,
+      revision: version + inspectorActivity.revision,
+    },
     github: {
       client: githubClient,
       project,

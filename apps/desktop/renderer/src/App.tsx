@@ -9,6 +9,11 @@ import { GitHubPanel } from "@/components/projects/github-panel";
 import { InspectorTabs } from "@/components/inspector/inspector-tabs";
 import { ToastNotice } from "@/components/ui/toast";
 import { useTranslation } from "react-i18next";
+import { lazy, Suspense } from "react";
+
+const DiffPanel = lazy(() =>
+  import("@/components/diff/diff-panel").then((module) => ({ default: module.DiffPanel })),
+);
 
 export function App() {
   useTranslation();
@@ -53,10 +58,25 @@ export function App() {
             <DesktopPanels shell={shell} />
           </div>
           {shell.inspectorAvailable && (
-            <DesktopInspector open={shell.inspectorOpen}>
+            <DesktopInspector open={shell.inspectorOpen} content={shell.inspectorContent}>
               <InspectorTabs
                 value={shell.inspectorContent}
                 onChange={shell.selectInspectorContent}
+                diff={
+                  shell.diff.available ? (
+                    <Suspense fallback={null}>
+                      <DiffPanel
+                        workspaceId={shell.diff.workspaceId}
+                        history={shell.diff.history}
+                        active={shell.inspectorOpen && shell.inspectorContent === "diff"}
+                        revision={shell.diff.revision}
+                        workspace={shell.diff.workspace}
+                        onWorkspaceSelect={shell.diff.showWorkspace}
+                        connectionKey={shell.diff.connectionKey}
+                      />
+                    </Suspense>
+                  ) : undefined
+                }
                 github={
                   shell.github.available && shell.github.project ? (
                     <GitHubPanel

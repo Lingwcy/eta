@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { InspectorTabs } from "./inspector-tabs";
+import { InspectorTabs, type InspectorContent } from "./inspector-tabs";
 let root: Root;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -33,12 +33,13 @@ test("sidebar tabs switch content without losing state or closing the sidebar", 
     );
   }
   function Inspector() {
-    const [value, setValue] = useState<"github" | "subagents">("github");
+    const [value, setValue] = useState<InspectorContent>("github");
     return createElement(InspectorTabs, {
       value,
       onChange: setValue,
       github: createElement(Github),
       subagents: "Agents",
+      diff: "Changes",
     });
   }
   await act(async () => root.render(createElement(Inspector)));
@@ -49,6 +50,8 @@ test("sidebar tabs switch content without losing state or closing the sidebar", 
   expect(activeContent()).toBe("Agents");
   await act(async () => tab("GitHub")!.click());
   expect(activeContent()).toBe("GitHub 1");
+  await act(async () => tab("代码差异")!.click());
+  expect(activeContent()).toBe("Changes");
   await act(async () => tab("GitHub")!.click());
   expect(activeContent()).toBe("GitHub 1");
 });

@@ -21,6 +21,8 @@ import { diagnoseRequest } from "./request-diagnostics.ts";
 import type { BotLog } from "./log.ts";
 
 const RequestId = Schema.NonEmptyString.check(Schema.isMaxLength(256));
+const DiffScope = Schema.Literals(["all", "staged", "unstaged"]);
+const DiffIdentifier = Schema.NonEmptyString.check(Schema.isMaxLength(1024));
 const Create = Schema.Struct({
   workspaceId: Schema.NullOr(Schema.NonEmptyString),
   requestId: RequestId,
@@ -56,6 +58,7 @@ export const BOT_CAPABILITIES = [
   "git",
   "worktree",
   "github",
+  "code-diff",
   "schedules",
   "temporary-workspace",
 ] as const;
@@ -405,6 +408,13 @@ export function createHttpApp(options: {
     );
     return context.json(await controller.subagent(id, input.command, input.requestId));
   });
+  app.post("/v1/threads/:id/file-change-diff", async (context) => {
+    const id = context.req.param("id");
+    const input = decode(Schema.Struct({ changeId: DiffIdentifier }), await readBody(context.req));
+    await options.projects.refreshForThread(id);
+    await controller.authorize(id);
+    return context.json(await core.fileChangeDiff({ threadId: id, changeId: input.changeId }));
+  });
   // Workspace requests validate only their target before reads, writes or cached replies.
   const ownedWorkspace = (id: string) => {
     if (!workspaceProjects.has(id))
@@ -424,6 +434,29 @@ export function createHttpApp(options: {
       phase("encode");
       return context.json(repository);
     });
+  });
+  app.post("/v1/workspaces/:id/changes", async (context) => {
+    const id = context.req.param("id");
+    const input = decode(Schema.Struct({ scope: DiffScope }), await readBody(context.req));
+    await options.projects.refreshForWorkspace(id);
+    return context.json(
+      await core.workspaceChanges({ workspaceId: ownedWorkspace(id), scope: input.scope }),
+    );
+  });
+  app.post("/v1/workspaces/:id/diff", async (context) => {
+    const id = context.req.param("id");
+    const input = decode(
+      Schema.Struct({
+        scope: DiffScope,
+        entryId: DiffIdentifier,
+        expectedRevision: DiffIdentifier,
+      }),
+      await readBody(context.req),
+    );
+    await options.projects.refreshForWorkspace(id);
+    return context.json(
+      await core.workspaceFileDiff({ workspaceId: ownedWorkspace(id), ...input }),
+    );
   });
   app.get("/v1/workspaces/:id/branches", async (context) => {
     const id = context.req.param("id");

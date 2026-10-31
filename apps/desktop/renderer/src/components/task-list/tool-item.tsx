@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Reveal } from "@/components/ui/reveal";
 import { ToolDetailsPanel } from "./tool-details-panel";
+import { useFileChangeAction } from "@/agent/file-diff-actions";
+import { Button } from "@/components/ui/button";
+import { FileDiff } from "lucide-react";
 
 const toolIcons = { read: Search, edit: FilePenLine, write: FileCode2, bash: Terminal };
 
@@ -35,6 +38,7 @@ export function ToolItem({ tool }: { tool: SnapshotTool }) {
 function GenericToolItem({ tool }: { tool: SnapshotTool }) {
   useTranslation();
   const [open, setOpen] = useMessageExpansion(`tool:${tool.toolCallId}`);
+  const openDiff = useFileChangeAction(tool);
   const failed = tool.status === "settled" && tool.isError;
   const running = tool.status === "running";
   const waiting = tool.status === "waiting";
@@ -59,29 +63,44 @@ function GenericToolItem({ tool }: { tool: SnapshotTool }) {
   return (
     <Reveal>
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger
-          variant="ghost-muted"
-          size="menu-item"
-          title={label}
-          aria-label={`${tool.description ? `${tool.description} · ` : ""}${label} · ${t(
-            "chat:toolItem.details",
-            {
-              value1: open ? t("chat:toolItem.collapseAll") : t("chat:toolItem.expand"),
-              toolName: tool.toolName,
-            },
-          )}`}
-        >
-          <Icon size={14} aria-hidden="true" />
-          <span
-            className={cn("min-w-0 flex-1 truncate", failed && "text-red-600")}
-            title={tool.description}
-          >
-            {tool.description ?? label}
-          </span>
-          {tool.description && tool.status !== "settled" && (
-            <span className="shrink-0 text-xs">{stateLabel}</span>
+        <div className="flex min-w-0 items-center">
+          <div className="min-w-0 flex-1">
+            <CollapsibleTrigger
+              variant="ghost-muted"
+              size="menu-item"
+              title={label}
+              aria-label={`${tool.description ? `${tool.description} · ` : ""}${label} · ${t(
+                "chat:toolItem.details",
+                {
+                  value1: open ? t("chat:toolItem.collapseAll") : t("chat:toolItem.expand"),
+                  toolName: tool.toolName,
+                },
+              )}`}
+            >
+              <Icon size={14} aria-hidden="true" />
+              <span
+                className={cn("min-w-0 flex-1 truncate", failed && "text-red-600")}
+                title={tool.description}
+              >
+                {tool.description ?? label}
+              </span>
+              {tool.description && tool.status !== "settled" && (
+                <span className="shrink-0 text-xs">{stateLabel}</span>
+              )}
+            </CollapsibleTrigger>
+          </div>
+          {openDiff && (
+            <Button
+              variant="ghost-muted"
+              size="icon-tiny"
+              aria-label={t("inspector:fileChange.view")}
+              title={t("inspector:fileChange.view")}
+              onClick={openDiff}
+            >
+              <FileDiff size={14} aria-hidden="true" />
+            </Button>
           )}
-        </CollapsibleTrigger>
+        </div>
         <CollapsibleContent>
           <ToolDetailsPanel tool={tool} />
         </CollapsibleContent>
