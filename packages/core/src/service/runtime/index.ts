@@ -124,13 +124,36 @@ export class RuntimeRegistryService extends Context.Service<
         let computer: Awaited<ReturnType<typeof createComputerRuntime>> | undefined;
         let settingsDelivery = Promise.resolve();
         let unsubscribeSettings: (() => void) | undefined;
-        const adoptEnvironment = async (env: ExecutionEnv) => {
-          if (runtimeRecord?.disposed) {
+        let environmentScope = { active: true, retiring: 0 };
+        const adoptEnvironment = async (env: ExecutionEnv, scope: typeof environmentScope) => {
+          if (runtimeRecord?.disposed || !scope.active) {
             await env.cleanup(BACKGROUND_CONTEXT);
-            throw new CoreError({ code: "RuntimeClosing", message: "会话运行资源已关闭" });
+            throw new CoreError({
+              code: runtimeRecord?.disposed ? "RuntimeClosing" : "SandboxUnavailable",
+              message: runtimeRecord?.disposed ? "会话运行资源已关闭" : "沙盒策略已变更，请重试",
+            });
           }
           environments.add(env);
           return env;
+        };
+        // Keep admissions retired until every overlapping policy mutation settles, including failure.
+        const retireEnvironments = async (run: (current: ExecutionEnv[]) => Promise<void>) => {
+          const scope = environmentScope;
+          scope.active = false;
+          scope.retiring++;
+          sandboxEnvironments.clear();
+          try {
+            await run([...environments]);
+          } finally {
+            if (--scope.retiring === 0) {
+              sandboxEnvironments.clear();
+              environmentScope = { active: true, retiring: 0 };
+            }
+          }
+        };
+        const cleanEnvironments = async (current: ExecutionEnv[]) => {
+          await closeAll(current.map((env) => () => env.cleanup(BACKGROUND_CONTEXT)));
+          for (const env of current) environments.delete(env);
         };
         const codemode = new RuntimeCodemodeSandbox(
           environment.codemodeAssets
@@ -258,6 +281,7 @@ export class RuntimeRegistryService extends Context.Service<
                 await tx.doc(SkillsDoc, conversation.id);
               },
               env: async ({ cwd, read, taskId, taskKind }, context) => {
+                const scope = environmentScope;
                 const state = await read.snapshot(SandboxDoc, context);
                 const mode = state?.mode ?? defaultSandboxMode;
                 if (!environment.allowedSandboxModes.includes(mode))
@@ -292,7 +316,7 @@ export class RuntimeRegistryService extends Context.Service<
                         : {}),
                     }),
                   )
-                    .then(adoptEnvironment)
+                    .then((env) => adoptEnvironment(env, scope))
                     .then((env) => {
                       if (taskKind === "pi.tool") {
                         const abort = () => {
@@ -304,7 +328,9 @@ export class RuntimeRegistryService extends Context.Service<
                       return env;
                     });
                   sandboxEnvironments.set(key, opening);
-                  void opening.catch(() => sandboxEnvironments.delete(key));
+                  void opening.catch(() => {
+                    if (sandboxEnvironments.get(key) === opening) sandboxEnvironments.delete(key);
+                  });
                 }
                 return opening;
               },
@@ -366,6 +392,7 @@ export class RuntimeRegistryService extends Context.Service<
             watches: new Set(),
             changes: new Set(),
             sandbox: async () => {
+              const scope = environmentScope;
               const state = await harness!.snapshot(SandboxDoc, BACKGROUND_CONTEXT);
               const mode = state?.mode ?? defaultSandboxMode;
               if (!environment.allowedSandboxModes.includes(mode))
@@ -388,9 +415,11 @@ export class RuntimeRegistryService extends Context.Service<
                       deniedRoots: [paths.dataRoot],
                       scratchRoot,
                     }),
-                  ).then(adoptEnvironment);
+                  ).then((env) => adoptEnvironment(env, scope));
                   sandboxEnvironments.set(key, pending);
-                  void pending.catch(() => sandboxEnvironments.delete(key));
+                  void pending.catch(() => {
+                    if (sandboxEnvironments.get(key) === pending) sandboxEnvironments.delete(key);
+                  });
                 }
                 const env = await pending;
                 return {
@@ -419,28 +448,28 @@ export class RuntimeRegistryService extends Context.Service<
                   code: "Busy",
                   message: "请先停止线程及子智能体，再切换沙盒模式",
                 });
-              await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
-              environments.clear();
-              sandboxEnvironments.clear();
-              await conversation.commit(async (tx) => {
-                const sandbox = await tx.doc(SandboxDoc);
-                sandbox.mode = mode;
-                sandbox.revision++;
-              }, BACKGROUND_CONTEXT);
+              await retireEnvironments(async (current) => {
+                await cleanEnvironments(current);
+                await conversation.commit(async (tx) => {
+                  const sandbox = await tx.doc(SandboxDoc);
+                  sandbox.mode = mode;
+                  sandbox.revision++;
+                }, BACKGROUND_CONTEXT);
+              });
               for (const notify of record.changes) notify();
             },
             revokeSandboxGrants: async () => {
-              await conversation.commit(async (tx) => {
-                const sandbox = await tx.doc(SandboxDoc);
-                sandbox.revision++;
-                const approvals = await tx.doc(ApprovalsDoc);
-                for (const request of approvals.requests)
-                  if (request.status === "pending" || request.status === "approved")
-                    request.status = "cancelled";
-              }, BACKGROUND_CONTEXT);
-              await Promise.all([...environments].map((env) => env.cleanup(BACKGROUND_CONTEXT)));
-              environments.clear();
-              sandboxEnvironments.clear();
+              await retireEnvironments(async (current) => {
+                await conversation.commit(async (tx) => {
+                  const sandbox = await tx.doc(SandboxDoc);
+                  sandbox.revision++;
+                  const approvals = await tx.doc(ApprovalsDoc);
+                  for (const request of approvals.requests)
+                    if (request.status === "pending" || request.status === "approved")
+                      request.status = "cancelled";
+                }, BACKGROUND_CONTEXT);
+                await cleanEnvironments(current);
+              });
             },
             recoveryRequired,
             running: false,
