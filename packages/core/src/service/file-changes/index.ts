@@ -103,6 +103,7 @@ export class FileChangeService extends Context.Service<
   FileChangeService,
   {
     recorder(ref: EtaSessionMetadata): FileChangeRecorder;
+    release(ref: EtaSessionMetadata): Promise<void>;
     fileChangeDiff(input: FileChangeDiffInput): Effect.Effect<DiffContent, CoreError>;
   }
 >()("eta/core/service/file-changes/FileChangeService") {
@@ -112,12 +113,33 @@ export class FileChangeService extends Context.Service<
       const catalog = yield* CatalogService;
       const paths = yield* AppPathsService;
       const repository = yield* SessionRepositoryService;
-      const recorders = new Map<string, FileChangeRecorder>();
-      yield* Effect.addFinalizer(() => Effect.sync(() => recorders.clear()));
+      const recorders = new Map<
+        string,
+        { recorder: FileChangeRecorder; stop: () => void; drain: () => Promise<void> }
+      >();
+      const releaseEntry = async (
+        key: string,
+        entry: { stop: () => void; drain: () => Promise<void> },
+      ) => {
+        entry.stop();
+        await entry.drain();
+        if (recorders.get(key) === entry) recorders.delete(key);
+      };
+      const release = async (ref: EtaSessionMetadata) => {
+        const key = ref.metadata.path;
+        const entry = recorders.get(key);
+        if (entry) await releaseEntry(key, entry);
+      };
+      yield* Effect.addFinalizer(() =>
+        Effect.promise(async () => {
+          await Promise.all([...recorders].map(([key, entry]) => releaseEntry(key, entry)));
+        }),
+      );
       const recorder = (ref: EtaSessionMetadata): FileChangeRecorder => {
         const key = ref.metadata.path;
         const existing = recorders.get(key);
-        if (existing) return existing;
+        if (existing) return existing.recorder;
+        let accepting = true;
         let pending = Promise.resolve();
         let quota: { bytes: number; count: number } | undefined;
         const serialized = <T>(run: () => Promise<T>) => {
@@ -131,8 +153,15 @@ export class FileChangeService extends Context.Service<
         const record: FileChangeRecorder = async (candidate, path, api) => {
           const id = createHash("sha256").update(`${ref.metadata.id}\0${api.taskId}`).digest("hex");
           const reference: FileChangeReference = { id, path, status: "uncertain" };
+          const unavailable = { ...reference, status: "unavailable" as const };
+          const unavailableCapture = {
+            reference: unavailable,
+            applied: async () => unavailable,
+          };
+          if (!accepting) return unavailableCapture;
           try {
             return await serialized(async (): Promise<FileChangeCapture> => {
+              if (!accepting) return unavailableCapture;
               const session = await sessionPath(ref, paths.sessionsRoot);
               const directory = (await artifactDirectory(session, true))!;
               const file = join(directory, `${id}.json`);
@@ -189,13 +218,16 @@ export class FileChangeService extends Context.Service<
               quota.count++;
               return {
                 reference,
-                applied: () =>
-                  serialized(async () => {
+                applied: () => {
+                  if (!accepting) return Promise.resolve(reference);
+                  return serialized(async () => {
+                    if (!accepting) return reference;
                     // Session deletion first drains producers; do not mkdir a deleted session during completion.
                     if ((await sessionPath(ref, paths.sessionsRoot)) !== session) return reference;
                     await writeJson(file, { ...artifact, state: finalState });
                     return { ...reference, status: finalState };
-                  }).catch(() => reference),
+                  }).catch(() => reference);
+                },
               };
             });
           } catch {
@@ -204,11 +236,18 @@ export class FileChangeService extends Context.Service<
             return { reference: unavailable, applied: async () => unavailable };
           }
         };
-        recorders.set(key, record);
+        recorders.set(key, {
+          recorder: record,
+          stop: () => {
+            accepting = false;
+          },
+          drain: () => pending,
+        });
         return record;
       };
       return FileChangeService.of({
         recorder,
+        release,
         fileChangeDiff: Effect.fn("FileChangeService.fileChangeDiff")(function* (
           input: FileChangeDiffInput,
         ) {

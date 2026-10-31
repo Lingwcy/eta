@@ -11,6 +11,7 @@ import { WorkspaceService } from "../../../src/service/workspaces/index.ts";
 import { ThreadService } from "../../../src/service/threads/index.ts";
 import { RuntimeRegistryService } from "../../../src/service/runtime/index.ts";
 import { ThreadTitleService } from "../../../src/service/titles/index.ts";
+import { FileChangeService } from "../../../src/service/file-changes/index.ts";
 import { CoreError } from "../../../src/service/errors.ts";
 import { ApprovalsDoc } from "../../../src/service/runtime/approval-doc.ts";
 import { SubagentsDoc } from "../../../src/agent/extension/subagent/index.ts";
@@ -57,13 +58,15 @@ async function fixture() {
   const registry = await runtime.runPromise(RuntimeRegistryService);
   const settings = await runtime.runPromise(TestSettings);
   const title = await runtime.runPromise(ThreadTitleService);
-  return { runtime, provider, workspace, threads, registry, settings, title };
+  const fileChanges = await runtime.runPromise(FileChangeService);
+  return { runtime, provider, workspace, threads, registry, settings, title, fileChanges };
 }
 
 test.each(["before-title", "after-title", "unsubscribe-error", "healthy"])(
   "runtime startup releases settings ownership after %s",
   async (mode) => {
-    const { runtime, provider, workspace, threads, registry, settings, title } = await fixture();
+    const { runtime, provider, workspace, threads, registry, settings, title, fileChanges } =
+      await fixture();
     const active = new Set<() => void>();
     const subscribe = settings.subscribe.bind(settings);
     let rejectUnsubscribe = mode === "unsubscribe-error";
@@ -92,6 +95,7 @@ test.each(["before-title", "after-title", "unsubscribe-error", "healthy"])(
         ? watch(record).pipe(Effect.andThen(Effect.fail(error)))
         : Effect.fail(error);
     });
+    const recorderSpy = vi.spyOn(fileChanges, "recorder");
     if (mode !== "healthy") {
       await expect(runtime.runPromise(threads.create(workspace.id))).rejects.toMatchObject({
         code: error.code,
@@ -105,6 +109,14 @@ test.each(["before-title", "after-title", "unsubscribe-error", "healthy"])(
         disposed: true,
         subscriptions: 0,
       });
+      const failedRef = recorderSpy.mock.calls[0]?.[0];
+      const failedRecorder = recorderSpy.mock.results[0];
+      expect(failedRef).toBeDefined();
+      expect(failedRecorder?.type).toBe("return");
+      if (!failedRef || failedRecorder?.type !== "return")
+        throw new Error("Failed runtime did not create a file-change recorder");
+      expect(fileChanges.recorder(failedRef)).not.toBe(failedRecorder.value);
+      await fileChanges.release(failedRef);
     }
     const created = await runtime.runPromise(threads.create(workspace.id));
     const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));

@@ -10,6 +10,7 @@ import { ProjectService } from "../../../src/service/projects/index.ts";
 import { WorkspaceService } from "../../../src/service/workspaces/index.ts";
 import { ThreadService } from "../../../src/service/threads/index.ts";
 import { RuntimeRegistryService } from "../../../src/service/runtime/index.ts";
+import { FileChangeService } from "../../../src/service/file-changes/index.ts";
 import { ApprovalsDoc } from "../../../src/service/runtime/approval-doc.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -53,14 +54,15 @@ async function fixture() {
   const threads = await runtime.runPromise(ThreadService);
   const thread = await runtime.runPromise(threads.create(workspace.id));
   const registry = await runtime.runPromise(RuntimeRegistryService);
+  const fileChanges = await runtime.runPromise(FileChangeService);
   const record = await runtime.runPromise(registry.acquire(thread.thread.sessionRef));
-  return { runtime, provider, threads, thread, registry, record };
+  return { runtime, provider, threads, thread, registry, record, fileChanges };
 }
 
 test.each(["first", "second", "both", "none"])(
   "runtime close drains real resources and allows reopen when watch failure=%s",
   async (failure) => {
-    const { runtime, provider, threads, thread, registry, record } = await fixture();
+    const { runtime, provider, threads, thread, registry, record, fileChanges } = await fixture();
     provider.setResponses([
       fauxAssistantMessage("Before close"),
       fauxAssistantMessage("After reopen"),
@@ -74,6 +76,7 @@ test.each(["first", "second", "both", "none"])(
       )
       .toBe("completed");
     await expect.poll(() => record.running).toBe(false);
+    const recorder = fileChanges.recorder(thread.thread.sessionRef);
     const watches = await Promise.all([
       record.conversation.watch(BACKGROUND_CONTEXT),
       record.conversation.watch(BACKGROUND_CONTEXT),
@@ -99,6 +102,7 @@ test.each(["first", "second", "both", "none"])(
         message: "无法关闭会话运行资源",
       });
     expect(record.disposed).toBe(true);
+    expect(fileChanges.recorder(thread.thread.sessionRef)).not.toBe(recorder);
     expect(stopped.toSorted()).toEqual([0, 1]);
     const oldSession = await Promise.resolve()
       .then(() => record.harness.snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))

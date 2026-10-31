@@ -503,6 +503,7 @@ export class RuntimeRegistryService extends Context.Service<
               () => codemode.close(),
               () => closeAll([...environments].map((env) => () => env.cleanup(BACKGROUND_CONTEXT))),
               () => rm(scratchRoot, { recursive: true, force: true }),
+              () => fileChanges.release(ref),
             ]);
           });
           // Only the title task may resume silently; foreground work still requires explicit recovery.
@@ -520,6 +521,7 @@ export class RuntimeRegistryService extends Context.Service<
               () => codemode.close(),
               () => closeAll([...environments].map((env) => () => env.cleanup(BACKGROUND_CONTEXT))),
               () => rm(scratchRoot, { recursive: true, force: true }),
+              () => fileChanges.release(ref),
             ],
             [error],
           );
