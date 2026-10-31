@@ -15,14 +15,42 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { createCore, type CoreClient } from "../../src/client.ts";
 import type { RuntimeSettings } from "../../src/shared/runtime-settings.ts";
 import type { SnapshotResponse } from "../../src/agent/protocol.ts";
 
+const growth = vi.hoisted(() => ({
+  path: "",
+  apply: undefined as (() => Promise<void>) | undefined,
+}));
+vi.mock("node:fs/promises", async (original) => {
+  const fs = await original<typeof import("node:fs/promises")>();
+  return {
+    ...fs,
+    open: async (...args: Parameters<typeof fs.open>) => {
+      const file = await fs.open(...args);
+      if (args[0] === growth.path && growth.apply) {
+        const stat = file.stat.bind(file);
+        vi.spyOn(file, "stat").mockImplementation(async (options) => {
+          const info = await stat(options);
+          const apply = growth.apply;
+          growth.apply = undefined;
+          await apply?.();
+          return info;
+        });
+      }
+      return file;
+    },
+  };
+});
+
 const clients: CoreClient[] = [];
 const directories: string[] = [];
 afterEach(async () => {
+  growth.path = "";
+  growth.apply = undefined;
+  vi.restoreAllMocks();
   for (const core of clients.splice(0)) await core.close();
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
@@ -108,6 +136,63 @@ function references(value: unknown): Array<{ id: string; path: string; status: s
 const tool = (name: string, args: Record<string, JsonValue>) =>
   fauxAssistantMessage(fauxToolCall(name, args), { stopReason: "toolUse" });
 const script = (code: string) => tool("codemode", { code });
+
+test.each(["small", "at-limit", "already-over", "grow-to-limit", "grow-over"])(
+  "history artifact byte limit remains enforced for %s",
+  async (mode) => {
+    const f = await fixture();
+    f.provider.setResponses([
+      tool("write", { path: "sample.ts", content: "saved\n" }),
+      fauxAssistantMessage("Done"),
+    ]);
+    const [reference] = references(await f.run());
+    expect(reference?.status).toBe("recorded");
+    const input = { threadId: f.thread.id, changeId: reference!.id };
+    expect(await f.core.fileChangeDiff(input)).toMatchObject({
+      status: "ready",
+      patch: expect.stringContaining("+saved"),
+    });
+    const artifact = join(
+      f.thread.thread.sessionRef.metadata.path,
+      "file-changes",
+      reference!.id + ".json",
+    );
+    const original = await readFile(artifact);
+    const limit = 2 * 1024 * 1024;
+    const size = mode === "already-over" || mode === "grow-over" ? limit + 1 : limit;
+    const expand = async () => {
+      // JSON whitespace grows the actual file without changing its saved patch or identity.
+      await writeFile(
+        artifact,
+        Buffer.concat([original, Buffer.alloc(size - original.length, 0x20)]),
+      );
+    };
+    if (mode === "at-limit" || mode === "already-over") await expand();
+    if (mode.startsWith("grow-")) {
+      growth.path = artifact;
+      growth.apply = expand;
+    }
+    const outcome = await f.core.fileChangeDiff(input).then(
+      (value) => ({ status: value.status }),
+      (error: unknown) => ({
+        status: "rejected",
+        code: Predicate.isObject(error) ? error.code : undefined,
+      }),
+    );
+    expect(outcome).toEqual(
+      mode === "already-over" || mode === "grow-over"
+        ? { status: "rejected", code: "StorageCorrupt" }
+        : { status: "ready" },
+    );
+    expect(await readFile(join(f.cwd, "sample.ts"), "utf8")).toBe("saved\n");
+    await writeFile(artifact, original);
+    expect(await f.core.fileChangeDiff(input)).toMatchObject({
+      status: "ready",
+      patch: expect.stringContaining("+saved"),
+    });
+  },
+  30_000,
+);
 
 test.skipIf(process.platform === "win32")(
   "history diff rejects a FIFO artifact without waiting for a writer",
