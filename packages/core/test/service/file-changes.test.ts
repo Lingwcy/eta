@@ -1,5 +1,8 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { execFile } from "node:child_process";
+import { closeSync, constants, openSync } from "node:fs";
+import { promisify } from "node:util";
 import type { JsonValue } from "@earendil-works/chord";
 import { join } from "node:path";
 import { Effect, Predicate } from "effect";
@@ -105,6 +108,59 @@ function references(value: unknown): Array<{ id: string; path: string; status: s
 const tool = (name: string, args: Record<string, JsonValue>) =>
   fauxAssistantMessage(fauxToolCall(name, args), { stopReason: "toolUse" });
 const script = (code: string) => tool("codemode", { code });
+
+test.skipIf(process.platform === "win32")(
+  "history diff rejects a FIFO artifact without waiting for a writer",
+  async () => {
+    const f = await fixture();
+    f.provider.setResponses([
+      tool("write", { path: "sample.ts", content: "saved\n" }),
+      fauxAssistantMessage("Done"),
+    ]);
+    const [reference] = references(await f.run());
+    expect(reference?.status).toBe("recorded");
+    const input = { threadId: f.thread.id, changeId: reference!.id };
+    expect(await f.core.fileChangeDiff(input)).toMatchObject({
+      status: "ready",
+      patch: expect.stringContaining("+saved"),
+    });
+    const artifact = join(
+      f.thread.thread.sessionRef.metadata.path,
+      "file-changes",
+      reference!.id + ".json",
+    );
+    await rm(artifact);
+    await promisify(execFile)("mkfifo", [artifact]);
+    let settled = false;
+    const result = f.core.fileChangeDiff(input).then(
+      (value) => {
+        settled = true;
+        return { value };
+      },
+      (error: unknown) => {
+        settled = true;
+        return { error };
+      },
+    );
+    let writer: number | undefined;
+    try {
+      await expect.poll(() => settled, { timeout: 2000 }).toBe(true);
+      expect(await result).toMatchObject({ error: { code: "StorageCorrupt" } });
+    } finally {
+      try {
+        writer = openSync(artifact, constants.O_WRONLY | constants.O_NONBLOCK);
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENXIO")) throw error;
+      }
+      try {
+        await result;
+      } finally {
+        if (writer !== undefined) closeSync(writer);
+      }
+    }
+  },
+  30_000,
+);
 
 test.each(["standard", "codemode"] as const)(
   "%s history remains immutable across later writes, directory removal and restart",

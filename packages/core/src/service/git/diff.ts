@@ -356,10 +356,17 @@ async function worktreeContent(state: Snapshot, path: string, indexMode: string)
     if (!metadata.isFile()) return { status: "unavailable", reason: "unsupported" };
     if (metadata.size > WORKSPACE_DIFF_MAX_FILE_BYTES)
       return { status: "unavailable", reason: "too-large" };
-    const handle = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    // A regular file can become a FIFO after lstat; opening must not wait for a writer.
+    const handle = await open(
+      absolute,
+      constants.O_RDONLY |
+        (constants.O_NOFOLLOW ?? 0) |
+        (process.platform === "win32" ? 0 : constants.O_NONBLOCK),
+    );
     try {
       const info = await handle.stat();
-      if (!info.isFile() || info.size > WORKSPACE_DIFF_MAX_FILE_BYTES)
+      if (!info.isFile()) return { status: "unavailable", reason: "unsupported" };
+      if (info.size > WORKSPACE_DIFF_MAX_FILE_BYTES)
         return { status: "unavailable", reason: "too-large" };
       // A bounded positional read cannot grow without limit if another process appends.
       const buffer = Buffer.alloc(WORKSPACE_DIFF_MAX_FILE_BYTES + 1);

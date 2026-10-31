@@ -316,6 +316,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: validate compatibility with the serialized read contract, not only the in-memory schema. Represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
 - Seen: 2026-10-23, 2026-10-26.
 
+**Do not block while opening a file you intend to reject.**
+
+- Evidence: on 2026-10-31, #523 on `2954dda` swaps a real workspace file for a FIFO after its real lstat and replaces a real saved Core write artifact with a FIFO. Both read-only diff queries wait for a writer before reaching their handle type check; the regular-file control passes. POSIX nonblocking open lets both readers reject the actual special-file handle, while existing Git/history controls still pass. The fixture opens a real writer in finally so even the original implementation can terminate.
+- Check: use nonblocking POSIX opens for bounded file inspection, then verify and close the acquired handle before reading unsupported types. Keep no-follow and read-size protections. A prior pathname stat or subprocess timeout does not bound open. Scope FIFO tests and OS claims explicitly; this does not establish atomic parent-directory containment or universal device behavior.
+- Seen: 2026-10-31.
+
 **Release remaining resources even when an earlier teardown fails.**
 
 - Evidence: on 2026-10-27, #486 injects a rejected DiscordPort.stop into the real DiscordExtension with real SQLite. The normal control closes the handle; the failure control still permits status SQL reads because sequential teardown skips store.close. A finally around transport stop closes the database while preserving the original transport error, and a real reopen retains its cursor. The after-assertion cleanup lets the old implementation terminate without masking the resource postcondition.
