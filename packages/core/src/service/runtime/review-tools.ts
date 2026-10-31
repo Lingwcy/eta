@@ -2,6 +2,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { Type } from "@earendil-works/pi-ai";
 import type { Tool, ToolCall } from "@earendil-works/pi-ai";
 import type { Context } from "@earendil-works/chord";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ExecutionEnv } from "@eta/agent/env";
 
 export const REVIEW_TOOL_OUTPUT_LIMIT = 16 * 1024;
@@ -178,16 +179,32 @@ export function createReviewToolRunner(
     switch (call.name) {
       case "read": {
         const path = await inside(stringArg(args.path, "path"), context);
-        const text = await (await environment()).readTextFile(path, context);
-        if (!text.ok) throw new Error(text.error.message);
-        const offset = typeof args.offset === "number" ? args.offset : 1;
-        const limit = typeof args.limit === "number" ? args.limit : 400;
-        const lines = text.value.split("\n").slice(offset - 1, offset - 1 + limit);
-        return {
-          text: clip(lines.join("\n")),
-          isError: false,
-          summary: `read ${stringArg(args.path, "path")}`,
-        };
+        const opened = await (await environment()).openBinaryReader(path, undefined, context);
+        if (!opened.ok) throw new Error(opened.error.message);
+        const reader = opened.value;
+        try {
+          const offset = typeof args.offset === "number" ? args.offset : 1;
+          const limit = typeof args.limit === "number" ? args.limit : 400;
+          const range = await reader.scanLines(
+            { startLine: offset - 1, endLine: offset - 1 + limit },
+            context,
+          );
+          if (!range.ok) throw new Error(range.error.message);
+          // Locate lines in bounded memory; never transfer the unselected tail or an entire long line.
+          const bytes = await reader.read(
+            range.value.start,
+            Math.min(range.value.end - range.value.start, REVIEW_TOOL_OUTPUT_LIMIT + 1),
+            context,
+          );
+          if (!bytes.ok) throw new Error(bytes.error.message);
+          return {
+            text: clip(new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes.value)),
+            isError: false,
+            summary: `read ${stringArg(args.path, "path")}`,
+          };
+        } finally {
+          await reader.close(BACKGROUND_CONTEXT);
+        }
       }
       case "list": {
         const path = await inside(stringArg(args.path, "path"), context);
