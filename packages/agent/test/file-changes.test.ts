@@ -109,3 +109,20 @@ test("cancellation immediately after write retains confirmed history progress", 
   expect(await readFile(join(f.directory, "a.ts"), "utf8")).toBe("written");
   expect(f.progress.at(-1)).toEqual({ fileChange: { id: "1", path: "a.ts", status: "recorded" } });
 });
+
+test("cancellation during initial history progress still prevents the write", async () => {
+	const f = await fixture();
+	const controller = new AbortController();
+	const api = f.api();
+	api.details = async () => { controller.abort(); throw new Error("progress cancelled"); };
+	await expect(createWriteTool({ fileChanges: f.recorder }).execute({ path: "cancelled.ts", content: "must not write" }, api, withAbortSignal(controller.signal, BACKGROUND_CONTEXT))).rejects.toThrow("Operation aborted");
+	await expect(readFile(join(f.directory, "cancelled.ts"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+test("capture failure still permits the original file write without a history reference", async () => {
+	const f = await fixture();
+	const recorder: FileChangeRecorder = async () => { throw new Error("capture unavailable"); };
+	const result = await createWriteTool({ fileChanges: recorder }).execute({ path: "saved.ts", content: "saved" }, f.api(), BACKGROUND_CONTEXT);
+	expect(await readFile(join(f.directory, "saved.ts"), "utf8")).toBe("saved");
+	expect(result.details?.fileChange).toBeUndefined();
+});

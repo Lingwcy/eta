@@ -316,6 +316,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: validate compatibility with the serialized read contract, not only the in-memory schema. Represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
 - Seen: 2026-10-23, 2026-10-26.
 
+**Do not discard acquired effect confirmation when progress publication fails.**
+
+- Evidence: on 2026-10-31, #529 on `d9f9292` rejects initial tool progress publication after the real file-change recorder has returned its capture. Real Core write/edit tasks complete and their files change, but both durable histories remain uncertain because prepareFileChange drops the capture; normal and completion-progress failures are controls. Separating capture failure from progress failure preserves confirmed history after deleting the current file, while cancellation during initial progress still prevents the actual write.
+- Check: preserve an acquired capture across optional progress errors, but confirm it only after the actual effect succeeds. Keep cancellation and write-error guards separate. Assert real operation completion, disk content, persisted history and missing-file cancellation, not only whether notification callbacks ran. Declared progress errors are not evidence of an OS storage incident.
+- Seen: 2026-10-31.
+
 **Bound file inspection at the open and read boundaries.**
 
 - Evidence: on 2026-10-31, #523 on `2954dda` swaps a real workspace file for a FIFO after its real lstat and replaces a real saved Core write artifact with a FIFO. Both read-only diff queries wait for a writer before reaching their handle type check; the regular-file control passes. POSIX nonblocking open lets both readers reject the actual special-file handle, while existing Git/history controls still pass. The fixture opens a real writer in finally so even the original implementation can terminate.
