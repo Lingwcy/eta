@@ -156,6 +156,7 @@ export function ConversationPanel({
             {view.composerContext && <ComposerContext {...view.composerContext} />}
             <ApprovalNotice {...view.approval} />
             <CompositeInput
+              key={tab.threadId ?? tab.id}
               {...view.composer}
               skillsControl={
                 <SkillPicker

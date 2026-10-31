@@ -1,3 +1,5 @@
+import { inputRecords, projectQueuedInputs } from "../runs/inputs.ts";
+import type { InboxState } from "@eta/agent";
 import { toolIntents } from "@eta/agent/tools";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
@@ -142,6 +144,7 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
   const terminal = receipts.findLast(
     (receipt) =>
       receipt.type === "input" &&
+      receipt.entry !== undefined &&
       ((receipt.status === "done" && history.some((entry) => entry.id === receipt.answer)) ||
         (receipt.status === "unanswered" && !live.run?.inputs.includes(receipt.id))),
   );
@@ -190,6 +193,13 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     history.find((entry) => entry.id === id)?.model?.[0]?.timestamp ??
     runtime.ref.metadata.createdAt;
   const active = receipts.find((receipt) => receipt.id === live.run?.inputs[0]);
+  const inputMetadata = await inputRecords(runtime);
+  const inputTime = (receipt: SubmissionRecord | undefined) =>
+    (receipt &&
+      inputMetadata.find(
+        (input) => input.id === receipt.id || input.requestId === receipt.requestId,
+      )?.submittedAt) ??
+    entryTime(receipt?.entry);
   const subagents = await runtime.harness.snapshot(SubagentsDoc, BACKGROUND_CONTEXT);
   const waiting = subagents?.waiters?.some(
     (waiter) =>
@@ -197,6 +207,12 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
   );
   const approvals = await runtime.approvals.list();
   const snapshot: SnapshotResponse["snapshot"] = {
+    inputQueueSupported: true,
+    queuedInputs: projectQueuedInputs(
+      inputMetadata,
+      (view.docs["pi.inbox"] as InboxState | undefined)?.items ?? [],
+      receipts,
+    ),
     sandbox: await runtime.sandbox(),
     approvals,
     approvalHistory: await runtime.approvals.history(),
@@ -225,7 +241,7 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
       ? {
           id: String(live.run.inputs[0] ?? ""),
           kind: "run",
-          startedAt: entryTime(active?.entry),
+          startedAt: inputTime(active),
           status: "running",
           ...(waiting ? { waitingForSubagents: true } : {}),
           ...(approvals.length ? { waitingForApproval: true } : {}),
@@ -286,7 +302,7 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
       ? {
           operationId: String(terminal.id),
           kind: "run",
-          startedAt: entryTime(terminal.entry),
+          startedAt: inputTime(terminal),
           endedAt: terminal.status === "done" ? entryTime(terminal.answer) : timestamp,
           fromTipId: null,
           tipId: null,

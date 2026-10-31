@@ -790,3 +790,96 @@ test("chosen model configuration is remembered across new threads and restarts",
   await restarted.initialize();
   expect(restarted.getSnapshot().configuration).toEqual(customConfig);
 });
+
+test("Mobile streaming submission persists mode through an unknown-response retry", async () => {
+  const active = structuredClone(thread);
+  active.snapshot.inputQueueSupported = true;
+  active.snapshot.operation = { id: "root", status: "running", runningTools: [] };
+  const sent: Record<string, unknown>[] = [];
+  let fail = true;
+  const { store, saved } = setup(async (url, init) => {
+    const path = new URL(requestUrl(url)).pathname;
+    if (path.endsWith("/messages")) {
+      sent.push(requestBody(init));
+      if (fail) {
+        fail = false;
+        throw new Error("Connection lost");
+      }
+      return json({ operationId: "queued", kind: "run", startedAt: 2, status: "queued" }, 202);
+    }
+    if (path.endsWith("/events")) return events(init?.signal);
+    return json(path === "/v1/library" ? library : active);
+  });
+  await store.connect(connection);
+  await store.open(thread.id);
+  store.setDraft("do afterwards");
+  await expect(store.send("followUp")).rejects.toThrow("无法连接 Bot");
+  expect(saved.caches.get(connection.url)?.pending?.whenBusy).toBe("followUp");
+  expect(store.getSnapshot().drafts[draftKey(store.getSnapshot())]).toBe("do afterwards");
+  await store.retrySend();
+  expect(sent).toHaveLength(2);
+  expect(sent[0]).toMatchObject({ prompt: "do afterwards", whenBusy: "followUp" });
+  expect(sent[1]).toEqual(sent[0]);
+  expect(store.getSnapshot().pending).toBeUndefined();
+  expect(store.getSnapshot().drafts[draftKey(store.getSnapshot())]).toBeUndefined();
+});
+
+test("Mobile does not downgrade a busy submission on a Bot without queue support", async () => {
+  const active = structuredClone(thread);
+  active.snapshot.operation = { id: "root", status: "running", runningTools: [] };
+  let sends = 0;
+  const { store } = setup(async (url, init) => {
+    const path = new URL(requestUrl(url)).pathname;
+    if (path.endsWith("/messages")) sends++;
+    if (path.endsWith("/events")) return events(init?.signal);
+    return json(path === "/v1/library" ? library : active);
+  });
+  await store.connect(connection);
+  await store.open(thread.id);
+  store.setDraft("keep this draft");
+  await expect(store.send()).rejects.toThrow("不支持运行中发送");
+  expect(sends).toBe(0);
+  expect(store.getSnapshot().drafts[draftKey(store.getSnapshot())]).toBe("keep this draft");
+});
+
+test.each([false, true])(
+  "Mobile withdrawal keeps current draft ownership across awaits (switch=%s)",
+  async (switchView) => {
+    const response = Promise.withResolvers<Response>();
+    const entered = Promise.withResolvers<void>();
+    const { store } = setup(async (url, init) => {
+      const path = new URL(requestUrl(url)).pathname;
+      if (path.endsWith("/inputs/withdraw")) {
+        entered.resolve();
+        return response.promise;
+      }
+      if (path.endsWith("/events")) return events(init?.signal);
+      return json(path === "/v1/library" ? library : thread);
+    });
+    await store.connect(connection);
+    await store.open(thread.id);
+    store.setDraft("earlier draft");
+    const restoring = store.restoreInput("42");
+    try {
+      await entered.promise;
+      if (switchView) store.newThread("workspace");
+      store.setDraft("newer draft");
+      response.resolve(
+        json({
+          status: "withdrawn",
+          prompt: "recovered",
+          images: [{ type: "image", data: "AA==", mimeType: "image/png", name: "saved.png" }],
+        }),
+      );
+      expect(await restoring).toBe(!switchView);
+      const state = store.getSnapshot();
+      expect(state.drafts[draftKey(state)]).toBe(
+        switchView ? "newer draft" : "newer draft\n\nrecovered",
+      );
+      expect(state.draftImages[draftKey(state)]?.length ?? 0).toBe(switchView ? 0 : 1);
+    } finally {
+      response.resolve(json({ status: "settled" }));
+      await restoring;
+    }
+  },
+);

@@ -320,6 +320,12 @@ export class DesktopBot {
       ...value,
       snapshot: {
         ...value.snapshot,
+        inputQueueSupported:
+          this.capabilities.includes("input-queue") && value.snapshot.inputQueueSupported === true,
+        queuedInputs: value.snapshot.queuedInputs?.map((input) => ({
+          ...input,
+          operationId: this.prefix + input.operationId,
+        })),
         transcript: value.snapshot.transcript.map((entry) => ({
           ...entry,
           id: this.prefix + entry.id,
@@ -511,16 +517,24 @@ export class DesktopBot {
   async submit(
     ...args: Parameters<LocalDesktopApplication["submit"]>
   ): Promise<OperationAdmission> {
+    if (args[4] && args[4] !== "reject") this.requireCapability("input-queue");
     const receipt = await this.command<OperationAdmission>(args[0], "messages", {
       prompt: args[1],
       requestId: args[2] ?? crypto.randomUUID(),
       ...(args[3] ? { images: args[3] } : {}),
+      ...(args[4] ? { whenBusy: args[4] } : {}),
     });
     return {
       ...receipt,
       operationId: this.prefix + receipt.operationId,
       ...(receipt.inputEntryId ? { inputEntryId: this.prefix + receipt.inputEntryId } : {}),
     };
+  }
+  withdrawInput(id: string, operationId: string) {
+    this.requireCapability("input-queue");
+    return this.command<import("@eta/core/agent/protocol").WithdrawnInput>(id, "inputs/withdraw", {
+      operationId: this.raw(operationId),
+    });
   }
   command<T>(id: string, action: string, body: object = {}) {
     return this.request<T>(this.route(id) + "/" + action, body);
@@ -1231,6 +1245,8 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
       isCloudId(args[0]) ? choose(bot.configureSandbox(...args)) : local.configureSandbox(...args),
     decideApproval: (...args: Parameters<LocalDesktopApplication["decideApproval"]>) =>
       isCloudId(args[0]) ? choose(bot.decideApproval(...args)) : local.decideApproval(...args),
+    withdrawInput: (id: string, operationId: string) =>
+      isCloudId(id) ? bot.withdrawInput(id, operationId) : local.withdrawInput(id, operationId),
     submit: (...args: Parameters<LocalDesktopApplication["submit"]>) =>
       isCloudId(args[0]) ? bot.submit(...args) : local.submit(...args),
     stop: (id: string) => (isCloudId(id) ? bot.command<void>(id, "stop") : local.stop(id)),

@@ -246,6 +246,7 @@ export class RuntimeRegistryService extends Context.Service<
           });
           registry.install(subagents.extension);
           const tools = createRuntimeTools({
+            storage,
             registry,
             harness: () => harness,
             subagents,
@@ -262,6 +263,7 @@ export class RuntimeRegistryService extends Context.Service<
             {
               models,
               settings: {
+                afterFailedRun: "withdraw",
                 stream: {
                   headers: {
                     // Keep routing and prompt caching stable across requests and desktop restarts.

@@ -393,3 +393,62 @@ test("active skills cannot be removed during a running request", async () => {
   await runtime.runPromise(threads.unloadSkill(created.id, "review"));
   expect((await runtime.runPromise(threads.open(created.id))).snapshot.activeSkills).toEqual([]);
 });
+
+test("queued skill references activate when their input is consumed, not when it is admitted", async () => {
+  const { provider, runtime, threads, created, record, cwd } = await setup();
+  const audit = join(cwd, ".agents", "skills", "audit");
+  await mkdir(audit, { recursive: true });
+  await writeFile(
+    join(audit, "SKILL.md"),
+    "---\nname: audit\ndescription: Audit changes\n---\nQUEUED_AUDIT_INSTRUCTIONS",
+  );
+  const gates = Array.from({ length: 3 }, () => ({
+    reached: Promise.withResolvers<void>(),
+    finish: Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>(),
+  }));
+  const prompts: string[] = [];
+  provider.setResponses(
+    gates.map((gate) => (context, options) => {
+      prompts.push(getCurrentSystemPrompt(context.messages));
+      gate.reached.resolve();
+      options?.signal?.addEventListener(
+        "abort",
+        () => gate.finish.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+        { once: true },
+      );
+      return gate.finish.promise;
+    }),
+  );
+  try {
+    await runtime.runPromise(threads.submit(created.id, "original", "root"));
+    await gates[0]!.reached.promise;
+    await runtime.runPromise(
+      threads.submit(
+        created.id,
+        "context ".repeat(400) + "$audit after everything",
+        "audit",
+        undefined,
+        "followUp",
+      ),
+    );
+    await runtime.runPromise(
+      threads.submit(created.id, "$review first", "review", undefined, "steer"),
+    );
+    expect(
+      (await record.harness.snapshot(SkillsDoc, record.conversation.id, BACKGROUND_CONTEXT))
+        ?.active ?? [],
+    ).toEqual([]);
+    gates[0]!.finish.resolve(fauxAssistantMessage("root done"));
+    await gates[1]!.reached.promise;
+    expect(prompts[0]).not.toContain("PINNED_REVIEW_INSTRUCTIONS");
+    expect(prompts[1]).toContain("PINNED_REVIEW_INSTRUCTIONS");
+    expect(prompts[1]).not.toContain("QUEUED_AUDIT_INSTRUCTIONS");
+    gates[1]!.finish.resolve(fauxAssistantMessage("steer done"));
+    await gates[2]!.reached.promise;
+    expect(prompts[2]).toContain("QUEUED_AUDIT_INSTRUCTIONS");
+    gates[2]!.finish.resolve(fauxAssistantMessage("all done"));
+    await expect.poll(() => record.running).toBe(false);
+  } finally {
+    for (const gate of gates) gate.finish.resolve(fauxAssistantMessage("cleanup"));
+  }
+}, 30000);

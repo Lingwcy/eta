@@ -7,6 +7,7 @@ export function PromptTextarea({
   value,
   onChange,
   onSubmit,
+  allowFollowUp = false,
   placeholder = "Hi, what do you need today?",
   disabled = false,
   minRows = 2,
@@ -15,10 +16,17 @@ export function PromptTextarea({
   useTranslation();
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 拦截非输入法合成状态下的纯 Enter 按键进行提交
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      (!e.altKey || allowFollowUp) &&
+      !e.nativeEvent.isComposing
+    ) {
       e.preventDefault();
       if (!disabled) {
-        onSubmit();
+        onSubmit(e.altKey ? "followUp" : undefined);
       }
     }
   };

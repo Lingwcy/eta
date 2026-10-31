@@ -24,6 +24,14 @@ Use **Settings → Application → Storage (设置 → 应用 → 存储)** to c
 
 Back up the entire session directory, not just the main JSONL transcript. Subagents share that transcript, and task recovery also needs the adjacent state files. Reopening unfinished work requires an explicit resume or stop.
 
+## Add instructions while Eta is working
+
+Keep typing while a reply or tool is running. **Enter** sends a steering message: Eta uses it at the next safe boundary, after the current request and tool round finish. It does not cancel a model request, tool, or approval wait. Use **Queue follow-up** or **Alt+Enter** for a task that should wait until the current work and all steering messages finish. **Shift+Enter** still inserts a newline. Steering messages take priority even over earlier follow-ups.
+
+Pending messages appear separately from the conversation until they take effect. **Take back to draft** withdraws an unexecuted message and restores its text and images alongside your current draft. A message that has already taken effect cannot be withdrawn. Stop remains available when the input contains a draft; stopping cancels current work and pending messages. After a stop or terminal failure, unexecuted messages remain available to take back and send as new requests.
+
+A chat can hold up to 32 pending messages, subject to an attachment-size limit. If the queue is full, wait or take a message back; rejected sends keep your draft. Remote chats require a Bot that supports input queues; older Bots keep the previous running-time restriction. Context compaction and interrupted work still require waiting or explicit recovery.
+
 ## Start in a separate worktree
 
 Before sending the first message in a new chat, open the workspace configuration beside the project and enable **New worktree**. Use its branch menu to select an existing branch or enter a new branch name. Eta creates the directory when you send; uncommitted changes in the current checkout stay there. If creation or sending fails, the draft is preserved and retries reuse the created workspace. Checked-out branches and remote-tracking branches become the base of a new local branch. Workspace configuration hides after the chat starts.

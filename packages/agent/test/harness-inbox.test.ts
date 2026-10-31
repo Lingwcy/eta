@@ -589,10 +589,10 @@ describe("inbox", () => {
 		await harness.close(context);
 	});
 
-	it("queues an idle steer behind waiting items and places it with the first follow-up in ID order", async () => {
+	it("gives an idle steer priority over a waiting follow-up", async () => {
 		const setup = chatSetup();
 		const failing = gated(fauxAssistantMessage([], { stopReason: "error", errorMessage: "invalid request" }));
-		setup.faux.setResponses([failing.step, answer("both")]);
+		setup.faux.setResponses([failing.step, answer("steered"), answer("follow-up")]);
 		const { harness, root } = await openChat(new MemoryStorage(), setup);
 		const input = await root.submit({ type: "input", content: "a" }, context);
 		await failing.reached;
@@ -602,8 +602,14 @@ describe("inbox", () => {
 		await harness.waitForIdle(context);
 		const steer = await root.submit({ type: "input", content: "s", whenBusy: "steer" }, context);
 		const settled = await steer.wait(context);
-		expect(await status(f)).toMatchObject({ status: "done", answer: settled.status === "done" && settled.answer });
-		expect(transcript(await allEntries(root)).slice(-3)).toEqual(["pi.user:f", "pi.user:s", "pi.assistant:both"]);
+		await f.wait(context);
+		expect(settled.status).toBe("done");
+		expect(transcript(await allEntries(root)).slice(-4)).toEqual([
+			"pi.user:s",
+			"pi.assistant:steered",
+			"pi.user:f",
+			"pi.assistant:follow-up",
+		]);
 		await harness.close(context);
 	});
 

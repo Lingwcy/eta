@@ -1,4 +1,15 @@
 export default {
+  "inputQueue.steer": "补充指令",
+  "inputQueue.followUp": "排队执行",
+  "inputQueue.followUpHint": "排队执行（Alt+Enter）",
+  "inputQueue.pending": "待处理消息",
+  "inputQueue.steering": "补充指令 · 等待生效",
+  "inputQueue.following": "排队执行 · 等待本轮结束",
+  "inputQueue.cancelled": "已取消 · 未执行",
+  "inputQueue.failed": "前一轮失败 · 未执行",
+  "inputQueue.restore": "取回草稿",
+  "inputQueue.alreadyPlaced": "消息已生效，无法取回。",
+
   "useDesktopController.temporaryWorkspaceUnsupported":
     "升级此 Bot 后即可不在项目中工作，也可以先选择一个项目。",
   "client.theChatIsNotOpenYet": "会话尚未打开",

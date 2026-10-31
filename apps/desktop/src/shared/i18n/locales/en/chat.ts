@@ -1,4 +1,15 @@
 export default {
+  "inputQueue.steer": "Send steering message",
+  "inputQueue.followUp": "Queue follow-up",
+  "inputQueue.followUpHint": "Queue follow-up (Alt+Enter)",
+  "inputQueue.pending": "Pending messages",
+  "inputQueue.steering": "Steering · waiting",
+  "inputQueue.following": "Follow-up · waiting",
+  "inputQueue.cancelled": "Cancelled · not executed",
+  "inputQueue.failed": "Previous turn failed · not executed",
+  "inputQueue.restore": "Take back to draft",
+  "inputQueue.alreadyPlaced": "This message has already taken effect and cannot be taken back.",
+
   "useDesktopController.temporaryWorkspaceUnsupported":
     "Update this Bot to start a chat without a project, or choose a project.",
   "client.theChatIsNotOpenYet": "The chat is not open yet",

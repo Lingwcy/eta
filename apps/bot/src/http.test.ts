@@ -4497,3 +4497,172 @@ test.each([
   },
   15000,
 );
+
+function inputGate() {
+  const reached = Promise.withResolvers<void>();
+  const finish = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  return {
+    reached,
+    finish,
+    step: (_context: unknown, options?: { signal?: AbortSignal }) => {
+      reached.resolve();
+      options?.signal?.addEventListener(
+        "abort",
+        () => finish.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+        { once: true },
+      );
+      return finish.promise;
+    },
+  };
+}
+
+test("HTTP queues share one writer lease across later turns and reject mode-changing replays", async () => {
+  const { bot, provider, request, create } = await fixture();
+  const id = await create("streaming-input");
+  const peer = await create("streaming-peer");
+  const first = inputGate(),
+    second = inputGate(),
+    third = inputGate();
+  provider.setResponses([first.step, second.step, third.step]);
+  const send = (requestId: string, prompt: string, whenBusy?: "steer" | "followUp") =>
+    request("/v1/threads/" + id + "/messages", {
+      requestId,
+      prompt,
+      ...(whenBusy ? { whenBusy } : {}),
+    });
+  try {
+    expect((await send("root", "original")).status).toBe(202);
+    await first.reached.promise;
+    expect((await send("legacy", "reject while busy")).status).toBe(409);
+    const follow = await send("constructor", "afterwards", "followUp");
+    expect(follow.status).toBe(202);
+    const queued = (await follow.json()) as { operationId: string; status: string };
+    expect(queued.status).toBe("queued");
+    const replay = await send("constructor", "afterwards", "followUp");
+    expect(await replay.json()).toEqual(queued);
+    expect((await send("constructor", "afterwards", "steer")).status).toBe(409);
+    expect((await send("__proto__", "constraint", "steer")).status).toBe(202);
+    const compatible = OpenThreadSchema.parse(await (await request("/v1/threads/" + id)).json());
+    expect(compatible.snapshot.inputQueueSupported).toBe(true);
+    expect(compatible.snapshot.queuedInputs?.map((input) => input.mode)).toEqual([
+      "followUp",
+      "steer",
+    ]);
+    first.finish.resolve(fauxAssistantMessage("root done"));
+    await second.reached.promise;
+    expect((await bot.core.operation(id, queued.operationId)).status).toBe("queued");
+    expect(
+      (
+        await request("/v1/threads/" + peer + "/messages", {
+          prompt: "competing writer",
+          requestId: "peer",
+          whenBusy: "steer",
+        })
+      ).status,
+    ).toBe(409);
+    expect(bot.controller.status().activeThreads).toEqual([id]);
+    second.finish.resolve(fauxAssistantMessage("constraint done"));
+    await third.reached.promise;
+    expect((await bot.core.operation(id, queued.operationId)).status).toBe("running");
+    expect(bot.controller.status().activeThreads).toEqual([id]);
+    third.finish.resolve(fauxAssistantMessage("all done"));
+    await expect.poll(() => bot.controller.status().activeThreads, { timeout: 10000 }).toEqual([]);
+    expect(provider.state.callCount).toBe(3);
+  } finally {
+    first.finish.resolve(fauxAssistantMessage("cleanup"));
+    second.finish.resolve(fauxAssistantMessage("cleanup"));
+    third.finish.resolve(fauxAssistantMessage("cleanup"));
+  }
+}, 30000);
+
+test("HTTP withdrawal validates authentication and thread ownership without stopping the running input", async () => {
+  const { bot, provider, request, create } = await fixture();
+  const id = await create("withdraw-input");
+  const peer = await create("withdraw-peer");
+  const first = inputGate();
+  provider.setResponses([first.step]);
+  try {
+    const original = (await (
+      await request("/v1/threads/" + id + "/messages", { prompt: "original", requestId: "root" })
+    ).json()) as { operationId: string };
+    await first.reached.promise;
+    const queued = (await (
+      await request("/v1/threads/" + id + "/messages", {
+        prompt: "take back",
+        requestId: "later",
+        whenBusy: "followUp",
+      })
+    ).json()) as { operationId: string };
+    expect(
+      (
+        await bot.app.request("/v1/threads/" + id + "/inputs/withdraw", {
+          method: "POST",
+          body: JSON.stringify(queued),
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await request("/v1/threads/" + peer + "/inputs/withdraw", {
+          operationId: queued.operationId,
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      await (
+        await request("/v1/threads/" + id + "/inputs/withdraw", { operationId: queued.operationId })
+      ).json(),
+    ).toMatchObject({ status: "withdrawn", prompt: "take back" });
+    expect(
+      await (
+        await request("/v1/threads/" + id + "/inputs/withdraw", {
+          operationId: original.operationId,
+        })
+      ).json(),
+    ).toEqual({ status: "already_placed" });
+    expect((await bot.core.operation(id, original.operationId)).status).toBe("running");
+    expect(bot.controller.status().activeThreads).toEqual([id]);
+    await request("/v1/threads/" + id + "/stop", {});
+    expect(provider.state.callCount).toBe(1);
+  } finally {
+    first.finish.resolve(fauxAssistantMessage("cleanup"));
+  }
+}, 30000);
+
+test("a borrowed admission held across a receipt read cannot restart work after stop", async () => {
+  const { bot, provider, create } = await fixture();
+  const id = await create("stale-append");
+  const first = inputGate();
+  const entered = Promise.withResolvers<void>(),
+    release = Promise.withResolvers<void>();
+  provider.setResponses([first.step]);
+  let appending: Promise<unknown> | undefined;
+  const read = bot.core.operationByRequest;
+  const lookup = vi
+    .spyOn(bot.core, "operationByRequest")
+    .mockImplementation(async (threadId, requestId) => {
+      if (requestId === "held-append") {
+        entered.resolve();
+        await release.promise;
+      }
+      return read(threadId, requestId);
+    });
+  try {
+    await bot.controller.submit(id, "original", "root");
+    await first.reached.promise;
+    appending = bot.controller.submit(id, "never execute", "held-append", undefined, "steer");
+    const rejected = expect(appending).rejects.toMatchObject({ code: "Busy" });
+    await entered.promise;
+    await bot.controller.stop(id);
+    release.resolve();
+    await rejected;
+    expect(await bot.core.operationByRequest(id, "held-append")).toBeUndefined();
+    expect(bot.controller.status().activeThreads).toEqual([]);
+    expect(provider.state.callCount).toBe(1);
+  } finally {
+    release.resolve();
+    first.finish.resolve(fauxAssistantMessage("cleanup"));
+    await appending?.catch(() => {});
+    lookup.mockRestore();
+  }
+}, 30000);

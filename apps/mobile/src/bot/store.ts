@@ -22,6 +22,7 @@ const PendingSchema = z.object({
   images: z.array(DraftImageSchema).optional(),
   createId: z.string(),
   messageId: z.string(),
+  whenBusy: z.enum(["steer", "followUp"]).optional(),
   configuration: ConfigurationSchema,
 });
 export const CacheSchema = z.object({
@@ -535,7 +536,7 @@ export class MobileStore {
     if (!this.client || this.state.status !== "connected") throw new Error("请先连接 Bot");
     return this.client;
   }
-  async send() {
+  async send(mode: "steer" | "followUp" = "steer") {
     if (this.state.sending) return;
     this.requireClient();
     if (this.state.pending) throw new Error("请先确认上一次消息的接收状态");
@@ -552,7 +553,9 @@ export class MobileStore {
       throw new Error("请先选择项目和模型");
     if (this.state.threadId && !this.state.thread) throw new Error("请先等待会话加载完成");
     if (this.state.thread?.thread.archivedAt) throw new Error("请先取消归档再发送消息");
-    if (this.state.thread?.snapshot.operation) throw new Error("当前会话正在执行任务");
+    const streaming = !!this.state.thread?.snapshot.operation;
+    if (streaming && !this.state.thread?.snapshot.inputQueueSupported)
+      throw new Error("当前 Bot 不支持运行中发送消息");
     if (
       this.state.thread?.snapshot.recoveryRequired ||
       this.state.thread?.snapshot.blockedReason ||
@@ -563,6 +566,7 @@ export class MobileStore {
     this.update({
       pending: {
         prompt,
+        ...(streaming ? { whenBusy: mode } : {}),
         ...(images.length ? { images } : {}),
         workspaceId: this.state.workspaceId,
         threadId: this.state.threadId,
@@ -618,7 +622,13 @@ export class MobileStore {
         if (epoch !== this.epoch) return;
         this.watch();
       }
-      await client.send(pending.threadId!, pending.prompt, pending.messageId, pending.images);
+      await client.send(
+        pending.threadId!,
+        pending.prompt,
+        pending.messageId,
+        pending.images,
+        pending.whenBusy,
+      );
       if (epoch !== this.epoch) return;
       const key = `thread:${pending.threadId}`;
       const originalKey =
@@ -659,6 +669,38 @@ export class MobileStore {
     } finally {
       if (epoch === this.epoch) this.update({ sending: false });
     }
+  }
+  async restoreInput(operationId: string) {
+    const client = this.requireClient();
+    const epoch = this.epoch;
+    const view = this.view;
+    const id = this.state.threadId;
+    if (!id || this.state.pending) throw new Error("请先确认当前消息的接收状态");
+    const result = await client.withdrawInput(id, operationId);
+    if (epoch !== this.epoch || view !== this.view) return false;
+    if (result.status === "already_placed" || result.prompt === undefined)
+      throw new Error("消息已生效，无法取回");
+    const key = draftKey(this.state);
+    const images = this.state.draftImages[key] ?? [];
+    if (images.length + (result.images?.length ?? 0) > MAX_DRAFT_IMAGES)
+      throw new Error("消息已撤回，请先移除部分草稿图片再取回");
+    this.update({
+      drafts: {
+        ...this.state.drafts,
+        [key]: [this.state.drafts[key], result.prompt].filter(Boolean).join("\n\n"),
+      },
+      draftImages: {
+        ...this.state.draftImages,
+        [key]: [
+          ...images,
+          ...(result.images ?? []).map((image) => ({ ...image, id: this.uuid() })),
+        ],
+      },
+    });
+    await this.persist();
+    if (epoch !== this.epoch || view !== this.view) return false;
+    await this.open(id);
+    return this.state.threadId === id;
   }
   async createProject(name: string) {
     const client = this.requireClient();

@@ -1,7 +1,7 @@
 import type { ImageAttachment } from "@eta/core/images/types";
 import { DesktopCommandError, unwrapReply } from "../command-reply.ts";
 import type { AgentBridge, CommandReply } from "../bridge.ts";
-import type { OperationAdmission } from "@eta/core/agent/protocol";
+import type { InputMode, OperationAdmission } from "@eta/core/agent/protocol";
 
 /** Decode in the calling realm; a rejected preload Error loses custom fields at contextBridge. */
 export async function submitMessage(
@@ -29,6 +29,7 @@ export async function submitMessage(
 export interface UncertainSubmission {
   requestId: string;
   prompt: string;
+  whenBusy?: InputMode;
   images?: readonly ImageAttachment[];
 }
 
@@ -43,8 +44,12 @@ export function submissionIdentity(
   previous: UncertainSubmission | undefined,
   prompt: string,
   images?: readonly ImageAttachment[],
+  whenBusy: InputMode = "reject",
 ) {
-  return previous && previous.prompt === prompt && sameImages(previous.images, images)
+  return previous &&
+    (previous.whenBusy ?? "reject") === whenBusy &&
+    previous.prompt === prompt &&
+    sameImages(previous.images, images)
     ? previous.requestId
     : crypto.randomUUID();
 }

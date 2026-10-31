@@ -4,8 +4,11 @@ import type { ImageAttachment } from "../../images/types.ts";
 import { realpath, stat } from "node:fs/promises";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { Context, Effect, Layer } from "effect";
+import { InboxDoc } from "@eta/agent";
 import type { SubmissionRecord, Submission } from "@eta/agent";
-import type { OperationAdmission } from "../../agent/protocol.ts";
+import { randomUUID } from "node:crypto";
+import { checkQueueCapacity, inputFingerprint, inputRecords, rememberInput } from "./inputs.ts";
+import type { InputMode, OperationAdmission } from "../../agent/protocol.ts";
 import { adapter, CoreError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
@@ -20,6 +23,7 @@ export class RunSupervisorService extends Context.Service<
       prompt: string,
       requestId?: string,
       images?: readonly ImageAttachment[],
+      whenBusy?: InputMode,
     ): Effect.Effect<OperationAdmission, CoreError>;
     resume(runtime: ThreadRuntime): Effect.Effect<void, CoreError>;
     stop(runtime: ThreadRuntime): Effect.Effect<void, CoreError>;
@@ -34,7 +38,12 @@ export class RunSupervisorService extends Context.Service<
       const models = yield* ModelCatalogService;
       const resources = yield* AgentResourcesService;
       const access = yield* WorkspaceAccessService;
-      const leases = new Set<ThreadRuntime>();
+      type Lease = {
+        kind: "run" | "control";
+        closing: boolean;
+        admission?: PromiseWithResolvers<void>;
+      };
+      const leases = new Map<ThreadRuntime, Lease>();
       const executions = new Map<ThreadRuntime, Promise<unknown>>();
       const inputs = new Map<ThreadRuntime, Submission>();
       const listeners = new Set<() => void>();
@@ -78,7 +87,10 @@ export class RunSupervisorService extends Context.Service<
           return "会话模型或认证不可用，请在设置中配置认证或更换会话模型";
         return undefined;
       });
-      const ready = Effect.fn("RunSupervisorService.ready")(function* (runtime: ThreadRuntime) {
+      const ready = Effect.fn("RunSupervisorService.ready")(function* (
+        runtime: ThreadRuntime,
+        append = false,
+      ) {
         if (runtime.disposed)
           return yield* new CoreError({
             code: "RuntimeClosing",
@@ -99,37 +111,45 @@ export class RunSupervisorService extends Context.Service<
             message: blocked,
           });
         const input = inputs.get(runtime);
-        if (input && leases.has(runtime)) {
+        if (!append && input && leases.has(runtime)) {
           const receipt = yield* adapter("无法检查执行记录", () =>
             input.status(BACKGROUND_CONTEXT),
           );
           // A persisted terminal receipt can become visible just before the supervisor releases its lease.
-          if (receipt.status === "done" || receipt.status === "unanswered")
+          if (
+            (receipt.status === "done" || receipt.status === "unanswered") &&
+            !(yield* adapter("无法检查执行状态", runtime.hasWork))
+          )
             yield* adapter("无法释放已完成执行", async () => {
               await executions.get(runtime);
             });
         }
-        if (leases.has(runtime))
+        if (
+          leases.has(runtime) &&
+          (!append || leases.get(runtime)?.kind !== "run" || leases.get(runtime)?.closing)
+        )
           return yield* new CoreError({
             code: "Busy",
             message: "此会话已有任务运行，请等待或停止该任务",
           });
-        if (!runtime.recoveryRequired)
+        if (!runtime.recoveryRequired && !leases.has(runtime))
           yield* adapter("无法更新思考级别", () =>
             normalizeThinkingLevel(runtime.conversation, models.models),
           );
       });
-      const reserve = (runtime: ThreadRuntime) => {
+      const reserve = (runtime: ThreadRuntime, kind: Lease["kind"] = "control") => {
         if (leases.has(runtime))
           throw new CoreError({ code: "Busy", message: "此会话已有任务运行" });
-        leases.add(runtime);
+        const owner: Lease = { kind, closing: false };
+        leases.set(runtime, owner);
         runtime.running = true;
+        return owner;
       };
-      const claim = async (runtime: ThreadRuntime) => {
+      const claim = async (runtime: ThreadRuntime, kind: Lease["kind"] = "control") => {
         if (access.removing(runtime.ref.metadata.cwd))
           throw new CoreError({ code: "WorkspaceUnavailable", message: "工作区正在移除" });
         // Removal must see this claim while its last asynchronous eligibility read is pending.
-        reserve(runtime);
+        const owner = reserve(runtime, kind);
         try {
           const reason = await Effect.runPromise(access.reason(runtime.ref.metadata.cwd));
           if (reason || access.removing(runtime.ref.metadata.cwd))
@@ -137,13 +157,17 @@ export class RunSupervisorService extends Context.Service<
               code: "WorkspaceUnavailable",
               message: reason ?? "工作区正在移除",
             });
+          return owner;
         } catch (error) {
-          leases.delete(runtime);
-          runtime.running = false;
+          if (leases.get(runtime) === owner) {
+            leases.delete(runtime);
+            runtime.running = false;
+          }
           throw error;
         }
       };
-      const release = (runtime: ThreadRuntime) => {
+      const release = (runtime: ThreadRuntime, owner = leases.get(runtime)) => {
+        if (leases.get(runtime) !== owner) return;
         leases.delete(runtime);
         runtime.running = false;
         executions.delete(runtime);
@@ -151,28 +175,45 @@ export class RunSupervisorService extends Context.Service<
         changed(runtime);
       };
       /** Run-scoped approvals end when the root conversation goes idle, even if background children continue. */
-      const expireRunGrants = (
-        runtime: ThreadRuntime,
-        started: Promise<unknown> = Promise.resolve(),
-      ) => {
-        // A queued submission is not yet a task, so idleness only counts once the input has been taken up.
-        void started
-          .then(() => runtime.conversation.waitForIdle(BACKGROUND_CONTEXT))
-          .then(() => {
-            if (!runtime.disposed)
-              return runtime.approvals.expireRunGrants(runtime.conversation.id);
-          })
-          .catch((error: unknown) => {
-            if (!runtime.disposed) Effect.runFork(Effect.logError(error));
-          });
+      const expireRunGrants = async (runtime: ThreadRuntime) => {
+        try {
+          if (!runtime.disposed) await runtime.approvals.expireRunGrants(runtime.conversation.id);
+        } catch (error) {
+          if (!runtime.disposed) Effect.runFork(Effect.logError(error));
+        }
       };
       const supervise = (runtime: ThreadRuntime, settled: Promise<unknown>) => {
+        const owner = leases.get(runtime)!;
         const execution = settled
+          .then(async () => {
+            for (;;) {
+              await runtime.conversation.waitForIdle(BACKGROUND_CONTEXT);
+              if (leases.get(runtime) !== owner || runtime.disposed) return;
+              if (owner.admission) {
+                await owner.admission.promise;
+                continue;
+              }
+              owner.closing = true;
+              // Converge any legacy inbox left by a preserved failed run before releasing ownership.
+              await runtime.conversation.commit(async (tx) => {
+                const inbox = await tx.doc(InboxDoc, runtime.conversation.id);
+                for (let index = inbox.items.length - 1; index >= 0; index--) {
+                  const input = inbox.items[index]!;
+                  if (input.mode === "write") continue;
+                  tx.settleSubmission(input.id, { status: "unanswered", reason: "run_failed" });
+                  inbox.items.splice(index, 1);
+                }
+              }, BACKGROUND_CONTEXT);
+              if (owner.kind === "run" && leases.get(runtime) === owner)
+                void expireRunGrants(runtime);
+              return;
+            }
+          })
           .catch((error: unknown) => {
-            if (!runtime.disposed)
+            if (!runtime.disposed && leases.get(runtime) === owner)
               runtime.error = error instanceof Error ? error.message : "执行失败";
           })
-          .finally(() => release(runtime));
+          .finally(() => release(runtime, owner));
         executions.set(runtime, execution);
       };
       return RunSupervisorService.of({
@@ -188,12 +229,26 @@ export class RunSupervisorService extends Context.Service<
           prompt: string,
           requestId?: string,
           images?: readonly ImageAttachment[],
+          whenBusy: InputMode = "reject",
         ) {
           const content = yield* adapter(
             "图片或消息无效",
             async () => imageInput(prompt, images, (32 * 1024 * 1024 * 4) / 3),
             "InvalidInput",
           );
+          if (!["reject", "steer", "followUp"].includes(whenBusy))
+            return yield* new CoreError({ code: "InvalidInput", message: "消息模式无效" });
+          const fingerprint = inputFingerprint(prompt, images, whenBusy);
+          const previous = requestId
+            ? (yield* adapter("无法检查消息身份", () => inputRecords(runtime))).find(
+                (record) => record.requestId === requestId,
+              )
+            : undefined;
+          if (previous && previous.fingerprint !== fingerprint)
+            return yield* new CoreError({
+              code: "InvalidInput",
+              message: "请求标识已用于另一条消息或模式",
+            });
           if (requestId) {
             const existing = yield* adapter("无法查询已提交请求", () =>
               runtime.storage.submissionByRequest(
@@ -203,6 +258,10 @@ export class RunSupervisorService extends Context.Service<
               ),
             );
             if (existing) {
+              if (previous && previous.id === undefined)
+                yield* adapter("无法保存消息身份", () =>
+                  rememberInput(runtime, { ...previous, id: existing.id }),
+                );
               return yield* adapter("无法读取提交记录", () => admission(runtime, existing));
             }
           }
@@ -211,82 +270,136 @@ export class RunSupervisorService extends Context.Service<
               code: "RecoveryRequired",
               message: "请先恢复或停止未完成任务",
             });
-          yield* ready(runtime);
-          yield* adapter("无法更新工具配置", runtime.refreshTools);
-          const agent = yield* adapter("无法读取图片模型限制", () =>
-            runtime.conversation.agent(BACKGROUND_CONTEXT),
-          );
-          const model =
-            agent.model && models.models.getModel(agent.model.provider, agent.model.modelId);
-          const maximum = model?.inputLimits?.images?.maxPerMessage;
-          if (maximum && images && images.length > maximum)
-            return yield* new CoreError({
-              code: "InvalidInput",
-              message: `当前模型每条消息最多支持 ${maximum} 张图片`,
-            });
-          const prepared =
-            images?.length && resources.processImage
-              ? yield* adapter(
-                  "无法处理图片",
-                  () =>
-                    Promise.all(
-                      images.map(async (image) => {
-                        const next = await resources.processImage!(
-                          Buffer.from(image.data, "base64"),
-                          image.name ?? "image.png",
-                          model?.inputLimits?.images?.resize,
-                        );
-                        return {
-                          ...next,
-                          note:
-                            [...new Set([image.note, next.note].filter(Boolean))].join("\n") ||
-                            undefined,
-                        };
-                      }),
-                    ),
-                  "InvalidInput",
+          const owner = leases.get(runtime);
+          const append = whenBusy !== "reject" && owner?.kind === "run" && !owner.closing;
+          if (append) owner.admission = Promise.withResolvers<void>();
+          const admissionGate = append ? owner.admission : undefined;
+          const work = Effect.gen(function* () {
+            yield* ready(runtime, append);
+            if (!append) yield* adapter("无法更新工具配置", runtime.refreshTools);
+            const agent = yield* adapter("无法读取图片模型限制", () =>
+              runtime.conversation.agent(BACKGROUND_CONTEXT),
+            );
+            const model =
+              agent.model && models.models.getModel(agent.model.provider, agent.model.modelId);
+            const maximum = model?.inputLimits?.images?.maxPerMessage;
+            if (maximum && images && images.length > maximum)
+              return yield* new CoreError({
+                code: "InvalidInput",
+                message: `当前模型每条消息最多支持 ${maximum} 张图片`,
+              });
+            const prepared =
+              images?.length && resources.processImage
+                ? yield* adapter(
+                    "无法处理图片",
+                    () =>
+                      Promise.all(
+                        images.map(async (image) => {
+                          const next = await resources.processImage!(
+                            Buffer.from(image.data, "base64"),
+                            image.name ?? "image.png",
+                            model?.inputLimits?.images?.resize,
+                          );
+                          return {
+                            ...next,
+                            note:
+                              [...new Set([image.note, next.note].filter(Boolean))].join("\n") ||
+                              undefined,
+                          };
+                        }),
+                      ),
+                    "InvalidInput",
+                  )
+                : images;
+            const input = prepared?.length ? imageInput(prompt, prepared) : content;
+            const handle = yield* adapter("无法提交消息", async () => {
+              if (append && (leases.get(runtime) !== owner || owner.closing || runtime.disposed))
+                throw new CoreError({ code: "Busy", message: "执行已结束或正在停止，请重新发送" });
+              if (!append) await claim(runtime, "run");
+              const admittedOwner = leases.get(runtime)!;
+              let submitted = false;
+              try {
+                await checkQueueCapacity(runtime, input);
+                if (!append) await runtime.prepareMode();
+                if (!append) await runtime.prepareSkills(prompt);
+                if (
+                  runtime.disposed ||
+                  leases.get(runtime) !== admittedOwner ||
+                  admittedOwner.closing
                 )
-              : images;
-          const input = prepared?.length ? imageInput(prompt, prepared) : content;
-          const handle = yield* adapter("无法提交消息", async () => {
-            await claim(runtime);
-            try {
-              await runtime.prepareMode();
-              await runtime.prepareSkills(prompt);
-              const handle = await runtime.conversation.submit(
-                {
-                  type: "input",
-                  content: input,
-                  whenBusy: "reject",
-                  ...(requestId ? { requestId } : {}),
-                },
-                BACKGROUND_CONTEXT,
-              );
-              inputs.set(runtime, handle);
-              const settled = handle.wait(BACKGROUND_CONTEXT);
-              supervise(runtime, settled);
-              expireRunGrants(runtime, settled);
-              return handle;
-            } catch (error) {
-              release(runtime);
-              throw error;
-            }
+                  throw new CoreError({
+                    code: "Busy",
+                    message: "执行已结束或正在停止，请重新发送",
+                  });
+                const identity = requestId ?? randomUUID();
+                const record = {
+                  requestId: identity,
+                  fingerprint,
+                  prompt,
+                  mode: whenBusy,
+                  submittedAt: previous ? previous.submittedAt : Date.now(),
+                  images: (prepared ?? []).map(({ name, mimeType, note }) => ({
+                    ...(name ? { name } : {}),
+                    mimeType,
+                    ...(note ? { note } : {}),
+                  })),
+                };
+                await rememberInput(runtime, record, input);
+                if (
+                  runtime.disposed ||
+                  leases.get(runtime) !== admittedOwner ||
+                  admittedOwner.closing
+                )
+                  throw new CoreError({
+                    code: "Busy",
+                    message: "执行已结束或正在停止，请重新发送",
+                  });
+                const handle = await runtime.conversation.submit(
+                  {
+                    type: "input",
+                    content: input,
+                    whenBusy,
+                    requestId: identity,
+                  },
+                  BACKGROUND_CONTEXT,
+                );
+                submitted = true;
+                if (!append) {
+                  inputs.set(runtime, handle);
+                  const settled = handle.wait(BACKGROUND_CONTEXT);
+                  supervise(runtime, settled);
+                }
+                await rememberInput(runtime, { ...record, id: handle.id });
+                changed(runtime);
+                return handle;
+              } catch (error) {
+                if (!append && !submitted) release(runtime, admittedOwner);
+                throw error;
+              }
+            });
+            return yield* adapter("无法读取提交记录", async () =>
+              admission(runtime, await handle.status(BACKGROUND_CONTEXT)),
+            );
           });
-          return yield* adapter("无法读取提交记录", async () =>
-            admission(runtime, await handle.status(BACKGROUND_CONTEXT)),
+          return yield* work.pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                admissionGate?.resolve();
+                if (owner && owner.admission === admissionGate) delete owner.admission;
+              }),
+            ),
           );
         }, Effect.uninterruptible),
         resume: Effect.fn("RunSupervisorService.resume")(function* (runtime: ThreadRuntime) {
           yield* ready(runtime);
           yield* adapter("无法更新工具配置", runtime.refreshTools);
           yield* adapter("无法恢复任务", async () => {
-            await claim(runtime);
+            await claim(runtime, "run");
             runtime.recoveryRequired = false;
             await runtime.subagents.wake();
             runtime.harness.resume();
             // Background children report through durable tasks; only the root turn reserves input.
             supervise(runtime, runtime.conversation.waitForIdle(BACKGROUND_CONTEXT));
-            expireRunGrants(runtime);
             changed(runtime);
           });
         }, Effect.uninterruptible),
@@ -295,13 +408,15 @@ export class RunSupervisorService extends Context.Service<
             // abort also settles queued work; recovery is only resumed here to converge cancellation.
             // Cancellation must remain possible after the checkout is lost or tombstoned.
             if (!runtime.running) reserve(runtime);
+            const owner = leases.get(runtime)!;
+            owner.closing = true;
             try {
               runtime.recoveryRequired = false;
               await runtime.subagents.stopAll();
               await runtime.revokeSandboxGrants();
               await executions.get(runtime);
             } finally {
-              release(runtime);
+              release(runtime, owner);
             }
           }).pipe(Effect.uninterruptible),
         compact: Effect.fn("RunSupervisorService.compact")(function* (runtime: ThreadRuntime) {
@@ -344,7 +459,22 @@ async function admission(
         }
       : {}),
     operationId: String(receipt.id),
+    status:
+      receipt.status === "done"
+        ? "completed"
+        : receipt.status === "unanswered"
+          ? receipt.reason === "aborted"
+            ? "aborted"
+            : "failed"
+          : receipt.status === "queued"
+            ? "queued"
+            : "running",
     kind: "run",
-    startedAt: entry?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.createdAt,
+    startedAt:
+      (await inputRecords(runtime)).find(
+        (record) => record.id === receipt.id || record.requestId === receipt.requestId,
+      )?.submittedAt ??
+      entry?.entry.model?.[0]?.timestamp ??
+      runtime.ref.metadata.createdAt,
   };
 }

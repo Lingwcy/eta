@@ -10,8 +10,17 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { ArrowUp, ChevronDown, Cpu, ImagePlus, Shield, Square, X } from "lucide-react-native";
-import { colors } from "../ui.tsx";
+import {
+  ArrowUp,
+  ChevronDown,
+  Cpu,
+  ImagePlus,
+  Shield,
+  Square,
+  X,
+  ListPlus,
+} from "lucide-react-native";
+import { colors, IconButton } from "../ui.tsx";
 import type { DraftImage } from "../bot/store.ts";
 
 /** Chip labels sit on the soft grey chip background; muted drops them to 4.35:1 there. */
@@ -26,6 +35,7 @@ export interface ComposerInputProps {
   onChangeText: (text: string) => void;
   onSubmit: () => void;
   onStop: () => void;
+  onFollowUp?: () => void;
   onOpenConfiguration: () => void;
   running: boolean;
   canSend: boolean;
@@ -55,6 +65,7 @@ export function ComposerInput({
   onChangeText,
   onSubmit,
   onStop,
+  onFollowUp,
   onOpenConfiguration,
   running,
   canSend,
@@ -72,6 +83,7 @@ export function ComposerInput({
   const { width } = useWindowDimensions();
   /** Small phones cannot fit the sandbox label and token count beside the model picker. */
   const compactToolbar = width < 360;
+  const showStop = running && (!onFollowUp || (!value.trim() && !images.length));
   const showThinkingBadge = thinkingLevel && thinkingLevel !== "off" && thinkingLevelLabel;
 
   return (
@@ -176,7 +188,13 @@ export function ComposerInput({
             </View>
           )}
 
-          {running ? (
+          {running && onFollowUp && (
+            <IconButton icon={ListPlus} label="排队执行" disabled={!canSend} onPress={onFollowUp} />
+          )}
+          {running && !showStop && (
+            <IconButton icon={Square} label="停止任务" disabled={!canStop} onPress={onStop} />
+          )}
+          {showStop ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="停止任务"
@@ -195,7 +213,7 @@ export function ComposerInput({
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="发送消息"
+              accessibilityLabel={running ? "补充指令" : "发送消息"}
               hitSlop={2}
               disabled={!canSend}
               onPress={onSubmit}
