@@ -99,7 +99,19 @@ async function readArtifact(path: string) {
     const info = await file.stat();
     if (!info.isFile() || info.size > MAX_ARTIFACT_BYTES)
       throw new CoreError({ code: "StorageCorrupt", message: "文件修改记录大小或类型无效" });
-    return Schema.decodeUnknownSync(ArtifactSchema)(JSON.parse(await file.readFile("utf8")));
+    // The file can grow after fstat; bound the read itself, not only its earlier size.
+    const buffer = Buffer.alloc(MAX_ARTIFACT_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await file.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    if (length > MAX_ARTIFACT_BYTES)
+      throw new CoreError({ code: "StorageCorrupt", message: "文件修改记录大小或类型无效" });
+    return Schema.decodeUnknownSync(ArtifactSchema)(
+      JSON.parse(buffer.subarray(0, length).toString("utf8")),
+    );
   } finally {
     await file.close();
   }
