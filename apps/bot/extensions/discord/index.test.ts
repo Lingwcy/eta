@@ -862,10 +862,11 @@ test.each(["stop", "close", "replacement", "peer", "unchanged"])(
         await finished(app, "102");
         const replacement = app.discord!.store.input("102")!;
         expect(replacement.taskId).not.toBe(input.taskId);
-        expect((await inspect(issue.etaThreadId!, replacement.taskId!)).state).toMatchObject({
-          status: "terminal",
-          outcome: { status: "completed" },
-        });
+        await expect
+          .poll(() => inspect(issue.etaThreadId!, replacement.taskId!).then((task) => task.state), {
+            timeout: 5000,
+          })
+          .toMatchObject({ status: "terminal", outcome: { status: "completed" } });
       } else if (scenario !== "unchanged") {
         await app.discord!.control(
           scenario === "peer" ? "202" : "102",
