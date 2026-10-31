@@ -109,9 +109,15 @@ async function readArtifact(path: string) {
     }
     if (length > MAX_ARTIFACT_BYTES)
       throw new CoreError({ code: "StorageCorrupt", message: "文件修改记录大小或类型无效" });
-    return Schema.decodeUnknownSync(ArtifactSchema)(
-      JSON.parse(buffer.subarray(0, length).toString("utf8")),
-    );
+    let json: string;
+    try {
+      json = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+        buffer.subarray(0, length),
+      );
+    } catch {
+      throw new CoreError({ code: "StorageCorrupt", message: "文件修改记录编码无效" });
+    }
+    return Schema.decodeUnknownSync(ArtifactSchema)(JSON.parse(json));
   } finally {
     await file.close();
   }

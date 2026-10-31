@@ -137,6 +137,54 @@ const tool = (name: string, args: Record<string, JsonValue>) =>
   fauxAssistantMessage(fauxToolCall(name, args), { stopReason: "toolUse" });
 const script = (code: string) => tool("codemode", { code });
 
+test.each(["multibyte", "replacement-character", "invalid-byte", "incomplete-sequence"])(
+  "history artifact UTF-8 validation: %s",
+  async (mode) => {
+    const f = await fixture();
+    const content = mode === "replacement-character" ? "saved \uFFFD\n" : "saved π\n";
+    f.provider.setResponses([
+      tool("write", { path: "utf8.txt", content }),
+      fauxAssistantMessage("Done"),
+    ]);
+    const [reference] = references(await f.run());
+    expect(reference?.status).toBe("recorded");
+    const input = { threadId: f.thread.id, changeId: reference!.id };
+    const expected = await f.core.fileChangeDiff(input);
+    expect(expected).toMatchObject({ status: "ready", patch: expect.stringContaining(content) });
+    const artifact = join(
+      f.thread.thread.sessionRef.metadata.path,
+      "file-changes",
+      reference!.id + ".json",
+    );
+    const original = await readFile(artifact);
+    if (mode === "invalid-byte" || mode === "incomplete-sequence") {
+      const offset = original.indexOf(Buffer.from("π"));
+      expect(offset).toBeGreaterThanOrEqual(0);
+      const corrupted = Buffer.from(original);
+      corrupted.set(mode === "invalid-byte" ? [0xff, 0x80] : [0xe2, 0x82], offset);
+      await writeFile(artifact, corrupted);
+      const outcome = await f.core.fileChangeDiff(input).then(
+        (value) => ({
+          status: value.status,
+          ...(value.status === "ready" ? { patch: value.patch } : {}),
+        }),
+        (error: unknown) => ({
+          status: "rejected",
+          code: Predicate.isObject(error) ? error.code : undefined,
+        }),
+      );
+      expect(outcome).toEqual({ status: "rejected", code: "StorageCorrupt" });
+      expect(await readFile(artifact)).toEqual(corrupted);
+    } else {
+      expect(await f.core.fileChangeDiff(input)).toEqual(expected);
+    }
+    await writeFile(artifact, original);
+    expect(await f.core.fileChangeDiff(input)).toEqual(expected);
+    expect(await readFile(join(f.cwd, "utf8.txt"), "utf8")).toBe(content);
+  },
+  30_000,
+);
+
 test.each(["small", "at-limit", "already-over", "grow-to-limit", "grow-over"])(
   "history artifact byte limit remains enforced for %s",
   async (mode) => {
