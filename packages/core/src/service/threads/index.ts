@@ -1,3 +1,5 @@
+import { withdrawInput } from "../runs/inputs.ts";
+import type { InputMode, WithdrawnInput } from "../../agent/protocol.ts";
 import { canGenerateTitle, applyInputTitle, applyManualTitle } from "../titles/policy.ts";
 import type { SubagentCommand, SubagentSummary } from "../../shared/subagents.ts";
 import type { CreateThreadConfiguration, SnapshotResponse } from "../../agent/protocol.ts";
@@ -93,7 +95,9 @@ export class ThreadService extends Context.Service<
       prompt: string,
       requestId?: string,
       images?: readonly ImageAttachment[],
+      whenBusy?: InputMode,
     ): Effect.Effect<OperationAdmission, ThreadError>;
+    withdrawInput(id: string, operationId: string): Effect.Effect<WithdrawnInput, ThreadError>;
     stop(id: string): Effect.Effect<void, ThreadError>;
     resume(id: string): Effect.Effect<void, ThreadError>;
     compact(id: string): Effect.Effect<void, ThreadError>;
@@ -572,7 +576,7 @@ export class ThreadService extends Context.Service<
               }),
             ),
           ),
-        submit: (id, prompt, requestId, images) =>
+        submit: (id, prompt, requestId, images, whenBusy) =>
           locked(
             Effect.gen(function* () {
               const runtime = yield* runtimeFor(id, true);
@@ -583,7 +587,7 @@ export class ThreadService extends Context.Service<
                   (yield* Effect.promise(() => runtime.conversation.agent(BACKGROUND_CONTEXT)))
                     .model)
                 : undefined;
-              const admission = yield* runs.submit(runtime, prompt, requestId, images);
+              const admission = yield* runs.submit(runtime, prompt, requestId, images, whenBusy);
               yield* change(id, (thread) => ({
                 ...applyInputTitle(
                   thread,
@@ -602,6 +606,13 @@ export class ThreadService extends Context.Service<
                 }).pipe(Effect.catch((error) => Effect.logError(error)));
               }
               return admission;
+            }),
+          ),
+        withdrawInput: (id, operationId) =>
+          locked(
+            Effect.gen(function* () {
+              const runtime = yield* runtimeFor(id);
+              return yield* adapter("无法撤回消息", () => withdrawInput(runtime, operationId));
             }),
           ),
         stop: (id) =>

@@ -250,7 +250,10 @@ async function createLocalDesktopApplication(
         prompt: string,
         requestId?: string,
         images?: readonly ImageAttachment[],
-      ) => run(threads.submit(id, prompt, requestId, images)),
+        whenBusy?: import("@eta/core/agent/protocol").InputMode,
+      ) => run(threads.submit(id, prompt, requestId, images, whenBusy)),
+      withdrawInput: (id: string, operationId: string) =>
+        run(threads.withdrawInput(id, operationId)),
       stop: (id: string) => run(threads.stop(id)),
       resume: (id: string) => run(threads.resume(id)),
       compact: (id: string) => run(threads.compact(id)),

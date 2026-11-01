@@ -1,6 +1,6 @@
 import { LocalizedError, describeError, type Message } from "@/i18n/messages";
 import type { ImageAttachment } from "@eta/core/images/types";
-import type { OperationAdmission } from "@eta/core/agent/protocol";
+import type { InputMode, OperationAdmission } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentBridge } from "../../../src/bridge.ts";
 import { DesktopCommandError, unwrapReply } from "../../../src/command-reply.ts";
@@ -12,7 +12,10 @@ import {
 } from "../../../src/shared/message-request.ts";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 
+import { unplacedInputs, type SubmittedInput } from "./submitted-inputs";
+
 export interface AgentClientState {
+  submittedInputs: readonly SubmittedInput[];
   session: Pick<SessionResponse, "id" | "model"> | null;
   observation: SnapshotResponse | null;
   connection: "connecting" | "connected" | "error";
@@ -23,6 +26,7 @@ export interface AgentClientState {
 }
 
 export const initialAgentState: AgentClientState = {
+  submittedInputs: [],
   session: null,
   observation: null,
   connection: "connecting",
@@ -41,6 +45,7 @@ export class ThreadAgentClient {
   private stopAdmissionWatch?: () => void;
   private disposed = false;
   private connection?: AbortController;
+  private submitOwner?: object;
 
   constructor(private readonly bridge: AgentBridge = window.eta) {}
 
@@ -53,6 +58,12 @@ export class ThreadAgentClient {
   async connect(threadId: string) {
     if (this.disposed) return;
     this.connection?.abort();
+    if (this.state.session && this.state.session.id !== threadId) {
+      this.submitOwner = undefined;
+      this.uncertainSubmission = undefined;
+      this.stopAdmissionWatch?.();
+      this.update(initialAgentState);
+    }
     const connection = new AbortController();
     this.connection = connection;
     this.unsubscribeEvents?.();
@@ -79,6 +90,7 @@ export class ThreadAgentClient {
         session: { id: session.id, model: session.model },
         observation: { snapshot: session.snapshot, contextTokens: session.contextTokens },
         connection: "connected",
+        submittedInputs: unplacedInputs(session.snapshot, this.state.submittedInputs),
         error: null,
       });
       if (!current()) return;
@@ -135,13 +147,22 @@ export class ThreadAgentClient {
     });
   }
 
-  async submit(prompt: string, images?: readonly ImageAttachment[]) {
+  async submit(
+    prompt: string,
+    images?: readonly ImageAttachment[],
+    whenBusy: InputMode = "reject",
+  ) {
+    const append =
+      whenBusy !== "reject" && this.state.observation?.snapshot.inputQueueSupported === true;
+    if (whenBusy !== "reject" && !append)
+      throw new LocalizedError("chat:client.theAgentIsNotReadyYet");
     if (
       this.state.connection !== "connected" ||
       this.state.submitting ||
-      this.state.observation?.snapshot.operation ||
+      (!append && this.state.observation?.snapshot.operation) ||
       this.state.observation?.snapshot.compacting ||
-      this.state.admission ||
+      (!append && this.state.admission) ||
+      this.state.stopping ||
       this.state.observation?.snapshot.recoveryRequired ||
       this.state.observation?.snapshot.blockedReason
     )
@@ -149,29 +170,93 @@ export class ThreadAgentClient {
     const sessionId = this.state.session?.id;
     if (!sessionId) throw new LocalizedError("chat:client.theChatIsNotOpenYet");
     // A retried message keeps the identity its first attempt may already have committed.
-    const requestId = submissionIdentity(this.uncertainSubmission, prompt, images);
-    this.update({ submitting: true, error: null });
+    const requestId = submissionIdentity(this.uncertainSubmission, prompt, images, whenBusy);
+    const owner = {};
+    this.submitOwner = owner;
+    const current = () =>
+      !this.disposed && this.submitOwner === owner && this.state.session?.id === sessionId;
+    this.update({
+      submitting: true,
+      error: null,
+      ...(append
+        ? {
+            submittedInputs: [
+              ...this.state.submittedInputs.filter((input) => input.requestId !== requestId),
+              {
+                requestId,
+                prompt,
+                images,
+                mode: whenBusy,
+                submittedAt: Date.now(),
+                status: "sending",
+              },
+            ],
+          }
+        : {}),
+    });
     try {
-      const admission = await submitMessage(this.bridge, sessionId, prompt, images, requestId);
+      const admission = await submitMessage(
+        this.bridge,
+        sessionId,
+        prompt,
+        images,
+        requestId,
+        whenBusy,
+      );
+      if (!current()) return;
       this.uncertainSubmission = undefined;
       const snapshot = this.state.observation?.snapshot;
+      const submittedInputs = this.state.submittedInputs.map((input) =>
+        input.requestId === requestId
+          ? {
+              ...input,
+              operationId: admission.operationId,
+              inputEntryId: admission.inputEntryId,
+              status: "queued" as const,
+            }
+          : input,
+      );
       this.update({
-        admission:
-          snapshot?.operation?.id === admission.operationId ||
-          snapshot?.lastResult?.operationId === admission.operationId
-            ? null
-            : admission,
+        submittedInputs: snapshot ? unplacedInputs(snapshot, submittedInputs) : submittedInputs,
       });
+      if (!append)
+        this.update({
+          admission:
+            snapshot?.operation?.id === admission.operationId ||
+            snapshot?.lastResult?.operationId === admission.operationId
+              ? null
+              : admission,
+        });
     } catch (error) {
+      if (!current()) throw error;
       // Only an unknown outcome justifies reusing the identity on the next attempt.
       this.uncertainSubmission = admissionUncertain(error)
-        ? { requestId, prompt, images }
+        ? { requestId, prompt, images, whenBusy }
         : undefined;
-      this.update({ error: message(error) });
+      this.update({
+        error: message(error),
+        submittedInputs: this.state.submittedInputs.flatMap((input) =>
+          input.requestId !== requestId
+            ? [input]
+            : this.uncertainSubmission
+              ? [{ ...input, status: "uncertain" as const }]
+              : [],
+        ),
+      });
       throw error;
     } finally {
-      this.update({ submitting: false });
+      if (current()) {
+        this.submitOwner = undefined;
+        this.update({ submitting: false });
+      }
     }
+  }
+
+  async withdrawInput(operationId: string) {
+    const sessionId = this.state.session?.id;
+    if (!sessionId || !this.bridge.withdrawInput)
+      throw new LocalizedError("chat:client.theAgentIsNotReadyYet");
+    return this.bridge.withdrawInput(sessionId, operationId);
   }
 
   async stop() {
@@ -197,6 +282,7 @@ export class ThreadAgentClient {
   }
 
   private observe(observation: SnapshotResponse) {
+    const submittedInputs = unplacedInputs(observation.snapshot, this.state.submittedInputs);
     const id = this.state.admission?.operationId;
     const acknowledged =
       id &&
@@ -204,6 +290,7 @@ export class ThreadAgentClient {
         observation.snapshot.lastResult?.operationId === id);
     this.update({
       observation,
+      submittedInputs,
       connection: "connected",
       error: null,
       ...(acknowledged ? { admission: null } : {}),

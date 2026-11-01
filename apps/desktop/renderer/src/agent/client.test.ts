@@ -38,7 +38,7 @@ class TestBridge implements AgentBridge {
       configuration: { model: { provider, modelId }, thinkingLevel },
     },
   });
-  submit = async (_sessionId: string, _prompt: string) => admission;
+  submit: AgentBridge["submit"] = async (_sessionId, _prompt) => admission;
   operation = vi.fn(async (_id: string, operationId: string): Promise<OperationResult> => ({
     ...admission,
     operationId,
@@ -819,4 +819,163 @@ test("a completed message releases its identity before the next identical send",
   expect(client.getSnapshot().admission).toBeNull();
   await expect(client.submit("Repeat me")).resolves.toBeUndefined();
   expect(calls[1]).not.toBe(calls[0]);
+});
+
+test("explicit queue admissions do not occupy the singleton execution acknowledgement slot", async () => {
+  session.snapshot.inputQueueSupported = true;
+  session.snapshot.operation = {
+    ...admission,
+    id: "root",
+    status: "running",
+    fromTipId: null,
+    runningTools: [],
+  };
+  let count = 0;
+  const send = vi.fn<AgentBridge["submit"]>(async () => ({
+    ...admission,
+    operationId: "queued-" + ++count,
+    status: "queued",
+  }));
+  bridge.submit = send;
+  const client = await connectedClient();
+  await client.submit("first", undefined, "followUp");
+  expect(client.getSnapshot().submitting).toBe(false);
+  expect(client.getSnapshot().admission).toBeNull();
+  await client.submit("second", undefined, "steer");
+  expect(send.mock.calls.map((call) => call[4])).toEqual(["followUp", "steer"]);
+  const snapshot = structuredClone(session.snapshot);
+  snapshot.operation = null;
+  snapshot.lastResult = {
+    ...admission,
+    operationId: "queued-2",
+    status: "completed",
+    fromTipId: null,
+    tipId: null,
+    endedAt: 2000,
+  };
+  bridge.emit({ snapshot, contextTokens: 0 });
+  expect(client.getSnapshot().admission).toBeNull();
+  await expect(client.submit("third", undefined, "steer")).resolves.toBeUndefined();
+});
+
+test("an older Bot without input-queue support never receives a mode it cannot honor", async () => {
+  const client = await connectedClient();
+  const send = vi.fn(bridge.submit);
+  bridge.submit = send;
+  await expect(client.submit("do not downgrade", undefined, "followUp")).rejects.toThrow();
+  expect(send).not.toHaveBeenCalled();
+});
+
+test("an unknown queue submission preserves its request ID and includes mode in retry identity", async () => {
+  session.snapshot.inputQueueSupported = true;
+  const client = await connectedClient();
+  const send = vi.fn<AgentBridge["submit"]>(async () => {
+    throw new DesktopCommandError({
+      code: "SubmissionUnknown",
+      message: "No reply",
+      retryable: true,
+    });
+  });
+  bridge.submit = send;
+  await expect(client.submit("same", undefined, "steer")).rejects.toThrow("No reply");
+  await expect(client.submit("same", undefined, "steer")).rejects.toThrow("No reply");
+  expect(send.mock.calls[0]![3]).toBe(send.mock.calls[1]![3]);
+  await expect(client.submit("same", undefined, "followUp")).rejects.toThrow("No reply");
+  expect(send.mock.calls[2]![3]).not.toBe(send.mock.calls[0]![3]);
+});
+
+test("refreshing the same view while a submission is pending still settles its transport state", async () => {
+  session.snapshot.inputQueueSupported = true;
+  const held = Promise.withResolvers<OperationAdmission>();
+  bridge.submit = () => held.promise;
+  const client = await connectedClient();
+  const sending = client.submit("same view", undefined, "steer");
+  try {
+    await client.connect(session.id);
+    held.resolve({ ...admission, status: "queued" });
+    await sending;
+    expect(client.getSnapshot().submitting).toBe(false);
+  } finally {
+    held.resolve(admission);
+    await sending;
+  }
+});
+
+test("a late submission reply cannot overwrite a replacement view or clear its pending send", async () => {
+  const held = Promise.withResolvers<OperationAdmission>();
+  const next = Promise.withResolvers<OperationAdmission>();
+  bridge.submit = (_id, prompt) => (prompt === "old" ? held.promise : next.promise);
+  const client = await connectedClient();
+  const old = client.submit("old");
+  let replacement: Promise<void> | undefined;
+  try {
+    bridge.session = { ...session, id: "replacement" };
+    await client.connect("replacement");
+    replacement = client.submit("replacement");
+    held.resolve(admission);
+    await old;
+    expect(client.getSnapshot().session?.id).toBe("replacement");
+    expect(client.getSnapshot().submitting).toBe(true);
+    expect(client.getSnapshot().admission).toBeNull();
+    next.resolve({ ...admission, operationId: "replacement-run" });
+    await replacement;
+    expect(client.getSnapshot().admission?.operationId).toBe("replacement-run");
+  } finally {
+    held.resolve(admission);
+    next.resolve(admission);
+    await Promise.all([old, replacement]);
+  }
+});
+
+test("streaming sends are visible before admission and reconcile by request identity", async () => {
+  session.snapshot.inputQueueSupported = true;
+  const held = Promise.withResolvers<OperationAdmission>();
+  const send = vi.fn<AgentBridge["submit"]>(() => held.promise);
+  bridge.submit = send;
+  const client = await connectedClient();
+  const sending = client.submit("show immediately", undefined, "steer");
+  try {
+    expect(client.getSnapshot().submittedInputs).toMatchObject([
+      { prompt: "show immediately", status: "sending" },
+    ]);
+    const requestId = send.mock.calls[0]![3]!;
+    held.resolve({ ...admission, status: "queued" });
+    await sending;
+    expect(client.getSnapshot().submittedInputs).toMatchObject([{ requestId, status: "queued" }]);
+    const snapshot = structuredClone(session.snapshot);
+    snapshot.transcript.push({
+      id: "42:0",
+      type: "message",
+      requestId,
+      message: { role: "user", content: "show immediately", timestamp: 1 },
+    });
+    bridge.emit({ snapshot, contextTokens: 0 });
+    expect(client.getSnapshot().submittedInputs).toEqual([]);
+    expect(client.getSnapshot().observation?.snapshot.transcript.at(-1)?.requestId).toBe(requestId);
+  } finally {
+    held.resolve(admission);
+    await sending;
+  }
+});
+
+test("a rejected streaming send removes its optimistic row but an uncertain retry keeps one identity", async () => {
+  session.snapshot.inputQueueSupported = true;
+  const client = await connectedClient();
+  bridge.submit = async () => {
+    throw new DesktopCommandError({ code: "Busy", message: "full", retryable: false });
+  };
+  await expect(client.submit("retry me", undefined, "steer")).rejects.toThrow("full");
+  expect(client.getSnapshot().submittedInputs).toEqual([]);
+  bridge.submit = async () => {
+    throw new DesktopCommandError({
+      code: "SubmissionUnknown",
+      message: "unknown",
+      retryable: true,
+    });
+  };
+  await expect(client.submit("retry me", undefined, "steer")).rejects.toThrow("unknown");
+  const requestId = client.getSnapshot().submittedInputs[0]!.requestId;
+  await expect(client.submit("retry me", undefined, "steer")).rejects.toThrow("unknown");
+  expect(client.getSnapshot().submittedInputs).toMatchObject([{ requestId, status: "uncertain" }]);
+  expect(client.getSnapshot().submittedInputs).toHaveLength(1);
 });

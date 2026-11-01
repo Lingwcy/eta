@@ -10,12 +10,13 @@ async function invoke<A>(channel: string, ...args: unknown[]): Promise<A> {
 }
 
 function submitReply(
-  ...[id, prompt, images, requestId]: Parameters<DesktopBridge["submit"]>
+  ...[id, prompt, images, requestId, whenBusy]: Parameters<DesktopBridge["submit"]>
 ): Promise<CommandReply<OperationAdmission>> {
   return ipcRenderer.invoke("eta:command", {
     type: "submit",
     id,
     prompt,
+    ...(whenBusy === undefined ? {} : { whenBusy }),
     ...(images === undefined ? {} : { images }),
     requestId: requestId ?? globalThis.crypto.randomUUID(),
   });
@@ -135,6 +136,8 @@ const bridge: DesktopBridge = {
     invoke("eta:command", { type: "configure", id, provider, modelId, thinkingLevel }),
   submit: async (...args) => unwrapReply(await submitReply(...args)),
   submitReply,
+  withdrawInput: (id, operationId) =>
+    invoke("eta:command", { type: "withdraw-input", id, operationId }),
   stop: (id) => invoke("eta:command", { type: "stop", id }),
   resume: (id) => invoke("eta:command", { type: "resume", id }),
   compact: (id) => invoke("eta:command", { type: "compact", id }),

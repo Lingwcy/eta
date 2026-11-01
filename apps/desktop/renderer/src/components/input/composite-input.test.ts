@@ -203,3 +203,103 @@ test.each([false, true])(
     ).toBe(true);
   },
 );
+
+async function renderStreaming(props: Partial<CompositeInputProps> = {}) {
+  await act(async () =>
+    root.render(
+      createElement(
+        ToastProvider,
+        null,
+        createElement(CompositeInput, {
+          defaultValue: "Describe",
+          onSubmit: submit,
+          isRunning: true,
+          allowSubmitWhileRunning: true,
+          inputQueueSupported: true,
+          ...props,
+        }),
+      ),
+    ),
+  );
+}
+async function typeDraft(value: string) {
+  await act(async () => {
+    const input = document.querySelector("textarea")!;
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
+      input,
+      value,
+    );
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+async function enter(options: KeyboardEventInit = {}) {
+  const event = new KeyboardEvent("keydown", {
+    key: "Enter",
+    bubbles: true,
+    cancelable: true,
+    ...options,
+  });
+  await act(async () => document.querySelector("textarea")!.dispatchEvent(event));
+  return event;
+}
+
+test.each([false, true])(
+  "streaming Enter sends steer and Cmd+Enter sends follow-up without clearing before admission (meta=%s)",
+  async (metaKey) => {
+    const admitted = Promise.withResolvers<void>();
+    submit.mockImplementation(() => admitted.promise);
+    await renderStreaming();
+    try {
+      const event = await enter({ metaKey });
+      expect(event.defaultPrevented).toBe(true);
+      expect(submit).toHaveBeenCalledWith("Describe", undefined, metaKey ? "followUp" : "steer");
+      expect(document.querySelector("textarea")!.value).toBe("Describe");
+      expect(document.querySelector("textarea")!.disabled).toBe(true);
+      await act(async () => admitted.resolve());
+      expect(document.querySelector("textarea")!.value).toBe("");
+      expect(document.querySelector("textarea")!.disabled).toBe(false);
+    } finally {
+      await act(async () => admitted.resolve());
+    }
+  },
+);
+
+test.each([{ shiftKey: true }, { isComposing: true }, { ctrlKey: true }, { altKey: true }])(
+  "streaming leaves newline/IME/platform shortcuts alone: %j",
+  async (options) => {
+    await renderStreaming();
+    expect((await enter(options)).defaultPrevented).toBe(false);
+    expect(submit).not.toHaveBeenCalled();
+    expect(document.querySelector("textarea")!.value).toBe("Describe");
+  },
+);
+
+test("one action switches from stop to send while typing and back after admission", async () => {
+  const stop = vi.fn();
+  await renderStreaming({ onStop: stop });
+  await typeDraft("");
+  const original = button(i18n.t("chat:actionToolbar.stopGeneration"));
+  const count = document.querySelectorAll("footer button").length;
+  await typeDraft("new constraint");
+  const send = button(i18n.t("chat:actionToolbar.sendMessage"));
+  expect(send).toBe(original);
+  expect(document.querySelectorAll("footer button").length).toBe(count);
+  await act(async () => send.click());
+  expect(submit).toHaveBeenCalledWith("new constraint", undefined, "steer");
+  expect(document.querySelector("textarea")!.value).toBe("");
+  expect(button(i18n.t("chat:actionToolbar.stopGeneration"))).toBe(original);
+  await act(async () => original.click());
+  expect(stop).toHaveBeenCalledOnce();
+});
+
+test("a rejected streaming admission keeps text and attachments ready to retry", async () => {
+  await renderStreaming();
+  await add([file("constraint.png")]);
+  await act(async () => readers[0]!.finish());
+  submit.mockRejectedValue(new Error("Queue is full"));
+  await enter({ metaKey: true });
+  expect(document.body.textContent).toContain("Queue is full");
+  expect(document.querySelector("textarea")!.value).toBe("Describe");
+  expect(document.querySelector('img[alt="constraint.png"]')).not.toBeNull();
+  expect(button(i18n.t("chat:actionToolbar.sendMessage")).disabled).toBe(false);
+});

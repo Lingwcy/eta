@@ -124,10 +124,13 @@ export function useDesktopController(
                 ? t("chat:useDesktopController.savingChangesWaitBeforeChangingThePolicy")
                 : undefined;
   const threadId = tab.threadId;
-  const hasMessages =
+  const hasMessages = Boolean(
+    agent.submittedInputs.length ||
+    snapshot?.queuedInputs?.length ||
     snapshot?.transcript.some(
       (entry) => entry.message.role === "user" || entry.message.role === "assistant",
-    ) ?? false;
+    ),
+  );
   useEffect(() => {
     if (threadId && snapshot && hasThreadActivity(snapshot)) navigation.activity.watch(threadId);
   }, [threadId, snapshot, navigation.activity]);
@@ -143,7 +146,11 @@ export function useDesktopController(
     });
   };
   return {
-    transcript: { snapshot, running },
+    transcript: {
+      submittedInputs: agent.submittedInputs,
+      snapshot,
+      running,
+    },
     loading:
       threadId && !snapshot
         ? { loading: agent.connection === "connecting", onRetry: reconnect }
@@ -297,13 +304,17 @@ export function useDesktopController(
       contextTokens: agent.observation?.contextTokens,
       contextWindow: snapshot ? liveModel?.contextWindow : agent.session?.model.contextWindow,
       cwd: cloud ? undefined : workspace?.cwd,
-      onSubmit: async (prompt: string, images?: readonly ImageAttachment[]) => {
+      onSubmit: async (
+        prompt: string,
+        images?: readonly ImageAttachment[],
+        whenBusy?: import("@eta/core/agent/protocol").InputMode,
+      ) => {
         desktop.clearError();
         setError(undefined);
         setPending(!threadId);
         try {
           let id = threadId;
-          if (id) await agent.submit(prompt, images);
+          if (id) await agent.submit(prompt, images, whenBusy);
           else {
             id = await draft.submit(
               tab.workspaceId,
@@ -359,7 +370,8 @@ export function useDesktopController(
       },
       onStop: () => void agent.stop(),
       isRunning: (running || backgroundWork) && !creating,
-      allowSubmitWhileRunning: backgroundWork,
+      allowSubmitWhileRunning: backgroundWork || snapshot?.inputQueueSupported === true,
+      inputQueueSupported: snapshot?.inputQueueSupported === true,
       isStopping: agent.stopping || operation?.status === "aborting",
       submitDisabled:
         (directoryUnavailable && !liveObservation) ||
@@ -372,7 +384,6 @@ export function useDesktopController(
         (directoryUnavailable && !liveObservation) ||
         !desktop.library ||
         pending ||
-        Boolean(operation?.waitingForSubagents) ||
         (!!threadId &&
           (agent.connection !== "connected" ||
             snapshot?.faulted ||

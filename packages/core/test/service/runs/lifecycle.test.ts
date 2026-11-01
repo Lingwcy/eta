@@ -10,6 +10,7 @@ import { ProjectService } from "../../../src/service/projects/index.ts";
 import { WorkspaceService } from "../../../src/service/workspaces/index.ts";
 import { ThreadService } from "../../../src/service/threads/index.ts";
 import { RuntimeRegistryService } from "../../../src/service/runtime/index.ts";
+import { InputsDoc, RecoveryDoc } from "../../../src/service/runs/inputs.ts";
 import { ApprovalsDoc } from "../../../src/service/runtime/approval-doc.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -168,3 +169,135 @@ test.each(["closed-before-expiry", "closed-during-expiry", "active-error", "acti
   },
   15_000,
 );
+
+test("run grants and the execution lease survive the first receipt while a follow-up is running", async () => {
+  const { runtime, provider, threads, thread, record } = await fixture();
+  const first = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  const second = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  const reached = Promise.withResolvers<void>();
+  const entered = Promise.withResolvers<void>();
+  const expire = vi.spyOn(record.approvals, "expireRunGrants");
+  provider.setResponses([
+    () => {
+      entered.resolve();
+      return first.promise;
+    },
+    () => {
+      reached.resolve();
+      return second.promise;
+    },
+  ]);
+  try {
+    const root = await runtime.runPromise(threads.submit(thread.id, "first", "first"));
+    await entered.promise;
+    const tasks = await record.storage.scanTasks(
+      { conversationId: record.conversation.id, kind: "pi.generation" },
+      1,
+      undefined,
+      BACKGROUND_CONTEXT,
+    );
+    await record.conversation.commit(async (tx) => {
+      (await tx.doc(ApprovalsDoc)).runGrants = [
+        {
+          id: "queue-grant",
+          taskId: tasks.items[0]!.id,
+          conversationId: String(record.conversation.id),
+          revision: 1,
+          readableRoots: [],
+          writableRoots: [],
+          by: "user",
+        },
+      ];
+    }, BACKGROUND_CONTEXT);
+    await runtime.runPromise(
+      threads.submit(thread.id, "afterwards", "follow", undefined, "followUp"),
+    );
+    first.resolve(fauxAssistantMessage("root done"));
+    await reached.promise;
+    expect((await runtime.runPromise(threads.operation(thread.id, root.operationId))).status).toBe(
+      "completed",
+    );
+    expect(record.running).toBe(true);
+    expect(expire).not.toHaveBeenCalled();
+    expect(
+      (await record.harness.snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.runGrants,
+    ).toHaveLength(1);
+    second.resolve(fauxAssistantMessage("follow-up done"));
+    await expect.poll(() => record.running).toBe(false);
+    expect(expire).toHaveBeenCalledOnce();
+    await expect
+      .poll(
+        async () => (await record.harness.snapshot(ApprovalsDoc, BACKGROUND_CONTEXT))?.runGrants,
+      )
+      .toEqual([]);
+  } finally {
+    first.resolve(fauxAssistantMessage("cleanup"));
+    second.resolve(fauxAssistantMessage("cleanup"));
+  }
+}, 15000);
+
+test("full recovery drafts stay out of hot metadata and retire when consumed", async () => {
+  const { runtime, provider, threads, thread, record } = await fixture();
+  const gates = Array.from({ length: 2 }, () => ({
+    reached: Promise.withResolvers<void>(),
+    finish: Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>(),
+  }));
+  const draft = "full recovery payload ".repeat(4000);
+  const contexts: string[] = [];
+  provider.setResponses(
+    gates.map((gate) => (context, options) => {
+      contexts.push(JSON.stringify(context.messages));
+      gate.reached.resolve();
+      options?.signal?.addEventListener(
+        "abort",
+        () => gate.finish.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+        { once: true },
+      );
+      return gate.finish.promise;
+    }),
+  );
+  try {
+    await runtime.runPromise(threads.submit(thread.id, "original", "root"));
+    await gates[0]!.reached.promise;
+    await runtime.runPromise(
+      threads.submit(thread.id, draft, "constructor", undefined, "followUp"),
+    );
+    const metadata = await record.harness.snapshot(
+      InputsDoc,
+      record.conversation.id,
+      BACKGROUND_CONTEXT,
+    );
+    expect(JSON.stringify(metadata).length).toBeLessThan(4096);
+    expect(metadata?.records.find((item) => item.requestId === "constructor")?.prompt).toBe(
+      draft.slice(0, 2000),
+    );
+    expect(
+      (
+        await record.harness.snapshot(
+          RecoveryDoc,
+          record.conversation.id,
+          "constructor",
+          BACKGROUND_CONTEXT,
+        )
+      )?.prompt,
+    ).toBe(draft);
+    gates[0]!.finish.resolve(fauxAssistantMessage("first done"));
+    await gates[1]!.reached.promise;
+    expect(contexts[1]).toContain(draft);
+    expect(
+      await record.harness.snapshot(
+        RecoveryDoc,
+        record.conversation.id,
+        "constructor",
+        BACKGROUND_CONTEXT,
+      ),
+    ).toBeUndefined();
+    expect(
+      (
+        await record.harness.snapshot(InputsDoc, record.conversation.id, BACKGROUND_CONTEXT)
+      )?.records.find((item) => item.requestId === "constructor")?.recoverable,
+    ).toBe(false);
+  } finally {
+    for (const gate of gates) gate.finish.resolve(fauxAssistantMessage("cleanup"));
+  }
+});

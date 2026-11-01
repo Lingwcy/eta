@@ -24,6 +24,14 @@ Use **Settings → Application → Storage (设置 → 应用 → 存储)** to c
 
 Back up the entire session directory, not just the main JSONL transcript. Subagents share that transcript, and task recovery also needs the adjacent state files. Reopening unfinished work requires an explicit resume or stop.
 
+## Add instructions while Eta is working
+
+Keep typing while a reply or tool is running. The existing stop action becomes send again when you enter a new message. **Enter** or send adds a steering message at the next safe boundary, after the current request and tool round finish. **Cmd+Enter** sends a follow-up that waits until the current work and all steering messages finish. **Shift+Enter** still inserts a newline. Neither mode cancels an active request, tool, or approval wait; steering messages take priority even over earlier follow-ups.
+
+Your message appears in the conversation immediately using the existing message style, and becomes the same saved message when it takes effect. Stopping cancels current work and pending messages; unexecuted messages are not silently sent again.
+
+A chat can hold up to 32 pending messages, subject to an attachment-size limit. If the queue is full, wait; rejected sends keep your draft. Remote chats require a Bot that supports input queues; older Bots keep the previous running-time restriction. Context compaction and interrupted work still require waiting or explicit recovery.
+
 ## Start in a separate worktree
 
 Before sending the first message in a new chat, open the workspace configuration beside the project and enable **New worktree**. Use its branch menu to select an existing branch or enter a new branch name. Eta creates the directory when you send; uncommitted changes in the current checkout stay there. If creation or sending fails, the draft is preserved and retries reuse the created workspace. Checked-out branches and remote-tracking branches become the base of a new local branch. Workspace configuration hides after the chat starts.

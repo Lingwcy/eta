@@ -155,7 +155,9 @@ export function ConversationPanel({
             <ScheduleRunNotice threadId={tab.threadId} controller={schedules} />
             {view.composerContext && <ComposerContext {...view.composerContext} />}
             <ApprovalNotice {...view.approval} />
+            {/* Thread binding can precede admission; keep the submitting composer's draft alive. */}
             <CompositeInput
+              key={tab.id}
               {...view.composer}
               skillsControl={
                 <SkillPicker

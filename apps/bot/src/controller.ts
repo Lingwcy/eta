@@ -1,3 +1,4 @@
+import type { InputMode } from "@eta/core/agent/protocol";
 import type { SubagentCommand } from "@eta/core/shared/subagents";
 import type { CoreClient, OperationAdmission, ImageAttachment } from "@eta/core";
 import { BotHttpError } from "./errors.ts";
@@ -6,7 +7,7 @@ import type { BotLog } from "./log.ts";
 type AdmissionLease = {
   projectId: string;
   stopResult?: Promise<boolean>;
-  pendingSubagentAdmissions: number;
+  pendingAdmissions: number;
   observation: object;
 };
 
@@ -95,7 +96,7 @@ export class BotController {
         "The project is already executing work or the concurrency limit was reached.",
       );
     // Object identity separates successive admissions of the same thread.
-    const lease = { projectId: project, pendingSubagentAdmissions: 0, observation: {} };
+    const lease = { projectId: project, pendingAdmissions: 0, observation: {} };
     this.active.set(id, lease);
     return lease;
   }
@@ -123,7 +124,7 @@ export class BotController {
     if (!current()) return;
     let checking = false;
     const check = async () => {
-      if (!current() || checking || lease.pendingSubagentAdmissions) return;
+      if (!current() || checking || lease.pendingAdmissions) return;
       checking = true;
       const observation = lease.observation;
       const ownsObservation = () => current() && lease.observation === observation;
@@ -174,20 +175,33 @@ export class BotController {
     prompt: string,
     requestId: string,
     images?: readonly ImageAttachment[],
+    whenBusy: InputMode = "reject",
   ): Promise<OperationAdmission> {
     return this.track(
       (async () => {
+        const admitted = this.active.get(id);
         await this.authorize(id);
+        if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
         const existing = await this.core.operationByRequest(id, requestId);
-        if (existing)
-          return {
-            operationId: existing.operationId,
-            kind: existing.kind,
-            startedAt: existing.startedAt,
-          };
+        if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
+        if (existing) return this.core.submit(id, prompt, requestId, images, whenBusy);
+        if (admitted !== this.active.get(id) || admitted?.stopResult)
+          throw new BotHttpError(409, "Busy", "The active execution changed; submit again.");
+        if (admitted && whenBusy !== "reject") {
+          admitted.pendingAdmissions++;
+          admitted.observation = {};
+          try {
+            if (this.closing || this.active.get(id) !== admitted || admitted.stopResult)
+              throw new BotHttpError(409, "Busy", "The execution is stopping.");
+            return await this.core.submit(id, prompt, requestId, images, whenBusy);
+          } finally {
+            admitted.pendingAdmissions--;
+            admitted.observation = {};
+          }
+        }
         const lease = await this.claim(id);
         try {
-          const admission = await this.core.submit(id, prompt, requestId, images);
+          const admission = await this.core.submit(id, prompt, requestId, images, whenBusy);
           this.log({
             event: "operation.admitted",
             threadId: id,
@@ -204,6 +218,16 @@ export class BotController {
           this.release(id, lease);
           throw error;
         }
+      })(),
+    );
+  }
+
+  withdrawInput(id: string, operationId: string) {
+    return this.track(
+      (async () => {
+        await this.authorize(id);
+        if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
+        return this.core.withdrawInput(id, operationId);
       })(),
     );
   }
@@ -274,12 +298,12 @@ export class BotController {
           return this.core.subagent(id, command, requestId);
         const existing = this.active.get(id);
         if (existing) {
-          existing.pendingSubagentAdmissions++;
+          existing.pendingAdmissions++;
           existing.observation = {};
           try {
             return await this.core.subagent(id, command, requestId);
           } finally {
-            existing.pendingSubagentAdmissions--;
+            existing.pendingAdmissions--;
             // A command can start and settle entirely while an older recovery read awaits.
             existing.observation = {};
           }

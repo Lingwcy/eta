@@ -26,6 +26,7 @@ export interface ComposerInputProps {
   onChangeText: (text: string) => void;
   onSubmit: () => void;
   onStop: () => void;
+  allowSubmitWhileRunning?: boolean;
   onOpenConfiguration: () => void;
   running: boolean;
   canSend: boolean;
@@ -55,6 +56,7 @@ export function ComposerInput({
   onChangeText,
   onSubmit,
   onStop,
+  allowSubmitWhileRunning = false,
   onOpenConfiguration,
   running,
   canSend,
@@ -72,6 +74,7 @@ export function ComposerInput({
   const { width } = useWindowDimensions();
   /** Small phones cannot fit the sandbox label and token count beside the model picker. */
   const compactToolbar = width < 360;
+  const showStop = running && (!allowSubmitWhileRunning || (!value.trim() && !images.length));
   const showThinkingBadge = thinkingLevel && thinkingLevel !== "off" && thinkingLevelLabel;
 
   return (
@@ -176,7 +179,7 @@ export function ComposerInput({
             </View>
           )}
 
-          {running ? (
+          {showStop ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="停止任务"
@@ -195,7 +198,7 @@ export function ComposerInput({
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="发送消息"
+              accessibilityLabel={running ? "补充指令" : "发送消息"}
               hitSlop={2}
               disabled={!canSend}
               onPress={onSubmit}

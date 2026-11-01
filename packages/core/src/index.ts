@@ -19,6 +19,9 @@ export type { ImageAttachment, ImageProcessor } from "./images/types.ts";
 export type {
   AgentSnapshot,
   SnapshotResponse,
+  InputMode,
+  QueuedInput,
+  WithdrawnInput,
   OperationAdmission,
   OperationResult,
   RecoveryState,

@@ -28,6 +28,7 @@ export function createSkillsExtension(
   catalog: SkillCatalog,
   settings: RuntimeSettings,
   hasActive = false,
+  prepareAppliedInputs?: (conversationId: ConversationId) => Promise<void>,
 ) {
   const available = catalog.skills.filter((skill) => skill.enabled);
   const allowed = (skill: LoadedSkill) =>
@@ -105,6 +106,7 @@ export function createSkillsExtension(
           : undefined,
       ),
       section("active-skills", async ({ conversationId, read }, context) => {
+        await prepareAppliedInputs?.(conversationId);
         const state = await read.snapshot(SkillsDoc, conversationId, context);
         const active = state?.active.filter(allowed) ?? [];
         return active.length

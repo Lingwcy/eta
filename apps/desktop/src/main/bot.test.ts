@@ -2008,3 +2008,71 @@ test("incremental thread events reconstruct history and a sequence gap reconnect
     vi.useRealTimers();
   }
 });
+
+test("cloud input queues prefix identities and send mode and withdrawal to the owning Bot", async () => {
+  const { bot, request, prefix } = await connect(true, ["input-queue"]);
+  const value = createdSession();
+  value.snapshot.inputQueueSupported = true;
+  value.snapshot.queuedInputs = [
+    {
+      operationId: "42",
+      mode: "followUp",
+      submittedAt: 2,
+      prompt: "later",
+      images: [],
+      status: "queued",
+    },
+  ];
+  request.mockImplementation(async (input, init) => {
+    const path = new URL(
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+    ).pathname;
+    if (path.endsWith("/messages")) {
+      expect(JSON.parse(init!.body as string)).toMatchObject({
+        prompt: "later",
+        requestId: "request",
+        whenBusy: "followUp",
+      });
+      return Response.json(
+        { operationId: "42", kind: "run", startedAt: 2, status: "queued" },
+        { status: 202 },
+      );
+    }
+    if (path.endsWith("/inputs/withdraw")) {
+      expect(JSON.parse(init!.body as string)).toEqual({ operationId: "42" });
+      return Response.json({ status: "withdrawn", prompt: "later", images: [] });
+    }
+    return Response.json(value);
+  });
+  try {
+    const opened = await bot.open(prefix + "created-thread");
+    expect(opened.snapshot.inputQueueSupported).toBe(true);
+    expect(opened.snapshot.queuedInputs?.[0]?.operationId).toBe(prefix + "42");
+    const receipt = await bot.submit(
+      prefix + "created-thread",
+      "later",
+      "request",
+      undefined,
+      "followUp",
+    );
+    expect(receipt).toMatchObject({ operationId: prefix + "42", status: "queued" });
+    expect(await bot.withdrawInput(opened.id, receipt.operationId)).toMatchObject({
+      status: "withdrawn",
+      prompt: "later",
+    });
+  } finally {
+    await bot.disconnect();
+  }
+});
+
+test("an older cloud Bot cannot silently discard streaming input mode", async () => {
+  const { bot, request, prefix } = await connect(true, []);
+  try {
+    await expect(
+      bot.submit(prefix + "thread", "later", "request", undefined, "steer"),
+    ).rejects.toThrow();
+    expect(request).not.toHaveBeenCalled();
+  } finally {
+    await bot.disconnect();
+  }
+});
