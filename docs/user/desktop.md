@@ -26,11 +26,11 @@ Back up the entire session directory, not just the main JSONL transcript. Subage
 
 ## Add instructions while Eta is working
 
-Keep typing while a reply or tool is running. **Enter** sends a steering message: Eta uses it at the next safe boundary, after the current request and tool round finish. It does not cancel a model request, tool, or approval wait. Use **Queue follow-up** or **Alt+Enter** for a task that should wait until the current work and all steering messages finish. **Shift+Enter** still inserts a newline. Steering messages take priority even over earlier follow-ups.
+Keep typing while a reply or tool is running. The existing stop action becomes send again when you enter a new message. **Enter** or send adds a steering message at the next safe boundary, after the current request and tool round finish. **Cmd+Enter** sends a follow-up that waits until the current work and all steering messages finish. **Shift+Enter** still inserts a newline. Neither mode cancels an active request, tool, or approval wait; steering messages take priority even over earlier follow-ups.
 
-Pending messages appear separately from the conversation until they take effect. **Take back to draft** withdraws an unexecuted message and restores its text and images alongside your current draft. A message that has already taken effect cannot be withdrawn. Stop remains available when the input contains a draft; stopping cancels current work and pending messages. After a stop or terminal failure, unexecuted messages remain available to take back and send as new requests.
+Your message appears in the conversation immediately using the existing message style, and becomes the same saved message when it takes effect. Stopping cancels current work and pending messages; unexecuted messages are not silently sent again.
 
-A chat can hold up to 32 pending messages, subject to an attachment-size limit. If the queue is full, wait or take a message back; rejected sends keep your draft. Remote chats require a Bot that supports input queues; older Bots keep the previous running-time restriction. Context compaction and interrupted work still require waiting or explicit recovery.
+A chat can hold up to 32 pending messages, subject to an attachment-size limit. If the queue is full, wait; rejected sends keep your draft. Remote chats require a Bot that supports input queues; older Bots keep the previous running-time restriction. Context compaction and interrupted work still require waiting or explicit recovery.
 
 ## Start in a separate worktree
 

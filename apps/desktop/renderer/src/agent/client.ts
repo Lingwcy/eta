@@ -12,7 +12,10 @@ import {
 } from "../../../src/shared/message-request.ts";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 
+import { unplacedInputs, type SubmittedInput } from "./submitted-inputs";
+
 export interface AgentClientState {
+  submittedInputs: readonly SubmittedInput[];
   session: Pick<SessionResponse, "id" | "model"> | null;
   observation: SnapshotResponse | null;
   connection: "connecting" | "connected" | "error";
@@ -23,6 +26,7 @@ export interface AgentClientState {
 }
 
 export const initialAgentState: AgentClientState = {
+  submittedInputs: [],
   session: null,
   observation: null,
   connection: "connecting",
@@ -86,6 +90,7 @@ export class ThreadAgentClient {
         session: { id: session.id, model: session.model },
         observation: { snapshot: session.snapshot, contextTokens: session.contextTokens },
         connection: "connected",
+        submittedInputs: unplacedInputs(session.snapshot, this.state.submittedInputs),
         error: null,
       });
       if (!current()) return;
@@ -170,7 +175,25 @@ export class ThreadAgentClient {
     this.submitOwner = owner;
     const current = () =>
       !this.disposed && this.submitOwner === owner && this.state.session?.id === sessionId;
-    this.update({ submitting: true, error: null });
+    this.update({
+      submitting: true,
+      error: null,
+      ...(append
+        ? {
+            submittedInputs: [
+              ...this.state.submittedInputs.filter((input) => input.requestId !== requestId),
+              {
+                requestId,
+                prompt,
+                images,
+                mode: whenBusy,
+                submittedAt: Date.now(),
+                status: "sending",
+              },
+            ],
+          }
+        : {}),
+    });
     try {
       const admission = await submitMessage(
         this.bridge,
@@ -183,6 +206,19 @@ export class ThreadAgentClient {
       if (!current()) return;
       this.uncertainSubmission = undefined;
       const snapshot = this.state.observation?.snapshot;
+      const submittedInputs = this.state.submittedInputs.map((input) =>
+        input.requestId === requestId
+          ? {
+              ...input,
+              operationId: admission.operationId,
+              inputEntryId: admission.inputEntryId,
+              status: "queued" as const,
+            }
+          : input,
+      );
+      this.update({
+        submittedInputs: snapshot ? unplacedInputs(snapshot, submittedInputs) : submittedInputs,
+      });
       if (!append)
         this.update({
           admission:
@@ -197,7 +233,16 @@ export class ThreadAgentClient {
       this.uncertainSubmission = admissionUncertain(error)
         ? { requestId, prompt, images, whenBusy }
         : undefined;
-      this.update({ error: message(error) });
+      this.update({
+        error: message(error),
+        submittedInputs: this.state.submittedInputs.flatMap((input) =>
+          input.requestId !== requestId
+            ? [input]
+            : this.uncertainSubmission
+              ? [{ ...input, status: "uncertain" as const }]
+              : [],
+        ),
+      });
       throw error;
     } finally {
       if (current()) {
@@ -237,6 +282,7 @@ export class ThreadAgentClient {
   }
 
   private observe(observation: SnapshotResponse) {
+    const submittedInputs = unplacedInputs(observation.snapshot, this.state.submittedInputs);
     const id = this.state.admission?.operationId;
     const acknowledged =
       id &&
@@ -244,6 +290,7 @@ export class ThreadAgentClient {
         observation.snapshot.lastResult?.operationId === id);
     this.update({
       observation,
+      submittedInputs,
       connection: "connected",
       error: null,
       ...(acknowledged ? { admission: null } : {}),

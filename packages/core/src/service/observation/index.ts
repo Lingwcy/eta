@@ -148,6 +148,13 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
       ((receipt.status === "done" && history.some((entry) => entry.id === receipt.answer)) ||
         (receipt.status === "unanswered" && !live.run?.inputs.includes(receipt.id))),
   );
+  const requestIds = new Map(
+    receipts.flatMap((receipt) =>
+      receipt.type === "input" && receipt.entry !== undefined && receipt.requestId !== undefined
+        ? [[receipt.entry, receipt.requestId] as const]
+        : [],
+    ),
+  );
   // Automatic reports remain model context, but are not messages authored by the user.
   const transcript = history
     .filter(
@@ -162,6 +169,9 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
         .map((message, index) => ({
           id: `${entry.id}:${index}`,
           type: "message" as const,
+          ...(message.role === "user" && requestIds.has(entry.id)
+            ? { requestId: requestIds.get(entry.id) }
+            : {}),
           message:
             message.role === "toolResult" &&
             message.toolName === "edit" &&

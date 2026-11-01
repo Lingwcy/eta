@@ -20,13 +20,13 @@ export function PromptTextarea({
       e.key === "Enter" &&
       !e.shiftKey &&
       !e.ctrlKey &&
-      !e.metaKey &&
-      (!e.altKey || allowFollowUp) &&
+      (!e.metaKey || allowFollowUp) &&
+      !e.altKey &&
       !e.nativeEvent.isComposing
     ) {
       e.preventDefault();
       if (!disabled) {
-        onSubmit(e.altKey ? "followUp" : undefined);
+        onSubmit(e.metaKey ? "followUp" : undefined);
       }
     }
   };

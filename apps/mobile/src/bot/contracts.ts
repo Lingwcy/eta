@@ -119,6 +119,7 @@ export const ApprovalSchema = z.object({
 });
 export const InputModeSchema = z.enum(["reject", "steer", "followUp"]);
 export const QueuedInputSchema = z.object({
+  requestId: z.string().optional(),
   operationId: z.string(),
   mode: InputModeSchema,
   submittedAt: z.number(),
@@ -140,7 +141,12 @@ export const SnapshotSchema = z.object({
     thinkingLevel: ThinkingLevelSchema,
   }),
   transcript: z.array(
-    z.object({ id: z.string(), message: MessageSchema, toolStatus: z.string().optional() }),
+    z.object({
+      id: z.string(),
+      requestId: z.string().optional(),
+      message: MessageSchema,
+      toolStatus: z.string().optional(),
+    }),
   ),
   operation: z
     .object({

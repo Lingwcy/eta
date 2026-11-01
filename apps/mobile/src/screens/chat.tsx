@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -40,7 +39,6 @@ export function ChatScreen() {
   const [configuration, setConfiguration] = useState(false);
   const [away, setAway] = useState(false);
   const [pickingImages, setPickingImages] = useState(false);
-  const [restored, setRestored] = useState<Set<string>>(() => new Set());
   const [imageError, setImageError] = useState<string>();
   const mounted = useRef(true);
   const pickerBusy = useRef(false);
@@ -52,7 +50,6 @@ export function ChatScreen() {
   }, []);
   useEffect(() => {
     setImageError(undefined);
-    setRestored(new Set());
   }, [state.url, state.threadId, state.workspaceId]);
   const selectImages = async () => {
     if (pickerBusy.current) return;
@@ -85,7 +82,16 @@ export function ChatScreen() {
   const atBottom = useRef(true);
   const list = useRef<FlatList<ReturnType<typeof conversationRows>[number]>>(null);
   const snapshot = state.thread?.snapshot;
-  const rows = useMemo(() => (snapshot ? conversationRows(snapshot) : []), [snapshot]);
+  const rows = useMemo(
+    () =>
+      snapshot
+        ? conversationRows(
+            snapshot,
+            state.submittedInputs.filter((input) => input.threadId === state.threadId),
+          )
+        : [],
+    [snapshot, state.submittedInputs, state.threadId],
+  );
   const tools = useMemo(() => (snapshot ? buildToolIndex(snapshot) : undefined), [snapshot]);
   const workspace = state.library?.workspaces.find((value) => value.id === state.workspaceId);
   const project = state.library?.projects.find((value) => value.id === workspace?.projectId);
@@ -298,41 +304,6 @@ export function ChatScreen() {
         )}
         <View style={styles.composerArea}>
           {imageError && <ErrorStrip message={imageError} />}
-          {!!snapshot?.queuedInputs?.some((input) => !restored.has(input.operationId)) && (
-            <ScrollView style={styles.inputQueue} keyboardShouldPersistTaps="handled">
-              {snapshot?.queuedInputs
-                ?.filter((input) => !restored.has(input.operationId))
-                .map((input) => (
-                  <View key={input.operationId} style={styles.queueRow}>
-                    <Text style={styles.queueText} numberOfLines={1}>
-                      {input.status !== "queued"
-                        ? "未执行"
-                        : input.mode === "steer"
-                          ? "补充指令 · 等待生效"
-                          : "排队执行 · 等待本轮结束"}
-                      ：
-                      {input.prompt ||
-                        input.images.map((image) => image.name ?? image.mimeType).join(", ")}
-                    </Text>
-                    <Button
-                      compact
-                      secondary
-                      disabled={!allowed || !!state.pending}
-                      onPress={() => {
-                        const owner = state.threadId;
-                        void run(async () => {
-                          const applied = await store.restoreInput(input.operationId);
-                          if (applied && store.getSnapshot().threadId === owner)
-                            setRestored((items) => new Set([...items, input.operationId]));
-                        });
-                      }}
-                    >
-                      取回
-                    </Button>
-                  </View>
-                ))}
-            </ScrollView>
-          )}
           <ComposerInput
             images={images}
             onAddImages={() => {
@@ -345,13 +316,7 @@ export function ChatScreen() {
             onSubmit={() => {
               void run(() => store.send());
             }}
-            onFollowUp={
-              snapshot?.inputQueueSupported
-                ? () => {
-                    void run(() => store.send("followUp"));
-                  }
-                : undefined
-            }
+            allowSubmitWhileRunning={snapshot?.inputQueueSupported === true}
             onStop={() => {
               void stop(() => store.control("stop"));
             }}
@@ -404,9 +369,6 @@ export function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  inputQueue: { maxHeight: 128 },
-  queueRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2 },
-  queueText: { flex: 1, fontSize: 12, color: colors.muted },
   loading: { justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",

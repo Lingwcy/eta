@@ -2,7 +2,10 @@ import { z } from "zod";
 import { MessageSchema } from "./bot/contracts.ts";
 import type { BotMessage, BotSnapshot } from "./bot/contracts.ts";
 
-export function conversationRows(snapshot: BotSnapshot) {
+export function conversationRows(
+  snapshot: BotSnapshot,
+  submitted: readonly import("./bot/store.ts").SubmittedInput[] = [],
+) {
   const calls = new Set(
     snapshot.transcript.flatMap(({ message }) =>
       typeof message.content === "string"
@@ -27,8 +30,45 @@ export function conversationRows(snapshot: BotSnapshot) {
     last.timestamp === streaming?.timestamp &&
     last.provider === streaming?.provider &&
     last.model === streaming?.model;
-  const rows = entries.map(({ id, message }) => ({ id, message }));
+  const rows = entries.map(({ id, message, requestId }) => ({
+    id: requestId === undefined ? id : "input:" + requestId,
+    message,
+  }));
   if (streaming && !saved) rows.push({ id: "streaming", message: streaming });
+  const placed = new Set(
+    entries.flatMap((entry) => (entry.requestId === undefined ? [] : [entry.requestId])),
+  );
+  const local = new Map(
+    submitted
+      .filter((input) => !placed.has(input.messageId))
+      .map((input) => [input.messageId, input]),
+  );
+  const shown = new Set<string>();
+  for (const input of snapshot.queuedInputs ?? []) {
+    if (input.requestId !== undefined && placed.has(input.requestId)) continue;
+    const own = input.requestId === undefined ? undefined : local.get(input.requestId);
+    if (input.requestId !== undefined) shown.add(input.requestId);
+    rows.push({
+      id:
+        input.requestId === undefined ? "queued:" + input.operationId : "input:" + input.requestId,
+      message: {
+        role: "user",
+        timestamp: input.submittedAt,
+        content: own ? [{ type: "text", text: own.prompt }, ...(own.images ?? [])] : input.prompt,
+      },
+    });
+  }
+  for (const input of local.values()) {
+    if (!shown.has(input.messageId))
+      rows.push({
+        id: "input:" + input.messageId,
+        message: {
+          role: "user",
+          timestamp: input.submittedAt,
+          content: [{ type: "text", text: input.prompt }, ...(input.images ?? [])],
+        },
+      });
+  }
   const occurrences = new Map<string, number>();
   return rows
     .filter(

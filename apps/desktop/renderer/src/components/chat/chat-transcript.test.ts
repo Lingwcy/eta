@@ -126,11 +126,16 @@ async function setup() {
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  const render = async (value?: AgentSnapshot, active = true) => {
+  const render = async (
+    value?: AgentSnapshot,
+    active = true,
+    submittedInputs?: readonly import("@/agent/submitted-inputs").SubmittedInput[],
+  ) => {
     await act(async () =>
       root!.render(
         createElement(ChatTranscript, {
           snapshot: value,
+          submittedInputs,
           running: Boolean(value?.operation),
           active,
           origins: new Map([["user:0", "Scheduled task · first run"]]),
@@ -262,4 +267,66 @@ test("new output follows the bottom but preserves the position of someone readin
     transcript: [...initial.transcript, { id: "saved", type: "message", message: response }],
   });
   expect(atEnd()).toBeLessThanOrEqual(1);
+});
+
+test("a queued user message appears below the live answer and keeps its row when placed", async () => {
+  const { container, render } = await setup();
+  const current = snapshot(0);
+  current.operation = {
+    id: "root",
+    kind: "run",
+    startedAt: 1,
+    status: "running",
+    fromTipId: null,
+    runningTools: [],
+    streamingMessage: fauxAssistantMessage("Working on the original request", { timestamp: 1 }),
+  };
+  const input = {
+    requestId: "constructor",
+    prompt: "Use a smaller patch",
+    images: [{ type: "image" as const, data: "AA==", mimeType: "image/png" }],
+    mode: "steer" as const,
+    submittedAt: 2,
+    status: "sending" as const,
+  };
+  await render(current, true, [input]);
+  const row = container.querySelector('[data-chat-message="input:constructor"]');
+  expect(row?.textContent).toBe("Use a smaller patch");
+  expect(row?.querySelector('[role="status"]')).toBeNull();
+  expect(row?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
+  expect(container.querySelector('[data-index="0"]')?.textContent).toContain(
+    "Working on the original request",
+  );
+  current.queuedInputs = [
+    {
+      requestId: "constructor",
+      operationId: "42",
+      prompt: "Use a smaller patch",
+      mode: "steer",
+      submittedAt: 2,
+      status: "queued",
+      images: [{ mimeType: "image/png" }],
+    },
+  ];
+  await render(current, true, [input]);
+  expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
+  expect(row?.textContent).toBe("Use a smaller patch");
+  expect(row?.querySelector('[role="status"]')).toBeNull();
+  current.transcript.push({
+    id: "42:0",
+    requestId: "constructor",
+    type: "message",
+    message: {
+      role: "user",
+      content: [{ type: "text", text: input.prompt }, ...input.images],
+      timestamp: 2,
+    },
+  });
+  current.operation.streamingMessage = fauxAssistantMessage("Applying your smaller patch", {
+    timestamp: 3,
+  });
+  await render(current, true, [input]);
+  expect(container.querySelectorAll('[data-chat-message="input:constructor"]')).toHaveLength(1);
+  expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
+  expect(row?.textContent).toBe("Use a smaller patch");
 });

@@ -161,6 +161,7 @@ export function projectQueuedInputs(
       return [];
     return [
       {
+        requestId: record.requestId,
         operationId: String(id),
         mode: record.mode,
         submittedAt: record.submittedAt,

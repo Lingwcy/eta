@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
-import { ArrowUp, Square, Paperclip, ListPlus } from "lucide-react";
+import { ArrowUp, Square, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ContextIndicator } from "./context-indicator";
@@ -24,7 +24,6 @@ export function ActionToolbar({
   contextWindow,
   onSubmit,
   onStop,
-  onFollowUp,
   onSettings,
   onAttach,
   canSubmit,
@@ -42,9 +41,7 @@ export function ActionToolbar({
   const showStop = isRunning && (!allowSubmitWhileRunning || !hasContent);
   const actionLabel = showStop
     ? t("chat:actionToolbar.stopGeneration")
-    : isRunning && onFollowUp
-      ? t("chat:inputQueue.steer")
-      : t("chat:actionToolbar.sendMessage");
+    : t("chat:actionToolbar.sendMessage");
   return (
     <footer
       className={cn(
@@ -91,30 +88,6 @@ export function ActionToolbar({
           <span className="hidden min-[701px]:inline-flex">
             <ContextIndicator percentage={percentage} hideText />
           </span>
-        )}
-        {isRunning && allowSubmitWhileRunning && onFollowUp && (
-          <Button
-            variant="ghost-muted"
-            size="icon-xs"
-            disabled={disabled || !canSubmit || isStopping}
-            onClick={onFollowUp}
-            aria-label={t("chat:inputQueue.followUp")}
-            title={t("chat:inputQueue.followUpHint")}
-          >
-            <ListPlus size={17} aria-hidden="true" />
-          </Button>
-        )}
-        {isRunning && onFollowUp && !showStop && (
-          <Button
-            variant="ghost-muted"
-            size="icon-xs"
-            disabled={!onStop || isStopping}
-            onClick={onStop}
-            aria-label={t("chat:actionToolbar.stopGeneration")}
-            title={t("chat:actionToolbar.stopGeneration")}
-          >
-            <Square size={14} fill="currentColor" aria-hidden="true" />
-          </Button>
         )}
         <Button
           type="button"

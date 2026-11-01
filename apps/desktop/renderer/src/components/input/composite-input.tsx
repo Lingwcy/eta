@@ -2,7 +2,6 @@ import { LocalizedError, describeError, localizedMessage, type Message } from "@
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
 import type { InputMode } from "@eta/core/agent/protocol";
-import { Button } from "@/components/ui/button";
 import { ImageAttachments, type AttachmentItem } from "./image-attachments";
 import { extractImagePaths } from "./image-paths";
 import type { ImageSource } from "@eta/core/images/types";
@@ -24,8 +23,6 @@ export function CompositeInput({
   isRunning = false,
   allowSubmitWhileRunning = false,
   inputQueueSupported = false,
-  queuedInputs = [],
-  onWithdrawInput,
   className,
   cwd,
   ...toolbar
@@ -35,8 +32,6 @@ export function CompositeInput({
   const [submitting, setSubmitting] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [attachmentError, setAttachmentError] = useState<Message>();
-  const [restoring, setRestoring] = useState<string>();
-  const [restored, setRestored] = useState<Set<string>>(() => new Set());
   const [dragging, setDragging] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
@@ -177,33 +172,6 @@ export function CompositeInput({
       if (mounted.current) setSubmitting(false);
     }
   };
-  const restoreInput = async (operationId: string) => {
-    if (!onWithdrawInput || restoring) return;
-    setRestoring(operationId);
-    try {
-      const result = await onWithdrawInput(operationId);
-      if (!mounted.current) return;
-      if (result.status === "already_placed" || result.prompt === undefined)
-        throw new LocalizedError("chat:inputQueue.alreadyPlaced");
-      setText([latestText.current, result.prompt].filter(Boolean).join("\n\n"));
-      setAttachments((items) => [
-        ...items,
-        ...(result.images ?? []).map((image) => ({
-          id: crypto.randomUUID(),
-          name: image.name ?? "image.png",
-          image,
-        })),
-      ]);
-      setRestored((items) => new Set([...items, operationId]));
-    } catch (error) {
-      if (mounted.current)
-        setAttachmentError(
-          describeError(error, localizedMessage("chat:compositeInput.cannotSendTheMessage")),
-        );
-    } finally {
-      if (mounted.current) setRestoring(undefined);
-    }
-  };
   return (
     <div
       onPaste={(event) => {
@@ -245,42 +213,6 @@ export function CompositeInput({
           event.target.value = "";
         }}
       />
-      {queuedInputs.some((input) => !restored.has(input.operationId)) && (
-        <ul
-          className="max-h-32 space-y-0.5 overflow-y-auto text-xs text-neutral-500"
-          aria-label={t("chat:inputQueue.pending")}
-        >
-          {queuedInputs
-            .filter((input) => !restored.has(input.operationId))
-            .map((input) => (
-              <li key={input.operationId} className="flex min-h-7 items-center gap-2">
-                <span className="shrink-0">
-                  {t(
-                    input.status === "cancelled"
-                      ? "chat:inputQueue.cancelled"
-                      : input.status === "failed"
-                        ? "chat:inputQueue.failed"
-                        : input.mode === "steer"
-                          ? "chat:inputQueue.steering"
-                          : "chat:inputQueue.following",
-                  )}
-                </span>
-                <span className="min-w-0 flex-1 truncate" title={input.prompt}>
-                  {input.prompt ||
-                    input.images.map((image) => image.name ?? image.mimeType).join(", ")}
-                </span>
-                <Button
-                  variant="ghost-muted"
-                  size="toolbar"
-                  disabled={submitting || pending || toolbar.isStopping || !!restoring}
-                  onClick={() => void restoreInput(input.operationId)}
-                >
-                  {t("chat:inputQueue.restore")}
-                </Button>
-              </li>
-            ))}
-        </ul>
-      )}
       {attachments.length > 0 && (
         <ImageAttachments
           items={attachments}
@@ -308,9 +240,6 @@ export function CompositeInput({
       />
       <ActionToolbar
         {...toolbar}
-        onFollowUp={
-          isRunning && inputQueueSupported ? () => void handleSubmit("followUp") : undefined
-        }
         onAttach={() => picker.current?.click()}
         disabled={disabled || submitting}
         isRunning={isRunning}

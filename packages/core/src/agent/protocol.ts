@@ -30,6 +30,7 @@ export type AgentModel = Pick<Model<Api>, "id" | "provider" | "name" | "contextW
 export type InputMode = "reject" | "steer" | "followUp";
 
 export interface QueuedInput {
+  requestId?: string;
   operationId: string;
   mode: InputMode;
   submittedAt: number;
@@ -103,7 +104,13 @@ export interface AgentSnapshot {
     thinkingLevel: ThinkingLevel;
     agentMode?: AgentMode;
   };
-  transcript: { id: string; type: "message"; message: Message; toolStatus?: "stopped" }[];
+  transcript: {
+    id: string;
+    type: "message";
+    message: Message;
+    requestId?: string;
+    toolStatus?: "stopped";
+  }[];
   operation:
     | (Omit<OperationAdmission, "operationId" | "status"> & {
         id: string;
