@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button as BaseButton } from "@base-ui/react/button";
 import { Check, Eye, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { sandboxModes } from "@eta/core/shared/sandbox";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
@@ -30,6 +31,7 @@ export function SandboxPicker({
   disabled = false,
   disabledReason,
   side = "top",
+  responsive = false,
   onChange,
 }: {
   mode: SandboxMode;
@@ -38,6 +40,7 @@ export function SandboxPicker({
   disabled?: boolean;
   disabledReason?: string;
   side?: "top" | "bottom";
+  responsive?: boolean;
   onChange?: (mode: SandboxMode) => void;
 }) {
   useTranslation();
@@ -65,7 +68,16 @@ export function SandboxPicker({
         }
       >
         <Icon size={16} aria-hidden="true" />
-        <span className="max-w-14 truncate min-[701px]:max-w-none">{label}</span>
+        <span
+          className={cn(
+            "truncate",
+            responsive
+              ? "hidden max-w-28 @min-[640px]/composer:inline"
+              : "max-w-14 min-[701px]:max-w-none",
+          )}
+        >
+          {label}
+        </span>
       </PopoverTrigger>
       <PopoverContent
         variant="menu"
