@@ -926,3 +926,56 @@ test("a late submission reply cannot overwrite a replacement view or clear its p
     await Promise.all([old, replacement]);
   }
 });
+
+test("streaming sends are visible before admission and reconcile by request identity", async () => {
+  session.snapshot.inputQueueSupported = true;
+  const held = Promise.withResolvers<OperationAdmission>();
+  const send = vi.fn<AgentBridge["submit"]>(() => held.promise);
+  bridge.submit = send;
+  const client = await connectedClient();
+  const sending = client.submit("show immediately", undefined, "steer");
+  try {
+    expect(client.getSnapshot().submittedInputs).toMatchObject([
+      { prompt: "show immediately", status: "sending" },
+    ]);
+    const requestId = send.mock.calls[0]![3]!;
+    held.resolve({ ...admission, status: "queued" });
+    await sending;
+    expect(client.getSnapshot().submittedInputs).toMatchObject([{ requestId, status: "queued" }]);
+    const snapshot = structuredClone(session.snapshot);
+    snapshot.transcript.push({
+      id: "42:0",
+      type: "message",
+      requestId,
+      message: { role: "user", content: "show immediately", timestamp: 1 },
+    });
+    bridge.emit({ snapshot, contextTokens: 0 });
+    expect(client.getSnapshot().submittedInputs).toEqual([]);
+    expect(client.getSnapshot().observation?.snapshot.transcript.at(-1)?.requestId).toBe(requestId);
+  } finally {
+    held.resolve(admission);
+    await sending;
+  }
+});
+
+test("a rejected streaming send removes its optimistic row but an uncertain retry keeps one identity", async () => {
+  session.snapshot.inputQueueSupported = true;
+  const client = await connectedClient();
+  bridge.submit = async () => {
+    throw new DesktopCommandError({ code: "Busy", message: "full", retryable: false });
+  };
+  await expect(client.submit("retry me", undefined, "steer")).rejects.toThrow("full");
+  expect(client.getSnapshot().submittedInputs).toEqual([]);
+  bridge.submit = async () => {
+    throw new DesktopCommandError({
+      code: "SubmissionUnknown",
+      message: "unknown",
+      retryable: true,
+    });
+  };
+  await expect(client.submit("retry me", undefined, "steer")).rejects.toThrow("unknown");
+  const requestId = client.getSnapshot().submittedInputs[0]!.requestId;
+  await expect(client.submit("retry me", undefined, "steer")).rejects.toThrow("unknown");
+  expect(client.getSnapshot().submittedInputs).toMatchObject([{ requestId, status: "uncertain" }]);
+  expect(client.getSnapshot().submittedInputs).toHaveLength(1);
+});

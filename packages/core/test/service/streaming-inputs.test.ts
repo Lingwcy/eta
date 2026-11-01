@@ -88,6 +88,9 @@ test("steers precede earlier follow-ups and each request is independently addres
     const steer2 = await core.submit(thread.id, "constraint two", "steer-two", undefined, "steer");
     expect(follow.status).toBe("queued");
     expect(
+      (await core.openThread(thread.id)).snapshot.queuedInputs?.map((input) => input.requestId),
+    ).toEqual(["constructor", "__proto__", "steer-two"]);
+    expect(
       (await core.openThread(thread.id)).snapshot.queuedInputs?.map((input) => input.operationId),
     ).toEqual([follow.operationId, steer.operationId, steer2.operationId]);
     await expect(
@@ -103,6 +106,11 @@ test("steers precede earlier follow-ups and each request is independently addres
       .filter((entry) => entry.message.role === "user")
       .map((entry) => entry.message.content);
     expect(users).toEqual(["original", "constraint one"]);
+    expect(
+      (await core.openThread(thread.id)).snapshot.transcript
+        .filter((entry) => entry.message.role === "user")
+        .map((entry) => entry.requestId),
+    ).toEqual(["original", "__proto__"]);
     expect((await core.operation(thread.id, follow.operationId)).status).toBe("queued");
     second.response.resolve(fauxAssistantMessage("first constraint complete"));
     await third.reached;

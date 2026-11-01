@@ -23,6 +23,7 @@ const PendingSchema = z.object({
   createId: z.string(),
   messageId: z.string(),
   whenBusy: z.enum(["steer", "followUp"]).optional(),
+  submittedAt: z.number().optional(),
   configuration: ConfigurationSchema,
 });
 export const CacheSchema = z.object({
@@ -42,7 +43,14 @@ export interface MobileStorage {
   saveCache(url: string, value: MobileCache): Promise<void>;
   clear(): Promise<void>;
 }
+export type SubmittedInput = z.infer<typeof PendingSchema> & {
+  threadId: string;
+  submittedAt: number;
+  operationId?: string;
+};
+
 export interface MobileState {
+  submittedInputs: readonly SubmittedInput[];
   status: "loading" | "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
   url?: string;
   error?: string;
@@ -85,6 +93,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : "æ
 /** Coordinates remote work. Leaving a view or disconnecting only cancels observation. */
 export class MobileStore {
   private state: MobileState = {
+    submittedInputs: [],
     status: "loading",
     drafts: {},
     draftImages: {},
@@ -119,6 +128,27 @@ export class MobileStore {
     };
   };
   private update(value: Partial<MobileState>) {
+    if (value.thread) {
+      const thread = value.thread;
+      const placed = new Set(
+        thread.snapshot.transcript.flatMap((entry) =>
+          entry.requestId === undefined ? [] : [entry.requestId],
+        ),
+      );
+      const settled = new Set(
+        thread.snapshot.queuedInputs?.flatMap((input) =>
+          input.status !== "queued" && input.requestId !== undefined ? [input.requestId] : [],
+        ),
+      );
+      value = {
+        ...value,
+        submittedInputs: (value.submittedInputs ?? this.state.submittedInputs).filter(
+          (input) =>
+            input.threadId !== thread.id ||
+            (!placed.has(input.messageId) && !settled.has(input.messageId)),
+        ),
+      };
+    }
     if (
       Object.entries(value).every(([key, value]) =>
         Object.is(this.state[key as keyof MobileState], value),
@@ -300,6 +330,7 @@ export class MobileStore {
         drafts: cache?.drafts ?? {},
         draftImages: cache?.draftImages ?? {},
         pending: cache?.pending,
+        submittedInputs: [],
         workspaceId: library.workspaces.some((value) => value.id === cache?.workspaceId)
           ? cache?.workspaceId
           : library.workspaces[0]?.id,
@@ -354,6 +385,7 @@ export class MobileStore {
       configuration: undefined,
       error: undefined,
       pending: undefined,
+      submittedInputs: [],
       drafts: {},
       draftImages: {},
       sending: false,
@@ -566,6 +598,7 @@ export class MobileStore {
     this.update({
       pending: {
         prompt,
+        submittedAt: Date.now(),
         ...(streaming ? { whenBusy: mode } : {}),
         ...(images.length ? { images } : {}),
         workspaceId: this.state.workspaceId,
@@ -582,7 +615,25 @@ export class MobileStore {
     const client = this.requireClient();
     const epoch = this.epoch;
     let pending = this.state.pending;
-    this.update({ sending: true, error: undefined });
+    this.update({
+      sending: true,
+      error: undefined,
+      ...(pending.whenBusy && pending.threadId
+        ? {
+            submittedInputs: [
+              ...this.state.submittedInputs.filter(
+                (input) =>
+                  input.threadId !== pending.threadId || input.messageId !== pending.messageId,
+              ),
+              {
+                ...pending,
+                threadId: pending.threadId,
+                submittedAt: pending.submittedAt ?? Date.now(),
+              },
+            ],
+          }
+        : {}),
+    });
     try {
       // Persist both IDs before the first request; a process death can then be retried safely.
       await this.persist();
@@ -622,7 +673,7 @@ export class MobileStore {
         if (epoch !== this.epoch) return;
         this.watch();
       }
-      await client.send(
+      const admission = await client.send(
         pending.threadId!,
         pending.prompt,
         pending.messageId,
@@ -645,6 +696,11 @@ export class MobileStore {
       }
       this.update({
         pending: undefined,
+        submittedInputs: this.state.submittedInputs.map((input) =>
+          input.messageId === pending.messageId && input.threadId === pending.threadId
+            ? { ...input, operationId: admission.operationId }
+            : input,
+        ),
         draftImages,
         drafts,
         sending: false,
@@ -662,7 +718,15 @@ export class MobileStore {
       this.update({
         sending: false,
         error: message(error),
-        ...(rejected ? { pending: undefined } : {}),
+        ...(rejected
+          ? {
+              pending: undefined,
+              submittedInputs: this.state.submittedInputs.filter(
+                (input) =>
+                  input.messageId !== pending.messageId || input.threadId !== pending.threadId,
+              ),
+            }
+          : {}),
       });
       await this.persist();
       throw error;

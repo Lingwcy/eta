@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BotClient } from "./client.ts";
 import { MobileStore, draftKey } from "./store.ts";
+import { conversationRows, textContent } from "../conversation.ts";
 import {
   events,
   json,
@@ -883,3 +884,47 @@ test.each([false, true])(
     }
   },
 );
+
+test("Mobile shows a busy send before admission and reconciles the saved row by request ID", async () => {
+  const active = structuredClone(thread);
+  active.snapshot.inputQueueSupported = true;
+  active.snapshot.operation = { id: "root", status: "running", runningTools: [] };
+  const entered = Promise.withResolvers<string>();
+  const response = Promise.withResolvers<Response>();
+  const { store } = setup(async (url, init) => {
+    const path = new URL(requestUrl(url)).pathname;
+    if (path.endsWith("/messages")) {
+      entered.resolve(String(requestBody(init).requestId));
+      return response.promise;
+    }
+    if (path.endsWith("/events")) return events(init?.signal);
+    return json(path === "/v1/library" ? { ...library, threads: [active.thread] } : active);
+  });
+  await store.connect(connection);
+  await store.open(thread.id);
+  store.setDraft("show now");
+  const sending = store.send();
+  try {
+    const requestId = await entered.promise;
+    const pending = store.getSnapshot();
+    const optimistic = conversationRows(pending.thread!.snapshot, pending.submittedInputs);
+    expect(optimistic.map((row) => textContent(row.message))).toContain("show now");
+    active.snapshot.transcript.push({
+      id: "42:0",
+      requestId,
+      message: { role: "user", content: "show now", timestamp: 2 },
+    });
+    response.resolve(json({ operationId: "42", kind: "run", startedAt: 2, status: "queued" }, 202));
+    await sending;
+    const saved = store.getSnapshot();
+    expect(saved.submittedInputs).toEqual([]);
+    const rows = conversationRows(saved.thread!.snapshot, saved.submittedInputs);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toBe(optimistic[0]!.id);
+    expect(textContent(rows[0]!.message)).toBe("show now");
+    expect(saved.drafts[draftKey(saved)]).toBeUndefined();
+  } finally {
+    response.resolve(json({ operationId: "42", kind: "run", startedAt: 2, status: "queued" }, 202));
+    await sending;
+  }
+});

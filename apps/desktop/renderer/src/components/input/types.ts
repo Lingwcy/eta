@@ -1,10 +1,5 @@
 import type { ImageAttachment } from "@eta/core/images/types";
-import type {
-  InputMode,
-  QueuedInput,
-  WithdrawnInput,
-  ThinkingLevel,
-} from "@eta/core/agent/protocol";
+import type { InputMode, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentModel } from "@eta/core/agent/protocol";
 import type { AuthProvider } from "../../../../src/authentication.ts";
 import type { ReactNode } from "react";
@@ -49,7 +44,6 @@ export interface ActionToolbarProps {
   readonly contextWindow?: number;
   readonly onSubmit: () => void;
   readonly onStop?: () => void;
-  readonly onFollowUp?: () => void;
   readonly onAttach?: () => void;
   readonly onSettings?: () => void;
   readonly canSubmit: boolean;
@@ -76,8 +70,6 @@ export interface CompositeInputProps extends Omit<
     whenBusy?: InputMode,
   ) => void | Promise<void>;
   readonly inputQueueSupported?: boolean;
-  readonly queuedInputs?: readonly QueuedInput[];
-  readonly onWithdrawInput?: (operationId: string) => Promise<WithdrawnInput>;
   readonly submitDisabled?: boolean;
   readonly placeholder?: string;
 }

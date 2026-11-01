@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import { DEFAULT_VIRTUAL_FILE_METRICS, parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, Virtualizer } from "@pierre/diffs/react";
 import { useTranslation } from "react-i18next";
@@ -10,7 +10,7 @@ const MAX_PATCH_LINES = 20_000;
 const metrics = { ...DEFAULT_VIRTUAL_FILE_METRICS, paddingTop: 0 };
 
 /** Only a selected, bounded patch reaches Pierre; no editor or historical file loader is installed. */
-export function DiffPreview({
+export const DiffPreview = memo(function DiffPreview({
   patch,
   layout,
   location,
@@ -88,10 +88,12 @@ export function DiffPreview({
     >
       <Virtualizer
         className="min-h-0 min-w-0 flex-1 overflow-auto"
+        // Pierre anchors its virtual rows; native anchoring fights spacer replacement on fast scrolls.
+        style={{ overflowAnchor: "none" }}
         config={{ overscrollSize: 500 }}
       >
         <FileDiff fileDiff={parsed} options={options} metrics={metrics} disableWorkerPool />
       </Virtualizer>
     </div>
   );
-}
+});

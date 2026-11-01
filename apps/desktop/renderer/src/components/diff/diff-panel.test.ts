@@ -76,12 +76,13 @@ function ready(name = "example.ts", before?: string, after?: string): DiffConten
 function listing(
   scope: WorkspaceDiffScope = "all",
   names = ["example.ts", "second.ts"],
+  revision = `revision-${scope}`,
 ): WorkspaceChanges {
   return {
     status: "ready",
     workspaceId: "workspace",
     scope,
-    revision: `revision-${scope}`,
+    revision,
     files: names.map((path) => ({
       id: `${scope}:${path}`,
       path,
@@ -212,6 +213,121 @@ test("hidden panels do not load; file selection and focus refresh retain the all
     entryId: "all:second.ts",
     expectedRevision: "revision-all",
   });
+});
+
+test.each(["focus", "completion"] as const)(
+  "%s refresh keeps the tree and preview mounted until the replacement patch is ready",
+  async (trigger) => {
+    const api = bridge();
+    const props = { workspaceId: "workspace", active: true };
+    await render(createElement(DiffPanel, props));
+    await expectCode("const value = 2;");
+    const preview = document.querySelector("diffs-container")!;
+    const region = document.querySelector('[role="region"]')!;
+    const scroller = region.firstElementChild!;
+    const nav = document.querySelector("nav")!;
+    const selected = nav.querySelector('[aria-pressed="true"]');
+    await act(async () => {
+      scroller.scrollTop = 400;
+      scroller.dispatchEvent(new Event("scroll", { bubbles: false }));
+      nav.scrollTop = 120;
+    });
+    const nextList = deferred<WorkspaceChanges>();
+    const nextPatch = deferred<DiffContent>();
+    api.workspaceChanges.mockImplementationOnce(() => nextList.promise);
+    api.workspaceFileDiff.mockImplementationOnce(() => nextPatch.promise);
+    if (trigger === "focus") await focusWorkspace();
+    else {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      await render(createElement(DiffPanel, { ...props, revision: 1 }));
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      vi.useRealTimers();
+    }
+    expect(api.workspaceChanges).toHaveBeenCalledTimes(2);
+    expect(document.querySelector("diffs-container")).toBe(preview);
+    expect(nav.querySelector('[aria-pressed="true"]')).toBe(selected);
+    expect(api.workspaceFileDiff).toHaveBeenCalledTimes(1);
+    await act(async () => nextList.resolve(listing("all", undefined, "new-revision")));
+    expect(api.workspaceFileDiff).toHaveBeenLastCalledWith({
+      workspaceId: "workspace",
+      scope: "all",
+      entryId: "all:example.ts",
+      expectedRevision: "new-revision",
+    });
+    expect(api.workspaceFileDiff).toHaveBeenCalledTimes(2);
+    expect(document.querySelector("diffs-container")).toBe(preview);
+    expect(nav.querySelector('[aria-pressed="true"]')).toBe(selected);
+    expect(document.body.textContent).not.toContain("Loading changes");
+    // Continue reading while the patch is pending; completion must not restore an earlier offset.
+    await act(async () => {
+      scroller.scrollTop = 800;
+      scroller.dispatchEvent(new Event("scroll", { bubbles: false }));
+    });
+    await act(async () => nextPatch.resolve(ready("example.ts", undefined, "updated value")));
+    await expectCode("updated value");
+    expect(document.querySelector("diffs-container")).toBe(preview);
+    expect(region.firstElementChild).toBe(scroller);
+    expect(scroller.scrollTop).toBe(800);
+    expect(nav.scrollTop).toBe(120);
+  },
+);
+
+test.each(["resolve", "reject"] as const)(
+  "a late same-file refresh %s cannot overwrite the newest patch",
+  async (settlement) => {
+    const api = bridge();
+    await render(createElement(DiffPanel, { workspaceId: "workspace", active: true }));
+    await expectCode("const value = 2;");
+    const older = deferred<DiffContent>();
+    api.workspaceFileDiff.mockImplementationOnce(() => older.promise);
+    await focusWorkspace();
+    const newer = deferred<DiffContent>();
+    api.workspaceFileDiff.mockImplementationOnce(() => newer.promise);
+    await focusWorkspace();
+    await act(async () => newer.resolve(ready("example.ts", undefined, "newest refresh")));
+    await expectCode("newest refresh");
+    const preview = document.querySelector("diffs-container");
+    await act(async () => {
+      if (settlement === "resolve") older.resolve(ready("example.ts", undefined, "obsolete patch"));
+      else older.reject(new Error("obsolete failure"));
+    });
+    expect(document.querySelector("diffs-container")).toBe(preview);
+    await expectCode("newest refresh");
+    expect(document.body.textContent).not.toContain("Could not load changes");
+  },
+);
+
+test("a failed patch refresh leaves an actionable error and retry replaces the old patch", async () => {
+  const api = bridge();
+  await render(createElement(DiffPanel, { workspaceId: "workspace", active: true }));
+  await expectCode("const value = 2;");
+  const pending = deferred<DiffContent>();
+  api.workspaceFileDiff.mockImplementationOnce(() => pending.promise);
+  await focusWorkspace();
+  await act(async () => pending.reject(new Error("current failure")));
+  expect(document.querySelector("diffs-container")).toBeNull();
+  expect(document.body.textContent).toContain("Could not load changes");
+  api.workspaceFileDiff.mockResolvedValue(ready("example.ts", undefined, "recovered patch"));
+  await click("Retry");
+  await expectCode("recovered patch");
+});
+
+test("a file switch during refresh clears the old preview and rejects its late replacement", async () => {
+  const api = bridge();
+  await render(createElement(DiffPanel, { workspaceId: "workspace", active: true }));
+  await expectCode("const value = 2;");
+  const oldRefresh = deferred<DiffContent>();
+  api.workspaceFileDiff.mockImplementationOnce(() => oldRefresh.promise);
+  await focusWorkspace();
+  const selectedFile = deferred<DiffContent>();
+  api.workspaceFileDiff.mockImplementationOnce(() => selectedFile.promise);
+  await selectFile("second.ts");
+  expect(document.querySelector("diffs-container")).toBeNull();
+  expect(document.body.textContent).toContain("Loading changes");
+  await act(async () => oldRefresh.resolve(ready("example.ts", undefined, "obsolete refresh")));
+  expect(document.querySelector("diffs-container")).toBeNull();
+  await act(async () => selectedFile.resolve(ready("second.ts", undefined, "selected content")));
+  await expectCode("selected content");
 });
 
 test("history stays frozen while the live tree refreshes; file selection returns to current content", async () => {

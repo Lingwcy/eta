@@ -244,15 +244,15 @@ async function enter(options: KeyboardEventInit = {}) {
 }
 
 test.each([false, true])(
-  "streaming Enter sends steer and Alt+Enter sends follow-up without clearing before admission (alt=%s)",
-  async (altKey) => {
+  "streaming Enter sends steer and Cmd+Enter sends follow-up without clearing before admission (meta=%s)",
+  async (metaKey) => {
     const admitted = Promise.withResolvers<void>();
     submit.mockImplementation(() => admitted.promise);
     await renderStreaming();
     try {
-      const event = await enter({ altKey });
+      const event = await enter({ metaKey });
       expect(event.defaultPrevented).toBe(true);
-      expect(submit).toHaveBeenCalledWith("Describe", undefined, altKey ? "followUp" : "steer");
+      expect(submit).toHaveBeenCalledWith("Describe", undefined, metaKey ? "followUp" : "steer");
       expect(document.querySelector("textarea")!.value).toBe("Describe");
       expect(document.querySelector("textarea")!.disabled).toBe(true);
       await act(async () => admitted.resolve());
@@ -264,7 +264,7 @@ test.each([false, true])(
   },
 );
 
-test.each([{ shiftKey: true }, { isComposing: true }, { ctrlKey: true }, { metaKey: true }])(
+test.each([{ shiftKey: true }, { isComposing: true }, { ctrlKey: true }, { altKey: true }])(
   "streaming leaves newline/IME/platform shortcuts alone: %j",
   async (options) => {
     await renderStreaming();
@@ -274,20 +274,22 @@ test.each([{ shiftKey: true }, { isComposing: true }, { ctrlKey: true }, { metaK
   },
 );
 
-test("stop remains available with a draft while an admission is held", async () => {
+test("one action switches from stop to send while typing and back after admission", async () => {
   const stop = vi.fn();
-  const admitted = Promise.withResolvers<void>();
-  submit.mockImplementation(() => admitted.promise);
   await renderStreaming({ onStop: stop });
-  try {
-    await enter();
-    expect(document.querySelector("textarea")!.value).toBe("Describe");
-    expect(button(i18n.t("chat:actionToolbar.stopGeneration")).disabled).toBe(false);
-    await act(async () => button(i18n.t("chat:actionToolbar.stopGeneration")).click());
-    expect(stop).toHaveBeenCalledOnce();
-  } finally {
-    await act(async () => admitted.resolve());
-  }
+  await typeDraft("");
+  const original = button(i18n.t("chat:actionToolbar.stopGeneration"));
+  const count = document.querySelectorAll("footer button").length;
+  await typeDraft("new constraint");
+  const send = button(i18n.t("chat:actionToolbar.sendMessage"));
+  expect(send).toBe(original);
+  expect(document.querySelectorAll("footer button").length).toBe(count);
+  await act(async () => send.click());
+  expect(submit).toHaveBeenCalledWith("new constraint", undefined, "steer");
+  expect(document.querySelector("textarea")!.value).toBe("");
+  expect(button(i18n.t("chat:actionToolbar.stopGeneration"))).toBe(original);
+  await act(async () => original.click());
+  expect(stop).toHaveBeenCalledOnce();
 });
 
 test("a rejected streaming admission keeps text and attachments ready to retry", async () => {
@@ -295,108 +297,9 @@ test("a rejected streaming admission keeps text and attachments ready to retry",
   await add([file("constraint.png")]);
   await act(async () => readers[0]!.finish());
   submit.mockRejectedValue(new Error("Queue is full"));
-  await enter({ altKey: true });
+  await enter({ metaKey: true });
   expect(document.body.textContent).toContain("Queue is full");
   expect(document.querySelector("textarea")!.value).toBe("Describe");
   expect(document.querySelector('img[alt="constraint.png"]')).not.toBeNull();
-  expect(button(i18n.t("chat:inputQueue.followUp")).disabled).toBe(false);
-});
-
-test("taking back a queued input preserves a newer draft and its images on resubmission", async () => {
-  const withdrawn =
-    Promise.withResolvers<
-      Awaited<ReturnType<NonNullable<CompositeInputProps["onWithdrawInput"]>>>
-    >();
-  const queuedInputs = [
-    {
-      operationId: "42",
-      mode: "followUp" as const,
-      submittedAt: 1,
-      prompt: "recover this",
-      images: [{ name: "saved.png", mimeType: "image/png" }],
-      status: "queued" as const,
-    },
-  ];
-  await renderStreaming({ queuedInputs, onWithdrawInput: () => withdrawn.promise });
-  try {
-    expect(document.body.textContent).toContain(i18n.t("chat:inputQueue.following"));
-    const takeBack = [...document.querySelectorAll("button")].find(
-      (element) => element.textContent === i18n.t("chat:inputQueue.restore"),
-    )!;
-    await act(async () => takeBack.click());
-    await typeDraft("newer draft");
-    await act(async () =>
-      withdrawn.resolve({
-        status: "withdrawn",
-        prompt: "recover this",
-        images: [image("saved.png")],
-      }),
-    );
-    expect(document.querySelector("textarea")!.value).toBe("newer draft\n\nrecover this");
-    expect(document.querySelector('img[alt="saved.png"]')).not.toBeNull();
-    expect(document.body.textContent).not.toContain(i18n.t("chat:inputQueue.following"));
-    await act(async () => button(i18n.t("chat:inputQueue.followUp")).click());
-    expect(submit).toHaveBeenCalledWith(
-      "newer draft\n\nrecover this",
-      [image("saved.png")],
-      "followUp",
-    );
-    expect(document.querySelector("textarea")!.value).toBe("");
-    expect(document.querySelector('img[alt="saved.png"]')).toBeNull();
-  } finally {
-    await act(async () => withdrawn.resolve({ status: "settled" }));
-  }
-});
-
-test("losing withdrawal to placement never restores a message into the draft", async () => {
-  await renderStreaming({
-    queuedInputs: [
-      {
-        operationId: "42",
-        mode: "steer",
-        submittedAt: 1,
-        prompt: "already seen",
-        images: [],
-        status: "queued",
-      },
-    ],
-    onWithdrawInput: async () => ({ status: "already_placed" }),
-  });
-  await act(async () =>
-    [...document.querySelectorAll("button")]
-      .find((element) => element.textContent === i18n.t("chat:inputQueue.restore"))!
-      .click(),
-  );
-  expect(document.querySelector("textarea")!.value).toBe("Describe");
-  expect(document.body.textContent).toContain(i18n.t("chat:inputQueue.alreadyPlaced"));
-});
-
-test("a blocked composer can still recover unexecuted text and images", async () => {
-  await renderStreaming({
-    disabled: true,
-    queuedInputs: [
-      {
-        operationId: "42",
-        mode: "followUp",
-        submittedAt: 1,
-        prompt: "recover after failure",
-        images: [{ name: "saved.png", mimeType: "image/png" }],
-        status: "failed",
-      },
-    ],
-    onWithdrawInput: async () => ({
-      status: "settled",
-      prompt: "recover after failure",
-      images: [image("saved.png")],
-    }),
-  });
-  expect(document.querySelector("textarea")!.disabled).toBe(true);
-  await act(async () =>
-    [...document.querySelectorAll("button")]
-      .find((element) => element.textContent === i18n.t("chat:inputQueue.restore"))!
-      .click(),
-  );
-  expect(document.querySelector("textarea")!.value).toBe("Describe\n\nrecover after failure");
-  expect(document.querySelector('img[alt="saved.png"]')).not.toBeNull();
-  expect(document.body.textContent).not.toContain(i18n.t("chat:inputQueue.failed"));
+  expect(button(i18n.t("chat:actionToolbar.sendMessage")).disabled).toBe(false);
 });

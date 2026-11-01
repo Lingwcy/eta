@@ -124,10 +124,13 @@ export function useDesktopController(
                 ? t("chat:useDesktopController.savingChangesWaitBeforeChangingThePolicy")
                 : undefined;
   const threadId = tab.threadId;
-  const hasMessages =
+  const hasMessages = Boolean(
+    agent.submittedInputs.length ||
+    snapshot?.queuedInputs?.length ||
     snapshot?.transcript.some(
       (entry) => entry.message.role === "user" || entry.message.role === "assistant",
-    ) ?? false;
+    ),
+  );
   useEffect(() => {
     if (threadId && snapshot && hasThreadActivity(snapshot)) navigation.activity.watch(threadId);
   }, [threadId, snapshot, navigation.activity]);
@@ -143,7 +146,11 @@ export function useDesktopController(
     });
   };
   return {
-    transcript: { snapshot, running },
+    transcript: {
+      submittedInputs: agent.submittedInputs,
+      snapshot,
+      running,
+    },
     loading:
       threadId && !snapshot
         ? { loading: agent.connection === "connecting", onRetry: reconnect }
@@ -365,8 +372,6 @@ export function useDesktopController(
       isRunning: (running || backgroundWork) && !creating,
       allowSubmitWhileRunning: backgroundWork || snapshot?.inputQueueSupported === true,
       inputQueueSupported: snapshot?.inputQueueSupported === true,
-      queuedInputs: snapshot?.queuedInputs,
-      onWithdrawInput: agent.withdrawInput,
       isStopping: agent.stopping || operation?.status === "aborting",
       submitDisabled:
         (directoryUnavailable && !liveObservation) ||
