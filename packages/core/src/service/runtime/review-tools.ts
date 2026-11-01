@@ -208,16 +208,36 @@ export function createReviewToolRunner(
       }
       case "list": {
         const path = await inside(stringArg(args.path, "path"), context);
-        const entries = await (await environment()).listDir(path, context);
-        if (!entries.ok) throw new Error(entries.error.message);
-        const text = entries.value
-          .map((entry) => `${entry.kind === "directory" ? "d" : "-"} ${entry.name}`)
-          .join("\n");
-        return {
-          text: clip(text),
-          isError: false,
-          summary: `list ${stringArg(args.path, "path")}`,
-        };
+        const opened = await (await environment()).openDirReader(path, context);
+        if (!opened.ok) throw new Error(opened.error.message);
+        const reader = opened.value;
+        try {
+          const lines: string[] = [];
+          let bytes = 0;
+          let done = false;
+          while (!done) {
+            // Full paths are metadata only; keep each IPC batch bounded before formatting names.
+            const batch = await reader.next(64, context);
+            if (!batch.ok) throw new Error(batch.error.message);
+            done = batch.value.done;
+            for (const entry of batch.value.entries) {
+              const line = `${entry.kind === "directory" ? "d" : "-"} ${entry.name}`;
+              bytes += Buffer.byteLength(line) + (lines.length ? 1 : 0);
+              lines.push(line);
+              if (bytes > REVIEW_TOOL_OUTPUT_LIMIT) {
+                done = true;
+                break;
+              }
+            }
+          }
+          return {
+            text: clip(lines.join("\n")),
+            isError: false,
+            summary: `list ${stringArg(args.path, "path")}`,
+          };
+        } finally {
+          await reader.close(BACKGROUND_CONTEXT);
+        }
       }
       case "grep": {
         const path = await inside(typeof args.path === "string" ? args.path : undefined, context);
