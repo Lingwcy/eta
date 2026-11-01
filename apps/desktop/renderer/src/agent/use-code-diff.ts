@@ -19,9 +19,10 @@ export function useWorkspaceDiff({
   const [generation, setGeneration] = useState(0);
   const refresh = useCallback(() => setGeneration((value) => value + 1), []);
   const query = useDiffQuery<WorkspaceChanges>(
-    JSON.stringify([identity, generation]),
+    identity,
     admitted,
     () => window.eta.workspaceChanges({ workspaceId: workspaceId!, scope: "all" }),
+    generation,
   );
   const [known, setKnown] = useState<{ identity: string; available: boolean }>();
   const available =
@@ -49,7 +50,8 @@ export function useWorkspaceDiff({
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
   }, [admitted, identity, refresh]);
-  return { ...query, available: Boolean(available), generation, refresh };
+  // A patch refresh must use a completed list, never the previous revision while its read is pending.
+  return { ...query, available: Boolean(available), generation: query.request.revision, refresh };
 }
 
 export type WorkspaceDiffQuery = ReturnType<typeof useWorkspaceDiff>;

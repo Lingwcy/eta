@@ -58,6 +58,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## UI scope
 
+**Separate resource admission from refresh revision when keeping a live view visible.**
+
+- Evidence: on 2026-11-01, the diff panel’s focus/completion regressions hold both the file list and patch reads. The prior query key includes the refresh generation, so both cases remove the real Pierre renderer before either replacement is ready. A stable resource owner with a separate request revision keeps the tree, preview and current reading offset mounted. Advancing the patch request only after the list completes also avoids querying the previous Git revision during refresh.
+- Check: hold each read stage, continue scrolling while pending, and assert mounted-node continuity as well as updated content. Retain fresh admissions for file/view switches and reopen, reject obsolete same-resource completions/errors, and keep current failures actionable. These are DOM/read-order controls, not native scrollbar or frame-rate evidence.
+- Seen: 2026-11-01.
+
 **Separate passive reads and configuration from execution admission.**
 
 - Evidence: on 2026-10-27, a maintainer reported scheduled-task model edits rejected while another task was running. Focused Core controls found that an idle peer already remains editable, but active or recoverable work in the target chat rejects configuration with `Busy`. Agent's generation checkpoint pins each prepared request's model and thinking level; removing the configuration guard lets future requests use the saved settings while the held response completes with its original model and recovery stays paused.
