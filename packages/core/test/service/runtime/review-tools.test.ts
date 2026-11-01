@@ -5,9 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { NodeExecutionEnv } from "@eta/agent/env/node";
-import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
+import type { DirReader } from "@eta/agent/env";
+import { BACKGROUND_CONTEXT as context, withAbortSignal } from "@earendil-works/chord/context";
 import { fauxToolCall } from "@earendil-works/pi-ai";
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import {
   createReviewToolRunner,
   REVIEW_TOOL_OUTPUT_LIMIT,
@@ -94,6 +95,84 @@ test.skipIf(process.platform !== "linux")(
     }
   },
   45_000,
+);
+
+test.each([false, true])(
+  "reviewer directory cursor closes after cancellation=%s",
+  async (cancelled) => {
+    const root = await mkdtemp(join(tmpdir(), "eta-review-list-"));
+    const env = new NodeExecutionEnv({ cwd: root });
+    const readers: DirReader[] = [];
+    const controller = new AbortController();
+    const openReader = env.openDirReader.bind(env);
+    const spy = vi.spyOn(env, "openDirReader").mockImplementation(async (...args) => {
+      const opened = await openReader(...args);
+      if (opened.ok) readers.push(opened.value);
+      if (cancelled) controller.abort();
+      return opened;
+    });
+    const runner = createReviewToolRunner(async () => env, root);
+    try {
+      await writeFile(join(root, "π.txt"), "text");
+      await mkdir(join(root, "empty"));
+      const result = await runner.execute(
+        fauxToolCall("list", { path: "." }),
+        withAbortSignal(controller.signal, context),
+      );
+      expect(result.isError).toBe(cancelled);
+      if (!cancelled) {
+        expect(result.text.split("\n").sort()).toEqual(["- π.txt", "d empty"]);
+        expect(
+          await runner.execute(fauxToolCall("list", { path: "empty" }), context),
+        ).toMatchObject({ isError: false, text: "" });
+      }
+      // Exercise the acquired readers after completion, not merely a cleanup callback count.
+      for (const reader of readers) expect((await reader.next(1, context)).ok).toBe(false);
+    } finally {
+      spy.mockRestore();
+      for (const reader of readers) await reader.close(context);
+      await runner.cleanup(context);
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "reviewer lists many real long-path entries within a 64MiB host heap",
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "eta-review-list-memory-"));
+    try {
+      let root = directory;
+      for (let i = 0; i < 15; i++) root = join(root, String(i).padStart(2, "0") + "a".repeat(198));
+      await mkdir(join(root, "small"), { recursive: true });
+      await mkdir(join(root, "large"));
+      await writeFile(join(root, "small", "one.txt"), "");
+      for (let i = 0; i < 10_000; i++)
+        await writeFile(join(root, "large", String(i).padStart(6, "0") + "n".repeat(58)), "");
+      const { stdout } = await promisify(execFile)(
+        process.execPath,
+        [
+          "--max-old-space-size=64",
+          fileURLToPath(new URL("../../fixtures/review-list-memory.mjs", import.meta.url)),
+          root,
+        ],
+        { timeout: 30_000, maxBuffer: 64 * 1024 },
+      );
+      const results = JSON.parse(stdout);
+      expect(results[0]).toEqual({ isError: false, text: "- one.txt", summary: "list small" });
+      expect(results[1]).toMatchObject({ isError: false, summary: "list large" });
+      expect(results[1].text).toMatch(/^- \d{6}n{58}\n/);
+      expect(results[1].text).toContain(
+        "…[output truncated at " + REVIEW_TOOL_OUTPUT_LIMIT + " bytes]",
+      );
+      expect(Buffer.byteLength(results[1].text)).toBeLessThan(REVIEW_TOOL_OUTPUT_LIMIT + 128);
+      expect(results[1].text).not.toContain(root);
+      expect(results[2]).toEqual(results[0]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  60_000,
 );
 
 const git = (cwd: string, ...args: string[]) =>
