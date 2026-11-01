@@ -3,7 +3,7 @@ import { t } from "@/i18n";
 import { useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { Button as BaseButton } from "@base-ui/react/button";
-import { ChevronDown, ChevronUp, Grid2X2, Search, Check } from "lucide-react";
+import { Brain, ChevronDown, ChevronUp, Grid2X2, Search, Check } from "lucide-react";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,6 +21,7 @@ export function ModelPicker({
   providers = [],
   thinkingLevel = "off",
   showThinking = true,
+  responsive = false,
   defaultOption,
   placeholder = t("chat:modelPicker.chooseAModel"),
   side = "top",
@@ -38,6 +39,7 @@ export function ModelPicker({
   providers?: readonly InputProvider[];
   thinkingLevel?: ThinkingLevel;
   showThinking?: boolean;
+  responsive?: boolean;
   defaultOption?: { label: string; selected: boolean; onSelect: () => void };
   placeholder?: string;
   side?: "top" | "bottom";
@@ -84,24 +86,49 @@ export function ModelPicker({
               : t("chat:modelPicker.chooseAModel")
         }
         title={model ? `${model.provider}/${model.id}` : placeholder}
-        className="inline-flex h-8 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent bg-transparent px-2.5 text-[13px] font-normal text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0"
+        className={cn(
+          "inline-flex h-8 min-w-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent text-[13px] font-normal text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0",
+          responsive
+            ? "w-8 gap-0 px-0 @min-[520px]/composer:w-auto @min-[520px]/composer:gap-1.5 @min-[520px]/composer:px-2.5"
+            : "gap-1.5 px-2.5",
+        )}
       >
-        {model && (
+        {(model || responsive) && (
           <span aria-hidden="true" className="size-[18px] shrink-0 opacity-60">
-            <ProviderMark id={model.provider} />
+            {model ? <ProviderMark id={model.provider} /> : <Brain size={18} />}
           </span>
         )}
-        <span className="min-w-0 max-w-[72px] truncate min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]">
+        <span
+          className={cn(
+            "min-w-0 truncate",
+            responsive
+              ? "hidden max-w-[100px] @min-[520px]/composer:inline @min-[760px]/composer:max-w-[150px] @min-[900px]/composer:max-w-[220px]"
+              : "max-w-[72px] min-[701px]:max-w-[150px] min-[901px]:max-w-[220px]",
+          )}
+        >
           {selection?.label ??
             model?.name ??
             (defaultOption?.selected ? defaultOption.label : placeholder)}
         </span>
-        {thinkingLabel && <span className="shrink-0 text-neutral-500">{thinkingLabel}</span>}
-        {open ? (
-          <ChevronUp size={14} aria-hidden="true" />
-        ) : (
-          <ChevronDown size={14} aria-hidden="true" />
+        {thinkingLabel && (
+          <span
+            className={cn(
+              "shrink-0 text-neutral-500",
+              responsive && "hidden max-w-12 truncate @min-[520px]/composer:inline",
+            )}
+          >
+            {thinkingLabel}
+          </span>
         )}
+        <span
+          className={cn("inline-flex", responsive && "hidden @min-[520px]/composer:inline-flex")}
+        >
+          {open ? (
+            <ChevronUp size={14} aria-hidden="true" />
+          ) : (
+            <ChevronDown size={14} aria-hidden="true" />
+          )}
+        </span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side={side} align="end" sideOffset={8} className="z-50">
