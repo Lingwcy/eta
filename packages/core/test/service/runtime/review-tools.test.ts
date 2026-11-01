@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, writeFile, readFile, symlink, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, symlink, rm, open } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -7,7 +8,93 @@ import { NodeExecutionEnv } from "@eta/agent/env/node";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
 import { fauxToolCall } from "@earendil-works/pi-ai";
 import { expect, test } from "vite-plus/test";
-import { createReviewToolRunner } from "../../../src/service/runtime/review-tools.ts";
+import {
+  createReviewToolRunner,
+  REVIEW_TOOL_OUTPUT_LIMIT,
+} from "../../../src/service/runtime/review-tools.ts";
+
+test("reviewer read preserves selected lines, BOM and bounded UTF-8 output", async () => {
+  const root = await mkdtemp(join(tmpdir(), "eta-review-lines-"));
+  const runner = createReviewToolRunner(async () => new NodeExecutionEnv({ cwd: root }), root);
+  try {
+    await writeFile(join(root, "lines.txt"), "\uFEFFπ\r\nsecond\n\nlast\n");
+    for (const [offset, limit, text] of [
+      [1, 1, "\uFEFFπ\r"],
+      [2, 2, "second\n"],
+      [4, 2, "last\n"],
+      [99, 1, ""],
+    ] as const) {
+      expect(
+        await runner.execute(fauxToolCall("read", { path: "lines.txt", offset, limit }), context),
+      ).toMatchObject({ isError: false, text });
+    }
+    for (const extra of [0, 1]) {
+      const text = "🙂".repeat(REVIEW_TOOL_OUTPUT_LIMIT / 4 + extra);
+      await writeFile(join(root, "long.txt"), text);
+      const result = await runner.execute(
+        fauxToolCall("read", { path: "long.txt", limit: 1 }),
+        context,
+      );
+      expect(result).toMatchObject({
+        isError: false,
+        text:
+          extra === 0
+            ? text
+            : text.slice(0, REVIEW_TOOL_OUTPUT_LIMIT / 2) +
+              "\n…[output truncated at " +
+              REVIEW_TOOL_OUTPUT_LIMIT +
+              " bytes]",
+      });
+    }
+  } finally {
+    await runner.cleanup(context);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test.skipIf(process.platform !== "linux")(
+  "reviewer reads one line from a large real sandbox file under a 64MiB host heap",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "eta-review-memory-"));
+    try {
+      await writeFile(join(root, "small.txt"), "head\n");
+      const file = await open(join(root, "large.txt"), "w");
+      try {
+        await file.writeFile("head\n");
+        const chunk = Buffer.alloc(1024 * 1024, 0x61);
+        for (let i = 0; i < 128; i++) await file.writeFile(chunk);
+      } finally {
+        await file.close();
+      }
+      const { stdout } = await promisify(execFile)(
+        process.execPath,
+        [
+          "--max-old-space-size=64",
+          fileURLToPath(new URL("../../fixtures/review-read-memory.mjs", import.meta.url)),
+          root,
+        ],
+        { timeout: 30_000, maxBuffer: 64 * 1024 },
+      );
+      expect(JSON.parse(stdout)).toEqual([
+        { isError: false, text: "head", summary: "read small.txt" },
+        { isError: false, text: "head", summary: "read large.txt" },
+        {
+          isError: false,
+          text:
+            "a".repeat(REVIEW_TOOL_OUTPUT_LIMIT) +
+            "\n…[output truncated at " +
+            REVIEW_TOOL_OUTPUT_LIMIT +
+            " bytes]",
+          summary: "read large.txt",
+        },
+        { isError: false, text: "head", summary: "read small.txt" },
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  45_000,
+);
 
 const git = (cwd: string, ...args: string[]) =>
   promisify(execFile)("git", ["-c", "user.name=Eta", "-c", "user.email=eta@example.com", ...args], {

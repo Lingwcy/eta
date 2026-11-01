@@ -86,9 +86,9 @@ export function DiffPanel({
   const listRevision =
     list.status === "ready" && list.value.status === "ready" ? list.value.revision : undefined;
   const contentKey =
-    source === "history"
-      ? JSON.stringify([navigationKey, historyRefresh])
-      : JSON.stringify([workspaceKey, listRevision, file?.id, list.generation]);
+    source === "history" ? navigationKey : JSON.stringify([workspaceKey, file?.id]);
+  const contentRevision =
+    source === "history" ? historyRefresh : JSON.stringify([listRevision, list.generation]);
   const content = useDiffQuery<DiffContent>(
     contentKey,
     active && (source === "history" ? Boolean(history) : Boolean(file && listRevision)),
@@ -101,6 +101,7 @@ export function DiffPanel({
             entryId: file!.id,
             expectedRevision: listRevision!,
           }),
+    contentRevision,
   );
   const location = source === "history" ? historyKey : JSON.stringify([workspaceKey, file?.path]);
   const retry = (
