@@ -1236,9 +1236,10 @@ test("retrying an admitted request returns its receipt rather than launching ano
   const nextThreads = await next.runPromise(ThreadService);
   const titleCalls = titleProvider.state.callCount;
   const providerCalls = provider.state.callCount;
-  expect(await next.runPromise(nextThreads.submit(created.id, "Only once", "input-once"))).toEqual(
-    first,
-  );
+  expect(await next.runPromise(nextThreads.submit(created.id, "Only once", "input-once"))).toEqual({
+    ...first,
+    status: "aborted",
+  });
   expect(provider.state.callCount).toBe(providerCalls);
   expect(titleProvider.state.callCount).toBe(titleCalls);
 });

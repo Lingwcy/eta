@@ -18,19 +18,24 @@ import {
 
 export function ChatTranscript({
   snapshot,
+  submittedInputs,
   running,
   origins,
   active = true,
   children,
 }: {
   snapshot?: AgentSnapshot;
+  submittedInputs?: readonly import("@/agent/submitted-inputs").SubmittedInput[];
   running: boolean;
   origins?: ReadonlyMap<string, string>;
   active?: boolean;
   children: ReactNode;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
-  const messages = useMemo(() => getChatMessages(snapshot), [snapshot]);
+  const messages = useMemo(
+    () => getChatMessages(snapshot, submittedInputs),
+    [snapshot, submittedInputs],
+  );
   const tools = useMemo(() => indexTools(snapshot ? getTools(snapshot) : []), [snapshot]);
   const turns = useMemo(() => getChatTurns(messages), [messages]);
   const turnIndices = useMemo(
@@ -130,9 +135,9 @@ export function ChatTranscript({
                 >
                   {entry ? (
                     <ChatMessageState value={{ id: entry.id, expanded: expanded.current }}>
-                      {entry.message.role === "user" && origins?.get(entry.id) && (
+                      {entry.message.role === "user" && origins?.get(entry.sourceId) && (
                         <p className="mb-1 text-right text-xs text-neutral-500">
-                          {origins.get(entry.id)}
+                          {origins.get(entry.sourceId)}
                         </p>
                       )}
                       <ChatMessage

@@ -86,6 +86,7 @@ const Command = Schema.Union([
   }),
   Schema.Struct({ type: Schema.Literal("open"), id: Id }),
   Schema.Struct({ type: Schema.Literal("operation"), id: Id, operationId: Id }),
+  Schema.Struct({ type: Schema.Literal("withdraw-input"), id: Id, operationId: Id }),
   Schema.Struct({ type: Schema.Literal("configure-sandbox"), id: Id, mode: SandboxModeSchema }),
   Schema.Struct({
     type: Schema.Literal("decide-approval"),
@@ -157,6 +158,7 @@ const Command = Schema.Union([
   Schema.Struct({ type: Schema.Literal("archive"), id: Id, archived: Schema.Boolean }),
   Schema.Struct({
     type: Schema.Literal("submit"),
+    whenBusy: Schema.optionalKey(Schema.Literals(["reject", "steer", "followUp"])),
     id: Id,
     prompt: Schema.String,
     requestId: Id,
@@ -347,7 +349,15 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
     case "archive":
       return application.archiveThread(command.id, command.archived);
     case "submit":
-      return application.submit(command.id, command.prompt, command.requestId, command.images);
+      return application.submit(
+        command.id,
+        command.prompt,
+        command.requestId,
+        command.images,
+        command.whenBusy,
+      );
+    case "withdraw-input":
+      return application.withdrawInput(command.id, command.operationId);
     case "stop":
       return application.stop(command.id);
     case "resume":

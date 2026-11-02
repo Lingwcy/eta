@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   AdmissionSchema,
+  WithdrawnInputSchema,
   ConnectionSchema,
   ErrorSchema,
   LibrarySchema,
@@ -132,10 +133,17 @@ export class BotClient {
   create(workspaceId: string, requestId: string, configuration: Configuration) {
     return this.request("/v1/threads", OpenThreadSchema, { workspaceId, requestId, configuration });
   }
-  send(id: string, prompt: string, requestId: string, images?: readonly ImageAttachment[]) {
+  send(
+    id: string,
+    prompt: string,
+    requestId: string,
+    images?: readonly ImageAttachment[],
+    whenBusy?: "reject" | "steer" | "followUp",
+  ) {
     return this.request(this.route(id) + "/messages", AdmissionSchema, {
       prompt,
       requestId,
+      ...(whenBusy ? { whenBusy } : {}),
       ...(images?.length
         ? {
             images: images.map(({ type, data, mimeType, name, note }) => ({
@@ -148,6 +156,9 @@ export class BotClient {
           }
         : {}),
     });
+  }
+  withdrawInput(id: string, operationId: string) {
+    return this.request(this.route(id) + "/inputs/withdraw", WithdrawnInputSchema, { operationId });
   }
   operation(id: string, operationId: string) {
     return this.request(

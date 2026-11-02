@@ -274,7 +274,10 @@ export async function createCore(options: CoreOptions) {
         prompt: string,
         requestId?: string,
         images?: readonly ImageAttachment[],
-      ) => runtime.runPromise(threads.submit(id, prompt, requestId, images)),
+        whenBusy?: import("./agent/protocol.ts").InputMode,
+      ) => runtime.runPromise(threads.submit(id, prompt, requestId, images, whenBusy)),
+      withdrawInput: (id: string, operationId: string) =>
+        runtime.runPromise(threads.withdrawInput(id, operationId)),
       operation: (id: string, operationId: string) =>
         runtime.runPromise(threads.operation(id, operationId)),
       operationByRequest: (id: string, requestId: string) =>

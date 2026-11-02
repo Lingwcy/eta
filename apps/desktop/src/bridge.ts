@@ -67,7 +67,12 @@ export interface AgentBridge {
     images?: readonly ImageAttachment[],
     /** Retried attempts of one logical message reuse its durable identity. */
     requestId?: string,
+    whenBusy?: import("@eta/core/agent/protocol").InputMode,
   ): Promise<OperationAdmission>;
+  withdrawInput?(
+    sessionId: string,
+    operationId: string,
+  ): Promise<import("@eta/core/agent/protocol").WithdrawnInput>;
   /** Keep unknown-admission retry policy intact across Electron contextBridge. */
   submitReply?(
     ...args: Parameters<AgentBridge["submit"]>

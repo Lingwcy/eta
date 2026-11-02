@@ -1,5 +1,5 @@
 import type { ImageAttachment } from "@eta/core/images/types";
-import type { ThinkingLevel } from "@eta/core/agent/protocol";
+import type { InputMode, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { AgentModel } from "@eta/core/agent/protocol";
 import type { AuthProvider } from "../../../../src/authentication.ts";
 import type { ReactNode } from "react";
@@ -20,7 +20,8 @@ export interface ContextIndicatorProps {
 export interface PromptTextareaProps {
   readonly value: string;
   readonly onChange: (value: string) => void;
-  readonly onSubmit: () => void;
+  readonly onSubmit: (mode?: InputMode) => void;
+  readonly allowFollowUp?: boolean;
   readonly placeholder?: string;
   readonly disabled?: boolean;
   readonly minRows?: number;
@@ -63,7 +64,12 @@ export interface CompositeInputProps extends Omit<
   readonly onChange?: (value: string) => void;
   /** Resolves when the harness admits the prompt. Rejection preserves the draft. */
   readonly cwd?: string;
-  readonly onSubmit?: (text: string, images?: readonly ImageAttachment[]) => void | Promise<void>;
+  readonly onSubmit?: (
+    text: string,
+    images?: readonly ImageAttachment[],
+    whenBusy?: InputMode,
+  ) => void | Promise<void>;
+  readonly inputQueueSupported?: boolean;
   readonly submitDisabled?: boolean;
   readonly placeholder?: string;
 }

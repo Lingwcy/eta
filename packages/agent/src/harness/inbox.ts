@@ -62,7 +62,8 @@ export async function prepareBoundary(tx: Tx, conversationId: ConversationId, mo
 
 /**
  * Place the queued items a boundary selects (spec §6): every write, the first or all steers, and at `final` the first
- * or all follow-ups. A selected reset turns a `postTools` boundary into `final`. Writes are placed first and user
+ * or all follow-ups only when no steer was selected. A selected reset turns a `postTools` boundary into `final`.
+ * Writes are placed first and user
  * items after them, each in ID order, so user items queued before a reset run in the new context. A write whose head
  * targets an entry before the active range, including a range started earlier in this commit, is stale. Selected and
  * stale items are removed positionally.
@@ -82,8 +83,8 @@ export async function applyBoundary(
 		return queueMode === "all" ? indexes : indexes.slice(0, 1);
 	};
 	const writes = items.flatMap((item, index) => (item.mode === "write" ? [index] : []));
-	const users = [...pick("steer", boundary.steeringMode), ...(final ? pick("followUp", boundary.followUpMode) : [])];
-	users.sort((a, b) => a - b);
+	const steers = pick("steer", boundary.steeringMode);
+	const users = steers.length > 0 ? steers : final ? pick("followUp", boundary.followUpMode) : [];
 
 	// `appendEntry()` copies the drafts' values; the items are removed only afterwards.
 	for (const index of writes) {

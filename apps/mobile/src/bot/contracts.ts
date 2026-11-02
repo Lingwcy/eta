@@ -117,14 +117,36 @@ export const ApprovalSchema = z.object({
     })
     .optional(),
 });
+export const InputModeSchema = z.enum(["reject", "steer", "followUp"]);
+export const QueuedInputSchema = z.object({
+  requestId: z.string().optional(),
+  operationId: z.string(),
+  mode: InputModeSchema,
+  submittedAt: z.number(),
+  prompt: z.string(),
+  images: z.array(z.object({ name: z.string().optional(), mimeType: z.string() })),
+  status: z.enum(["queued", "cancelled", "failed"]),
+});
+export const WithdrawnInputSchema = z.object({
+  status: z.enum(["withdrawn", "already_placed", "settled"]),
+  prompt: z.string().optional(),
+  images: z.array(ImageAttachmentSchema).optional(),
+});
 export const SnapshotSchema = z.object({
+  inputQueueSupported: z.boolean().optional(),
+  queuedInputs: z.array(QueuedInputSchema).optional(),
   toolIntents: z.record(z.string(), z.string()).optional(),
   configuration: z.object({
     model: z.object({ provider: z.string(), modelId: z.string() }),
     thinkingLevel: ThinkingLevelSchema,
   }),
   transcript: z.array(
-    z.object({ id: z.string(), message: MessageSchema, toolStatus: z.string().optional() }),
+    z.object({
+      id: z.string(),
+      requestId: z.string().optional(),
+      message: MessageSchema,
+      toolStatus: z.string().optional(),
+    }),
   ),
   operation: z
     .object({
@@ -186,6 +208,8 @@ export const OpenThreadSchema = SnapshotResponseSchema.extend({
 });
 export type OpenThread = z.infer<typeof OpenThreadSchema>;
 export const AdmissionSchema = z.object({
+  status: z.enum(["queued", "running", "paused", "completed", "failed", "aborted"]).optional(),
+  inputEntryId: z.string().optional(),
   operationId: z.string(),
   kind: z.literal("run"),
   startedAt: z.number(),

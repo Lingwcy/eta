@@ -6,6 +6,7 @@ import type { OperationResult, RecoveryState } from "../../agent/protocol.ts";
 import { CoreError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";
 import { hasForegroundWork } from "../runtime/recovery.ts";
+import { inputRecords } from "../runs/inputs.ts";
 import { readOperationOrigin } from "./origin.ts";
 
 const OperationId = Schema.NumberFromString.check(
@@ -82,7 +83,12 @@ export async function readOperation(
     operationId: String(receipt.id),
     ...(origin !== undefined ? { originOperationId: origin } : {}),
     kind: "run",
-    startedAt: input?.entry.model?.[0]?.timestamp ?? runtime.ref.metadata.createdAt,
+    startedAt:
+      (await inputRecords(runtime)).find(
+        (record) => record.id === receipt.id || record.requestId === receipt.requestId,
+      )?.submittedAt ??
+      input?.entry.model?.[0]?.timestamp ??
+      runtime.ref.metadata.createdAt,
     status,
     messages,
     ...(receipt.status === "done" && messages[0]?.timestamp !== undefined

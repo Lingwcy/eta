@@ -36,6 +36,7 @@ const Create = Schema.Struct({
   ),
 });
 const Message = Schema.Struct({
+  whenBusy: Schema.optionalKey(Schema.Literals(["reject", "steer", "followUp"])),
   requestId: RequestId,
   prompt: Schema.String,
   images: Schema.optionalKey(
@@ -52,6 +53,7 @@ const Message = Schema.Struct({
 });
 
 export const BOT_CAPABILITIES = [
+  "input-queue",
   "agent-mode",
   "approval-review",
   "git-metadata",
@@ -195,11 +197,29 @@ export function createHttpApp(options: {
       input.requestId,
       JSON.stringify({
         prompt: input.prompt,
+        ...(input.whenBusy === undefined || input.whenBusy === "reject"
+          ? {}
+          : { whenBusy: input.whenBusy }),
         ...(input.images === undefined ? {} : { images: input.images }),
       }),
-      () => controller.submit(id, input.prompt, `http:messages:${input.requestId}`, input.images),
+      () =>
+        controller.submit(
+          id,
+          input.prompt,
+          `http:messages:${input.requestId}`,
+          input.images,
+          input.whenBusy,
+        ),
     );
     return context.json(result, 202);
+  });
+  app.post("/v1/threads/:id/inputs/withdraw", async (context) => {
+    await options.projects.refreshForThread(context.req.param("id"));
+    const input = decode(
+      Schema.Struct({ operationId: Schema.NonEmptyString }),
+      await readBody(context.req),
+    );
+    return context.json(await controller.withdrawInput(context.req.param("id"), input.operationId));
   });
   // Single-thread reads need fresh target scope, not unrelated project discovery.
   app.get("/v1/threads/:id", async (context) => {

@@ -7,6 +7,7 @@ import type {
   ThinkingLevel as ModelThinkingLevel,
   ToolResultMessage,
 } from "@earendil-works/pi-ai";
+import type { ImageAttachment } from "../images/types.ts";
 import type { ActiveSkill } from "../skills/types.ts";
 import type { SandboxApproval, SandboxMode, SandboxStatus } from "../shared/sandbox.ts";
 import type { AgentMode } from "../shared/runtime-settings.ts";
@@ -26,7 +27,26 @@ export type AgentModel = Pick<Model<Api>, "id" | "provider" | "name" | "contextW
   };
 
 /** Application transport contract, independent of the provider's runtime handles. */
+export type InputMode = "reject" | "steer" | "followUp";
+
+export interface QueuedInput {
+  requestId?: string;
+  operationId: string;
+  mode: InputMode;
+  submittedAt: number;
+  prompt: string;
+  images: readonly { name?: string; mimeType: string }[];
+  status: "queued" | "cancelled" | "failed";
+}
+
+export interface WithdrawnInput {
+  status: "withdrawn" | "already_placed" | "settled";
+  prompt?: string;
+  images?: readonly ImageAttachment[];
+}
+
 export interface OperationAdmission {
+  status?: "queued" | "running" | "paused" | "completed" | "failed" | "aborted";
   operationId: string;
   kind: "run";
   startedAt: number;
@@ -68,6 +88,9 @@ export interface SnapshotTool {
 }
 
 export interface AgentSnapshot {
+  /** Authoritative pending inputs and retained unexecuted inputs, without image bodies. */
+  queuedInputs?: readonly QueuedInput[];
+  inputQueueSupported?: boolean;
   /** Display summaries resolved against each call's admitted tool declaration. */
   toolIntents?: Record<string, string>;
   sandbox?: SandboxStatus;
@@ -81,9 +104,15 @@ export interface AgentSnapshot {
     thinkingLevel: ThinkingLevel;
     agentMode?: AgentMode;
   };
-  transcript: { id: string; type: "message"; message: Message; toolStatus?: "stopped" }[];
+  transcript: {
+    id: string;
+    type: "message";
+    message: Message;
+    requestId?: string;
+    toolStatus?: "stopped";
+  }[];
   operation:
-    | (Omit<OperationAdmission, "operationId"> & {
+    | (Omit<OperationAdmission, "operationId" | "status"> & {
         id: string;
         status: "running" | "aborting";
         fromTipId: null;
@@ -96,7 +125,7 @@ export interface AgentSnapshot {
       })
     | null;
   lastResult:
-    | (OperationAdmission & {
+    | (Omit<OperationAdmission, "status"> & {
         status: "completed" | "failed" | "aborted";
         fromTipId: null;
         tipId: null;

@@ -1,6 +1,7 @@
 import { LocalizedError, describeError, localizedMessage, type Message } from "@/i18n/messages";
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
+import type { InputMode } from "@eta/core/agent/protocol";
 import { ImageAttachments, type AttachmentItem } from "./image-attachments";
 import { extractImagePaths } from "./image-paths";
 import type { ImageSource } from "@eta/core/images/types";
@@ -21,6 +22,7 @@ export function CompositeInput({
   submitDisabled = false,
   isRunning = false,
   allowSubmitWhileRunning = false,
+  inputQueueSupported = false,
   className,
   cwd,
   ...toolbar
@@ -115,11 +117,14 @@ export function CompositeInput({
     }
   };
   const text = value ?? internalValue;
+  const latestText = useRef(text);
+  latestText.current = text;
   const setText = (next: string) => {
+    latestText.current = next;
     if (value === undefined) setInternalValue(next);
     onChange?.(next);
   };
-  const handleSubmit = async () => {
+  const handleSubmit = async (mode?: InputMode) => {
     if (
       (!text.trim() && !attachments.length) ||
       locked ||
@@ -136,7 +141,9 @@ export function CompositeInput({
     try {
       const { prompt, paths } = extractImagePaths(text);
       const images = await Promise.all(
-        attachments.flatMap((item) => (item.source ? [prepare(item.source)] : [])),
+        attachments.flatMap((item) =>
+          item.source ? [prepare(item.source)] : item.image ? [Promise.resolve(item.image)] : [],
+        ),
       );
       for (const path of paths) images.push(await prepare({ path }));
       const maxPerMessage = toolbar.model?.inputLimits?.images?.maxPerMessage;
@@ -144,8 +151,15 @@ export function CompositeInput({
         throw new LocalizedError("chat:compositeInput.thisModelSupportsUpToImagesPer", {
           count: maxPerMessage,
         });
-      await onSubmit(prompt, images.length ? images : undefined);
-      setText("");
+      if (inputQueueSupported)
+        await onSubmit(
+          prompt,
+          images.length ? images : undefined,
+          mode ?? (isRunning ? "steer" : "reject"),
+        );
+      else await onSubmit(prompt, images.length ? images : undefined);
+      if (!mounted.current) return;
+      if (latestText.current === text) setText("");
       liveAttachments.current.clear();
       setAttachments([]);
     } catch (error) {
@@ -217,9 +231,10 @@ export function CompositeInput({
       <PromptTextarea
         value={text}
         onChange={setText}
-        onSubmit={() => {
-          void handleSubmit();
+        onSubmit={(mode) => {
+          void handleSubmit(mode);
         }}
+        allowFollowUp={inputQueueSupported}
         placeholder={placeholder}
         disabled={locked}
       />

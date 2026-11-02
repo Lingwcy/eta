@@ -246,7 +246,10 @@ test("headless execution retains older operation results and idempotency after r
   await core.close();
   const restored = await open();
   expect(await restored.operation(thread.id, first.operationId)).toEqual(result);
-  expect(await restored.submit(thread.id, "Write a file", "input-request")).toEqual(first);
+  expect(await restored.submit(thread.id, "Write a file", "input-request")).toEqual({
+    ...first,
+    status: "completed",
+  });
   await expect(restored.operation(thread.id, "invalid")).rejects.toMatchObject({
     code: "InvalidInput",
   });

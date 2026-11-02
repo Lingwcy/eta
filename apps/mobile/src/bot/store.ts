@@ -22,6 +22,8 @@ const PendingSchema = z.object({
   images: z.array(DraftImageSchema).optional(),
   createId: z.string(),
   messageId: z.string(),
+  whenBusy: z.enum(["steer", "followUp"]).optional(),
+  submittedAt: z.number().optional(),
   configuration: ConfigurationSchema,
 });
 export const CacheSchema = z.object({
@@ -41,7 +43,14 @@ export interface MobileStorage {
   saveCache(url: string, value: MobileCache): Promise<void>;
   clear(): Promise<void>;
 }
+export type SubmittedInput = z.infer<typeof PendingSchema> & {
+  threadId: string;
+  submittedAt: number;
+  operationId?: string;
+};
+
 export interface MobileState {
+  submittedInputs: readonly SubmittedInput[];
   status: "loading" | "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
   url?: string;
   error?: string;
@@ -84,6 +93,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : "�
 /** Coordinates remote work. Leaving a view or disconnecting only cancels observation. */
 export class MobileStore {
   private state: MobileState = {
+    submittedInputs: [],
     status: "loading",
     drafts: {},
     draftImages: {},
@@ -118,6 +128,27 @@ export class MobileStore {
     };
   };
   private update(value: Partial<MobileState>) {
+    if (value.thread) {
+      const thread = value.thread;
+      const placed = new Set(
+        thread.snapshot.transcript.flatMap((entry) =>
+          entry.requestId === undefined ? [] : [entry.requestId],
+        ),
+      );
+      const settled = new Set(
+        thread.snapshot.queuedInputs?.flatMap((input) =>
+          input.status !== "queued" && input.requestId !== undefined ? [input.requestId] : [],
+        ),
+      );
+      value = {
+        ...value,
+        submittedInputs: (value.submittedInputs ?? this.state.submittedInputs).filter(
+          (input) =>
+            input.threadId !== thread.id ||
+            (!placed.has(input.messageId) && !settled.has(input.messageId)),
+        ),
+      };
+    }
     if (
       Object.entries(value).every(([key, value]) =>
         Object.is(this.state[key as keyof MobileState], value),
@@ -299,6 +330,7 @@ export class MobileStore {
         drafts: cache?.drafts ?? {},
         draftImages: cache?.draftImages ?? {},
         pending: cache?.pending,
+        submittedInputs: [],
         workspaceId: library.workspaces.some((value) => value.id === cache?.workspaceId)
           ? cache?.workspaceId
           : library.workspaces[0]?.id,
@@ -353,6 +385,7 @@ export class MobileStore {
       configuration: undefined,
       error: undefined,
       pending: undefined,
+      submittedInputs: [],
       drafts: {},
       draftImages: {},
       sending: false,
@@ -535,7 +568,7 @@ export class MobileStore {
     if (!this.client || this.state.status !== "connected") throw new Error("请先连接 Bot");
     return this.client;
   }
-  async send() {
+  async send(mode: "steer" | "followUp" = "steer") {
     if (this.state.sending) return;
     this.requireClient();
     if (this.state.pending) throw new Error("请先确认上一次消息的接收状态");
@@ -552,7 +585,9 @@ export class MobileStore {
       throw new Error("请先选择项目和模型");
     if (this.state.threadId && !this.state.thread) throw new Error("请先等待会话加载完成");
     if (this.state.thread?.thread.archivedAt) throw new Error("请先取消归档再发送消息");
-    if (this.state.thread?.snapshot.operation) throw new Error("当前会话正在执行任务");
+    const streaming = !!this.state.thread?.snapshot.operation;
+    if (streaming && !this.state.thread?.snapshot.inputQueueSupported)
+      throw new Error("当前 Bot 不支持运行中发送消息");
     if (
       this.state.thread?.snapshot.recoveryRequired ||
       this.state.thread?.snapshot.blockedReason ||
@@ -563,6 +598,8 @@ export class MobileStore {
     this.update({
       pending: {
         prompt,
+        submittedAt: Date.now(),
+        ...(streaming ? { whenBusy: mode } : {}),
         ...(images.length ? { images } : {}),
         workspaceId: this.state.workspaceId,
         threadId: this.state.threadId,
@@ -578,7 +615,25 @@ export class MobileStore {
     const client = this.requireClient();
     const epoch = this.epoch;
     let pending = this.state.pending;
-    this.update({ sending: true, error: undefined });
+    this.update({
+      sending: true,
+      error: undefined,
+      ...(pending.whenBusy && pending.threadId
+        ? {
+            submittedInputs: [
+              ...this.state.submittedInputs.filter(
+                (input) =>
+                  input.threadId !== pending.threadId || input.messageId !== pending.messageId,
+              ),
+              {
+                ...pending,
+                threadId: pending.threadId,
+                submittedAt: pending.submittedAt ?? Date.now(),
+              },
+            ],
+          }
+        : {}),
+    });
     try {
       // Persist both IDs before the first request; a process death can then be retried safely.
       await this.persist();
@@ -618,7 +673,13 @@ export class MobileStore {
         if (epoch !== this.epoch) return;
         this.watch();
       }
-      await client.send(pending.threadId!, pending.prompt, pending.messageId, pending.images);
+      const admission = await client.send(
+        pending.threadId!,
+        pending.prompt,
+        pending.messageId,
+        pending.images,
+        pending.whenBusy,
+      );
       if (epoch !== this.epoch) return;
       const key = `thread:${pending.threadId}`;
       const originalKey =
@@ -635,6 +696,11 @@ export class MobileStore {
       }
       this.update({
         pending: undefined,
+        submittedInputs: this.state.submittedInputs.map((input) =>
+          input.messageId === pending.messageId && input.threadId === pending.threadId
+            ? { ...input, operationId: admission.operationId }
+            : input,
+        ),
         draftImages,
         drafts,
         sending: false,
@@ -652,13 +718,53 @@ export class MobileStore {
       this.update({
         sending: false,
         error: message(error),
-        ...(rejected ? { pending: undefined } : {}),
+        ...(rejected
+          ? {
+              pending: undefined,
+              submittedInputs: this.state.submittedInputs.filter(
+                (input) =>
+                  input.messageId !== pending.messageId || input.threadId !== pending.threadId,
+              ),
+            }
+          : {}),
       });
       await this.persist();
       throw error;
     } finally {
       if (epoch === this.epoch) this.update({ sending: false });
     }
+  }
+  async restoreInput(operationId: string) {
+    const client = this.requireClient();
+    const epoch = this.epoch;
+    const view = this.view;
+    const id = this.state.threadId;
+    if (!id || this.state.pending) throw new Error("请先确认当前消息的接收状态");
+    const result = await client.withdrawInput(id, operationId);
+    if (epoch !== this.epoch || view !== this.view) return false;
+    if (result.status === "already_placed" || result.prompt === undefined)
+      throw new Error("消息已生效，无法取回");
+    const key = draftKey(this.state);
+    const images = this.state.draftImages[key] ?? [];
+    if (images.length + (result.images?.length ?? 0) > MAX_DRAFT_IMAGES)
+      throw new Error("消息已撤回，请先移除部分草稿图片再取回");
+    this.update({
+      drafts: {
+        ...this.state.drafts,
+        [key]: [this.state.drafts[key], result.prompt].filter(Boolean).join("\n\n"),
+      },
+      draftImages: {
+        ...this.state.draftImages,
+        [key]: [
+          ...images,
+          ...(result.images ?? []).map((image) => ({ ...image, id: this.uuid() })),
+        ],
+      },
+    });
+    await this.persist();
+    if (epoch !== this.epoch || view !== this.view) return false;
+    await this.open(id);
+    return this.state.threadId === id;
   }
   async createProject(name: string) {
     const client = this.requireClient();

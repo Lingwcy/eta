@@ -1,6 +1,6 @@
 import { LocalizedError } from "@/i18n/messages";
 import type { ImageAttachment } from "@eta/core/images/types";
-import type { ThinkingLevel } from "@eta/core/agent/protocol";
+import type { InputMode, ThinkingLevel } from "@eta/core/agent/protocol";
 import type { SandboxMode } from "@eta/core/shared/sandbox";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { initialAgentState, ThreadAgentClient } from "./client";
@@ -42,10 +42,10 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
     [client, threadId],
   );
   const submit = useCallback(
-    async (text: string, images?: readonly ImageAttachment[]) => {
+    async (text: string, images?: readonly ImageAttachment[], whenBusy?: InputMode) => {
       if (!client || client.getSnapshot().session?.id !== threadId)
         throw new LocalizedError("chat:useThreadAgent.createOrSelectAChatFirst");
-      await client.submit(text, images);
+      await client.submit(text, images, whenBusy);
     },
     [client, threadId],
   );
@@ -61,5 +61,13 @@ export function useThreadAgent(threadId: string | null, version = 0, active = tr
     () => (client?.getSnapshot().session?.id === threadId ? client.stop() : undefined),
     [client, threadId],
   );
-  return { ...state, configure, configureSandbox, submit, stop };
+  const withdrawInput = useCallback(
+    async (operationId: string) => {
+      if (!client || client.getSnapshot().session?.id !== threadId)
+        throw new LocalizedError("chat:useThreadAgent.createOrSelectAChatFirst");
+      return client.withdrawInput(operationId);
+    },
+    [client, threadId],
+  );
+  return { ...state, configure, configureSandbox, submit, stop, withdrawInput };
 }

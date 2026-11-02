@@ -77,11 +77,21 @@ export function ChatScreen() {
     }
   };
   const { busy, run } = useAction();
+  const { busy: stopping, run: stop } = useAction();
 
   const atBottom = useRef(true);
   const list = useRef<FlatList<ReturnType<typeof conversationRows>[number]>>(null);
   const snapshot = state.thread?.snapshot;
-  const rows = useMemo(() => (snapshot ? conversationRows(snapshot) : []), [snapshot]);
+  const rows = useMemo(
+    () =>
+      snapshot
+        ? conversationRows(
+            snapshot,
+            state.submittedInputs.filter((input) => input.threadId === state.threadId),
+          )
+        : [],
+    [snapshot, state.submittedInputs, state.threadId],
+  );
   const tools = useMemo(() => (snapshot ? buildToolIndex(snapshot) : undefined), [snapshot]);
   const workspace = state.library?.workspaces.find((value) => value.id === state.workspaceId);
   const project = state.library?.projects.find((value) => value.id === workspace?.projectId);
@@ -93,7 +103,7 @@ export function ChatScreen() {
   const images = state.draftImages[draftKey(state)] ?? [];
   const connected = state.status === "connected";
   const running = !!snapshot?.operation;
-  const allowed = connected && !busy && !state.sending && !state.opening;
+  const allowed = connected && !busy && !stopping && !state.sending && !state.opening;
   useEffect(() => {
     atBottom.current = true;
     setAway(false);
@@ -306,12 +316,15 @@ export function ChatScreen() {
             onSubmit={() => {
               void run(() => store.send());
             }}
+            allowSubmitWhileRunning={snapshot?.inputQueueSupported === true}
             onStop={() => {
-              void run(() => store.control("stop"));
+              void stop(() => store.control("stop"));
             }}
             onOpenConfiguration={() => setConfiguration(true)}
             running={running}
-            canStop={allowed && snapshot?.operation?.status !== "aborting"}
+            canStop={
+              connected && !state.opening && !stopping && snapshot?.operation?.status !== "aborting"
+            }
             canSend={
               allowed &&
               !state.pending &&
@@ -320,6 +333,8 @@ export function ChatScreen() {
               Boolean(workspace) &&
               Boolean(model) &&
               !state.thread?.thread.archivedAt &&
+              snapshot?.operation?.status !== "aborting" &&
+              (!running || snapshot?.inputQueueSupported === true) &&
               !snapshot?.recoveryRequired &&
               !snapshot?.blockedReason &&
               !snapshot?.faulted

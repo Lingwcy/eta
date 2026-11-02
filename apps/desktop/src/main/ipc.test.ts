@@ -224,3 +224,40 @@ test("project-scoped identity and worktree commands reach their services unchang
     ["reconcileWorktrees", "project"],
   ]);
 });
+
+test.each(["steer", "followUp"])(
+  "IPC preserves streaming mode %s and attachment/request argument order",
+  async (whenBusy) => {
+    let received: unknown[] = [];
+    const application = {
+      submit: async (...args: unknown[]) => {
+        received = args;
+        return { operationId: "42", kind: "run", startedAt: 1, status: "queued" };
+      },
+    } as unknown as DesktopApplication;
+    const images = [{ type: "image", data: "AA==", mimeType: "image/png", name: "constraint.png" }];
+    expect(
+      await dispatchCommand(application, {
+        type: "submit",
+        id: "thread",
+        prompt: "later",
+        requestId: "request",
+        images,
+        whenBusy,
+      }),
+    ).toMatchObject({ operationId: "42", status: "queued" });
+    expect(received).toEqual(["thread", "later", "request", images, whenBusy]);
+  },
+);
+
+test("IPC withdrawal returns the authoritative already-placed result", async () => {
+  const application = {
+    withdrawInput: async (id: string, operationId: string) => {
+      expect([id, operationId]).toEqual(["thread", "42"]);
+      return { status: "already_placed" };
+    },
+  } as unknown as DesktopApplication;
+  expect(
+    await dispatchCommand(application, { type: "withdraw-input", id: "thread", operationId: "42" }),
+  ).toEqual({ status: "already_placed" });
+});
