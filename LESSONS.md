@@ -371,8 +371,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Map environment entity IDs consistently in admission replies, observations and persisted provenance.**
 
 - Evidence: the 2026-10-13 source audit of `96d54e4` found prefixed cloud snapshot operation IDs paired with raw ordinary submission replies. The chat client acknowledges completion by comparing those identities, so mismatched mapping could leave its admission pending. The controlled SSE regression in `main/bot.test.ts` now drives a real `ThreadAgentClient` through the Bot transport and verifies completion clears the pending admission and preserves message provenance. The risk was found by source inspection; this does not claim a native UI reproduction.
+- Additional evidence: on 2026-11-02, #548 at `8ee1ac153` exposes internally namespaced `http:messages:` request IDs in queued inputs and transcript entries while Desktop and Mobile retain the original caller ID. The real HTTP queue control fails on those identities; a MobileStore/BotClient/Core control verifies one displayed steering message during queueing and placement, then no retained optimistic input. Strip exactly one transport prefix at the Bot display boundary, preserving opaque caller IDs that themselves begin with that prefix and leaving Core receipts untouched. This is controlled HTTP/client evidence, not native-phone acceptance.
 - Check: exercise the ordinary chat path as well as scheduled delivery when changing shared identity mapping. Request IDs, tool-call IDs and content fingerprints remain opaque.
-- Seen: 2026-10-13.
+- Seen: 2026-10-13, 2026-11-02.
 
 **Include host system configuration in native sandbox regression fixtures.**
 

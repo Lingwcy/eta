@@ -407,8 +407,7 @@ export class RunSupervisorService extends Context.Service<
           adapter("无法停止任务", async () => {
             // abort also settles queued work; recovery is only resumed here to converge cancellation.
             // Cancellation must remain possible after the checkout is lost or tombstoned.
-            if (!runtime.running) reserve(runtime);
-            const owner = leases.get(runtime)!;
+            const owner = leases.get(runtime) ?? reserve(runtime);
             owner.closing = true;
             try {
               runtime.recoveryRequired = false;

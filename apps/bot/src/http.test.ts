@@ -6,6 +6,7 @@ import {
 import { MobileStore } from "../../mobile/src/bot/store.ts";
 import { BotClient } from "../../mobile/src/bot/client.ts";
 import { memoryStorage } from "../../mobile/src/bot/fixtures.test-support.ts";
+import { conversationRows } from "../../mobile/src/conversation.ts";
 import type { ProjectMetadata } from "@eta/core/shared/projects";
 import type { BotLibrary } from "@eta/core/shared/bot";
 import type { WorkspaceChanges } from "@eta/core/shared/diff";
@@ -4516,6 +4517,48 @@ function inputGate() {
   };
 }
 
+test("Mobile streaming sends reconcile once through real Bot queue and transcript observations", async () => {
+  const { bot, provider, request, create, config } = await fixture();
+  const id = await create("mobile-streaming");
+  const first = inputGate(),
+    second = inputGate();
+  provider.setResponses([first.step, second.step]);
+  let sequence = 0;
+  const store = new MobileStore(
+    memoryStorage().storage,
+    (connection) =>
+      new BotClient(connection, async (input, init) => bot.app.request(new Request(input, init))),
+    () => "http:messages:mobile-" + ++sequence,
+  );
+  try {
+    await request("/v1/threads/" + id + "/messages", { requestId: "root", prompt: "original" });
+    await first.reached.promise;
+    await store.connect({ url: "http://bot", token: config.adminToken });
+    await store.open(id);
+    store.setDraft("one steering message");
+    await store.send();
+    await store.open(id);
+    const rows = () => {
+      const state = store.getSnapshot();
+      return conversationRows(state.thread!.snapshot, state.submittedInputs).filter(
+        (row) => row.message.role === "user",
+      );
+    };
+    expect(rows()).toHaveLength(2);
+    first.finish.resolve(fauxAssistantMessage("original done"));
+    await second.reached.promise;
+    await store.open(id);
+    expect(store.getSnapshot().submittedInputs).toEqual([]);
+    expect(rows()).toHaveLength(2);
+    expect(rows()[1]!.message.content).toBe("one steering message");
+    expect(provider.state.callCount).toBe(2);
+  } finally {
+    first.finish.resolve(fauxAssistantMessage("cleanup"));
+    second.finish.resolve(fauxAssistantMessage("cleanup"));
+    store.dispose();
+  }
+}, 30000);
+
 test("HTTP queues share one writer lease across later turns and reject mode-changing replays", async () => {
   const { bot, provider, request, create } = await fixture();
   const id = await create("streaming-input");
@@ -4548,8 +4591,18 @@ test("HTTP queues share one writer lease across later turns and reject mode-chan
       "followUp",
       "steer",
     ]);
+    expect(compatible.snapshot.queuedInputs?.map((input) => input.requestId)).toEqual([
+      "constructor",
+      "__proto__",
+    ]);
     first.finish.resolve(fauxAssistantMessage("root done"));
     await second.reached.promise;
+    const placed = OpenThreadSchema.parse(await (await request("/v1/threads/" + id)).json());
+    expect(
+      placed.snapshot.transcript
+        .filter((entry) => entry.message.role === "user")
+        .map((entry) => entry.requestId),
+    ).toEqual(["root", "__proto__"]);
     expect((await bot.core.operation(id, queued.operationId)).status).toBe("queued");
     expect(
       (
