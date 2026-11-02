@@ -248,11 +248,12 @@ export class RunSupervisorService extends Context.Service<
           const canonicalFingerprint = images?.length
             ? canonicalInputFingerprint(prompt, images, whenBusy)
             : undefined;
-          const previous = requestId
-            ? (yield* adapter("无法检查消息身份", () => inputRecords(runtime))).find(
-                (record) => record.requestId === requestId,
-              )
-            : undefined;
+          const previous =
+            requestId !== undefined
+              ? (yield* adapter("无法检查消息身份", () => inputRecords(runtime))).find(
+                  (record) => record.requestId === requestId,
+                )
+              : undefined;
           if (
             previous &&
             previous.fingerprint !== fingerprint &&
@@ -263,7 +264,7 @@ export class RunSupervisorService extends Context.Service<
               code: "InvalidInput",
               message: "请求标识已用于另一条消息或模式",
             });
-          if (requestId) {
+          if (requestId !== undefined) {
             const existing = yield* adapter("无法查询已提交请求", () =>
               runtime.storage.submissionByRequest(
                 runtime.conversation.id,
