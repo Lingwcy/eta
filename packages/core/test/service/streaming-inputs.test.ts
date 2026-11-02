@@ -69,6 +69,101 @@ function gate() {
   return { reached: reached.promise, response, step };
 }
 
+test.each(["live", "reopen"] as const)(
+  "image request replay ignores object field order: %s",
+  async (mode) => {
+    const { core, open, provider, thread } = await fixture();
+    const first = gate();
+    provider.setResponses([first.step]);
+    const image = {
+      type: "image" as const,
+      data: "AA==",
+      mimeType: "image/png",
+      name: "same.png",
+      note: "same note",
+    };
+    const reordered = {
+      note: image.note,
+      name: image.name,
+      mimeType: image.mimeType,
+      data: image.data,
+      type: image.type,
+    };
+    const secondImage = { ...image, data: "AQ==", name: "second.png" };
+    let active = core;
+    try {
+      await core.submit(thread.id, "original", "root");
+      await first.reached;
+      const queued = await core.submit(
+        thread.id,
+        "image instruction",
+        "image-request",
+        [image, secondImage],
+        "followUp",
+      );
+      if (mode === "reopen") {
+        await core.close();
+        active = await open();
+      }
+      const replay = await active.submit(
+        thread.id,
+        "image instruction",
+        "image-request",
+        [reordered, secondImage],
+        "followUp",
+      );
+      expect(replay.operationId).toBe(queued.operationId);
+      expect(replay.startedAt).toBe(queued.startedAt);
+      expect(
+        (await active.openThread(thread.id)).snapshot.queuedInputs?.filter(
+          (input) => input.requestId === "image-request",
+        ),
+      ).toHaveLength(1);
+      expect(provider.state.callCount).toBe(1);
+      for (const changed of [
+        { ...reordered, data: "AQ==" },
+        { ...reordered, mimeType: "image/jpeg" },
+        { ...reordered, name: "other.png" },
+        { ...reordered, note: "other note" },
+      ]) {
+        await expect(
+          active.submit(
+            thread.id,
+            "image instruction",
+            "image-request",
+            [changed, secondImage],
+            "followUp",
+          ),
+        ).rejects.toMatchObject({ code: "InvalidInput" });
+      }
+      await expect(
+        active.submit(thread.id, "changed", "image-request", [reordered, secondImage], "followUp"),
+      ).rejects.toMatchObject({ code: "InvalidInput" });
+      await expect(
+        active.submit(
+          thread.id,
+          "image instruction",
+          "image-request",
+          [reordered, secondImage],
+          "steer",
+        ),
+      ).rejects.toMatchObject({ code: "InvalidInput" });
+      await expect(
+        active.submit(
+          thread.id,
+          "image instruction",
+          "image-request",
+          [secondImage, reordered],
+          "followUp",
+        ),
+      ).rejects.toMatchObject({ code: "InvalidInput" });
+    } finally {
+      first.response.resolve(fauxAssistantMessage("cleanup"));
+    }
+  },
+  30_000,
+);
+
 test("steers precede earlier follow-ups and each request is independently addressable", async () => {
   const { core, provider, thread } = await fixture();
   const first = gate();

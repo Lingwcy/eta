@@ -7,7 +7,13 @@ import { Context, Effect, Layer } from "effect";
 import { InboxDoc } from "@eta/agent";
 import type { SubmissionRecord, Submission } from "@eta/agent";
 import { randomUUID } from "node:crypto";
-import { checkQueueCapacity, inputFingerprint, inputRecords, rememberInput } from "./inputs.ts";
+import {
+  canonicalInputFingerprint,
+  checkQueueCapacity,
+  inputFingerprint,
+  inputRecords,
+  rememberInput,
+} from "./inputs.ts";
 import type { InputMode, OperationAdmission } from "../../agent/protocol.ts";
 import { adapter, CoreError } from "../errors.ts";
 import { ModelCatalogService } from "../models/index.ts";
@@ -239,12 +245,20 @@ export class RunSupervisorService extends Context.Service<
           if (!["reject", "steer", "followUp"].includes(whenBusy))
             return yield* new CoreError({ code: "InvalidInput", message: "消息模式无效" });
           const fingerprint = inputFingerprint(prompt, images, whenBusy);
+          const canonicalFingerprint = images?.length
+            ? canonicalInputFingerprint(prompt, images, whenBusy)
+            : undefined;
           const previous = requestId
             ? (yield* adapter("无法检查消息身份", () => inputRecords(runtime))).find(
                 (record) => record.requestId === requestId,
               )
             : undefined;
-          if (previous && previous.fingerprint !== fingerprint)
+          if (
+            previous &&
+            previous.fingerprint !== fingerprint &&
+            (canonicalFingerprint === undefined ||
+              previous.canonicalFingerprint !== canonicalFingerprint)
+          )
             return yield* new CoreError({
               code: "InvalidInput",
               message: "请求标识已用于另一条消息或模式",
@@ -258,9 +272,18 @@ export class RunSupervisorService extends Context.Service<
               ),
             );
             if (existing) {
-              if (previous && previous.id === undefined)
+              if (
+                previous &&
+                (previous.id === undefined ||
+                  (canonicalFingerprint !== undefined &&
+                    previous.canonicalFingerprint === undefined))
+              )
                 yield* adapter("无法保存消息身份", () =>
-                  rememberInput(runtime, { ...previous, id: existing.id }),
+                  rememberInput(runtime, {
+                    ...previous,
+                    id: existing.id,
+                    ...(canonicalFingerprint === undefined ? {} : { canonicalFingerprint }),
+                  }),
                 );
               return yield* adapter("无法读取提交记录", () => admission(runtime, existing));
             }
@@ -335,6 +358,7 @@ export class RunSupervisorService extends Context.Service<
                 const record = {
                   requestId: identity,
                   fingerprint,
+                  ...(canonicalFingerprint === undefined ? {} : { canonicalFingerprint }),
                   prompt,
                   mode: whenBusy,
                   submittedAt: previous ? previous.submittedAt : Date.now(),
