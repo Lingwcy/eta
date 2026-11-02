@@ -113,6 +113,23 @@ const clone = <T>(value: T): T => {
 	return result as T;
 };
 
+const cloneWrite = (write: StorageWrite): StorageWrite => {
+	const copied = clone(write);
+	if (copied.type !== "document.change" || copied.content.kind !== "delta") return copied;
+	return {
+		...copied,
+		content: {
+			...copied.content,
+			// A tracker suffix can be a slice of the entire flattened stream. Copy only the appended text so retained
+			// deltas cannot pin every growing prefix; sharing strings in ordinary records and snapshots stays cheap.
+			// A primitive structuredClone may keep the slice, while a UTF-8 round trip would change lone surrogates.
+			ops: copied.content.ops.map((op): Op =>
+				op[0] === "a" ? ["a", op[1], JSON.parse(JSON.stringify(op[2])) as string] : op,
+			),
+		},
+	};
+};
+
 const freeze = <T>(value: T): T => {
 	if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
 	for (const child of Object.values(value)) freeze(child);
@@ -270,7 +287,7 @@ export class MemoryStorage implements Storage {
 		if (!Number.isSafeInteger(seq) || seq < this.nextSeq) {
 			throw new Error(`Commit sequence ${seq} does not strictly increase`);
 		}
-		const detachedWrites = freeze(this.resolveDocumentCopies(writes.map((write) => clone(write))));
+		const detachedWrites = freeze(this.resolveDocumentCopies(writes.map(cloneWrite)));
 		this.checkGlobalIds(detachedWrites);
 		const documentActions = this.prepareDocumentActions(detachedWrites);
 		this.checkDocumentActions(documentActions);
