@@ -120,6 +120,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Detach streamed string suffixes before retaining deltas.**
+
+- Evidence: on 2026-11-01, Eta 0.1.153's main-process crash report follows V8's allocation-failure path while the affected conversation records thousands of tool-argument appends, mostly whitespace. Chord's append suffix uses `slice`, and MemoryStorage keeps those slices in document revisions. An isolated Electron 44.4.2 control retains about 245 MiB for about 500 KiB of streamed text; copying only retained suffixes removes that amplification. The production process had no crash-time heap snapshot, so this control establishes the mechanism rather than every allocation in that process.
+- Check: `packages/core/test/service/storage/delta-memory.test.ts` exercises the exported MemoryStorage and JSONL packages in bounded-heap workers, including exact Unicode text and JSONL reopen. Primitive `structuredClone` still retained the slice in the Node 26 control; a JSON round trip of only the append scalar passes. Preserve lone surrogates, and keep whole records and display snapshots on the container-only copy path.
+- Seen: 2026-11-01.
+
 **Redact complete URL userinfo without consuming path, query or fragment data.**
 
 - Evidence: on 2026-10-25, #452's real Core/Git controls on `a9208d9` store HTTPS/SSH remotes with an unescaped email-style username. First-`@` redaction leaves the complete fake password in the public repository DTO; separate query/fragment controls instead lose their host. Redact through the last authority separator, bounded by `/`, `?` and `#`, and leave the original Git transport configuration untouched.
