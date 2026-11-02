@@ -11,6 +11,7 @@ import { CoreError } from "../errors.ts";
 type InputRecord = {
   requestId: string;
   fingerprint: string;
+  canonicalFingerprint?: string;
   prompt?: string;
   skillsPrepared?: boolean;
   submittedAt: number;
@@ -60,6 +61,19 @@ export function inputFingerprint(
   return createHash("sha256")
     .update(JSON.stringify({ prompt, images: images ?? [], mode }))
     .digest("hex");
+}
+
+/** Keep the legacy digest for persisted retries; normalize the declared image fields separately. */
+export function canonicalInputFingerprint(
+  prompt: string,
+  images: readonly ImageAttachment[],
+  mode: InputMode,
+) {
+  return inputFingerprint(
+    prompt,
+    images.map(({ type, data, mimeType, name, note }) => ({ type, data, mimeType, name, note })),
+    mode,
+  );
 }
 
 export async function inputRecords(runtime: ThreadRuntime) {

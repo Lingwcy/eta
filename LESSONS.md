@@ -122,6 +122,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Normalize logical request fields without invalidating persisted replay identities.**
+
+- Evidence: on 2026-11-02, #556 submits an actual Core queued image request, then changes only attachment object field order. Both live and close/reopen retries fail with InvalidInput because raw JSON property order changes the fingerprint. Keep the legacy digest and add an order-independent digest of declared image fields; preserve attachment array order and reject real prompt/mode/data/MIME/name/note changes. A legacy-record reopen control keeps unknown old order conservative, permits the exact old representation, then safely backfills the canonical digest without rewriting its legacy identity.
+- Check: use actual admission/receipt/queue state across reopen, not only hash equality. Version or supplement persisted identity schemes; do not silently replace the hash for existing requests or guess whether an unverifiable old payload matches. Preserve every meaningful field: omitting note is caught by the real-Core negative controls.
+- Seen: 2026-11-02.
+
 **Detach streamed string suffixes before retaining deltas.**
 
 - Evidence: on 2026-11-01, Eta 0.1.153's main-process crash report follows V8's allocation-failure path while the affected conversation records thousands of tool-argument appends, mostly whitespace. Chord's append suffix uses `slice`, and MemoryStorage keeps those slices in document revisions. An isolated Electron 44.4.2 control retains about 245 MiB for about 500 KiB of streamed text; copying only retained suffixes removes that amplification. The production process had no crash-time heap snapshot, so this control establishes the mechanism rather than every allocation in that process.

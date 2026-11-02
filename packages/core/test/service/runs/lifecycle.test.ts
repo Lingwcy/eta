@@ -56,8 +56,94 @@ async function fixture() {
   const thread = await runtime.runPromise(threads.create(workspace.id));
   const registry = await runtime.runPromise(RuntimeRegistryService);
   const record = await runtime.runPromise(registry.acquire(thread.thread.sessionRef));
-  return { runtime, provider, threads, thread, registry, record };
+  return { runtime, provider, threads, thread, registry, record, directory, models };
 }
+
+test("legacy image fingerprints replay after reopen and backfill only after an exact match", async () => {
+  const { runtime, provider, threads, thread, record, directory, models } = await fixture();
+  const entered = Promise.withResolvers<void>();
+  const response = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  provider.setResponses([
+    (_context, options) => {
+      entered.resolve();
+      options?.signal?.addEventListener(
+        "abort",
+        () => response.resolve(fauxAssistantMessage("", { stopReason: "aborted" })),
+        { once: true },
+      );
+      return response.promise;
+    },
+  ]);
+  const image = {
+    note: "legacy note",
+    name: "legacy.png",
+    mimeType: "image/png",
+    data: "AA==",
+    type: "image" as const,
+  };
+  const reordered = {
+    type: image.type,
+    data: image.data,
+    mimeType: image.mimeType,
+    name: image.name,
+    note: image.note,
+  };
+  try {
+    await runtime.runPromise(threads.submit(thread.id, "held", "root"));
+    await entered.promise;
+    const queued = await runtime.runPromise(
+      threads.submit(thread.id, "draft", "legacy-image", [image], "followUp"),
+    );
+    const legacyHash = await record.conversation.commit(async (tx) => {
+      const value = (await tx.doc(InputsDoc, record.conversation.id)).records.find(
+        (item) => item.requestId === "legacy-image",
+      )!;
+      delete value.canonicalFingerprint;
+      return value.fingerprint;
+    }, BACKGROUND_CONTEXT);
+    await runtime.dispose();
+    const reopened = ManagedRuntime.make(
+      testServices(join(directory, "data"), models, undefined, directory),
+    );
+    cleanups.push(() => reopened.dispose());
+    const next = await reopened.runPromise(ThreadService);
+    const current = await reopened.runPromise(
+      (await reopened.runPromise(RuntimeRegistryService)).acquire(thread.thread.sessionRef),
+    );
+    await expect(
+      reopened.runPromise(next.submit(thread.id, "draft", "legacy-image", [reordered], "followUp")),
+    ).rejects.toMatchObject({ code: "InvalidInput" });
+    const before = (await current.harness.snapshot(
+      InputsDoc,
+      current.conversation.id,
+      BACKGROUND_CONTEXT,
+    ))!.records.find((item) => item.requestId === "legacy-image")!;
+    expect(before.fingerprint).toBe(legacyHash);
+    expect(before.canonicalFingerprint).toBeUndefined();
+    const replay = await reopened.runPromise(
+      next.submit(thread.id, "draft", "legacy-image", [image], "followUp"),
+    );
+    expect(replay.operationId).toBe(queued.operationId);
+    expect(replay.startedAt).toBe(queued.startedAt);
+    const after = (await current.harness.snapshot(
+      InputsDoc,
+      current.conversation.id,
+      BACKGROUND_CONTEXT,
+    ))!.records.find((item) => item.requestId === "legacy-image")!;
+    expect(after.fingerprint).toBe(legacyHash);
+    expect(after.canonicalFingerprint).toEqual(expect.any(String));
+    expect(
+      (
+        await reopened.runPromise(
+          next.submit(thread.id, "draft", "legacy-image", [reordered], "followUp"),
+        )
+      ).operationId,
+    ).toBe(queued.operationId);
+    expect(provider.state.callCount).toBe(1);
+  } finally {
+    response.resolve(fauxAssistantMessage("cleanup"));
+  }
+}, 30_000);
 
 test.each(["closed-before-expiry", "closed-during-expiry", "active-error", "active-success"])(
   "idle grant expiry respects its runtime lifetime: %s",
