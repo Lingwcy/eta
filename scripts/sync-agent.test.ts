@@ -86,6 +86,23 @@ test("dry runs fetch and plan without changing files or history", () => {
   assert.equal(readFileSync(join(root, "README.md"), "utf8"), "uncommitted work\n");
 });
 
+test("a linearized upstream sync retains its baseline for the next update", () => {
+  const { root, upstream, baseline, options } = setup();
+  const split = git(upstream, "subtree", "split", "--prefix=packages/durable", baseline);
+  git(
+    root,
+    "commit",
+    "--allow-empty",
+    "-m",
+    `linearized sync\n\nagent-upstream-commit: ${baseline}\nagent-upstream-linearized: true\ngit-subtree-dir: packages/agent\ngit-subtree-split: ${split}`,
+  );
+  file(upstream, "packages/durable/src/index.ts", 'export const answer = "updated";\n');
+  commit(upstream, "update durable");
+  assert.equal(syncAgent(options).changed, true);
+  assert.match(readFileSync(join(root, "packages/agent/src/index.ts"), "utf8"), /updated/);
+  assert.equal(syncAgent(options).changed, false);
+});
+
 test("dirty workspaces and initialization without a pinned baseline are rejected", () => {
   const { root, baseline, options } = setup();
   assert.throws(() => syncAgent({ ...options, initialize: true }), /explicit baseline/);

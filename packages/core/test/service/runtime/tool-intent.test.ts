@@ -1,5 +1,6 @@
 import { expect, test } from "vite-plus/test";
-import { fauxAssistantMessage, fauxToolCall, type Message, Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
+import { fauxAssistantMessage, fauxToolCall, type Message } from "@earendil-works/pi-ai";
 import { toolIntents } from "@eta/agent/tools";
 
 const TOOL_INTENT = "x-eta-tool-intent";

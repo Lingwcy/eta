@@ -1,7 +1,8 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fauxAssistantMessage, fauxToolCall, type Models, type Message, Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
+import { fauxAssistantMessage, fauxToolCall, type Models, type Message} from "@earendil-works/pi-ai";
 import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { parseStreamingJson } from "@earendil-works/pi-ai/utils/json-parse";

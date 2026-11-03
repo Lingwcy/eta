@@ -1,3 +1,5 @@
+import type { Context as ChordContext } from "@earendil-works/chord/context";
+import type { Submission, SubmissionDraft, SubmissionId, Tx } from "@eta/agent";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -377,21 +379,26 @@ test("real Core thread receives one ordinary UserMessage from an approved propos
   const record = await runtime.runPromise(registry.acquire(thread.thread.sessionRef));
   const releaseSettlement = Promise.withResolvers<void>();
   const submit = record.conversation.submit.bind(record.conversation);
-  const held = vi
-    .spyOn(record.conversation, "submit")
-    .mockImplementation(async (input, context) => {
-      const handle = await submit(input, context);
-      return {
-        id: handle.id,
-        status: (context) => handle.status(context),
-        abort: (context) => handle.abort(context),
-        wait: async (context) => {
-          const result = await handle.wait(context);
-          await releaseSettlement.promise;
-          return result;
-        },
-      };
-    });
+  function controlledSubmit(input: SubmissionDraft, context: ChordContext): Promise<Submission>;
+  function controlledSubmit(tx: Tx, input: SubmissionDraft): Promise<SubmissionId>;
+  async function controlledSubmit(
+    first: SubmissionDraft | Tx,
+    second: ChordContext | SubmissionDraft,
+  ) {
+    if (!("type" in first)) return submit(first, second as SubmissionDraft);
+    const handle = await submit(first, second as ChordContext);
+    return {
+      id: handle.id,
+      status: (context: ChordContext) => handle.status(context),
+      abort: (context: ChordContext) => handle.abort(context),
+      wait: async (context: ChordContext) => {
+        const result = await handle.wait(context);
+        await releaseSettlement.promise;
+        return result;
+      },
+    };
+  }
+  const held = vi.spyOn(record.conversation, "submit").mockImplementation(controlledSubmit);
   cleanups.push(async () => {
     releaseSettlement.resolve();
     held.mockRestore();

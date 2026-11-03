@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 
 const Point = Type.Object({ x: Type.Number(), y: Type.Number() });
 const Image = Type.Object({
@@ -82,7 +82,8 @@ export const computerParameters = Type.Object(
       }),
     ),
     elementIndex: Type.Optional(
-      Type.Integer({
+      Type.Number({
+        multipleOf: 1,
         minimum: 0,
         maximum: 799,
         description:
@@ -113,10 +114,11 @@ export const computerParameters = Type.Object(
     enter: Type.Optional(Type.Boolean()),
     button: Type.Optional(Type.Union([Type.Literal("left"), Type.Literal("right")])),
     count: Type.Optional(Type.Union([Type.Literal(1), Type.Literal(2)])),
-    deltaX: Type.Optional(Type.Integer({ minimum: -1000, maximum: 1000 })),
-    deltaY: Type.Optional(Type.Integer({ minimum: -1000, maximum: 1000 })),
+    deltaX: Type.Optional(Type.Number({ multipleOf: 1, minimum: -1000, maximum: 1000 })),
+    deltaY: Type.Optional(Type.Number({ multipleOf: 1, minimum: -1000, maximum: 1000 })),
     durationMs: Type.Optional(
-      Type.Integer({
+      Type.Number({
+        multipleOf: 1,
         minimum: 0,
         maximum: 10000,
         description:

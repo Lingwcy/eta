@@ -1,4 +1,6 @@
-import { type Static, Type } from "typebox";
+import { Type } from "typebox";
+import type { Static } from "@earendil-works/pi-schema";
+import { obj, str } from "@earendil-works/pi-schema";
 import { getOrThrow } from "../env/index.ts";
 import { defineTool } from "../harness/define.ts";
 import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";

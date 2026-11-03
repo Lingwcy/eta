@@ -1,6 +1,6 @@
 {
   "name": "@eta/desktop",
-  "version": "0.1.158",
+  "version": "0.1.159",
   "private": true,
   "type": "module",
   "main": "dist/electron/main.cjs",
@@ -18,8 +18,8 @@
   "dependencies": {
     "@base-ui/react": "catalog:",
     "@cf-wasm/photon": "catalog:",
-    "@earendil-works/chord": "1.4.0",
-    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/chord": "1.5.0",
+    "@earendil-works/pi-ai": "1.5.0",
     "@eta/agent": "workspace:*",
     "@eta/computer-use": "workspace:*",
     "@eta/core": "workspace:*",

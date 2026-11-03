@@ -5,6 +5,7 @@ on:
   # Desktop change can only fail after it has already reached main.
   pull_request:
   workflow_call:
+  workflow_dispatch:
   push:
     branches:
       - main

@@ -57,7 +57,9 @@ export class ThreadTitleService extends Context.Service<
             };
             if (watch) {
               await publish(watch.value);
-              watch.start(publish);
+              watch.start(async (change) => {
+                if (change.kind === "value" && !change.retired) await publish(change.value);
+              });
             }
             return async () => {
               await watch?.stop();

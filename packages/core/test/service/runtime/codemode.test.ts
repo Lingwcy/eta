@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { Effect, Schema } from "effect";
 import { defineTool } from "@eta/agent";
 import type { JsonValue } from "@earendil-works/chord";
+import { Type } from "typebox";
 import {
   createModels,
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
-  Type,
 } from "@earendil-works/pi-ai";
 import { getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { afterEach, expect, test } from "vite-plus/test";

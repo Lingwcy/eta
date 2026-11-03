@@ -162,6 +162,21 @@ export function syncAgent(options: SyncOptions) {
     git(root, ["fetch", cache, previous]);
   }
   git(root, ["fetch", cache, "refs/eta/agent/split"]);
+  // A linearized sync records its upstream split without a subtree parent. Reattach
+  // that baseline before the next merge so Git compares against the upstream tree.
+  const baselineMessage = git(root, [
+    "log",
+    "-1",
+    "--first-parent",
+    "--format=%B",
+    `--grep=^git-subtree-dir: ${agentUpstream.prefix}/*$`,
+    "HEAD",
+  ]);
+  if (previous && /^agent-upstream-linearized: true$/m.test(baselineMessage)) {
+    const baseline = /^agent-upstream-commit: ([0-9a-f]+)$/m.exec(baselineMessage)?.[1];
+    if (!baseline) throw new Error("Cannot recover the linearized agent baseline.");
+    adopt(root, previous, baseline, repository);
+  }
   if (options.initialize) {
     adopt(root, split, upstream, repository);
     log("Subtree baseline established. Existing files were preserved byte for byte.");

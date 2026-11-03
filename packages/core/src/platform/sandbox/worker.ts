@@ -93,7 +93,7 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
               id: request.id,
               event: "watch",
               change:
-                "error" in change
+                change.kind === "failed"
                   ? {
                       error: {
                         code: change.error.code,
@@ -101,7 +101,9 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
                         ...(change.error.path ? { path: change.error.path } : {}),
                       },
                     }
-                  : change,
+                  : change.kind === "paths"
+                    ? { paths: change.paths }
+                    : { overflow: true },
             }),
           context,
         ),
@@ -110,7 +112,7 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
       return { id: request.id, mode: watcher.mode };
     }
     case "closeWatcher":
-      await watchers.get(request.reader!)?.close(context);
+      await watchers.get(request.reader!)?.stop(context);
       watchers.delete(request.reader!);
       return;
     case "readTextLines":
@@ -174,7 +176,7 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
       binaryReaders.clear();
       for (const reader of dirReaders.values()) await reader.close(context);
       dirReaders.clear();
-      for (const watcher of watchers.values()) await watcher.close(context);
+      for (const watcher of watchers.values()) await watcher.stop(context);
       watchers.clear();
       return;
     }

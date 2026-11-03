@@ -1,3 +1,4 @@
+import { commitWrites } from "@eta/agent/testing";
 import { expect, test } from "vite-plus/test";
 import {
   requiresRecovery,
@@ -34,7 +35,8 @@ test.each(["pending", "running", "waiting", "sleeping", "completing"] as const)(
     const directory = await mkdtemp(join(tmpdir(), "eta-cold-inspection-"));
     const storage = await openNodeJsonlStorage(directory, BACKGROUND_CONTEXT);
     try {
-      await storage.commit(
+      await commitWrites(
+        storage,
         [{ type: "conversation", value: { id: ROOT_CONVERSATION_ID } }],
         BACKGROUND_CONTEXT,
       );
@@ -54,7 +56,7 @@ test.each(["pending", "running", "waiting", "sleeping", "completing"] as const)(
           },
         });
       }
-      await storage.commit(writes, BACKGROUND_CONTEXT);
+      await commitWrites(storage, writes, BACKGROUND_CONTEXT);
       expect(await hasPersistedWork(storage)).toBe(false);
       const work = {
         id: await storage.mintId<TaskId<null>>(),
@@ -73,9 +75,10 @@ test.each(["pending", "running", "waiting", "sleeping", "completing"] as const)(
             : status === "sleeping"
               ? { ...work, state: { status, checkpoint: null, until: Date.now() + 60_000 } }
               : { ...work, state: { status, checkpoint: null } };
-      await storage.commit([{ type: "task", value: live }], BACKGROUND_CONTEXT);
+      await commitWrites(storage, [{ type: "task", value: live }], BACKGROUND_CONTEXT);
       expect(await hasPersistedWork(storage)).toBe(true);
-      await storage.commit(
+      await commitWrites(
+        storage,
         [
           {
             type: "task",

@@ -160,6 +160,10 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
           });
           if (call.name !== "read") continue;
           if (!content.some((part) => Predicate.isObject(part) && part.type === "image")) continue;
+          for (const diagnostic of nested?.result?.diagnostics ?? []) {
+            if (diagnostic.code === "image")
+              images.push({ type: "text", text: diagnostic.message });
+          }
           for (const part of content) {
             if (!Predicate.isObject(part)) continue;
             if (

@@ -1,3 +1,4 @@
+import { publishedPiAliases } from "../../scripts/published-pi-aliases.ts";
 import { fileURLToPath } from "node:url";
 import { configDefaults, defineConfig } from "vitest/config";
 
@@ -18,8 +19,8 @@ export default defineConfig({
 		setupFiles: ["./test/setup-document-retention.ts"],
 	},
 	resolve: {
-		conditions: ["source"],
-		alias: aliases,
+		conditions: [],
+		alias: [...Object.entries(publishedPiAliases).map(([find, replacement]) => ({ find, replacement })), ...aliases],
 	},
-	ssr: { resolve: { conditions: ["source"] } },
+	ssr: { resolve: { conditions: [] }, noExternal: [/^@earendil-works\/chord/] },
 });
