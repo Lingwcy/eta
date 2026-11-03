@@ -11,10 +11,12 @@ const decode = Schema.decodeUnknownSync(ScheduleChangeSchema, { onExcessProperty
 const cases: Array<{ rule: JsonObject; valid: boolean }> = [
   { rule: { type: "once", at: 0 }, valid: true },
   { rule: { type: "once", at: -1 }, valid: false },
+  { rule: { type: "once", at: 0.5 }, valid: false },
   { rule: { type: "once", at: 8_640_000_000_000_001 }, valid: false },
   { rule: { type: "interval", everyMs: 300_000, anchorAt: 0 }, valid: true },
   { rule: { type: "interval", everyMs: 299_999, anchorAt: 0 }, valid: false },
   { rule: { type: "interval", everyMs: 300_000.5, anchorAt: 0 }, valid: false },
+  { rule: { type: "interval", everyMs: 300_000, anchorAt: 0.5 }, valid: false },
   { rule: { type: "interval", everyMs: 8_640_000_000_000_000, anchorAt: 0 }, valid: true },
   { rule: { type: "interval", everyMs: 8_640_000_000_000_001, anchorAt: 0 }, valid: false },
   { rule: { type: "daily", time: "23:59", timeZone: "America/New_York" }, valid: true },
@@ -24,6 +26,7 @@ const cases: Array<{ rule: JsonObject; valid: boolean }> = [
   { rule: { type: "weekly", time: "09:00", timeZone: "UTC", weekdays: [] }, valid: false },
   { rule: { type: "weekly", time: "09:00", timeZone: "UTC", weekdays: [1, 1] }, valid: false },
   { rule: { type: "weekly", time: "09:00", timeZone: "UTC", weekdays: [7] }, valid: false },
+  { rule: { type: "weekly", time: "09:00", timeZone: "UTC", weekdays: [1.5] }, valid: false },
   { rule: { type: "once", at: 0, unknown: true }, valid: false },
 ];
 
@@ -48,6 +51,17 @@ test.each(cases)("tool and service agree on schedule rule $rule", ({ rule, valid
       expect(() => decode(args)).toThrow();
     }
   }
+});
+
+test("fractional schedule revisions are rejected instead of truncated", () => {
+  expect(() =>
+    validateToolArguments(tool, {
+      type: "toolCall",
+      id: "call",
+      name: "schedule",
+      arguments: { action: "pause", scheduleId: "schedule", expectedRevision: 1.5 },
+    }),
+  ).toThrow();
 });
 
 test("the shared decoder retains semantic IANA zone validation beyond JSON Schema", () => {

@@ -16,8 +16,10 @@ export const reviewTools: Tool[] = [
       "Read a text file inside the workspace or this repository's shared Git directory. Paths are relative to the workspace root.",
     parameters: Type.Object({
       path: Type.String(),
-      offset: Type.Optional(Type.Integer({ minimum: 1, description: "First line, 1-based" })),
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 2000 })),
+      offset: Type.Optional(
+        Type.Number({ multipleOf: 1, minimum: 1, description: "First line, 1-based" }),
+      ),
+      limit: Type.Optional(Type.Number({ multipleOf: 1, minimum: 1, maximum: 2000 })),
     }),
   },
   {

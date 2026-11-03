@@ -306,6 +306,8 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 **Validate SDK compatibility separately from frozen dependency resolution.**
 
+- Upgrade evidence: Pi 1.5's schema parser coerces fractional numbers to integers before validation, so the schedule tool silently changed `300000.5` to `300000` while the service rejected it. The schedule and computer schema regressions check the published validator with fractional values; represent strict integer fields as numbers with `multipleOf: 1` when using this parser.
+
 - Evidence: #29 and #54 failed Mobile CI at Expo's compatibility gate despite successful frozen installs. On 2026-10-15, main `ff2545b` reproduces the expected Expo `~57.0.30` / Router `~57.0.28` mismatch; the release commit only changes Desktop/root versions. Expo CLI reads its native-module recommendations from an online SDK API, so a lockfile does not freeze that contract. Aligning these patches makes the compatibility check pass; this does not establish that the old native app was broken.
 - Check: preserve the compatibility gate, verify the SDK's required toolchain together, and export both platforms. Keep release-age exceptions restricted to required exact versions and verify unrelated workspace importers remain unchanged; do not disable policy or force offline metadata merely to turn CI green.
 - Seen: 2026-10-15.
