@@ -91,9 +91,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: distinguish review material from runtime icons and product documentation images, include legacy review folders, and pin historical evidence before deletion. Removing current-tree files neither erases history nor shrinks an existing full Git clone; do not rewrite history to claim otherwise.
 - Seen: 2026-10-18.
 
-**Bound mounted transcript rows and index tools once per observation.**
+**Preserve complete history when a runtime windows observations.**
 
-- Upgrade evidence: Pi Durable 1.5 limits each live watch to a recent window. On 2026-11-03, projecting that window directly dropped older messages; paging it on every streaming update would reread the whole history. The long-history Core regression verifies the complete transcript and that an appended update reuses already read pages. Check watch-window and pagination semantics when upgrading a runtime, including compaction and incremental updates.
+- Evidence: on 2026-11-03, Pi Durable 1.5 limited live watches to a recent window. Projecting that window directly dropped older messages; paging it on every streaming update would reread the whole history. The long-history Core regression verifies the complete transcript and that an appended update reuses already read pages. Check pagination, compaction and incremental updates when upgrading a runtime.
+- Seen: 2026-11-03.
+
+**Bound mounted transcript rows and index tools once per observation.**
 
 - Evidence: on 2026-10-17, the maintainer reported slow opening and client-wide lag in a long-running scheduled thread. Source inspection found every historical message mounted, with every message rebuilding and scanning the full tool index. An isolated Chrome fixture with 200 runs and 2,000 transcript records mounted about 22,000 DOM nodes before virtualization and about 750 afterward; this is synthetic evidence, not a profile of the reported thread.
 - Additional evidence: on 2026-10-18, Mobile tool cards independently scanned the full transcript for results, stopped state and nested previews. A synthetic 20,000-entry/30-query fixture performs 1,200,000 history visits in the old nested/status helpers versus 20,000 with a shared snapshot index; this is not a native frame-rate measurement. `apps/mobile/src/conversation.test.ts` counts history visits and verifies unseen nested previews are not decoded, while `components/message.test.ts` covers status priority, live replacement and expanded result updates.
@@ -304,9 +307,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: cover falsy values, arrays and content-like business records, not only object-shaped success results. Use the durable declaration rather than a current registration that may have changed after admission; preserve preview budgets and keep image payloads out of schema-less text previews.
 - Seen: 2026-10-16.
 
-**Validate SDK compatibility separately from frozen dependency resolution.**
+**Verify schema coercion when upgrading a validator.**
 
-- Upgrade evidence: Pi 1.5's schema parser coerces fractional numbers to integers before validation, so the schedule tool silently changed `300000.5` to `300000` while the service rejected it. The schedule and computer schema regressions check the published validator with fractional values; represent strict integer fields as numbers with `multipleOf: 1` when using this parser.
+- Evidence: on 2026-11-03, Pi 1.5's schema parser coerced fractional numbers to integers before validation, so the schedule tool silently changed `300000.5` to `300000` while the service rejected it. The schedule and computer schema regressions check the published validator with fractional values; represent strict integer fields as numbers with `multipleOf: 1` when using this parser.
+- Seen: 2026-11-03.
+
+**Validate SDK compatibility separately from frozen dependency resolution.**
 
 - Evidence: #29 and #54 failed Mobile CI at Expo's compatibility gate despite successful frozen installs. On 2026-10-15, main `ff2545b` reproduces the expected Expo `~57.0.30` / Router `~57.0.28` mismatch; the release commit only changes Desktop/root versions. Expo CLI reads its native-module recommendations from an online SDK API, so a lockfile does not freeze that contract. Aligning these patches makes the compatibility check pass; this does not establish that the old native app was broken.
 - Check: preserve the compatibility gate, verify the SDK's required toolchain together, and export both platforms. Keep release-age exceptions restricted to required exact versions and verify unrelated workspace importers remain unchanged; do not disable policy or force offline metadata merely to turn CI green.
@@ -618,7 +624,7 @@ a dependency. A dev server succeeding does not prove an installed client works.*
 - Check: trace the actual worker/runtime entry and workspace subpath exports.
   Run the affected package verification in a clean build context when changing
   packaging; report separately whether an installed client was exercised.
-- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24.
+- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24, 2026-11-03.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**
