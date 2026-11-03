@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 
 const Point = Type.Object({ x: Type.Number(), y: Type.Number() });
 const Image = Type.Object({

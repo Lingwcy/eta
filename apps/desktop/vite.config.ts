@@ -1,11 +1,13 @@
+import { publishedPiAliases } from "../../scripts/published-pi-aliases.ts";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   resolve: {
-    conditions: ["source"],
+    conditions: [],
     alias: {
+      ...publishedPiAliases,
       "@": fileURLToPath(new URL("./renderer/src", import.meta.url)),
       // Published Chord advertises source paths but ships only dist; DOM integration tests transform host services too.
       "@earendil-works/chord/context": fileURLToPath(
@@ -37,8 +39,8 @@ export default defineConfig({
     },
   },
   ssr: {
-    resolve: { conditions: ["source"] },
-    noExternal: ["@eta/agent", "@eta/core", "@eta/computer-use"],
+    resolve: { conditions: [] },
+    noExternal: ["@eta/agent", "@eta/core", "@eta/computer-use", /^@earendil-works\/chord/],
   },
   test: { environment: "node", include: ["src/**/*.test.ts", "renderer/src/**/*.test.ts"] },
   pack: {

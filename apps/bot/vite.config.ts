@@ -1,3 +1,4 @@
+import { publishedPiAliases } from "../../scripts/published-pi-aliases.ts";
 import { fileURLToPath } from "node:url";
 import { globSync } from "node:fs";
 import { defineConfig } from "vite-plus";
@@ -16,8 +17,11 @@ const workspaceAliases = Object.fromEntries(
 );
 
 export default defineConfig({
-  resolve: { conditions: ["source"] },
-  ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/core", "@eta/agent"] },
+  resolve: { conditions: [], alias: publishedPiAliases },
+  ssr: {
+    resolve: { conditions: [] },
+    noExternal: ["@eta/core", "@eta/agent", /^@earendil-works\/chord/],
+  },
   test: { environment: "node", include: ["src/**/*.test.ts", "extensions/**/*.test.ts"] },
   pack:
     process.env.ETA_SCHEDULE_VERIFIER === "1"

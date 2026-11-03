@@ -1,3 +1,4 @@
+import { Type } from "typebox";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +12,6 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
-  Type,
 } from "@earendil-works/pi-ai";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { createBotApplication, type BotApplication } from "./application.ts";

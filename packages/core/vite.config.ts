@@ -1,10 +1,25 @@
+import { publishedPiAliases } from "../../scripts/published-pi-aliases.ts";
 import { globSync } from "node:fs";
 import { relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
-  resolve: { conditions: ["source"] },
-  ssr: { resolve: { conditions: ["source"] }, noExternal: ["@eta/agent"] },
+  resolve: {
+    conditions: [],
+    alias: [
+      {
+        find: /^@eta\/core$/,
+        replacement: fileURLToPath(new URL("./src/index.ts", import.meta.url)),
+      },
+      {
+        find: /^@eta\/core\/(.+)$/,
+        replacement: `${fileURLToPath(new URL("./src/", import.meta.url))}$1.ts`,
+      },
+      ...Object.entries(publishedPiAliases).map(([find, replacement]) => ({ find, replacement })),
+    ],
+  },
+  ssr: { resolve: { conditions: [] }, noExternal: ["@eta/agent", /^@earendil-works\/chord/] },
   test: { environment: "node", include: ["test/**/*.test.ts"] },
   pack: [
     {

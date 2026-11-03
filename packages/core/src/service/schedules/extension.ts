@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import { defineExtension, defineTool, ROOT_CONVERSATION_ID } from "@eta/agent";
 import { DateTime, Effect, Schema } from "effect";
 import type { EtaSessionMetadata } from "../../shared/sessions.ts";
