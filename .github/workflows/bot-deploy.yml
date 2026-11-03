@@ -56,6 +56,7 @@ jobs:
       - name: Build and verify Bot
         run: |
           vp run --no-cache @eta/computer-use#build
+          vp run --no-cache @eta/core#build
           vp run --no-cache @eta/bot#build
           vp run @eta/bot#test
           vp run @eta/bot#verify-package
