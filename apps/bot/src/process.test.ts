@@ -94,6 +94,7 @@ test("SIGKILL releases the writer lock and a fresh Bot process resumes persisted
       "Written before SIGKILL",
     );
     const restored = await start("finish");
+    // Durable retries an interrupted model request after its 2-second default backoff.
     await expect
       .poll(
         async () =>
@@ -105,6 +106,7 @@ test("SIGKILL releases the writer lock and a fresh Bot process resumes persisted
               )
             ).json(),
           ).status,
+        { timeout: 10000 },
       )
       .toBe("completed");
     const history = Schema.decodeUnknownSync(History)(
