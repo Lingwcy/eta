@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import { defineExtension, defineTool, ROOT_CONVERSATION_ID } from "@eta/agent";
 import { DateTime, Effect, Schema } from "effect";
 import type { EtaSessionMetadata } from "../../shared/sessions.ts";
@@ -18,13 +18,22 @@ const ObjectOptions = { additionalProperties: false };
 const Text = Type.String({ minLength: 1, pattern: "\\S" });
 // JSON Schema describes structural checks; the shared decoder also validates IANA zones.
 const ruleDocument = Schema.toJsonSchemaDocument(ScheduleRuleSchema, { onExcessProperty: "error" });
+// Pi's integer coercion truncates fractions; number + multipleOf preserves the same schema
+// constraint without silently changing a schedule supplied by the agent.
+const strictRuleDocument = JSON.parse(
+  JSON.stringify(ruleDocument, (_key, value: unknown) =>
+    typeof value === "object" && value !== null && "type" in value && value.type === "integer"
+      ? { ...value, type: "number", multipleOf: 1 }
+      : value,
+  ),
+) as typeof ruleDocument;
 const Rule = Type.Unsafe<ScheduleRule>({
-  ...ruleDocument.schema,
-  $defs: ruleDocument.definitions,
+  ...strictRuleDocument.schema,
+  $defs: strictRuleDocument.definitions,
 });
 const Target = {
   scheduleId: Type.String({ minLength: 1 }),
-  expectedRevision: Type.Integer({ minimum: 1 }),
+  expectedRevision: Type.Number({ multipleOf: 1, minimum: 1 }),
 };
 export const scheduleToolParameters = Type.Object(
   {

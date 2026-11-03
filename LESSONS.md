@@ -91,6 +91,11 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: distinguish review material from runtime icons and product documentation images, include legacy review folders, and pin historical evidence before deletion. Removing current-tree files neither erases history nor shrinks an existing full Git clone; do not rewrite history to claim otherwise.
 - Seen: 2026-10-18.
 
+**Preserve complete history when a runtime windows observations.**
+
+- Evidence: on 2026-11-03, Pi Durable 1.5 limited live watches to a recent window. Projecting that window directly dropped older messages; paging it on every streaming update would reread the whole history. The long-history Core regression verifies the complete transcript and that an appended update reuses already read pages. Check pagination, compaction and incremental updates when upgrading a runtime.
+- Seen: 2026-11-03.
+
 **Bound mounted transcript rows and index tools once per observation.**
 
 - Evidence: on 2026-10-17, the maintainer reported slow opening and client-wide lag in a long-running scheduled thread. Source inspection found every historical message mounted, with every message rebuilding and scanning the full tool index. An isolated Chrome fixture with 200 runs and 2,000 transcript records mounted about 22,000 DOM nodes before virtualization and about 750 afterward; this is synthetic evidence, not a profile of the reported thread.
@@ -301,6 +306,11 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Evidence: on 2026-10-16, #72's native Code mode regression executes ten valid JSON values through a declared structured tool. The script receives the original values, but nested previews drop scalars and arrays or misinterpret records containing `type` as display blocks. Reading the persisted run's structured-tool declarations preserves JSON values while retaining schema-less text/image handling.
 - Check: cover falsy values, arrays and content-like business records, not only object-shaped success results. Use the durable declaration rather than a current registration that may have changed after admission; preserve preview budgets and keep image payloads out of schema-less text previews.
 - Seen: 2026-10-16.
+
+**Verify schema coercion when upgrading a validator.**
+
+- Evidence: on 2026-11-03, Pi 1.5's schema parser coerced fractional numbers to integers before validation, so the schedule tool silently changed `300000.5` to `300000` while the service rejected it. The schedule and computer schema regressions check the published validator with fractional values; represent strict integer fields as numbers with `multipleOf: 1` when using this parser.
+- Seen: 2026-11-03.
 
 **Validate SDK compatibility separately from frozen dependency resolution.**
 
@@ -609,11 +619,12 @@ a dependency. A dev server succeeding does not prove an installed client works.*
 - Additional evidence: on 2026-10-16, PR #81's Bot build failed because its Desktop integration imports `DraftThread`, whose new localized error import used a renderer-only `@/` alias. Bot typecheck reproduces TS2307 even though Desktop CI passes. Importing the shared error contract directly avoids pulling renderer translation initialization into the reused draft logic; verify both host builds and the Desktop/Bot integration when changing such imports.
 - Additional evidence: on 2026-10-24, Desktop package verification only checked that the native helper was executable. An isolated executable reporting `backgroundInput:false` passed the previous verifier (exit 0); actually running its self-test now rejects it (exit 1). The real ad-hoc Apple Silicon app passed deep signature verification, both helper slices and isolated actual-ASAR runtime/Code mode loading. This does not prove fresh macOS permission grants, GUI startup or Developer ID notarization.
 - Additional evidence: on 2026-10-24, hiding the new computer-use package's local dist left Bot's build successful but emitted an unresolved external import from Core's computer extension. Include that transitive workspace package in Bot's source aliases and bundling policy even though Bot does not inject a desktop capability. The same cold build then resolves it, and the isolated Bot runtime verifier exercises the packaged entry.
+- Additional evidence: on 2026-11-03, disabling Vite's `source` condition to accommodate Pi's missing published source files made clean Desktop CI unable to resolve workspace Core imports. Local tests had passed against an existing Core `dist`. Alias the workspace sources explicitly and run the affected client tests with that output absent.
 - CI follow-up: #432's Linux Core crash/lifecycle workers import that package through Node, outside Vite's source conditions, and failed with missing `dist/protocol.mjs`. Build and verify the workspace dependency before Core tests in both Desktop and Bot workflows; Vite aliases cannot repair a separate Node process's package exports.
 - Check: trace the actual worker/runtime entry and workspace subpath exports.
   Run the affected package verification in a clean build context when changing
   packaging; report separately whether an installed client was exercised.
-- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24.
+- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24, 2026-11-03.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**

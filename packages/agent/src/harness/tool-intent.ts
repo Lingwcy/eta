@@ -1,4 +1,5 @@
-import type { Message, Tool, TSchema } from "@earendil-works/pi-ai";
+import type { Message, Tool } from "@earendil-works/pi-ai";
+type TSchema = Tool["parameters"];
 import { Type } from "typebox";
 
 /** Opt in explicitly; business parameters named description are not display metadata. */

@@ -1354,6 +1354,76 @@ test("context compaction never hides earlier chat history or displays an interna
   expect(after.snapshot.lastResult).toEqual(before.snapshot.lastResult);
 });
 
+test("opening and subscribing retain the full transcript beyond the agent watch window", async () => {
+  const { runtime, threads, registry, workspace } = await setup();
+  const created = await runtime.runPromise(threads.create(workspace.id));
+  const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
+  await record.conversation.commit(async (tx) => {
+    for (let index = 0; index < 130; index++)
+      await tx.appendEntry(record.conversation.id, {
+        kind: "pi.user",
+        model: [{ role: "user", content: `history-${index}`, timestamp: index + 1 }],
+      });
+  }, BACKGROUND_CONTEXT);
+  const watch = await record.conversation.watch(BACKGROUND_CONTEXT);
+  expect(watch.value.before).toBeDefined();
+  await watch.stop();
+  const opened = await runtime.runPromise(threads.open(created.id));
+  const users = opened.snapshot.transcript.filter((entry) => entry.message.role === "user");
+  expect(users).toHaveLength(130);
+  expect(users[0]?.message.content).toBe("history-0");
+  expect(users.at(-1)?.message.content).toBe("history-129");
+  const reads = vi.spyOn(record.conversation, "entries");
+  const initial = Promise.withResolvers<void>();
+  const delivered = Promise.withResolvers<void>();
+  let latest = opened.snapshot;
+  const stop = await runtime.runPromise(
+    threads.subscribe(
+      created.id,
+      (value) => {
+        latest = value.snapshot;
+        if (latest.transcript.some((entry) => entry.message.content === "history-129"))
+          initial.resolve();
+        if (latest.transcript.some((entry) => entry.message.content === "history-130"))
+          delivered.resolve();
+      },
+      () => {},
+    ),
+  );
+  try {
+    await initial.promise;
+    const initialReads = reads.mock.calls.length;
+    expect(initialReads).toBeGreaterThan(0);
+    await record.conversation.commit(
+      (tx) =>
+        tx.appendEntry(record.conversation.id, {
+          kind: "pi.user",
+          model: [{ role: "user", content: "history-130", timestamp: 131 }],
+        }),
+      BACKGROUND_CONTEXT,
+    );
+    await Promise.race([
+      delivered.promise,
+      new Promise<never>((_, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("Updated history was not delivered")),
+          10_000,
+        );
+        timer.unref();
+        void delivered.promise.finally(() => clearTimeout(timer));
+      }),
+    ]);
+    const updated = latest.transcript.filter((entry) => entry.message.role === "user");
+    expect(updated).toHaveLength(131);
+    expect(updated[0]?.message.content).toBe("history-0");
+    expect(updated.at(-1)?.message.content).toBe("history-130");
+    expect(reads.mock.calls.length).toBe(initialReads);
+  } finally {
+    stop();
+    reads.mockRestore();
+  }
+}, 20_000);
+
 test("opening admitted unfinished work is paused until explicit resume", async () => {
   const { runtime, threads, registry, workspace, provider, reopen } = await setup();
   const created = await runtime.runPromise(threads.create(workspace.id));

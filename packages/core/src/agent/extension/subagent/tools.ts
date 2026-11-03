@@ -1,6 +1,6 @@
 import { defineTool } from "@eta/agent";
 import type { ConversationId } from "@eta/agent";
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import type { Context } from "@earendil-works/chord";
 import type { SubagentCommand, SubagentSummary } from "../../../shared/subagents.ts";
 import type { SubagentRuntime } from "./runtime.ts";
@@ -44,9 +44,9 @@ export function createSubagentTools(
       message: Type.Optional(Type.String()),
       fork: Type.Optional(Type.Boolean()),
       wait: Type.Optional(Type.Boolean()),
-      timeoutMs: Type.Optional(Type.Integer({ minimum: 0, maximum: 3600000 })),
-      offset: Type.Optional(Type.Integer({ minimum: 0 })),
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 32000 })),
+      timeoutMs: Type.Optional(Type.Number({ multipleOf: 1, minimum: 0, maximum: 3600000 })),
+      offset: Type.Optional(Type.Number({ multipleOf: 1, minimum: 0 })),
+      limit: Type.Optional(Type.Number({ multipleOf: 1, minimum: 1, maximum: 32000 })),
       canDelegate: Type.Optional(Type.Boolean()),
       preset: Type.Optional(Type.String()),
       model: Type.Optional(Type.Object({ provider: Type.String(), modelId: Type.String() })),

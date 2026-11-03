@@ -36,7 +36,9 @@ const registry = await runtime.runPromise(RuntimeRegistryService);
 const record = await runtime.runPromise(registry.acquire(created.thread.sessionRef));
 const watch = await record.conversation.watch(BACKGROUND_CONTEXT);
 let reported = false;
-watch.start(async (view) => {
+watch.start(async (change) => {
+  if (change.kind !== "value") return;
+  const view = change.value;
   if (!reported && JSON.stringify(view.docs["pi.live"]).includes("message")) {
     reported = true;
     process.send?.({ thread: created.thread });

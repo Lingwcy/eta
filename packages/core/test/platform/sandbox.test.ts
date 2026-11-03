@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vite-plus/test";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
-import type { WatchChange } from "@eta/agent/env";
+import type { FileChange } from "@eta/agent/env";
 import { getOrThrow } from "@eta/agent/env";
 import { SandboxedExecutionEnv } from "../../src/platform/sandbox/environment.ts";
 import { sandboxStatus } from "../../src/platform/sandbox/backend.ts";
@@ -268,7 +268,7 @@ test.skipIf(!native.available)(
         .map((chunk) => chunk.text)
         .join(""),
     ).toBe("problem");
-    const changes: WatchChange[] = [];
+    const changes: FileChange[] = [];
     const watcher = getOrThrow(
       await env.watch(
         [{ path: "renamed.txt" }],
@@ -281,12 +281,15 @@ test.skipIf(!native.available)(
     try {
       getOrThrow(await env.appendFile("renamed.txt", "third", context));
       await expect
-        .poll(() => changes.some((change) => "paths" in change || "overflow" in change), {
-          timeout: 5000,
-        })
+        .poll(
+          () => changes.some((change) => change.kind === "paths" || change.kind === "overflow"),
+          {
+            timeout: 5000,
+          },
+        )
         .toBe(true);
     } finally {
-      await watcher.close(context);
+      await watcher.stop(context);
     }
     const count = changes.length;
     getOrThrow(await env.appendFile("renamed.txt", "fourth", context));

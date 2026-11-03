@@ -42,6 +42,7 @@ export class ObservationService extends Context.Service<
           let stopped = false;
           let delivery: Promise<void> | undefined;
           let pending: ConversationView | undefined;
+          const historyCache: { entries?: ConversationView["entries"] } = {};
           const stop = () => {
             if (stopped) return;
             stopped = true;
@@ -59,7 +60,7 @@ export class ObservationService extends Context.Service<
               while (pending && !stopped && !runtime.disposed) {
                 const current = pending;
                 pending = undefined;
-                const value = await project(runtime, current);
+                const value = await project(runtime, current, historyCache);
                 if (!stopped && !runtime.disposed) await onSnapshot(value);
               }
             })()
@@ -81,8 +82,9 @@ export class ObservationService extends Context.Service<
           runtime.changes.add(changed);
           // Queue the initial revision before start drains buffered commits; one ordered delivery line.
           send(watch.value);
-          watch.start(async (view) => {
-            send(view);
+          watch.start(async (change) => {
+            if (change.kind === "value") send(change.value);
+            else if (!stopped && !runtime.disposed) onError(String(change.error));
           });
           // Return the disposer immediately; a streaming producer must not delay unwatch until idle.
           return stop;
@@ -92,11 +94,27 @@ export class ObservationService extends Context.Service<
 }
 
 /** Read receipts from storage rather than remembering a run result in the Electron process. */
-async function project(runtime: ThreadRuntime, view: ConversationView): Promise<SnapshotResponse> {
+async function project(
+  runtime: ThreadRuntime,
+  view: ConversationView,
+  cache?: { entries?: ConversationView["entries"] },
+): Promise<SnapshotResponse> {
   const live = (view.docs["pi.live"] ?? {}) as LiveState;
   const agent = (view.docs["pi.agent"] ?? {}) as AgentState;
   let history = view.entries;
-  if (view.entries.some((entry) => entry.head !== undefined)) {
+  const previous = cache?.entries;
+  const lastId = previous?.at(-1)?.id;
+  const overlap =
+    lastId === undefined ? -1 : view.entries.findIndex((entry) => entry.id === lastId);
+  if (previous && overlap >= 0) {
+    history =
+      overlap === view.entries.length - 1
+        ? previous
+        : [...previous, ...view.entries.slice(overlap + 1)];
+  } else if (
+    view.entries.length > 0 &&
+    (view.before !== undefined || view.entries.some((entry) => entry.head !== undefined))
+  ) {
     const maxEntryId = view.entries.reduce(
       (highest, entry) => (entry.id > highest ? entry.id : highest),
       view.entries[0]!.id,
@@ -115,6 +133,7 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
     } while (pageCursor !== undefined);
     history = entries.reverse();
   }
+  if (cache) cache.entries = history;
   const receipts: SubmissionRecord[] = [];
   const reports = new Set<number>();
   const inputs = new Set<number>();
@@ -336,10 +355,15 @@ async function project(runtime: ThreadRuntime, view: ConversationView): Promise<
       ? { blockedReason: runtime.error ?? runtime.blockedReason }
       : {}),
   };
+  const head = history.findLast((entry) => entry.head !== undefined);
+  const activeEntries = head
+    ? [head, ...history.filter((entry) => entry.id >= head.head! && entry.head === undefined)]
+    : history;
   return {
     // Detach mutable containers without encoding and reallocating large image/history strings.
     snapshot: copySnapshot(snapshot),
-    contextTokens: estimateContextTokens(view.entries.flatMap((entry) => entry.model ?? [])).tokens,
+    contextTokens: estimateContextTokens(activeEntries.flatMap((entry) => entry.model ?? []))
+      .tokens,
   };
 }
 
