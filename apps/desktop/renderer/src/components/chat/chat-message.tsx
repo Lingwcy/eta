@@ -88,7 +88,7 @@ export function ChatMessage({
 
 export const MarkdownMessage = memo(function MarkdownMessage({ text }: { text: string }) {
   return (
-    <article className="text-sm/7 break-words [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-auto [&_pre]:rounded-xl [&_pre]:bg-neutral-900 [&_pre]:p-4 [&_pre]:text-neutral-100 [&_ul]:list-disc [&_ul]:pl-5 [&>*:last-child]:mb-0">
+    <article className="text-sm/7 break-words [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&>*:last-child]:mb-0">
       <MessageMarkdown text={text} />
     </article>
   );

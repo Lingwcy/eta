@@ -88,6 +88,7 @@ export const ChatNavigation = memo(function ChatNavigation({
                   </div>
                   <div className="mt-1.5 line-clamp-4 text-xs/5 break-words text-neutral-500 [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
                     <MessageMarkdown
+                      preview
                       text={payload.preview || t("chat:chatNavigation.waitingForAResponse")}
                     />
                   </div>

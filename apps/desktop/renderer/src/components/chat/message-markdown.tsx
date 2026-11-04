@@ -1,8 +1,28 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { CodeBlock } from "./code-block";
 
 const plugins = [remarkGfm];
 const components: Components = {
+  pre: ({ node, children }) => {
+    const element = node?.children[0];
+    if (!element || element.type !== "element" || element.tagName !== "code")
+      return <pre>{children}</pre>;
+    const code = element.children
+      .map((child) => (child.type === "text" ? child.value : ""))
+      .join("")
+      .replace(/\n$/, "");
+    const classes = element.properties.className;
+    const language = Array.isArray(classes)
+      ? classes.find((name) => typeof name === "string" && name.startsWith("language-"))
+      : undefined;
+    return (
+      <CodeBlock
+        code={code}
+        language={typeof language === "string" ? language.slice(9) : undefined}
+      />
+    );
+  },
   table: ({ node: _node, ...props }) => (
     <div className="my-3 max-w-full overflow-x-auto">
       <table {...props} className="w-full border-collapse text-left" />
@@ -27,10 +47,15 @@ const components: Components = {
   ),
 };
 
+const previewComponents: Components = {
+  ...components,
+  pre: ({ children }) => <pre>{children}</pre>,
+};
+
 /** Links open through the desktop window's external navigation handler. */
-export function MessageMarkdown({ text }: { text: string }) {
+export function MessageMarkdown({ text, preview = false }: { text: string; preview?: boolean }) {
   return (
-    <ReactMarkdown remarkPlugins={plugins} components={components}>
+    <ReactMarkdown remarkPlugins={plugins} components={preview ? previewComponents : components}>
       {text}
     </ReactMarkdown>
   );
