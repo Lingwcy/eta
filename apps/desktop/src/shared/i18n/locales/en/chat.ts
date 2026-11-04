@@ -1,4 +1,9 @@
 export default {
+  "codeBlock.plainText": "Plain text",
+  "codeBlock.wrap": "Wrap lines",
+  "codeBlock.copy": "Copy code",
+  "codeBlock.copied": "Copied",
+
   "useDesktopController.temporaryWorkspaceUnsupported":
     "Update this Bot to start a chat without a project, or choose a project.",
   "client.theChatIsNotOpenYet": "The chat is not open yet",
