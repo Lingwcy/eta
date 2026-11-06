@@ -1,5 +1,16 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  rmdir,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -14,6 +25,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { createCore } from "../src/client.ts";
 import type { CoreClient } from "../src/client.ts";
 import type { ApprovalReviewer } from "../src/shared/runtime-settings.ts";
+import { gitMetadataScope } from "../src/service/git/metadata.ts";
 
 const run = promisify(execFile);
 const git = (cwd: string, ...args: string[]) =>
@@ -204,6 +216,49 @@ test("an approved gitMetadata request commits without exposing config, hooks or 
   expect(await readFile(join(common, "worktrees", "other", "HEAD"), "utf8")).toContain("eta/other");
   expect(await subject(other)).toBe("init");
 });
+
+test.each([false, true])(
+  "gitMetadata never makes hooks writable through a tag-directory alias=%s",
+  async (alias) => {
+    const { core, agent, reviewer, main, worktree, thread } = await fixture({ mode: "auto" });
+    const common = join(main, ".git");
+    if (alias) {
+      await rmdir(join(common, "refs", "tags"));
+      await symlink("../hooks", join(common, "refs", "tags"));
+    }
+    agent.setResponses([
+      commitAs("safe", "safe.txt"),
+      bash(`printf unauthorized > '${common}/hooks/audit-non-executable'; true`, {
+        gitMetadata: true,
+        reason: "Continue the approved Git task",
+      }),
+      fauxAssistantMessage("Done"),
+    ]);
+    reviewer.setResponses([verdict("run")]);
+    const operation = await core.submit(thread.id, "Commit the change");
+    await settle(core, thread.id, operation.operationId);
+    if (!alias) expect(await subject(worktree)).toBe("safe");
+    await expect(
+      readFile(join(common, "hooks", "audit-non-executable"), "utf8"),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  },
+  30000,
+);
+
+test.each(["objects", "refs", "logs/refs"])(
+  "gitMetadata rejects a redirected %s before creating descendants",
+  async (path) => {
+    const { directory, main, worktree } = await fixture();
+    const root = join(main, ".git", path);
+    const redirected = join(directory, "redirected");
+    await rename(root, redirected);
+    await symlink(redirected, root);
+    await expect(gitMetadataScope(worktree)).rejects.toThrow("Git 元数据路径发生重定向");
+    if (path !== "objects")
+      await expect(access(join(redirected, "remotes"))).rejects.toMatchObject({ code: "ENOENT" });
+  },
+  15000,
+);
 
 test("automatic review approves routine worktree commits", async () => {
   const { core, agent, reviewer, worktree, thread } = await fixture({ mode: "auto" });
