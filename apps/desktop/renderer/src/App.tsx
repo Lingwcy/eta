@@ -86,6 +86,7 @@ export function App() {
                       name={shell.github.project.name}
                       info={shell.github.info}
                       connected={shell.github.connected}
+                      active={shell.inspectorOpen && shell.inspectorContent === "github"}
                       onRefresh={shell.github.refresh}
                       onRemote={shell.github.selectRemote}
                     />
