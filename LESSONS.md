@@ -151,13 +151,6 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: cover raw and percent-encoded userinfo, extra password delimiters, IPv6/ports and non-userinfo `@`. Use fake credentials and real DTO reads; do not infer production leakage, remote authentication success or protection of arbitrary query secrets from these tests.
 - Seen: 2026-10-25.
 
-**Check command success before treating machine-readable stdout as a complete observation.**
-
-- Evidence: on 2026-10-25, #448's real Core/Git controls on `c718f7c` corrupt a temporary index or configure an invalid fetch refspec. The corresponding `status`/`remote -v` exits 128, but unchecked stdout still produces `ready`: empty status becomes clean and a failed remote read becomes no remotes. Rejecting the failed read returns `unavailable`; repairing only the fixture restores its dirty-file counts and GitHub selection without losing files.
-- Additional evidence: on 2026-10-27, #473's same-size hello/world fixture has a deterministic real-Git counterexample: minimal stat checking, untrusted ctime, a retained file mtime and a rewritten later index yield raw status containing only the untracked file, despite changed README bytes. The actual Core recovery assertion fails with unstaged=0. A different-size marker preserves the dirty-file contract under this controlled schedule; failure-only diagnostics now retain raw status, index cache, configuration, nanosecond file/index stat and content without hiding the original assertion. This proves a fixture assumption, not that historical CI used these settings or that every recurrence is explained.
-- Check: command wrappers may resolve nonzero exits rather than throw. Validate the exit code before interpreting empty or partial output; preserve legitimate empty/unborn states and verify recovery after repair. A fixture requiring dirty content must not depend on equal-size stat-cache invalidation; use a deterministic metadata boundary and preserve raw failure evidence before changing production reads. Report the failed stage without blindly copying sensitive repository diagnostics. These are controlled read failures, not evidence that Git deleted user data.
-- Seen: 2026-10-25, 2026-10-27.
-
 **Check actual desktop-session ownership before interpreting AX or injecting input.**
 
 - Evidence: on 2026-10-24, both TextEdit and an isolated Electron fixture returned `AXApplication` roots in `AXWindows` with AX success and `AXIsProcessTrusted() == true`. The session dictionary reported `CGSSessionScreenIsLocked == true`; synchronous WindowServer foreground/key ownership was `loginwindow`, while NSWorkspace still reported the previous foreground app. A native observation now reports locked-session non-execution before AX traversal. Six native policy cases cover active, locked, inactive, incomplete-login and unknown sessions without accessing the desktop.
@@ -581,6 +574,15 @@ model choice must still be validated as an explicit choice.**
 - Seen 1× (2026-10-12).
 
 ## Promoted lessons
+
+**Check command success before treating machine-readable stdout as a complete observation.**
+
+- Promoted on 2026-11-06 to [Verifying](AGENTS.md#verifying).
+- Evidence: on 2026-10-25, #448's real Core/Git controls on `c718f7c` corrupt a temporary index or configure an invalid fetch refspec. The corresponding `status`/`remote -v` exits 128, but unchecked stdout still produces `ready`: empty status becomes clean and a failed remote read becomes no remotes. Rejecting the failed read returns `unavailable`; repairing only the fixture restores its dirty-file counts and GitHub selection without losing files.
+- Additional evidence: on 2026-10-27, #473's same-size hello/world fixture has a deterministic real-Git counterexample: minimal stat checking, untrusted ctime, a retained file mtime and a rewritten later index yield raw status containing only the untracked file, despite changed README bytes. The actual Core recovery assertion fails with unstaged=0. A different-size marker preserves the dirty-file contract under this controlled schedule; failure-only diagnostics now retain raw status, index cache, configuration, nanosecond file/index stat and content without hiding the original assertion. This proves a fixture assumption, not that historical CI used these settings or that every recurrence is explained.
+- Additional evidence: on 2026-11-06, #583 makes reviewer grep fail on an unreadable file in default-shell, sh and actual read-only sandbox controls. The successful head stage hides grep exit 2 and the tool reports isError=false. Preserve the producer status independently; no-match exit 1 and head-induced SIGPIPE are expected outcomes, not search errors. Actual permission repair, truncation and cancellation controls verify classification and owned temporary-directory cleanup without widening permissions.
+- Check: command wrappers may resolve nonzero exits rather than throw. Validate the exit code before interpreting empty or partial output; preserve legitimate empty/unborn states and verify recovery after repair. A fixture requiring dirty content must not depend on equal-size stat-cache invalidation; use a deterministic metadata boundary and preserve raw failure evidence before changing production reads. Report the failed stage without blindly copying sensitive repository diagnostics. These are controlled read failures, not evidence that Git deleted user data.
+- Seen: 2026-10-25, 2026-10-27, 2026-11-06.
 
 **Treat external IDs as own data keys on both reads and writes.**
 
