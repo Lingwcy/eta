@@ -71,27 +71,32 @@ test("GitHub categories live in the header, default to open and retain options o
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () =>
-    root!.render(
-      createElement(
-        ToastProvider,
-        null,
-        createElement(InspectorTabs, {
-          value: "github",
-          onChange: () => {},
-          github: createElement(GitHubPanel, {
-            client,
-            projectId: "project",
-            name: "Repo",
-            info,
-            connected: true,
-            onRefresh: refresh,
-            onRemote: async () => {},
+  const render = async (active: boolean) =>
+    act(async () =>
+      root!.render(
+        createElement(
+          ToastProvider,
+          null,
+          createElement(InspectorTabs, {
+            value: "github",
+            onChange: () => {},
+            github: createElement(GitHubPanel, {
+              client,
+              projectId: "project",
+              name: "Repo",
+              info,
+              connected: true,
+              active,
+              onRefresh: refresh,
+              onRemote: async () => {},
+            }),
           }),
-        }),
+        ),
       ),
-    ),
-  );
+    );
+  await render(false);
+  expect(query).not.toHaveBeenCalled();
+  await render(true);
   expect(query).toHaveBeenLastCalledWith({ projectId: "project", kind: "pulls", state: "open" });
   const panel = document.querySelector('[role="tabpanel"]')!;
   expect(panel.textContent).toContain("A pull request");

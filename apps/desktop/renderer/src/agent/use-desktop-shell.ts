@@ -60,7 +60,7 @@ export function useDesktopShell() {
     version,
   ]);
   const [inspectorContent, setInspectorContent] = useState<InspectorContent>("subagents");
-  const [inspectorExpanded, setInspectorExpanded] = useState(true);
+  const [inspectorExpanded, setInspectorExpanded] = useState(false);
   const diff = useCodeDiff({
     workspaceId: contextWorkspace?.id,
     threadId: inspectorConversation?.threadId ?? undefined,
