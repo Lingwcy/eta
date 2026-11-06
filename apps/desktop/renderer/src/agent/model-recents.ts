@@ -41,13 +41,17 @@ export class ModelRecents {
     return () => this.listeners.delete(listener);
   };
   record = (entry: RecentModel) => {
-    this.entries = [
-      entry,
-      ...this.entries.filter(
-        (v) =>
-          v.scope !== entry.scope || v.provider !== entry.provider || v.modelId !== entry.modelId,
-      ),
-    ].slice(0, 100);
+    // Another renderer may have saved choices since this store loaded. Prefer durable order,
+    // while retaining local choices if optional storage was unavailable.
+    const seen = new Set<string>();
+    this.entries = [entry, ...this.read(), ...this.entries]
+      .filter((value) => {
+        const identity = JSON.stringify([value.scope, value.provider, value.modelId]);
+        if (seen.has(identity)) return false;
+        seen.add(identity);
+        return true;
+      })
+      .slice(0, 100);
     try {
       this.storage.setItem(key, JSON.stringify(this.entries));
     } catch {

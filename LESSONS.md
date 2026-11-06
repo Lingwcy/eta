@@ -509,6 +509,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Merge shared bounded histories before replacing them from long-lived views.**
+
+- Evidence: on 2026-11-06, #579 constructs two model-history stores over shared Web Storage before either records a choice. Sequential writes discard the other store's newly saved model; 105 alternating choices restore only one store's subset. Read the latest durable history before saving, prioritize the current choice and persisted order, deduplicate complete scope/provider/model identities, then enforce the cap. Shared-storage reopen controls retain both scopes, updated thinking levels and the latest 100 distinct choices.
+- Check: exercise independent stale instances and reopen from storage, not just in-memory notifications. Retain optional-storage fallback without claiming a read/modify/write sequence is an atomic cross-process transaction; simultaneous writers and native multi-window acceptance are separate validation.
+- Seen: 2026-11-06.
+
 **Resolve implicitly trusted filesystem grants before expanding them.**
 
 - Evidence: on 2026-11-06, #571 on `9dc85e1` makes a linked repository's `refs/tags` point at `hooks`. A real Core run first receives a routine Git grant, then its reused scope writes a non-executable hooks marker; the normal-directory control commits without that write. Native sandbox controls confirm actual file I/O, not just proposed roots. Compare every expanded root with its expected location under the canonical common directory before creating lazy ref directories or granting it. A late-check mutation still creates directories through redirected parents and fails two filesystem controls.
