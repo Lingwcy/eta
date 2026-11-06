@@ -315,8 +315,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Validate SDK compatibility separately from frozen dependency resolution.**
 
 - Evidence: #29 and #54 failed Mobile CI at Expo's compatibility gate despite successful frozen installs. On 2026-10-15, main `ff2545b` reproduces the expected Expo `~57.0.30` / Router `~57.0.28` mismatch; the release commit only changes Desktop/root versions. Expo CLI reads its native-module recommendations from an online SDK API, so a lockfile does not freeze that contract. Aligning these patches makes the compatibility check pass; this does not establish that the old native app was broken.
+- Additional evidence: on 2026-11-06, release PR #573 changes only the root/Desktop version, yet Mobile run `42272116885` fails the live Expo compatibility check for five newer patch ranges. The same check fails locally after a successful frozen install; updating the four Expo catalog ranges, Mobile constants and their lock graph makes it pass with Mobile typecheck. The existing release-age policy is unchanged. Release exports and installed native behavior remain separate validation stages.
 - Check: preserve the compatibility gate, verify the SDK's required toolchain together, and export both platforms. Keep release-age exceptions restricted to required exact versions and verify unrelated workspace importers remain unchanged; do not disable policy or force offline metadata merely to turn CI green.
-- Seen: 2026-10-15.
+- Seen: 2026-10-15, 2026-11-06.
 
 **Parse streaming protocols independently of transport read boundaries.**
 
