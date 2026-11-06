@@ -127,38 +127,46 @@ async function pending(core: CoreClient, threadId: string) {
   return (await core.openThread(threadId)).snapshot.approvals![0]!;
 }
 
-test("an automatic approval runs the call once and is recorded without file contents", async () => {
-  const { core, agent, reviewer, cwd, thread, log } = await fixture();
-  agent.setResponses([write("approved.txt"), fauxAssistantMessage("Done")]);
-  reviewer.setResponses([verdict("approve")]);
-  const operation = await core.submit(thread.id, "Write approved.txt");
-  await settle(core, thread.id, operation.operationId);
-  expect(await readFile(join(cwd, "approved.txt"), "utf8")).toBe("written");
-  await expect.poll(log).toMatchObject([
-    {
-      kind: "review",
-      outcome: "approved",
-      risk: "low",
-      tool: "write",
-      reviewer: { provider: "core-test", modelId: "one" },
-    },
-  ]);
-  expect(JSON.stringify(await log())).not.toContain("written");
-  expect((await core.openThread(thread.id)).snapshot.approvalHistory).toMatchObject([
-    { tool: "write", status: "consumed", decidedBy: "auto", review: { status: "approved" } },
-  ]);
-  expect(await core.reviewStats()).toMatchObject({ reviews: 1, approved: 1, denied: 0 });
-});
+test.each([null, { mode: "auto" } as const])(
+  "an approval with reviewer %j runs the call once and is recorded without file contents",
+  async (settings) => {
+    const { core, agent, reviewer, cwd, thread, log } = await fixture(settings);
+    agent.setResponses([write("approved.txt"), fauxAssistantMessage("Done")]);
+    reviewer.setResponses([verdict("approve")]);
+    const operation = await core.submit(thread.id, "Write approved.txt");
+    await settle(core, thread.id, operation.operationId);
+    expect(await readFile(join(cwd, "approved.txt"), "utf8")).toBe("written");
+    await expect.poll(log).toMatchObject([
+      {
+        kind: "review",
+        outcome: "approved",
+        risk: "low",
+        tool: "write",
+        reviewer: { provider: "core-test", modelId: "one" },
+      },
+    ]);
+    expect(JSON.stringify(await log())).not.toContain("written");
+    expect((await core.openThread(thread.id)).snapshot.approvalHistory).toMatchObject([
+      { tool: "write", status: "consumed", decidedBy: "auto", review: { status: "approved" } },
+    ]);
+    expect(await core.reviewStats()).toMatchObject({ reviews: 1, approved: 1, denied: 0 });
+  },
+);
 
-test("an automatic denial blocks the call and tells the agent why", async () => {
-  const { core, agent, reviewer, cwd, thread, agentRequests } = await fixture();
-  agent.setResponses([write("denied.txt"), fauxAssistantMessage("Understood")]);
-  reviewer.setResponses([verdict("deny", "medium", "Writing denied.txt is not part of the task")]);
-  const operation = await core.submit(thread.id, "Summarize the repo");
-  await settle(core, thread.id, operation.operationId);
-  await expect(readFile(join(cwd, "denied.txt"))).rejects.toMatchObject({ code: "ENOENT" });
-  expect(agentRequests().at(-1)).toContain("Writing denied.txt is not part of the task");
-});
+test.each(["medium", "high"])(
+  "an automatic %s-risk denial blocks the call and tells the agent why",
+  async (risk) => {
+    const { core, agent, reviewer, cwd, thread, agentRequests } = await fixture();
+    agent.setResponses([write("denied.txt"), fauxAssistantMessage("Understood")]);
+    reviewer.setResponses([
+      verdict("deny", risk, "This operation would destroy unrelated user data"),
+    ]);
+    const operation = await core.submit(thread.id, "Summarize the repo");
+    await settle(core, thread.id, operation.operationId);
+    await expect(readFile(join(cwd, "denied.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(agentRequests().at(-1)).toContain("This operation would destroy unrelated user data");
+  },
+);
 
 test.each([
   ["ask_user", "low"],
@@ -279,8 +287,8 @@ test("a user decision made during review wins and the late verdict is discarded"
     .toMatchObject({ outcome: "preempted" });
 });
 
-test("the user reviewer keeps today's approval flow", async () => {
-  const { core, agent, thread, reviews } = await fixture(null);
+test("an explicit user reviewer keeps the manual approval flow", async () => {
+  const { core, agent, thread, reviews } = await fixture({ mode: "user" });
   agent.setResponses([write("manual.txt"), fauxAssistantMessage("Done")]);
   await core.submit(thread.id, "Write");
   const approval = await pending(core, thread.id);

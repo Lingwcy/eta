@@ -111,6 +111,7 @@ export function GitHubPanel({
   name,
   info,
   connected,
+  active,
   onRefresh,
   onRemote,
 }: {
@@ -119,6 +120,7 @@ export function GitHubPanel({
   name: string;
   info?: GitRepositoryInfo;
   connected: boolean;
+  active: boolean;
   onRefresh: () => void;
   onRemote: (remote: string) => Promise<void>;
 }) {
@@ -166,16 +168,16 @@ export function GitHubPanel({
       ? JSON.stringify([key, view.page?.repository, view.error?.code, view.page?.fetchedAt])
       : undefined;
   useEffect(() => {
-    if (check && checked.current !== check) {
+    if (active && check && checked.current !== check) {
       checked.current = check;
       onRefresh();
     }
-  }, [check, onRefresh]);
+  }, [active, check, onRefresh]);
   useEffect(() => {
     client.filters.set(projectId, { kind, state });
     client.filters.set(`${projectId}:${kind}`, { kind, state });
-    if (selection && connected) void client.load(key, { projectId, kind, state });
-  }, [client, projectId, key, kind, state, Boolean(selection), connected]);
+    if (active && selection && connected) void client.load(key, { projectId, kind, state });
+  }, [client, projectId, key, kind, state, Boolean(selection), connected, active]);
   const limited = Boolean(view.error?.retryAt && view.error.retryAt > Date.now());
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">

@@ -11,6 +11,7 @@ import { SandboxPicker } from "./sandbox-picker";
 export function ActionToolbar({
   skillsControl,
   sandboxMode,
+  defaultSandboxMode,
   allowedSandboxModes,
   sandboxDisabled,
   sandboxDisabledReason,
@@ -66,6 +67,7 @@ export function ActionToolbar({
           <SandboxPicker
             responsive
             mode={sandboxMode}
+            defaultMode={defaultSandboxMode}
             allowedModes={allowedSandboxModes}
             disabled={sandboxDisabled ?? (disabled || isRunning)}
             disabledReason={sandboxDisabledReason}

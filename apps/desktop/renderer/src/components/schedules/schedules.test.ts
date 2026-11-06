@@ -834,6 +834,7 @@ test.each(["metadata only", "new time"] as const)(
 test("sidebar task menu supports pause, resume, run, edit and delete through real IPC", async () => {
   const { runtime, schedules, threads, workspace, library } = await setup();
   const thread = await runtime.runPromise(threads.create(workspace.id));
+  await runtime.runPromise(threads.configureSandbox(thread.id, "workspace-write"));
   library.threads = [thread.thread];
   await runtime.runPromise(
     schedules.write({
@@ -1082,10 +1083,22 @@ test.each(["local", "bot"])(
   },
 );
 
-test.each(["danger-full-access", "workspace-write"] as const)(
-  "scheduled task creation persists %s permissions",
-  async (mode) => {
+test.each([
+  { mode: "danger-full-access", preference: undefined },
+  { mode: "workspace-write", preference: undefined },
+  { mode: "read-only", preference: undefined },
+  { mode: "workspace-write", preference: "workspace-write" },
+  { mode: "read-only", preference: "read-only" },
+  { mode: "danger-full-access", preference: "read-only" },
+] as const)(
+  "scheduled task creation persists $mode permissions with preference=$preference",
+  async ({ mode, preference }) => {
     const { runtime, schedules, threads, library } = await setup();
+    const settings = await runtime.runPromise(DesktopSettingsService);
+    if (preference)
+      library.settings = await runtime.runPromise(
+        settings.update({ defaultSandboxMode: preference }),
+      );
     let saved: string | undefined;
     function Form() {
       const controller = useSchedules();
@@ -1102,14 +1115,19 @@ test.each(["danger-full-access", "workspace-write"] as const)(
     await input(document.querySelector<HTMLInputElement>("input")!, "Permission test");
     await input(document.querySelector<HTMLTextAreaElement>("textarea")!, "Review repository");
     await click("高级");
-    if (mode === "workspace-write") {
+    if (mode !== (preference ?? "danger-full-access")) {
       await act(async () =>
-        document.querySelector<HTMLButtonElement>('[aria-label="沙盒策略：完全访问"]')!.click(),
+        document.querySelector<HTMLButtonElement>('button[aria-label^="沙盒策略："]')!.click(),
       );
       const picker = document.querySelector('[aria-label="沙盒策略"]')!;
+      const label = {
+        "read-only": "只读",
+        "workspace-write": "工作区沙盒",
+        "danger-full-access": "完全访问",
+      }[mode];
       await act(async () =>
         [...picker.querySelectorAll<HTMLButtonElement>("button")]
-          .find((button) => button.textContent?.startsWith("工作区沙盒"))!
+          .find((button) => button.textContent?.startsWith(label))!
           .click(),
       );
     }
@@ -1117,6 +1135,9 @@ test.each(["danger-full-access", "workspace-write"] as const)(
     await expect.poll(() => saved).toBeDefined();
     expect((await runtime.runPromise(threads.open(saved!))).snapshot.sandbox?.mode).toBe(mode);
     expect((await runtime.runPromise(schedules.list(saved!)))[0].name).toBe("Permission test");
+    expect((await runtime.runPromise(settings.read)).defaultSandboxMode).toBe(
+      preference ?? "danger-full-access",
+    );
   },
 );
 

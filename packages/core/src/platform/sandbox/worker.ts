@@ -4,6 +4,7 @@ import type { BinaryReader, DirReader, FileWatcher, TextLineReader } from "@eta/
 import { Schema } from "effect";
 import { BACKGROUND_CONTEXT, withAbortSignal } from "@earendil-works/chord/context";
 import { RequestSchema } from "./protocol.ts";
+import { inheritedProxyEnvironment } from "./proxy.ts";
 import type { WorkerMessage, WorkerRequest } from "./protocol.ts";
 
 const env = new NodeExecutionEnv({ cwd: process.cwd(), detachedCommands: false });
@@ -160,6 +161,7 @@ async function execute(request: WorkerRequest, signal: AbortSignal): Promise<unk
               ...(process.env.GIT_CONFIG_NOSYSTEM
                 ? { GIT_CONFIG_NOSYSTEM: process.env.GIT_CONFIG_NOSYSTEM }
                 : {}),
+              ...inheritedProxyEnvironment(process.env),
               ...request.options?.env,
             },
             onOutput: (value, _context, outputInfo) =>

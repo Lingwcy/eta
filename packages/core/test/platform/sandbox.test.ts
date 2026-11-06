@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
 import type { FileChange } from "@eta/agent/env";
 import { getOrThrow } from "@eta/agent/env";
@@ -295,4 +295,90 @@ test.skipIf(!native.available)(
     getOrThrow(await env.appendFile("renamed.txt", "fourth", context));
     expect(changes).toHaveLength(count);
   },
+);
+
+test.skipIf(!native.available).each([true, false])(
+  "native commands inherit a local proxy without bypassing networkAccess=%s",
+  async (networkAccess) => {
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(request.url ?? "");
+      response.setHeader("Content-Type", "text/plain");
+      if (request.url?.includes("/info/refs")) response.end("");
+      else if (request.url?.endsWith("/HEAD")) response.end("ref: refs/heads/main\n");
+      else response.end("proxied response");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("Proxy did not listen");
+      for (const key of [
+        "http_proxy",
+        "HTTP_PROXY",
+        "https_proxy",
+        "HTTPS_PROXY",
+        "all_proxy",
+        "ALL_PROXY",
+        "no_proxy",
+        "NO_PROXY",
+      ])
+        vi.stubEnv(key, "");
+      vi.stubEnv("HTTP_PROXY", "http://127.0.0.1:" + address.port);
+      // Lowercase takes precedence; remove the empty value to exercise uppercase normalization.
+      vi.stubEnv("http_proxy", undefined);
+      vi.stubEnv("GH_TOKEN", "must-not-leak");
+      const { env } = await fixture("workspace-write", { networkAccess });
+      let output = "";
+      const curl = getOrThrow(
+        await env.exec(
+          "curl --silent --show-error --max-time 3 http://eta-proxy.invalid/probe",
+          {
+            onOutput: (text) => {
+              output += text;
+            },
+          },
+          context,
+        ),
+      );
+      if (networkAccess) {
+        expect(curl.exitCode).toBe(0);
+        expect(output).toBe("proxied response");
+        expect(requests).toContain("http://eta-proxy.invalid/probe");
+        const git = getOrThrow(
+          await env.exec(
+            "git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=3 ls-remote http://eta-proxy.invalid/repo",
+            undefined,
+            context,
+          ),
+        );
+        expect(git.exitCode).toBe(0);
+        expect(requests).toContain(
+          "http://eta-proxy.invalid/repo/info/refs?service=git-upload-pack",
+        );
+        let secrets = "";
+        getOrThrow(
+          await env.exec(
+            "printf '%s' \"$GH_TOKEN\"",
+            {
+              onOutput: (text) => {
+                secrets += text;
+              },
+            },
+            context,
+          ),
+        );
+        expect(secrets).toBe("");
+      } else {
+        expect(curl.exitCode).not.toBe(0);
+        expect(requests).toEqual([]);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  },
+  15000,
 );
