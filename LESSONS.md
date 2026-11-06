@@ -127,6 +127,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Separate output-producing declaration inputs from full workspace type checks.**
+
+- Evidence: on 2026-11-06, #577 reproduces a successful Core build creating `scripts/published-pi-aliases.d.ts` outside its product output. The declaration generator reused a tsconfig that includes the Vite config and its relative helper import. Real isolated builds also overwrite a pre-existing helper declaration. A product-only declaration tsconfig prevents both effects while retaining importable output and exported types; the original full typecheck remains unchanged. Removing the dedicated configuration makes both filesystem controls fail again.
+- Check: exercise actual compiler output in an isolated repository, including absent and user-owned output paths. Limit emit inputs separately from source/test/tooling validation; ignoring generated files does not prevent clobbering them.
+- Seen: 2026-11-06.
+
 **Normalize logical request fields without invalidating persisted replay identities.**
 
 - Evidence: on 2026-11-02, #556 submits an actual Core queued image request, then changes only attachment object field order. Both live and close/reopen retries fail with InvalidInput because raw JSON property order changes the fingerprint. Keep the legacy digest and add an order-independent digest of declared image fields; preserve attachment array order and reject real prompt/mode/data/MIME/name/note changes. A legacy-record reopen control keeps unknown old order conservative, permits the exact old representation, then safely backfills the canonical digest without rewriting its legacy identity.
