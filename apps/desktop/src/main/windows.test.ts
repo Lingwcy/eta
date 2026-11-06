@@ -1,4 +1,5 @@
-import { expect, test, vi } from "vite-plus/test";
+import type { BrowserWindowConstructorOptions } from "electron";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 const fake = vi.hoisted(() => {
   class Window {
     static all: Window[] = [];
@@ -7,7 +8,9 @@ const fake = vi.hoisted(() => {
     destroyed = false;
     shows = 0;
     focuses = 0;
-    constructor() {
+    readonly options: BrowserWindowConstructorOptions;
+    constructor(options: BrowserWindowConstructorOptions = {}) {
+      this.options = options;
       Window.all.push(this);
     }
     static getAllWindows() {
@@ -44,6 +47,60 @@ vi.mock("electron", () => ({
 vi.mock("./browser/electron.ts", () => ({ createWindowBrowser: () => ({ dispose() {} }) }));
 vi.mock("./i18n.ts", () => ({ t: (key: string) => key, errorMessage: String }));
 import { createDesktopWindows } from "./windows.ts";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  fake.Window.all = [];
+});
+
+test.each(["win32", "darwin", "linux"])(
+  "%s uses the same window chrome for the main, detached and reopened windows",
+  (platform) => {
+    vi.stubGlobal("process", { ...process, platform });
+    const windows = createDesktopWindows(
+      () => {},
+      () => false,
+    );
+    try {
+      windows.open();
+      windows.open("another-thread");
+      for (const window of fake.Window.all) window.close();
+      windows.open();
+      expect(fake.Window.all).toHaveLength(3);
+      for (const { options } of fake.Window.all) {
+        if (platform === "win32") {
+          expect(options.titleBarStyle).toBe("hidden");
+          expect(options.titleBarOverlay).toEqual({
+            color: "#e9e9e9",
+            symbolColor: "#262626",
+            height: 42,
+          });
+          expect(options.autoHideMenuBar).toBe(true);
+          expect(options.trafficLightPosition).toBeUndefined();
+        } else if (platform === "darwin") {
+          expect(options.titleBarStyle).toBe("hiddenInset");
+          expect(options.trafficLightPosition).toEqual({ x: 16, y: 13 });
+          expect(options.titleBarOverlay).toBeUndefined();
+          expect(options.autoHideMenuBar).toBeUndefined();
+        } else {
+          expect(options.titleBarStyle).toBeUndefined();
+          expect(options.titleBarOverlay).toBeUndefined();
+          expect(options.autoHideMenuBar).toBeUndefined();
+        }
+        // Keep native resizing and the trusted preload boundary on every platform.
+        expect(options.frame).not.toBe(false);
+        expect(options.webPreferences).toMatchObject({
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        });
+      }
+    } finally {
+      windows.dispose();
+    }
+  },
+);
+
 test("closing the main window selects another chat window rather than an auxiliary panel", () => {
   fake.Window.all = [];
   const windows = createDesktopWindows(
