@@ -262,8 +262,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Index stable catalog records once before a bulk traversal.**
 
 - Evidence: on 2026-10-20, BDS-06 searches the entire registered-project array for each directory and allocates/scans its visible project IDs for each workspace. Real Core/filesystem fixtures count 624 rootPath reads at 32 projects before indexing; an upper bound of five reads per project passes afterward. Separate controls preserve newly discovered/missing projects, outside-scope exclusion and canonical duplicate-path first-match behavior. This measures metadata access, not production latency or every filesystem operation.
-- Check: build indexes from the current scan, retain the original duplicate-key selection rule, and construct membership sets only after all eligible projects are known. Keep filesystem validation and request freshness unchanged rather than retaining a permission cache across scans.
-- Seen: 2026-10-20.
+- Additional evidence: on 2026-11-06, #585 finds tab restoration rescanning every previously accepted view ID. Five alternating before/after measurements over identical JSON inputs preserve byte-identical restored results; 20,000 records (1,617,825 JSON bytes) take median 1,496ms before and 18ms with a separate ID set on one machine. State controls retain all sessions, drafts, policies and active selection, keep view/resource identity namespaces distinct, and avoid reserving IDs for rejected rows. These are parser measurements on synthetic input, not native UI or common-user latency claims.
+- Check: build indexes from the current scan, retain the original duplicate-key selection rule, and construct membership sets only after all eligible projects are known. Incremental restoration must reserve only accepted rows and keep identity namespaces separate. Preserve all valid user state rather than imposing a new cap; use state controls and paired benchmarks rather than fragile CI millisecond thresholds. Keep filesystem validation and request freshness unchanged rather than retaining a permission cache across scans.
+- Seen: 2026-10-20, 2026-11-06.
 
 **Validate update metadata against actual asset bytes, not only a matching digest.**
 
