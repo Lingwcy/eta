@@ -24,7 +24,7 @@ export async function gitReadRoots(cwd: string) {
 /**
  * Expands `sandbox.gitMetadata` into the narrowest directories Git writes for this workspace. Landlock grants
  * are additive per directory, so a linked worktree gets its own metadata directory, the shared object store and
- * the current branch's ref directory, never the repository's config or hooks.
+ * remote-tracking refs, tags and the current branch's ref directory, never the repository's config or hooks.
  */
 export async function gitMetadataScope(cwd: string): Promise<GitMetadataScope> {
   const info = await inspectRepository(cwd, "");
@@ -52,6 +52,13 @@ export async function gitMetadataScope(cwd: string): Promise<GitMetadataScope> {
         join(info.commonDir, "logs", "refs", "heads", dirname(branch)),
       ]
     : [];
+  // Fetch/push update remote-tracking refs; fetch also follows tags in a linked worktree.
+  refRoots.push(
+    join(info.commonDir, "refs", "remotes"),
+    join(info.commonDir, "logs", "refs", "remotes"),
+    join(info.commonDir, "refs", "tags"),
+    join(info.commonDir, "logs", "refs", "tags"),
+  );
   // Git creates these lazily; the sandbox can only grant directories that exist.
   for (const root of refRoots) await mkdir(root, { recursive: true });
   return {

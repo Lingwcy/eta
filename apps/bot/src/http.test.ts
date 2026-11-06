@@ -66,6 +66,7 @@ async function fixture(
   allowedSandboxModes?: BotConfig["allowedSandboxModes"],
   initialEnvironment?: Partial<CoreEnvironment>,
   log?: BotLog,
+  approvalReviewer?: BotConfig["runtime"]["approvalReviewer"],
 ) {
   const root = await mkdtemp(join(tmpdir(), "eta-bot-http-"));
   roots.push(root);
@@ -98,6 +99,7 @@ async function fixture(
     runtime: {
       agentMode: "standard" as const,
       defaultThinkingLevel: "off",
+      ...(approvalReviewer ? { approvalReviewer } : {}),
       ...(defaultProvider ? { defaultProvider } : {}),
     },
   };
@@ -2453,10 +2455,14 @@ test("HTTP admission executes real tools, rejects conflicting retries and retain
 }, 15000);
 
 test("HTTP exposes sandbox ceilings and scopes approvals to the owning thread", async () => {
-  const { bot, provider, request, create, cwd } = await fixture(false, undefined, [
-    "read-only",
-    "workspace-write",
-  ]);
+  const { bot, provider, request, create, cwd } = await fixture(
+    false,
+    undefined,
+    ["read-only", "workspace-write"],
+    undefined,
+    undefined,
+    { mode: "user" },
+  );
   const id = await create("sandbox-thread");
   const other = await create("other-thread");
   expect((await request(`/v1/threads/${id}/sandbox`, { mode: "danger-full-access" })).status).toBe(
@@ -4719,3 +4725,37 @@ test("a borrowed admission held across a receipt read cannot restart work after 
     lookup.mockRestore();
   }
 }, 30000);
+
+test("HTTP uses the chat model to review sandbox requests by default without a manual decision", async () => {
+  const { bot, provider, request, create, cwd } = await fixture();
+  const id = await create("default-review-thread");
+  await request("/v1/threads/" + id + "/sandbox", { mode: "read-only" });
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("write", { path: "auto-via-http.txt", content: "approved automatically" }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage(
+      JSON.stringify({ decision: "approve", risk: "low", rationale: "Routine requested edit" }),
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const response = await request("/v1/threads/" + id + "/messages", {
+    prompt: "Write auto-via-http.txt",
+    requestId: "default-review-input",
+  });
+  expect(response.status).toBe(202);
+  const { operationId } = Schema.decodeUnknownSync(admission)(await response.json());
+  await expect
+    .poll(async () => (await bot.core.operation(id, operationId)).status, { timeout: 10000 })
+    .toBe("completed");
+  expect(await readFile(join(cwd, "auto-via-http.txt"), "utf8")).toBe("approved automatically");
+  const snapshot = (await bot.core.openThread(id)).snapshot;
+  expect(snapshot.approvals).toEqual([]);
+  expect(snapshot.approvalHistory).toMatchObject([
+    {
+      decidedBy: "auto",
+      review: { status: "approved", reviewer: { provider: "bot-test", modelId: "one" } },
+    },
+  ]);
+}, 15000);
