@@ -1,6 +1,7 @@
 import { describeError, localizedMessage, type Message } from "@/i18n/messages";
 import { t } from "@/i18n";
 import { isCloudId } from "../../../src/shared/bot.ts";
+import { defaultDesktopSandboxMode } from "../../../src/shared/settings.ts";
 import { defaultModel, projectRootWorkspace } from "@/desktop/selectors";
 import type { ImageAttachment } from "@eta/core/images/types";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -124,6 +125,9 @@ export function useDesktopController(
                 ? t("chat:useDesktopController.savingChangesWaitBeforeChangingThePolicy")
                 : undefined;
   const threadId = tab.threadId;
+  const preferredSandboxMode =
+    modelLibrary?.settings.defaultSandboxMode ??
+    (cloud ? defaultSandboxMode : defaultDesktopSandboxMode);
   const hasMessages = Boolean(
     agent.submittedInputs.length ||
     snapshot?.queuedInputs?.length ||
@@ -259,22 +263,19 @@ export function useDesktopController(
       onChange: (draft: string) => navigation.tabs.updateConversation(tab.id, { draft }),
       model: mainModel,
       cloud,
-      sandboxMode:
-        snapshot?.sandbox?.mode ??
-        tab.sandboxMode ??
-        modelLibrary?.settings.defaultSandboxMode ??
-        defaultSandboxMode,
+      sandboxMode: snapshot?.sandbox?.mode ?? tab.sandboxMode ?? preferredSandboxMode,
+      defaultSandboxMode: preferredSandboxMode,
       allowedSandboxModes:
         snapshot?.sandbox?.allowedModes ??
         (cloud ? (remote?.library?.allowedSandboxModes ?? []) : sandboxModes),
       sandboxDisabled: Boolean(sandboxDisabledReason),
       sandboxDisabledReason,
       onSandboxChange: (mode: SandboxMode) => {
-        if (threadId)
-          void desktop.act(async () => {
-            await agent.configureSandbox(mode);
-          });
-        else navigation.tabs.updateConversation(tab.id, { sandboxMode: mode });
+        void desktop.act(async () => {
+          if (threadId) await agent.configureSandbox(mode);
+          else navigation.tabs.updateConversation(tab.id, { sandboxMode: mode });
+          if (!cloud) await window.eta.updateSettings({ defaultSandboxMode: mode });
+        });
       },
       models: modelLibrary?.models ?? [],
       providers: cloud
@@ -328,10 +329,7 @@ export function useDesktopController(
                       cloudSelection?.thinkingLevel ??
                       modelLibrary?.settings.defaultThinkingLevel ??
                       "off",
-                    sandboxMode:
-                      tab.sandboxMode ??
-                      modelLibrary?.settings.defaultSandboxMode ??
-                      defaultSandboxMode,
+                    sandboxMode: tab.sandboxMode ?? preferredSandboxMode,
                   }
                 : undefined,
               worktreeDraft.enabled && worktreeDraft.branch && workspace?.projectId

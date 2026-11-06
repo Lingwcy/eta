@@ -212,6 +212,7 @@ export function PermissionSettings({
         >
           <SandboxPicker
             mode={sandboxMode}
+            defaultMode={sandboxMode}
             disabled={busy}
             side="bottom"
             onChange={onSandboxChange}
