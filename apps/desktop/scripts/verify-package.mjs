@@ -124,10 +124,13 @@ try {
   assert.ok(library.providers.length > 0, "Bundled authentication providers must be available");
   const workspaceId = library.workspaces[0].id;
   const thread = await application.createThread(workspaceId);
-  assert.equal(thread.snapshot.sandbox.mode, "workspace-write");
+  assert.equal(thread.snapshot.sandbox.mode, "danger-full-access");
+  await application.updateSettings({ defaultSandboxMode: "workspace-write" });
+  const restricted = await application.createThread(workspaceId);
+  assert.equal(restricted.snapshot.sandbox.mode, "workspace-write");
   if (process.platform !== "win32")
-    assert.equal(thread.snapshot.sandbox.available, true, thread.snapshot.sandbox.reason);
-  else assert.equal(thread.snapshot.sandbox.available, false);
+    assert.equal(restricted.snapshot.sandbox.available, true, restricted.snapshot.sandbox.reason);
+  else assert.equal(restricted.snapshot.sandbox.available, false);
   const scheduled = await application.writeSchedule({
     threadId: thread.id,
     requestId: "packaged-schedule",
@@ -168,7 +171,10 @@ try {
     ).state,
     "applied",
   );
-  await application.updateSettings({ defaultThinkingLevel: "low" });
+  await application.updateSettings({
+    defaultThinkingLevel: "low",
+    defaultSandboxMode: "read-only",
+  });
   await application.close();
   application = await compiled.exports.createDesktopApplication(
     appRoot,
@@ -177,7 +183,10 @@ try {
     undefined,
     compiled.exports.processImage,
   );
-  assert.equal((await application.library()).settings.defaultThinkingLevel, "low");
+  const restoredSettings = (await application.library()).settings;
+  assert.equal(restoredSettings.defaultThinkingLevel, "low");
+  assert.equal(restoredSettings.defaultSandboxMode, "read-only");
+  assert.equal((await application.createThread(workspaceId)).snapshot.sandbox.mode, "read-only");
   const restored = (await application.scheduleSnapshot()).snapshots[0].data.schedules.find(
     (value) => value.id === scheduled.scheduleId,
   );

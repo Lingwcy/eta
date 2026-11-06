@@ -634,10 +634,11 @@ a dependency. A dev server succeeding does not prove an installed client works.*
 - Additional evidence: on 2026-10-24, hiding the new computer-use package's local dist left Bot's build successful but emitted an unresolved external import from Core's computer extension. Include that transitive workspace package in Bot's source aliases and bundling policy even though Bot does not inject a desktop capability. The same cold build then resolves it, and the isolated Bot runtime verifier exercises the packaged entry.
 - Additional evidence: on 2026-11-03, disabling Vite's `source` condition to accommodate Pi's missing published source files made clean Desktop CI unable to resolve workspace Core imports. Local tests had passed against an existing Core `dist`. Alias the workspace sources explicitly and run the affected client tests with that output absent.
 - CI follow-up: #432's Linux Core crash/lifecycle workers import that package through Node, outside Vite's source conditions, and failed with missing `dist/protocol.mjs`. Build and verify the workspace dependency before Core tests in both Desktop and Bot workflows; Vite aliases cannot repair a separate Node process's package exports.
+- Additional evidence: on 2026-11-06, v0.1.161 release run `42277084314` passes source tests but all three installer jobs fail the isolated packaged-runtime assertion at `verify-package.mjs:127`: the maintained local default is now `danger-full-access`, while the smoke test still expects `workspace-write`. Keep the new-default check separate from explicit restricted-mode availability and saved read-only preference checks. The release was not published; retain its failed tag rather than relabeling artifacts from changed source.
 - Check: trace the actual worker/runtime entry and workspace subpath exports.
   Run the affected package verification in a clean build context when changing
   packaging; report separately whether an installed client was exercised.
-- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24, 2026-11-03.
+- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24, 2026-11-03, 2026-11-06.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**
