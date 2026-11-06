@@ -38,6 +38,7 @@ export interface ActionToolbarProps {
   readonly skillsControl?: ReactNode;
   readonly model?: InputModel;
   readonly models?: readonly InputModel[];
+  readonly recentModels?: readonly { provider: string; modelId: string }[];
   readonly providers?: readonly InputProvider[];
   readonly onModelChange?: (model: InputModel, thinkingLevel: ThinkingLevel) => void;
   readonly thinkingLevel?: ThinkingLevel;

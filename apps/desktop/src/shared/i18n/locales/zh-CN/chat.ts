@@ -1,4 +1,5 @@
 export default {
+  "modelPicker.recentModels": "最近使用的模型",
   "codeBlock.plainText": "纯文本",
   "codeBlock.wrap": "自动换行",
   "codeBlock.copy": "复制代码",

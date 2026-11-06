@@ -108,7 +108,7 @@ test.each(["local", "cloud", "collision", "unknown", "same", "session-only"] as 
         };
       },
     };
-    vi.stubGlobal("eta", bridge);
+    vi.stubGlobal("eta", { ...bridge, updateSettings: async () => {} });
     const models = mode === "session-only" ? [second] : [first, second];
     const library: DesktopLibrary = {
       projects: [],
@@ -161,7 +161,7 @@ test.each(["local", "cloud", "collision", "unknown", "same", "session-only"] as 
       clearError: () => {},
     } satisfies DesktopLibraryController;
     const tabs = new DesktopTabs();
-    tabs.openThread(id, "workspace");
+    tabs.openThread(id, mode === "cloud" ? "bot:test:workspace" : "workspace");
     const activity = new ThreadActivity(bridge);
     const recents = new ThreadRecents({ getItem: () => null, setItem: () => {} });
     let view: ReturnType<typeof useDesktopController> | undefined;
@@ -256,6 +256,42 @@ test.each(["local", "cloud", "collision", "unknown", "same", "session-only"] as 
       });
       expect(configure).toHaveBeenCalledWith(id, second.provider, second.id, "high");
       expect(container.textContent).toContain("Beta");
+      if (mode === "local" || mode === "cloud") {
+        await act(async () => {
+          tabs.newConversation();
+          root.render(createElement(Host, { key: "new-draft" }));
+        });
+        expect(view?.composer.model?.id).toBe(second.id);
+        expect(view?.composer.thinkingLevel).toBe("high");
+        await act(async () => {
+          button(
+            '[aria-label="' + i18n.t("chat:modelPicker.chooseAModelAndThinkingLevel") + '"]',
+          ).click();
+        });
+        expect(document.body.textContent).toContain("Recent models");
+        if (mode === "local") {
+          await act(async () => {
+            button('[aria-pressed][title="' + first.provider + "/" + first.id + '"]').click();
+          });
+          await act(async () => {
+            button('[aria-pressed][title="' + second.provider + "/" + second.id + '"]').click();
+          });
+          const rows = [...document.querySelectorAll<HTMLButtonElement>("[aria-pressed][title]")]
+            .map((row) => row.title)
+            .filter(
+              (title) =>
+                title === first.provider + "/" + first.id ||
+                title === second.provider + "/" + second.id,
+            );
+          expect(rows).toEqual([
+            second.provider + "/" + second.id,
+            first.provider + "/" + first.id,
+          ]);
+          desktop.library = { ...library, models: [first] };
+          await act(async () => root.render(createElement(Host, { key: "new-draft" })));
+          expect(view?.composer.model?.id).toBe(first.id);
+        }
+      }
     } finally {
       await act(async () => root.unmount());
       activity.dispose();
