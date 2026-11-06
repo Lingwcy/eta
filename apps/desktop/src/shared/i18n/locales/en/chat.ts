@@ -1,4 +1,5 @@
 export default {
+  "modelPicker.recentModels": "Recent models",
   "codeBlock.plainText": "Plain text",
   "codeBlock.wrap": "Wrap lines",
   "codeBlock.copy": "Copy code",

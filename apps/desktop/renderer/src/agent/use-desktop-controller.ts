@@ -3,7 +3,8 @@ import { t } from "@/i18n";
 import { isCloudId } from "../../../src/shared/bot.ts";
 import { defaultModel, projectRootWorkspace } from "@/desktop/selectors";
 import type { ImageAttachment } from "@eta/core/images/types";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { modelRecents } from "./model-recents";
 import { useThinkingStatus } from "./use-thinking-status";
 import { useThreadAgent } from "./use-thread-agent";
 import { DraftThread } from "./draft-thread";
@@ -11,6 +12,7 @@ import type { ConversationTab } from "./desktop-tabs";
 import type { DesktopLibraryController } from "./use-desktop-library";
 import type { DesktopTabController } from "./use-desktop-tabs";
 import type { InputModel } from "@/components/input/types";
+import { resolveThinkingLevel } from "@/components/input/model-thinking";
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
 import { hasThreadActivity } from "./thread-activity";
 import { defaultSandboxMode, sandboxModes } from "@eta/core/shared/sandbox";
@@ -66,6 +68,18 @@ export function useDesktopController(
     previousConnection.current = remote?.status;
   }, [cloud, agent.observation, remote?.status]);
   const modelLibrary = cloud ? remote?.library : desktop.library;
+  const recents = modelRecents();
+  const recentEntries = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
+  const recentScope = cloud ? "cloud:" + (remote?.url ?? "") : "local";
+  const recentModels = recentEntries.filter((entry) => entry.scope === recentScope);
+  const recentSelection = recentModels.find((entry) =>
+    modelLibrary?.models.some(
+      (model) => model.provider === entry.provider && model.id === entry.modelId,
+    ),
+  );
+  const recentModel = modelLibrary?.models.find(
+    (model) => model.provider === recentSelection?.provider && model.id === recentSelection.modelId,
+  );
   const [cloudSelection, setCloudSelection] = useState<{
     model: InputModel;
     thinkingLevel: ThinkingLevel;
@@ -92,7 +106,7 @@ export function useDesktopController(
       (cloud && cloudSelection
         ? cloudSelection.model
         : modelLibrary
-          ? defaultModel(modelLibrary)
+          ? (recentModel ?? defaultModel(modelLibrary))
           : undefined));
   useEffect(() => {
     if (active)
@@ -277,6 +291,7 @@ export function useDesktopController(
         else navigation.tabs.updateConversation(tab.id, { sandboxMode: mode });
       },
       models: modelLibrary?.models ?? [],
+      recentModels,
       providers: cloud
         ? [...new Set(modelLibrary?.models.map((model) => model.provider) ?? [])].map((id) => ({
             id,
@@ -294,13 +309,21 @@ export function useDesktopController(
               defaultModel: model.id,
               defaultThinkingLevel: level,
             });
+          recents.record({
+            scope: recentScope,
+            provider: model.provider,
+            modelId: model.id,
+            thinkingLevel: level,
+          });
         });
       },
       thinkingLevel:
         snapshot?.configuration.thinkingLevel ??
         (cloud
-          ? (cloudSelection?.thinkingLevel ?? modelLibrary?.settings.defaultThinkingLevel)
-          : desktop.library?.settings.defaultThinkingLevel),
+          ? (cloudSelection?.thinkingLevel ??
+            recentSelection?.thinkingLevel ??
+            modelLibrary?.settings.defaultThinkingLevel)
+          : (recentSelection?.thinkingLevel ?? desktop.library?.settings.defaultThinkingLevel)),
       contextTokens: agent.observation?.contextTokens,
       contextWindow: snapshot ? liveModel?.contextWindow : agent.session?.model.contextWindow,
       cwd: cloud ? undefined : workspace?.cwd,
@@ -324,10 +347,13 @@ export function useDesktopController(
                 ? {
                     provider: mainModel.provider,
                     modelId: mainModel.id,
-                    thinkingLevel:
+                    thinkingLevel: resolveThinkingLevel(
+                      mainModel,
                       cloudSelection?.thinkingLevel ??
-                      modelLibrary?.settings.defaultThinkingLevel ??
-                      "off",
+                        recentSelection?.thinkingLevel ??
+                        modelLibrary?.settings.defaultThinkingLevel ??
+                        "off",
+                    ),
                     sandboxMode:
                       tab.sandboxMode ??
                       modelLibrary?.settings.defaultSandboxMode ??
@@ -348,6 +374,18 @@ export function useDesktopController(
               workspaceId: draft.persistedWorkspaceId ?? tab.workspaceId,
             });
           }
+          if (mainModel)
+            recents.record({
+              scope: recentScope,
+              provider: mainModel.provider,
+              modelId: mainModel.id,
+              thinkingLevel:
+                snapshot?.configuration.thinkingLevel ??
+                cloudSelection?.thinkingLevel ??
+                recentSelection?.thinkingLevel ??
+                modelLibrary?.settings.defaultThinkingLevel ??
+                "off",
+            });
           navigation.recordInput(id);
           navigation.activity.watch(id);
         } catch (error) {

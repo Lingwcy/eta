@@ -18,6 +18,7 @@ export function ModelPicker({
   model,
   selection,
   models,
+  recentModels = [],
   providers = [],
   thinkingLevel = "off",
   showThinking = true,
@@ -36,6 +37,7 @@ export function ModelPicker({
     onChange: (models: readonly { provider: string; modelId: string }[]) => void;
   };
   models: readonly InputModel[];
+  recentModels?: readonly { provider: string; modelId: string }[];
   providers?: readonly InputProvider[];
   thinkingLevel?: ThinkingLevel;
   showThinking?: boolean;
@@ -57,6 +59,16 @@ export function ModelPicker({
     ? providerId
     : null;
   const visible = visiblePickerModels(models, availableProviders, activeProvider, query);
+  const recent =
+    !selection && !query.trim() && activeProvider === null
+      ? recentModels.flatMap((item) => {
+          const found = visible.find(
+            (entry) => entry.provider === item.provider && entry.id === item.modelId,
+          );
+          return found ? [found] : [];
+        })
+      : [];
+  const ordered = [...recent, ...visible.filter((entry) => !recent.includes(entry))];
   const level = resolveThinkingLevel(model, thinkingLevel);
   const thinkingLabel =
     !selection && showThinking && model?.thinkingLevels.some((value) => value !== "off")
@@ -73,7 +85,7 @@ export function ModelPicker({
         }
         setOpen(next);
         setQuery("");
-        if (next) setProviderId(model?.provider ?? null);
+        if (next) setProviderId(recentModels.length ? null : (model?.provider ?? null));
       }}
     >
       <Popover.Trigger
@@ -231,7 +243,7 @@ export function ModelPicker({
                       </span>
                     </BaseButton>
                   )}
-                  {visible.map((entry) => {
+                  {ordered.map((entry, index) => {
                     const selected = selection
                       ? selection.models.some(
                           (model) =>
@@ -247,80 +259,88 @@ export function ModelPicker({
                       availableProviders.find((provider) => provider.id === entry.provider)?.name ??
                       entry.provider;
                     return (
-                      <div
-                        key={`${entry.provider}/${entry.id}`}
-                        className={cn(
-                          "relative min-h-8 rounded-[8px]",
-                          selected && "bg-neutral-100",
+                      <div key={JSON.stringify([entry.provider, entry.id])}>
+                        {recent.length > 0 && (index === 0 || index === recent.length) && (
+                          <p className="px-1.5 pt-2 pb-1 text-xs text-neutral-500">
+                            {index === 0
+                              ? t("chat:modelPicker.recentModels")
+                              : t("chat:modelPicker.models")}
+                          </p>
                         )}
-                      >
-                        <BaseButton
-                          aria-pressed={selected}
-                          disabled={disabled || (!onChange && !selection)}
-                          title={`${entry.provider}/${entry.id}`}
-                          onClick={() => {
-                            if (selection)
-                              selection.onChange(
-                                selected
-                                  ? selection.models.filter(
-                                      (model) =>
-                                        model.provider !== entry.provider ||
-                                        model.modelId !== entry.id,
-                                    )
-                                  : [
-                                      ...selection.models,
-                                      { provider: entry.provider, modelId: entry.id },
-                                    ],
-                              );
-                            else {
-                              onChange?.(entry, resolveThinkingLevel(entry, thinkingLevel));
-                              if (!showThinking) setOpen(false);
-                            }
-                          }}
+                        <div
                           className={cn(
-                            "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[8px] py-1.5 pr-2 pl-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
-                            selected ? "hover:bg-neutral-100" : "hover:bg-neutral-50",
+                            "relative min-h-8 rounded-[8px]",
+                            selected && "bg-neutral-100",
                           )}
                         >
-                          <span aria-hidden="true" className="size-[18px] shrink-0 opacity-50">
-                            <ProviderMark id={entry.provider} />
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-[13px] text-neutral-900">
-                            {entry.name}
-                            {(query.trim() || activeProvider === null) && (
-                              <span className="ml-1.5 text-neutral-500">{providerName}</span>
-                            )}
-                          </span>
-                          {showThinkingControl && (
-                            <span aria-hidden="true" className="w-14 shrink-0" />
-                          )}
-                          <span
-                            aria-hidden="true"
+                          <BaseButton
+                            aria-pressed={selected}
+                            disabled={disabled || (!onChange && !selection)}
+                            title={`${entry.provider}/${entry.id}`}
+                            onClick={() => {
+                              if (selection)
+                                selection.onChange(
+                                  selected
+                                    ? selection.models.filter(
+                                        (model) =>
+                                          model.provider !== entry.provider ||
+                                          model.modelId !== entry.id,
+                                      )
+                                    : [
+                                        ...selection.models,
+                                        { provider: entry.provider, modelId: entry.id },
+                                      ],
+                                );
+                              else {
+                                onChange?.(entry, resolveThinkingLevel(entry, thinkingLevel));
+                                if (!showThinking) setOpen(false);
+                              }
+                            }}
                             className={cn(
-                              "flex size-3.5 shrink-0 items-center justify-center rounded-full border border-neutral-300",
-                              selected && "border-neutral-900 bg-neutral-900",
-                              selection && "rounded-[4px]",
+                              "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[8px] py-1.5 pr-2 pl-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
+                              selected ? "hover:bg-neutral-100" : "hover:bg-neutral-50",
                             )}
                           >
-                            {selected &&
-                              (selection ? (
-                                <Check size={10} className="text-white" />
-                              ) : (
-                                <span className="size-[5px] rounded-full bg-white" />
-                              ))}
-                          </span>
-                        </BaseButton>
-                        {showThinkingControl && (
-                          <div className="absolute top-1/2 right-8 -translate-y-1/2">
-                            <ThinkingLevelControl
-                              key={`${entry.provider}/${entry.id}`}
-                              level={level}
-                              levels={entry.thinkingLevels}
-                              disabled={disabled || (!onChange && !selection)}
-                              onChange={(next) => onChange?.(entry, next)}
-                            />
-                          </div>
-                        )}
+                            <span aria-hidden="true" className="size-[18px] shrink-0 opacity-50">
+                              <ProviderMark id={entry.provider} />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-[13px] text-neutral-900">
+                              {entry.name}
+                              {(query.trim() || activeProvider === null) && (
+                                <span className="ml-1.5 text-neutral-500">{providerName}</span>
+                              )}
+                            </span>
+                            {showThinkingControl && (
+                              <span aria-hidden="true" className="w-14 shrink-0" />
+                            )}
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "flex size-3.5 shrink-0 items-center justify-center rounded-full border border-neutral-300",
+                                selected && "border-neutral-900 bg-neutral-900",
+                                selection && "rounded-[4px]",
+                              )}
+                            >
+                              {selected &&
+                                (selection ? (
+                                  <Check size={10} className="text-white" />
+                                ) : (
+                                  <span className="size-[5px] rounded-full bg-white" />
+                                ))}
+                            </span>
+                          </BaseButton>
+                          {showThinkingControl && (
+                            <div className="absolute top-1/2 right-8 -translate-y-1/2">
+                              <ThinkingLevelControl
+                                key={`${entry.provider}/${entry.id}`}
+                                level={level}
+                                levels={entry.thinkingLevels}
+                                disabled={disabled || (!onChange && !selection)}
+                                onChange={(next) => onChange?.(entry, next)}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

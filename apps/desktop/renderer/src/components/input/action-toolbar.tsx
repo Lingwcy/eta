@@ -17,6 +17,7 @@ export function ActionToolbar({
   onSandboxChange,
   model,
   models = [],
+  recentModels,
   providers = [],
   onModelChange,
   thinkingLevel,
@@ -78,6 +79,7 @@ export function ActionToolbar({
             responsive
             model={model}
             models={models}
+            recentModels={recentModels}
             providers={providers}
             thinkingLevel={thinkingLevel}
             disabled={disabled || isRunning}
