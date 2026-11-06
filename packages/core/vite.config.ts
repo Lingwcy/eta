@@ -35,7 +35,7 @@ export default defineConfig({
       ),
       format: "esm",
       outExtensions: () => ({ js: ".mjs" }),
-      dts: { generator: "tsgo" },
+      dts: { generator: "tsgo", tsconfig: "./tsconfig.build.json" },
     },
     {
       entry: {
