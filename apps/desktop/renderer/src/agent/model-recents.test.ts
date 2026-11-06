@@ -41,6 +41,9 @@ test("invalid or unavailable storage does not prevent choices", () => {
       throw new Error("full");
     },
   });
-  recents.record({ scope: "local", provider: "p", modelId: "m", thinkingLevel: "off" });
-  expect(recents.getSnapshot()).toHaveLength(1);
+  const first = { scope: "local", provider: "p", modelId: "m", thinkingLevel: "off" } as const;
+  const second = { ...first, modelId: "other" };
+  recents.record(first);
+  recents.record(second);
+  expect(recents.getSnapshot()).toEqual([second, first]);
 });
