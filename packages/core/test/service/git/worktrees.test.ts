@@ -72,7 +72,11 @@ async function fixture(
     home: directory,
     models,
     settings: {
-      read: Effect.succeed({ agentMode: "standard" as const, defaultThinkingLevel: "off" }),
+      read: Effect.succeed({
+        agentMode: "standard" as const,
+        defaultThinkingLevel: "off",
+        approvalReviewer: { mode: "user" },
+      }),
       subscribe: () => () => {},
     },
     environment: {

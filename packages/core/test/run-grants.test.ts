@@ -93,10 +93,11 @@ async function fixture(auto: boolean) {
     testServices(join(directory, "data"), models, undefined, directory),
   );
   runtimes.push(runtime);
-  if (auto)
-    await runtime.runPromise(
-      (await runtime.runPromise(TestSettings)).update({ approvalReviewer: { mode: "auto" } }),
-    );
+  await runtime.runPromise(
+    (await runtime.runPromise(TestSettings)).update({
+      approvalReviewer: { mode: auto ? "auto" : "user" },
+    }),
+  );
   const projects = await runtime.runPromise(ProjectService);
   const project = await runtime.runPromise(projects.register({ rootPath: cwd }));
   const workspace = (

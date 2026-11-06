@@ -1,7 +1,10 @@
 import { BotSettings } from "./bot-settings";
 import type { ReactNode } from "react";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
-import type { DesktopSettings } from "../../../../src/shared/settings.ts";
+import {
+  defaultDesktopSandboxMode,
+  type DesktopSettings,
+} from "../../../../src/shared/settings.ts";
 import type { ModelSelection } from "@/desktop/selectors";
 import type { SettingsCategory } from "./settings-categories";
 import { AppearanceSettings } from "./appearance-settings";
@@ -83,7 +86,7 @@ export const settingsPanels = {
       reviewer={props.library.settings.approvalReviewer}
       onReviewerChange={(approvalReviewer) => update(props, { approvalReviewer })}
       blockImages={Boolean(props.library.settings.blockImages)}
-      sandboxMode={props.library.settings.defaultSandboxMode ?? "workspace-write"}
+      sandboxMode={props.library.settings.defaultSandboxMode ?? defaultDesktopSandboxMode}
       onSandboxChange={(defaultSandboxMode) => update(props, { defaultSandboxMode })}
       busy={props.busy}
       onAllowImagesChange={(allowed) => update(props, { blockImages: !allowed })}

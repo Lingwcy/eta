@@ -47,6 +47,41 @@ async function setup() {
   return { directory, open, runtime, settings };
 }
 
+test("new local chat permissions default to full access without a saved preference", async () => {
+  const { directory, runtime, settings, open } = await setup();
+  expect((await runtime.runPromise(settings.read)).defaultSandboxMode).toBe("danger-full-access");
+  await runtime.dispose();
+  await writeFile(
+    join(directory, "settings.json"),
+    JSON.stringify({ version: 1, settings: { defaultThinkingLevel: "off" } }),
+  );
+  const restored = open();
+  const next = await restored.runPromise(DesktopSettingsService);
+  expect((await restored.runPromise(next.read)).defaultSandboxMode).toBe("danger-full-access");
+});
+
+test.each(["read-only", "workspace-write", "danger-full-access"] as const)(
+  "saved %s permissions survive IPC, unrelated updates and reopen",
+  async (defaultSandboxMode) => {
+    const { directory, runtime, settings, open } = await setup();
+    const application = {
+      updateSettings: (patch) => runtime.runPromise(settings.update(patch)),
+    } satisfies Pick<DesktopApplication, "updateSettings">;
+    await dispatchCommand(application as DesktopApplication, {
+      type: "settings",
+      patch: { defaultSandboxMode },
+    });
+    await runtime.runPromise(settings.update({ locale: "en" }));
+    expect(
+      JSON.parse(await readFile(join(directory, "settings.json"), "utf8")).settings,
+    ).toMatchObject({ defaultSandboxMode });
+    await runtime.dispose();
+    const restored = open();
+    const next = await restored.runPromise(DesktopSettingsService);
+    expect((await restored.runPromise(next.read)).defaultSandboxMode).toBe(defaultSandboxMode);
+  },
+);
+
 test("obsolete grounding preferences are discarded without losing the desktop grant", async () => {
   const { directory, runtime, settings, open } = await setup();
   const settingsPath = join(directory, "settings.json");
@@ -189,7 +224,10 @@ test("agent mode crosses IPC, rejects invalid values, persists and resets to the
 });
 test("serialized patches preserve unrelated fields and survive reopening", async () => {
   const { directory, open, runtime, settings } = await setup();
-  expect(await runtime.runPromise(settings.read)).toEqual({ defaultThinkingLevel: "off" });
+  expect(await runtime.runPromise(settings.read)).toEqual({
+    defaultThinkingLevel: "off",
+    defaultSandboxMode: "danger-full-access",
+  });
   await runtime.runPromise(
     Effect.all(
       [
@@ -224,7 +262,10 @@ test("invalid input and failed persistence do not publish new settings", async (
   expect(
     await runtime.runPromise(Effect.flip(settings.update({ defaultModel: "one" }))),
   ).toMatchObject({ code: "StorageUnavailable" });
-  expect(await runtime.runPromise(settings.read)).toEqual({ defaultThinkingLevel: "off" });
+  expect(await runtime.runPromise(settings.read)).toEqual({
+    defaultThinkingLevel: "off",
+    defaultSandboxMode: "danger-full-access",
+  });
 });
 test.each(["{", '{"version":2,"settings":{}}'])(
   "corrupt or unsupported settings are reported without overwriting %s",

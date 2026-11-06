@@ -502,6 +502,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Verify inherited command configuration across every process boundary.**
+
+- Evidence: on 2026-11-06, the native sandbox proxy regression still failed with curl exit 6 after the launch environment carried HTTP_PROXY: the worker reconstructed a second allowlist for commands and dropped it again. Sharing the proxy projection across both boundaries makes curl and Git reach a fixture proxy, while network-disabled and host-token controls retain the sandbox boundary.
+- Check: test an actual descendant command, not just launch arguments or a parser. Preserve explicit configuration precedence without copying unrelated credentials. Static macOS proxy parsing and a loopback fixture do not establish PAC support or real remote authentication.
+- Seen: 2026-11-06.
+
 **Classify bare web addresses from parsed authorities, not raw prefixes.**
 
 - Evidence: on 2026-10-19, #187 enters localhost/port URLs with query or fragment through the real browser panel. Inconsistent delimiters reject valid URLs or send them to search; raw prefixes select the wrong default scheme for uppercase localhost and public lookalikes. Parsed-host classification and consistent boundaries fix both create/navigate while preserving explicit protocols and ports. Native loads are controlled fixtures, not network/TLS or production-leak evidence.

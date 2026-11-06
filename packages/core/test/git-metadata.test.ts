@@ -28,7 +28,10 @@ afterEach(async () => {
 });
 
 /** A repository with a linked worktree on `eta/feature`, opened as its own project. */
-async function fixture(initialReviewer: ApprovalReviewer | null = null, subdirectory = false) {
+async function fixture(
+  initialReviewer: ApprovalReviewer | null = { mode: "user" },
+  subdirectory = false,
+) {
   let approvalReviewer = initialReviewer;
   let reviews = 0;
   const reviewRequests: string[] = [];
@@ -114,6 +117,7 @@ const bash = (
     gitMetadata: boolean;
     reason: string;
     writableRoots?: string[];
+    readableRoots?: string[];
     networkAccess?: boolean;
   },
 ) =>
@@ -185,6 +189,10 @@ test("an approved gitMetadata request commits without exposing config, hooks or 
     join(common, "objects"),
     join(common, "refs", "heads", "eta"),
     join(common, "logs", "refs", "heads", "eta"),
+    join(common, "refs", "remotes"),
+    join(common, "logs", "refs", "remotes"),
+    join(common, "refs", "tags"),
+    join(common, "logs", "refs", "tags"),
   ]);
   await core.decideApproval(thread.id, approval.id, true);
   await settle(core, thread.id, operation.operationId);
@@ -281,7 +289,7 @@ test("a reviewer's run grant skips later reviews but not after switching back to
   reviewer.setResponses([verdict("run")]);
   await core.submit(thread.id, "Commit twice more");
   await expect.poll(() => subject(worktree), { timeout: 15000 }).toBe("third");
-  setReviewer(null);
+  setReviewer({ mode: "user" });
   const approval = await pending(core, thread.id);
   expect(approval.args).toMatchObject({ command: expect.stringContaining("fourth") });
 }, 30000);
@@ -325,3 +333,40 @@ test("a worktree reviewer reads the shared Git metadata in its own read-only san
   expect(reviewRequests().at(-1)).not.toContain("审查器无权访问此路径");
   expect(await subject(worktree)).toBe("reviewed");
 });
+
+test("the default reviewer can authorize fetching and pulling remote updates in a linked worktree", async () => {
+  const { core, agent, reviewer, directory, main, worktree, thread, reviews } = await fixture(null);
+  const remote = join(directory, "remote.git");
+  await writeFile(join(main, "remote-update.txt"), "latest remote content\n");
+  await git(main, "add", "remote-update.txt");
+  await git(main, "commit", "-qm", "remote update");
+  await git(main, "clone", "--bare", main, remote);
+  await git(main, "remote", "add", "origin", remote);
+  const remoteHead = (await git(main, "rev-parse", "main")).stdout.trim();
+  await git(remote, "tag", "v-remote-update", remoteHead);
+  reviewer.setResponses([verdict("call")]);
+  agent.setResponses([
+    bash("git fetch origin && git pull --ff-only origin main", {
+      gitMetadata: true,
+      readableRoots: [remote],
+      reason: "Synchronize the latest remote repository resources",
+    }),
+    fauxAssistantMessage("Done"),
+  ]);
+  const operation = await core.submit(thread.id, "Sync the latest changes from origin/main");
+  await settle(core, thread.id, operation.operationId);
+  expect(reviews()).toBe(1);
+  expect(await readFile(join(worktree, "remote-update.txt"), "utf8")).toBe(
+    "latest remote content\n",
+  );
+  expect((await git(worktree, "rev-parse", "refs/remotes/origin/main")).stdout.trim()).toBe(
+    remoteHead,
+  );
+  expect((await git(worktree, "rev-parse", "refs/tags/v-remote-update")).stdout.trim()).toBe(
+    remoteHead,
+  );
+  expect(
+    await readFile(join(main, ".git", "worktrees", "worktree", "FETCH_HEAD"), "utf8"),
+  ).toContain(remoteHead);
+  expect((await core.openThread(thread.id)).snapshot.approvals).toEqual([]);
+}, 15000);
