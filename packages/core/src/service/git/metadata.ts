@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { canonicalRoot } from "../../platform/sandbox/backend.ts";
 import { inspectRepository } from "./index.ts";
 
 const contains = (root: string, path: string) => {
@@ -59,11 +60,19 @@ export async function gitMetadataScope(cwd: string): Promise<GitMetadataScope> {
     join(info.commonDir, "refs", "tags"),
     join(info.commonDir, "logs", "refs", "tags"),
   );
-  // Git creates these lazily; the sandbox can only grant directories that exist.
+  const writableRoots = [info.gitDir, join(info.commonDir, "objects"), ...refRoots];
+  const common = await canonicalRoot(info.commonDir);
+  // Core-expanded roots bypass ordinary user-only checks. A directory alias must not widen that trust.
+  for (const root of writableRoots) {
+    const expected = resolve(common, relative(info.commonDir, root));
+    if ((await canonicalRoot(root)) !== expected)
+      throw new Error("Git 元数据路径发生重定向，不能自动扩展授权；请显式申请真实路径");
+  }
+  // Git creates these lazily; validate parents before mkdir can follow an alias outside the metadata.
   for (const root of refRoots) await mkdir(root, { recursive: true });
   return {
     readableRoots: [info.commonDir],
-    writableRoots: [info.gitDir, join(info.commonDir, "objects"), ...refRoots],
+    writableRoots,
     requiresUser: false,
     description,
   };

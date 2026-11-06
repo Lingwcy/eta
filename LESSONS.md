@@ -502,6 +502,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Resolve implicitly trusted filesystem grants before expanding them.**
+
+- Evidence: on 2026-11-06, #571 on `9dc85e1` makes a linked repository's `refs/tags` point at `hooks`. A real Core run first receives a routine Git grant, then its reused scope writes a non-executable hooks marker; the normal-directory control commits without that write. Native sandbox controls confirm actual file I/O, not just proposed roots. Compare every expanded root with its expected location under the canonical common directory before creating lazy ref directories or granting it. A late-check mutation still creates directories through redirected parents and fails two filesystem controls.
+- Check: retain normal commit/fetch/tag and user-only grants, reject object/ref/parent aliases without side effects, and require an explicit real-path request for unusual redirected layouts. The controlled pre-existing metadata alias does not prove remote-clone exploitability, real credential theft, hook execution, all OS behavior or concurrent path-swap safety.
+- Seen: 2026-11-06.
+
 **Verify inherited command configuration across every process boundary.**
 
 - Evidence: on 2026-11-06, the native sandbox proxy regression still failed with curl exit 6 after the launch environment carried HTTP_PROXY: the worker reconstructed a second allowlist for commands and dropped it again. Sharing the proxy projection across both boundaries makes curl and Git reach a fixture proxy, while network-disabled and host-token controls retain the sandbox boundary.
