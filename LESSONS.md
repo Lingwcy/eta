@@ -509,6 +509,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Acquire optional capabilities inside the same guarded operation that uses them.**
+
+- Evidence: on 2026-11-06, #581 makes browser Storage accessors throw SecurityError. Main-window tab initialization, detached-window persistence effects and the recent-model factory fail before reaching their existing getItem/setItem guards. Lazy adapters move acquisition inside those operations; actual Hook edits and input history stay in memory, and restoring storage allows drafts and model choices to persist and reopen again.
+- Check: fault the property getter, not only methods on an already acquired object. Preserve existing diagnostics and retry acquisition on later operations; a permanent no-op fallback can silently discard data even after permission recovers. These are DOM controls, not native policy or production-outage proof.
+- Seen: 2026-11-06.
+
 **Merge shared bounded histories before replacing them from long-lived views.**
 
 - Evidence: on 2026-11-06, #579 constructs two model-history stores over shared Web Storage before either records a choice. Sequential writes discard the other store's newly saved model; 105 alternating choices restore only one store's subset. Read the latest durable history before saving, prioritize the current choice and persisted order, deduplicate complete scope/provider/model identities, then enforce the cap. Shared-storage reopen controls retain both scopes, updated thinking levels and the latest 100 distinct choices.
