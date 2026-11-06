@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import type { DesktopTabState, DesktopTabs } from "@/agent/desktop-tabs";
 import type { TabPresentation } from "@/agent/tab-presentations";
 import { TabIcon } from "./tab-icon";
+import { useWindowControlsInset } from "./use-window-controls-inset";
 
 const TabListMenu = lazy(() =>
   import("./tab-list-menu").then((module) => ({ default: module.TabListMenu })),
@@ -46,6 +47,7 @@ export function DesktopTabBar({
   const single = state.tabs.length === 1;
   const sidebar = !browsing && (tabs.activeTab.kind === "settings" || !collapsed);
   const mac = navigator.userAgent.includes("Mac");
+  const windowControlsInset = useWindowControlsInset();
   useEffect(() => {
     onOverlay(previewOpen || listOpen);
   }, [previewOpen, listOpen, onOverlay]);
@@ -63,8 +65,9 @@ export function DesktopTabBar({
   };
   return (
     <header
+      style={{ paddingRight: `calc(${windowControlsInset}px + 0.5rem)` }}
       className={cn(
-        "relative flex h-[42px] shrink-0 items-center border-b border-neutral-200/60 bg-[#e9e9e9] pr-2 [-webkit-app-region:drag]",
+        "relative flex h-[42px] shrink-0 items-center border-b border-neutral-200/60 bg-[#e9e9e9] [-webkit-app-region:drag]",
         browsing && (mac ? "pl-[98px]" : "pl-2"),
       )}
     >
