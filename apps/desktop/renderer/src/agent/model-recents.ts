@@ -1,4 +1,5 @@
 import type { ThinkingLevel } from "@eta/core/agent/protocol";
+import { browserStorage } from "./browser-storage";
 
 export type RecentModel = {
   scope: string;
@@ -63,5 +64,5 @@ export class ModelRecents {
 
 let instance: ModelRecents | undefined;
 export function modelRecents() {
-  return (instance ??= new ModelRecents(window.localStorage));
+  return (instance ??= new ModelRecents(browserStorage("localStorage")));
 }
