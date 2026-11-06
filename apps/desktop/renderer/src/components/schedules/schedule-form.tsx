@@ -7,6 +7,7 @@ import { Schema } from "effect";
 import type { Schedule, ScheduleChange } from "@eta/core/shared/schedules";
 import { ScheduleRuleSchema } from "@eta/core/shared/schedules";
 import type { DesktopLibrary } from "../../../../src/bridge.ts";
+import { defaultDesktopSandboxMode } from "../../../../src/shared/settings.ts";
 import type { SchedulesController } from "@/agent/use-schedules";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -77,7 +78,11 @@ export function ScheduleForm({
   );
   const [level, setLevel] = useState<ThinkingLevel>(library.settings.defaultThinkingLevel);
   const [modelChanged, setModelChanged] = useState(false);
-  const [sandboxMode, setSandboxMode] = useState<SandboxMode>("danger-full-access");
+  const [sandboxMode, setSandboxMode] = useState<SandboxMode>();
+  const preferredSandboxMode = workspace.startsWith("bot:")
+    ? "danger-full-access"
+    : (library.settings.defaultSandboxMode ?? defaultDesktopSandboxMode);
+  const selectedSandboxMode = sandboxMode ?? preferredSandboxMode;
   const [permissionChanged, setPermissionChanged] = useState(false);
   const [threadModes, setThreadModes] = useState<readonly SandboxMode[]>();
   const allowedModes =
@@ -85,11 +90,11 @@ export function ScheduleForm({
     (workspace.startsWith("bot:")
       ? (library.bot?.library?.allowedSandboxModes ?? [])
       : sandboxModes);
-  const effectiveSandboxMode = allowedModes.includes(sandboxMode)
-    ? sandboxMode
+  const effectiveSandboxMode = allowedModes.includes(selectedSandboxMode)
+    ? selectedSandboxMode
     : allowedModes.includes("workspace-write")
       ? "workspace-write"
-      : (allowedModes[0] ?? sandboxMode);
+      : (allowedModes[0] ?? selectedSandboxMode);
   const [loadingModel, setLoadingModel] = useState(!!threadId);
   useEffect(() => {
     if (!threadId) return;
@@ -423,7 +428,7 @@ export function ScheduleForm({
                       </span>
                       <SandboxPicker
                         mode={effectiveSandboxMode}
-                        defaultMode="danger-full-access"
+                        defaultMode={preferredSandboxMode}
                         allowedModes={allowedModes}
                         disabled={busy || loadingModel}
                         side="bottom"

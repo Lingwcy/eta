@@ -30,6 +30,7 @@ export interface PromptTextareaProps {
 
 export interface ActionToolbarProps {
   readonly sandboxMode?: SandboxMode;
+  readonly defaultSandboxMode?: SandboxMode;
   readonly allowedSandboxModes?: readonly SandboxMode[];
   readonly sandboxDisabled?: boolean;
   readonly sandboxDisabledReason?: string;

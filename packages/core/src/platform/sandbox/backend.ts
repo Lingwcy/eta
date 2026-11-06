@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { constants } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve, relative } from "node:path";
+import { proxyEnvironment } from "./proxy.ts";
 import type { SandboxPolicy, SandboxStatus } from "../../shared/sandbox.ts";
 
 export interface SandboxLaunch {
@@ -272,7 +273,7 @@ export async function prepareSandboxLaunch(
       ...(worker.endsWith(".ts") ? ["--import", join(dirname(worker), "source-loader.ts")] : []),
       worker,
     ];
-    const env = sanitizedEnvironment(scratch);
+    const env = { ...sanitizedEnvironment(scratch), ...(await proxyEnvironment()) };
     // System Git config may exist outside readable roots; Git treats EACCES as fatal.
     if (status.backend !== "none") env.GIT_CONFIG_NOSYSTEM = "1";
     if (status.backend === "none") {

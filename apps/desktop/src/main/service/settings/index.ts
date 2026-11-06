@@ -1,5 +1,5 @@
 import { SettingsSchema } from "../../../shared/settings-schema.ts";
-import type { DesktopSettings } from "../../../shared/settings.ts";
+import { defaultDesktopSandboxMode, type DesktopSettings } from "../../../shared/settings.ts";
 import { clampThinkingLevel } from "@earendil-works/pi-ai";
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
 import { AppPathsService } from "@eta/core/platform/app-paths";
@@ -27,12 +27,13 @@ export class DesktopSettingsService extends Context.Service<
           settings.defaultProvider && settings.defaultModel
             ? models.getModel(settings.defaultProvider, settings.defaultModel)
             : undefined;
-        return model
-          ? {
-              ...settings,
-              defaultThinkingLevel: clampThinkingLevel(model, settings.defaultThinkingLevel),
-            }
-          : settings;
+        return {
+          ...settings,
+          defaultSandboxMode: settings.defaultSandboxMode ?? defaultDesktopSandboxMode,
+          defaultThinkingLevel: model
+            ? clampThinkingLevel(model, settings.defaultThinkingLevel)
+            : settings.defaultThinkingLevel,
+        };
       };
       const raw = yield* adapter("无法读取设置", () => readJson(settingsPath));
       const initial =

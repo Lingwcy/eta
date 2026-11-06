@@ -26,7 +26,7 @@ export const ApprovalReviewerSchema = Schema.Struct({
 export type ApprovalReviewer = typeof ApprovalReviewerSchema.Type;
 
 /** Applies when `approvalReviewer` is unset; explicit choices are never rewritten when this changes. */
-export const defaultApprovalReviewerMode: ApprovalReviewer["mode"] = "user";
+export const defaultApprovalReviewerMode: ApprovalReviewer["mode"] = "auto";
 
 export const AgentModeSchema = Schema.Literals(["standard", "codemode"]);
 export type AgentMode = typeof AgentModeSchema.Type;
