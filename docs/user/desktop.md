@@ -50,7 +50,7 @@ Drag the divider at the left edge of the right sidebar to adjust its width; the 
 
 ## Browse GitHub PRs and issues
 
-The right sidebar opens by default when it has available content. Select its GitHub tab, then choose PR or Issues in the header to browse open entries. The options menu retains repository selection, state filters, refresh and access status. The GitHub tab appears when the project has a GitHub remote and its host supports GitHub queries; the subagent tab appears when the current chat has subagents. Entries open in your external browser. Repository context follows the chat’s actual execution workspace. **Alt+←** collapses or restores the current sidebar, including from web and settings tabs.
+Open the right sidebar when you want to inspect available content. Select its GitHub tab, then choose PR or Issues in the header to browse open entries. The options menu retains repository selection, state filters, refresh and access status. The GitHub tab appears when the project has a GitHub remote and its host supports GitHub queries; the subagent tab appears when the current chat has subagents. Entries open in your external browser. Repository context follows the chat’s actual execution workspace. **Alt+←** collapses or restores the current sidebar, including from web and settings tabs.
 
 Public repositories support anonymous access. For private repositories or higher rate limits, run gh auth login locally, or on the server for Bot projects, then refresh the GitHub sidebar. This identity is separate from the model’s GitHub Copilot login. Disconnected Bot caches are marked stale; refresh and writes remain unavailable.
 
