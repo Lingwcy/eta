@@ -109,6 +109,27 @@ test("a fragmented large data line scans only newly received text", async () => 
   expect(searched).toBeLessThanOrEqual(wire.length * 4);
 });
 
+test("batched tiny reads preserve Unicode data lines and reset between frames", async () => {
+  const text = "你😀".repeat(1100);
+  const bytes = new TextEncoder().encode(
+    "event: snapshot\r\ndata: " + text + "\r\ndata: next\r\n\r\nevent: heartbeat\rdata: {}\r\r",
+  );
+  let offset = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset === bytes.length) return controller.close();
+      controller.enqueue(bytes.subarray(offset, ++offset));
+    },
+  });
+  const received: { event: string; data: string }[] = [];
+  await readEvents(body, (event) => received.push(event), new AbortController().signal);
+  expect(received).toEqual([
+    { event: "snapshot", data: text + "\nnext" },
+    { event: "heartbeat", data: "{}" },
+  ]);
+  expect(body.locked).toBe(false);
+});
+
 test("aborting a subscription cancels a blocked stream read", async () => {
   let cancelled = false;
   const body = new ReadableStream<Uint8Array>({

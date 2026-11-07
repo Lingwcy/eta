@@ -14,6 +14,7 @@ export async function readEvents(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let fragments: string[] = [];
+  let blocks: string[] = [];
   let lineSize = 0;
   let skipLF = false;
   let event = "message";
@@ -38,6 +39,11 @@ export async function readEvents(
     lineSize += fragment.length;
     if (lineSize > MAX_EVENT_CHARS) throw new Error("Bot 实时消息过大，请重新打开会话");
     fragments.push(fragment);
+    // Bound tiny-read metadata without repeatedly joining the growing line prefix.
+    if (fragments.length === 1024) {
+      blocks.push(fragments.join(""));
+      fragments = [];
+    }
   };
   const abort = () => {
     void reader.cancel().catch(() => {});
@@ -57,7 +63,8 @@ export async function readEvents(
       let match: RegExpExecArray | null;
       while ((match = endings.exec(chunk))) {
         append(chunk.slice(start, match.index));
-        line(fragments.join(""));
+        line([...blocks, ...fragments].join(""));
+        blocks = [];
         fragments = [];
         lineSize = 0;
         start = match.index + match[0].length;
