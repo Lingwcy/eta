@@ -160,6 +160,52 @@ describe("subscription quota", () => {
     expect(await f.service.query("openai-codex", "a", true)).toEqual(failed);
     expect(f.fetcher).toHaveBeenCalledTimes(2);
   });
+  test.each([
+    ["arithmetic overflow", "9".repeat(307)],
+    ["Date range overflow", "9".repeat(16)],
+  ])("out-of-range Retry-After cannot disable future quota reads: %s", async (_name, header) => {
+    const f = fixture();
+    await f.credentials.modify("openai-codex", async () => oauth);
+    f.fetcher
+      .mockResolvedValueOnce(response({}, { status: 429, headers: { "retry-after": header } }))
+      .mockResolvedValueOnce(response(codex));
+    try {
+      const limited = await f.service.query("openai-codex", "a");
+      f.advance(60000);
+      expect(await f.service.query("openai-codex", "a", true)).toMatchObject({ status: "ready" });
+      expect(f.fetcher).toHaveBeenCalledTimes(2);
+      expect(limited).toMatchObject({ status: "error", error: "rate-limit", retryAt: 1060000 });
+      expect(Number.isFinite(new Date(limited!.retryAt!).valueOf())).toBe(true);
+      expect(JSON.parse(JSON.stringify(limited)).retryAt).toBe(limited!.retryAt);
+    } finally {
+      f.service.close();
+    }
+  });
+
+  test.each([
+    { name: "future", date: 1030000, expected: 1030000 },
+    { name: "past", date: 900000, expected: 1005000 },
+  ])("valid $name HTTP-date Retry-After keeps its cooldown", async ({ date, expected }) => {
+    const f = fixture();
+    await f.credentials.modify("openai-codex", async () => oauth);
+    f.fetcher
+      .mockResolvedValueOnce(
+        response({}, { status: 429, headers: { "retry-after": new Date(date).toUTCString() } }),
+      )
+      .mockResolvedValueOnce(response(codex));
+    try {
+      const limited = await f.service.query("openai-codex", "a");
+      expect(limited).toMatchObject({ status: "error", error: "rate-limit", retryAt: expected });
+      expect(await f.service.query("openai-codex", "a", true)).toEqual(limited);
+      expect(f.fetcher).toHaveBeenCalledTimes(1);
+      f.advance(expected - 1000000);
+      expect(await f.service.query("openai-codex", "a", true)).toMatchObject({ status: "ready" });
+      expect(f.fetcher).toHaveBeenCalledTimes(2);
+    } finally {
+      f.service.close();
+    }
+  });
+
   test("old response cannot publish after replacement and cannot release replacement flight", async () => {
     const f = fixture();
     await f.credentials.modify("openai-codex", async () => oauth);
