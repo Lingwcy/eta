@@ -65,7 +65,9 @@ export class BotProjects {
   }
 
   async create(name: string) {
+    // UTF-8 filesystem encoding replaces lone surrogates, potentially targeting another name.
     if (
+      !name.isWellFormed() ||
       name !== name.trim() ||
       !name ||
       name === "." ||
