@@ -32,14 +32,13 @@ async function json(response: Response): Promise<unknown> {
     while (true) {
       const part = await reader.read();
       if (part.done) break;
-      if (size + part.value.byteLength > MAX_BODY) {
-        await reader.cancel();
-        throw new QueryFailure("unavailable");
-      }
+      if (size + part.value.byteLength > MAX_BODY) throw new QueryFailure("unavailable");
       bytes.set(part.value, size);
       size += part.value.byteLength;
     }
   } finally {
+    // Uncooperative source cleanup must not hold the failure, flight, or concurrency slot.
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
   return JSON.parse(new TextDecoder().decode(bytes.subarray(0, size)));

@@ -431,6 +431,47 @@ describe("subscription quota", () => {
       windows: [{ usedPercent: 25 }, { usedPercent: 100 }],
     });
   });
+  test.each([false, true])(
+    "oversized quota releases its flight before source cleanup settles (late rejection=%s)",
+    async (rejectCleanup) => {
+      vi.useFakeTimers();
+      const f = fixture();
+      const cleanup = Promise.withResolvers<void>();
+      const cancelled = Promise.withResolvers<void>();
+      let result: Awaited<ReturnType<typeof f.service.query>> | undefined;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(1024 * 1024 + 1));
+        },
+        cancel() {
+          cancelled.resolve();
+          return cleanup.promise;
+        },
+      });
+      await f.credentials.modify("openai-codex", async () => oauth);
+      f.fetcher.mockResolvedValueOnce(new Response(body)).mockResolvedValueOnce(response(codex));
+      const pending = f.service.query("openai-codex", "a").then((value) => {
+        result = value;
+        return value;
+      });
+      try {
+        await cancelled.promise;
+        await vi.advanceTimersByTimeAsync(0);
+        expect(result).toMatchObject({ status: "error", error: "unavailable" });
+        expect(body.locked).toBe(false);
+        f.advance(5000);
+        expect(await f.service.query("openai-codex", "a", true)).toMatchObject({ status: "ready" });
+        expect(f.fetcher).toHaveBeenCalledTimes(2);
+      } finally {
+        if (rejectCleanup) cleanup.reject(new Error("Late cleanup failure"));
+        else cleanup.resolve();
+        await pending;
+        f.service.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
   test("malformed and oversized responses are not shown as quota", async () => {
     const f = fixture();
     await f.credentials.modify("openai-codex", async () => oauth);
