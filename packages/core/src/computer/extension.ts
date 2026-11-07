@@ -1,5 +1,5 @@
 import { defineTool, ROOT_CONVERSATION_ID, section } from "@eta/agent";
-import type { ToolExecutionApi, ToolExecutionResult } from "@eta/agent";
+import type { Extension, ToolExecutionApi, ToolExecutionResult } from "@eta/agent";
 import type { Context } from "@earendil-works/chord";
 import type { ComputerService, ComputerOwner } from "@eta/computer-use/service";
 import { ComputerError } from "@eta/computer-use/protocol";
@@ -37,12 +37,11 @@ const actions: Record<string, { required: string[]; optional: string[] }> = {
   perform_action: { required: ["frameId", "elementIndex", "name"], optional: targetHints },
 };
 
-/** The runtime supplies an admission-bound owner; native element identities never enter durable replay. */
 export function createComputerExtension(options: {
   service: ComputerService;
   owner(api: ToolExecutionApi, context: Context): Promise<ComputerOwner>;
   allowed(): Promise<boolean>;
-}) {
+}): Extension {
   const tool = defineTool({
     name: "computer",
     description: [

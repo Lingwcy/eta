@@ -75,7 +75,9 @@ async function createLocalDesktopApplication(
 ) {
   registerBundledOAuthFlows();
   await loadProjectEnvironment(root);
+  // 创建并持有 desktop 后台服务的 Effect 运行时
   const runtime = ManagedRuntime.make(
+    // undefined 为使用 默认的 layer 服务
     desktopServices(dataRoot, undefined, processImage, undefined, computer),
   );
   try {
@@ -300,7 +302,13 @@ async function createLocalDesktopApplication(
 
 export type LocalDesktopApplication = Awaited<ReturnType<typeof createLocalDesktopApplication>>;
 
+/**
+ * desktop 服务和 bot 服务的 组合初始化入口
+ * @param args
+ * @returns
+ */
 export async function createDesktopApplication(
+  // 获取该函数类型并推导形参为元组类型并做单一完全展开，单一唯一起源原则
   ...args: Parameters<typeof createLocalDesktopApplication>
 ) {
   const local = await createLocalDesktopApplication(...args);
