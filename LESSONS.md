@@ -278,11 +278,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: provider call IDs need not be globally unique across turns. Preserve unrelated history and valid replacement summaries, and exercise the shared projection in a suite actually run by CI; the current Bot/Desktop workflows build Agent but do not run its unit suite.
 - Seen: 2026-10-17.
 
-**Classify header-decided HTTP failures before reading an unused body.**
+**Preserve authoritative HTTP failure classifications across request boundaries.**
 
 - Evidence: on 2026-10-17, #84's controlled Response streams show Desktop and Mobile consuming a stalled 401 body before rejecting authentication; Mobile's event subscription cannot reach its fatal-auth path while that body remains open. Handling the status first and cancelling the unused stream makes both clients reject without a body pull, including when cancellation fails.
-- Check: cover ordinary requests and streaming entry points on sibling clients. Do not let optional diagnostics or cleanup replace an already authoritative authentication error; preserve non-auth server diagnostics and existing body-read deadlines.
-- Seen: 2026-10-17.
+- Additional evidence: on 2026-11-07, #587 sends malformed bearer headers through the real Bot application. Middleware rejects them as HTTP 400, but the server error boundary treats that framework exception as unknown and returns 500/InternalError. Preserve a sanitized 400/InvalidInput while keeping absent/wrong credentials at 401 and valid authentication at 200. Read/write route controls confirm rejected project creation leaves the directory unchanged and response bodies do not echo credentials; this is not an authentication bypass or production-outage claim.
+- Check: cover middleware as well as route errors, ordinary requests and streaming entry points on sibling clients. Recognize expected framework client failures without weakening authorization or exposing raw errors; unexpected faults must remain sanitized server errors. Do not let optional diagnostics, body reads or cleanup replace an authoritative authentication error; preserve non-auth server diagnostics and existing body-read deadlines.
+- Seen: 2026-10-17, 2026-11-07.
 
 **End failed turns without treating a temporary provider limit as a permanent scheduling block.**
 

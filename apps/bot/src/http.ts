@@ -111,6 +111,11 @@ export function createHttpApp(options: {
         { error: { code: "Unauthorized", message: "A valid administrator token is required." } },
         401,
       );
+    if (error instanceof HTTPException && error.status === 400)
+      return context.json(
+        { error: { code: "InvalidInput", message: "Request is malformed." } },
+        400,
+      );
     const mapped = httpError(error);
     return context.json({ error: { code: mapped.code, message: mapped.message } }, mapped.status);
   });
