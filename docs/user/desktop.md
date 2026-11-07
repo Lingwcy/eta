@@ -8,6 +8,12 @@ For installation and your first task, see the [README](../../README.md).
 
 Use **Settings → Application → Appearance → 语言 / Language** to choose **简体中文** or **English**. Changes apply immediately to all Eta windows and persist after restarting. This changes the interface language; existing chat content and the agent's response language are unaffected.
 
+## Subscription quotas
+
+Sign in under **Settings → Account login**, then hover over or focus the quota ring beside a supported service to see its remaining allowances and time until reset. Click the ring to refresh. A single allowance uses the full ring; multiple allowances use separate colored arcs, each filled in proportion to its remaining amount. Currently supported: OpenAI Codex (legacy) and GitHub Copilot accounts on github.com. The newer OpenAI ChatGPT subscription login cannot share Codex's quota query and does not show an allowance yet. Signed-out services and services without quota support show no quota section.
+
+These are provider-reported readings for accounts signed in on this computer, not chat token totals. A failed refresh may retain an older reading with its update time; reaching a reset time does not refresh the reading automatically. Connections saved before this feature need one new sign-in to enable quota viewing.
+
 ## Chats and local data
 
 Keep reference pages alongside your chats: open a web tab with **Cmd/Ctrl+T**, then enter a URL or search in its address bar.

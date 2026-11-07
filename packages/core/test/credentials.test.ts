@@ -322,3 +322,249 @@ test("API key creation handles inherited provider names without a prior read", a
     });
   }
 });
+
+test.each(["constructor", "__proto__", "ordinary"])(
+  "explicit OAuth login identity for %s survives refresh and reopen but not replacement",
+  async (providerId) => {
+    const { runtime, credentials, open, directory } = await setup();
+    const oauth = { type: "oauth" as const, access: "access", refresh: "refresh", expires: 1234 };
+    await credentials.loginStore.modify(providerId, async () => oauth);
+    const first = await runtime.runPromise(credentials.accountConnections);
+    expect(first).toEqual([{ providerId, connectionId: expect.any(String) }]);
+    await credentials.store.modify(providerId, async (current) => {
+      if (current?.type !== "oauth") throw new Error("missing OAuth");
+      return { ...current, access: "refreshed", refresh: "rotated" };
+    });
+    expect(await runtime.runPromise(credentials.accountConnections)).toEqual(first);
+    expect(await runtime.runPromise(credentials.export)).toEqual({
+      [providerId]: { ...oauth, access: "refreshed", refresh: "rotated" },
+    });
+    await runtime.dispose();
+    const next = open();
+    const restored = await next.runPromise(CredentialService);
+    expect(await next.runPromise(restored.accountConnections)).toEqual(first);
+    await restored.loginStore.modify(providerId, async () => oauth);
+    const second = await next.runPromise(restored.accountConnections);
+    expect(second[0]?.connectionId).not.toBe(first[0]?.connectionId);
+    await next.runPromise(restored.setApiKey(providerId, "key"));
+    expect(await next.runPromise(restored.accountConnections)).toEqual([]);
+    await next.dispose();
+    const third = open();
+    const reopened = await third.runPromise(CredentialService);
+    expect(await third.runPromise(reopened.accountConnections)).toEqual([]);
+    expect(
+      JSON.parse(await readFile(join(directory, "credentials.json"), "utf8")),
+    ).not.toHaveProperty("accountConnections");
+  },
+);
+
+test("legacy, first-run and bulk imported OAuth credentials never acquire login identity", async () => {
+  const { directory, runtime, credentials, open } = await setup();
+  const oauth = { type: "oauth" as const, access: "access", refresh: "refresh", expires: 1234 };
+  const source = new InMemoryCredentialStore();
+  await source.modify("legacy", async () => oauth);
+  await runtime.runPromise(credentials.importOnce(source));
+  expect(await runtime.runPromise(credentials.accountConnections)).toEqual([]);
+  await credentials.loginStore.modify("legacy", async () => oauth);
+  await credentials.loginStore.modify("other", async () => oauth);
+  const other = (await runtime.runPromise(credentials.accountConnections)).find(
+    (x) => x.providerId === "other",
+  );
+  await runtime.runPromise(credentials.import({ legacy: oauth }));
+  expect(await runtime.runPromise(credentials.accountConnections)).toEqual([other]);
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(CredentialService);
+  expect(await next.runPromise(restored.accountConnections)).toEqual([other]);
+  await next.dispose();
+  await writeFile(
+    join(directory, "credentials.json"),
+    JSON.stringify({ version: 1, credentials: { legacy: oauth } }),
+  );
+  const legacy = open();
+  const reread = await legacy.runPromise(CredentialService);
+  expect(await legacy.runPromise(reread.accountConnections)).toEqual([]);
+});
+
+test("login and refresh are serialized and logout cannot restore an in-flight login", async () => {
+  const { runtime, credentials, open } = await setup();
+  const oauth = { type: "oauth" as const, access: "access", refresh: "refresh", expires: 1234 };
+  let entered!: () => void;
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const login = credentials.loginStore.modify("test", async () => {
+    entered();
+    await gate;
+    return oauth;
+  });
+  try {
+    await waiting;
+    const logout = credentials.store.delete("test");
+    release();
+    await Promise.all([login, logout]);
+    expect(await runtime.runPromise(credentials.accountConnections)).toEqual([]);
+    expect(await credentials.store.read("test")).toBeUndefined();
+  } finally {
+    release();
+    await login;
+  }
+  await runtime.dispose();
+  const reopened = open();
+  const after = await reopened.runPromise(CredentialService);
+  expect(await reopened.runPromise(after.accountConnections)).toEqual([]);
+});
+
+test("failed or cancelled login does not create or replace a durable identity", async () => {
+  const { directory, runtime, credentials, open } = await setup();
+  const oauth = { type: "oauth" as const, access: "access", refresh: "refresh", expires: 1234 };
+  await credentials.loginStore.modify("test", async () => oauth);
+  const first = await runtime.runPromise(credentials.accountConnections);
+  await expect(credentials.loginStore.modify("test", async () => undefined)).resolves.toEqual(
+    oauth,
+  );
+  await expect(
+    credentials.loginStore.modify("test", async () => ({ ...oauth, expires: Infinity })),
+  ).rejects.toMatchObject({ code: "InvalidInput" });
+  const before = await readFile(join(directory, "credentials.json"), "utf8");
+  await rm(directory, { recursive: true });
+  await writeFile(directory, "not a directory");
+  await expect(credentials.loginStore.modify("test", async () => oauth)).rejects.toMatchObject({
+    code: "StorageUnavailable",
+  });
+  expect(await runtime.runPromise(credentials.accountConnections)).toEqual(first);
+  await rm(directory);
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(directory);
+  await writeFile(join(directory, "credentials.json"), before);
+  await runtime.dispose();
+  const reopened = open();
+  const after = await reopened.runPromise(CredentialService);
+  expect(await reopened.runPromise(after.accountConnections)).toEqual(first);
+});
+
+test("invalid persisted connection metadata is rejected without leaking credentials", async () => {
+  const { directory, runtime, open } = await setup();
+  await runtime.dispose();
+  const path = join(directory, "credentials.json");
+  const contents = JSON.stringify({
+    version: 1,
+    credentials: { test: { type: "api_key", key: "secret" } },
+    accountConnections: { test: "id" },
+  });
+  await writeFile(path, contents);
+  const error: unknown = await open()
+    .runPromise(CredentialService)
+    .catch((value: unknown) => value);
+  expect(error).toMatchObject({ code: "StorageCorrupt" });
+  expect(String(error)).not.toContain("secret");
+  expect(await readFile(path, "utf8")).toBe(contents);
+});
+
+test("connection observers see only committed identity changes and cannot fail writes", async () => {
+  const { directory, runtime, credentials } = await setup();
+  const oauth = { type: "oauth" as const, access: "access", refresh: "refresh", expires: 1234 };
+  let notifications = 0;
+  const dispose = credentials.subscribe(() => {
+    notifications++;
+  });
+  const disposeThrowing = credentials.subscribe(() => {
+    throw new Error("observer failed");
+  });
+  await credentials.loginStore.modify("test", async () => oauth);
+  expect(notifications).toBe(1);
+  await credentials.store.modify("test", async () => ({ ...oauth, access: "new access" }));
+  expect(notifications).toBe(1);
+  await credentials.loginStore.modify("test", async () => undefined);
+  expect(notifications).toBe(1);
+  await runtime.runPromise(credentials.import({ another: oauth }));
+  expect(notifications).toBe(1);
+  await runtime.runPromise(credentials.import({ test: oauth }));
+  expect(notifications).toBe(2);
+  await credentials.loginStore.modify("test", async () => oauth);
+  expect(notifications).toBe(3);
+  await rm(directory, { recursive: true });
+  await writeFile(directory, "not a directory");
+  await expect(credentials.store.delete("test")).rejects.toMatchObject({
+    code: "StorageUnavailable",
+  });
+  expect(notifications).toBe(3);
+  expect(await runtime.runPromise(credentials.accountConnections)).toHaveLength(1);
+  await rm(directory);
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(directory);
+  await credentials.store.delete("test");
+  expect(notifications).toBe(4);
+  expect(await runtime.runPromise(credentials.accountConnections)).toEqual([]);
+  dispose();
+  await credentials.loginStore.modify("test", async () => oauth);
+  expect(notifications).toBe(4);
+  disposeThrowing();
+});
+
+test.each(["constructor", "__proto__"])(
+  "synchronous connection ownership for %s changes only after committed writes",
+  async (providerId) => {
+    const { runtime, credentials, open, directory } = await setup();
+    const oauth = { type: "oauth" as const, access: "access", refresh: "refresh", expires: 1234 };
+    expect(credentials.isAccountConnection(providerId, "missing")).toBe(false);
+    await credentials.loginStore.modify(providerId, async () => oauth);
+    const first = (await runtime.runPromise(credentials.accountConnections))[0]!.connectionId;
+    expect(credentials.isAccountConnection(providerId, first)).toBe(true);
+    let entered!: () => void;
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const nextLogin = credentials.loginStore.modify(providerId, async () => {
+      entered();
+      await gate;
+      return oauth;
+    });
+    try {
+      await waiting;
+      expect(credentials.isAccountConnection(providerId, first)).toBe(true);
+    } finally {
+      release();
+    }
+    await nextLogin;
+    const second = (await runtime.runPromise(credentials.accountConnections))[0]!.connectionId;
+    expect(credentials.isAccountConnection(providerId, first)).toBe(false);
+    expect(credentials.isAccountConnection(providerId, second)).toBe(true);
+    await credentials.store.modify(providerId, async () => ({ ...oauth, access: "new" }));
+    expect(credentials.isAccountConnection(providerId, second)).toBe(true);
+    await runtime.dispose();
+    const next = open();
+    const restored = await next.runPromise(CredentialService);
+    expect(restored.isAccountConnection(providerId, first)).toBe(false);
+    expect(restored.isAccountConnection(providerId, second)).toBe(true);
+    await rm(directory, { recursive: true });
+    await writeFile(directory, "not a directory");
+    await expect(restored.store.delete(providerId)).rejects.toMatchObject({
+      code: "StorageUnavailable",
+    });
+    expect(restored.isAccountConnection(providerId, second)).toBe(true);
+  },
+);
+
+test("synchronous ownership reflects import, API key and removal", async () => {
+  const { runtime, credentials } = await setup();
+  const oauth = { type: "oauth" as const, access: "access", refresh: "refresh", expires: 1234 };
+  for (const action of ["import", "api-key", "remove"] as const) {
+    await credentials.loginStore.modify("test", async () => oauth);
+    const connectionId = (await runtime.runPromise(credentials.accountConnections))[0]!
+      .connectionId;
+    expect(credentials.isAccountConnection("test", connectionId)).toBe(true);
+    if (action === "import") await runtime.runPromise(credentials.import({ test: oauth }));
+    if (action === "api-key") await runtime.runPromise(credentials.setApiKey("test", "key"));
+    if (action === "remove") await runtime.runPromise(credentials.remove("test"));
+    expect(credentials.isAccountConnection("test", connectionId)).toBe(false);
+  }
+});

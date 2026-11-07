@@ -28,7 +28,12 @@ export class DesktopLibraryClient {
 
   connect() {
     this.mounted = true;
-    this.unsubscribeLibrary = this.bridge.subscribeLibrary(() => {
+    this.unsubscribeLibrary = this.bridge.subscribeLibrary((reason) => {
+      if (reason === "credentials") {
+        ++this.revision;
+        if (this.state.library?.quotaConnections?.length)
+          this.update({ library: { ...this.state.library, quotaConnections: [] } });
+      }
       if (this.state.busy) this.invalidated = true;
       else this.reload();
     });

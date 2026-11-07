@@ -244,3 +244,16 @@ test.each([
     }
   },
 );
+
+test("library listeners receive only the credential-change reason, not Electron events", () => {
+  const listener = vi.fn();
+  const off = bridge.subscribeLibrary(listener);
+  const emit = (payload: unknown) => {
+    for (const callback of transport.events) callback({ privateEvent: true }, payload);
+  };
+  emit("credentials");
+  emit({ privateValue: "must-not-cross" });
+  expect(listener.mock.calls).toEqual([["credentials"], [undefined]]);
+  off();
+  expect(transport.events.size).toBe(0);
+});

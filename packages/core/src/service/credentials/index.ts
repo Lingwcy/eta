@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { Credential, CredentialStore } from "@earendil-works/pi-ai";
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
@@ -21,7 +22,23 @@ export const CredentialSchema = Schema.Union([
 const FileSchema = Schema.Struct({
   version: Schema.Literal(1),
   credentials: Schema.Record(Schema.String, CredentialSchema),
+  accountConnections: Schema.optionalKey(Schema.Record(Schema.String, Schema.NonEmptyString)),
 });
+
+type CredentialState = {
+  credentials: Record<string, Credential>;
+  accountConnections: Record<string, string>;
+};
+
+function stored(state: CredentialState) {
+  return {
+    version: 1,
+    credentials: state.credentials,
+    ...(Object.keys(state.accountConnections).length
+      ? { accountConnections: state.accountConnections }
+      : {}),
+  };
+}
 
 function credentialFor(values: Record<string, Credential>, provider: string) {
   return Object.hasOwn(values, provider) ? values[provider] : undefined;
@@ -31,6 +48,13 @@ export class CredentialService extends Context.Service<
   CredentialService,
   {
     readonly store: CredentialStore;
+    readonly loginStore: CredentialStore;
+    subscribe(listener: () => void): () => void;
+    isAccountConnection(providerId: string, connectionId: string): boolean;
+    readonly accountConnections: Effect.Effect<
+      ReadonlyArray<{ providerId: string; connectionId: string }>,
+      CoreError
+    >;
     readonly list: Effect.Effect<
       ReadonlyArray<{ providerId: string; type: Credential["type"] }>,
       CoreError
@@ -50,9 +74,9 @@ export class CredentialService extends Context.Service<
       const raw = yield* adapter("无法读取认证信息", () => readJson(path));
       const initial =
         raw === undefined
-          ? {}
+          ? { credentials: {}, accountConnections: {} }
           : yield* Effect.gen(function* () {
-              yield* Schema.decodeUnknownEffect(FileSchema)(raw).pipe(
+              const file = yield* Schema.decodeUnknownEffect(FileSchema)(raw).pipe(
                 Effect.mapError(
                   () =>
                     new CoreError({
@@ -73,22 +97,47 @@ export class CredentialService extends Context.Service<
                 ),
               );
               // Required fields were validated above; retain provider-specific OAuth fields on disk.
-              return source.credentials as Record<string, Credential>;
+              const credentials = source.credentials as Record<string, Credential>;
+              const accountConnections = file.accountConnections ?? {};
+              if (
+                Object.keys(accountConnections).some(
+                  (id) => credentialFor(credentials, id)?.type !== "oauth",
+                )
+              )
+                return yield* new CoreError({
+                  code: "StorageCorrupt",
+                  message: "认证文件格式无效",
+                });
+              return { credentials, accountConnections };
             });
-      const state = yield* SynchronizedRef.make<Record<string, Credential>>(initial);
+      const state = yield* SynchronizedRef.make<CredentialState>(initial);
+      let committedConnections = initial.accountConnections;
+      const listeners = new Set<() => void>();
+      const notify = () => {
+        for (const listener of listeners) {
+          try {
+            listener();
+          } catch {
+            /* A subscriber cannot roll back a committed credential write. */
+          }
+        }
+      };
       // pi-ai refreshes OAuth inside modify; the same lock also covers login and logout.
-      const store: CredentialStore = {
+      const makeStore = (login: boolean): CredentialStore => ({
         read: async (provider, options) => {
           options?.signal?.throwIfAborted();
           return structuredClone(
-            credentialFor(await Effect.runPromise(SynchronizedRef.get(state)), provider),
+            credentialFor(
+              (await Effect.runPromise(SynchronizedRef.get(state))).credentials,
+              provider,
+            ),
           );
         },
         list: async (options) => {
           options?.signal?.throwIfAborted();
-          return Object.entries(await Effect.runPromise(SynchronizedRef.get(state))).map(
-            ([providerId, value]) => ({ providerId, type: value.type }),
-          );
+          return Object.entries(
+            (await Effect.runPromise(SynchronizedRef.get(state))).credentials,
+          ).map(([providerId, value]) => ({ providerId, type: value.type }));
         },
         modify: (provider, fn, options) =>
           Effect.runPromise(
@@ -97,44 +146,100 @@ export class CredentialService extends Context.Service<
               Effect.fnUntraced(function* (current) {
                 options?.signal?.throwIfAborted();
                 const updated = yield* Effect.tryPromise({
-                  try: () => fn(structuredClone(credentialFor(current, provider))),
+                  try: () => fn(structuredClone(credentialFor(current.credentials, provider))),
                   catch: (error) => error,
                 });
                 if (updated === undefined)
-                  return [structuredClone(credentialFor(current, provider)), current] as const;
+                  return [
+                    {
+                      value: structuredClone(credentialFor(current.credentials, provider)),
+                      changed: false as boolean,
+                    },
+                    current,
+                  ] as const;
                 // Preserve provider-specific OAuth fields, but validate required fields without printing secrets.
                 yield* Schema.decodeUnknownEffect(CredentialSchema)(updated).pipe(
                   Effect.mapError(
                     () => new CoreError({ code: "InvalidInput", message: "认证格式无效" }),
                   ),
                 );
-                const next = { ...current, [provider]: structuredClone(updated) };
-                yield* adapter("无法保存认证信息", () =>
-                  writeJson(path, { version: 1, credentials: next }),
-                );
-                return [structuredClone(updated), next] as const;
+                const accountConnections = { ...current.accountConnections };
+                if (updated.type !== "oauth") delete accountConnections[provider];
+                else if (login)
+                  Object.defineProperty(accountConnections, provider, {
+                    value: randomUUID(),
+                    enumerable: true,
+                    configurable: true,
+                    writable: true,
+                  });
+                const next = {
+                  credentials: { ...current.credentials, [provider]: structuredClone(updated) },
+                  accountConnections,
+                };
+                yield* adapter("无法保存认证信息", () => writeJson(path, stored(next)));
+                committedConnections = next.accountConnections;
+                return [
+                  {
+                    value: structuredClone(updated),
+                    changed:
+                      (login && updated.type === "oauth") ||
+                      (updated.type !== "oauth" &&
+                        Object.hasOwn(current.accountConnections, provider)),
+                  },
+                  next,
+                ] as const;
               }),
             ).pipe(Effect.uninterruptible),
-          ),
+          ).then(({ value, changed }) => {
+            if (changed) notify();
+            return value;
+          }),
         delete: (provider, options) =>
           Effect.runPromise(
             SynchronizedRef.modifyEffect(
               state,
               Effect.fnUntraced(function* (current) {
                 options?.signal?.throwIfAborted();
-                const next = { ...current };
-                delete next[provider];
-                yield* adapter("无法移除认证信息", () =>
-                  writeJson(path, { version: 1, credentials: next }),
-                );
-                return [undefined, next] as const;
+                const next = {
+                  credentials: { ...current.credentials },
+                  accountConnections: { ...current.accountConnections },
+                };
+                delete next.credentials[provider];
+                delete next.accountConnections[provider];
+                yield* adapter("无法移除认证信息", () => writeJson(path, stored(next)));
+                committedConnections = next.accountConnections;
+                return [Object.hasOwn(current.accountConnections, provider), next] as const;
               }),
             ).pipe(Effect.uninterruptible),
-          ),
-      };
+          ).then((changed) => {
+            if (changed) notify();
+          }),
+      });
+      const store = makeStore(false);
+      const loginStore = makeStore(true);
       return CredentialService.of({
         store,
-        export: SynchronizedRef.get(state).pipe(Effect.map((value) => structuredClone(value))),
+        loginStore,
+        isAccountConnection: (providerId, connectionId) =>
+          Object.hasOwn(committedConnections, providerId) &&
+          committedConnections[providerId] === connectionId,
+        subscribe: (listener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+        accountConnections: SynchronizedRef.get(state).pipe(
+          Effect.map(({ accountConnections }) =>
+            Object.entries(accountConnections).map(([providerId, connectionId]) => ({
+              providerId,
+              connectionId,
+            })),
+          ),
+        ),
+        export: SynchronizedRef.get(state).pipe(
+          Effect.map((value) => structuredClone(value.credentials)),
+        ),
         import: (values) =>
           SynchronizedRef.modifyEffect(
             state,
@@ -146,13 +251,31 @@ export class CredentialService extends Context.Service<
                   () => new CoreError({ code: "InvalidInput", message: "认证格式无效" }),
                 ),
               );
-              const next = { ...current, ...structuredClone(values as Record<string, Credential>) };
-              yield* adapter("无法保存认证信息", () =>
-                writeJson(path, { version: 1, credentials: next }),
-              );
-              return [undefined, next] as const;
+              const incoming = structuredClone(values as Record<string, Credential>);
+              const accountConnections = { ...current.accountConnections };
+              for (const provider of Object.keys(incoming)) delete accountConnections[provider];
+              const next = {
+                credentials: { ...current.credentials, ...incoming },
+                accountConnections,
+              };
+              yield* adapter("无法保存认证信息", () => writeJson(path, stored(next)));
+              committedConnections = next.accountConnections;
+              return [
+                Object.keys(incoming).some((provider) =>
+                  Object.hasOwn(current.accountConnections, provider),
+                ),
+                next,
+              ] as const;
             }),
-          ).pipe(Effect.uninterruptible),
+          ).pipe(
+            Effect.uninterruptible,
+            Effect.tap((changed) =>
+              Effect.sync(() => {
+                if (changed) notify();
+              }),
+            ),
+            Effect.asVoid,
+          ),
         list: adapter("无法列出认证信息", () => store.list()),
         setApiKey: (providerId, key) =>
           !providerId.trim() || !key.trim()
@@ -171,9 +294,9 @@ export class CredentialService extends Context.Service<
             state,
             Effect.fnUntraced(function* (current) {
               if ((yield* adapter("无法读取认证文件", () => readJson(path))) !== undefined)
-                return [undefined, current] as const;
+                return [false, current] as const;
               const next = yield* adapter("无法导入已有认证", async () => {
-                const entries = Object.entries(current);
+                const entries = Object.entries(current.credentials);
                 for (const { providerId } of await source.list()) {
                   const value = await source.read(providerId);
                   if (value) {
@@ -183,12 +306,22 @@ export class CredentialService extends Context.Service<
                   }
                 }
                 const imported = Object.fromEntries(entries);
-                await writeJson(path, { version: 1, credentials: imported });
-                return imported;
+                const next = { credentials: imported, accountConnections: {} };
+                await writeJson(path, stored(next));
+                return next;
               });
-              return [undefined, next] as const;
+              committedConnections = next.accountConnections;
+              return [Object.keys(current.accountConnections).length > 0, next] as const;
             }),
-          ).pipe(Effect.uninterruptible),
+          ).pipe(
+            Effect.uninterruptible,
+            Effect.tap((changed) =>
+              Effect.sync(() => {
+                if (changed) notify();
+              }),
+            ),
+            Effect.asVoid,
+          ),
       });
     }),
   );

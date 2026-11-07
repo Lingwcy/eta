@@ -1,4 +1,10 @@
 import { setImmediate } from "node:timers/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Layer, ManagedRuntime } from "effect";
+import { AppPathsService } from "@eta/core/platform/app-paths";
+import { CredentialService } from "@eta/core/service/credentials/index";
 import { expect, test, vi } from "vite-plus/test";
 import type { DesktopLibrary } from "../../../src/bridge.ts";
 import type { DesktopSettings } from "../../../src/shared/settings.ts";
@@ -183,6 +189,131 @@ test("admitting a settings mutation invalidates earlier background errors before
     old.resolve(state.current());
     write.resolve();
     await saving?.catch(() => {});
+    await drain();
+    state.client.dispose();
+  }
+});
+
+test.each(
+  [false, true].flatMap((busy) => ["logout", "relogin"].map((action) => ({ busy, action }))),
+)(
+  "credential $action immediately removes quota and rejects a held old library (busy=$busy)",
+  async ({ busy, action }) => {
+    const directory = await mkdtemp(join(tmpdir(), "eta-quota-library-"));
+    const runtime = ManagedRuntime.make(
+      CredentialService.layer.pipe(Layer.provide(AppPathsService.layer(directory))),
+    );
+    const credentials = await runtime.runPromise(CredentialService);
+    const credential = {
+      type: "oauth" as const,
+      access: "access",
+      refresh: "refresh",
+      expires: Date.now() + 60_000,
+    };
+    await credentials.loginStore.modify("openai-codex", async () => credential);
+    const connection = (await runtime.runPromise(credentials.accountConnections))[0]!;
+    const stale: DesktopLibrary = {
+      projects: [],
+      workspaces: [],
+      threads: [],
+      models: [],
+      providers: [],
+      credentials: [{ providerId: "openai-codex", type: "oauth" }],
+      quotaConnections: [connection],
+      settings: { defaultThinkingLevel: "off" },
+    };
+    const old = Promise.withResolvers<DesktopLibrary>();
+    const replacement = Promise.withResolvers<DesktopLibrary>();
+    const mutation = Promise.withResolvers<void>();
+    let notify: ((reason?: "credentials") => void) | undefined;
+    let calls = 0;
+    const bridge = {
+      library: async () => {
+        calls++;
+        if (calls === 1) return stale;
+        if (calls === 2) return old.promise;
+        if (calls === 3) return replacement.promise;
+        return { ...stale, credentials: [], quotaConnections: [] };
+      },
+      subscribeLibrary: (listener: (reason?: "credentials") => void) => {
+        notify = listener;
+        const off = credentials.subscribe(() => listener("credentials"));
+        return () => {
+          notify = undefined;
+          off();
+        };
+      },
+      updateSettings: async () => stale.settings,
+    };
+    const client = new DesktopLibraryClient(bridge);
+    let saving: Promise<void> | undefined;
+    try {
+      client.connect();
+      await drain();
+      expect(client.getSnapshot().library?.quotaConnections).toEqual([connection]);
+      if (busy) {
+        saving = client.act(() => mutation.promise);
+        mutation.resolve();
+        await vi.waitFor(() => expect(calls).toBe(2));
+      } else {
+        client.reload();
+        expect(calls).toBe(2);
+      }
+      if (action === "logout") await credentials.store.delete("openai-codex");
+      else await credentials.loginStore.modify("openai-codex", async () => credential);
+      const nextConnections = await runtime.runPromise(credentials.accountConnections);
+      if (action === "relogin")
+        expect(nextConnections[0]?.connectionId).not.toBe(connection.connectionId);
+      expect(client.getSnapshot().library?.quotaConnections).toEqual([]);
+      if (busy) {
+        old.resolve(stale);
+        await vi.waitFor(() => expect(calls).toBe(3));
+      } else {
+        expect(calls).toBe(3);
+        old.resolve(stale);
+        await drain();
+      }
+      expect(client.getSnapshot().library?.quotaConnections).toEqual([]);
+      const nextCredentials = action === "logout" ? [] : stale.credentials;
+      replacement.resolve({
+        ...stale,
+        credentials: nextCredentials,
+        quotaConnections: nextConnections,
+      });
+      await saving;
+      await drain();
+      expect(client.getSnapshot().library?.quotaConnections).toEqual(nextConnections);
+      expect(client.getSnapshot().library?.credentials).toEqual(nextCredentials);
+      expect(notify).toBeDefined();
+    } finally {
+      old.resolve(stale);
+      replacement.resolve({ ...stale, credentials: [], quotaConnections: [] });
+      mutation.resolve();
+      await saving;
+      client.dispose();
+      await runtime.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+test("ordinary library changes retain the displayed quota while reloading", async () => {
+  const state = fixture();
+  const gate = Promise.withResolvers<DesktopLibrary>();
+  try {
+    state.bridge.library.mockResolvedValueOnce({
+      ...state.current(),
+      quotaConnections: [{ providerId: "openai-codex", connectionId: "a" }],
+    });
+    state.client.connect();
+    await drain();
+    state.bridge.library.mockImplementationOnce(() => gate.promise);
+    state.notify();
+    expect(state.client.getSnapshot().library?.quotaConnections).toEqual([
+      { providerId: "openai-codex", connectionId: "a" },
+    ]);
+  } finally {
+    gate.resolve(state.current());
     await drain();
     state.client.dispose();
   }

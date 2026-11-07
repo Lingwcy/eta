@@ -6,6 +6,7 @@ import type { DesktopLibrary } from "../../../../../src/bridge.ts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProviderLogo } from "./provider-logo";
+import { SubscriptionQuota } from "./subscription-quota";
 
 export function ProviderList({
   providers,
@@ -36,6 +37,10 @@ export function ProviderList({
         const connected = credential?.type === method;
         const count = library.models.filter((model) => model.provider === provider.id).length;
         const ambient = method === "api_key" && !credential && count > 0;
+        const quotaConnection =
+          method === "oauth" && connected
+            ? library.quotaConnections?.find((entry) => entry.providerId === provider.id)
+            : undefined;
         return (
           <div
             key={provider.id}
@@ -74,6 +79,13 @@ export function ProviderList({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
+              {quotaConnection && (
+                <SubscriptionQuota
+                  key={quotaConnection.connectionId}
+                  providerId={provider.id}
+                  connectionId={quotaConnection.connectionId}
+                />
+              )}
               {connected && (
                 <Button
                   variant="ghost-muted"

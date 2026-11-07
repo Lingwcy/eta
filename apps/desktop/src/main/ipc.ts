@@ -218,6 +218,12 @@ const Command = Schema.Union([
       autoCheckUpdates: Schema.optionalKey(Schema.Boolean),
     }),
   }),
+  Schema.Struct({
+    type: Schema.Literal("subscription-quota"),
+    providerId: Id,
+    connectionId: Id,
+    refresh: Schema.optionalKey(Schema.Boolean),
+  }),
   Schema.Struct({ type: Schema.Literal("login-start"), provider: Id, method: Method }),
   Schema.Struct({ type: Schema.Literal("login-state"), id: Id }),
   Schema.Struct({
@@ -377,6 +383,12 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       return application.openComputerPermissions(command.permission);
     case "settings":
       return application.updateSettings(command.patch);
+    case "subscription-quota":
+      return application.subscriptionQuota(
+        command.providerId,
+        command.connectionId,
+        command.refresh,
+      );
     case "login-start":
       return application.startLogin(command.provider, command.method);
     case "login-state":

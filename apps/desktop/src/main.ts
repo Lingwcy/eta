@@ -78,10 +78,12 @@ function notifyUpdate(state: UpdateState) {
     window.webContents.send("eta:update-state", state);
 }
 
-function notifyLibrary() {
+function notifyLibrary(reason?: "credentials") {
   refreshBackground();
-  for (const window of BrowserWindow.getAllWindows())
-    window.webContents.send("eta:library-changed");
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (reason === "credentials") window.webContents.send("eta:library-changed", reason);
+    else window.webContents.send("eta:library-changed");
+  }
 }
 
 registerDesktopIpc({ service, updater: () => updater, windows, notifyLibrary });

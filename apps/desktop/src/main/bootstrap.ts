@@ -7,6 +7,8 @@ import { resolve, basename } from "node:path";
 import type { ImageAttachment, ImageSource, ImageProcessor } from "@eta/core/images/types";
 import { randomUUID } from "node:crypto";
 import { registerBunOAuthFlows as registerBundledOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+import { createModels } from "@earendil-works/pi-ai";
+import { createSubscriptionQuotaService } from "@eta/core/service/subscription-quota/index";
 import { Schema } from "effect";
 import { DesktopAuthentication } from "./authentication/index.ts";
 import type { LoginMethod } from "../authentication.ts";
@@ -100,12 +102,24 @@ async function createLocalDesktopApplication(
         ? randomUUID()
         : Schema.decodeUnknownSync(Schema.Struct({ id: Schema.NonEmptyString }))(installation).id;
     if (installation === undefined) await writeJson(installationPath, { id: deviceId });
+    // Explicit login records a new connection; runtime token refresh keeps its identity.
+    const loginModels = createModels({ credentials: credentials.loginStore });
+    for (const provider of models.models.getProviders()) loginModels.setProvider(provider);
     const authentication = new DesktopAuthentication(
       models.models,
       credentials.store,
       openExternal,
       deviceId,
+      loginModels,
     );
+    const quotas = createSubscriptionQuotaService({
+      models: models.models,
+      credentials: credentials.store,
+      connections: () => runtime.runPromise(credentials.accountConnections),
+      isCurrent: (providerId, connectionId) =>
+        credentials.isAccountConnection(providerId, connectionId),
+    });
+    const stopQuotaInvalidation = credentials.subscribe(quotas.invalidate);
     if ((await readJson(join(dataRoot, "credentials.json"))) === undefined)
       await runtime.runPromise(credentials.importOnce(await readAgentCredentials()));
     if ((await readJson(join(dataRoot, "settings.json"))) === undefined) {
@@ -160,7 +174,14 @@ async function createLocalDesktopApplication(
       openSkillsDirectory: async (path: string, cwd?: string) =>
         openDirectory(await run(skills.prepareDirectory(path, cwd))),
       unloadSkill: (id: string, name: string) => run(threads.unloadSkill(id, name)),
-      subscribeLibrary: (listener: () => void) => catalog.subscribe(listener),
+      subscribeLibrary: (listener: (reason?: "credentials") => void) => {
+        const catalogOff = catalog.subscribe(listener);
+        const credentialsOff = credentials.subscribe(() => listener("credentials"));
+        return () => {
+          catalogOff();
+          credentialsOff();
+        };
+      },
       storage: async () => scanStorage(dataRoot, await run(catalog.read)),
       reviewStats: () => readReviewStats(makeAppPaths(dataRoot).reviewLogPath),
       workspaceChanges: (input: WorkspaceChangesInput) =>
@@ -219,6 +240,7 @@ async function createLocalDesktopApplication(
           models: await run(models.list),
           credentials: await run(credentials.list),
           providers: authentication.providers(),
+          quotaConnections: await quotas.list(),
         };
       },
       registerProject: (rootPath: string, name?: string) =>
@@ -266,6 +288,8 @@ async function createLocalDesktopApplication(
         if (!computer) throw new Error("当前平台不支持桌面控制");
         await computer.openPermissions(permission);
       },
+      subscriptionQuota: (providerId: string, connectionId: string, refresh = false) =>
+        closing ? Promise.resolve(null) : quotas.query(providerId, connectionId, refresh),
       exportBotCredentials: () => run(credentials.export),
       startLogin: (provider: string, method: LoginMethod) => authentication.start(provider, method),
       loginState: (id: string) => authentication.read(id),
@@ -283,6 +307,8 @@ async function createLocalDesktopApplication(
       ) => run(threads.subscribe(id, onSnapshot, onError, path)),
       close: () =>
         (closing ??= (async () => {
+          stopQuotaInvalidation();
+          quotas.close();
           try {
             await stopScheduler();
           } finally {
