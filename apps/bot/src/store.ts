@@ -30,6 +30,9 @@ export class BotStore {
     execute: () => Promise<T>,
   ): Promise<T> {
     if (this.closing) throw new BotHttpError(503, "RuntimeClosing", "Bot is shutting down.");
+    // SQLite TEXT replaces lone UTF-16 surrogates with U+FFFD, aliasing distinct identities.
+    if (!scope.isWellFormed() || !id.isWellFormed())
+      throw new BotHttpError(400, "InvalidInput", "Request identity must be valid Unicode.");
     const record = this.database
       .prepare("SELECT payload, result FROM requests WHERE scope=? AND request_id=?")
       .get(scope, id) as RequestRecord | undefined;
