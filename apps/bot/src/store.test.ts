@@ -4,6 +4,62 @@ import { join } from "node:path";
 import { expect, test } from "vite-plus/test";
 import { BotStore } from "./store.ts";
 
+test.each(["\ud800", "\ud801", "\udfff", "a\ud800b"])(
+  "ill-formed request keys are rejected before execution: %j",
+  async (invalid) => {
+    const store = new BotStore(":memory:");
+    let executions = 0;
+    try {
+      for (const [scope, id] of [
+        ["scope", invalid],
+        [invalid, "request"],
+      ] as const)
+        await expect(
+          store.request(scope, id, "payload", async () => {
+            executions++;
+            return "bad";
+          }),
+        ).rejects.toMatchObject({ status: 400, code: "InvalidInput" });
+      expect(executions).toBe(0);
+      expect(
+        await store.request("scope", "\ufffd", "legitimate-payload", async () => ++executions),
+      ).toBe(1);
+    } finally {
+      await store.close();
+    }
+  },
+);
+
+test("valid Unicode and own-data identities remain distinct after SQLite reopen", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "eta-bot-store-unicode-"));
+  const path = join(directory, "requests.sqlite");
+  const ids = ["\ufffd", "😀", "é", "e\u0301", "__proto__", "constructor", "a", "a\0b", "a\0c"];
+  let store = new BotStore(path);
+  let executions = 0;
+  try {
+    for (const id of ids)
+      expect(
+        await store.request("scope", id, "payload", async () => {
+          executions++;
+          return { id };
+        }),
+      ).toEqual({ id });
+    await store.close();
+    store = new BotStore(path);
+    for (const id of ids)
+      expect(
+        await store.request("scope", id, "payload", async () => {
+          executions++;
+          return { id: "unexpected" };
+        }),
+      ).toEqual({ id });
+    expect(executions).toBe(ids.length);
+  } finally {
+    await store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("closing rejects late ingress while admitted and coalesced requests drain", async () => {
   const store = new BotStore(":memory:");
   const firstGate = Promise.withResolvers<string>();

@@ -175,6 +175,25 @@ test.each([
   },
 );
 
+test.each(["\ud800", "\udfff"])(
+  "ill-formed request IDs cannot create a project: %j",
+  async (requestId) => {
+    const { request, config } = await fixture(true);
+    const before = await readdir(config.workspaceRoot);
+    const rejected = await request("/v1/projects", { name: "must-not-exist", requestId });
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toMatchObject({ error: { code: "InvalidInput" } });
+    expect(await readdir(config.workspaceRoot)).toEqual(before);
+    const body = { name: "valid-project", requestId: "\ufffd" };
+    const admitted = await request("/v1/projects", body);
+    expect(admitted.status).toBe(201);
+    const project = await admitted.json();
+    const replay = await request("/v1/projects", body);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toEqual(project);
+  },
+);
+
 test("malformed bearer headers stay client errors and never reach project creation", async () => {
   const { bot, config, request } = await fixture(true);
   const before = await readdir(config.workspaceRoot);
