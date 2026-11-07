@@ -127,6 +127,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Validate configuration against its operational protocol without rewriting secrets.**
+
+- Evidence: on 2026-11-07, #589 loads a Bot file configuration with a space-containing administrator token. The actual offline application starts and reports healthy/ready, yet its configured secret is rejected by Bearer authentication. Thirteen syntax controls expose the loader accepting unusable values; positive controls retain exact token bytes and authenticate through the actual application, including allowed punctuation and trailing padding.
+- Check: reject values the next protocol consumer cannot use before startup; a nonempty JSON string is not enough. Do not silently trim, recase or strip padding from credentials, or invent a new strength policy. Keep errors redacted and distinguish file-loader validation from direct programmatic construction and real deployment availability.
+- Seen: 2026-11-07.
+
 **Separate output-producing declaration inputs from full workspace type checks.**
 
 - Evidence: on 2026-11-06, #577 reproduces a successful Core build creating `scripts/published-pi-aliases.d.ts` outside its product output. The declaration generator reused a tsconfig that includes the Vite config and its relative helper import. Real isolated builds also overwrite a pre-existing helper declaration. A product-only declaration tsconfig prevents both effects while retaining importable output and exported types; the original full typecheck remains unchanged. Removing the dedicated configuration makes both filesystem controls fail again.

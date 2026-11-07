@@ -10,7 +10,8 @@ export const BotConfigSchema = Schema.Struct({
   home: Schema.optionalKey(Schema.NonEmptyString),
   host: Schema.optionalKey(Schema.NonEmptyString),
   port: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }))),
-  adminToken: Schema.NonEmptyString,
+  // Validate bearer syntax without trimming or otherwise changing the secret.
+  adminToken: Schema.NonEmptyString.check(Schema.isPattern(/^[A-Za-z0-9._~+/-]+=*$/)),
   allowedSandboxModes: Schema.optionalKey(Schema.Array(SandboxModeSchema)),
   maxConcurrent: Schema.optionalKey(
     Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 32 })),
