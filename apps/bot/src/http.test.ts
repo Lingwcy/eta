@@ -4008,6 +4008,43 @@ test("default deployment advertises full access and permits switching both ways"
   }
 });
 
+test.each([
+  ["thread", "identity"],
+  ["thread", "gzip"],
+  ["schedules", "identity"],
+  ["schedules", "gzip"],
+])("HEAD %s SSE with %s does not retain a heartbeat or subscription", async (kind, encoding) => {
+  const { bot, create } = await fixture();
+  const id = await create("head-events");
+  const path = kind === "thread" ? "/v1/threads/" + id + "/events" : "/v1/schedules/events";
+  const headers = { authorization: "Bearer test-admin-token", "accept-encoding": encoding };
+  const threadSubscription = vi.spyOn(bot.core, "subscribe");
+  const scheduleSubscription = vi.spyOn(bot.core, "subscribeSchedules");
+  const abort = new AbortController();
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  try {
+    expect((await bot.app.request(path, { method: "HEAD" })).status).toBe(401);
+    if (kind === "thread")
+      expect(
+        (await bot.app.request("/v1/threads/missing-thread/events", { method: "HEAD", headers }))
+          .status,
+      ).toBe(404);
+    const response = await bot.app.request(path, { method: "HEAD", headers, signal: abort.signal });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(response.headers.get("cache-control")).toBe("no-cache");
+    expect(response.body).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(threadSubscription).not.toHaveBeenCalled();
+    expect(scheduleSubscription).not.toHaveBeenCalled();
+  } finally {
+    abort.abort();
+    vi.useRealTimers();
+    threadSubscription.mockRestore();
+    scheduleSubscription.mockRestore();
+  }
+});
+
 test.each(["thread", "schedules"])(
   "idle %s SSE sends transport heartbeats without new model output",
   async (kind) => {

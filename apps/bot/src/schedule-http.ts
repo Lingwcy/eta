@@ -236,6 +236,12 @@ export function mountScheduleRoutes(
     return context.json(receipt);
   });
   app.get("/v1/schedules/events", async (context) => {
+    // HEAD must not create a producer for the body Hono will discard.
+    if (context.req.method === "HEAD")
+      return context.body(null, 200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+      });
     const signal = AbortSignal.any([shutdown, context.req.raw.signal]);
     return streamSSE(context, async (stream) => {
       const ended = Promise.withResolvers<void>();

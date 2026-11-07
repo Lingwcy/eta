@@ -262,6 +262,12 @@ export function createHttpApp(options: {
       phase("authorize");
       await controller.authorize(id);
     });
+    // Hono dispatches HEAD to GET and discards the body without cancelling its producer.
+    if (context.req.method === "HEAD")
+      return context.body(null, 200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+      });
     const signal = AbortSignal.any([shutdown, context.req.raw.signal]);
     const encoder =
       context.req.header("x-eta-snapshot") === "delta-v1" ? new SnapshotDeltaEncoder() : undefined;
