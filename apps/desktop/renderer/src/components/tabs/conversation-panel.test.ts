@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import type { OperationAdmission, SessionResponse } from "@eta/core/agent/protocol";
-import type { DesktopBridge, DesktopLibrary } from "../../../../src/bridge.ts";
+import type { AgentEvent, DesktopBridge, DesktopLibrary } from "../../../../src/bridge.ts";
 import { useDesktopLibrary } from "@/agent/use-desktop-library";
 import { useDesktopTabs } from "@/agent/use-desktop-tabs";
 import { useSchedules } from "@/agent/use-schedules";
@@ -110,6 +110,11 @@ async function setup() {
   const admitted = Array.from({ length: 3 }, () => Promise.withResolvers<OperationAdmission>());
   let call = 0;
   const submit = vi.fn<DesktopBridge["submit"]>(() => admitted[call++]!.promise);
+  const listeners = new Set<(event: AgentEvent) => void>();
+  const publish = () => {
+    for (const listener of listeners)
+      listener({ type: "snapshot", value: { snapshot: session.snapshot, contextTokens: 0 } });
+  };
   const bridge = {
     library: async () => library,
     subscribeLibrary: () => () => {},
@@ -123,10 +128,29 @@ async function setup() {
       status: "running" as const,
       messages: [],
     }),
-    subscribe: () => () => {},
+    subscribe: (_id: string, listener: (event: AgentEvent) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    configureThread: vi.fn(async (_id: string, provider: string, modelId: string) => {
+      session.model = library.models.find(
+        (model) => model.provider === provider && model.id === modelId,
+      )!;
+      session.snapshot = {
+        ...session.snapshot,
+        configuration: { model: { provider, modelId }, thinkingLevel: "off" },
+        faulted: false,
+        blockedReason: undefined,
+      };
+      publish();
+      return session;
+    }),
     scheduleSnapshot: async () => ({ snapshots: [] }),
     subscribeSchedules: () => () => {},
-    stop: vi.fn(async () => {}),
+    stop: vi.fn(async () => {
+      session.snapshot = { ...session.snapshot, recoveryRequired: false };
+      publish();
+    }),
     prepareImage: async () => ({
       type: "image" as const,
       mimeType: "image/png",
@@ -166,6 +190,10 @@ async function setup() {
   return {
     bridge,
     admitted,
+    session,
+    library,
+    publish,
+    openExisting: () => currentNavigation!.tabs.openThread(session.id, "workspace"),
     closeTab: () => currentNavigation!.tabs.close(currentNavigation!.state.activeId),
   };
 }
@@ -285,3 +313,92 @@ test("a closed conversation's late admission cannot clear the replacement draft"
     });
   }
 });
+
+test.each(["quota", "faulted", "blocked", "recovery"] as const)(
+  "an existing %s thread keeps recovery controls usable without bypassing execution blockers",
+  async (state) => {
+    const { bridge, admitted, session, library, openExisting } = await setup();
+    const quota = "The ChatGPT user has reached their Subscription Sharing usage limit.";
+    session.snapshot = {
+      ...session.snapshot,
+      operation: null,
+      faulted: state === "faulted",
+      blockedReason:
+        state === "faulted"
+          ? "Execution cleanup failed"
+          : state === "blocked"
+            ? "Model unavailable"
+            : undefined,
+      recoveryRequired: state === "recovery",
+      lastResult: {
+        operationId: "failed-turn",
+        kind: "run",
+        status: "failed",
+        startedAt: 1,
+        endedAt: 2,
+        fromTipId: null,
+        tipId: null,
+        error: { message: quota },
+      },
+    };
+    library.models = [...library.models, { ...session.model, id: "two", name: "Recovery model" }];
+    await act(async () => openExisting());
+    const picker = () =>
+      document.querySelector<HTMLButtonElement>(
+        '[aria-label="' + i18n.t("chat:modelPicker.chooseAModelAndThinkingLevel") + '"]',
+      )!;
+    expect(input().disabled).toBe(false);
+    expect(picker().disabled).toBe(false);
+    await type("Try after recovery");
+    if (state !== "quota") {
+      await send();
+      expect(bridge.submit).not.toHaveBeenCalled();
+    }
+    // Use the actual compound popup, not controller callback assertions alone.
+    await act(async () => picker().click());
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="' + i18n.t("chat:modelPicker.allModels") + '"]',
+        )!
+        .click(),
+    );
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[aria-pressed][title="test/two"]')!.click(),
+    );
+    expect(bridge.configureThread).toHaveBeenCalledWith(session.id, "test", "two", "off");
+    expect(picker().textContent).toContain("Recovery model");
+    expect(input().value).toBe("Try after recovery");
+    if (state === "recovery") {
+      // Configuration does not implicitly resume interrupted work.
+      await send();
+      expect(bridge.submit).not.toHaveBeenCalled();
+      await act(async () => {
+        const stop = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+          (button) => button.textContent === i18n.t("chat:recoveryNotice.stopTask"),
+        );
+        expect(stop).toBeDefined();
+        stop!.click();
+      });
+      expect(bridge.stop).toHaveBeenCalledWith(session.id);
+    }
+    try {
+      await send();
+      expect(bridge.submit).toHaveBeenCalledOnce();
+      expect(bridge.submit.mock.calls[0]?.[1]).toBe("Try after recovery");
+      await act(async () =>
+        admitted[0]!.resolve({
+          operationId: "retried",
+          kind: "run",
+          startedAt: 3,
+        }),
+      );
+      expect(input().value).toBe("");
+    } finally {
+      await act(async () => {
+        for (const gate of admitted)
+          gate.resolve({ operationId: "cleanup", kind: "run", startedAt: 1 });
+      });
+    }
+  },
+);

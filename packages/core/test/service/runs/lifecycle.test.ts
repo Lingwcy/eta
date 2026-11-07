@@ -26,12 +26,12 @@ async function fixture() {
   await mkdir(cwd);
   const provider = fauxProvider({
     provider: "expiry-test",
-    models: [{ id: "one" }],
+    models: [{ id: "one" }, { id: "two" }],
     tokensPerSecond: 10000,
   });
   const titles = fauxProvider({
     provider: "expiry-test",
-    models: [{ id: "one" }],
+    models: [{ id: "one" }, { id: "two" }],
     tokensPerSecond: 10000,
   });
   const models = createModels();
@@ -387,3 +387,101 @@ test("full recovery drafts stay out of hot metadata and retire when consumed", a
     for (const gate of gates) gate.finish.resolve(fauxAssistantMessage("cleanup"));
   }
 });
+
+test.each([false, true])(
+  "quota failure settles the turn and permits another message (change model: %s)",
+  async (changeModel) => {
+    const { runtime, provider, threads, thread, record } = await fixture();
+    let retriedModel: string | undefined;
+    provider.setResponses([
+      fauxAssistantMessage("", {
+        stopReason: "error",
+        errorMessage: "Subscription usage limit reached",
+      }),
+      (_context, _options, _state, model) => {
+        retriedModel = model.id;
+        return fauxAssistantMessage("Recovered");
+      },
+    ]);
+    const failed = await runtime.runPromise(threads.submit(thread.id, "First message"));
+    await expect.poll(() => record.running, { timeout: 10000 }).toBe(false);
+    expect(
+      await runtime.runPromise(threads.operation(thread.id, failed.operationId)),
+    ).toMatchObject({
+      status: "failed",
+      error: "Subscription usage limit reached",
+    });
+    const snapshot = (await runtime.runPromise(threads.open(thread.id))).snapshot;
+    expect(snapshot.operation).toBeNull();
+    expect(snapshot.lastResult).toMatchObject({
+      status: "failed",
+      error: { message: "Subscription usage limit reached" },
+    });
+    expect(snapshot.faulted).toBe(false);
+    expect(snapshot.recoveryRequired).toBe(false);
+    expect(snapshot.blockedReason).toBeUndefined();
+    if (changeModel) {
+      const configured = await runtime.runPromise(
+        threads.configure(thread.id, "expiry-test", "two", "off"),
+      );
+      expect(configured.snapshot.configuration.model.modelId).toBe("two");
+    }
+    const next = await runtime.runPromise(threads.submit(thread.id, "Next message"));
+    await expect.poll(() => record.running, { timeout: 10000 }).toBe(false);
+    expect((await runtime.runPromise(threads.operation(thread.id, next.operationId))).status).toBe(
+      "completed",
+    );
+    expect((await runtime.runPromise(threads.open(thread.id))).snapshot.operation).toBeNull();
+    expect(retriedModel).toBe(changeModel ? "two" : "one");
+    expect(record.error).toBeUndefined();
+  },
+  20000,
+);
+
+test("a supervisor failure remains visible until a valid model configuration succeeds", async () => {
+  const { runtime, provider, threads, thread, record } = await fixture();
+  const entered = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<ReturnType<typeof fauxAssistantMessage>>();
+  provider.setResponses([
+    () => {
+      entered.resolve();
+      return answer.promise;
+    },
+    fauxAssistantMessage("Recovered"),
+  ]);
+  try {
+    const first = await runtime.runPromise(threads.submit(thread.id, "First message"));
+    await entered.promise;
+    vi.spyOn(record.conversation, "waitForIdle").mockRejectedValueOnce(
+      new Error("Controlled supervisor failure"),
+    );
+    answer.resolve(fauxAssistantMessage("Finished"));
+    await expect.poll(() => record.running, { timeout: 10000 }).toBe(false);
+    expect((await runtime.runPromise(threads.operation(thread.id, first.operationId))).status).toBe(
+      "completed",
+    );
+    const failed = (await runtime.runPromise(threads.open(thread.id))).snapshot;
+    expect(failed.operation).toBeNull();
+    expect(failed.faulted).toBe(true);
+    expect(failed.blockedReason).toBe("Controlled supervisor failure");
+    await expect(
+      runtime.runPromise(threads.configure(thread.id, "expiry-test", "missing", "off")),
+    ).rejects.toMatchObject({ code: "ModelUnavailable" });
+    expect((await runtime.runPromise(threads.open(thread.id))).snapshot.blockedReason).toBe(
+      "Controlled supervisor failure",
+    );
+    const configured = await runtime.runPromise(
+      threads.configure(thread.id, "expiry-test", "two", "off"),
+    );
+    expect(configured.snapshot.faulted).toBe(false);
+    expect(configured.snapshot.blockedReason).toBeUndefined();
+    const next = await runtime.runPromise(threads.submit(thread.id, "Next message"));
+    await expect.poll(() => record.running, { timeout: 10000 }).toBe(false);
+    expect((await runtime.runPromise(threads.operation(thread.id, next.operationId))).status).toBe(
+      "completed",
+    );
+    expect(record.error).toBeUndefined();
+  } finally {
+    answer.resolve(fauxAssistantMessage("Cleanup"));
+  }
+}, 20000);
