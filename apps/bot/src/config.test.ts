@@ -3,10 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { loadBotConfig } from "./config.ts";
+import { createBotApplication } from "./application.ts";
 
 const directories: string[] = [];
 afterEach(async () => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
 });
@@ -28,6 +30,57 @@ async function configuration(overrides: Record<string, unknown> = {}) {
   );
   return { root, path };
 }
+
+test.each([
+  ["leading space", " fake-private"],
+  ["trailing space", "fake-private "],
+  ["interior space", "fake-private value"],
+  ["colon", "fake-private:value"],
+  ["trailing LF", "fake-private\n"],
+  ["trailing CR", "fake-private\r"],
+  ["trailing tab", "fake-private\t"],
+  ["Unicode line separator", "fake-private\u2028"],
+  ["Unicode paragraph separator", "fake-private\u2029"],
+  ["NUL", "fake-private\0"],
+  ["non-ASCII", "fake-private令牌"],
+  ["leading padding", "=fake-private"],
+  ["interior padding", "fake-private=value"],
+])("unusable bearer token is rejected without disclosure: %s", async (_name, adminToken) => {
+  const { path } = await configuration({ adminToken });
+  await expect(loadBotConfig(path)).rejects.toThrow("Bot configuration is unreadable or invalid");
+  await expect(loadBotConfig(path)).rejects.not.toThrow("fake-private");
+});
+
+test.each(["a", "CaseSensitive_TOKEN.1", "AZaz09-._~+/===", "opaque=="])(
+  "valid bearer token survives configuration and actual authentication unchanged: %s",
+  async (adminToken) => {
+    vi.stubGlobal("fetch", () => {
+      throw new Error("Configuration authentication tests must stay offline");
+    });
+    const { path } = await configuration({ adminToken, projects: [] });
+    const config = await loadBotConfig(path);
+    expect(config.adminToken).toBe(adminToken);
+    const application = await createBotApplication(config);
+    try {
+      expect(
+        (
+          await application.app.request("/v1/status", {
+            headers: { authorization: "Bearer " + config.adminToken },
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await application.app.request("/v1/status", {
+            headers: { authorization: "Bearer wrong-valid-token" },
+          })
+        ).status,
+      ).toBe(401);
+    } finally {
+      await application.close();
+    }
+  },
+);
 
 test("deployment paths resolve from the configuration file", async () => {
   const { root, path } = await configuration();
