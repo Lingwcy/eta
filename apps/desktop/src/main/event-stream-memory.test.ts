@@ -1,0 +1,23 @@
+import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { expect, test } from "vite-plus/test";
+
+const run = promisify(execFile);
+
+test.each([65536, 1])(
+  "Desktop frames retain bounded metadata with %i-character reads",
+  async (step) => {
+    const { stdout } = await run(
+      process.execPath,
+      [
+        "--max-old-space-size=64",
+        fileURLToPath(new URL("./fixtures/fragmented-frame.mjs", import.meta.url)),
+        String(step),
+      ],
+      { timeout: 60000, maxBuffer: 64 * 1024 },
+    );
+    expect(JSON.parse(stdout)).toEqual({ size: 8 * 1024 * 1024, step, delivered: 2 });
+  },
+  65000,
+);
