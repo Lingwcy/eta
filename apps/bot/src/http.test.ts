@@ -4135,6 +4135,48 @@ test("project folder creation discovers unrelated directories only after registr
   }
 });
 
+test.each([false, true])(
+  "ill-formed project names cannot target a replacement directory (existing=%s)",
+  async (existing) => {
+    const { bot, request, config, open } = await fixture(true);
+    const replacement = join(config.workspaceRoot, "\ufffd");
+    if (existing) {
+      await mkdir(replacement);
+      await writeFile(join(replacement, "keep.txt"), "existing content");
+    }
+    const before = await readdir(config.workspaceRoot);
+    for (const [index, name] of ["\ud800", "\ud801", "\udfff", "a\ud800b"].entries()) {
+      const rejected = await request("/v1/projects", { name, requestId: "bad-name-" + index });
+      expect(rejected.status).toBe(400);
+      expect(await rejected.json()).toMatchObject({ error: { code: "InvalidInput" } });
+    }
+    expect(await readdir(config.workspaceRoot)).toEqual(before);
+    expect(await bot.core.projects()).toEqual([]);
+    const admitted = [];
+    for (const [index, name] of ["\ufffd", "项目😀"].entries()) {
+      const body = { name, requestId: "valid-name-" + index };
+      const response = await request("/v1/projects", body);
+      expect(response.status).toBe(201);
+      const project = (await response.json()) as ProjectMetadata;
+      expect(project.name).toBe(name);
+      expect(project.rootPath).toBe(await realpath(join(config.workspaceRoot, name)));
+      const replay = await request("/v1/projects", body);
+      expect(replay.status).toBe(201);
+      expect(await replay.json()).toEqual(project);
+      admitted.push(project);
+    }
+    await bot.close();
+    const restored = await open();
+    const library = await restored.app.request("/v1/library", {
+      headers: { authorization: "Bearer " + config.adminToken },
+    });
+    expect(library.status).toBe(200);
+    expect(await library.json()).toMatchObject({ projects: expect.arrayContaining(admitted) });
+    if (existing)
+      expect(await readFile(join(replacement, "keep.txt"), "utf8")).toBe("existing content");
+  },
+);
+
 test("invalid project folder names do not trigger directory discovery", async () => {
   const { bot, request, config } = await fixture(true);
   await bot.core.stopScheduler();
