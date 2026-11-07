@@ -410,6 +410,9 @@ export function useDesktopController(
       inputQueueSupported: snapshot?.inputQueueSupported === true,
       isStopping: agent.stopping || operation?.status === "aborting",
       submitDisabled:
+        snapshot?.faulted ||
+        !!snapshot?.blockedReason ||
+        !!snapshot?.recoveryRequired ||
         (directoryUnavailable && !liveObservation) ||
         (!threadId &&
           !tab.workspaceId &&
@@ -420,11 +423,8 @@ export function useDesktopController(
         (directoryUnavailable && !liveObservation) ||
         !desktop.library ||
         pending ||
-        (!!threadId &&
-          (agent.connection !== "connected" ||
-            snapshot?.faulted ||
-            !!snapshot?.blockedReason ||
-            !!snapshot?.recoveryRequired)),
+        // Execution blockers must not lock the model picker needed to resolve them.
+        (!!threadId && agent.connection !== "connected"),
       onSettings: (category?: string) => navigation.tabs.openSettings(category),
       placeholder: t("chat:useDesktopController.askAnything"),
     },
