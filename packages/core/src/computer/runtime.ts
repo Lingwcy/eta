@@ -15,6 +15,7 @@ export async function createComputerRuntime(options: {
   const owners = new Map<number, ComputerOwner>();
   let closed = false;
   let enabled = false;
+  let watchHealthy = true;
   const releaseAll = async () => {
     await Promise.all(
       [...owners].map(async ([id, owner]) => {
@@ -23,7 +24,14 @@ export async function createComputerRuntime(options: {
       }),
     );
   };
-  watch.start(async (state) => {
+  watch.start(async (change) => {
+    if (change.kind === "failed" || change.retired) {
+      watchHealthy = false;
+      await releaseAll();
+      return;
+    }
+    watchHealthy = true;
+    const state = change.value;
     // Do not visit owners admitted while an older cleanup is awaiting native completion.
     const retiring = [...owners].filter(([id]) => state?.run?.inputs[0] !== id);
     for (const [id, owner] of retiring) {
@@ -37,13 +45,17 @@ export async function createComputerRuntime(options: {
     owner: async (api, context) => {
       const state = await api.snapshot(LiveDoc, ROOT_CONVERSATION_ID, context);
       const id = state?.run?.inputs[0];
-      if (closed || !enabled || !id || watch.value?.run?.inputs[0] !== id)
+      if (closed || !enabled || !watchHealthy || !id || watch.value?.run?.inputs[0] !== id)
         throw new Error("本次桌面控制请求已失效");
       let owner = owners.get(id);
       if (!owner) {
         const admitted: ComputerOwner = {
           active: () =>
-            !closed && enabled && owners.get(id) === admitted && watch.value?.run?.inputs[0] === id,
+            !closed &&
+            enabled &&
+            watchHealthy &&
+            owners.get(id) === admitted &&
+            watch.value?.run?.inputs[0] === id,
         };
         owner = admitted;
         owners.set(id, owner);

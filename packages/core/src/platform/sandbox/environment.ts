@@ -13,7 +13,7 @@ import type {
   DirReader,
   FileWatcher,
   WatchTarget,
-  WatchChange,
+  FileChange,
   LineScan,
   FileErrorCode,
   FileInfo,
@@ -65,7 +65,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
   private closed = false;
   private failure?: string;
   private cleanupPromise?: Promise<void>;
-  private readonly watchers = new Map<number, (change: WatchChange) => void>();
+  private readonly watchers = new Map<number, (change: FileChange) => void>();
   private readonly pending = new Map<number, Pending>();
   private readonly ready: Promise<void>;
   private readonly child: ChildProcess;
@@ -105,10 +105,10 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
             try {
               this.watchers.get(message.id)?.(
                 "error" in change
-                  ? { error: new RemoteFileError(change.error) }
+                  ? { kind: "failed", error: new RemoteFileError(change.error) }
                   : "paths" in change
-                    ? { paths: [...change.paths] }
-                    : change,
+                    ? { kind: "paths", paths: [...change.paths] }
+                    : { kind: "overflow" },
               );
             } catch {
               this.watchers.delete(message.id);
@@ -210,7 +210,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
     this.pending.clear();
     for (const onChange of this.watchers.values()) {
       try {
-        onChange({ error: new FileError("unknown", message) });
+        onChange({ kind: "failed", error: new FileError("unknown", message) });
       } catch {
         /* A watcher cannot block worker cleanup. */
       }
@@ -235,7 +235,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
     request: Request,
     context: Context,
     output?: ShellExecOptions["onOutput"],
-    onChange?: (change: WatchChange) => void,
+    onChange?: (change: FileChange) => void,
   ): Promise<Result<T, FileError>> {
     if (context.abortSignal?.aborted) return err(new FileError("aborted", "aborted", request.path));
     if (this.closed || this.failure)
@@ -352,7 +352,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
   }
   async watch(
     targets: readonly WatchTarget[],
-    onChange: (change: WatchChange) => void,
+    onChange: (change: FileChange) => void,
     context: Context,
   ): Promise<Result<FileWatcher, FileError>> {
     const result = await this.request<{ id: number; mode: FileWatcher["mode"] }>(
@@ -379,7 +379,7 @@ export class SandboxedExecutionEnv implements ExecutionEnv {
     const { id, mode } = result.value;
     return ok({
       mode,
-      close: async (context) => {
+      stop: async (context) => {
         this.watchers.delete(id);
         await this.request({ method: "closeWatcher", reader: id }, context);
       },

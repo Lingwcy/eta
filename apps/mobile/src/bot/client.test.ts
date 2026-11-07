@@ -130,6 +130,61 @@ test.each([400, 503])("non-401 HTTP %s retains its error code and diagnostic", a
   expect(response.bodyUsed).toBe(true);
 });
 
+test.each([false, true])(
+  "invalid SSE is fatal before source cancellation settles (late rejection=%s)",
+  async (rejectCleanup) => {
+    vi.useFakeTimers();
+    const cleanup = Promise.withResolvers<void>();
+    const cancelled = Promise.withResolvers<void>();
+    const abort = new AbortController();
+    let settled = false;
+    let requests = 0;
+    const statuses: { message?: string; fatal?: boolean }[] = [];
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("event: snapshot\ndata: {}\n\n"));
+      },
+      cancel() {
+        cancelled.resolve();
+        return cleanup.promise;
+      },
+    });
+    const client = new BotClient({ url: "https://bot", token: "fake-token" }, async () => {
+      requests++;
+      return new Response(body);
+    });
+    const work = client
+      .watch(
+        "thread",
+        abort.signal,
+        () => {
+          throw new Error("Unexpected snapshot");
+        },
+        (message, fatal) => statuses.push({ message, fatal }),
+      )
+      .then(() => {
+        settled = true;
+      });
+    try {
+      await cancelled.promise;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(statuses).toEqual([{ message: "Bot 实时数据格式不兼容", fatal: true }]);
+      expect(settled).toBe(true);
+      expect(body.locked).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(120000);
+      expect(requests).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      abort.abort();
+      if (rejectCleanup) cleanup.reject(new Error("Late source cancellation failure"));
+      else cleanup.resolve();
+      await work;
+      vi.useRealTimers();
+    }
+  },
+);
+
 test("a JSON response stalled after headers still times out", async () => {
   const client = new BotClient(
     { url: "https://bot", token: "secret" },

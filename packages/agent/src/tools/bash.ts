@@ -1,5 +1,7 @@
+import { Type } from "typebox";
+import type { Static } from "@earendil-works/pi-schema";
 import type { Context } from "@earendil-works/chord";
-import { type Static, Type } from "typebox";
+import { bool, num, obj, opt, str } from "@earendil-works/pi-schema";
 import { defineTool } from "../harness/define.ts";
 import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";
 import type { ToolExecutionApi, ToolExecutionResult, ToolRegistration } from "../harness/types.ts";
@@ -47,12 +49,15 @@ const powershellSchema = Type.Object(
 );
 
 /** What a program that calls `bash` or `powershell` receives. */
-const shellStructuredOutputSchema = Type.Object({
-	output: Type.String({ description: "Combined stdout and stderr: the retained tail, as the model sees it" }),
-	truncated: Type.Boolean({ description: "Whether earlier output was dropped" }),
-	fullOutputPath: Type.Optional(Type.String({ description: "File with the complete output, when it was spilled" })),
-	exitCode: Type.Number(),
-});
+const shellStructuredOutputSchema = obj(
+	{
+		output: str({ description: "Combined stdout and stderr: the retained tail, as the model sees it" }),
+		truncated: bool({ description: "Whether earlier output was dropped" }),
+		fullOutputPath: opt(str({ description: "File with the complete output, when it was spilled" })),
+		exitCode: num(),
+	},
+	{ open: true },
+);
 
 export type BashToolInput = Static<typeof bashSchema>;
 export type PowerShellToolInput = Static<typeof powershellSchema>;

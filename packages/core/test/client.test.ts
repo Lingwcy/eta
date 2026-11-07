@@ -3,12 +3,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer } from "node:http";
 import { Effect } from "effect";
+import { Type } from "typebox";
 import {
   createModels,
   fauxProvider,
   fauxAssistantMessage,
   fauxToolCall,
-  Type,
 } from "@earendil-works/pi-ai";
 import { afterEach, expect, test } from "vite-plus/test";
 import { defineTask, defineTool } from "@eta/agent";
@@ -53,7 +53,11 @@ async function fixture() {
       home: directory,
       models,
       settings: {
-        read: Effect.succeed({ agentMode: "standard", defaultThinkingLevel: "off" }),
+        read: Effect.succeed({
+          agentMode: "standard",
+          defaultThinkingLevel: "off",
+          approvalReviewer: { mode: "user" },
+        }),
         subscribe: () => () => {},
       },
       environment: { userAgent: "eta-core-test", shutdown: "preserve", ...environment },

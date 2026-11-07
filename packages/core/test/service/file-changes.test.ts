@@ -1,3 +1,4 @@
+import { commitWrites } from "@eta/agent/testing";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
@@ -438,7 +439,8 @@ test("legacy edit details are read from their persisted entry without a runtime 
   const id = await storage.mintId<EntryId>();
   const patch = "--- old.ts\n+++ old.ts\n@@ -1 +1 @@\n-old\n+historical\n";
   try {
-    await storage.commit(
+    await commitWrites(
+      storage,
       [
         {
           type: "entry",

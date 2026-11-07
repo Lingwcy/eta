@@ -54,6 +54,7 @@ export function restoreTabs(raw: unknown): SavedTabs | undefined {
   if (!isRecord(raw) || raw.version !== 1 || !Array.isArray(raw.tabs)) return;
   const tabs: DesktopTab[] = [];
   const identities = new Set<string>();
+  const tabIds = new Set<string>();
   for (const value of raw.tabs as unknown[]) {
     const tab = readTab(value);
     if (!tab) continue;
@@ -63,8 +64,9 @@ export function restoreTabs(raw: unknown): SavedTabs | undefined {
         : tab.kind === "conversation" && tab.threadId
           ? `thread:${tab.threadId}`
           : `tab:${tab.id}`;
-    if (identities.has(identity) || tabs.some((open) => open.id === tab.id)) continue;
+    if (identities.has(identity) || tabIds.has(tab.id)) continue;
     identities.add(identity);
+    tabIds.add(tab.id);
     tabs.push(tab);
   }
   if (!tabs.length) return;

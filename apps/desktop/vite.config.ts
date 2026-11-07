@@ -1,44 +1,56 @@
+import { publishedPiAliases } from "../../scripts/published-pi-aliases.ts";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   resolve: {
-    conditions: ["source"],
-    alias: {
-      "@": fileURLToPath(new URL("./renderer/src", import.meta.url)),
-      // Published Chord advertises source paths but ships only dist; DOM integration tests transform host services too.
-      "@earendil-works/chord/context": fileURLToPath(
-        new URL("./node_modules/@earendil-works/chord/dist/context/index.js", import.meta.url),
-      ),
-      "@earendil-works/chord/delta": fileURLToPath(
-        new URL("./node_modules/@earendil-works/chord/dist/delta/index.js", import.meta.url),
-      ),
-      "@earendil-works/chord/output": fileURLToPath(
-        new URL("./node_modules/@earendil-works/chord/dist/output.js", import.meta.url),
-      ),
-      "@earendil-works/chord/node": fileURLToPath(
-        new URL("./node_modules/@earendil-works/chord/dist/node.js", import.meta.url),
-      ),
-      "@earendil-works/chord": fileURLToPath(
-        new URL("./node_modules/@earendil-works/chord/dist/index.js", import.meta.url),
-      ),
-      ...Object.fromEntries(
-        ["portable", "source", "declarations", "index"].map((entry) => [
-          `@earendil-works/pi-codemode${entry === "index" ? "" : `/${entry}`}`,
-          fileURLToPath(
-            new URL(
-              `../../packages/core/node_modules/@earendil-works/pi-codemode/dist/${entry}.js`,
-              import.meta.url,
+    conditions: [],
+    alias: [
+      {
+        find: /^@eta\/core$/,
+        replacement: fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
+      },
+      {
+        find: /^@eta\/core\/(.+)$/,
+        replacement: `${fileURLToPath(new URL("../../packages/core/src/", import.meta.url))}$1.ts`,
+      },
+      ...Object.entries({
+        ...publishedPiAliases,
+        "@": fileURLToPath(new URL("./renderer/src", import.meta.url)),
+        // Published Chord advertises source paths but ships only dist; DOM integration tests transform host services too.
+        "@earendil-works/chord/context": fileURLToPath(
+          new URL("./node_modules/@earendil-works/chord/dist/context/index.js", import.meta.url),
+        ),
+        "@earendil-works/chord/delta": fileURLToPath(
+          new URL("./node_modules/@earendil-works/chord/dist/delta/index.js", import.meta.url),
+        ),
+        "@earendil-works/chord/output": fileURLToPath(
+          new URL("./node_modules/@earendil-works/chord/dist/output.js", import.meta.url),
+        ),
+        "@earendil-works/chord/node": fileURLToPath(
+          new URL("./node_modules/@earendil-works/chord/dist/node.js", import.meta.url),
+        ),
+        "@earendil-works/chord": fileURLToPath(
+          new URL("./node_modules/@earendil-works/chord/dist/index.js", import.meta.url),
+        ),
+        ...Object.fromEntries(
+          ["portable", "source", "declarations", "index"].map((entry) => [
+            `@earendil-works/pi-codemode${entry === "index" ? "" : `/${entry}`}`,
+            fileURLToPath(
+              new URL(
+                `../../packages/core/node_modules/@earendil-works/pi-codemode/dist/${entry}.js`,
+                import.meta.url,
+              ),
             ),
-          ),
-        ]),
-      ),
-    },
+          ]),
+        ),
+      }).map(([find, replacement]) => ({ find, replacement })),
+    ],
   },
   ssr: {
-    resolve: { conditions: ["source"] },
-    noExternal: ["@eta/agent", "@eta/core", "@eta/computer-use"],
+    resolve: { conditions: [] },
+    noExternal: ["@eta/agent", "@eta/core", "@eta/computer-use", /^@earendil-works\/chord/],
   },
   test: { environment: "node", include: ["src/**/*.test.ts", "renderer/src/**/*.test.ts"] },
   pack: {

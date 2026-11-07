@@ -66,6 +66,7 @@ async function fixture(
   allowedSandboxModes?: BotConfig["allowedSandboxModes"],
   initialEnvironment?: Partial<CoreEnvironment>,
   log?: BotLog,
+  approvalReviewer?: BotConfig["runtime"]["approvalReviewer"],
 ) {
   const root = await mkdtemp(join(tmpdir(), "eta-bot-http-"));
   roots.push(root);
@@ -98,6 +99,7 @@ async function fixture(
     runtime: {
       agentMode: "standard" as const,
       defaultThinkingLevel: "off",
+      ...(approvalReviewer ? { approvalReviewer } : {}),
       ...(defaultProvider ? { defaultProvider } : {}),
     },
   };
@@ -125,6 +127,117 @@ async function fixture(
   };
   return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
+
+test.each([
+  { authorization: undefined, status: 401, challenge: 'Bearer realm=""' },
+  {
+    authorization: "Bearer fake-private-value",
+    status: 401,
+    challenge: 'Bearer error="invalid_token"',
+  },
+  {
+    authorization: "Bearer fake-private:value",
+    status: 400,
+    challenge: 'Bearer error="invalid_request"',
+  },
+])(
+  "authentication failure preserves its Bearer challenge: $status / $challenge",
+  async ({ authorization, status, challenge }) => {
+    const { bot, config, request } = await fixture(true);
+    const before = await readdir(config.workspaceRoot);
+    for (const path of ["/v1/status", "/v1/projects"]) {
+      const response = await bot.app.request(path, {
+        method: path === "/v1/projects" ? "POST" : "GET",
+        headers: {
+          ...(authorization ? { authorization } : {}),
+          "content-type": "application/json",
+        },
+        ...(path === "/v1/projects"
+          ? { body: JSON.stringify({ name: "not-created", requestId: "auth-challenge" }) }
+          : {}),
+      });
+      expect(response.status).toBe(status);
+      expect(response.headers.get("www-authenticate")).toBe(challenge);
+      const text = await response.text();
+      expect(JSON.parse(text)).toEqual({
+        error:
+          status === 401
+            ? { code: "Unauthorized", message: "A valid administrator token is required." }
+            : { code: "InvalidInput", message: "Request is malformed." },
+      });
+      expect(text).not.toContain("fake-private");
+      expect(text).not.toContain(config.adminToken);
+    }
+    expect(await readdir(config.workspaceRoot)).toEqual(before);
+    const success = await request("/v1/status");
+    expect(success.status).toBe(200);
+    expect(success.headers.has("www-authenticate")).toBe(false);
+  },
+);
+
+test.each(["\ud800", "\udfff"])(
+  "ill-formed request IDs cannot create a project: %j",
+  async (requestId) => {
+    const { request, config } = await fixture(true);
+    const before = await readdir(config.workspaceRoot);
+    const rejected = await request("/v1/projects", { name: "must-not-exist", requestId });
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toMatchObject({ error: { code: "InvalidInput" } });
+    expect(await readdir(config.workspaceRoot)).toEqual(before);
+    const body = { name: "valid-project", requestId: "\ufffd" };
+    const admitted = await request("/v1/projects", body);
+    expect(admitted.status).toBe(201);
+    const project = await admitted.json();
+    const replay = await request("/v1/projects", body);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toEqual(project);
+  },
+);
+
+test("malformed bearer headers stay client errors and never reach project creation", async () => {
+  const { bot, config, request } = await fixture(true);
+  const before = await readdir(config.workspaceRoot);
+  const malformed = [
+    "Basic fake-private-value",
+    "Bearer",
+    "Bearer fake-private:value",
+    "Bearer fake-private value",
+    "Bearer fake=private",
+  ];
+  for (const [index, authorization] of malformed.entries()) {
+    for (const path of ["/v1/status", "/v1/projects"]) {
+      const response = await bot.app.request(path, {
+        method: path === "/v1/projects" ? "POST" : "GET",
+        headers: { authorization, "content-type": "application/json" },
+        ...(path === "/v1/projects"
+          ? { body: JSON.stringify({ name: "must-not-exist", requestId: "invalid-auth-" + index }) }
+          : {}),
+      });
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      expect(JSON.parse(text)).toMatchObject({ error: { code: "InvalidInput" } });
+      expect(text).not.toContain("fake-private");
+      expect(text).not.toContain(config.adminToken);
+    }
+  }
+  expect(await readdir(config.workspaceRoot)).toEqual(before);
+  for (const authorization of [undefined, "Bearer wrong-token"])
+    expect(
+      (
+        await bot.app.request("/v1/status", {
+          headers: authorization ? { authorization } : {},
+        })
+      ).status,
+    ).toBe(401);
+  expect((await request("/v1/status")).status).toBe(200);
+  expect(
+    (
+      await bot.app.request("/v1/status", {
+        headers: { authorization: "bEaReR " + config.adminToken },
+      })
+    ).status,
+  ).toBe(200);
+});
 
 test.each(["thread", "git"] as const)(
   "a stalled %s read reports its backend phase without changing the HTTP result",
@@ -2453,10 +2566,14 @@ test("HTTP admission executes real tools, rejects conflicting retries and retain
 }, 15000);
 
 test("HTTP exposes sandbox ceilings and scopes approvals to the owning thread", async () => {
-  const { bot, provider, request, create, cwd } = await fixture(false, undefined, [
-    "read-only",
-    "workspace-write",
-  ]);
+  const { bot, provider, request, create, cwd } = await fixture(
+    false,
+    undefined,
+    ["read-only", "workspace-write"],
+    undefined,
+    undefined,
+    { mode: "user" },
+  );
   const id = await create("sandbox-thread");
   const other = await create("other-thread");
   expect((await request(`/v1/threads/${id}/sandbox`, { mode: "danger-full-access" })).status).toBe(
@@ -3910,6 +4027,43 @@ test("default deployment advertises full access and permits switching both ways"
   }
 });
 
+test.each([
+  ["thread", "identity"],
+  ["thread", "gzip"],
+  ["schedules", "identity"],
+  ["schedules", "gzip"],
+])("HEAD %s SSE with %s does not retain a heartbeat or subscription", async (kind, encoding) => {
+  const { bot, create } = await fixture();
+  const id = await create("head-events");
+  const path = kind === "thread" ? "/v1/threads/" + id + "/events" : "/v1/schedules/events";
+  const headers = { authorization: "Bearer test-admin-token", "accept-encoding": encoding };
+  const threadSubscription = vi.spyOn(bot.core, "subscribe");
+  const scheduleSubscription = vi.spyOn(bot.core, "subscribeSchedules");
+  const abort = new AbortController();
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  try {
+    expect((await bot.app.request(path, { method: "HEAD" })).status).toBe(401);
+    if (kind === "thread")
+      expect(
+        (await bot.app.request("/v1/threads/missing-thread/events", { method: "HEAD", headers }))
+          .status,
+      ).toBe(404);
+    const response = await bot.app.request(path, { method: "HEAD", headers, signal: abort.signal });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(response.headers.get("cache-control")).toBe("no-cache");
+    expect(response.body).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(threadSubscription).not.toHaveBeenCalled();
+    expect(scheduleSubscription).not.toHaveBeenCalled();
+  } finally {
+    abort.abort();
+    vi.useRealTimers();
+    threadSubscription.mockRestore();
+    scheduleSubscription.mockRestore();
+  }
+});
+
 test.each(["thread", "schedules"])(
   "idle %s SSE sends transport heartbeats without new model output",
   async (kind) => {
@@ -4719,3 +4873,37 @@ test("a borrowed admission held across a receipt read cannot restart work after 
     lookup.mockRestore();
   }
 }, 30000);
+
+test("HTTP uses the chat model to review sandbox requests by default without a manual decision", async () => {
+  const { bot, provider, request, create, cwd } = await fixture();
+  const id = await create("default-review-thread");
+  await request("/v1/threads/" + id + "/sandbox", { mode: "read-only" });
+  provider.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("write", { path: "auto-via-http.txt", content: "approved automatically" }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage(
+      JSON.stringify({ decision: "approve", risk: "low", rationale: "Routine requested edit" }),
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const response = await request("/v1/threads/" + id + "/messages", {
+    prompt: "Write auto-via-http.txt",
+    requestId: "default-review-input",
+  });
+  expect(response.status).toBe(202);
+  const { operationId } = Schema.decodeUnknownSync(admission)(await response.json());
+  await expect
+    .poll(async () => (await bot.core.operation(id, operationId)).status, { timeout: 10000 })
+    .toBe("completed");
+  expect(await readFile(join(cwd, "auto-via-http.txt"), "utf8")).toBe("approved automatically");
+  const snapshot = (await bot.core.openThread(id)).snapshot;
+  expect(snapshot.approvals).toEqual([]);
+  expect(snapshot.approvalHistory).toMatchObject([
+    {
+      decidedBy: "auto",
+      review: { status: "approved", reviewer: { provider: "bot-test", modelId: "one" } },
+    },
+  ]);
+}, 15000);

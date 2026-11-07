@@ -4,13 +4,16 @@ import { DesktopTabs } from "./desktop-tabs";
 import { ThreadRecents } from "./thread-recents";
 import { ThreadActivity } from "./thread-activity";
 import { readTabs, persistTabs } from "./tab-storage";
+import { browserStorage } from "./browser-storage";
 
 export function useDesktopTabs(library: DesktopLibrary | null) {
   const [windowThread] = useState(() => new URLSearchParams(location.search).get("thread"));
-  const [initial] = useState(() => (windowThread ? undefined : readTabs(localStorage)));
+  const [initial] = useState(() =>
+    windowThread ? undefined : readTabs(browserStorage("localStorage")),
+  );
   const [tabs] = useState(() => new DesktopTabs(undefined, initial));
   const state = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
-  const [recents] = useState(() => new ThreadRecents(localStorage));
+  const [recents] = useState(() => new ThreadRecents(browserStorage("localStorage")));
   const visits = useSyncExternalStore(recents.subscribe, recents.getSnapshot);
   useEffect(() => recents.connect(window), [recents]);
   const [activity] = useState(() => new ThreadActivity(window.eta));
@@ -28,7 +31,11 @@ export function useDesktopTabs(library: DesktopLibrary | null) {
     if (thread) tabs.openThread(thread.id, thread.workspaceId);
   }, [library, initial, tabs, windowThread]);
   useEffect(() => {
-    return persistTabs(tabs, windowThread ? sessionStorage : localStorage, window);
+    return persistTabs(
+      tabs,
+      browserStorage(windowThread ? "sessionStorage" : "localStorage"),
+      window,
+    );
   }, [tabs, windowThread]);
   useEffect(() => {
     if (library) tabs.reconcileThreads(library.threads, library.workspaces);

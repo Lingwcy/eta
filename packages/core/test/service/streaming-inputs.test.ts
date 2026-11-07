@@ -70,6 +70,64 @@ function gate() {
 }
 
 test.each(["live", "reopen"] as const)(
+  "an accepted empty request ID replays its receipt: %s",
+  async (mode) => {
+    const { core, open, provider, thread } = await fixture();
+    const first = gate();
+    provider.setResponses([first.step]);
+    let active = core;
+    try {
+      const admitted = await core.submit(thread.id, "original", "");
+      await first.reached;
+      if (mode === "reopen") {
+        await core.close();
+        active = await open();
+      }
+      const replay = await active.submit(thread.id, "original", "");
+      expect(replay.operationId).toBe(admitted.operationId);
+      expect(replay.startedAt).toBe(admitted.startedAt);
+      expect(provider.state.callCount).toBe(1);
+    } finally {
+      first.response.resolve(fauxAssistantMessage("cleanup"));
+    }
+  },
+  30_000,
+);
+
+test("an empty queued request ID still rejects a different payload without changing its preview", async () => {
+  const { core, provider, thread } = await fixture();
+  const first = gate();
+  provider.setResponses([first.step]);
+  try {
+    await core.submit(thread.id, "original", "root");
+    await first.reached;
+    const queued = await core.submit(thread.id, "queued original", "", undefined, "followUp");
+    const outcome = await core.submit(thread.id, "different", "", undefined, "followUp").then(
+      (value) => ({ status: "accepted", operationId: value.operationId }),
+      (error: { code?: string }) => ({ status: "rejected", code: error.code }),
+    );
+    const snapshot = (await core.openThread(thread.id)).snapshot;
+    const recovered = await core.withdrawInput(thread.id, queued.operationId);
+    expect({
+      outcome,
+      recoveredPrompt: "prompt" in recovered ? recovered.prompt : undefined,
+      queued: snapshot.queuedInputs?.map(({ requestId, operationId, prompt }) => ({
+        requestId,
+        operationId,
+        prompt,
+      })),
+    }).toEqual({
+      outcome: { status: "rejected", code: "InvalidInput" },
+      recoveredPrompt: "queued original",
+      queued: [{ requestId: "", operationId: queued.operationId, prompt: "queued original" }],
+    });
+    expect(provider.state.callCount).toBe(1);
+  } finally {
+    first.response.resolve(fauxAssistantMessage("cleanup"));
+  }
+}, 30_000);
+
+test.each(["live", "reopen"] as const)(
   "image request replay ignores object field order: %s",
   async (mode) => {
     const { core, open, provider, thread } = await fixture();

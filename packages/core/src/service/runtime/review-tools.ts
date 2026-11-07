@@ -1,5 +1,5 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
-import { Type } from "@earendil-works/pi-ai";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { Type } from "typebox";
 import type { Tool, ToolCall } from "@earendil-works/pi-ai";
 import type { Context } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -16,8 +16,10 @@ export const reviewTools: Tool[] = [
       "Read a text file inside the workspace or this repository's shared Git directory. Paths are relative to the workspace root.",
     parameters: Type.Object({
       path: Type.String(),
-      offset: Type.Optional(Type.Integer({ minimum: 1, description: "First line, 1-based" })),
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 2000 })),
+      offset: Type.Optional(
+        Type.Number({ multipleOf: 1, minimum: 1, description: "First line, 1-based" }),
+      ),
+      limit: Type.Optional(Type.Number({ multipleOf: 1, minimum: 1, maximum: 2000 })),
     }),
   },
   {
@@ -244,15 +246,33 @@ export function createReviewToolRunner(
         const workspace = await (await environment()).canonicalPath(root, context);
         if (!workspace.ok || !contains(workspace.value, path))
           throw new Error("grep 只能搜索工作区");
-        const { output } = await run(
-          `grep -rnIF --exclude-dir=.git -m 50 -e ${quote(stringArg(args.pattern, "pattern"))} -- ${quote(path)} | head -n 50`,
-          context,
-        );
-        return {
-          text: clip(output || "(no matches)"),
-          isError: false,
-          summary: `grep ${stringArg(args.pattern, "pattern")}`,
-        };
+        const sandbox = await environment();
+        const directory = await sandbox.createTempDir("eta-review-grep-", context);
+        if (!directory.ok) throw new Error(directory.error.message);
+        try {
+          const status = join(directory.value, "status");
+          // head owns the pipeline exit code; preserve grep failures without requiring Bash pipefail.
+          const { output, exitCode } = await run(
+            `{ grep -rnIF --exclude-dir=.git -m 50 -e ${quote(stringArg(args.pattern, "pattern"))} -- ${quote(path)}; printf '%s' "$?" > ${quote(status)}; } | head -n 50`,
+            context,
+          );
+          const saved = await sandbox.readTextFile(status, context);
+          if (!saved.ok) throw new Error(saved.error.message);
+          if (!/^\d{1,3}$/.test(saved.value) || Number(saved.value) > 255)
+            throw new Error("无法确定 grep 的退出状态");
+          const code = Number(saved.value);
+          // 1 means no matches; 141 is SIGPIPE when head has enough matches.
+          const isError = exitCode !== 0 || ![0, 1, 141].includes(code);
+          return {
+            text: clip(output || (isError ? `(grep exit ${code}, no output)` : "(no matches)")),
+            isError,
+            summary: `grep ${stringArg(args.pattern, "pattern")}`,
+          };
+        } finally {
+          await sandbox
+            .remove(directory.value, { recursive: true, force: true }, BACKGROUND_CONTEXT)
+            .catch(() => undefined);
+        }
       }
       case "git": {
         const gitArgs = Array.isArray(args.args) ? args.args.map(String) : [];

@@ -186,3 +186,54 @@ test("a settings page survives a restart and malformed pages are dropped", () =>
     vi.useRealTimers();
   }
 });
+
+test("restoration keeps view IDs and resource identities separate and reserves only accepted rows", () => {
+  const conversation = (id: string, threadId?: string) => ({
+    kind: "conversation",
+    id,
+    workspaceId: null,
+    draft: id,
+    ...(threadId === undefined ? {} : { threadId }),
+  });
+  const restored = restoreTabs({
+    version: 1,
+    activeId: "later",
+    tabs: [
+      conversation("settings"),
+      { kind: "settings", id: "panel", category: "models" },
+      conversation("thread:target"),
+      conversation("first", "target"),
+      conversation("reusable", "target"),
+      { kind: "browser", id: "reusable", url: "https://example.com/" },
+      conversation("reusable", "other-thread"),
+      conversation("later", "other-thread"),
+      conversation("__proto__", "constructor"),
+    ],
+  });
+  expect(restored?.tabs.map((tab) => tab.id)).toEqual([
+    "settings",
+    "panel",
+    "thread:target",
+    "first",
+    "reusable",
+    "later",
+    "__proto__",
+  ]);
+  expect(restored?.activeId).toBe("later");
+  expect(restored?.tabs.at(-1)).toMatchObject({ threadId: "constructor", draft: "__proto__" });
+});
+
+test("a large JSON snapshot retains every ordered session, draft, policy and active selection", () => {
+  const tabs = Array.from({ length: 10_000 }, (_, index) => ({
+    kind: "conversation",
+    id: "tab-" + index,
+    workspaceId: "workspace-" + index,
+    draft: "draft-" + index,
+    sandboxMode: index % 2 ? "read-only" : "workspace-write",
+  }));
+  const restored = restoreTabs(
+    JSON.parse(JSON.stringify({ version: 1, tabs, activeId: "tab-9999" })),
+  );
+  expect(restored?.tabs).toEqual(tabs);
+  expect(restored?.activeId).toBe("tab-9999");
+});

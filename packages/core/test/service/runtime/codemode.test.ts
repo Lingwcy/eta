@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { Effect, Schema } from "effect";
 import { defineTool } from "@eta/agent";
 import type { JsonValue } from "@earendil-works/chord";
+import { Type } from "typebox";
 import {
   createModels,
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
-  Type,
 } from "@earendil-works/pi-ai";
 import { getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { afterEach, expect, test } from "vite-plus/test";
@@ -766,7 +766,7 @@ test("scripts cannot call disabled tools or upstream model globals", async () =>
 });
 
 test("a paused nested approval survives settings changes and reopening in its original mode", async () => {
-  const f = await fixture();
+  const f = await fixture({ approvalReviewer: { mode: "user" } });
   f.update({ defaultSandboxMode: "read-only" });
   // The default sandbox is selected at thread creation; create another thread for this policy.
   const project = (await f.core.projects())[0]!;
@@ -920,7 +920,7 @@ test("scripts activate and remove skills and create schedules through the existi
 }, 30000);
 
 test("nested rejection and cancellation do not write files", async () => {
-  const f = await fixture({ defaultSandboxMode: "read-only" });
+  const f = await fixture({ defaultSandboxMode: "read-only", approvalReviewer: { mode: "user" } });
   for (const stop of [false, true]) {
     f.provider.setResponses([
       script('await tools.write({path:"denied.txt",content:"bad"});'),
@@ -1549,3 +1549,20 @@ test.each(["standard", "codemode"] as const)(
   },
   30000,
 );
+
+test("Code mode nested tools use automatic review by default", async () => {
+  const f = await fixture({ defaultSandboxMode: "read-only" });
+  f.provider.setResponses([
+    script('await tools.write({path:"auto-reviewed.txt",content:"nested approval"});'),
+    fauxAssistantMessage(
+      JSON.stringify({ decision: "approve", risk: "low", rationale: "Routine requested edit" }),
+    ),
+    fauxAssistantMessage("Done"),
+  ]);
+  const { snapshot } = await f.run();
+  expect(await readFile(join(f.cwd, "auto-reviewed.txt"), "utf8")).toBe("nested approval");
+  expect(snapshot.approvals).toEqual([]);
+  expect(snapshot.approvalHistory).toMatchObject([
+    { tool: "write", decidedBy: "auto", review: { status: "approved" } },
+  ]);
+}, 20000);

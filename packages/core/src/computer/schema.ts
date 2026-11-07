@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 
 const Point = Type.Object({ x: Type.Number(), y: Type.Number() });
 
@@ -108,7 +108,8 @@ export const computerParameters = Type.Object(
     ),
     // 最新 AX 控件树中的元素索引，绑定到 frameId
     elementIndex: Type.Optional(
-      Type.Integer({
+      Type.Number({
+        multipleOf: 1,
         minimum: 0,
         maximum: 799,
         description:
@@ -147,11 +148,12 @@ export const computerParameters = Type.Object(
     button: Type.Optional(Type.Union([Type.Literal("left"), Type.Literal("right")])),
     // 点击次数
     count: Type.Optional(Type.Union([Type.Literal(1), Type.Literal(2)])),
-    deltaX: Type.Optional(Type.Integer({ minimum: -1000, maximum: 1000 })),
-    deltaY: Type.Optional(Type.Integer({ minimum: -1000, maximum: 1000 })),
+    deltaX: Type.Optional(Type.Number({ multipleOf: 1, minimum: -1000, maximum: 1000 })),
+    deltaY: Type.Optional(Type.Number({ multipleOf: 1, minimum: -1000, maximum: 1000 })),
     // 持续时间 对于 wait 是等待时间；对于 drag 是期望的整条轨迹时长，省略时默认根据路径长度决定
     durationMs: Type.Optional(
-      Type.Integer({
+      Type.Number({
+        multipleOf: 1,
         minimum: 0,
         maximum: 10000,
         description:

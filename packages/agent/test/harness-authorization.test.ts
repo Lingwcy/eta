@@ -1,4 +1,5 @@
-import { fauxAssistantMessage, fauxText, fauxToolCall, Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
+import { fauxAssistantMessage, fauxText, fauxToolCall} from "@earendil-works/pi-ai";
 import {
 	defineTask,
 	defineTool,

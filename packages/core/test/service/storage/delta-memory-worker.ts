@@ -1,3 +1,4 @@
+import { commitWrites } from "@eta/agent/testing";
 import assert from "node:assert/strict";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { track } from "@earendil-works/chord/delta";
@@ -13,14 +14,19 @@ assert.ok(globalThis.gc, "Run the worker with --expose-gc");
 const context = BACKGROUND_CONTEXT;
 let storage: Storage =
   backend === "memory" ? new MemoryStorage() : await openNodeJsonlStorage(directory, context);
-await storage.commit([{ type: "conversation", value: { id: ROOT_CONVERSATION_ID } }], context);
+await commitWrites(
+  storage,
+  [{ type: "conversation", value: { id: ROOT_CONVERSATION_ID } }],
+  context,
+);
 const id = await storage.mintId<DocumentId>();
 const tracker = track({ generation: { partialJson: '{"code":"import React from "' } });
 // Include non-ASCII and lone surrogates: detaching through UTF-8 would change the stored text.
 const chunk = " ".repeat(506) + "中😀\ud800 \udfff";
 
 try {
-  await storage.commit(
+  await commitWrites(
+    storage,
     [
       {
         type: "document.create",
@@ -46,7 +52,8 @@ try {
     const change = tracker.beginChange();
     change.state.generation.partialJson = text;
     const prepared = change.prepare();
-    await storage.commit(
+    await commitWrites(
+      storage,
       [{ type: "document.change", id, content: { kind: "delta", version: 1, ops: prepared.ops } }],
       context,
     );

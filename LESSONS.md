@@ -91,6 +91,11 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: distinguish review material from runtime icons and product documentation images, include legacy review folders, and pin historical evidence before deletion. Removing current-tree files neither erases history nor shrinks an existing full Git clone; do not rewrite history to claim otherwise.
 - Seen: 2026-10-18.
 
+**Preserve complete history when a runtime windows observations.**
+
+- Evidence: on 2026-11-03, Pi Durable 1.5 limited live watches to a recent window. Projecting that window directly dropped older messages; paging it on every streaming update would reread the whole history. The long-history Core regression verifies the complete transcript and that an appended update reuses already read pages. Check pagination, compaction and incremental updates when upgrading a runtime.
+- Seen: 2026-11-03.
+
 **Bound mounted transcript rows and index tools once per observation.**
 
 - Evidence: on 2026-10-17, the maintainer reported slow opening and client-wide lag in a long-running scheduled thread. Source inspection found every historical message mounted, with every message rebuilding and scanning the full tool index. An isolated Chrome fixture with 200 runs and 2,000 transcript records mounted about 22,000 DOM nodes before virtualization and about 750 afterward; this is synthetic evidence, not a profile of the reported thread.
@@ -122,6 +127,18 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Validate configuration against its operational protocol without rewriting secrets.**
+
+- Evidence: on 2026-11-07, #589 loads a Bot file configuration with a space-containing administrator token. The actual offline application starts and reports healthy/ready, yet its configured secret is rejected by Bearer authentication. Thirteen syntax controls expose the loader accepting unusable values; positive controls retain exact token bytes and authenticate through the actual application, including allowed punctuation and trailing padding.
+- Check: reject values the next protocol consumer cannot use before startup; a nonempty JSON string is not enough. Do not silently trim, recase or strip padding from credentials, or invent a new strength policy. Keep errors redacted and distinguish file-loader validation from direct programmatic construction and real deployment availability.
+- Seen: 2026-11-07.
+
+**Separate output-producing declaration inputs from full workspace type checks.**
+
+- Evidence: on 2026-11-06, #577 reproduces a successful Core build creating `scripts/published-pi-aliases.d.ts` outside its product output. The declaration generator reused a tsconfig that includes the Vite config and its relative helper import. Real isolated builds also overwrite a pre-existing helper declaration. A product-only declaration tsconfig prevents both effects while retaining importable output and exported types; the original full typecheck remains unchanged. Removing the dedicated configuration makes both filesystem controls fail again.
+- Check: exercise actual compiler output in an isolated repository, including absent and user-owned output paths. Limit emit inputs separately from source/test/tooling validation; ignoring generated files does not prevent clobbering them.
+- Seen: 2026-11-06.
+
 **Normalize logical request fields without invalidating persisted replay identities.**
 
 - Evidence: on 2026-11-02, #556 submits an actual Core queued image request, then changes only attachment object field order. Both live and close/reopen retries fail with InvalidInput because raw JSON property order changes the fingerprint. Keep the legacy digest and add an order-independent digest of declared image fields; preserve attachment array order and reject real prompt/mode/data/MIME/name/note changes. A legacy-record reopen control keeps unknown old order conservative, permits the exact old representation, then safely backfills the canonical digest without rewriting its legacy identity.
@@ -139,13 +156,6 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Evidence: on 2026-10-25, #452's real Core/Git controls on `a9208d9` store HTTPS/SSH remotes with an unescaped email-style username. First-`@` redaction leaves the complete fake password in the public repository DTO; separate query/fragment controls instead lose their host. Redact through the last authority separator, bounded by `/`, `?` and `#`, and leave the original Git transport configuration untouched.
 - Check: cover raw and percent-encoded userinfo, extra password delimiters, IPv6/ports and non-userinfo `@`. Use fake credentials and real DTO reads; do not infer production leakage, remote authentication success or protection of arbitrary query secrets from these tests.
 - Seen: 2026-10-25.
-
-**Check command success before treating machine-readable stdout as a complete observation.**
-
-- Evidence: on 2026-10-25, #448's real Core/Git controls on `c718f7c` corrupt a temporary index or configure an invalid fetch refspec. The corresponding `status`/`remote -v` exits 128, but unchecked stdout still produces `ready`: empty status becomes clean and a failed remote read becomes no remotes. Rejecting the failed read returns `unavailable`; repairing only the fixture restores its dirty-file counts and GitHub selection without losing files.
-- Additional evidence: on 2026-10-27, #473's same-size hello/world fixture has a deterministic real-Git counterexample: minimal stat checking, untrusted ctime, a retained file mtime and a rewritten later index yield raw status containing only the untracked file, despite changed README bytes. The actual Core recovery assertion fails with unstaged=0. A different-size marker preserves the dirty-file contract under this controlled schedule; failure-only diagnostics now retain raw status, index cache, configuration, nanosecond file/index stat and content without hiding the original assertion. This proves a fixture assumption, not that historical CI used these settings or that every recurrence is explained.
-- Check: command wrappers may resolve nonzero exits rather than throw. Validate the exit code before interpreting empty or partial output; preserve legitimate empty/unborn states and verify recovery after repair. A fixture requiring dirty content must not depend on equal-size stat-cache invalidation; use a deterministic metadata boundary and preserve raw failure evidence before changing production reads. Report the failed stage without blindly copying sensitive repository diagnostics. These are controlled read failures, not evidence that Git deleted user data.
-- Seen: 2026-10-25, 2026-10-27.
 
 **Check actual desktop-session ownership before interpreting AX or injecting input.**
 
@@ -221,7 +231,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Bound observation transport silence independently of model output.**
 
 - Evidence: on 2026-10-19, BDS-03's Desktop SSE could wait forever for headers or a body read while the directory remained connected. Controlled stalled-header/body/partial-frame cases fail before the fix; a server heartbeat plus per-attempt complete-frame deadlines recovers a current snapshot without treating an idle model as disconnected. Thread and schedule routes, cancellation, late fetches and a held heartbeat write are covered; this is not an OS TCP or production proxy reproduction.
-- Check: bound both connection setup and subsequent complete frames, keep a single in-flight heartbeat under backpressure, and cancel timers and late deliveries with their owning observation. Consumer backpressure is not a transport deadline. Older servers without heartbeats will periodically reconnect during silence; do not claim native or deployment compatibility from stream fixtures alone.
+- Additional evidence: on 2026-11-07, #595 finds Hono HEAD-to-GET dispatch starting SSE producers whose returned bodies are discarded without cancellation. Four thread/schedule identity/gzip controls retain a heartbeat after HEAD completes; three real loopback schedule HEAD requests accumulate three live Core subscriptions until application shutdown. Returning authorized HEAD metadata before producer allocation leaves none, while GET heartbeat and disconnect controls remain covered. This is a controlled Linux loopback/resource reproduction, not a production outage or all-proxy result.
+- Check: bound both connection setup and subsequent complete frames, keep a single in-flight heartbeat under backpressure, and cancel timers and late deliveries with their owning observation. Bodyless metadata requests must not allocate an unowned streaming producer; preserve authentication and target validation before their early return. Consumer backpressure is not a transport deadline. Older servers without heartbeats will periodically reconnect during silence; do not claim native or deployment compatibility from stream fixtures alone.
+- Seen: 2026-10-19, 2026-11-07.
 
 **Authorize from current ownership metadata, not a display projection.**
 
@@ -258,8 +270,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 **Index stable catalog records once before a bulk traversal.**
 
 - Evidence: on 2026-10-20, BDS-06 searches the entire registered-project array for each directory and allocates/scans its visible project IDs for each workspace. Real Core/filesystem fixtures count 624 rootPath reads at 32 projects before indexing; an upper bound of five reads per project passes afterward. Separate controls preserve newly discovered/missing projects, outside-scope exclusion and canonical duplicate-path first-match behavior. This measures metadata access, not production latency or every filesystem operation.
-- Check: build indexes from the current scan, retain the original duplicate-key selection rule, and construct membership sets only after all eligible projects are known. Keep filesystem validation and request freshness unchanged rather than retaining a permission cache across scans.
-- Seen: 2026-10-20.
+- Additional evidence: on 2026-11-06, #585 finds tab restoration rescanning every previously accepted view ID. Five alternating before/after measurements over identical JSON inputs preserve byte-identical restored results; 20,000 records (1,617,825 JSON bytes) take median 1,496ms before and 18ms with a separate ID set on one machine. State controls retain all sessions, drafts, policies and active selection, keep view/resource identity namespaces distinct, and avoid reserving IDs for rejected rows. These are parser measurements on synthetic input, not native UI or common-user latency claims.
+- Check: build indexes from the current scan, retain the original duplicate-key selection rule, and construct membership sets only after all eligible projects are known. Incremental restoration must reserve only accepted rows and keep identity namespaces separate. Preserve all valid user state rather than imposing a new cap; use state controls and paired benchmarks rather than fragile CI millisecond thresholds. Keep filesystem validation and request freshness unchanged rather than retaining a permission cache across scans.
+- Seen: 2026-10-20, 2026-11-06.
 
 **Validate update metadata against actual asset bytes, not only a matching digest.**
 
@@ -273,11 +286,14 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: provider call IDs need not be globally unique across turns. Preserve unrelated history and valid replacement summaries, and exercise the shared projection in a suite actually run by CI; the current Bot/Desktop workflows build Agent but do not run its unit suite.
 - Seen: 2026-10-17.
 
-**Classify header-decided HTTP failures before reading an unused body.**
+**Preserve authoritative HTTP failure classifications across request boundaries.**
 
 - Evidence: on 2026-10-17, #84's controlled Response streams show Desktop and Mobile consuming a stalled 401 body before rejecting authentication; Mobile's event subscription cannot reach its fatal-auth path while that body remains open. Handling the status first and cancelling the unused stream makes both clients reject without a body pull, including when cancellation fails.
-- Check: cover ordinary requests and streaming entry points on sibling clients. Do not let optional diagnostics or cleanup replace an already authoritative authentication error; preserve non-auth server diagnostics and existing body-read deadlines.
-- Seen: 2026-10-17.
+- Additional evidence: on 2026-11-07, #587 sends malformed bearer headers through the real Bot application. Middleware rejects them as HTTP 400, but the server error boundary treats that framework exception as unknown and returns 500/InternalError. Preserve a sanitized 400/InvalidInput while keeping absent/wrong credentials at 401 and valid authentication at 200. Read/write route controls confirm rejected project creation leaves the directory unchanged and response bodies do not echo credentials; this is not an authentication bypass or production-outage claim.
+- Additional evidence: on the same 2026-11-07 review date, #593 verifies that the real Bot returns the right 400/401 status but drops the middleware WWW-Authenticate challenge. Three absent/wrong/malformed credential controls fail on missing headers; preserving only that protocol header retains exact Bearer error semantics while read/write controls keep JSON redacted and reject project side effects. This is application-path protocol evidence, not a reported client incident or proxy acceptance.
+- Same-date cleanup evidence: #601 holds a real Mobile SSE source cancellation promise after the actual snapshot schema rejects its frame. Awaiting that optional cleanup prevents BotClient.watch from reporting the fatal error or releasing its reader lock. Initiating cancellation without waiting preserves the original error and lets the watch end; late cleanup resolution/rejection and absence of reconnect/timers are controlled. This does not prove native-phone network cleanup can be forcibly completed.
+- Check: cover middleware as well as route errors, ordinary requests and streaming entry points on sibling clients. Preserve required protocol metadata when replacing an error body, without forwarding arbitrary headers. Recognize expected framework client failures without weakening authorization or exposing raw errors; unexpected faults must remain sanitized server errors. Do not let optional diagnostics, body reads or cleanup replace an authoritative authentication error; preserve non-auth server diagnostics and existing body-read deadlines.
+- Seen: 2026-10-17, 2026-11-07.
 
 **End failed turns without treating a temporary provider limit as a permanent scheduling block.**
 
@@ -302,20 +318,17 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Check: cover falsy values, arrays and content-like business records, not only object-shaped success results. Use the durable declaration rather than a current registration that may have changed after admission; preserve preview budgets and keep image payloads out of schema-less text previews.
 - Seen: 2026-10-16.
 
+**Verify schema coercion when upgrading a validator.**
+
+- Evidence: on 2026-11-03, Pi 1.5's schema parser coerced fractional numbers to integers before validation, so the schedule tool silently changed `300000.5` to `300000` while the service rejected it. The schedule and computer schema regressions check the published validator with fractional values; represent strict integer fields as numbers with `multipleOf: 1` when using this parser.
+- Seen: 2026-11-03.
+
 **Validate SDK compatibility separately from frozen dependency resolution.**
 
 - Evidence: #29 and #54 failed Mobile CI at Expo's compatibility gate despite successful frozen installs. On 2026-10-15, main `ff2545b` reproduces the expected Expo `~57.0.30` / Router `~57.0.28` mismatch; the release commit only changes Desktop/root versions. Expo CLI reads its native-module recommendations from an online SDK API, so a lockfile does not freeze that contract. Aligning these patches makes the compatibility check pass; this does not establish that the old native app was broken.
+- Additional evidence: on 2026-11-06, release PR #573 changes only the root/Desktop version, yet Mobile run `42272116885` fails the live Expo compatibility check for five newer patch ranges. The same check fails locally after a successful frozen install; updating the four Expo catalog ranges, Mobile constants and their lock graph makes it pass with Mobile typecheck. The existing release-age policy is unchanged. Release exports and installed native behavior remain separate validation stages.
 - Check: preserve the compatibility gate, verify the SDK's required toolchain together, and export both platforms. Keep release-age exceptions restricted to required exact versions and verify unrelated workspace importers remain unchanged; do not disable policy or force offline metadata merely to turn CI green.
-- Seen: 2026-10-15.
-
-**Parse streaming protocols independently of transport read boundaries.**
-
-- Evidence: on 2026-10-15, byte-split LF frames passed Desktop's thread and schedule subscriptions, but valid split CRLF and bare-CR frames produced six failures: no completed thread observation or schedule revision arrived. The shared Desktop parser normalized each chunk separately, losing CRLF boundaries split across reads. Incremental line-ending normalization makes all 18 Bot transport tests pass, including UTF-8, admission acknowledgement, reconnect and cancellation; Mobile's existing independent parser passes its four boundary tests unchanged. This is a controlled protocol reproduction, not a production incident or an explanation of unrelated CI failures.
-- Additional evidence: on 2026-10-22, Desktop's main process sustained about 105% CPU while a remote scheduled thread had a 28,067,653-byte snapshot with 8,054 messages. Replaying that response as one SSE frame in 16 KiB text chunks took 4,786 ms with repeated whole-buffer delimiter searches and 18 ms with chunk-local searches and one final join. This isolates frame assembly, not end-to-end rendering or the original CPU stack's unnamed JavaScript frames. `apps/desktop/src/main/event-stream.test.ts` bounds searched characters for a fragmented large frame and covers delimiter splits; existing Bot tests exercise both stream consumers and cancellation. Mobile's independent line parser still has an analogous growing-buffer scan and was not changed in this Desktop fix.
-- Check: feed valid frames across arbitrary byte boundaries, including UTF-8 and line endings, on every consumer of a shared parser. Do not assume a server's usual LF output or a whole-frame mock covers the wire protocol.
-- Check large frames too: search only newly arrived text and retain unfinished fragments without repeatedly concatenating and scanning the growing prefix.
-- Additional evidence: on 2026-10-22, #373 exercises Mobile's independent readEvents with a real byte stream carrying a 1 MiB snapshot in 1 KiB chunks: repeated growing-prefix newline searches offer 538,428,436 characters to the matcher. Incremental fragment assembly passes a linear search-input bound while preserving every LF/CRLF/CR byte split, UTF-8, incomplete-frame rejection, cancellation and the existing line/data size limits. #371 is independently scoped to Desktop; a shared protocol does not imply a shared parser. This is a deterministic algorithm regression, not a native-phone CPU or OOM measurement. Use constant-space observation: a spy retaining growing call arguments can manufacture a fixture OOM.
-- Seen: 2026-10-15, 2026-10-22.
+- Seen: 2026-10-15, 2026-11-06.
 
 **A process-local runtime cache miss does not establish durable idleness.**
 
@@ -328,13 +341,6 @@ that the rest of the history has been reviewed or that those fixes pass today.
 - Evidence: on 2026-10-13, the scheduled-task `SIGKILL at delete-intent` fixture moved a real session into `.trash` and killed the host before its Catalog replacement. The reopened Catalog still contained the thread, but opening it failed with `StorageCorrupt`. Session removal now journals before renaming and reconciles that journal against Catalog before opening threads; six real archive/delete crash windows pass, including restore-after-archive without restarting plans.
 - Check: kill the process after filesystem staging and after Catalog persistence; prove the original transcript remains accessible when the operation did not commit and that committed deletion does not resurrect it. An in-memory rollback callback cannot cover process death.
 - Seen: 2026-10-13.
-
-**Validate persisted state on both read and write boundaries.**
-
-- Evidence: #427's public Core reconciliation writes an unmanaged, unverified worktree with an empty commonDir, while its reader requires a nonempty identity. A normal history then fails even after restart. The 2026-10-23 follow-up covers both non-repository and externally removed checkouts, preserves unrelated managed receipts and execution, and rejects unknown identities in every managed or verified state. Validating candidate writes before replacement keeps an invalid update from poisoning the next read and leaves the queue usable.
-- Additional evidence: on 2026-10-26, #465's real Bot/Hono administrator import accepts JSON numeric overflow as an OAuth expiry and returns 200, but the rewritten file makes the next real startup fail with StorageCorrupt. Number schemas accepted non-finite values that JSON turns into null; migration also lacked source validation. Finite checks at all write ingress preserve old bytes, while real reopen, atomic migration retry, finite expired/fractional values and corrupt-file rejection remain covered. Fake-token fixtures are not production outage evidence.
-- Check: validate compatibility with the serialized read contract, not only the in-memory schema. Represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
-- Seen: 2026-10-23, 2026-10-26.
 
 **Do not discard acquired effect confirmation when progress publication fails.**
 
@@ -492,6 +498,36 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Check canonical defaults at every documented setup entry point.**
+
+- Evidence: on 2026-11-07, #591 finds the Bot README still calling manual approval the default, while the runtime constant, reviewer fallback and user guide all use automatic review when unset. The existing real HTTP control actually writes the requested workspace file after a model review and records an automatic decision without manual acceptance. Correct the stale setup instructions, not the maintainer-requested runtime behavior.
+- Check: compare omitted and explicit settings across code, deployment README and user guidance. State how to explicitly retain manual behavior, and distinguish a documentation mismatch from a new authorization bypass or live-model safety proof.
+- Seen: 2026-11-07.
+
+**Acquire optional capabilities inside the same guarded operation that uses them.**
+
+- Evidence: on 2026-11-06, #581 makes browser Storage accessors throw SecurityError. Main-window tab initialization, detached-window persistence effects and the recent-model factory fail before reaching their existing getItem/setItem guards. Lazy adapters move acquisition inside those operations; actual Hook edits and input history stay in memory, and restoring storage allows drafts and model choices to persist and reopen again.
+- Check: fault the property getter, not only methods on an already acquired object. Preserve existing diagnostics and retry acquisition on later operations; a permanent no-op fallback can silently discard data even after permission recovers. These are DOM controls, not native policy or production-outage proof.
+- Seen: 2026-11-06.
+
+**Merge shared bounded histories before replacing them from long-lived views.**
+
+- Evidence: on 2026-11-06, #579 constructs two model-history stores over shared Web Storage before either records a choice. Sequential writes discard the other store's newly saved model; 105 alternating choices restore only one store's subset. Read the latest durable history before saving, prioritize the current choice and persisted order, deduplicate complete scope/provider/model identities, then enforce the cap. Shared-storage reopen controls retain both scopes, updated thinking levels and the latest 100 distinct choices.
+- Check: exercise independent stale instances and reopen from storage, not just in-memory notifications. Retain optional-storage fallback without claiming a read/modify/write sequence is an atomic cross-process transaction; simultaneous writers and native multi-window acceptance are separate validation.
+- Seen: 2026-11-06.
+
+**Resolve implicitly trusted filesystem grants before expanding them.**
+
+- Evidence: on 2026-11-06, #571 on `9dc85e1` makes a linked repository's `refs/tags` point at `hooks`. A real Core run first receives a routine Git grant, then its reused scope writes a non-executable hooks marker; the normal-directory control commits without that write. Native sandbox controls confirm actual file I/O, not just proposed roots. Compare every expanded root with its expected location under the canonical common directory before creating lazy ref directories or granting it. A late-check mutation still creates directories through redirected parents and fails two filesystem controls.
+- Check: retain normal commit/fetch/tag and user-only grants, reject object/ref/parent aliases without side effects, and require an explicit real-path request for unusual redirected layouts. The controlled pre-existing metadata alias does not prove remote-clone exploitability, real credential theft, hook execution, all OS behavior or concurrent path-swap safety.
+- Seen: 2026-11-06.
+
+**Verify inherited command configuration across every process boundary.**
+
+- Evidence: on 2026-11-06, the native sandbox proxy regression still failed with curl exit 6 after the launch environment carried HTTP_PROXY: the worker reconstructed a second allowlist for commands and dropped it again. Sharing the proxy projection across both boundaries makes curl and Git reach a fixture proxy, while network-disabled and host-token controls retain the sandbox boundary.
+- Check: test an actual descendant command, not just launch arguments or a parser. Preserve explicit configuration precedence without copying unrelated credentials. Static macOS proxy parsing and a loopback fixture do not establish PAC support or real remote authentication.
+- Seen: 2026-11-06.
+
 **Classify bare web addresses from parsed authorities, not raw prefixes.**
 
 - Evidence: on 2026-10-19, #187 enters localhost/port URLs with query or fragment through the real browser panel. Inconsistent delimiters reject valid URLs or send them to search; raw prefixes select the wrong default scheme for uppercase localhost and public lookalikes. Parsed-host classification and consistent boundaries fix both create/navigate while preserving explicit protocols and ports. Native loads are controlled fixtures, not network/TLS or production-leak evidence.
@@ -541,13 +577,44 @@ model choice must still be validated as an explicit choice.**
 
 ## Promoted lessons
 
+**Validate persisted state on both read and write boundaries.**
+
+- Evidence: #427's public Core reconciliation writes an unmanaged, unverified worktree with an empty commonDir, while its reader requires a nonempty identity. A normal history then fails even after restart. The 2026-10-23 follow-up covers both non-repository and externally removed checkouts, preserves unrelated managed receipts and execution, and rejects unknown identities in every managed or verified state. Validating candidate writes before replacement keeps an invalid update from poisoning the next read and leaves the queue usable.
+- Additional evidence: on 2026-10-26, #465's real Bot/Hono administrator import accepts JSON numeric overflow as an OAuth expiry and returns 200, but the rewritten file makes the next real startup fail with StorageCorrupt. Number schemas accepted non-finite values that JSON turns into null; migration also lacked source validation. Finite checks at all write ingress preserve old bytes, while real reopen, atomic migration retry, finite expired/fractional values and corrupt-file rejection remain covered. Fake-token fixtures are not production outage evidence.
+- Check: validate compatibility with the serialized read contract, not only the in-memory schema. Represent a legitimate unknown identity without inventing one or weakening verified-state invariants. Run the producer through actual persistence and reopen it; reject malformed existing stores rather than silently clearing them, and verify a refused write leaves the previous bytes intact. Schema acceptance is not workspace execution permission.
+- Additional evidence: on 2026-11-07, #603 uses actual SQLite ingress to show distinct lone-surrogate JSON request IDs and valid U+FFFD all replay the first receipt: Node TEXT encoding replaces the invalid code units. Reject ill-formed scope/id before database access or execution without normalizing valid identifiers; real HTTP no-side-effect and SQLite reopen controls retain replacement characters, emoji, combining forms, prototype names and NUL as distinct identities. This prevents new aliases, not recovery of already lossy historical keys or proof of a production incident.
+- Promoted on 2026-11-07 to [Verifying](AGENTS.md#verifying).
+- Seen: 2026-10-23, 2026-10-26, 2026-11-07.
+
+**Parse streaming protocols independently of transport read boundaries.**
+
+- Evidence: on 2026-10-15, byte-split LF frames passed Desktop's thread and schedule subscriptions, but valid split CRLF and bare-CR frames produced six failures: no completed thread observation or schedule revision arrived. The shared Desktop parser normalized each chunk separately, losing CRLF boundaries split across reads. Incremental line-ending normalization makes all 18 Bot transport tests pass, including UTF-8, admission acknowledgement, reconnect and cancellation; Mobile's existing independent parser passes its four boundary tests unchanged. This is a controlled protocol reproduction, not a production incident or an explanation of unrelated CI failures.
+- Additional evidence: on 2026-10-22, Desktop's main process sustained about 105% CPU while a remote scheduled thread had a 28,067,653-byte snapshot with 8,054 messages. Replaying that response as one SSE frame in 16 KiB text chunks took 4,786 ms with repeated whole-buffer delimiter searches and 18 ms with chunk-local searches and one final join. This isolates frame assembly, not end-to-end rendering or the original CPU stack's unnamed JavaScript frames. `apps/desktop/src/main/event-stream.test.ts` bounds searched characters for a fragmented large frame and covers delimiter splits; existing Bot tests exercise both stream consumers and cancellation. Mobile's independent line parser still has an analogous growing-buffer scan and was not changed in this Desktop fix.
+- Check: feed valid frames across arbitrary byte boundaries, including UTF-8 and line endings, on every consumer of a shared parser. Do not assume a server's usual LF output or a whole-frame mock covers the wire protocol.
+- Check large frames too: search only newly arrived text and retain unfinished fragments without repeatedly concatenating and scanning the growing prefix.
+- Additional evidence: on 2026-10-22, #373 exercises Mobile's independent readEvents with a real byte stream carrying a 1 MiB snapshot in 1 KiB chunks: repeated growing-prefix newline searches offer 538,428,436 characters to the matcher. Incremental fragment assembly passes a linear search-input bound while preserving every LF/CRLF/CR byte split, UTF-8, incomplete-frame rejection, cancellation and the existing line/data size limits. #371 is independently scoped to Desktop; a shared protocol does not imply a shared parser. This is a deterministic algorithm regression, not a native-phone CPU or OOM measurement. Use constant-space observation: a spy retaining growing call arguments can manufacture a fixture OOM.
+- Additional evidence: on 2026-11-07, #597 sends the same 8 MiB JSON event through actual Mobile readEvents in a 64 MiB Node heap. Coarse reads pass, but one-byte reads retain millions of fragment-array entries and abort with V8 OOM before the 64 MiB text limit. Fixed-size fragment batches pass both controls without rescanning or repeatedly copying the entire prefix; UTF-8/multiline/frame-reset and existing size/cancellation controls remain covered. This is controlled Node heap evidence, not native-phone or production OOM.
+- Same-date follow-up: #599 verifies Desktop has an independent EventStreamFrames implementation still retaining one array entry per tiny read after the Mobile fix. Its 8 MiB JSON frame also passes coarse fragments but aborts on one-character fragments at the same Node old-space limit. Prefix batches retain the final read separately for split delimiters; removing that ownership fails two boundary controls. These are parser controls, not Electron or network-fragmentation acceptance.
+- Promoted on 2026-11-07 to [Verifying](AGENTS.md#verifying).
+- Seen: 2026-10-15, 2026-10-22, 2026-11-07.
+
+**Check command success before treating machine-readable stdout as a complete observation.**
+
+- Promoted on 2026-11-06 to [Verifying](AGENTS.md#verifying).
+- Evidence: on 2026-10-25, #448's real Core/Git controls on `c718f7c` corrupt a temporary index or configure an invalid fetch refspec. The corresponding `status`/`remote -v` exits 128, but unchecked stdout still produces `ready`: empty status becomes clean and a failed remote read becomes no remotes. Rejecting the failed read returns `unavailable`; repairing only the fixture restores its dirty-file counts and GitHub selection without losing files.
+- Additional evidence: on 2026-10-27, #473's same-size hello/world fixture has a deterministic real-Git counterexample: minimal stat checking, untrusted ctime, a retained file mtime and a rewritten later index yield raw status containing only the untracked file, despite changed README bytes. The actual Core recovery assertion fails with unstaged=0. A different-size marker preserves the dirty-file contract under this controlled schedule; failure-only diagnostics now retain raw status, index cache, configuration, nanosecond file/index stat and content without hiding the original assertion. This proves a fixture assumption, not that historical CI used these settings or that every recurrence is explained.
+- Additional evidence: on 2026-11-06, #583 makes reviewer grep fail on an unreadable file in default-shell, sh and actual read-only sandbox controls. The successful head stage hides grep exit 2 and the tool reports isError=false. Preserve the producer status independently; no-match exit 1 and head-induced SIGPIPE are expected outcomes, not search errors. Actual permission repair, truncation and cancellation controls verify classification and owned temporary-directory cleanup without widening permissions.
+- Check: command wrappers may resolve nonzero exits rather than throw. Validate the exit code before interpreting empty or partial output; preserve legitimate empty/unborn states and verify recovery after repair. A fixture requiring dirty content must not depend on equal-size stat-cache invalidation; use a deterministic metadata boundary and preserve raw failure evidence before changing production reads. Report the failed stage without blindly copying sensitive repository diagnostics. These are controlled read failures, not evidence that Git deleted user data.
+- Seen: 2026-10-25, 2026-10-27, 2026-11-06.
+
 **Treat external IDs as own data keys on both reads and writes.**
 
 - Promoted on 2026-10-26 to [Verifying](AGENTS.md#verifying).
 - Evidence: on 2026-10-21, #361's real Core/Git calls reject toString, constructor and `__proto__` as already-used request IDs because JSON dictionaries inherit Object.prototype. On 2026-10-22, #367 finds the independent scheduler returning a function for an unknown request and rejecting create/propose/approve/manual-run requests for the same keys. Read guards alone are insufficient there: plain assignment to a new `__proto__` key invokes a setter. Real Core close/reopen tests preserve own durable receipts; separate lifecycle controls reject pending requests with these IDs without mistaking inherited names for active lifecycle intentions.
 - Additional evidence: on 2026-10-26, #463's real CredentialService controls on `6b73a44` clone inherited provider functions, return a phantom `__proto__` credential and reject direct API-key creation as StorageUnavailable. First-run migration from the real third-party memory store omits its `__proto__` OAuth entry from both export and the actual file. Own-key reads and Object.fromEntries retain those providers through reopen and logout without restoring logged-out entries; fake-token controls do not establish production loss or global prototype pollution.
-- Check: test arbitrary IDs through real persistence and replay, distinguish absent entries with own-property checks, and publish data without invoking prototype setters. Check later lifecycle membership tests as well as admission; do not ban valid IDs or claim a prototype-pollution exploit from a false-collision regression.
-- Seen: 2026-10-21, 2026-10-22, 2026-10-26.
+- Additional evidence: on 2026-11-02, #559 confirms that Harness/storage accept and persist an empty request ID while Core uses truthiness to skip receipt and fingerprint lookup. Actual Core live/reopen retries fail Busy/RecoveryRequired; a conflicting queued draft is wrongly accepted and rewrites both the preview and withdrawal payload. Explicit undefined checks retain replay and conflict protection. A receipt-lookup-only mutant passes the two replay controls but still accepts the conflict; the full three controls reject it without changing the saved draft. This is a Core API boundary, not evidence that HTTP nonempty-ID validation can be bypassed.
+- Check: test arbitrary IDs through real persistence and replay, distinguish absent entries with own-property checks, and publish data without invoking prototype setters. Match omission checks to the accepted ID contract rather than using truthiness. Check later lifecycle membership tests as well as admission; do not ban valid IDs or claim a prototype-pollution exploit from a false-collision regression.
+- Seen: 2026-10-21, 2026-10-22, 2026-10-26, 2026-11-02.
 
 **Bind asynchronous monitoring and cleanup to an admission, not just its stable thread ID.**
 
@@ -608,11 +675,13 @@ a dependency. A dev server succeeding does not prove an installed client works.*
 - Additional evidence: on 2026-10-16, PR #81's Bot build failed because its Desktop integration imports `DraftThread`, whose new localized error import used a renderer-only `@/` alias. Bot typecheck reproduces TS2307 even though Desktop CI passes. Importing the shared error contract directly avoids pulling renderer translation initialization into the reused draft logic; verify both host builds and the Desktop/Bot integration when changing such imports.
 - Additional evidence: on 2026-10-24, Desktop package verification only checked that the native helper was executable. An isolated executable reporting `backgroundInput:false` passed the previous verifier (exit 0); actually running its self-test now rejects it (exit 1). The real ad-hoc Apple Silicon app passed deep signature verification, both helper slices and isolated actual-ASAR runtime/Code mode loading. This does not prove fresh macOS permission grants, GUI startup or Developer ID notarization.
 - Additional evidence: on 2026-10-24, hiding the new computer-use package's local dist left Bot's build successful but emitted an unresolved external import from Core's computer extension. Include that transitive workspace package in Bot's source aliases and bundling policy even though Bot does not inject a desktop capability. The same cold build then resolves it, and the isolated Bot runtime verifier exercises the packaged entry.
+- Additional evidence: on 2026-11-03, disabling Vite's `source` condition to accommodate Pi's missing published source files made clean Desktop CI unable to resolve workspace Core imports. Local tests had passed against an existing Core `dist`. Alias the workspace sources explicitly and run the affected client tests with that output absent.
 - CI follow-up: #432's Linux Core crash/lifecycle workers import that package through Node, outside Vite's source conditions, and failed with missing `dist/protocol.mjs`. Build and verify the workspace dependency before Core tests in both Desktop and Bot workflows; Vite aliases cannot repair a separate Node process's package exports.
+- Additional evidence: on 2026-11-06, v0.1.161 release run `42277084314` passes source tests but all three installer jobs fail the isolated packaged-runtime assertion at `verify-package.mjs:127`: the maintained local default is now `danger-full-access`, while the smoke test still expects `workspace-write`. Keep the new-default check separate from explicit restricted-mode availability and saved read-only preference checks. The release was not published; retain its failed tag rather than relabeling artifacts from changed source.
 - Check: trace the actual worker/runtime entry and workspace subpath exports.
   Run the affected package verification in a clean build context when changing
   packaging; report separately whether an installed client was exercised.
-- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24.
+- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24, 2026-11-03, 2026-11-06.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**

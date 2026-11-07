@@ -30,6 +30,7 @@ export interface PromptTextareaProps {
 
 export interface ActionToolbarProps {
   readonly sandboxMode?: SandboxMode;
+  readonly defaultSandboxMode?: SandboxMode;
   readonly allowedSandboxModes?: readonly SandboxMode[];
   readonly sandboxDisabled?: boolean;
   readonly sandboxDisabledReason?: string;
@@ -37,6 +38,7 @@ export interface ActionToolbarProps {
   readonly skillsControl?: ReactNode;
   readonly model?: InputModel;
   readonly models?: readonly InputModel[];
+  readonly recentModels?: readonly { provider: string; modelId: string }[];
   readonly providers?: readonly InputProvider[];
   readonly onModelChange?: (model: InputModel, thinkingLevel: ThinkingLevel) => void;
   readonly thinkingLevel?: ThinkingLevel;

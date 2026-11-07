@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import { defineDoc, defineExtension, defineTool, section } from "@eta/agent";
 import type { Conversation, ConversationId, DocumentReader, Tx } from "@eta/agent";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";

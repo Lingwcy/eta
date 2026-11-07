@@ -11,12 +11,14 @@ import { SandboxPicker } from "./sandbox-picker";
 export function ActionToolbar({
   skillsControl,
   sandboxMode,
+  defaultSandboxMode,
   allowedSandboxModes,
   sandboxDisabled,
   sandboxDisabledReason,
   onSandboxChange,
   model,
   models = [],
+  recentModels,
   providers = [],
   onModelChange,
   thinkingLevel,
@@ -65,6 +67,7 @@ export function ActionToolbar({
           <SandboxPicker
             responsive
             mode={sandboxMode}
+            defaultMode={defaultSandboxMode}
             allowedModes={allowedSandboxModes}
             disabled={sandboxDisabled ?? (disabled || isRunning)}
             disabledReason={sandboxDisabledReason}
@@ -78,6 +81,7 @@ export function ActionToolbar({
             responsive
             model={model}
             models={models}
+            recentModels={recentModels}
             providers={providers}
             thinkingLevel={thinkingLevel}
             disabled={disabled || isRunning}

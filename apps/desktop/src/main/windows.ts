@@ -46,11 +46,17 @@ export function createDesktopWindows(
       title: "Eta",
       icon: applicationIconPath(),
       backgroundColor: "#e9e9e9",
-      // hiddenInset + trafficLightPosition: {x:16,y:13}：macOS 上隐藏系统标题栏，
-      // 由渲染进程自己画顶栏；红黄绿三个灯手动内缩到 16/13，跟自绘顶栏对齐。Windows/Linux 走默认标题栏
+      // Keep native window buttons in the renderer's 42px tab bar, without a second title bar.
       ...(process.platform === "darwin"
         ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 16, y: 13 } }
-        : {}),
+        : process.platform === "win32"
+          ? {
+              titleBarStyle: "hidden" as const,
+              titleBarOverlay: { color: "#e9e9e9", symbolColor: "#262626", height: 42 },
+              // Keep the native menu accessible via Alt, but out of the normal layout.
+              autoHideMenuBar: true,
+            }
+          : {}),
       //能力边界 必须经过 dist/electron/preload.cjs 用 contextBridge 暴露的 window.eta
       webPreferences: {
         preload: resolve(app.getAppPath(), "dist/electron/preload.cjs"),

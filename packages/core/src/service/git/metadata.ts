@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { canonicalRoot } from "../../platform/sandbox/backend.ts";
 import { inspectRepository } from "./index.ts";
 
 const contains = (root: string, path: string) => {
@@ -24,7 +25,7 @@ export async function gitReadRoots(cwd: string) {
 /**
  * Expands `sandbox.gitMetadata` into the narrowest directories Git writes for this workspace. Landlock grants
  * are additive per directory, so a linked worktree gets its own metadata directory, the shared object store and
- * the current branch's ref directory, never the repository's config or hooks.
+ * remote-tracking refs, tags and the current branch's ref directory, never the repository's config or hooks.
  */
 export async function gitMetadataScope(cwd: string): Promise<GitMetadataScope> {
   const info = await inspectRepository(cwd, "");
@@ -52,11 +53,26 @@ export async function gitMetadataScope(cwd: string): Promise<GitMetadataScope> {
         join(info.commonDir, "logs", "refs", "heads", dirname(branch)),
       ]
     : [];
-  // Git creates these lazily; the sandbox can only grant directories that exist.
+  // Fetch/push update remote-tracking refs; fetch also follows tags in a linked worktree.
+  refRoots.push(
+    join(info.commonDir, "refs", "remotes"),
+    join(info.commonDir, "logs", "refs", "remotes"),
+    join(info.commonDir, "refs", "tags"),
+    join(info.commonDir, "logs", "refs", "tags"),
+  );
+  const writableRoots = [info.gitDir, join(info.commonDir, "objects"), ...refRoots];
+  const common = await canonicalRoot(info.commonDir);
+  // Core-expanded roots bypass ordinary user-only checks. A directory alias must not widen that trust.
+  for (const root of writableRoots) {
+    const expected = resolve(common, relative(info.commonDir, root));
+    if ((await canonicalRoot(root)) !== expected)
+      throw new Error("Git 元数据路径发生重定向，不能自动扩展授权；请显式申请真实路径");
+  }
+  // Git creates these lazily; validate parents before mkdir can follow an alias outside the metadata.
   for (const root of refRoots) await mkdir(root, { recursive: true });
   return {
     readableRoots: [info.commonDir],
-    writableRoots: [info.gitDir, join(info.commonDir, "objects"), ...refRoots],
+    writableRoots,
     requiresUser: false,
     description,
   };

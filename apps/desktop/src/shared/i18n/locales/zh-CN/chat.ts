@@ -1,4 +1,10 @@
 export default {
+  "modelPicker.recentModels": "最近使用的模型",
+  "codeBlock.plainText": "纯文本",
+  "codeBlock.wrap": "自动换行",
+  "codeBlock.copy": "复制代码",
+  "codeBlock.copied": "已复制",
+
   "useDesktopController.temporaryWorkspaceUnsupported":
     "升级此 Bot 后即可不在项目中工作，也可以先选择一个项目。",
   "client.theChatIsNotOpenYet": "会话尚未打开",

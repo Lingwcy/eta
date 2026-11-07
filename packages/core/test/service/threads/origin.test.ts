@@ -1,3 +1,4 @@
+import { commitWrites } from "@eta/agent/testing";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { MemoryStorage, ROOT_CONVERSATION_ID } from "@eta/agent";
 import type { EntryId, SubmissionId, SubmissionRecord, TaskId } from "@eta/agent";
@@ -22,7 +23,8 @@ async function stored(
   tasks: { id: number; kind?: string; conversationId?: number }[],
 ) {
   const storage = new MemoryStorage();
-  await storage.commit(
+  await commitWrites(
+    storage,
     [
       ...submissions.map((value) => ({ type: "submission" as const, value })),
       ...tasks.map(

@@ -1,4 +1,6 @@
-import { type Static, Type } from "typebox";
+import { Type } from "typebox";
+import type { Static } from "@earendil-works/pi-schema";
+import { arr, obj, str } from "@earendil-works/pi-schema";
 import type { FileError } from "../env/index.ts";
 import { defineTool } from "../harness/define.ts";
 import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";
@@ -18,13 +20,16 @@ import { withFileMutationQueue } from "./file-mutation-queue.ts";
 import { completeFileChange, fileChangeBaseline, prepareFileChange, type FileChangeRecorder, type FileChangeReference } from "./file-change.ts";
 import { resolveToolPath } from "./path-utils.ts";
 
-const replaceEditSchema = Type.Object({
-	oldText: Type.String({
-		description:
-			"Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.",
-	}),
-	newText: Type.String({ description: "Replacement text for this targeted edit." }),
-});
+const replaceEditSchema = Type.Object(
+	{
+		oldText: Type.String({
+			description:
+				"Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.",
+		}),
+		newText: Type.String({ description: "Replacement text for this targeted edit." }),
+	},
+	{},
+);
 
 const editSchema = Type.Object(
 	{
