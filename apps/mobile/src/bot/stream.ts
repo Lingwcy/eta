@@ -74,7 +74,8 @@ export async function readEvents(
     }
   } finally {
     signal.removeEventListener("abort", abort);
-    await reader.cancel().catch(() => {});
+    // Source cleanup may never settle; it must not hold the parser outcome or reader lock.
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
