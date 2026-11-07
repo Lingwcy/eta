@@ -23,6 +23,7 @@ const files: Record<string, string> = {
   groq: "groq.svg",
   huggingface: "huggingface-color.svg",
   "kimi-coding": "kimi.svg",
+  magpie: "magpie.svg",
   meta: "meta-color.svg",
   minimax: "minimax-color.svg",
   "minimax-cn": "minimax-color.svg",

@@ -8,6 +8,12 @@ For installation and your first task, see the [README](../../README.md).
 
 Use **Settings → Application → Appearance → 语言 / Language** to choose **简体中文** or **English**. Changes apply immediately to all Eta windows and persist after restarting. This changes the interface language; existing chat content and the agent's response language are unaffected.
 
+## Use Magpie routing
+
+Set Eta up on Magpie’s Agents page — connect it and choose the models and routing groups it may see — then fully quit and reopen Eta. Magpie reaches Eta through its Eta agent plugin, which Magpie installs separately from Eta. The model picker adds a **Magpie** group with the models and routing groups Magpie makes available to Eta. Select an entry to use it; no additional address or key setup is needed in Eta. Your existing model sources and current selection stay unchanged.
+
+Keep Magpie running on the same computer. Restart Eta after changing its integration configuration or disconnecting it in Magpie. After changing the gateway port, reapply Eta’s Magpie provider in Magpie before restarting Eta. If Magpie is unavailable, Eta does not silently switch to a direct provider; select an existing model yourself if needed. This integration applies to local chats, not models configured on a remote Bot.
+
 ## Subscription quotas
 
 Sign in under **Settings → Account login**, then hover over or focus the quota ring beside a supported service to see its remaining allowances and time until reset. Click the ring to refresh. A single allowance uses the full ring; multiple allowances use separate colored arcs, each filled in proportion to its remaining amount. Currently supported: OpenAI Codex (legacy) and GitHub Copilot accounts on github.com. The newer OpenAI ChatGPT subscription login cannot share Codex's quota query and does not show an allowance yet. Signed-out services and services without quota support show no quota section.

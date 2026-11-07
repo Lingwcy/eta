@@ -56,6 +56,15 @@ inspected `a7972f252`, `d0105c5ea`, `f3a39419c`, and `9da537e31`, with
 commits, not a runtime, CI, or release audit. The lessons below do not claim
 that the rest of the history has been reviewed or that those fixes pass today.
 
+## Extension capability claims
+
+**Verify extension support through the pinned host loader before requiring a custom build.**
+
+- Evidence: on 2026-11-07, the Magpie integration initially followed `docs/integrating.md` and incorrectly claimed agent plugins could not register an agent. At Magpie `191f3c0af1934fbbec87dc589fddf26913699aa9` (v0.1.3233), `internal/plugin/agent.go`, `agentplug` and `agent/plugged.go` support `magpie.agent` and standalone agent modules. `packages/eta/tests/eta_plugin_test.go` in the separate `magpie-community/plugins` repository exercises official installation, embedded JS execution and config restoration without the earlier native patch. The same host test confirms port Rewire does not update this plugin automatically; explicit reapplication is documented rather than advertised as automatic.
+- Additional evidence: the maintainer’s successful standalone Eta import displayed `eta.agent.mjs` and a generic icon. `plugin.InstalledName` reads `magpie.name` only from a package; descriptor `agent.name` does not name the installed-plugin row. The community submission supplies package/market metadata plus Eta artwork, and host tests verify the real installed-name/icon APIs against the unpacked tarball. Recommend the complete package, not a standalone module, when branded discovery matters.
+- Check: distinguish source API availability, tested host revision and actual installed release acceptance. Follow the user-facing installation/removal entry points, not only low-level plugin storage APIs; the latter omit agent restoration.
+- Seen: 2026-11-07.
+
 ## UI scope
 
 **Separate resource admission from refresh revision when keeping a live view visible.**
@@ -133,6 +142,11 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 - Evidence: on 2026-11-07, #609 gives the actual subscription-quota service oversized all-digit Retry-After headers. Finite parsed seconds become Infinity or exceed Date range after conversion; cached deadlines block the next manual refresh even after the normal fallback interval. Validating the resulting timestamp restores querying while retaining ordinary seconds and past/future HTTP-date cooldowns.
 - Check: validate arithmetic results against their consumer range, not just input coercion. Test the next observable operation after the fallback interval and serialization, preserve valid server backoff, and do not invent a lower operational limit without a policy decision. Controlled responses are not evidence that the production provider returned them.
+
+**Initialize dynamic model catalogs before restored work can resolve models.**
+
+- Evidence: the Magpie integration control in `apps/desktop/src/main/service/models/index.test.ts` passes when a reopened Desktop runtime first lists models, but removing that passive list makes submitting the saved Magpie thread fail with `ModelUnavailable`. Harness and background admission resolve the synchronous catalog before generation. A bounded provider-scoped refresh during Desktop model-layer initialization lets the same real-thread tool-loop/reopen control pass without opening the picker. This is isolated HTTP/ThreadService evidence, not native GUI or production Magpie acceptance.
+- Check: restart the runtime and submit saved work without browsing models first. Keep discovery bounded and isolate a failed gateway from existing providers; do not make a passive client read the hidden prerequisite for resumed or scheduled work.
 - Seen: 2026-11-07.
 
 **Validate configuration against its operational protocol without rewriting secrets.**
