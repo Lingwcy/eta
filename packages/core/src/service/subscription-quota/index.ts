@@ -240,7 +240,13 @@ export function createSubscriptionQuotaService(options: Options) {
                   : Number.isFinite(date)
                     ? date
                     : now() + TTL;
-              throw new QueryFailure("rate-limit", retryAt);
+              // Finite seconds can still overflow or exceed Date range after conversion.
+              throw new QueryFailure(
+                "rate-limit",
+                Number.isFinite(retryAt) && retryAt >= 0 && retryAt <= 8.64e15
+                  ? retryAt
+                  : now() + TTL,
+              );
             }
             throw new QueryFailure("unavailable");
           }

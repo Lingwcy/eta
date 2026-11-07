@@ -128,6 +128,12 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 ## Build and runtime boundaries
 
+**Validate derived numeric deadlines before caching them.**
+
+- Evidence: on 2026-11-07, #609 gives the actual subscription-quota service oversized all-digit Retry-After headers. Finite parsed seconds become Infinity or exceed Date range after conversion; cached deadlines block the next manual refresh even after the normal fallback interval. Validating the resulting timestamp restores querying while retaining ordinary seconds and past/future HTTP-date cooldowns.
+- Check: validate arithmetic results against their consumer range, not just input coercion. Test the next observable operation after the fallback interval and serialization, preserve valid server backoff, and do not invent a lower operational limit without a policy decision. Controlled responses are not evidence that the production provider returned them.
+- Seen: 2026-11-07.
+
 **Validate configuration against its operational protocol without rewriting secrets.**
 
 - Evidence: on 2026-11-07, #589 loads a Bot file configuration with a space-containing administrator token. The actual offline application starts and reports healthy/ready, yet its configured secret is rejected by Bearer authentication. Thirteen syntax controls expose the loader accepting unusable values; positive controls retain exact token bytes and authenticate through the actual application, including allowed punctuation and trailing padding.
