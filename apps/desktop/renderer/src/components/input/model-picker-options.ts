@@ -6,7 +6,8 @@ export function modelPickerProviders(
 ) {
   return [...new Set(models.map((model) => model.provider))].map((id) => ({
     id,
-    name: providers.find((provider) => provider.id === id)?.name ?? id,
+    name:
+      providers.find((provider) => provider.id === id)?.name ?? (id === "magpie" ? "Magpie" : id),
   }));
 }
 

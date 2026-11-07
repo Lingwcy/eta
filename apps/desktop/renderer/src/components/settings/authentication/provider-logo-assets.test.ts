@@ -18,6 +18,12 @@ describe("provider logo assets", () => {
     }
   });
 
+  it("bundles the Magpie gateway mark for the shared model picker", () => {
+    expect(providerLogoUrl("magpie")).toMatch(
+      /^(?:data:image\/svg\+xml[;,]|\/.*\/assets\/providers\/magpie\.svg$)/,
+    );
+  });
+
   it("lets an unknown provider use the avatar fallback", () => {
     expect(providerLogoUrl("custom-provider")).toBeUndefined();
   });

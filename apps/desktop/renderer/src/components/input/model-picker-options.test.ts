@@ -24,6 +24,24 @@ test("provider rail groups available models and retains providers without known 
   expect(visiblePickerModels(models, providers, null, "")).toEqual(models);
 });
 
+test("dynamic Magpie models have a searchable group without changing provider identity", () => {
+  const magpieModels: InputModel[] = [
+    { id: "shared", name: "Shared", provider: "magpie", thinkingLevels: ["off"] },
+    { id: "shared", name: "Shared", provider: "custom", thinkingLevels: ["off"] },
+  ];
+  const groups = modelPickerProviders(magpieModels, []);
+  expect(groups).toEqual([
+    { id: "magpie", name: "Magpie" },
+    { id: "custom", name: "custom" },
+  ]);
+  expect(visiblePickerModels(magpieModels, groups, "magpie", "")).toEqual([magpieModels[0]]);
+  expect(visiblePickerModels(magpieModels, groups, "custom", "Magpie")).toEqual([magpieModels[0]]);
+  expect(modelPickerProviders(magpieModels, [{ id: "magpie", name: "Custom name" }])[0]).toEqual({
+    id: "magpie",
+    name: "Custom name",
+  });
+});
+
 test("search spans providers and clearing it restores the active provider", () => {
   expect(visiblePickerModels(models, providers, "openai", "  gPt  ")).toEqual(models.slice(0, 2));
   expect(visiblePickerModels(models, providers, "openai", "GitHub Copilot")).toEqual(
