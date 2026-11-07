@@ -504,6 +504,12 @@ and inspect every build configuration that derives those keys.**
 
 ## Defaults and explicit choices
 
+**Check canonical defaults at every documented setup entry point.**
+
+- Evidence: on 2026-11-07, #591 finds the Bot README still calling manual approval the default, while the runtime constant, reviewer fallback and user guide all use automatic review when unset. The existing real HTTP control actually writes the requested workspace file after a model review and records an automatic decision without manual acceptance. Correct the stale setup instructions, not the maintainer-requested runtime behavior.
+- Check: compare omitted and explicit settings across code, deployment README and user guidance. State how to explicitly retain manual behavior, and distinguish a documentation mismatch from a new authorization bypass or live-model safety proof.
+- Seen: 2026-11-07.
+
 **Acquire optional capabilities inside the same guarded operation that uses them.**
 
 - Evidence: on 2026-11-06, #581 makes browser Storage accessors throw SecurityError. Main-window tab initialization, detached-window persistence effects and the recent-model factory fail before reaching their existing getItem/setItem guards. Lazy adapters move acquisition inside those operations; actual Hook edits and input history stay in memory, and restoring storage allows drafts and model choices to persist and reopen again.
