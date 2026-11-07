@@ -2,56 +2,29 @@
   <img src="apps/desktop/renderer/public/eta-icon.png" width="96" height="96" alt="Eta logo" />
 </p>
 <h1 align="center">Eta</h1>
+<p align="center">
+  <a href="https://github.com/Lingwcy/eta/stargazers"><img src="https://img.shields.io/github/stars/Lingwcy/eta" alt="GitHub stars" /></a>
+  <a href="https://github.com/Lingwcy/eta/releases"><img src="https://img.shields.io/github/v/release/Lingwcy/eta" alt="Latest release" /></a>
+  <a href="https://github.com/Lingwcy/eta/releases"><img src="https://img.shields.io/github/downloads/Lingwcy/eta/total" alt="GitHub Downloads" /></a>
+  <a href="https://github.com/Lingwcy/eta/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Lingwcy/eta" alt="License: MIT" /></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue" alt="Platform: macOS | Windows" />
+</p>
 <p align="center">A general-purpose agent for your desktop — and your cloud.</p>
 <p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
 
-Eta turns natural-language instructions into finished work: explore a codebase, edit documents, reorganize a workspace, or run a recurring job. One agent, three ways to reach it — a desktop app for local work, a self-hosted Bot that keeps working in the cloud around the clock, and a mobile companion for following along and answering approvals from anywhere.
+Eta isn't trying to outgrow the giants or replace the tools you already love. It is a small, open-source personal agent built to stay transparent, sharp, and quietly at home on your desktop.
 
-Give Eta a project and a task. Conversations are durable: close the app, put the phone away, or come back tomorrow — the work, its history, and its schedules are exactly where you left them.
+Instead of locking you into one vendor or one window, Eta takes the shape of your workflow — your models, your local files, your skills — and flows across three places: a desktop app for hands-on work, a self-hosted Bot that keeps running after you close the lid, and a phone companion for approvals on the go, with durable conversations and scheduled work across all three.
 
-![Eta desktop interface showing a conversation, a completed tool call, and the model picker](docs/assets/image.png)
+![Demo of Eta desktop](docs/assets/demo.gif)
 
 ## Getting started
 
-### Desktop
-
 Download an installer from [GitHub Releases](https://github.com/Lingwcy/eta/releases). Eta updates itself in place.
-
-| Platform              | Installer                     |
-| --------------------- | ----------------------------- |
-| macOS — Apple Silicon | `Eta-<version>-mac-arm64.dmg` |
-| macOS — Intel         | `Eta-<version>-mac-x64.dmg`   |
-| Windows — x64         | `Eta-<version>-win-x64.exe`   |
 
 The Windows x64 installer is currently unsigned; SmartScreen may warn on first launch. Local command execution requires Git for Windows (including Git Bash), and restricted sandbox execution is not supported on Windows. See the [release notes](docs/release.md) and [sandbox guide](docs/user/sandbox.md).
 
-Connect an AI account or bring your own API key, choose a project folder, and describe the work. See [Working with Eta](docs/user/desktop.md) for chats, projects, skills, subagents, and scheduled tasks.
-
-### Cloud — Eta Bot
-
-Run Eta on your own server and reach the same agent from Desktop or mobile. Before the first run, copy `apps/bot/config.example.json` to `apps/bot/config.json` and set a private administrator token; project directories live under `apps/bot/workspaces`. Deploy the Bot with Docker:
-
-```sh
-docker compose -f apps/bot/compose.example.yaml up --build -d
-```
-
-Then connect from **Settings → Application → Bot** in Desktop, import your model credentials, and switch a new chat's execution location from "This computer" to "Cloud". Cloud work uses the server's files, models, and skills — and it keeps running after Desktop closes, schedules included. The Bot also accepts work over its HTTP API and can receive customer issues from Discord. Full deployment guide: [apps/bot/README.md](apps/bot/README.md); user guide: [Connect a Bot (中文)](docs/user/bot.md).
-
-### Mobile
-
-eta-mobile for iOS and Android connects to your Bot: start conversations, follow tool results as they happen, and answer approval requests from your phone. Work continues on the server when you disconnect. See the [mobile guide (中文)](docs/user/mobile.md).
-
-## What Eta does
-
-- **Durable conversations and projects** — saved chats with full history, per-project workspaces, optional Git worktrees for isolated work, and a GitHub panel for browsing a project's pull requests and issues.
-- **Subagents** — delegate work to child conversations, follow their progress, and steer them mid-flight. Presets carry their own instructions, thinking levels, and models; in orchestrator mode the main conversation coordinates while children execute.
-- **Skills** — reusable instructions the agent loads on demand. Invoke one with `$skill-name`; keep personal skills in `~/.agents/skills/` and project skills in `.agents/skills/`.
-- **Scheduled tasks** — one-time, interval, daily, or weekly plans attached to a chat. Run them locally, or on the Bot, where they fire on the server even while Desktop is closed.
-- **Approvals that scale** — every action outside the current policy shows exactly what it wants to do before it runs. Answer yourself on Desktop or mobile, or let an automatic reviewer model approve, deny, or hand the request back to you.
-
-## Permissions & sandboxing
-
-Eta ships with a real permission system. Each chat runs under one of three policies — **read-only**, **workspace sandbox** (the default), or **full access** — enforced by native sandbox backends (Seatbelt on macOS, Landlock on Linux) across file tools, commands, and subprocesses. Anything outside the policy needs a grant first: approval cards spell out the operation, its arguments, and the extra file or network scope, and grants are scoped to a single call or a single run. Bot deployments set their own policy ceiling for every connected client. If a sandbox backend is unavailable, the task is blocked with an explanation — Eta never widens access on its own. See the [sandbox policies (中文)](docs/user/sandbox.md).
+Connect an AI account or bring your own API key, choose a project folder, and describe the work. See [Working with Eta](docs/user/desktop.md) for chats, projects, skills, subagents, and scheduled tasks. For extended deployments with a self-hosted Bot or the mobile companion, see the [Bot deployment guide](apps/bot/README.md), [Connect a Bot (中文)](docs/user/bot.md), and the [mobile guide (中文)](docs/user/mobile.md).
 
 ## Packages
 
