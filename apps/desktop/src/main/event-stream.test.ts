@@ -16,6 +16,19 @@ test("frame delimiters survive every split, adjacent frames and empty reads", ()
   expect(wire.split("").flatMap((char) => [...frames.push(char)])).toEqual(expected);
 });
 
+test.each([1023, 1024, 1025, 2048, 2049])(
+  "batch boundaries preserve split delimiters after %i reads",
+  (size) => {
+    const parser = new EventStreamFrames();
+    const first = "你".repeat(size);
+    for (const character of first) expect([...parser.push(character)]).toEqual([]);
+    expect([...parser.push("\n")]).toEqual([]);
+    expect([...parser.push("\nsecond\n\nthird\n")]).toEqual([first, "second"]);
+    expect([...parser.push("\n")]).toEqual(["third"]);
+    expect([...parser.push("final\n\n")]).toEqual(["final"]);
+  },
+);
+
 test("a large fragmented snapshot searches only newly received data", () => {
   const frame = `event: snapshot\ndata: ${JSON.stringify({ text: "长上下文".repeat(250_000) })}`;
   const wire = frame + "\n\n";
