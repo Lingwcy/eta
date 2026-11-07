@@ -106,16 +106,20 @@ export function createHttpApp(options: {
   const app = new Hono();
   app.use("/v1/*", compressJson, compressEvents);
   app.onError((error, context) => {
-    if (error instanceof HTTPException && error.status === 401)
+    if (error instanceof HTTPException && (error.status === 401 || error.status === 400)) {
+      // Preserve the authentication challenge, not the raw middleware body or unrelated headers.
+      const challenge = error.getResponse().headers.get("WWW-Authenticate");
       return context.json(
-        { error: { code: "Unauthorized", message: "A valid administrator token is required." } },
-        401,
+        {
+          error:
+            error.status === 401
+              ? { code: "Unauthorized", message: "A valid administrator token is required." }
+              : { code: "InvalidInput", message: "Request is malformed." },
+        },
+        error.status,
+        challenge ? { "WWW-Authenticate": challenge } : {},
       );
-    if (error instanceof HTTPException && error.status === 400)
-      return context.json(
-        { error: { code: "InvalidInput", message: "Request is malformed." } },
-        400,
-      );
+    }
     const mapped = httpError(error);
     return context.json({ error: { code: mapped.code, message: mapped.message } }, mapped.status);
   });

@@ -128,6 +128,53 @@ async function fixture(
   return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
 
+test.each([
+  { authorization: undefined, status: 401, challenge: 'Bearer realm=""' },
+  {
+    authorization: "Bearer fake-private-value",
+    status: 401,
+    challenge: 'Bearer error="invalid_token"',
+  },
+  {
+    authorization: "Bearer fake-private:value",
+    status: 400,
+    challenge: 'Bearer error="invalid_request"',
+  },
+])(
+  "authentication failure preserves its Bearer challenge: $status / $challenge",
+  async ({ authorization, status, challenge }) => {
+    const { bot, config, request } = await fixture(true);
+    const before = await readdir(config.workspaceRoot);
+    for (const path of ["/v1/status", "/v1/projects"]) {
+      const response = await bot.app.request(path, {
+        method: path === "/v1/projects" ? "POST" : "GET",
+        headers: {
+          ...(authorization ? { authorization } : {}),
+          "content-type": "application/json",
+        },
+        ...(path === "/v1/projects"
+          ? { body: JSON.stringify({ name: "not-created", requestId: "auth-challenge" }) }
+          : {}),
+      });
+      expect(response.status).toBe(status);
+      expect(response.headers.get("www-authenticate")).toBe(challenge);
+      const text = await response.text();
+      expect(JSON.parse(text)).toEqual({
+        error:
+          status === 401
+            ? { code: "Unauthorized", message: "A valid administrator token is required." }
+            : { code: "InvalidInput", message: "Request is malformed." },
+      });
+      expect(text).not.toContain("fake-private");
+      expect(text).not.toContain(config.adminToken);
+    }
+    expect(await readdir(config.workspaceRoot)).toEqual(before);
+    const success = await request("/v1/status");
+    expect(success.status).toBe(200);
+    expect(success.headers.has("www-authenticate")).toBe(false);
+  },
+);
+
 test("malformed bearer headers stay client errors and never reach project creation", async () => {
   const { bot, config, request } = await fixture(true);
   const before = await readdir(config.workspaceRoot);
