@@ -128,6 +128,51 @@ async function fixture(
   return { bot, open, config, provider, models, request, create, cwd, workspace };
 }
 
+test("malformed bearer headers stay client errors and never reach project creation", async () => {
+  const { bot, config, request } = await fixture(true);
+  const before = await readdir(config.workspaceRoot);
+  const malformed = [
+    "Basic fake-private-value",
+    "Bearer",
+    "Bearer fake-private:value",
+    "Bearer fake-private value",
+    "Bearer fake=private",
+  ];
+  for (const [index, authorization] of malformed.entries()) {
+    for (const path of ["/v1/status", "/v1/projects"]) {
+      const response = await bot.app.request(path, {
+        method: path === "/v1/projects" ? "POST" : "GET",
+        headers: { authorization, "content-type": "application/json" },
+        ...(path === "/v1/projects"
+          ? { body: JSON.stringify({ name: "must-not-exist", requestId: "invalid-auth-" + index }) }
+          : {}),
+      });
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      expect(JSON.parse(text)).toMatchObject({ error: { code: "InvalidInput" } });
+      expect(text).not.toContain("fake-private");
+      expect(text).not.toContain(config.adminToken);
+    }
+  }
+  expect(await readdir(config.workspaceRoot)).toEqual(before);
+  for (const authorization of [undefined, "Bearer wrong-token"])
+    expect(
+      (
+        await bot.app.request("/v1/status", {
+          headers: authorization ? { authorization } : {},
+        })
+      ).status,
+    ).toBe(401);
+  expect((await request("/v1/status")).status).toBe(200);
+  expect(
+    (
+      await bot.app.request("/v1/status", {
+        headers: { authorization: "bEaReR " + config.adminToken },
+      })
+    ).status,
+  ).toBe(200);
+});
+
 test.each(["thread", "git"] as const)(
   "a stalled %s read reports its backend phase without changing the HTTP result",
   async (kind) => {
