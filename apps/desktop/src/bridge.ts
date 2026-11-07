@@ -22,6 +22,7 @@ import type { BotConnection, BotState } from "./shared/bot.ts";
 import type { SubagentCommand, SubagentSummary } from "@eta/core/shared/subagents";
 import type { ImageAttachment, ImageSource } from "@eta/core/images/types";
 import type { AuthProvider, LoginMethod, LoginState } from "./authentication.ts";
+import type { QuotaConnection, SubscriptionQuota } from "@eta/core/shared/subscription-quota";
 import type { OperationAdmission, OperationResult } from "@eta/core/agent/protocol";
 import type { SessionResponse, SnapshotResponse } from "@eta/core/agent/protocol";
 import type { AgentModel, ThinkingLevel } from "@eta/core/agent/protocol";
@@ -90,6 +91,8 @@ export interface DesktopLibrary {
   models: ReadonlyArray<AgentModel>;
   providers: ReadonlyArray<AuthProvider>;
   credentials: ReadonlyArray<{ providerId: string; type: "api_key" | "oauth" }>;
+  /** Local, explicitly signed-in accounts with a supported quota reader; never credentials. */
+  quotaConnections?: readonly QuotaConnection[];
 }
 
 /** Mirrors electron-updater's lifecycle; `unsupported` covers unpackaged development builds. */
@@ -152,7 +155,7 @@ export interface DesktopBridge extends AgentBridge {
   skills(cwd?: string, workspaceId?: string): Promise<SkillCatalog>;
   openSkillsDirectory(path: string, cwd?: string): Promise<void>;
   unloadSkill(id: string, name: string): Promise<void>;
-  subscribeLibrary(listener: () => void): () => void;
+  subscribeLibrary(listener: (reason?: "credentials") => void): () => void;
   openThreadWindow(id: string): Promise<void>;
   openThreadFile(id: string, mode: "default" | "reveal" | "choose"): Promise<void>;
   moveThread(id: string, projectId: string | null): Promise<ThreadMetadata>;
@@ -191,6 +194,11 @@ export interface DesktopBridge extends AgentBridge {
   cancelLogin(id: string): Promise<void>;
   openLoginLink(id: string, url: string): Promise<void>;
   removeCredential(provider: string, method: LoginMethod): Promise<void>;
+  subscriptionQuota(
+    providerId: string,
+    connectionId: string,
+    refresh?: boolean,
+  ): Promise<SubscriptionQuota | null>;
   appInfo(): Promise<AppInfo>;
   updateState(): Promise<UpdateState>;
   checkForUpdates(): Promise<UpdateState>;

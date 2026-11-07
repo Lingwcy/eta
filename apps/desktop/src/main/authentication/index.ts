@@ -20,6 +20,7 @@ export class DesktopAuthentication {
     private readonly credentials: CredentialStore,
     private readonly openExternal: (url: string) => Promise<void>,
     private readonly deviceId: string,
+    private readonly loginModels: Pick<Models, "login"> = models,
   ) {}
 
   providers(): AuthProvider[] {
@@ -56,7 +57,7 @@ export class DesktopAuthentication {
       controller: new AbortController(),
     };
     this.flow = flow;
-    flow.task = this.models
+    flow.task = this.loginModels
       .login(
         provider,
         method,

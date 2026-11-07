@@ -1178,7 +1178,7 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
       await bot.refresh(true);
       return bot.status();
     },
-    subscribeLibrary: (listener: () => void) => {
+    subscribeLibrary: (listener: (reason?: "credentials") => void) => {
       const a = local.subscribeLibrary(listener);
       const b = bot.subscribe(listener);
       return () => {

@@ -59,8 +59,10 @@ const bridge: DesktopBridge = {
     invoke("eta:command", { type: "open-skills-directory", path, ...(cwd ? { cwd } : {}) }),
   unloadSkill: (id, name) => invoke("eta:command", { type: "unload-skill", id, name }),
   subscribeLibrary(listener) {
-    ipcRenderer.on("eta:library-changed", listener);
-    return () => ipcRenderer.removeListener("eta:library-changed", listener);
+    const onChange = (_event: Electron.IpcRendererEvent, reason: unknown) =>
+      listener(reason === "credentials" ? reason : undefined);
+    ipcRenderer.on("eta:library-changed", onChange);
+    return () => ipcRenderer.removeListener("eta:library-changed", onChange);
   },
   openThreadWindow: (id) => invoke("eta:thread-window", id),
   openThreadFile: (id, mode) => invoke("eta:thread-file", id, mode),
@@ -145,6 +147,8 @@ const bridge: DesktopBridge = {
   computerStatus: () => invoke("eta:command", { type: "computer-status" }),
   openComputerPermissions: (permission) =>
     invoke("eta:command", { type: "computer-permission", permission }),
+  subscriptionQuota: (providerId, connectionId, refresh = false) =>
+    invoke("eta:command", { type: "subscription-quota", providerId, connectionId, refresh }),
   startLogin: (provider, method) =>
     invoke("eta:command", { type: "login-start", provider, method }),
   loginState: (id) => invoke("eta:command", { type: "login-state", id }),
