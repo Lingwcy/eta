@@ -55,6 +55,8 @@ export const settingsPanels = {
       active={props.active}
       busy={props.busy}
       onVariantChange={(agentThinkingVariant) => update(props, { agentThinkingVariant })}
+      theme={props.library.settings.theme}
+      onThemeChange={(theme) => update(props, { theme })}
       locale={props.library.settings.locale}
       onLocaleChange={(locale) => update(props, { locale })}
     />

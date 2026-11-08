@@ -1,3 +1,5 @@
+import { parseInitialAppearance } from "./preload-appearance.ts";
+import type { AppearanceSnapshot } from "./appearance.ts";
 import { contextBridge, ipcRenderer } from "electron";
 import type { AgentEvent, DesktopBridge } from "./bridge.ts";
 import type { CommandReply, UpdateState } from "./bridge.ts";
@@ -23,6 +25,14 @@ function submitReply(
 }
 
 const bridge: DesktopBridge = {
+  initialAppearance: parseInitialAppearance(process.argv),
+  appearance: () => invoke("eta:appearance"),
+  subscribeAppearance(listener) {
+    const onChange = (_event: Electron.IpcRendererEvent, snapshot: AppearanceSnapshot) =>
+      listener(snapshot);
+    ipcRenderer.on("eta:appearance-changed", onChange);
+    return () => ipcRenderer.removeListener("eta:appearance-changed", onChange);
+  },
   scheduleSnapshot: () => invoke("eta:command", { type: "schedule-snapshot" }),
   writeSchedule: (input) => invoke("eta:command", { type: "schedule-write", input }),
   proposeSchedule: (input) => invoke("eta:command", { type: "schedule-propose", input }),

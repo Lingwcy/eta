@@ -42,11 +42,11 @@ export function ScheduleTimePicker({
         <Popover.Positioner side="bottom" align="end" sideOffset={5} className="z-50">
           <Popover.Popup
             aria-label={t("schedules:scheduleTimePicker.runTimePicker")}
-            className="w-44 rounded-xl border border-black/12 bg-white p-2 text-xs shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none"
+            className="w-44 rounded-xl border border-contrast/12 bg-surface p-2 text-xs shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none"
           >
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <p className="mb-1 text-center text-neutral-500">
+                <p className="mb-1 text-center text-subtle">
                   {t("schedules:scheduleTimePicker.hour")}
                 </p>
                 <ScrollArea
@@ -75,7 +75,7 @@ export function ScheduleTimePicker({
                 </ScrollArea>
               </div>
               <div>
-                <p className="mb-1 text-center text-neutral-500">
+                <p className="mb-1 text-center text-subtle">
                   {t("schedules:scheduleTimePicker.minute")}
                 </p>
                 <ScrollArea
@@ -104,7 +104,7 @@ export function ScheduleTimePicker({
                 </ScrollArea>
               </div>
             </div>
-            <div className="mt-2 flex justify-end border-t border-neutral-100 pt-2">
+            <div className="mt-2 flex justify-end border-t border-border-soft pt-2">
               <Button
                 size="compact"
                 aria-label={t("schedules:scheduleTimePicker.confirmRunTime")}

@@ -22,7 +22,7 @@ export function ScheduleRunNotice({
   const status = scheduleRunStatus([run], scoped.data.schedules, scoped.environment);
   if (!status) return null;
   return (
-    <div role="status" aria-live="polite" className="pb-2 text-xs text-neutral-500">
+    <div role="status" aria-live="polite" className="pb-2 text-xs text-subtle">
       <p>
         {t("schedules:scheduleMenu.runNow")} · {scheduleTime(run.scheduledAt)} · {status.label}
       </p>

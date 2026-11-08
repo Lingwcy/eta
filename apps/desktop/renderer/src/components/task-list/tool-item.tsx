@@ -24,7 +24,7 @@ export function ToolItem({ tool }: { tool: SnapshotTool }) {
   if (schedule) return <ScheduleToolNotice result={schedule} />;
   if (tool.toolName === "schedule" && tool.args.action !== "list" && tool.status === "running")
     return (
-      <div className="flex items-center gap-2 py-1 text-xs text-neutral-500">
+      <div className="flex items-center gap-2 py-1 text-xs text-subtle">
         <Clock3 size={14} aria-hidden="true" />
         <span>
           {t("chat:toolItem.processingScheduledTask")}
@@ -79,7 +79,7 @@ function GenericToolItem({ tool }: { tool: SnapshotTool }) {
             >
               <Icon size={14} aria-hidden="true" />
               <span
-                className={cn("min-w-0 flex-1 truncate", failed && "text-red-600")}
+                className={cn("min-w-0 flex-1 truncate", failed && "text-danger-text-600")}
                 title={tool.description}
               >
                 {tool.description ?? label}

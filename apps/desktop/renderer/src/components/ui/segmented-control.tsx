@@ -22,13 +22,13 @@ export function SegmentedControl<Value extends string>({
       value={value}
       disabled={disabled}
       onValueChange={onValueChange}
-      className="relative inline-grid shrink-0 rounded-lg bg-neutral-100 p-1 data-[disabled]:opacity-40"
+      className="relative inline-grid shrink-0 rounded-lg bg-surface-subtle p-1 data-[disabled]:opacity-40"
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
     >
       {selectedIndex >= 0 && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-1 left-1 rounded-md bg-white shadow-xs transition-transform duration-150 motion-reduce:transition-none"
+          className="pointer-events-none absolute inset-y-1 left-1 rounded-md bg-surface shadow-xs transition-transform duration-150 motion-reduce:transition-none"
           style={{
             width: `calc((100% - 0.5rem) / ${options.length})`,
             transform: `translateX(${selectedIndex * 100}%)`,
@@ -39,7 +39,7 @@ export function SegmentedControl<Value extends string>({
         <Radio.Root
           key={option.value}
           value={option.value}
-          className="relative flex h-7 cursor-pointer items-center justify-center rounded-md px-2.5 text-xs font-medium whitespace-nowrap text-neutral-500 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 data-[checked]:text-neutral-900 data-[disabled]:cursor-not-allowed motion-reduce:transition-none"
+          className="relative flex h-7 cursor-pointer items-center justify-center rounded-md px-2.5 text-xs font-medium whitespace-nowrap text-subtle outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring-400 data-[checked]:text-foreground data-[disabled]:cursor-not-allowed motion-reduce:transition-none"
         >
           {option.label}
         </Radio.Root>

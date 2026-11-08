@@ -31,7 +31,7 @@ interface DiffPanelProps {
 
 function Notice({ children }: { children: React.ReactNode }) {
   return (
-    <p role="status" className="p-3 text-xs text-neutral-500">
+    <p role="status" className="p-3 text-xs text-subtle">
       {children}
     </p>
   );
@@ -183,12 +183,12 @@ export function DiffPanel({
       />
     );
   return (
-    <section aria-label={t("diff:title")} className="flex min-h-0 min-w-0 flex-1 dark:bg-[#141414]">
+    <section aria-label={t("diff:title")} className="flex min-h-0 min-w-0 flex-1">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">{body}</div>
       <DiffFilePane>
         {source === "history" && history && (
           <div
-            className="flex items-center gap-2 px-2 py-1 text-[11px] text-neutral-500 dark:text-neutral-400"
+            className="flex items-center gap-2 px-2 py-1 text-[11px] text-subtle dark:text-muted"
             title={history.path}
           >
             <span className="shrink-0">{t("diff:history")}</span>

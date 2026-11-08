@@ -548,3 +548,47 @@ test("Windows background preference crosses IPC and survives enabling, reopening
       .backgroundOnClose,
   ).toBe(false);
 });
+
+test("visual mode crosses IPC, survives reopening, and invalid updates preserve exact stored bytes", async () => {
+  const { runtime, settings, directory, open } = await setup();
+  expect((await runtime.runPromise(settings.read)).theme).toBeUndefined();
+  const commits: unknown[] = [];
+  const off = settings.subscribe((value) => commits.push(value.theme));
+  const application = {
+    updateSettings: (patch) => runtime.runPromise(settings.update(patch)),
+  } satisfies Pick<DesktopApplication, "updateSettings">;
+  for (const theme of ["system", "light", "dark"]) {
+    await dispatchCommand(application as DesktopApplication, {
+      type: "settings",
+      patch: { theme },
+    });
+    expect((await runtime.runPromise(settings.read)).theme).toBe(theme);
+  }
+  const before = await readFile(join(directory, "settings.json"), "utf8");
+  for (const theme of [null, "sepia", 1]) {
+    await expect(
+      dispatchCommand(application as DesktopApplication, { type: "settings", patch: { theme } }),
+    ).rejects.toMatchObject({ code: "InvalidInput" });
+    await expect(
+      runtime.runPromise(
+        // @ts-expect-error Exercise the public service boundary independently of IPC.
+        settings.update({ theme }),
+      ),
+    ).rejects.toMatchObject({
+      code: "InvalidInput",
+    });
+    expect(await readFile(join(directory, "settings.json"), "utf8")).toBe(before);
+  }
+  expect(commits).toEqual(["system", "light", "dark"]);
+  off();
+  await runtime.dispose();
+  const next = open();
+  const restored = await next.runPromise(DesktopSettingsService);
+  expect((await next.runPromise(restored.read)).theme).toBe("dark");
+  await next.runPromise(restored.update({ theme: "system", blockImages: true }));
+  await next.dispose();
+  const final = open();
+  expect(
+    await final.runPromise((await final.runPromise(DesktopSettingsService)).read),
+  ).toMatchObject({ theme: "system", blockImages: true });
+});

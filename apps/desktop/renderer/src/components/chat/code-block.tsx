@@ -1,3 +1,4 @@
+import { useResolvedTheme } from "@/appearance";
 import { getSharedHighlighter, type ThemedToken } from "@pierre/diffs";
 import { Check, Code2, Copy, WrapText } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -34,9 +35,11 @@ const names: Record<string, string> = {
 
 export function CodeBlock({ code, language }: { code: string; language?: string }) {
   useTranslation();
+  const theme = useResolvedTheme() === "dark" ? "pierre-dark" : "pierre-light";
   const [highlight, setHighlight] = useState<{
     code: string;
     language: string;
+    theme: string;
     tokens: ThemedToken[][];
   }>();
   const [wrap, setWrap] = useState(false);
@@ -49,7 +52,7 @@ export function CodeBlock({ code, language }: { code: string; language?: string 
       return;
     const timer = window.setTimeout(() => {
       void getSharedHighlighter({
-        themes: ["pierre-light"],
+        themes: [theme],
         langs: [language.toLowerCase()],
         preferredHighlighter: "shiki-js",
       })
@@ -57,9 +60,9 @@ export function CodeBlock({ code, language }: { code: string; language?: string 
           if (!active) return;
           const result = highlighter.codeToTokens(code, {
             lang: language.toLowerCase(),
-            theme: "pierre-light",
+            theme,
           });
-          if (active) setHighlight({ code, language, tokens: result.tokens });
+          if (active) setHighlight({ code, language, theme, tokens: result.tokens });
         })
         .catch(() => {
           // Unknown languages remain readable as plain text.
@@ -69,16 +72,18 @@ export function CodeBlock({ code, language }: { code: string; language?: string 
       active = false;
       window.clearTimeout(timer);
     };
-  }, [code, language]);
+  }, [code, language, theme]);
   const tokens =
-    highlight?.code === code && highlight.language === language ? highlight.tokens : undefined;
+    highlight?.code === code && highlight.language === language && highlight.theme === theme
+      ? highlight.tokens
+      : undefined;
   const label = language
     ? Object.hasOwn(names, language.toLowerCase())
       ? names[language.toLowerCase()]
       : language
     : t("chat:codeBlock.plainText");
   return (
-    <div className="my-3 max-w-full overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100 text-neutral-900">
+    <div className="my-3 max-w-full overflow-hidden rounded-xl border border-border bg-surface-subtle text-foreground">
       <div className="flex items-center gap-2 px-4 pt-2 text-xs font-medium">
         <Code2 size={15} aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">{label}</span>

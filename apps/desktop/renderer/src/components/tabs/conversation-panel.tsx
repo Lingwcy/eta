@@ -135,7 +135,7 @@ export function ConversationPanel({
             {view.loading && <ThreadLoading {...view.loading} />}
             {view.recovery && <RecoveryNotice {...view.recovery} />}
             {view.stopped && (
-              <output className="text-xs text-neutral-500">
+              <output className="text-xs text-subtle">
                 {t("navigation:conversationPanel.generationStopped")}
               </output>
             )}

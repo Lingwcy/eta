@@ -8,6 +8,10 @@ For installation and your first task, see the [README](../../README.md).
 
 Use **Settings → Application → Appearance → 语言 / Language** to choose **简体中文** or **English**. Changes apply immediately to all Eta windows and persist after restarting. This changes the interface language; existing chat content and the agent's response language are unaffected.
 
+## Visual mode
+
+In **Settings → Appearance → Visual mode**, choose **System**, **Light**, or **Dark**. System is the default; an explicit light or dark choice stays fixed when the system appearance changes. Saving applies to all Eta windows and survives a restart. You can return to System at any time. This is a local desktop preference and does not change remote Bot settings.
+
 ## Use Magpie routing
 
 Set Eta up on Magpie’s Agents page — connect it and choose the models and routing groups it may see — then fully quit and reopen Eta. Magpie reaches Eta through its Eta agent plugin, which Magpie installs separately from Eta. The model picker adds a **Magpie** group with the models and routing groups Magpie makes available to Eta. Select an entry to use it; no additional address or key setup is needed in Eta. Your existing model sources and current selection stay unchanged.

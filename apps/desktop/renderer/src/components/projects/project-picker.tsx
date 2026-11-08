@@ -128,7 +128,7 @@ export function ProjectPicker({
                 aria-label={t("navigation:projectPicker.searchProjects")}
                 placeholder={t("navigation:projectPicker.searchProjects")}
               />
-              <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
+              <div className="mx-1.5 my-1 h-px shrink-0 bg-contrast/10" />
               <CommandList size="menu">
                 {options.map((option) => (
                   <CommandItem
@@ -148,7 +148,7 @@ export function ProjectPicker({
                   </CommandItem>
                 ))}
                 {!options.length && (
-                  <p className="px-2 py-3 text-xs text-neutral-400">
+                  <p className="px-2 py-3 text-xs text-muted">
                     {query
                       ? t("navigation:projectPicker.noMatchingProjects")
                       : cloud
@@ -158,7 +158,7 @@ export function ProjectPicker({
                 )}
               </CommandList>
             </Command>
-            <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
+            <div className="mx-1.5 my-1 h-px shrink-0 bg-contrast/10" />
             <div className="shrink-0">
               <Button
                 variant="menu"
@@ -205,7 +205,7 @@ export function ProjectPicker({
                   setQuery("");
                 }}
               >
-                <span className="flex size-4 items-center justify-center rounded-full bg-neutral-500 text-white">
+                <span className="flex size-4 items-center justify-center rounded-full bg-control-mid text-white">
                   <X size={11} aria-hidden="true" />
                 </span>
               </Button>

@@ -315,7 +315,7 @@ export function SubagentSettings({
                 disabled={configurationLocked}
               />
             </div>
-            <div className="mb-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+            <div className="mb-2 rounded-lg border border-border bg-surface-soft px-3 py-2">
               <Textarea
                 aria-label={t("settings:subagentSettings.presetInstructions")}
                 placeholder={t("settings:subagentSettings.taskResponsibilitiesAndConstraints")}

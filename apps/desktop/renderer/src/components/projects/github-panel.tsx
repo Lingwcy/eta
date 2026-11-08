@@ -47,18 +47,18 @@ function GitHubRow({
         ? CircleCheck
         : CircleDot;
   const tone = item.draft
-    ? "text-neutral-400"
+    ? "text-muted"
     : merged
-      ? "text-violet-500"
+      ? "text-violet-text-500"
       : closed
-        ? "text-red-500/80"
-        : "text-emerald-600";
+        ? "text-danger-text-500/80"
+        : "text-success-text-600";
   const state = t(`inspector:githubPanel.state.${item.state}`);
   return (
     <article
       className={cn(
-        "group flex items-start gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-neutral-100/70",
-        separated && "border-t border-neutral-100",
+        "group flex items-start gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-surface-subtle/70",
+        separated && "border-t border-border-soft",
       )}
     >
       <StateIcon size={14} className={cn("mt-[3px] shrink-0", tone)} aria-hidden="true" />
@@ -70,33 +70,33 @@ function GitHubRow({
           aria-label={`${item.title} · #${item.number} · ${state}`}
           className="flex min-w-0 items-baseline gap-1.5 outline-none"
         >
-          <span className="line-clamp-2 min-w-0 text-xs font-medium text-neutral-800 decoration-neutral-300 underline-offset-2 group-hover:underline">
+          <span className="line-clamp-2 min-w-0 text-xs font-medium text-heading decoration-border-strong underline-offset-2 group-hover:underline">
             {item.title}
           </span>
-          <span className="shrink-0 text-[11px] tabular-nums text-neutral-600">#{item.number}</span>
+          <span className="shrink-0 text-[11px] tabular-nums text-secondary">#{item.number}</span>
         </a>
-        <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-neutral-600">
+        <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-secondary">
           <span className="max-w-32 truncate">{item.author}</span>
           <span aria-hidden="true">·</span>
           <span className="tabular-nums">
             {new Date(item.updatedAt).toLocaleDateString(currentFormatLocale())}
           </span>
           {item.draft && (
-            <span className="rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-600">
+            <span className="rounded-full bg-surface-subtle px-1.5 py-px text-[10px] text-secondary">
               {t("inspector:githubPanel.draftBadge")}
             </span>
           )}
           {item.labels.map((label) => (
             <span
               key={label}
-              className="max-w-32 truncate rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-600"
+              className="max-w-32 truncate rounded-full bg-surface-subtle px-1.5 py-px text-[10px] text-secondary"
             >
               {label}
             </span>
           ))}
         </p>
         {item.head && (
-          <p className="mt-0.5 truncate font-mono text-[10.5px] text-neutral-600">
+          <p className="mt-0.5 truncate font-mono text-[10.5px] text-secondary">
             {item.head} <span aria-hidden="true">→</span> {item.base}
           </p>
         )}
@@ -188,7 +188,7 @@ export function GitHubPanel({
           aria-pressed={kind === "pulls"}
           onClick={() => setKind("pulls")}
         >
-          <span className={kind === "pulls" ? "text-neutral-800" : "text-neutral-400"}>PR</span>
+          <span className={kind === "pulls" ? "text-heading" : "text-muted"}>PR</span>
         </Button>
         <Button
           variant="ghost"
@@ -196,9 +196,7 @@ export function GitHubPanel({
           aria-pressed={kind === "issues"}
           onClick={() => setKind("issues")}
         >
-          <span className={kind === "issues" ? "text-neutral-800" : "text-neutral-400"}>
-            Issues
-          </span>
+          <span className={kind === "issues" ? "text-heading" : "text-muted"}>Issues</span>
         </Button>
         <Popover>
           <PopoverTrigger
@@ -214,10 +212,10 @@ export function GitHubPanel({
             aria-label={t("inspector:githubPanel.githubListOptions")}
           >
             <div className="flex flex-col gap-2 px-1 py-1">
-              <p className="px-1 text-xs text-neutral-500">GitHub · {name}</p>
+              <p className="px-1 text-xs text-subtle">GitHub · {name}</p>
               {remotes.length > 0 && (
                 <label className="flex flex-col gap-1 px-1">
-                  <span className="text-[11px] text-neutral-500">
+                  <span className="text-[11px] text-subtle">
                     {t("inspector:githubPanel.browseRepository")}
                   </span>
                   <Select
@@ -237,12 +235,12 @@ export function GitHubPanel({
                 </label>
               )}
               {!selection && (
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-subtle">
                   {t("inspector:githubPanel.chooseAGithubRepositoryToBrowse")}
                 </p>
               )}
               <label className="flex flex-col gap-1 px-1">
-                <span className="text-[11px] text-neutral-500">
+                <span className="text-[11px] text-subtle">
                   {t("inspector:githubPanel.githubStateFilter")}
                 </span>
                 <Select
@@ -275,7 +273,7 @@ export function GitHubPanel({
                 </Button>
               </div>
               {page && (
-                <p className="text-[11px] text-neutral-500">
+                <p className="text-[11px] text-subtle">
                   {page.identity.login
                     ? t("inspector:githubPanel.identity", { login: page.identity.login })
                     : t("inspector:githubPanel.anonymousAccessSignInWithGithubCli")}{" "}
@@ -288,12 +286,12 @@ export function GitHubPanel({
         </Popover>
       </InspectorToolbar>
       {!connected && (
-        <p role="status" className="text-xs text-neutral-500">
+        <p role="status" className="text-xs text-subtle">
           {t("inspector:githubPanel.botIsDisconnectedTheCacheMayBe")}
         </p>
       )}
       {view.loading && (
-        <p role="status" className="text-xs text-neutral-500">
+        <p role="status" className="text-xs text-subtle">
           {t("inspector:githubPanel.readingGithub")}
         </p>
       )}
@@ -307,7 +305,7 @@ export function GitHubPanel({
       {page && (
         <>
           {!page.items.length && (
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-subtle">
               {t("inspector:githubPanel.empty", {
                 state: t(`inspector:githubPanel.state.${state}`),
                 kind: kind === "pulls" ? "PR" : "Issues",
@@ -326,7 +324,7 @@ export function GitHubPanel({
             <Button
               variant="ghost-muted"
               size="row-sm"
-              className="justify-center text-neutral-500"
+              className="justify-center text-subtle"
               disabled={!connected || view.loading || limited}
               onClick={() => void client.load(key, { ...query, cursor: page!.nextCursor }, true)}
             >

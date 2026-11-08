@@ -35,7 +35,7 @@ export function DesktopPanels({ shell }: { shell: DesktopShell }) {
                 "min-h-0 flex-1 flex-col",
                 active ? "flex" : "hidden",
                 tab.kind === "browser" &&
-                  "ml-[7px] mb-[3.5px] overflow-hidden bg-white transition-[margin-right,border-radius] duration-180 ease-out motion-reduce:transition-none",
+                  "ml-[7px] mb-[3.5px] overflow-hidden bg-surface transition-[margin-right,border-radius] duration-180 ease-out motion-reduce:transition-none",
                 tab.kind === "browser" &&
                   (shell.inspectorOpen ? "rounded-l-xl" : "mr-[3.5px] rounded-xl"),
               )}
@@ -164,7 +164,7 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
 function SettingsLoading({ error }: { error?: Message | null }) {
   useTranslation();
   return (
-    <div className="flex flex-1 items-center justify-center text-sm text-neutral-400">
+    <div className="flex flex-1 items-center justify-center text-sm text-muted">
       {error
         ? t("navigation:desktopPanels.settingsAreNotLoadedYet")
         : t("navigation:desktopPanels.openingSettings")}

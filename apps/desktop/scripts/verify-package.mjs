@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { runInNewContext } from "node:vm";
 import { execFileSync } from "node:child_process";
 import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { Module, createRequire } from "node:module";
@@ -26,12 +28,52 @@ try {
     await cp(source, isolated, { recursive: true });
   }
   const appRoot = asar ? join(isolated, "app.asar") : isolated;
+  // A sandboxed preload cannot load local generated chunks, even when main can.
+  const ipc = Object.assign(new EventEmitter(), {
+    invoke: async () => ({
+      ok: true,
+      value: { preference: "dark", resolved: "dark", revision: 7 },
+    }),
+  });
+  let bridge;
+  runInNewContext(await readFile(join(appRoot, "dist/electron/preload.cjs"), "utf8"), {
+    require(id) {
+      assert.equal(id, "electron", "Sandbox preload must not require generated local chunks");
+      return {
+        ipcRenderer: ipc,
+        contextBridge: {
+          exposeInMainWorld: (_name, value) => {
+            bridge = value;
+          },
+        },
+      };
+    },
+    process: { argv: ["--eta-appearance=dark:dark:7"] },
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(bridge.initialAppearance)), {
+    preference: "dark",
+    resolved: "dark",
+    revision: 7,
+  });
+  assert.equal((await bridge.appearance()).resolved, "dark");
+  const appearances = [];
+  const offAppearance = bridge.subscribeAppearance((value) => appearances.push(value));
+  ipc.emit("eta:appearance-changed", {}, { preference: "light", resolved: "light", revision: 8 });
+  offAppearance();
+  ipc.emit("eta:appearance-changed", {}, { preference: "dark", resolved: "dark", revision: 9 });
+  assert.deepEqual(appearances, [{ preference: "light", resolved: "light", revision: 8 }]);
+  assert.equal(ipc.listenerCount("eta:appearance-changed"), 0);
+
   const entry = join(appRoot, "dist/electron/main.cjs");
   const compiled = new Module(entry);
   compiled.filename = entry;
   const electron = {
     app: { requestSingleInstanceLock: () => false, quit() {} },
     ipcMain: { on() {}, handle() {} },
+    nativeTheme: Object.assign(new EventEmitter(), {
+      themeSource: "system",
+      shouldUseDarkColors: false,
+    }),
     systemPreferences: {
       getMediaAccessStatus: () => "granted",
       isTrustedAccessibilityClient: () => true,

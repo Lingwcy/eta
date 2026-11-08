@@ -10,8 +10,8 @@ export function Kbd({
     <kbd
       className={
         variant === "badge"
-          ? "shrink-0 rounded-full bg-neutral-200/60 px-1.5 font-sans text-xs text-neutral-500"
-          : "font-sans text-[11px] text-neutral-600"
+          ? "shrink-0 rounded-full bg-surface-hover/60 px-1.5 font-sans text-xs text-subtle"
+          : "font-sans text-[11px] text-secondary"
       }
     >
       {children}

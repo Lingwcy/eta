@@ -85,15 +85,15 @@ export function SandboxPicker({
         side={side}
         aria-label={t("chat:sandboxPicker.sandboxPolicy2")}
       >
-        <p className="px-2 py-1.5 text-[11px] text-neutral-500">
+        <p className="px-2 py-1.5 text-[11px] text-subtle">
           {t("chat:sandboxPicker.whatCanTheAgentAccess")}
         </p>
         {disabled && (
-          <p role="status" className="px-2 pb-1.5 text-[11px] leading-4 text-neutral-500">
+          <p role="status" className="px-2 pb-1.5 text-[11px] leading-4 text-subtle">
             {disabledReason ?? t("chat:sandboxPicker.thePolicyCannotBeChangedRightNow")}
           </p>
         )}
-        <div className="mx-1.5 mb-1 h-px shrink-0 bg-black/10" />
+        <div className="mx-1.5 mb-1 h-px shrink-0 bg-contrast/10" />
         {sandboxModes.map((value) => {
           const ItemIcon = options()[value].icon;
           const allowed = allowedModes.includes(value);
@@ -106,7 +106,7 @@ export function SandboxPicker({
                 onChange?.(value);
                 setOpen(false);
               }}
-              className={`group flex w-full cursor-default items-center gap-1.5 rounded-[5px] px-2 py-1.5 text-left outline-none select-none enabled:hover:bg-[#007aff] enabled:hover:text-white enabled:focus-visible:bg-[#007aff] enabled:focus-visible:text-white disabled:opacity-35 ${value === "danger-full-access" ? "text-orange-600" : "text-neutral-800"}`}
+              className={`group flex w-full cursor-default items-center gap-1.5 rounded-[5px] px-2 py-1.5 text-left outline-none select-none enabled:hover:bg-menu-selected enabled:hover:text-white enabled:focus-visible:bg-menu-selected enabled:focus-visible:text-white disabled:opacity-35 ${value === "danger-full-access" ? "text-caution-text-600" : "text-heading"}`}
             >
               <ItemIcon size={14} strokeWidth={1.7} className="shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1">

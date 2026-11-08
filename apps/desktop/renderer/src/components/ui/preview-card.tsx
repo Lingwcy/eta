@@ -13,7 +13,7 @@ export function PreviewCardContent({ children }: { children: ReactNode }) {
         sideOffset={12}
         className="z-40 transition-transform duration-200 ease-out motion-reduce:transition-none"
       >
-        <BasePreviewCard.Popup className="w-[320px] max-w-[calc(100vw-48px)] overflow-hidden rounded-xl border border-neutral-200 bg-white p-3 shadow-[0_8px_24px_#00000012] outline-none transition-[opacity,transform] duration-150 data-starting-style:translate-x-1 data-starting-style:opacity-0 data-ending-style:translate-x-1 data-ending-style:opacity-0 motion-reduce:transition-none">
+        <BasePreviewCard.Popup className="w-[320px] max-w-[calc(100vw-48px)] overflow-hidden rounded-xl border border-border bg-surface p-3 shadow-[0_8px_24px_#00000012] outline-none transition-[opacity,transform] duration-150 data-starting-style:translate-x-1 data-starting-style:opacity-0 data-ending-style:translate-x-1 data-ending-style:opacity-0 motion-reduce:transition-none">
           {children}
         </BasePreviewCard.Popup>
       </BasePreviewCard.Positioner>

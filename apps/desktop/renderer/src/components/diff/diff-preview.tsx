@@ -1,3 +1,4 @@
+import { useResolvedTheme } from "@/appearance";
 import { memo, useMemo, useRef } from "react";
 import { DEFAULT_VIRTUAL_FILE_METRICS, parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, Virtualizer } from "@pierre/diffs/react";
@@ -22,6 +23,7 @@ export const DiffPreview = memo(function DiffPreview({
   positions: Map<string, number>;
 }) {
   useTranslation();
+  const theme = useResolvedTheme();
   const container = useRef<HTMLDivElement>(null);
   const restored = useRef<string | undefined>(undefined);
   const parsed = useMemo(() => {
@@ -39,7 +41,7 @@ export const DiffPreview = memo(function DiffPreview({
   const options = useMemo(
     () => ({
       diffStyle: layout,
-      themeType: "system" as const,
+      themeType: theme,
       preferredHighlighter: "shiki-js" as const,
       disableFileHeader: true,
       overflow: "scroll" as const,
@@ -57,17 +59,17 @@ export const DiffPreview = memo(function DiffPreview({
         restored.current = location;
       },
     }),
-    [layout, location, positions],
+    [layout, location, positions, theme],
   );
   if (parsed === "too-large" || parsed === "invalid")
     return (
-      <p role="status" className="p-3 text-xs text-neutral-500">
+      <p role="status" className="p-3 text-xs text-subtle">
         {parsed === "too-large" ? t("diff:reason.too-large") : t("diff:invalidPatch")}
       </p>
     );
   if (parsed.hunks.length === 0)
     return (
-      <p role="status" className="p-3 text-xs text-neutral-500">
+      <p role="status" className="p-3 text-xs text-subtle">
         {t("diff:noDifference")}
       </p>
     );

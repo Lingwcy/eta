@@ -119,7 +119,7 @@ function CreateProjectForm({
         }}
       >
         <div className="flex items-center justify-between gap-4">
-          <DialogTitle className="text-sm font-medium text-neutral-900">
+          <DialogTitle className="text-sm font-medium text-foreground">
             {cloud
               ? t("navigation:createProjectDialog.createCloudProject")
               : t("navigation:createProjectDialog.createProject")}
@@ -149,25 +149,25 @@ function CreateProjectForm({
           required
         />
         {cloud ? (
-          <p className="text-xs break-words text-neutral-500">
+          <p className="text-xs break-words text-subtle">
             {t("navigation:createProjectDialog.createAFolderWithThisNameUnder")}
             {cloudRoot ? t("navigation:createProjectDialog.cloudRoot", { path: cloudRoot }) : ""}
           </p>
         ) : (
           <section className="flex flex-col gap-1.5" aria-labelledby="project-source-label">
-            <h2 id="project-source-label" className="text-xs font-medium text-neutral-800">
+            <h2 id="project-source-label" className="text-xs font-medium text-heading">
               {t("navigation:createProjectDialog.sourceFolder")}
             </h2>
-            <div className="flex min-w-0 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-2">
+            <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2">
               {rootPath ? (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-neutral-700">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-strong">
                   <FolderClosed size={16} className="shrink-0" aria-hidden="true" />
                   <span className="truncate" title={rootPath}>
                     {rootPath}
                   </span>
                 </div>
               ) : (
-                <p className="min-w-0 flex-1 text-xs text-neutral-500">
+                <p className="min-w-0 flex-1 text-xs text-subtle">
                   {t("navigation:createProjectDialog.addAFolderOnThisComputer")}
                 </p>
               )}

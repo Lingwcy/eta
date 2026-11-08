@@ -71,7 +71,7 @@ async function mount(cloud = false) {
   });
   const bridge = {
     library,
-    subscribeLibrary: (listener) => f.settings.subscribe(listener),
+    subscribeLibrary: (listener) => f.settings.subscribe(() => listener()),
     updateSettings: (patch) => f.runtime.runPromise(f.settings.update(patch)),
     createThread: (workspaceId, requestId, configuration) =>
       f.runtime.runPromise(f.threads.create(workspaceId, requestId, configuration)),

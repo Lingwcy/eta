@@ -35,7 +35,7 @@ export function ToolSettings({
               title={`${tool.name} · ${tool.id}`}
               description={tool.description}
             >
-              <Icon size={18} className="text-neutral-400" aria-hidden="true" />
+              <Icon size={18} className="text-muted" aria-hidden="true" />
               <Button
                 variant={enabled ? "secondary" : "outline"}
                 size="sm"

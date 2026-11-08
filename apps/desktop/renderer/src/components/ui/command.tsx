@@ -25,14 +25,14 @@ export function CommandInput({
           size={variant === "menu-search" ? 14 : 15}
           aria-hidden="true"
           className={cn(
-            "pointer-events-none absolute top-1/2 -translate-y-1/2 text-neutral-400",
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted",
             variant === "menu-search" ? "left-2 stroke-[1.7]" : "left-3",
           )}
         />
       )}
       <Autocomplete.Input
         className={cn(
-          "w-full border-0 bg-transparent px-4 pt-4 pb-3 text-[15px] text-neutral-800 outline-none placeholder:text-neutral-500",
+          "w-full border-0 bg-transparent px-4 pt-4 pb-3 text-[15px] text-heading outline-none placeholder:text-subtle",
           variant === "search" && "h-11 py-0 pl-9 text-sm",
           variant === "menu-search" && "h-7 px-2 py-0 pl-7 text-xs",
         )}
@@ -73,9 +73,7 @@ export function CommandList({
 export function CommandGroupLabel(
   props: Omit<ComponentProps<typeof Autocomplete.GroupLabel>, "className">,
 ) {
-  return (
-    <Autocomplete.GroupLabel className="px-2 pt-2.5 pb-1 text-xs text-neutral-500" {...props} />
-  );
+  return <Autocomplete.GroupLabel className="px-2 pt-2.5 pb-1 text-xs text-subtle" {...props} />;
 }
 export function CommandItem({
   variant = "default",
@@ -88,10 +86,10 @@ export function CommandItem({
       className={cn(
         "flex items-center outline-none data-disabled:cursor-not-allowed [&_svg]:shrink-0",
         variant === "menu" || variant === "menu-detail"
-          ? "cursor-default gap-1.5 rounded-[5px] px-2 text-xs text-neutral-800 data-highlighted:bg-[#007aff] data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:stroke-[1.7]"
+          ? "cursor-default gap-1.5 rounded-[5px] px-2 text-xs text-heading data-highlighted:bg-menu-selected data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:stroke-[1.7]"
           : variant === "row"
-            ? "cursor-pointer gap-2 rounded-md px-2 py-1 text-[13px] text-neutral-700 data-highlighted:bg-neutral-100 data-highlighted:text-neutral-900 data-disabled:opacity-40 [&_svg]:size-3.5 [&_svg]:stroke-[1.7]"
-            : "cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-sm text-neutral-600 data-highlighted:bg-neutral-100 data-highlighted:text-neutral-900 data-disabled:opacity-40",
+            ? "cursor-pointer gap-2 rounded-md px-2 py-1 text-[13px] text-strong data-highlighted:bg-surface-subtle data-highlighted:text-foreground data-disabled:opacity-40 [&_svg]:size-3.5 [&_svg]:stroke-[1.7]"
+            : "cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-sm text-secondary data-highlighted:bg-surface-subtle data-highlighted:text-foreground data-disabled:opacity-40",
         variant === "menu" && "h-[26px]",
         variant === "menu-detail" && "min-h-[26px] py-1",
       )}

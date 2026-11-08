@@ -1,1 +1,183 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Light values preserve the existing UI; dark values describe the same visual roles. */
+@theme inline {
+  --color-solid-border: var(--eta-solid-border);
+  --color-task-foreground: var(--eta-task-foreground);
+  --color-accent-fill: var(--eta-accent-fill);
+  --color-app-foreground: var(--eta-app-foreground);
+  --color-border: var(--eta-border);
+  --color-border-control: var(--eta-border-control);
+  --color-border-dark: var(--eta-border-dark);
+  --color-border-emphasis: var(--eta-border-emphasis);
+  --color-border-soft: var(--eta-border-soft);
+  --color-border-strong: var(--eta-border-strong);
+  --color-brand: var(--eta-brand);
+  --color-brand-strong: var(--eta-brand-strong);
+  --color-caution-text-600: var(--eta-caution-text-600);
+  --color-caution-tint-50: var(--eta-caution-tint-50);
+  --color-contrast: var(--eta-contrast);
+  --color-control-mid: var(--eta-control-mid);
+  --color-control-muted: var(--eta-control-muted);
+  --color-danger-border-200: var(--eta-danger-border-200);
+  --color-danger-fill-500: var(--eta-danger-fill-500);
+  --color-danger-text-400: var(--eta-danger-text-400);
+  --color-danger-text-500: var(--eta-danger-text-500);
+  --color-danger-text-600: var(--eta-danger-text-600);
+  --color-danger-text-700: var(--eta-danger-text-700);
+  --color-danger-tint-50: var(--eta-danger-tint-50);
+  --color-disabled: var(--eta-disabled);
+  --color-faint: var(--eta-faint);
+  --color-focus: var(--eta-focus);
+  --color-focus-ring-400: var(--eta-focus-ring-400);
+  --color-focus-ring-500: var(--eta-focus-ring-500);
+  --color-foreground: var(--eta-foreground);
+  --color-heading: var(--eta-heading);
+  --color-info-border-500: var(--eta-info-border-500);
+  --color-info-fill-500: var(--eta-info-fill-500);
+  --color-info-text-300: var(--eta-info-text-300);
+  --color-info-text-500: var(--eta-info-text-500);
+  --color-info-text-600: var(--eta-info-text-600);
+  --color-info-tint-100: var(--eta-info-tint-100);
+  --color-info-tint-200: var(--eta-info-tint-200);
+  --color-menu-selected: var(--eta-menu-selected);
+  --color-muted: var(--eta-muted);
+  --color-on-solid: var(--eta-on-solid);
+  --color-panel: var(--eta-panel);
+  --color-positive-fill-500: var(--eta-positive-fill-500);
+  --color-secondary: var(--eta-secondary);
+  --color-shell: var(--eta-shell);
+  --color-sky-border-500: var(--eta-sky-border-500);
+  --color-sky-fill-400: var(--eta-sky-fill-400);
+  --color-sky-fill-500: var(--eta-sky-fill-500);
+  --color-sky-text-300: var(--eta-sky-text-300);
+  --color-sky-text-400: var(--eta-sky-text-400);
+  --color-sky-text-500: var(--eta-sky-text-500);
+  --color-sky-text-600: var(--eta-sky-text-600);
+  --color-sky-tint-100: var(--eta-sky-tint-100);
+  --color-solid: var(--eta-solid);
+  --color-solid-hover: var(--eta-solid-hover);
+  --color-strong: var(--eta-strong);
+  --color-subtle: var(--eta-subtle);
+  --color-success-text-400: var(--eta-success-text-400);
+  --color-success-text-500: var(--eta-success-text-500);
+  --color-success-text-600: var(--eta-success-text-600);
+  --color-success-text-700: var(--eta-success-text-700);
+  --color-success-tint-50: var(--eta-success-tint-50);
+  --color-surface: var(--eta-surface);
+  --color-surface-active: var(--eta-surface-active);
+  --color-surface-hover: var(--eta-surface-hover);
+  --color-surface-soft: var(--eta-surface-soft);
+  --color-surface-subtle: var(--eta-surface-subtle);
+  --color-violet-text-400: var(--eta-violet-text-400);
+  --color-violet-text-500: var(--eta-violet-text-500);
+  --color-violet-text-600: var(--eta-violet-text-600);
+  --color-warning-border-200: var(--eta-warning-border-200);
+  --color-warning-text-300: var(--eta-warning-text-300);
+  --color-warning-text-400: var(--eta-warning-text-400);
+  --color-warning-text-500: var(--eta-warning-text-500);
+  --color-warning-text-600: var(--eta-warning-text-600);
+  --color-warning-text-900: var(--eta-warning-text-900);
+  --color-warning-tint-50: var(--eta-warning-tint-50);
+}
+
+/* Before the renderer boots, Electron's native theme already resolves the saved preference.
+   light-dark keeps that first CSS paint consistent with the window background. */
+:root {
+  color-scheme: light dark;
+  --eta-accent-fill: light-dark(#0866e6, #2563eb);
+  --eta-app-foreground: light-dark(#292b2e, #eceef1);
+  --eta-border: light-dark(var(--color-neutral-200), #3b3e44);
+  --eta-border-control: light-dark(var(--color-neutral-400), #777d88);
+  --eta-border-dark: light-dark(var(--color-neutral-800), #3b3e44);
+  --eta-border-emphasis: light-dark(var(--color-neutral-500), #9a9fa9);
+  --eta-border-soft: light-dark(var(--color-neutral-100), #303238);
+  --eta-border-strong: light-dark(var(--color-neutral-300), #515660);
+  --eta-brand: light-dark(#ed714b, #f29575);
+  --eta-brand-strong: light-dark(#cf5530, #ffac8e);
+  --eta-caution-text-600: light-dark(var(--color-orange-600), #fb923c);
+  --eta-caution-tint-50: light-dark(var(--color-orange-50), #3c2d24);
+  --eta-contrast: light-dark(#000, #fff);
+  --eta-control-mid: light-dark(var(--color-neutral-500), #8a919e);
+  --eta-control-muted: light-dark(var(--color-neutral-400), #686e79);
+  --eta-danger-border-200: light-dark(var(--color-red-200), #704047);
+  --eta-danger-fill-500: light-dark(var(--color-red-500), var(--color-red-500));
+  --eta-danger-text-400: light-dark(var(--color-red-400), #f87171);
+  --eta-danger-text-500: light-dark(var(--color-red-500), #f87171);
+  --eta-danger-text-600: light-dark(var(--color-red-600), #f87171);
+  --eta-danger-text-700: light-dark(var(--color-red-700), #f87171);
+  --eta-danger-tint-50: light-dark(var(--color-red-50), #39272b);
+  --eta-disabled: light-dark(var(--color-neutral-300), #7d838e);
+  --eta-faint: light-dark(var(--color-neutral-200), #636873);
+  --eta-focus: light-dark(#0866e6, #6ca7ff);
+  --eta-focus-ring-400: light-dark(var(--color-neutral-400), #6ca7ff);
+  --eta-focus-ring-500: light-dark(var(--color-neutral-500), #6ca7ff);
+  --eta-foreground: light-dark(var(--color-neutral-900), #eceef1);
+  --eta-heading: light-dark(var(--color-neutral-800), #e0e3e9);
+  --eta-info-border-500: light-dark(var(--color-blue-500), #3c5a83);
+  --eta-info-fill-500: light-dark(var(--color-blue-500), var(--color-blue-500));
+  --eta-info-text-300: light-dark(var(--color-blue-300), #7bb2ff);
+  --eta-info-text-500: light-dark(var(--color-blue-500), #7bb2ff);
+  --eta-info-text-600: light-dark(var(--color-blue-600), #7bb2ff);
+  --eta-info-tint-100: light-dark(var(--color-blue-100), #233552);
+  --eta-info-tint-200: light-dark(var(--color-blue-200), #233552);
+  --eta-menu-selected: light-dark(#007aff, #0866e6);
+  --eta-muted: light-dark(var(--color-neutral-400), #9a9fa9);
+  --eta-on-solid: light-dark(#fff, #202124);
+  --eta-panel: light-dark(#f8f8f8, #2b2d31);
+  --eta-positive-fill-500: light-dark(var(--color-green-500), var(--color-green-500));
+  --eta-secondary: light-dark(var(--color-neutral-600), #b1b5bd);
+  --eta-shell: light-dark(#e9e9e9, #191a1c);
+  --eta-sky-border-500: light-dark(var(--color-sky-500), #385d75);
+  --eta-sky-fill-400: light-dark(var(--color-sky-400), var(--color-sky-400));
+  --eta-sky-fill-500: light-dark(var(--color-sky-500), var(--color-sky-500));
+  --eta-sky-text-300: light-dark(var(--color-sky-300), #7dd3fc);
+  --eta-sky-text-400: light-dark(var(--color-sky-400), #7dd3fc);
+  --eta-sky-text-500: light-dark(var(--color-sky-500), #7dd3fc);
+  --eta-sky-text-600: light-dark(var(--color-sky-600), #7dd3fc);
+  --eta-sky-tint-100: light-dark(var(--color-sky-100), #203848);
+  --eta-solid: light-dark(var(--color-neutral-900), #eceef1);
+  --eta-solid-border: light-dark(var(--color-neutral-900), #eceef1);
+  --eta-solid-hover: light-dark(var(--color-neutral-700), #c7cad1);
+  --eta-strong: light-dark(var(--color-neutral-700), #c7cad1);
+  --eta-subtle: light-dark(var(--color-neutral-500), #a5abb5);
+  --eta-success-text-400: light-dark(var(--color-emerald-400), #6ee7b7);
+  --eta-success-text-500: light-dark(var(--color-emerald-500), #6ee7b7);
+  --eta-success-text-600: light-dark(var(--color-emerald-600), #6ee7b7);
+  --eta-success-text-700: light-dark(var(--color-emerald-700), #6ee7b7);
+  --eta-success-tint-50: light-dark(var(--color-emerald-50), #213a32);
+  --eta-surface: light-dark(#fff, #222326);
+  --eta-surface-active: light-dark(var(--color-neutral-300), #454850);
+  --eta-surface-hover: light-dark(var(--color-neutral-200), #35373c);
+  --eta-surface-soft: light-dark(var(--color-neutral-50), #25272a);
+  --eta-surface-subtle: light-dark(var(--color-neutral-100), #292b2f);
+  --eta-task-foreground: light-dark(#0a0a0a, #eceef1);
+  --eta-violet-text-400: light-dark(var(--color-violet-400), #c4b5fd);
+  --eta-violet-text-500: light-dark(var(--color-violet-500), #c4b5fd);
+  --eta-violet-text-600: light-dark(var(--color-violet-600), #c4b5fd);
+  --eta-warning-border-200: light-dark(var(--color-amber-200), #725b30);
+  --eta-warning-text-300: light-dark(var(--color-amber-300), #fbbf24);
+  --eta-warning-text-400: light-dark(var(--color-amber-400), #fbbf24);
+  --eta-warning-text-500: light-dark(var(--color-amber-500), #fbbf24);
+  --eta-warning-text-600: light-dark(var(--color-amber-600), #fbbf24);
+  --eta-warning-text-900: light-dark(var(--color-amber-900), #fbbf24);
+  --eta-warning-tint-50: light-dark(var(--color-amber-50), #3c3220);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-shell);
+  color: var(--color-app-foreground);
+}
+:root[data-theme="dark"] ::selection {
+  background: #304d76;
+  color: #eceef1;
+}

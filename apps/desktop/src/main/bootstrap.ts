@@ -281,6 +281,8 @@ async function createLocalDesktopApplication(
       stop: (id: string) => run(threads.stop(id)),
       resume: (id: string) => run(threads.resume(id)),
       compact: (id: string) => run(threads.compact(id)),
+      subscribeSettings: (listener: (settings: DesktopSettings) => void) =>
+        settings.subscribe(listener),
       updateSettings: (patch: Partial<DesktopSettings>) => run(settings.update(patch)),
       computerStatus: async (): Promise<ComputerStatus> =>
         computer?.status() ?? { status: "unsupported" },

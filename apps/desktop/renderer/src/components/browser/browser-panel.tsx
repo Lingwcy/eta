@@ -34,8 +34,8 @@ export function BrowserPanel({
   const { address, setAddress, addressInput, viewport, ready, navigate, command, page, error } =
     useBrowserPage(tab, visible, client, state);
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-100 px-2.5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border-soft px-2.5">
         <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost-muted"
@@ -74,12 +74,12 @@ export function BrowserPanel({
             event.preventDefault();
             void navigate();
           }}
-          className="mx-auto flex h-8 min-w-0 max-w-[1100px] flex-1 items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 focus-within:border-neutral-400 focus-within:bg-white"
+          className="mx-auto flex h-8 min-w-0 max-w-[1100px] flex-1 items-center gap-2 rounded-full border border-border bg-surface-soft px-3 focus-within:border-border-control focus-within:bg-surface"
         >
           {tab.url ? (
-            <Globe2 size={15} className="shrink-0 text-neutral-400" />
+            <Globe2 size={15} className="shrink-0 text-muted" />
           ) : (
-            <Search size={15} className="shrink-0 text-neutral-400" />
+            <Search size={15} className="shrink-0 text-muted" />
           )}
           <input
             ref={addressInput}
@@ -89,7 +89,7 @@ export function BrowserPanel({
             value={address}
             onChange={(event) => setAddress(event.target.value)}
             onFocus={(event) => event.target.select()}
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-neutral-700 outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-strong outline-none"
           />
         </form>
       </div>
@@ -106,20 +106,20 @@ export function BrowserPanel({
               <img src={page.preview} alt="" className="absolute inset-0 size-full object-fill" />
             )}
             {!ready && (
-              <div className="flex h-full items-center justify-center text-sm text-neutral-400">
+              <div className="flex h-full items-center justify-center text-sm text-muted">
                 {t("browser:browserPanel.openingPage")}
               </div>
             )}
           </>
         ) : (
           <div className="mx-auto flex h-full max-w-[560px] flex-col items-center justify-center px-8 pb-14">
-            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-neutral-100">
-              <Globe2 size={22} strokeWidth={1.5} className="text-neutral-500" />
+            <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-surface-subtle">
+              <Globe2 size={22} strokeWidth={1.5} className="text-subtle" />
             </div>
-            <h1 className="text-[17px] font-semibold tracking-tight text-neutral-800">
+            <h1 className="text-[17px] font-semibold tracking-tight text-heading">
               {t("browser:browserPanel.startHere")}
             </h1>
-            <p className="mt-1 text-[13px] text-neutral-400">
+            <p className="mt-1 text-[13px] text-muted">
               {t("browser:browserPanel.browseTheWebOrOpenANew")}
             </p>
             <div className="mt-6 flex items-center gap-2">

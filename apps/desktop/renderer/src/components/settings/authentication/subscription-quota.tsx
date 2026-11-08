@@ -67,7 +67,7 @@ function fraction(window: QuotaWindow) {
   return undefined;
 }
 
-const colors = ["text-emerald-500", "text-blue-500", "text-amber-500"];
+const colors = ["text-success-text-500", "text-info-text-500", "text-warning-text-500"];
 
 /** Each window owns a fixed arc; its filled fraction represents the remaining allowance. */
 function QuotaRing({
@@ -100,7 +100,7 @@ function QuotaRing({
             <circle
               {...arc}
               stroke="currentColor"
-              className="text-neutral-200"
+              className="text-faint"
               strokeDasharray={span + " " + (1 - span)}
             />
             {value !== undefined && value > 0 && (
@@ -163,7 +163,7 @@ export function SubscriptionQuota({
               <span className={colors[index % colors.length]}>{windowName(window)}</span>
               <span>{remaining(window)}</span>
               {window.resetsAt !== undefined && (
-                <span className="text-neutral-300">{resetTime(window.resetsAt, now)}</span>
+                <span className="text-disabled">{resetTime(window.resetsAt, now)}</span>
               )}
             </div>
           ))}
@@ -178,7 +178,7 @@ export function SubscriptionQuota({
             </span>
           )}
           {error && quota?.readAt !== undefined && (
-            <span className="text-neutral-300">
+            <span className="text-disabled">
               {t("settings:subscriptionQuota.lastUpdated", {
                 time: new Intl.DateTimeFormat(currentFormatLocale(), {
                   dateStyle: "medium",

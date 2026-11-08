@@ -7,7 +7,7 @@ export function RunningIndicator() {
     <span className="inline-flex shrink-0 items-center">
       <span
         aria-hidden="true"
-        className="size-3.5 rounded-full border-2 border-neutral-300 border-t-neutral-500"
+        className="size-3.5 rounded-full border-2 border-border-strong border-t-neutral-500"
       />
       <span className="sr-only">{t("common:runningIndicator.running")}</span>
     </span>

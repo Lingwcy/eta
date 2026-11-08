@@ -44,7 +44,7 @@ function ThinkingOutput({ text }: { text: string }) {
   useTranslation();
   const scroll = useScrollFollow();
   return (
-    <div className="mt-0.5 ml-2 text-neutral-500 dark:text-neutral-400">
+    <div className="mt-0.5 ml-2 text-subtle dark:text-muted">
       <ScrollAreaRoot className="max-h-60">
         <ScrollAreaViewport
           ref={scroll.viewport}

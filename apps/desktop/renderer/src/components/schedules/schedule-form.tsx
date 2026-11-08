@@ -297,7 +297,7 @@ export function ScheduleForm({
           </label>
           <label>
             {t("schedules:scheduleForm.instructions")}
-            <div className="mt-1 rounded-lg border border-neutral-200 bg-white p-2.5 focus-within:border-neutral-400 focus-within:ring-2 focus-within:ring-neutral-200">
+            <div className="mt-1 rounded-lg border border-border bg-surface p-2.5 focus-within:border-border-control focus-within:ring-2 focus-within:ring-border">
               <Textarea
                 variant="compact"
                 value={prompt}
@@ -306,7 +306,7 @@ export function ScheduleForm({
               />
             </div>
           </label>
-          <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2.5">
+          <section className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-2.5">
             <div className="grid grid-cols-2 items-start gap-3">
               <label className="flex min-w-0 flex-col gap-1">
                 {t("schedules:scheduleForm.repeat")}
@@ -354,7 +354,7 @@ export function ScheduleForm({
             {kind === "weekly" && (
               <fieldset className="flex items-center gap-3">
                 <legend className="sr-only">{t("schedules:scheduleForm.daysOfTheWeek")}</legend>
-                <span className="shrink-0 text-neutral-500">
+                <span className="shrink-0 text-subtle">
                   {t("schedules:scheduleForm.daysOfTheWeek")}
                 </span>
                 <div className="grid min-w-0 flex-1 grid-cols-7 gap-1">
@@ -397,7 +397,7 @@ export function ScheduleForm({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="pt-2">
-                <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2.5">
+                <section className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       {threadId ? (
@@ -423,9 +423,7 @@ export function ScheduleForm({
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <span className="text-neutral-500">
-                        {t("schedules:scheduleForm.permissions")}
-                      </span>
+                      <span className="text-subtle">{t("schedules:scheduleForm.permissions")}</span>
                       <SandboxPicker
                         mode={effectiveSandboxMode}
                         defaultMode={preferredSandboxMode}

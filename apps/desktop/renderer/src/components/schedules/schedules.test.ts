@@ -1511,11 +1511,11 @@ test("manual run shows submission immediately and follows queued, running and te
     .poll(() => document.querySelector('[role="status"]')?.getAttribute("aria-label"))
     .toBe("等待执行");
   for (const [state, label, color] of [
-    ["admitted", "执行中", "bg-blue-500"],
-    ["succeeded", "执行成功", "bg-green-500"],
-    ["failed", "会话错误", "bg-red-500"],
-    ["cancelled", "已取消", "bg-neutral-400"],
-    ["skipped", "已跳过", "bg-neutral-400"],
+    ["admitted", "执行中", "bg-info-fill-500"],
+    ["succeeded", "执行成功", "bg-positive-fill-500"],
+    ["failed", "会话错误", "bg-danger-fill-500"],
+    ["cancelled", "已取消", "bg-control-muted"],
+    ["skipped", "已跳过", "bg-control-muted"],
   ] as const) {
     const environment = snapshot.snapshots[0]!;
     snapshot = {
@@ -1621,7 +1621,7 @@ test("manual run explains project recovery, interrupted admissions and stale off
         detail,
       );
     }
-    expect(document.querySelector('aside [role="status"].bg-blue-500') !== null).toBe(
+    expect(document.querySelector('aside [role="status"].bg-info-fill-500') !== null).toBe(
       state === "admitted" && !reason && connection === "connected",
     );
   }

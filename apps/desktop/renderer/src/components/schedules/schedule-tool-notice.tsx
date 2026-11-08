@@ -124,7 +124,7 @@ export function ScheduleToolNotice({ result }: { result: ScheduleToolResult }) {
     delete: t("schedules:scheduleToolNotice.scheduledTaskCancelled"),
   };
   return (
-    <div className="flex flex-col gap-1 py-1 text-xs text-neutral-500">
+    <div className="flex flex-col gap-1 py-1 text-xs text-subtle">
       <div className="flex items-center gap-2">
         <Clock3 size={14} aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">

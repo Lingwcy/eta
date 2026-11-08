@@ -50,13 +50,13 @@ function ToastViewport() {
               key={toast.id}
               toast={toast}
               swipeDirection="right"
-              className="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white p-3 text-neutral-800 shadow-lg shadow-black/8 transition-[opacity,translate] duration-200 ease-out data-starting-style:translate-x-4 data-starting-style:opacity-0 data-ending-style:translate-x-4 data-ending-style:opacity-0 data-limited:hidden motion-reduce:transition-none motion-reduce:data-starting-style:translate-x-0 motion-reduce:data-ending-style:translate-x-0"
+              className="pointer-events-auto rounded-xl border border-border/80 bg-surface p-3 text-heading shadow-lg shadow-black/8 transition-[opacity,translate] duration-200 ease-out data-starting-style:translate-x-4 data-starting-style:opacity-0 data-ending-style:translate-x-4 data-ending-style:opacity-0 data-limited:hidden motion-reduce:transition-none motion-reduce:data-starting-style:translate-x-0 motion-reduce:data-ending-style:translate-x-0"
             >
               <Toast.Content className="flex items-start gap-2.5">
-                <Icon size={16} className="mt-0.5 shrink-0 text-neutral-500" aria-hidden="true" />
+                <Icon size={16} className="mt-0.5 shrink-0 text-subtle" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
                   <Toast.Title className="text-xs font-medium" />
-                  <Toast.Description className="mt-1 text-xs leading-relaxed break-words whitespace-pre-wrap text-neutral-500" />
+                  <Toast.Description className="mt-1 text-xs leading-relaxed break-words whitespace-pre-wrap text-subtle" />
                   {toast.actionProps && (
                     <div className="mt-2">
                       <Toast.Action render={<Button variant="secondary" size="compact" />} />

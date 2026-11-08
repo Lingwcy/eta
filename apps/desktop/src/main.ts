@@ -1,7 +1,8 @@
+import { createAppearanceController } from "./main/platform/appearance.ts";
 import { LocalizedError } from "./shared/i18n/messages.ts";
 import { createBackgroundResidence } from "./main/platform/background.ts";
 import { resolve } from "node:path";
-import { app, BrowserWindow, dialog, shell, Tray, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, dialog, shell, Tray, Menu, nativeImage, nativeTheme } from "electron";
 import { processImage } from "@eta/core/node/images";
 import { resolveShellPath } from "./main/platform/shell-path.ts";
 import { createDesktopApplication } from "./main/bootstrap.ts";
@@ -30,7 +31,15 @@ function service() {
 }
 
 const subscriptions = createAgentSubscriptions(service);
-const windows = createDesktopWindows(subscriptions.disposeWindow, () => quitting);
+const appearance = createAppearanceController(nativeTheme, (snapshot) =>
+  windows.updateAppearance(snapshot),
+);
+let stopAppearanceSettings: (() => void) | undefined;
+const windows = createDesktopWindows(
+  subscriptions.disposeWindow,
+  () => quitting,
+  appearance.snapshot,
+);
 const openWindow = windows.open;
 const background = createBackgroundResidence({
   platform: process.platform,
@@ -86,7 +95,7 @@ function notifyLibrary(reason?: "credentials") {
   }
 }
 
-registerDesktopIpc({ service, updater: () => updater, windows, notifyLibrary });
+registerDesktopIpc({ service, updater: () => updater, windows, notifyLibrary, appearance });
 
 if (process.argv.includes("--eta-computer-overlay")) {
   startComputerOverlayHost();
@@ -107,6 +116,8 @@ if (process.argv.includes("--eta-computer-overlay")) {
     event.preventDefault();
     quitting = true;
     background.dispose();
+    stopAppearanceSettings?.();
+    appearance.dispose();
     updater?.dispose();
     windows.dispose();
     subscriptions.dispose();
@@ -174,6 +185,12 @@ if (process.argv.includes("--eta-computer-overlay")) {
       const initialSettings = (await agentService.library()).settings;
       await mainI18n.changeLanguage(initialSettings.locale ?? defaultLocale);
       background.configure(initialSettings.backgroundOnClose === true);
+      if (!quitting) {
+        appearance.configure(initialSettings.theme ?? "system");
+        stopAppearanceSettings = agentService.subscribeSettings((settings) =>
+          appearance.configure(settings.theme ?? "system"),
+        );
+      }
       ready = true;
       if (!quitting) openWindow();
 

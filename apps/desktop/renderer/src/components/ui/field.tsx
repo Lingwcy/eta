@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <BaseField.Root className="flex flex-col gap-2 text-sm text-neutral-700">
+    <BaseField.Root className="flex flex-col gap-2 text-sm text-strong">
       <BaseField.Label>{label}</BaseField.Label>
       {children}
     </BaseField.Root>

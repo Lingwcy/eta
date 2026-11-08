@@ -46,7 +46,7 @@ export function ComposerContext({
 }) {
   useTranslation();
   return (
-    <div className="mx-5 -mb-1 flex min-h-[38px] flex-wrap items-center gap-x-3 gap-y-1 rounded-t-2xl bg-neutral-200/60 px-3 py-1 text-[13px] text-neutral-500 min-[701px]:mx-7 min-[901px]:gap-x-5">
+    <div className="mx-5 -mb-1 flex min-h-[38px] flex-wrap items-center gap-x-3 gap-y-1 rounded-t-2xl bg-surface-hover/60 px-3 py-1 text-[13px] text-subtle min-[701px]:mx-7 min-[901px]:gap-x-5">
       <Suspense
         fallback={
           <Button variant="ghost" size="pill" disabled>

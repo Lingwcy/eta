@@ -28,9 +28,9 @@ export interface AgentThinkingProps {
 }
 
 const TONE_COLORS: Record<AgentThinkingTone, string> = {
-  subtle: "var(--color-neutral-400)",
-  default: "var(--color-neutral-500)",
-  primary: "var(--color-neutral-800)",
+  subtle: "var(--color-muted)",
+  default: "var(--color-subtle)",
+  primary: "var(--color-heading)",
   accent: "var(--color-blue-500)",
 };
 
@@ -243,7 +243,7 @@ function ThinkingLabel({
         {waiting && elapsed >= 30 ? t("chat:index.takingLongerThanUsual", { label: label }) : label}
       </span>
       {showTimer && (
-        <span aria-hidden className="font-mono text-xs text-neutral-400 tabular-nums">
+        <span aria-hidden className="font-mono text-xs text-muted tabular-nums">
           {elapsed.toFixed(1)}s
         </span>
       )}

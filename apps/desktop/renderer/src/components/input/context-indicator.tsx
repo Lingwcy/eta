@@ -35,7 +35,7 @@ export function ContextIndicator({
       })}
     >
       <svg
-        className="size-3.5 sm:size-4 -rotate-90 text-neutral-600 shrink-0"
+        className="size-3.5 sm:size-4 -rotate-90 text-secondary shrink-0"
         viewBox="0 0 16 16"
         aria-hidden="true"
       >
@@ -46,7 +46,7 @@ export function ContextIndicator({
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
-          className="text-neutral-300"
+          className="text-disabled"
         />
         <circle
           cx="8"

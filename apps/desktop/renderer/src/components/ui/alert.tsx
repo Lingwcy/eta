@@ -4,8 +4,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 const alertVariants = cva("rounded-xl border px-4 py-3 text-sm break-words", {
   variants: {
     tone: {
-      error: "border-red-200 bg-red-50 text-red-700",
-      warning: "border-amber-200 bg-amber-50 text-amber-900",
+      error: "border-danger-border-200 bg-danger-tint-50 text-danger-text-700",
+      warning: "border-warning-border-200 bg-warning-tint-50 text-warning-text-900",
     },
   },
   defaultVariants: { tone: "error" },

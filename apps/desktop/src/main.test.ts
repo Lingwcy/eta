@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
     threadFile: vi.fn(),
     renameThread: vi.fn(),
     subscribeLibrary: vi.fn(),
+    subscribeSettings: vi.fn(() => () => {}),
     subscribeSchedules: vi.fn(),
     openSkillsDirectory: vi.fn(),
     library: vi.fn(async () => ({ settings: {} })),
@@ -79,6 +80,10 @@ vi.mock("electron", async () => {
   }
   return {
     BrowserWindow: Window,
+    nativeTheme: Object.assign(new EventEmitter(), {
+      themeSource: "system",
+      shouldUseDarkColors: false,
+    }),
     app: {
       isPackaged: false,
       requestSingleInstanceLock: () => true,
@@ -153,6 +158,7 @@ test("development renderer navigation stays within the configured server origin"
   const windows = createDesktopWindows(
     () => {},
     () => false,
+    () => ({ preference: "light", resolved: "light", revision: 0 }),
   );
   windows.open("dev-thread");
   const window = state.windows.at(-1)!;

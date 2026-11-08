@@ -8,7 +8,7 @@ export function SearchInput(props: Omit<ComponentProps<typeof Input>, "variant" 
       <Search
         size={16}
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-3 z-10 -translate-y-1/2 text-neutral-400"
+        className="pointer-events-none absolute top-1/2 left-3 z-10 -translate-y-1/2 text-muted"
       />
       <Input variant="search" {...props} />
     </div>

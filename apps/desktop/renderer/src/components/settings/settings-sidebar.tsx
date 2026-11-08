@@ -18,7 +18,7 @@ export function SettingsSidebar({
   useTranslation();
   const search = query.trim().toLocaleLowerCase();
   return (
-    <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-neutral-100 bg-[#fafafa] px-2 pt-3 pb-2">
+    <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-border-soft bg-surface-soft px-2 pt-3 pb-2">
       <h1 className="px-2 pb-4 text-lg font-semibold">{t("settings:settingsSidebar.settings")}</h1>
       <div className="mb-3">
         <SearchInput
@@ -42,9 +42,7 @@ export function SettingsSidebar({
             if (!items.length) return null;
             return (
               <div key={group.id} className="mb-4">
-                <h2 className="px-2 pt-1.5 pb-1 text-xs font-medium text-neutral-500">
-                  {group.label}
-                </h2>
+                <h2 className="px-2 pt-1.5 pb-1 text-xs font-medium text-subtle">{group.label}</h2>
                 {items.map((item) => (
                   <TabsTrigger key={item.id} variant="sidebar" value={item.id}>
                     <item.icon aria-hidden="true" />
@@ -61,7 +59,7 @@ export function SettingsSidebar({
               `${item.label} ${item.title}`.toLocaleLowerCase().includes(search),
             ),
           ) && (
-            <p className="px-2 py-4 text-xs text-neutral-600">
+            <p className="px-2 py-4 text-xs text-secondary">
               {t("settings:settingsSidebar.noMatchingSettingsCategories")}
             </p>
           )}

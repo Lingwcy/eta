@@ -28,7 +28,7 @@ export function ImageAttachments({
       {items.map((item) => (
         <li
           key={item.id}
-          className="relative size-16 overflow-hidden rounded-[12px] border border-neutral-200 bg-neutral-50"
+          className="relative size-16 overflow-hidden rounded-[12px] border border-border bg-surface-soft"
           title={renderMessage(item.error) ?? item.name}
         >
           {item.image ? (
@@ -43,13 +43,13 @@ export function ImageAttachments({
               aria-label={renderMessage(item.error) ?? t("chat:imageAttachments.processingImage")}
             >
               {item.error ? (
-                <ImageIcon size={20} className="text-red-500" />
+                <ImageIcon size={20} className="text-danger-text-500" />
               ) : (
-                <LoaderCircle size={18} className="text-neutral-400" />
+                <LoaderCircle size={18} className="text-muted" />
               )}
             </div>
           )}
-          <div className="absolute top-1 right-1 rounded-full bg-white/90">
+          <div className="absolute top-1 right-1 rounded-full bg-surface/90">
             <Button
               variant="ghost-muted"
               size="icon-tiny"

@@ -26,7 +26,7 @@ export function ProjectSidebar({
 }: Props) {
   useTranslation();
   return (
-    <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-neutral-100 bg-[#f8f8f8] px-2 pt-2 pb-2">
+    <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-border-soft bg-panel px-2 pt-2 pb-2">
       <div className="flex items-center gap-1 pb-2">
         <div className="min-w-0 flex-1">
           <Button variant="ghost" size="row-compact" onClick={onNew} disabled={!canCreate}>
@@ -51,7 +51,7 @@ export function ProjectSidebar({
         )}
         {search}
       </div>
-      <div className="px-2 pt-2 pb-1.5 text-xs font-medium text-neutral-500">
+      <div className="px-2 pt-2 pb-1.5 text-xs font-medium text-subtle">
         {recent
           ? t("navigation:projectSidebar.recentChats")
           : archived

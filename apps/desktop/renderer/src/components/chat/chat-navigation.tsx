@@ -65,9 +65,7 @@ export const ChatNavigation = memo(function ChatNavigation({
                         className={cn(
                           "h-0.5 w-1.5 bg-current transition-[width,color] duration-200 ease-out motion-reduce:transition-none",
                           tickWidths[distance],
-                          distance === 0
-                            ? "text-neutral-800"
-                            : turn.id === activeId && "text-neutral-500",
+                          distance === 0 ? "text-heading" : turn.id === activeId && "text-subtle",
                         )}
                       />
                     </Button>
@@ -81,12 +79,12 @@ export const ChatNavigation = memo(function ChatNavigation({
               {payload && (
                 <Reveal key={payload.id}>
                   <div className="flex min-w-0 items-center gap-3">
-                    <p className="min-w-0 flex-1 truncate text-[13px]/5 font-semibold text-neutral-800">
+                    <p className="min-w-0 flex-1 truncate text-[13px]/5 font-semibold text-heading">
                       {payload.title}
                     </p>
-                    <Bookmark size={14} className="shrink-0 text-neutral-400" aria-hidden="true" />
+                    <Bookmark size={14} className="shrink-0 text-muted" aria-hidden="true" />
                   </div>
-                  <div className="mt-1.5 line-clamp-4 text-xs/5 break-words text-neutral-500 [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
+                  <div className="mt-1.5 line-clamp-4 text-xs/5 break-words text-subtle [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
                     <MessageMarkdown
                       preview
                       text={payload.preview || t("chat:chatNavigation.waitingForAResponse")}

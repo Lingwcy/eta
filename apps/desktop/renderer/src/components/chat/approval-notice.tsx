@@ -44,7 +44,7 @@ function historyLabel(request: SandboxApproval) {
 function Scope({ request }: { request: SandboxApproval }) {
   useTranslation();
   return (
-    <div className="mx-2 mt-1 space-y-1 border-t border-black/10 pt-2 pb-1 text-neutral-600">
+    <div className="mx-2 mt-1 space-y-1 border-t border-contrast/10 pt-2 pb-1 text-secondary">
       {request.gitMetadata && (
         <p className="break-all">
           {t("chat:approvalNotice.gitMetadata")}
@@ -76,7 +76,7 @@ function Scope({ request }: { request: SandboxApproval }) {
           {request.review.toolCalls.map((call) => call.summary).join("、")}
         </p>
       ) : null}
-      <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-[5px] bg-black/4 p-2 leading-4">
+      <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-[5px] bg-contrast/4 p-2 leading-4">
         {JSON.stringify(request.args, null, 2)}
       </pre>
     </div>
@@ -98,7 +98,7 @@ export function ApprovalNotice({
   useTranslation();
   if (!requests.length && !history.length) return null;
   return (
-    <div className="mx-5 -mb-3 rounded-t-[10px] border border-black/12 bg-[#f8f8f8]/95 pb-3 text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] backdrop-blur-xl min-[701px]:mx-7">
+    <div className="mx-5 -mb-3 rounded-t-[10px] border border-contrast/12 bg-panel/95 pb-3 text-heading shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] backdrop-blur-xl min-[701px]:mx-7">
       <div className="max-h-[min(280px,35vh)] overflow-y-auto overscroll-contain">
         {requests.map((request) => {
           const note = reviewNote(request);
@@ -106,13 +106,13 @@ export function ApprovalNotice({
             <section
               key={request.id}
               aria-label={t("chat:approvalNotice.approvalRequested", { tool: request.tool })}
-              className="px-1 py-1.5 not-first:border-t not-first:border-black/10"
+              className="px-1 py-1.5 not-first:border-t not-first:border-contrast/10"
             >
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-2">
                 <ShieldQuestion
                   size={14}
                   strokeWidth={1.7}
-                  className="shrink-0 text-neutral-500"
+                  className="shrink-0 text-subtle"
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1 truncate text-xs">
@@ -120,7 +120,7 @@ export function ApprovalNotice({
                   {request.gitMetadata ? t("chat:approvalNotice.gitWrites") : request.tool}
                 </span>
                 {request.networkAccess && (
-                  <span className="shrink-0 text-[11px] text-neutral-600">
+                  <span className="shrink-0 text-[11px] text-secondary">
                     {t("chat:approvalNotice.network")}
                   </span>
                 )}
@@ -155,9 +155,9 @@ export function ApprovalNotice({
                   </Button>
                 </div>
               </div>
-              {note && <p className="mt-0.5 px-2 text-xs break-all text-neutral-600">{note}</p>}
+              {note && <p className="mt-0.5 px-2 text-xs break-all text-secondary">{note}</p>}
               {request.reusable && (
-                <p className="mt-0.5 px-2 text-xs text-neutral-600">
+                <p className="mt-0.5 px-2 text-xs text-secondary">
                   {t("chat:approvalNotice.afterAllowingThisScopeForTheRun")}
                 </p>
               )}
@@ -167,7 +167,7 @@ export function ApprovalNotice({
                     reason: request.reason,
                   })}
                   title={request.reason}
-                  className="flex cursor-pointer list-none items-start gap-1.5 rounded-[5px] px-2 py-1 text-neutral-600 outline-none hover:bg-black/5 focus-visible:bg-black/5 [&::-webkit-details-marker]:hidden"
+                  className="flex cursor-pointer list-none items-start gap-1.5 rounded-[5px] px-2 py-1 text-secondary outline-none hover:bg-contrast/5 focus-visible:bg-contrast/5 [&::-webkit-details-marker]:hidden"
                 >
                   <ChevronRight
                     size={12}
@@ -186,10 +186,10 @@ export function ApprovalNotice({
         })}
         {history.length > 0 && (
           <details
-            className="group/history px-1 pt-1.5 text-[11px] not-first:border-t not-first:border-black/10"
+            className="group/history px-1 pt-1.5 text-[11px] not-first:border-t not-first:border-contrast/10"
             aria-label={t("chat:approvalNotice.automaticReviewHistory")}
           >
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-[5px] px-2 py-1 text-neutral-500 outline-none hover:bg-black/5 focus-visible:bg-black/5 [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-[5px] px-2 py-1 text-subtle outline-none hover:bg-contrast/5 focus-visible:bg-contrast/5 [&::-webkit-details-marker]:hidden">
               <Bot size={13} strokeWidth={1.7} className="shrink-0" aria-hidden="true" />
               <span className="flex-1">
                 {t("chat:approvalNotice.historyCount", { count: history.length })}
@@ -203,7 +203,7 @@ export function ApprovalNotice({
             </summary>
             {history.toReversed().map((request) => (
               <details key={request.id} className="group mt-0.5">
-                <summary className="flex cursor-pointer list-none items-start gap-1.5 rounded-[5px] px-2 py-1 text-neutral-600 outline-none hover:bg-black/5 focus-visible:bg-black/5 [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-start gap-1.5 rounded-[5px] px-2 py-1 text-secondary outline-none hover:bg-contrast/5 focus-visible:bg-contrast/5 [&::-webkit-details-marker]:hidden">
                   <ChevronRight
                     size={12}
                     strokeWidth={1.7}
@@ -217,7 +217,7 @@ export function ApprovalNotice({
                   </span>
                 </summary>
                 {request.review?.reviewer && (
-                  <p className="mx-2 mt-1 text-neutral-500">
+                  <p className="mx-2 mt-1 text-subtle">
                     {t("chat:approvalNotice.reviewModel")}
                     {request.review.reviewer.provider}/{request.review.reviewer.modelId}
                   </p>

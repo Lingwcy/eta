@@ -20,12 +20,12 @@ export function DialogContent({
       <BaseDialog.Backdrop className="fixed inset-0 z-30 bg-black/15 transition-opacity duration-150 data-starting-style:opacity-0 data-ending-style:opacity-0 motion-reduce:transition-none" />
       <BaseDialog.Popup
         className={cn(
-          "fixed top-[10dvh] left-1/2 z-40 flex max-h-[80dvh] w-[calc(100vw-32px)] max-w-[560px] -translate-x-1/2 flex-col overflow-hidden rounded-[14px] bg-white shadow-2xl ring-1 ring-black/5 outline-none transition-[opacity,scale] duration-150 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:transition-none",
+          "fixed top-[10dvh] left-1/2 z-40 flex max-h-[80dvh] w-[calc(100vw-32px)] max-w-[560px] -translate-x-1/2 flex-col overflow-hidden rounded-[14px] bg-surface shadow-2xl ring-1 ring-contrast/5 outline-none transition-[opacity,scale] duration-150 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 motion-reduce:transition-none",
           className,
-          variant === "form" && "top-1/2 max-w-[600px] -translate-y-1/2 bg-[#f8f8f8] p-5",
-          variant === "dense-form" && "top-1/2 max-w-[600px] -translate-y-1/2 bg-neutral-50 p-4",
+          variant === "form" && "top-1/2 max-w-[600px] -translate-y-1/2 bg-panel p-5",
+          variant === "dense-form" && "top-1/2 max-w-[600px] -translate-y-1/2 bg-surface-soft p-4",
           variant === "compact-form" &&
-            "top-1/2 max-w-[420px] -translate-y-1/2 overflow-y-auto rounded-xl border border-black/12 bg-[#f8f8f8] p-4 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] ring-0",
+            "top-1/2 max-w-[420px] -translate-y-1/2 overflow-y-auto rounded-xl border border-contrast/12 bg-panel p-4 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] ring-0",
         )}
         {...props}
       />

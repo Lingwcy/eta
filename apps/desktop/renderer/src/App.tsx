@@ -40,7 +40,7 @@ export function App() {
           onSaved={(id) => void shell.scheduleSaved(id)}
         />
       )}
-      <div className="flex h-dvh flex-col overflow-hidden bg-[#e9e9e9] font-sans text-[#292b2e] antialiased [--rail-width:50px] [--sidebar-width:170px] min-[701px]:[--sidebar-width:190px] min-[901px]:[--sidebar-width:210px] min-[1600px]:[--sidebar-width:230px]">
+      <div className="flex h-dvh flex-col overflow-hidden bg-shell font-sans text-app-foreground antialiased [--rail-width:50px] [--sidebar-width:170px] min-[701px]:[--sidebar-width:190px] min-[901px]:[--sidebar-width:210px] min-[1600px]:[--sidebar-width:230px]">
         <DesktopTabBar
           state={shell.navigation.state}
           tabs={shell.navigation.tabs}

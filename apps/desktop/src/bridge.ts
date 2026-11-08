@@ -1,3 +1,4 @@
+import type { AppearanceSnapshot } from "./appearance.ts";
 import type { DesktopScheduleSnapshot } from "./shared/schedules.ts";
 import type { ScheduleRequest, ScheduleOccurrence } from "@eta/core/shared/schedules";
 import type {
@@ -113,6 +114,9 @@ export interface AppInfo {
 }
 
 export interface DesktopBridge extends AgentBridge {
+  readonly initialAppearance: AppearanceSnapshot;
+  appearance(): Promise<AppearanceSnapshot>;
+  subscribeAppearance(listener: (snapshot: AppearanceSnapshot) => void): () => void;
   scheduleSnapshot(): Promise<DesktopScheduleSnapshot>;
   writeSchedule(input: ScheduleWriteInput): Promise<ScheduleRequest>;
   proposeSchedule(input: ScheduleProposeInput): Promise<ScheduleRequest>;

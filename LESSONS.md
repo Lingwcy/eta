@@ -703,10 +703,11 @@ a dependency. A dev server succeeding does not prove an installed client works.*
 - Additional evidence: on 2026-11-03, disabling Vite's `source` condition to accommodate Pi's missing published source files made clean Desktop CI unable to resolve workspace Core imports. Local tests had passed against an existing Core `dist`. Alias the workspace sources explicitly and run the affected client tests with that output absent.
 - CI follow-up: #432's Linux Core crash/lifecycle workers import that package through Node, outside Vite's source conditions, and failed with missing `dist/protocol.mjs`. Build and verify the workspace dependency before Core tests in both Desktop and Bot workflows; Vite aliases cannot repair a separate Node process's package exports.
 - Additional evidence: on 2026-11-06, v0.1.161 release run `42277084314` passes source tests but all three installer jobs fail the isolated packaged-runtime assertion at `verify-package.mjs:127`: the maintained local default is now `danger-full-access`, while the smoke test still expects `workspace-write`. Keep the new-default check separate from explicit restricted-mode availability and saved read-only preference checks. The release was not published; retain its failed tag rather than relabeling artifacts from changed source.
+- Additional evidence: on 2026-11-08, the desktop appearance change passed typecheck and renderer tests, but inspecting `vp pack` output found `preload.cjs` requiring a generated local appearance chunk. Sandboxed preloads do not have Node’s general module loader. Moving the startup parser into a preload-only module removes that shared runtime edge; `apps/desktop/scripts/verify-package.mjs` now executes the actual isolated preload with an Electron-only require allowlist and checks startup appearance, IPC read and subscription cleanup. The complete staged-runtime verifier passes after rebuilding the native helpers; this is a compiled-entry/VM control, not native GUI acceptance.
 - Check: trace the actual worker/runtime entry and workspace subpath exports.
   Run the affected package verification in a clean build context when changing
   packaging; report separately whether an installed client was exercised.
-- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24, 2026-11-03, 2026-11-06.
+- Seen: 2026-10-12, 2026-10-15, 2026-10-16, 2026-10-24, 2026-11-03, 2026-11-06, 2026-11-08.
 
 **Wait for the observable completion condition, with a bounded timeout that
 allows native startup, before checking an operation's result.**

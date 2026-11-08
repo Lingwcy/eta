@@ -2,12 +2,12 @@ import { Avatar as BaseAvatar } from "@base-ui/react/avatar";
 
 const variants = {
   avatar: {
-    root: "grid size-7 shrink-0 place-items-center rounded-full bg-neutral-50 text-neutral-600",
+    root: "grid size-7 shrink-0 place-items-center rounded-full bg-surface-soft text-secondary",
     image: "size-full object-contain",
     fallback: "font-serif text-2xl italic",
   },
   brand: {
-    root: "grid size-10 shrink-0 place-items-center rounded-xl border border-neutral-200/60 bg-white text-neutral-600",
+    root: "grid size-10 shrink-0 place-items-center rounded-xl border border-border/60 bg-white text-neutral-600",
     image: "size-6 object-contain",
     fallback: "text-sm font-semibold",
   },

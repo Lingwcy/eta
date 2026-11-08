@@ -20,7 +20,7 @@ export function DiffFilePane({ children }: { children: ReactNode }) {
     <div
       ref={resize.ref}
       style={{ width: resize.width }}
-      className="relative min-h-0 min-w-0 shrink-0 overflow-hidden border-l border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-[#141414]"
+      className="relative min-h-0 min-w-0 shrink-0 overflow-hidden border-l border-border/70 bg-surface-soft"
     >
       <div
         role="separator"
@@ -31,7 +31,7 @@ export function DiffFilePane({ children }: { children: ReactNode }) {
         aria-valuemin={resize.min}
         aria-valuemax={resize.max}
         aria-valuenow={resize.width}
-        className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-col-resize touch-none focus-visible:border-l focus-visible:border-sky-500 focus-visible:outline-none"
+        className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-col-resize touch-none focus-visible:border-l focus-visible:border-sky-border-500 focus-visible:outline-none"
         onPointerDown={resize.onPointerDown}
         onPointerMove={resize.onPointerMove}
         onPointerUp={resize.onPointerUp}

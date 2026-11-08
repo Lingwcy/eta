@@ -264,7 +264,7 @@ function ThreadEditForm({
             : t("chat:threadActions.renameChat")}
         </DialogTitle>
         {deleting ? (
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-subtle">
             {t("navigation:threadActions.deleteDescription", { title: edit.thread.title })}
           </p>
         ) : (
