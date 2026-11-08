@@ -21,6 +21,8 @@ import { ThreadSearchDialog } from "./sidebar/thread-search-dialog";
 import { cn } from "@/lib/utils";
 
 interface Props {
+  model?: Parameters<typeof NavigationRail>[0]["model"];
+  conversation?: Parameters<typeof NavigationRail>[0]["conversation"];
   scheduleView: boolean;
   onScheduleView(this: void, value: boolean): void;
   schedules: SchedulesController;
@@ -110,6 +112,9 @@ export function DesktopSidebar(props: Props) {
   return (
     <>
       <NavigationRail
+        library={props.library}
+        model={props.model}
+        conversation={props.conversation}
         schedulesActive={scheduleView}
         onSchedules={() => {
           setScheduleView(true);

@@ -2,10 +2,15 @@ import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
 import { Clock, Archive, FolderPlus, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar } from "@/components/ui/avatar";
+import { NavigationQuota } from "./navigation-quota";
+import type { ConversationTab } from "@/agent/desktop-tabs";
+import type { DesktopLibraryController } from "@/agent/use-desktop-library";
 import { useUpdateState } from "@/agent/use-update-state";
 
 interface Props {
+  conversation?: ConversationTab;
+  model?: DesktopLibraryController["mainModel"];
+  library?: DesktopLibraryController["library"];
   schedulesActive?: boolean;
   onSchedules?: () => void;
   archived: boolean;
@@ -18,6 +23,9 @@ interface Props {
   onSettings: (category?: string) => void;
 }
 export function NavigationRail({
+  conversation,
+  model,
+  library,
   archived,
   schedulesActive = false,
   onSchedules,
@@ -82,7 +90,7 @@ export function NavigationRail({
         <FolderPlus size={21} aria-hidden="true" />
       </Button>
       <div className="flex-1" />
-      <Avatar label="Eta" fallback="η" src="./favicon.svg" />
+      <NavigationQuota model={model} library={library} conversation={conversation} />
       <div className="relative">
         <Button
           variant="ghost-muted"

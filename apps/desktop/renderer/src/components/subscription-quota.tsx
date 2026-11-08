@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { QuotaWindow } from "@eta/core/shared/subscription-quota";
 import { Button } from "@/components/ui/button";
@@ -133,12 +133,20 @@ function QuotaRing({
 export function SubscriptionQuota({
   providerId,
   connectionId,
+  fallback,
+  autoRefresh = false,
 }: {
   providerId: string;
   connectionId: string;
+  fallback?: ReactNode;
+  autoRefresh?: boolean;
 }) {
   useTranslation();
-  const { quota, loading, failed, refresh } = useSubscriptionQuota(providerId, connectionId);
+  const { quota, loading, failed, refresh } = useSubscriptionQuota(
+    providerId,
+    connectionId,
+    autoRefresh,
+  );
   const [now, setNow] = useState(() => Date.now());
   const retryAt = quota?.retryAt;
   useEffect(() => {
@@ -150,7 +158,7 @@ export function SubscriptionQuota({
     );
     return () => clearTimeout(timeout);
   }, [retryAt]);
-  if (quota === null) return null;
+  if (quota === null) return fallback ?? null;
   const error = failed || quota?.status === "error";
   const cooldown = retryAt !== undefined && retryAt > now;
   const windows = quota?.windows ?? [];

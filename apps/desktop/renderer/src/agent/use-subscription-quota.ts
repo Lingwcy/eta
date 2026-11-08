@@ -8,7 +8,11 @@ type State = {
 };
 
 /** Read only for the connection owned by this mounted view. */
-export function useSubscriptionQuota(providerId: string, connectionId: string) {
+export function useSubscriptionQuota(
+  providerId: string,
+  connectionId: string,
+  autoRefresh = false,
+) {
   const [state, setState] = useState<State>({ quota: undefined, loading: true, failed: false });
   const owner = useRef<object | undefined>(undefined);
   const busy = useRef(false);
@@ -23,9 +27,10 @@ export function useSubscriptionQuota(providerId: string, connectionId: string) {
         if (owner.current === admission) {
           if (quota && (quota.providerId !== providerId || quota.connectionId !== connectionId)) {
             setState({ quota: null, loading: false, failed: false });
-            return;
+            return null;
           }
           setState({ quota, loading: false, failed: false });
+          return quota;
         }
       } catch {
         if (owner.current === admission)
@@ -42,11 +47,41 @@ export function useSubscriptionQuota(providerId: string, connectionId: string) {
     owner.current = admission;
     busy.current = false;
     setState({ quota: undefined, loading: true, failed: false });
-    void read(false, admission);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let polling = false;
+    const poll = async (initial = false) => {
+      if (polling || owner.current !== admission) return;
+      polling = true;
+      clearTimeout(timeout);
+      let delay = 60_000;
+      try {
+        if (initial || document.visibilityState === "visible") {
+          const quota = await read(false, admission);
+          // Cached reads (including focus) must not postpone the existing TTL deadline.
+          if (quota?.status === "ready" && quota.readAt !== undefined)
+            delay = Math.max(1000, Math.min(60_000, quota.readAt + 60_000 - Date.now()));
+        }
+      } finally {
+        polling = false;
+        if (autoRefresh && owner.current === admission)
+          timeout = setTimeout(() => void poll(), delay);
+      }
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") void poll();
+    };
+    void poll(true);
+    if (autoRefresh) {
+      window.addEventListener("focus", refreshVisible);
+      document.addEventListener("visibilitychange", refreshVisible);
+    }
     return () => {
+      clearTimeout(timeout);
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
       if (owner.current === admission) owner.current = undefined;
     };
-  }, [read]);
+  }, [read, autoRefresh]);
 
   return {
     ...state,
