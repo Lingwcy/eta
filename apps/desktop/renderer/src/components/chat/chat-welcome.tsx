@@ -13,7 +13,7 @@ export function ChatWelcome({
   return (
     <div className="flex flex-1 flex-col items-center justify-center pt-8 pb-11 text-center">
       <TerminalSquare
-        className="mb-4 text-neutral-300"
+        className="mb-4 text-disabled"
         size={38}
         strokeWidth={1.4}
         aria-hidden="true"
@@ -26,7 +26,7 @@ export function ChatWelcome({
             values={{ projectName }}
             components={{
               project: (
-                <span className="underline decoration-neutral-300 decoration-dotted decoration-1 underline-offset-4" />
+                <span className="underline decoration-border-strong decoration-dotted decoration-1 underline-offset-4" />
               ),
             }}
           />
@@ -35,7 +35,7 @@ export function ChatWelcome({
         )}
       </h2>
       {connecting && (
-        <output className="mt-2 text-xs text-neutral-500">
+        <output className="mt-2 text-xs text-subtle">
           {t("chat:chatWelcome.preparingTheAgent")}
         </output>
       )}

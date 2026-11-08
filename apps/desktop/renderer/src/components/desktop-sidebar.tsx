@@ -192,7 +192,7 @@ export function DesktopSidebar(props: Props) {
                 {[false, true].map((cloud) => (
                   <div key={String(cloud)}>
                     {groups.some((group) => isCloudId(group.workspace.id) === cloud) && (
-                      <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">
+                      <p className="px-2 pt-2 pb-1 text-xs font-medium text-subtle">
                         {cloud
                           ? t("navigation:desktopSidebar.cloudProjects", {
                               value1:
@@ -223,7 +223,7 @@ export function DesktopSidebar(props: Props) {
                 ))}
                 {ungrouped.length > 0 && (
                   <>
-                    <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">
+                    <p className="px-2 pt-2 pb-1 text-xs font-medium text-subtle">
                       {t("navigation:desktopSidebar.ungrouped")}
                     </p>
                     {ungrouped.map((thread) => (
@@ -247,7 +247,7 @@ export function DesktopSidebar(props: Props) {
                   </>
                 )}
                 {!groups.length && (
-                  <p className="px-3 py-2 text-xs text-neutral-400">
+                  <p className="px-3 py-2 text-xs text-muted">
                     {t("navigation:desktopSidebar.openAProjectToStartWorkingTogether")}
                   </p>
                 )}

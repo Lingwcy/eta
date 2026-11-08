@@ -88,6 +88,10 @@ function fixture() {
           active: false,
           busy: desktop.busy,
           onVariantChange: () => {},
+          theme: desktop.library.settings.theme,
+          onThemeChange: (theme) => {
+            void desktop.updateSettings({ theme }).catch(() => {});
+          },
           onLocaleChange: (locale) => {
             void desktop.updateSettings({ locale }).catch(() => {});
           },
@@ -100,6 +104,9 @@ function fixture() {
     Window,
     bridge,
     listeners,
+    recover: () => {
+      fail = false;
+    },
     fail: () => {
       fail = true;
     },
@@ -232,4 +239,61 @@ test("language changes format schedules and initial placeholders while preservin
     expect(threadTitle({ title: "新会话", titleSource })).toBe("新会话");
   }
   expect(threadTitle({ title: "用户第一条消息", titleSource: "temporary" })).toBe("用户第一条消息");
+});
+
+async function chooseMode(container: HTMLElement, label: string) {
+  const radio = container.querySelector<HTMLElement>('[role="radio"][aria-label="' + label + '"]');
+  expect(radio).not.toBeNull();
+  await act(async () => radio!.click());
+}
+
+test("visual mode is one existing appearance row; selection synchronizes windows without losing drafts", async () => {
+  const { Window, bridge } = fixture();
+  const first = await mount(Window);
+  const second = await mount(Window);
+  const draft = first.querySelector("textarea")!;
+  draft.value = "Keep the unsent draft";
+  expect(
+    first.querySelector('[role="radio"][aria-label="跟随系统"]')?.getAttribute("aria-checked"),
+  ).toBe("true");
+  await chooseMode(first, "暗色");
+  expect(bridge.updateSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+  expect(
+    second.querySelector('[role="radio"][aria-label="暗色"]')?.getAttribute("aria-checked"),
+  ).toBe("true");
+  const light = first.querySelector<HTMLElement>('[role="radio"][aria-label="浅色"]')!;
+  await act(async () => {
+    light.focus();
+    light.dispatchEvent(new KeyboardEvent("keydown", { key: " ", code: "Space", bubbles: true }));
+    light.dispatchEvent(new KeyboardEvent("keyup", { key: " ", code: "Space", bubbles: true }));
+  });
+  expect(bridge.updateSettings).toHaveBeenLastCalledWith({ theme: "light" });
+  await chooseMode(second, "跟随系统");
+  expect(
+    first.querySelector('[role="radio"][aria-label="跟随系统"]')?.getAttribute("aria-checked"),
+  ).toBe("true");
+  expect(first.querySelector("textarea")).toBe(draft);
+  expect(draft.value).toBe("Keep the unsent draft");
+  await choose(first, "English");
+  expect(first.querySelector('[role="radiogroup"][aria-label="Visual mode"]')).not.toBeNull();
+  expect(
+    first.querySelectorAll('[role="radiogroup"][aria-label="Visual mode"] [role="radio"]'),
+  ).toHaveLength(3);
+});
+
+test("visual mode save failure keeps confirmed selection and retries through the same controls", async () => {
+  const { Window, fail, recover } = fixture();
+  const container = await mount(Window);
+  await chooseMode(container, "暗色");
+  fail();
+  await chooseMode(container, "浅色");
+  expect(
+    container.querySelector('[role="radio"][aria-label="暗色"]')?.getAttribute("aria-checked"),
+  ).toBe("true");
+  expect(document.body.textContent).toContain("Disk full");
+  recover();
+  await chooseMode(container, "浅色");
+  expect(
+    container.querySelector('[role="radio"][aria-label="浅色"]')?.getAttribute("aria-checked"),
+  ).toBe("true");
 });

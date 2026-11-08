@@ -29,7 +29,7 @@ export function MessageUsage({ usage }: { usage: Usage }) {
   return (
     <dl
       aria-label={t("chat:messageUsage.usageForThisResponse")}
-      className="flex select-none flex-wrap items-center gap-x-4 gap-y-1 text-[11px]/4 text-neutral-500 tabular-nums"
+      className="flex select-none flex-wrap items-center gap-x-4 gap-y-1 text-[11px]/4 text-subtle tabular-nums"
     >
       <UsageItem
         icon={ArrowUpFromLine}
@@ -90,7 +90,7 @@ function UsageItem({
     <Tooltip content={<span className="block max-w-xs select-none leading-5">{description}</span>}>
       <div
         tabIndex={0}
-        className="flex cursor-default items-center gap-1.5 rounded-sm outline-none hover:text-neutral-600 focus-visible:ring-2 focus-visible:ring-neutral-300"
+        className="flex cursor-default items-center gap-1.5 rounded-sm outline-none hover:text-secondary focus-visible:ring-2 focus-visible:ring-border-strong"
       >
         <dt>
           <Icon size={14} strokeWidth={1.75} aria-hidden="true" />

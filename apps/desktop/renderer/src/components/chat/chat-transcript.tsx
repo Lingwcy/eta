@@ -136,7 +136,7 @@ export function ChatTranscript({
                   {entry ? (
                     <ChatMessageState value={{ id: entry.id, expanded: expanded.current }}>
                       {entry.message.role === "user" && origins?.get(entry.sourceId) && (
-                        <p className="mb-1 text-right text-xs text-neutral-500">
+                        <p className="mb-1 text-right text-xs text-subtle">
                           {origins.get(entry.sourceId)}
                         </p>
                       )}

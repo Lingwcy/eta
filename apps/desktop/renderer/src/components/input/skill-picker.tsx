@@ -98,7 +98,7 @@ export function SkillPicker({
             {t("chat:skillPicker.manage")}
           </Button>
         </div>
-        <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
+        <div className="mx-1.5 my-1 h-px shrink-0 bg-contrast/10" />
         <ScrollArea className="max-h-60 min-h-0 flex-1">
           <div className="space-y-0.5">
             {activeSkills.map((skill) => (
@@ -155,17 +155,15 @@ export function SkillPicker({
                 </Button>
               ))}
             {!catalog && !error && (
-              <p className="p-2 text-xs text-neutral-500">
-                {t("chat:skillPicker.discoveringSkills")}
-              </p>
+              <p className="p-2 text-xs text-subtle">{t("chat:skillPicker.discoveringSkills")}</p>
             )}
             {catalog && !catalog.skills.some((skill) => skill.enabled) && (
-              <p className="p-2 text-xs text-neutral-500">
+              <p className="p-2 text-xs text-subtle">
                 {t("chat:skillPicker.noEnabledSkillsAddSkillDirectoriesIn")}
               </p>
             )}
             {error && (
-              <p role="alert" className="p-2 text-xs text-red-600">
+              <p role="alert" className="p-2 text-xs text-danger-text-600">
                 {renderMessage(error)}
               </p>
             )}

@@ -26,7 +26,7 @@ export function ScrollAreaViewport({ className, ...props }: ViewportProps) {
   return (
     <BaseScrollArea.Viewport
       className={cn(
-        "h-full w-full overscroll-contain rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-300",
+        "h-full w-full overscroll-contain rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-border-strong",
         className,
       )}
       {...props}
@@ -47,7 +47,7 @@ export function ScrollAreaScrollbar() {
       orientation="vertical"
       className="absolute inset-y-1 right-0 flex w-2 touch-none justify-center px-0.5 opacity-0 transition-opacity duration-150 select-none data-scrolling:opacity-100 motion-reduce:transition-none"
     >
-      <BaseScrollArea.Thumb className="w-full rounded-full bg-neutral-400/50 hover:bg-neutral-400/80" />
+      <BaseScrollArea.Thumb className="w-full rounded-full bg-control-muted/50 hover:bg-control-muted/80" />
     </BaseScrollArea.Scrollbar>
   );
 }
@@ -57,7 +57,7 @@ export function ScrollAreaFade({ edge }: { edge: "top" | "bottom" }) {
     <div
       aria-hidden="true"
       className={cn(
-        "pointer-events-none absolute inset-x-0 z-10 h-8 from-white to-transparent",
+        "pointer-events-none absolute inset-x-0 z-10 h-8 from-surface to-transparent",
         edge === "top" ? "top-0 bg-linear-to-b" : "bottom-0 bg-linear-to-t",
       )}
     />

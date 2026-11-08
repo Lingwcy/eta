@@ -42,7 +42,7 @@ export function ThinkingLevelControl({
           value1: options[current]?.label,
         })}
         title={t("chat:thinkingLevelControl.adjustThinkingLevel")}
-        className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-0.5 rounded-full bg-neutral-200/70 px-2 text-[11px] text-neutral-600 outline-none hover:bg-neutral-200 focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:cursor-default"
+        className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-0.5 rounded-full bg-surface-hover/70 px-2 text-[11px] text-secondary outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-focus-ring-400 disabled:cursor-default"
       >
         {options[current]?.label}
         {open ? (
@@ -56,15 +56,13 @@ export function ThinkingLevelControl({
           <Popover.Popup
             aria-label={t("chat:thinkingLevelControl.adjustThinkingLevel")}
             initialFocus={thumb}
-            className="w-[244px] max-w-[calc(100vw-32px)] rounded-[14px] border border-neutral-200 bg-white p-3 shadow-lg outline-none"
+            className="w-[244px] max-w-[calc(100vw-32px)] rounded-[14px] border border-border bg-surface p-3 shadow-lg outline-none"
           >
             <div className="mb-2.5 flex items-baseline gap-1.5 text-[13px]">
-              <span className="text-neutral-500">
-                {t("chat:thinkingLevelControl.thinkingLevel2")}
-              </span>
-              <span className="font-medium text-neutral-900">{options[preview]?.label}</span>
+              <span className="text-subtle">{t("chat:thinkingLevelControl.thinkingLevel2")}</span>
+              <span className="font-medium text-foreground">{options[preview]?.label}</span>
             </div>
-            <div className="mb-1.5 flex justify-between text-[11px] text-neutral-500">
+            <div className="mb-1.5 flex justify-between text-[11px] text-subtle">
               <span>{t("chat:thinkingLevelControl.faster")}</span>
               <span>{t("chat:thinkingLevelControl.deeper")}</span>
             </div>
@@ -83,8 +81,8 @@ export function ThinkingLevelControl({
               }}
             >
               <Slider.Control className="relative flex h-7 w-full touch-none items-center rounded-lg select-none">
-                <Slider.Track className="relative h-full w-full overflow-hidden rounded-lg bg-neutral-100">
-                  <Slider.Indicator className="h-full bg-neutral-300" />
+                <Slider.Track className="relative h-full w-full overflow-hidden rounded-lg bg-surface-subtle">
+                  <Slider.Indicator className="h-full bg-surface-active" />
                   <div
                     aria-hidden="true"
                     className="pointer-events-none absolute inset-y-0 right-3 left-3 flex items-center justify-between"
@@ -92,7 +90,7 @@ export function ThinkingLevelControl({
                     {options.map((option) => (
                       <span
                         key={option.value}
-                        className="h-2.5 w-0.5 rounded-full bg-neutral-400/60"
+                        className="h-2.5 w-0.5 rounded-full bg-control-muted/60"
                       />
                     ))}
                   </div>
@@ -101,7 +99,7 @@ export function ThinkingLevelControl({
                   inputRef={thumb}
                   getAriaLabel={() => t("chat:thinkingLevelControl.thinkingLevel2")}
                   getAriaValueText={(_formatted, index) => options[index]?.label ?? ""}
-                  className="h-7 w-6 rounded-lg border border-neutral-300 bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+                  className="h-7 w-6 rounded-lg border border-border-strong bg-surface shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-focus-ring-500"
                 />
               </Slider.Control>
             </Slider.Root>

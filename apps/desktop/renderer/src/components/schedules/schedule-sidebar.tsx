@@ -117,7 +117,7 @@ export function ScheduleSidebar({
   return (
     <aside
       aria-label={t("schedules:scheduleSidebar.scheduledTasks")}
-      className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-neutral-100 bg-[#f8f8f8] py-2"
+      className="flex w-[var(--sidebar-width)] shrink-0 flex-col rounded-l-[14px] border-r border-border-soft bg-panel py-2"
     >
       <div className="px-2 py-1">
         <Button variant="ghost" size="row-sm" disabled={!library} onClick={() => setCreating(true)}>
@@ -126,7 +126,7 @@ export function ScheduleSidebar({
         </Button>
       </div>
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-xs text-neutral-500">{t("schedules:scheduleSidebar.upcoming")}</span>
+        <span className="text-xs text-subtle">{t("schedules:scheduleSidebar.upcoming")}</span>
         <Popover.Root>
           <Popover.Trigger
             render={
@@ -141,10 +141,8 @@ export function ScheduleSidebar({
           />
           <Popover.Portal>
             <Popover.Positioner side="bottom" align="end" sideOffset={4} className="z-50">
-              <Popover.Popup className="min-w-40 rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 p-1 text-xs shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl">
-                <p className="px-2 py-1 text-neutral-500">
-                  {t("schedules:scheduleSidebar.filterBy")}
-                </p>
+              <Popover.Popup className="min-w-40 rounded-[10px] border border-contrast/12 bg-panel/95 p-1 text-xs shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl">
+                <p className="px-2 py-1 text-subtle">{t("schedules:scheduleSidebar.filterBy")}</p>
                 {[
                   ["active", t("schedules:scheduleSidebar.on")],
                   ["paused", t("schedules:scheduleSidebar.paused")],
@@ -214,21 +212,18 @@ export function ScheduleSidebar({
                         <Monitor
                           size={13}
                           aria-label={t("schedules:scheduleSidebar.localTask")}
-                          className="shrink-0 text-neutral-400"
+                          className="shrink-0 text-muted"
                         />
                       ) : (
                         <Cloud
                           size={13}
                           aria-label={t("schedules:scheduleSidebar.botTask")}
-                          className="shrink-0 text-neutral-400"
+                          className="shrink-0 text-muted"
                         />
                       )}
                       <span className="truncate">{group.title}</span>
                     </span>
-                    <span
-                      className="truncate text-xs text-neutral-500"
-                      title={group.status?.detail}
-                    >
+                    <span className="truncate text-xs text-subtle" title={group.status?.detail}>
                       {group.next
                         ? `${scheduleTime(group.next.nextRunAt)} · ${scheduleRuleText(group.next.rule)}`
                         : group.archived
@@ -252,12 +247,12 @@ export function ScheduleSidebar({
                     title={group.status.detail ?? group.status.label}
                     className={`absolute top-1.5 right-2 size-1.5 rounded-full ${
                       group.status.state === "running"
-                        ? "bg-blue-500"
+                        ? "bg-info-fill-500"
                         : group.status.state === "succeeded"
-                          ? "bg-green-500"
+                          ? "bg-positive-fill-500"
                           : group.status.state === "failed"
-                            ? "bg-red-500"
-                            : "bg-neutral-400"
+                            ? "bg-danger-fill-500"
+                            : "bg-control-muted"
                     }`}
                   />
                 )}
@@ -281,7 +276,7 @@ export function ScheduleSidebar({
           ))}
         </nav>
         {!groups.length && (
-          <p className="px-3 py-2 text-xs text-neutral-600">
+          <p className="px-3 py-2 text-xs text-secondary">
             {t("schedules:scheduleSidebar.noTasksMatchTheseFilters")}
           </p>
         )}

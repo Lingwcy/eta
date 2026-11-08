@@ -26,7 +26,7 @@ export function ProviderList({
   useTranslation();
   if (!providers.length)
     return (
-      <p className="py-8 text-center text-xs text-neutral-400">
+      <p className="py-8 text-center text-xs text-muted">
         {t("settings:providerList.noMatchingProviders")}
       </p>
     );
@@ -49,17 +49,17 @@ export function ProviderList({
             <ProviderLogo id={provider.id} name={provider.name} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className="min-w-0 text-[13px] font-medium break-words text-neutral-800">
+                <h3 className="min-w-0 text-[13px] font-medium break-words text-heading">
                   {provider.name}
                 </h3>
                 {connected && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-success-tint-50 px-1.5 py-px text-[10px] font-medium text-success-text-700">
                     <Check size={10} />
                     {t("settings:providerList.connected")}
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-xs/4 break-words text-neutral-500">
+              <p className="mt-0.5 text-xs/4 break-words text-subtle">
                 {connected
                   ? t("settings:providerList.availableModels", { count: count })
                   : credential

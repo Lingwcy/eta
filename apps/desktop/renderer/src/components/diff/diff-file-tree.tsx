@@ -57,18 +57,21 @@ function FileTypeIcon({ name }: { name: string }) {
   const extension = name.split(".").at(-1)?.toLowerCase();
   if (extension === "tsx" || extension === "jsx")
     return (
-      <Atom size={15} className="shrink-0 text-sky-500 dark:text-sky-300" aria-hidden="true" />
+      <Atom
+        size={15}
+        className="shrink-0 text-sky-text-500 dark:text-sky-text-300"
+        aria-hidden="true"
+      />
     );
   const badge =
     extension === "ts" || extension === "mts" || extension === "cts"
-      ? { text: "TS", color: "text-blue-500 dark:text-blue-300" }
+      ? { text: "TS", color: "text-info-text-500 dark:text-info-text-300" }
       : extension === "js" || extension === "mjs" || extension === "cjs"
-        ? { text: "JS", color: "text-amber-600 dark:text-amber-300" }
+        ? { text: "JS", color: "text-warning-text-600 dark:text-warning-text-300" }
         : extension === "css" || extension === "scss"
-          ? { text: "CSS", color: "text-violet-500 dark:text-violet-400" }
+          ? { text: "CSS", color: "text-violet-text-500 dark:text-violet-text-400" }
           : undefined;
-  if (!badge)
-    return <FileText size={15} className="shrink-0 text-neutral-400" aria-hidden="true" />;
+  if (!badge) return <FileText size={15} className="shrink-0 text-muted" aria-hidden="true" />;
   return (
     <svg
       width="15"
@@ -93,17 +96,17 @@ function FileTypeIcon({ name }: { name: string }) {
 }
 
 const statuses = {
-  added: ["A", "text-emerald-600 dark:text-emerald-400"],
-  untracked: ["A", "text-emerald-600 dark:text-emerald-400"],
-  modified: ["M", "text-sky-600 dark:text-sky-400"],
-  deleted: ["D", "text-red-600 dark:text-red-400"],
+  added: ["A", "text-success-text-600 dark:text-success-text-400"],
+  untracked: ["A", "text-success-text-600 dark:text-success-text-400"],
+  modified: ["M", "text-sky-text-600 dark:text-sky-text-400"],
+  deleted: ["D", "text-danger-text-600 dark:text-danger-text-400"],
   renamed: ["R", "text-cyan-600 dark:text-cyan-400"],
-  conflicted: ["U", "text-amber-600 dark:text-amber-400"],
-  "type-changed": ["T", "text-sky-600 dark:text-sky-400"],
-  submodule: ["S", "text-violet-600 dark:text-violet-400"],
+  conflicted: ["U", "text-warning-text-600 dark:text-warning-text-400"],
+  "type-changed": ["T", "text-sky-text-600 dark:text-sky-text-400"],
+  submodule: ["S", "text-violet-text-600 dark:text-violet-text-400"],
 } as const;
 const rowClass =
-  "flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-xs outline-none hover:bg-neutral-200/50 focus-visible:ring-2 focus-visible:ring-sky-500/60 dark:hover:bg-white/5";
+  "flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-xs outline-none hover:bg-surface-hover/50 focus-visible:ring-2 focus-visible:ring-sky-text-500/60 dark:hover:bg-surface/5";
 
 export function DiffFileTree({
   files,
@@ -128,7 +131,7 @@ export function DiffFileTree({
           <li key={"directory:" + node.path}>
             <button
               type="button"
-              className={cn(rowClass, "text-neutral-500 dark:text-neutral-400")}
+              className={cn(rowClass, "text-subtle dark:text-muted")}
               aria-label={node.path}
               aria-expanded={open}
               title={node.path}
@@ -143,12 +146,12 @@ export function DiffFileTree({
               <Chevron size={14} className="shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate">{node.name}</span>
               <span
-                className="mr-0.5 size-1.5 shrink-0 rounded-full bg-sky-500/70"
+                className="mr-0.5 size-1.5 shrink-0 rounded-full bg-sky-fill-500/70"
                 aria-hidden="true"
               />
             </button>
             {open && (
-              <ul className="ml-[13px] border-l border-neutral-200/80 pl-2 dark:border-neutral-800">
+              <ul className="ml-[13px] border-l border-border/80 pl-2">
                 {renderNodes(node.children)}
               </ul>
             )}
@@ -169,7 +172,7 @@ export function DiffFileTree({
             className={cn(
               rowClass,
               "text-cyan-700 dark:text-cyan-300",
-              selected && "bg-sky-100/80 dark:bg-sky-400/10",
+              selected && "bg-sky-tint-100/80 dark:bg-sky-fill-400/10",
             )}
           >
             <FileTypeIcon name={node.name} />

@@ -2,7 +2,7 @@ import { BotConnectionSchema } from "./bot-schema.ts";
 import { BotRequestError } from "../shared/bot-request-error.ts";
 import { SubagentCommandSchema, SubagentSettingsSchema } from "@eta/core/shared/subagent-schema";
 import { builtinToolNames } from "@eta/core/tools";
-import { agentThinkingVariants } from "../appearance.ts";
+import { agentThinkingVariants, themePreferences } from "../appearance.ts";
 import { Schema } from "effect";
 import type { DesktopApplication } from "./bootstrap.ts";
 import type { CommandReply } from "../bridge.ts";
@@ -213,6 +213,7 @@ const Command = Schema.Union([
       disabledSkills: Schema.optionalKey(Schema.Array(Id)),
       blockImages: Schema.optionalKey(Schema.Boolean),
       computerUse: RuntimeSettingsSchema.fields.computerUse,
+      theme: Schema.optionalKey(Schema.Literals(themePreferences)),
       agentThinkingVariant: Schema.optionalKey(Schema.Literals(agentThinkingVariants)),
       backgroundOnClose: Schema.optionalKey(Schema.Boolean),
       autoCheckUpdates: Schema.optionalKey(Schema.Boolean),

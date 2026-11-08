@@ -1,3 +1,4 @@
+import { windowThemeColors, type AppearanceSnapshot } from "../appearance.ts";
 import { LocalizedError } from "../shared/i18n/messages.ts";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -17,6 +18,7 @@ export function applicationIconPath() {
 export function createDesktopWindows(
   onDestroyed: (contentsId: number) => void,
   closing: () => boolean,
+  appearance: () => AppearanceSnapshot,
 ) {
   let window: BrowserWindow | undefined;
   const browsers = new Map<number, BrowserManager>();
@@ -37,6 +39,8 @@ export function createDesktopWindows(
     const devUrl = process.env.ETA_WEB_URL;
     // 选择确定的渲染路径 打包后用 pathToFileURL 转成 file:// URL
     const renderTarget = devUrl ?? pathToFileURL(rendererPath).href;
+    const initialAppearance = appearance();
+    const colors = windowThemeColors[initialAppearance.resolved];
     // 窗口配置
     const currentWindow = new BrowserWindow({
       width: 1100,
@@ -45,14 +49,18 @@ export function createDesktopWindows(
       minHeight: 480,
       title: "Eta",
       icon: applicationIconPath(),
-      backgroundColor: "#e9e9e9",
+      backgroundColor: colors.background,
       // Keep native window buttons in the renderer's 42px tab bar, without a second title bar.
       ...(process.platform === "darwin"
         ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 16, y: 13 } }
         : process.platform === "win32"
           ? {
               titleBarStyle: "hidden" as const,
-              titleBarOverlay: { color: "#e9e9e9", symbolColor: "#262626", height: 42 },
+              titleBarOverlay: {
+                color: colors.background,
+                symbolColor: colors.foreground,
+                height: 42,
+              },
               // Keep the native menu accessible via Alt, but out of the normal layout.
               autoHideMenuBar: true,
             }
@@ -60,6 +68,14 @@ export function createDesktopWindows(
       //能力边界 必须经过 dist/electron/preload.cjs 用 contextBridge 暴露的 window.eta
       webPreferences: {
         preload: resolve(app.getAppPath(), "dist/electron/preload.cjs"),
+        additionalArguments: [
+          "--eta-appearance=" +
+            initialAppearance.preference +
+            ":" +
+            initialAppearance.resolved +
+            ":" +
+            initialAppearance.revision,
+        ],
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
@@ -140,5 +156,16 @@ export function createDesktopWindows(
     for (const browser of browsers.values()) browser.dispose();
     browsers.clear();
   };
-  return { open: openWindow, browserFor, dispose };
+  const updateAppearance = (snapshot: AppearanceSnapshot) => {
+    const colors = windowThemeColors[snapshot.resolved];
+    if (closing()) return;
+    for (const current of BrowserWindow.getAllWindows()) {
+      if (current.isDestroyed() || !browsers.has(current.webContents.id)) continue;
+      current.setBackgroundColor(colors.background);
+      if (process.platform === "win32")
+        current.setTitleBarOverlay({ color: colors.background, symbolColor: colors.foreground });
+      current.webContents.send("eta:appearance-changed", snapshot);
+    }
+  };
+  return { open: openWindow, browserFor, updateAppearance, dispose };
 }

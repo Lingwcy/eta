@@ -7,10 +7,10 @@ export const ContextMenuTrigger = BaseMenu.Trigger;
 export const ContextMenuSubmenu = BaseMenu.SubmenuRoot;
 
 export const menuPopupStyle =
-  "max-h-[var(--available-height)] w-40 overflow-y-auto rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 p-1 text-xs font-normal text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl select-none";
+  "max-h-[var(--available-height)] w-40 overflow-y-auto rounded-[10px] border border-contrast/12 bg-panel/95 p-1 text-xs font-normal text-heading shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl select-none";
 
 const itemStyle =
-  "flex h-[26px] cursor-default items-center gap-1.5 rounded-[5px] px-2 outline-none data-highlighted:bg-[#007aff] data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:stroke-[1.7]";
+  "flex h-[26px] cursor-default items-center gap-1.5 rounded-[5px] px-2 outline-none data-highlighted:bg-menu-selected data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:stroke-[1.7]";
 
 export function ContextMenuContent({
   children,
@@ -45,7 +45,7 @@ export function ContextMenuItem({
   return (
     <BaseMenu.Item
       {...props}
-      className={`${itemStyle} ${destructive ? "text-red-600" : "text-neutral-800"}`}
+      className={`${itemStyle} ${destructive ? "text-danger-text-600" : "text-heading"}`}
     />
   );
 }
@@ -54,12 +54,12 @@ export function ContextMenuSubmenuTrigger({
   ...props
 }: ComponentProps<typeof BaseMenu.SubmenuTrigger>) {
   return (
-    <BaseMenu.SubmenuTrigger {...props} className={`${itemStyle} text-neutral-800`}>
+    <BaseMenu.SubmenuTrigger {...props} className={`${itemStyle} text-heading`}>
       {children}
       <ChevronRight size={14} className="ml-auto" />
     </BaseMenu.SubmenuTrigger>
   );
 }
 export function ContextMenuSeparator() {
-  return <BaseMenu.Separator className="mx-1.5 my-1 h-px bg-black/10" />;
+  return <BaseMenu.Separator className="mx-1.5 my-1 h-px bg-contrast/10" />;
 }

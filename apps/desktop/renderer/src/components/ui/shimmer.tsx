@@ -32,7 +32,7 @@ export function Shimmer({ children, active = true }: { children: string; active?
         <span
           ref={highlight}
           aria-hidden="true"
-          className="pointer-events-none col-start-1 row-start-1 truncate bg-linear-to-r from-transparent via-neutral-900/70 to-transparent bg-clip-text text-transparent [background-size:200%_100%] motion-reduce:hidden dark:via-white/80"
+          className="pointer-events-none col-start-1 row-start-1 truncate bg-linear-to-r from-transparent via-solid/70 to-transparent bg-clip-text text-transparent [background-size:200%_100%] motion-reduce:hidden"
         >
           {children}
         </span>

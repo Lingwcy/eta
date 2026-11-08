@@ -195,7 +195,7 @@ export function PermissionSettings({
             title={t("settings:permissionSettings.botToolCallingMode")}
             description={t("settings:permissionSettings.determinedByTheBotRuntimeConfiguration")}
           >
-            <span className="text-xs text-neutral-500">
+            <span className="text-xs text-subtle">
               {library.bot.capabilities?.includes("agent-mode")
                 ? (library.bot.library?.settings.agentMode ?? defaultAgentMode) === "codemode"
                   ? "Code mode"
@@ -236,7 +236,7 @@ export function PermissionSettings({
               "settings:permissionSettings.determinedByRuntimeApprovalreviewerInTheBot",
             )}
           >
-            <span className="text-xs text-neutral-500">
+            <span className="text-xs text-subtle">
               {library.bot.capabilities?.includes("approval-review")
                 ? (library.bot.library?.settings.approvalReviewer?.mode ??
                     DEFAULT_REVIEWER_MODE) === "auto"

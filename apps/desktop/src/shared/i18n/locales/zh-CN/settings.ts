@@ -1,4 +1,9 @@
 export default {
+  "appearance.visualMode": "视觉模式",
+  "appearance.mode.system": "跟随系统",
+  "appearance.mode.light": "浅色",
+  "appearance.mode.dark": "暗色",
+
   "subscriptionQuota.label": "订阅额度",
   "subscriptionQuota.resetDue": "已到重置时间，需刷新",
   "subscriptionQuota.days_other": "{{count}} 天",

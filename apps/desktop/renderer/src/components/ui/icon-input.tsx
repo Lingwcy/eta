@@ -13,13 +13,13 @@ export function IconInput({
   return (
     <div
       className={cn(
-        "flex items-center overflow-hidden border border-neutral-200 bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500",
+        "flex items-center overflow-hidden border border-border bg-surface focus-within:border-info-border-500 focus-within:ring-1 focus-within:ring-info-text-500",
         variant === "compact" ? "rounded-lg" : "rounded-xl",
       )}
     >
       <span
         className={cn(
-          "flex shrink-0 items-center justify-center border-r border-neutral-200 text-neutral-700",
+          "flex shrink-0 items-center justify-center border-r border-border text-strong",
           variant === "compact" ? "size-8" : "size-11",
         )}
         aria-hidden="true"

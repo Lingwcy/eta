@@ -200,10 +200,10 @@ export function WorktreePicker({
         <Settings size={15} aria-hidden="true" />
       </PopoverTrigger>
       <PopoverContent variant="menu" aria-label={t("chat:worktreePicker.workspaceAndBranch")}>
-        <p className="px-2 py-1 text-xs text-neutral-400">
+        <p className="px-2 py-1 text-xs text-muted">
           {t("chat:worktreePicker.configureWorkspace")}
         </p>
-        <label className="flex h-[26px] items-center gap-1.5 px-2 text-xs text-neutral-800">
+        <label className="flex h-[26px] items-center gap-1.5 px-2 text-xs text-heading">
           <Split size={14} aria-hidden="true" />
           <span className="flex-1">{t("chat:worktreePicker.newWorktree")}</span>
           <Switch
@@ -225,7 +225,7 @@ export function WorktreePicker({
           />
         </label>
         {reason ? (
-          <p className="max-w-64 px-2 pb-2 text-xs text-neutral-500">{renderMessage(reason)}</p>
+          <p className="max-w-64 px-2 pb-2 text-xs text-subtle">{renderMessage(reason)}</p>
         ) : (
           <Popover
             open={branchOpen}
@@ -303,7 +303,7 @@ export function WorktreePicker({
                       {group("local", t("chat:worktreePicker.localBranches"))}
                       {group("remote", t("chat:worktreePicker.remoteTrackingBranches"))}
                       {!filtered.length && (
-                        <p className="px-2 py-3 text-xs text-neutral-400">
+                        <p className="px-2 py-3 text-xs text-muted">
                           {info
                             ? t("chat:worktreePicker.noMatchingBranches")
                             : t("chat:worktreePicker.readingBranches")}
@@ -311,7 +311,7 @@ export function WorktreePicker({
                       )}
                     </CommandList>
                   </Command>
-                  <div className="mx-1.5 my-1 h-px shrink-0 bg-black/10" />
+                  <div className="mx-1.5 my-1 h-px shrink-0 bg-contrast/10" />
                   <Button variant="menu" size="menu-item" onClick={newBranch} disabled={!ready}>
                     <Plus size={16} aria-hidden="true" />
                     {t("chat:worktreePicker.createAndCheckOutANewBranch")}

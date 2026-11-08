@@ -1,3 +1,5 @@
+import { appearance } from "@/appearance";
+import type { AppearanceSnapshot } from "../../../../src/appearance.ts";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { act, createElement, Fragment, useLayoutEffect, useState } from "react";
@@ -468,9 +470,7 @@ test("published JavaScript highlighter resolves packaged languages and both pale
     expect(shadow?.querySelectorAll('span[style*="--diffs-token-light"]').length).toBeGreaterThan(
       0,
     );
-    expect(shadow?.querySelector("[data-theme-css]")?.textContent).toContain(
-      "prefers-color-scheme: dark",
-    );
+    expect(shadow?.querySelector("[data-theme-css]")?.textContent).toContain("color-scheme: light");
   });
 });
 
@@ -814,4 +814,53 @@ test("a historical reply arriving after file-tree selection cannot replace the c
   expect(document.querySelector("diffs-container")?.shadowRoot?.textContent).not.toContain(
     "late history",
   );
+});
+
+test("an explicit app theme overrides the OS without remounting the selected diff or querying Git", async () => {
+  const api = bridge();
+  let emit!: (snapshot: AppearanceSnapshot) => void;
+  const initial: AppearanceSnapshot = { preference: "dark", resolved: "dark", revision: 0 };
+  const off = appearance.connect({
+    initialAppearance: initial,
+    appearance: async () => initial,
+    subscribeAppearance: (listener) => {
+      emit = listener;
+      return () => {};
+    },
+  });
+  try {
+    await render(
+      createElement(DiffPreview, {
+        patch: patch(),
+        layout: "unified",
+        location: "theme",
+        positions: new Map(),
+      }),
+    );
+    await expectCode("const value = 2;");
+    const element = document.querySelector("diffs-container")!;
+    const scroller = document.querySelector('[role="region"]')?.firstElementChild;
+    if (!(scroller instanceof HTMLElement)) throw new Error("Missing diff scroller");
+    await act(async () => {
+      scroller.scrollTop = 40;
+      scroller.dispatchEvent(new Event("scroll", { bubbles: false }));
+    });
+    await vi.waitFor(() =>
+      expect(element.shadowRoot?.querySelector("[data-theme-css]")?.textContent).toContain(
+        "color-scheme: dark",
+      ),
+    );
+    await act(async () => emit({ preference: "light", resolved: "light", revision: 1 }));
+    await vi.waitFor(() =>
+      expect(element.shadowRoot?.querySelector("[data-theme-css]")?.textContent).toContain(
+        "color-scheme: light",
+      ),
+    );
+    expect(document.querySelector("diffs-container")).toBe(element);
+    expect(scroller.scrollTop).toBe(40);
+    expect(api.workspaceChanges).not.toHaveBeenCalled();
+    expect(api.workspaceFileDiff).not.toHaveBeenCalled();
+  } finally {
+    off();
+  }
 });

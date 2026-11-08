@@ -13,7 +13,7 @@ export class DesktopSettingsService extends Context.Service<
   DesktopSettingsService,
   {
     readonly read: Effect.Effect<DesktopSettings>;
-    subscribe(listener: () => void): () => void;
+    subscribe(listener: (settings: DesktopSettings) => void): () => void;
     update(patch: Partial<DesktopSettings>): Effect.Effect<DesktopSettings, CoreError>;
   }
 >()("eta/desktop/main/service/settings/DesktopSettingsService") {
@@ -49,7 +49,7 @@ export class DesktopSettingsService extends Context.Service<
               ),
             )).settings;
       const state = yield* SynchronizedRef.make<DesktopSettings>(normalize(initial));
-      const listeners = new Set<() => void>();
+      const listeners = new Set<(settings: DesktopSettings) => void>();
       return DesktopSettingsService.of({
         subscribe: (listener) => {
           listeners.add(listener);
@@ -93,9 +93,9 @@ export class DesktopSettingsService extends Context.Service<
             }),
           ).pipe(
             Effect.uninterruptible,
-            Effect.tap(() =>
+            Effect.tap((committed) =>
               Effect.sync(() => {
-                for (const listener of listeners) listener();
+                for (const listener of listeners) listener(structuredClone(committed));
               }),
             ),
           ),

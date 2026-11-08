@@ -67,14 +67,14 @@ export function DesktopTabBar({
     <header
       style={{ paddingRight: `calc(${windowControlsInset}px + 0.5rem)` }}
       className={cn(
-        "relative flex h-[42px] shrink-0 items-center border-b border-neutral-200/60 bg-[#e9e9e9] [-webkit-app-region:drag]",
+        "relative flex h-[42px] shrink-0 items-center border-b border-border/60 bg-shell [-webkit-app-region:drag]",
         browsing && (mac ? "pl-[98px]" : "pl-2"),
       )}
     >
       {!browsing && (
         <div
           className={cn(
-            "relative flex h-full shrink-0 items-center pr-2 transition-[width] duration-180 ease-out motion-reduce:transition-none after:absolute after:top-3 after:right-0 after:bottom-3 after:border-r after:border-neutral-200 after:opacity-0 after:transition-opacity after:duration-0 motion-reduce:after:delay-0",
+            "relative flex h-full shrink-0 items-center pr-2 transition-[width] duration-180 ease-out motion-reduce:transition-none after:absolute after:top-3 after:right-0 after:bottom-3 after:border-r after:border-border after:opacity-0 after:transition-opacity after:duration-0 motion-reduce:after:delay-0",
             mac ? "pl-[98px]" : "pl-2",
             sidebar
               ? "w-[calc(var(--rail-width)+var(--sidebar-width))] after:opacity-100 after:delay-180"
@@ -122,7 +122,7 @@ export function DesktopTabBar({
         </div>
       )}
       {single ? (
-        <div className="flex min-w-0 flex-1 select-none items-center gap-2 pl-3 text-[13px] font-medium text-neutral-800">
+        <div className="flex min-w-0 flex-1 select-none items-center gap-2 pl-3 text-[13px] font-medium text-heading">
           <TabIcon item={items[0]!} />
           <ThreadContextMenu
             id={state.tabs[0]?.kind === "conversation" ? state.tabs[0].threadId : undefined}
@@ -171,10 +171,10 @@ export function DesktopTabBar({
                   className={cn(
                     "group/tab relative flex h-8 min-w-[120px] max-w-[280px] flex-[1_0_180px] items-center rounded-lg transition-colors [-webkit-app-region:no-drag]",
                     active
-                      ? "bg-white text-neutral-800 shadow-[0_1px_3px_#00000008]"
-                      : "text-neutral-600 hover:bg-neutral-200/60",
+                      ? "bg-surface text-heading shadow-[0_1px_3px_#00000008]"
+                      : "text-secondary hover:bg-surface-hover/60",
                     !active &&
-                      "after:absolute after:right-0 after:top-2 after:h-4 after:w-px after:bg-neutral-300/70 after:content-[''] hover:after:opacity-0",
+                      "after:absolute after:right-0 after:top-2 after:h-4 after:w-px after:bg-surface-active/70 after:content-[''] hover:after:opacity-0",
                   )}
                   draggable
                   onDragStart={(event) => {
@@ -213,7 +213,7 @@ export function DesktopTabBar({
                         aria-controls={`panel-${item.id}`}
                         tabIndex={active ? 0 : -1}
                         onClick={() => select(item.id)}
-                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg pr-8 pl-3 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400"
+                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg pr-8 pl-3 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring-400"
                       />
                     }
                   >
@@ -236,7 +236,7 @@ export function DesktopTabBar({
                         setPreviewOpen(false);
                         tabs.close(item.id);
                       }}
-                      className="flex size-6 cursor-pointer items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-300/50 hover:text-neutral-700"
+                      className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-surface-active/50 hover:text-strong"
                     >
                       <X size={14} />
                     </button>
@@ -289,7 +289,7 @@ export function DesktopTabBar({
         </Suspense>
       </div>
       {inspectorAvailable && (
-        <div className="ml-2 border-l border-neutral-200 pl-2 [-webkit-app-region:no-drag]">
+        <div className="ml-2 border-l border-border pl-2 [-webkit-app-region:no-drag]">
           <Button
             variant="ghost-muted"
             size="icon-xs"
@@ -321,9 +321,9 @@ export function DesktopTabBar({
             payload && (
               <PreviewCard.Portal>
                 <PreviewCard.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-                  <PreviewCard.Popup className="w-64 max-w-[calc(100vw-32px)] overflow-hidden rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 p-2 text-xs text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl [-webkit-app-region:no-drag]">
+                  <PreviewCard.Popup className="w-64 max-w-[calc(100vw-32px)] overflow-hidden rounded-[10px] border border-contrast/12 bg-panel/95 p-2 text-xs text-heading shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl [-webkit-app-region:no-drag]">
                     <p className="truncate font-medium">{payload.title}</p>
-                    <p className="mt-0.5 truncate text-[11px] text-neutral-400">
+                    <p className="mt-0.5 truncate text-[11px] text-muted">
                       {payload.running ? t("navigation:desktopTabBar.running") : ""}
                       {payload.subtitle}
                     </p>
@@ -334,7 +334,7 @@ export function DesktopTabBar({
                         className="mt-2 aspect-video w-full rounded-[5px] object-cover object-top"
                       />
                     ) : (
-                      <div className="mt-2 rounded-[5px] bg-black/4 px-2 py-1.5 leading-5">
+                      <div className="mt-2 rounded-[5px] bg-contrast/4 px-2 py-1.5 leading-5">
                         <p className="line-clamp-3 whitespace-pre-wrap">{payload.text}</p>
                       </div>
                     )}

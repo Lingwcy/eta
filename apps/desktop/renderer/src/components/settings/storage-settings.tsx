@@ -89,11 +89,11 @@ export function StorageSettings({ active }: { active: boolean }) {
     <div className="space-y-4">
       <ToastNotice message={error} />
       <div className="flex items-center gap-3">
-        <h2 className="text-sm font-medium text-neutral-700">
+        <h2 className="text-sm font-medium text-strong">
           {t("settings:storageSettings.sessionStorage")}
         </h2>
         <span
-          className="text-lg font-semibold tabular-nums text-neutral-800"
+          className="text-lg font-semibold tabular-nums text-heading"
           title={
             report?.issues.length
               ? t("settings:storageSettings.onlyIncludesSessionFilesThatCouldBe")
@@ -106,7 +106,7 @@ export function StorageSettings({ active }: { active: boolean }) {
               ? t("settings:storageSettings.calculating")
               : "—"}
         </span>
-        <span className="flex-1 text-xs text-neutral-500">
+        <span className="flex-1 text-xs text-subtle">
           {report && t("settings:storageSettings.sessions", { count: report.sessions.length })}
         </span>
         <Button
@@ -147,21 +147,21 @@ export function StorageSettings({ active }: { active: boolean }) {
               type="button"
               title={`${path}\n${finder}`}
               onClick={() => void reveal(target)}
-              className="group flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs outline-none hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-300"
+              className="group flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs outline-none hover:bg-surface-subtle focus-visible:ring-2 focus-visible:ring-border-strong"
             >
-              <Icon size={14} className="shrink-0 text-neutral-500" />
-              <span className="w-16 shrink-0 text-neutral-600">{label}</span>
-              <span className="min-w-0 flex-1 truncate text-neutral-500">{path}</span>
+              <Icon size={14} className="shrink-0 text-subtle" />
+              <span className="w-16 shrink-0 text-secondary">{label}</span>
+              <span className="min-w-0 flex-1 truncate text-subtle">{path}</span>
               <ArrowUpRight
                 size={12}
-                className="shrink-0 text-neutral-500 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                className="shrink-0 text-subtle opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
               />
             </button>
           ))}
         </div>
       )}
-      <div className="overflow-hidden rounded-xl border border-neutral-200">
-        <div className="flex items-center gap-2 border-b border-neutral-100 p-2">
+      <div className="overflow-hidden rounded-xl border border-border">
+        <div className="flex items-center gap-2 border-b border-border-soft p-2">
           <div className="min-w-0 flex-1">
             <SearchInput
               placeholder={t("settings:storageSettings.searchSessionsOrProjects")}
@@ -203,23 +203,23 @@ export function StorageSettings({ active }: { active: boolean }) {
                     title: session.title || t("settings:storageSettings.unnamedSession"),
                   })}
                   onClick={() => void reveal({ kind: "session", id: session.id })}
-                  className="flex w-full cursor-pointer items-center gap-4 border-b border-neutral-100 px-3 py-2.5 text-left outline-none last:border-0 hover:bg-neutral-50 focus-visible:bg-neutral-100 disabled:cursor-default"
+                  className="flex w-full cursor-pointer items-center gap-4 border-b border-border-soft px-3 py-2.5 text-left outline-none last:border-0 hover:bg-surface-soft focus-visible:bg-surface-subtle disabled:cursor-default"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] text-neutral-800">
+                    <span className="block truncate text-[13px] text-heading">
                       {session.title || t("settings:storageSettings.unnamedSession")}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-neutral-500">
+                    <span className="mt-0.5 block truncate text-xs text-subtle">
                       {session.project ?? t("settings:storageSettings.noProject")}
                     </span>
                   </span>
-                  <span className="shrink-0 text-xs tabular-nums text-neutral-500">
+                  <span className="shrink-0 text-xs tabular-nums text-subtle">
                     {bytes(session.bytes)}
                   </span>
                 </button>
               ))}
               {!sessions.length && (
-                <p className="py-8 text-center text-xs text-neutral-500">
+                <p className="py-8 text-center text-xs text-subtle">
                   {busy && !report
                     ? t("settings:storageSettings.readingSessions")
                     : t("settings:storageSettings.noMatchingSessions")}

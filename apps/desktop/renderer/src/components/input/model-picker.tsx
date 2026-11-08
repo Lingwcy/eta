@@ -99,7 +99,7 @@ export function ModelPicker({
         }
         title={model ? `${model.provider}/${model.id}` : placeholder}
         className={cn(
-          "inline-flex h-8 min-w-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent text-[13px] font-normal text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0",
+          "inline-flex h-8 min-w-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent text-[13px] font-normal text-strong outline-none transition-colors hover:bg-surface-subtle focus-visible:ring-2 focus-visible:ring-focus-ring-400 focus-visible:ring-offset-2 disabled:cursor-default [&_svg]:shrink-0",
           responsive
             ? "w-8 gap-0 px-0 @min-[520px]/composer:w-auto @min-[520px]/composer:gap-1.5 @min-[520px]/composer:px-2.5"
             : "gap-1.5 px-2.5",
@@ -125,7 +125,7 @@ export function ModelPicker({
         {thinkingLabel && (
           <span
             className={cn(
-              "shrink-0 text-neutral-500",
+              "shrink-0 text-subtle",
               responsive && "hidden max-w-12 truncate @min-[520px]/composer:inline",
             )}
           >
@@ -147,11 +147,11 @@ export function ModelPicker({
           <Popover.Popup
             aria-label={t("chat:modelPicker.availableModels")}
             initialFocus={searchInput}
-            className="flex max-h-[min(288px,var(--available-height),calc(100dvh-32px))] w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[14px] border border-neutral-200 bg-white p-1 shadow-lg outline-none"
+            className="flex max-h-[min(288px,var(--available-height),calc(100dvh-32px))] w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[14px] border border-border bg-surface p-1 shadow-lg outline-none"
           >
             <nav
               aria-label={t("chat:modelPicker.modelProviders")}
-              className="w-10 shrink-0 overflow-y-auto rounded-[10px] bg-neutral-50 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="w-10 shrink-0 overflow-y-auto rounded-[10px] bg-surface-soft p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <BaseButton
                 aria-label={t("chat:modelPicker.allModels")}
@@ -162,8 +162,8 @@ export function ModelPicker({
                   setQuery("");
                 }}
                 className={cn(
-                  "mb-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full text-neutral-500 outline-none hover:bg-neutral-200/60 focus-visible:ring-2 focus-visible:ring-neutral-400",
-                  (activeProvider === null || query.trim()) && "bg-neutral-200/70 text-neutral-700",
+                  "mb-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full text-subtle outline-none hover:bg-surface-hover/60 focus-visible:ring-2 focus-visible:ring-focus-ring-400",
+                  (activeProvider === null || query.trim()) && "bg-surface-hover/70 text-strong",
                 )}
               >
                 <Grid2X2 size={17} aria-hidden="true" />
@@ -179,10 +179,10 @@ export function ModelPicker({
                     setQuery("");
                   }}
                   className={cn(
-                    "mb-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full text-neutral-500 outline-none hover:bg-neutral-200/60 focus-visible:ring-2 focus-visible:ring-neutral-400",
+                    "mb-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full text-subtle outline-none hover:bg-surface-hover/60 focus-visible:ring-2 focus-visible:ring-focus-ring-400",
                     activeProvider === provider.id &&
                       !query.trim() &&
-                      "bg-neutral-200/70 text-neutral-700",
+                      "bg-surface-hover/70 text-strong",
                   )}
                 >
                   <span aria-hidden="true" className="size-5 opacity-60">
@@ -194,7 +194,7 @@ export function ModelPicker({
             <div className="flex min-w-0 flex-1 flex-col pl-1.5">
               <div className="flex h-8 shrink-0 items-center gap-2 pr-2 pl-1.5">
                 {!query && (
-                  <span className="text-xs text-neutral-500">{t("chat:modelPicker.models")}</span>
+                  <span className="text-xs text-subtle">{t("chat:modelPicker.models")}</span>
                 )}
                 <div className="relative min-w-0 flex-1">
                   <input
@@ -204,12 +204,12 @@ export function ModelPicker({
                     placeholder={t("chat:modelPicker.quickSearch")}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    className="h-7 w-full min-w-0 bg-transparent pr-5 text-xs text-neutral-900 outline-none placeholder:text-neutral-500 [&::-webkit-search-cancel-button]:hidden"
+                    className="h-7 w-full min-w-0 bg-transparent pr-5 text-xs text-foreground outline-none placeholder:text-subtle [&::-webkit-search-cancel-button]:hidden"
                   />
                   <Search
                     size={15}
                     aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 right-0 -translate-y-1/2 text-neutral-500"
+                    className="pointer-events-none absolute top-1/2 right-0 -translate-y-1/2 text-subtle"
                   />
                 </div>
               </div>
@@ -224,8 +224,8 @@ export function ModelPicker({
                         setOpen(false);
                       }}
                       className={cn(
-                        "flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-[8px] py-1.5 pr-2 pl-1.5 text-left text-[13px] text-neutral-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
-                        defaultOption.selected ? "bg-neutral-100" : "hover:bg-neutral-50",
+                        "flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-[8px] py-1.5 pr-2 pl-1.5 text-left text-[13px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring-400 disabled:cursor-default",
+                        defaultOption.selected ? "bg-surface-subtle" : "hover:bg-surface-soft",
                       )}
                     >
                       <Grid2X2 size={18} aria-hidden="true" className="shrink-0 opacity-50" />
@@ -233,12 +233,12 @@ export function ModelPicker({
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "flex size-3.5 shrink-0 items-center justify-center rounded-full border border-neutral-300",
-                          defaultOption.selected && "border-neutral-900 bg-neutral-900",
+                          "flex size-3.5 shrink-0 items-center justify-center rounded-full border border-border-strong",
+                          defaultOption.selected && "border-solid-border bg-solid",
                         )}
                       >
                         {defaultOption.selected && (
-                          <span className="size-[5px] rounded-full bg-white" />
+                          <span className="size-[5px] rounded-full bg-surface" />
                         )}
                       </span>
                     </BaseButton>
@@ -261,7 +261,7 @@ export function ModelPicker({
                     return (
                       <div key={JSON.stringify([entry.provider, entry.id])}>
                         {recent.length > 0 && (index === 0 || index === recent.length) && (
-                          <p className="px-1.5 pt-2 pb-1 text-xs text-neutral-500">
+                          <p className="px-1.5 pt-2 pb-1 text-xs text-subtle">
                             {index === 0
                               ? t("chat:modelPicker.recentModels")
                               : t("chat:modelPicker.models")}
@@ -270,7 +270,7 @@ export function ModelPicker({
                         <div
                           className={cn(
                             "relative min-h-8 rounded-[8px]",
-                            selected && "bg-neutral-100",
+                            selected && "bg-surface-subtle",
                           )}
                         >
                           <BaseButton
@@ -297,17 +297,17 @@ export function ModelPicker({
                               }
                             }}
                             className={cn(
-                              "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[8px] py-1.5 pr-2 pl-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400 disabled:cursor-default",
-                              selected ? "hover:bg-neutral-100" : "hover:bg-neutral-50",
+                              "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[8px] py-1.5 pr-2 pl-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring-400 disabled:cursor-default",
+                              selected ? "hover:bg-surface-subtle" : "hover:bg-surface-soft",
                             )}
                           >
                             <span aria-hidden="true" className="size-[18px] shrink-0 opacity-50">
                               <ProviderMark id={entry.provider} />
                             </span>
-                            <span className="min-w-0 flex-1 truncate text-[13px] text-neutral-900">
+                            <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
                               {entry.name}
                               {(query.trim() || activeProvider === null) && (
-                                <span className="ml-1.5 text-neutral-500">{providerName}</span>
+                                <span className="ml-1.5 text-subtle">{providerName}</span>
                               )}
                             </span>
                             {showThinkingControl && (
@@ -316,16 +316,16 @@ export function ModelPicker({
                             <span
                               aria-hidden="true"
                               className={cn(
-                                "flex size-3.5 shrink-0 items-center justify-center rounded-full border border-neutral-300",
-                                selected && "border-neutral-900 bg-neutral-900",
+                                "flex size-3.5 shrink-0 items-center justify-center rounded-full border border-border-strong",
+                                selected && "border-solid-border bg-solid",
                                 selection && "rounded-[4px]",
                               )}
                             >
                               {selected &&
                                 (selection ? (
-                                  <Check size={10} className="text-white" />
+                                  <Check size={10} className="text-on-solid" />
                                 ) : (
-                                  <span className="size-[5px] rounded-full bg-white" />
+                                  <span className="size-[5px] rounded-full bg-surface" />
                                 ))}
                             </span>
                           </BaseButton>
@@ -345,7 +345,7 @@ export function ModelPicker({
                     );
                   })}
                   {!visible.length && (
-                    <p className="px-3 py-10 text-center text-xs text-neutral-500">
+                    <p className="px-3 py-10 text-center text-xs text-subtle">
                       {models.length
                         ? t("chat:modelPicker.noMatchingModels")
                         : t("chat:modelPicker.connectAModelProviderFirst")}

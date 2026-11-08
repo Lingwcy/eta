@@ -38,7 +38,7 @@ export function SubagentControls({
           <li key={child.path} className={nested ? "relative min-w-0 pl-4" : "min-w-0"}>
             {nested && (
               <span
-                className="pointer-events-none absolute inset-y-0 left-0 w-3 text-neutral-300"
+                className="pointer-events-none absolute inset-y-0 left-0 w-3 text-disabled"
                 aria-hidden="true"
               >
                 <svg
@@ -67,7 +67,7 @@ export function SubagentControls({
               >
                 <SlidingLabel text={child.path.split("/").at(-1) ?? child.path} />
                 <span
-                  className="flex shrink-0 items-center gap-1 text-xs text-neutral-400"
+                  className="flex shrink-0 items-center gap-1 text-xs text-muted"
                   aria-hidden="true"
                 >
                   {child.status === "stopped" && subagentStatus().stopped}

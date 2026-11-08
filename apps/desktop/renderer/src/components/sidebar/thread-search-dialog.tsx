@@ -34,7 +34,7 @@ export function ThreadSearchDialog(props: SearchDialogProps) {
               <DialogTitle className="sr-only">
                 {t("navigation:threadSearchDialog.searchChats")}
               </DialogTitle>
-              <p className="p-4 text-sm text-neutral-400">
+              <p className="p-4 text-sm text-muted">
                 {t("navigation:threadSearchDialog.loadingSearch")}
               </p>
             </DialogContent>

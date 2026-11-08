@@ -1,3 +1,5 @@
+import { VisualMode } from "./visual-mode";
+import type { ThemePreference } from "../../../../src/appearance.ts";
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
 import { AgentThinking } from "@/components/agent-thinking";
@@ -21,11 +23,15 @@ export function AppearanceSettings({
   onVariantChange,
   locale = defaultLocale,
   onLocaleChange,
+  theme = "system",
+  onThemeChange,
 }: {
   variant: AgentThinkingVariant;
   active: boolean;
   busy: boolean;
   onVariantChange: (variant: AgentThinkingVariant) => void;
+  theme?: ThemePreference;
+  onThemeChange: (theme: ThemePreference) => void;
   locale?: AppLocale;
   onLocaleChange: (locale: AppLocale) => void;
 }) {
@@ -33,6 +39,9 @@ export function AppearanceSettings({
   return (
     <>
       <SettingsSection title={t("settings:appearance.languageSection")}>
+        <SettingsRow title={t("settings:appearance.visualMode")}>
+          <VisualMode value={theme} disabled={busy} onValueChange={onThemeChange} />
+        </SettingsRow>
         <SettingsRow title="语言 / Language">
           <Select
             value={locale}
@@ -66,9 +75,7 @@ export function AppearanceSettings({
           className="flex items-center gap-5 py-3"
           aria-label={t("settings:appearanceSettings.animationPreview")}
         >
-          <span className="text-xs text-neutral-400">
-            {t("settings:appearanceSettings.preview")}
-          </span>
+          <span className="text-xs text-muted">{t("settings:appearanceSettings.preview")}</span>
           <AgentThinking
             key={variant}
             variant={variant}

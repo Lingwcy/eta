@@ -66,7 +66,7 @@ export function ToolDetails({ tool }: { tool: SnapshotTool }) {
             <pre
               className={cn(
                 "font-mono text-xs/5 whitespace-pre-wrap break-words",
-                tool.isError && "text-red-600",
+                tool.isError && "text-danger-text-600",
               )}
             >
               {output}

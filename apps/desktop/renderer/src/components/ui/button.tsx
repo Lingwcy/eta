@@ -4,21 +4,21 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-transparent text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-transparent text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-neutral-900 text-white hover:bg-neutral-700",
-        secondary: "bg-neutral-100 text-neutral-700 hover:bg-neutral-200",
-        outline: "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
-        ghost: "text-neutral-700 hover:bg-neutral-200/50",
-        menu: "cursor-default text-neutral-800 hover:bg-[#007aff] hover:text-white",
-        "ghost-muted": "text-neutral-500 hover:bg-neutral-200/50 hover:text-neutral-700",
-        "ghost-destructive": "text-red-600 hover:bg-red-50",
-        info: "bg-blue-100 text-blue-600 hover:bg-blue-200",
-        accent: "text-[#ed714b] hover:bg-orange-50 hover:text-[#cf5530]",
-        link: "text-neutral-500 underline-offset-4 hover:text-neutral-800 hover:underline",
-        timeline: "group rounded-none text-neutral-300 hover:text-neutral-600",
+        default: "bg-solid text-on-solid hover:bg-solid-hover",
+        secondary: "bg-surface-subtle text-strong hover:bg-surface-hover",
+        outline: "border-border bg-surface text-strong hover:bg-surface-soft",
+        ghost: "text-strong hover:bg-surface-hover/50",
+        menu: "cursor-default text-heading hover:bg-menu-selected hover:text-white",
+        "ghost-muted": "text-subtle hover:bg-surface-hover/50 hover:text-strong",
+        "ghost-destructive": "text-danger-text-600 hover:bg-danger-tint-50",
+        info: "bg-info-tint-100 text-info-text-600 hover:bg-info-tint-200",
+        accent: "text-brand hover:bg-caution-tint-50 hover:text-brand-strong",
+        link: "text-subtle underline-offset-4 hover:text-heading hover:underline",
+        timeline: "group rounded-none text-disabled hover:text-secondary",
       },
       size: {
         default: "h-9 px-3",
@@ -38,7 +38,7 @@ const buttonVariants = cva(
         "icon-tiny": "size-6 rounded-full",
         tick: "h-2.5 w-7 min-h-0 shrink justify-start gap-0 border-0 p-0",
       },
-      selected: { true: "bg-neutral-200/70 text-neutral-800", false: "" },
+      selected: { true: "bg-surface-hover/70 text-heading", false: "" },
       indent: { true: "pl-8", false: "" },
     },
     defaultVariants: { variant: "default", size: "default", selected: false, indent: false },

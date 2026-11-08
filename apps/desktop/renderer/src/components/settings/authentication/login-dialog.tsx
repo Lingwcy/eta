@@ -32,7 +32,7 @@ function LoginPromptForm({
         setValue("");
       }}
     >
-      <label htmlFor={prompt.id} className="text-sm/6 font-medium text-neutral-800">
+      <label htmlFor={prompt.id} className="text-sm/6 font-medium text-heading">
         {prompt.message}
       </label>
       {prompt.type === "select" ? (
@@ -89,11 +89,11 @@ export function LoginDialog({
           <div className="flex min-w-0 items-center gap-3">
             {login && <ProviderLogo id={login.provider} name={name} />}
             <div>
-              <DialogTitle className="text-base font-semibold text-neutral-900">
+              <DialogTitle className="text-base font-semibold text-foreground">
                 {t("settings:loginDialog.connect")}
                 {name}
               </DialogTitle>
-              <p className="mt-0.5 text-xs/5 text-neutral-500">
+              <p className="mt-0.5 text-xs/5 text-subtle">
                 {login?.method === "oauth"
                   ? t("settings:loginDialog.continueWithYourAccount")
                   : t("settings:loginDialog.configureYourApiKeyAndProviderParameters")}
@@ -118,13 +118,13 @@ export function LoginDialog({
           )}
           {login?.status === "completed" ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <span className="flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <span className="flex size-12 items-center justify-center rounded-full bg-success-tint-50 text-success-text-600">
                 <Check size={24} />
               </span>
               <p className="text-lg font-semibold">
                 {t("settings:loginDialog.connectedSuccessfully")}
               </p>
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-subtle">
                 {t("settings:loginDialog.modelsHaveBeenAddedToTheAvailable")}
               </p>
               <Button onClick={() => void auth.close()}>{t("settings:loginDialog.done")}</Button>
@@ -145,7 +145,7 @@ export function LoginDialog({
               {login && (
                 <p
                   role="status"
-                  className="flex items-start gap-2 text-sm/6 break-words text-neutral-500"
+                  className="flex items-start gap-2 text-sm/6 break-words text-subtle"
                 >
                   {login.prompt ? (
                     <KeyRound size={16} className="mt-1 shrink-0" />
@@ -163,7 +163,7 @@ export function LoginDialog({
                 </p>
               )}
               {login?.deviceCode && (
-                <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3">
+                <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
                   <code className="text-xl font-semibold tracking-[0.18em]">
                     {login.deviceCode}
                   </code>
@@ -213,7 +213,7 @@ export function LoginDialog({
                   onAnswer={auth.answer}
                 />
               )}
-              <p className="text-xs/5 text-neutral-400">
+              <p className="text-xs/5 text-muted">
                 {t("settings:loginDialog.credentialsAreSavedOnlyOnThisComputer")}
               </p>
             </div>

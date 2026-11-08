@@ -29,20 +29,17 @@ const components: Components = {
     </div>
   ),
   th: ({ node: _node, ...props }) => (
-    <th
-      {...props}
-      className="min-w-24 border-b border-neutral-200 px-3 py-2 align-top font-medium"
-    />
+    <th {...props} className="min-w-24 border-b border-border px-3 py-2 align-top font-medium" />
   ),
   td: ({ node: _node, ...props }) => (
-    <td {...props} className="border-b border-neutral-100 px-3 py-2 align-top" />
+    <td {...props} className="border-b border-border-soft px-3 py-2 align-top" />
   ),
   a: ({ node: _node, ...props }) => (
     <a
       {...props}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-blue-600 underline decoration-blue-600/40 underline-offset-2 hover:decoration-blue-600 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+      className="text-info-text-600 underline decoration-info-text-600/40 underline-offset-2 hover:decoration-info-text-600 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info-text-600"
     />
   ),
 };

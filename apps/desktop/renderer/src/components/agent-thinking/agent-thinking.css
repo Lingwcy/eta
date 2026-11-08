@@ -3,7 +3,7 @@
   background-image: linear-gradient(
     110deg,
     var(--eta-agent-thinking-tone) 35%,
-    var(--color-neutral-300) 50%,
+    var(--color-disabled) 50%,
     var(--eta-agent-thinking-tone) 65%
   );
   background-size: 250% 100%;

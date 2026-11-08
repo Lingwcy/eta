@@ -1,3 +1,4 @@
+import type { createAppearanceController } from "../platform/appearance.ts";
 import { LocalizedError } from "../../shared/i18n/messages.ts";
 import { isCloudId } from "../../shared/bot.ts";
 import { app, dialog, ipcMain, shell } from "electron";
@@ -18,13 +19,16 @@ export function registerDesktopIpc({
   updater,
   windows,
   notifyLibrary,
+  appearance,
 }: {
   service: () => DesktopApplication;
   updater: () => Updater | undefined;
   windows: ReturnType<typeof createDesktopWindows>;
   notifyLibrary: () => void;
+  appearance: ReturnType<typeof createAppearanceController>;
 }) {
   const openWindow = windows.open;
+  ipcMain.handle("eta:appearance", () => commandReply(async () => appearance.snapshot()));
   // 供渲染进程通过 "eta:command" 发送业务命令
   ipcMain.handle("eta:command", (_event, command: unknown) =>
     commandReply(async () => {

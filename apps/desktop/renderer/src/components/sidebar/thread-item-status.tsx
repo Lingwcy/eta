@@ -16,7 +16,7 @@ export function ThreadItemStatus({
   useTranslation();
   if (!running && !scheduled && !worktree) return null;
   return (
-    <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-neutral-500">
+    <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-subtle">
       {running && <RunningIndicator />}
       {scheduled && (
         <span

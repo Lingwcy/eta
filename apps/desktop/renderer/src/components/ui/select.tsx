@@ -42,9 +42,9 @@ export function Select<T extends string>({
       <BaseSelect.Trigger
         aria-label={label}
         className={cn(
-          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm text-neutral-800 outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-50",
+          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm text-heading outline-none focus-visible:ring-2 focus-visible:ring-focus-ring-400 disabled:opacity-50",
           size === "compact" && "w-auto rounded-[10px] px-3 py-1 text-[13px]",
-          variant === "menu" && "bg-[#f8f8f8] hover:bg-neutral-100",
+          variant === "menu" && "bg-panel hover:bg-surface-subtle",
           className,
         )}
       >
@@ -70,13 +70,13 @@ export function Select<T extends string>({
                 ? "max-h-[min(240px,var(--available-height))] w-max min-w-40 max-w-[calc(100vw-32px)]"
                 : "max-h-[min(360px,var(--available-height))] min-w-(--anchor-width)",
               variant === "menu"
-                ? "min-w-40 rounded-[10px] border border-black/12 bg-[#f8f8f8]/95 text-xs font-normal text-neutral-800 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] backdrop-blur-xl select-none"
-                : "rounded-xl border border-neutral-200 bg-white shadow-lg",
+                ? "min-w-40 rounded-[10px] border border-contrast/12 bg-panel/95 text-xs font-normal text-heading shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] backdrop-blur-xl select-none"
+                : "rounded-xl border border-border bg-surface shadow-lg",
             )}
           >
             <BaseSelect.Group>
               {panelTitle && (
-                <BaseSelect.GroupLabel className="mx-1.5 mb-1 border-b border-black/10 px-0.5 py-1.5 text-xs text-neutral-500">
+                <BaseSelect.GroupLabel className="mx-1.5 mb-1 border-b border-contrast/10 px-0.5 py-1.5 text-xs text-subtle">
                   {panelTitle}
                 </BaseSelect.GroupLabel>
               )}
@@ -86,8 +86,8 @@ export function Select<T extends string>({
                   value={option.value}
                   className={
                     variant === "menu"
-                      ? "flex h-[26px] cursor-default items-center gap-1.5 rounded-[5px] px-2 outline-none data-highlighted:bg-[#007aff] data-highlighted:text-white"
-                      : "flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 outline-none data-highlighted:bg-neutral-100"
+                      ? "flex h-[26px] cursor-default items-center gap-1.5 rounded-[5px] px-2 outline-none data-highlighted:bg-menu-selected data-highlighted:text-white"
+                      : "flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-strong outline-none data-highlighted:bg-surface-subtle"
                   }
                 >
                   <BaseSelect.ItemIndicator

@@ -3,10 +3,17 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 const fake = vi.hoisted(() => {
   class Window {
     static all: Window[] = [];
-    readonly webContents = { id: Window.all.length + 1, setWindowOpenHandler() {}, on() {} };
+    readonly webContents = {
+      id: Window.all.length + 1,
+      setWindowOpenHandler() {},
+      on() {},
+      send: vi.fn(),
+    };
     listeners = new Map<string, () => void>();
     destroyed = false;
     shows = 0;
+    setBackgroundColor = vi.fn();
+    setTitleBarOverlay = vi.fn();
     focuses = 0;
     readonly options: BrowserWindowConstructorOptions;
     constructor(options: BrowserWindowConstructorOptions = {}) {
@@ -60,6 +67,7 @@ test.each(["win32", "darwin", "linux"])(
     const windows = createDesktopWindows(
       () => {},
       () => false,
+      () => ({ preference: "light", resolved: "light", revision: 0 }),
     );
     try {
       windows.open();
@@ -106,6 +114,7 @@ test("closing the main window selects another chat window rather than an auxilia
   const windows = createDesktopWindows(
     () => {},
     () => false,
+    () => ({ preference: "light", resolved: "light", revision: 0 }),
   );
   try {
     windows.open();
@@ -124,3 +133,44 @@ test("closing the main window selects another chat window rather than an auxilia
     fake.Window.all = [];
   }
 });
+
+test.each(["win32", "darwin", "linux"])(
+  "%s updates only Eta windows and seeds detached and reopened windows",
+  (platform) => {
+    vi.stubGlobal("process", { ...process, platform });
+    let appearance = { preference: "dark" as const, resolved: "dark" as const, revision: 1 };
+    const windows = createDesktopWindows(
+      () => {},
+      () => false,
+      () => appearance,
+    );
+    try {
+      windows.open();
+      windows.open("detached");
+      const overlay = new fake.Window();
+      for (const current of fake.Window.all.slice(0, 2)) {
+        expect(current.options.backgroundColor).toBe("#191a1c");
+        expect(current.options.webPreferences?.additionalArguments).toEqual([
+          "--eta-appearance=dark:dark:1",
+        ]);
+      }
+      const light = { preference: "light" as const, resolved: "light" as const, revision: 2 };
+      windows.updateAppearance(light);
+      for (const current of fake.Window.all.slice(0, 2)) {
+        expect(current.setBackgroundColor).toHaveBeenLastCalledWith("#e9e9e9");
+        expect(current.webContents.send).toHaveBeenLastCalledWith("eta:appearance-changed", light);
+        expect(current.setTitleBarOverlay).toHaveBeenCalledTimes(platform === "win32" ? 1 : 0);
+      }
+      expect(overlay.setBackgroundColor).not.toHaveBeenCalled();
+      expect(overlay.webContents.send).not.toHaveBeenCalled();
+      for (const current of fake.Window.all.slice(0, 2)) current.close();
+      appearance = { ...appearance, revision: 3 };
+      windows.open();
+      expect(fake.Window.all.at(-1)?.options.webPreferences?.additionalArguments).toEqual([
+        "--eta-appearance=dark:dark:3",
+      ]);
+    } finally {
+      windows.dispose();
+    }
+  },
+);

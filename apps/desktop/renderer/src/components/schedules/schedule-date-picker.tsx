@@ -58,7 +58,7 @@ export function ScheduleDatePicker({
         <Popover.Positioner side="bottom" align="end" sideOffset={5} className="z-50">
           <Popover.Popup
             aria-label={t("schedules:scheduleDatePicker.runDate")}
-            className="w-64 max-w-[calc(100vw-32px)] rounded-xl border border-black/12 bg-white p-2 text-xs shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none"
+            className="w-64 max-w-[calc(100vw-32px)] rounded-xl border border-contrast/12 bg-surface p-2 text-xs shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none"
           >
             <div className="mb-1 flex items-center justify-between">
               <Button
@@ -94,7 +94,7 @@ export function ScheduleDatePicker({
                 t("schedules:scheduleDatePicker.fri"),
                 t("schedules:scheduleDatePicker.sat"),
               ].map((day, index) => (
-                <span key={index} className="py-1 text-center text-neutral-400">
+                <span key={index} className="py-1 text-center text-muted">
                   {day}
                 </span>
               ))}
@@ -116,8 +116,8 @@ export function ScheduleDatePicker({
                 </div>
               ))}
             </div>
-            <div className="mt-2 flex items-center gap-2 border-t border-neutral-100 pt-2">
-              <label htmlFor={timeId} className="shrink-0 text-neutral-500">
+            <div className="mt-2 flex items-center gap-2 border-t border-border-soft pt-2">
+              <label htmlFor={timeId} className="shrink-0 text-subtle">
                 {t("schedules:scheduleDatePicker.time")}
               </label>
               <Input

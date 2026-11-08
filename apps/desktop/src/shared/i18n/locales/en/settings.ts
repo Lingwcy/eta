@@ -1,4 +1,9 @@
 export default {
+  "appearance.visualMode": "Visual mode",
+  "appearance.mode.system": "System",
+  "appearance.mode.light": "Light",
+  "appearance.mode.dark": "Dark",
+
   "subscriptionQuota.label": "Subscription usage",
   "subscriptionQuota.resetDue": "Reset due; refresh usage",
   "subscriptionQuota.days_one": "{{count}} day",
