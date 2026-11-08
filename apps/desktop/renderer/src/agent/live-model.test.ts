@@ -219,6 +219,13 @@ test.each(["local", "cloud", "collision", "unknown", "same", "session-only"] as 
       if (mode === "unknown") {
         expect(view?.composer.model).toBeUndefined();
         expect(view?.composer.contextWindow).toBeUndefined();
+        expect(selected).toHaveBeenLastCalledWith({
+          provider: target.provider,
+          modelId: target.id,
+          tabId: tabs.activeTab.id,
+          threadId: id,
+          cloud: false,
+        });
         expect(container.textContent).not.toContain("Alpha");
         desktop.library = {
           ...library,
@@ -239,6 +246,9 @@ test.each(["local", "cloud", "collision", "unknown", "same", "session-only"] as 
         expect(selected).toHaveBeenLastCalledWith({
           provider: target.provider,
           modelId: target.id,
+          tabId: tabs.activeTab.id,
+          threadId: id,
+          cloud: mode === "cloud",
         });
       }
       expect(configure).not.toHaveBeenCalled();

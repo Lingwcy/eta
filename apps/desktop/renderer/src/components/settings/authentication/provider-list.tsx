@@ -6,7 +6,7 @@ import type { DesktopLibrary } from "../../../../../src/bridge.ts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProviderLogo } from "./provider-logo";
-import { SubscriptionQuota } from "./subscription-quota";
+import { SubscriptionQuota } from "@/components/subscription-quota";
 
 export function ProviderList({
   providers,

@@ -104,15 +104,37 @@ export function useDesktopController(
   const mainModel = snapshot
     ? liveModel
     : (agent.session?.model ??
-      (cloud && cloudSelection
-        ? cloudSelection.model
-        : modelLibrary
-          ? (recentModel ?? defaultModel(modelLibrary))
-          : undefined));
+      (tab.threadId
+        ? undefined
+        : cloud && cloudSelection
+          ? cloudSelection.model
+          : modelLibrary
+            ? (recentModel ?? defaultModel(modelLibrary))
+            : undefined));
+  const selectedProvider = configuredProvider ?? mainModel?.provider;
+  const selectedModelId = configuredModelId ?? mainModel?.id;
   useEffect(() => {
     if (active)
-      desktop.selectMainModel(mainModel && { provider: mainModel.provider, modelId: mainModel.id });
-  }, [active, mainModel?.provider, mainModel?.id, desktop.selectMainModel]);
+      desktop.selectMainModel(
+        selectedProvider !== undefined && selectedModelId !== undefined
+          ? {
+              provider: selectedProvider,
+              modelId: selectedModelId,
+              tabId: tab.id,
+              threadId: tab.threadId,
+              cloud,
+            }
+          : undefined,
+      );
+  }, [
+    active,
+    selectedProvider,
+    selectedModelId,
+    tab.id,
+    tab.threadId,
+    cloud,
+    desktop.selectMainModel,
+  ]);
   const operation = snapshot?.operation;
   const thinking = useThinkingStatus(tab.threadId ?? null, snapshot);
   const running = Boolean(

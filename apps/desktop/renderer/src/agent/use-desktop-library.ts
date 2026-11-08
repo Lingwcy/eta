@@ -4,6 +4,8 @@ import { defaultLocale } from "../../../src/shared/i18n/locales.ts";
 import { DesktopLibraryClient } from "@/desktop/library-client";
 import type { ModelSelection } from "@/desktop/selectors";
 
+type ActiveModelSelection = ModelSelection & { tabId: string; threadId?: string; cloud: boolean };
+
 /** Catalog state comes from main; the last active conversation model is separate UI context. */
 export function useDesktopLibrary() {
   const [client] = useState(() => new DesktopLibraryClient(window.eta));
@@ -15,10 +17,14 @@ export function useDesktopLibrary() {
     void i18n.changeLanguage(locale);
     document.documentElement.lang = locale;
   }, [locale, loaded]);
-  const [mainModel, setMainModel] = useState<ModelSelection>();
-  const selectMainModel = useCallback((model: ModelSelection | undefined) => {
+  const [mainModel, setMainModel] = useState<ActiveModelSelection>();
+  const selectMainModel = useCallback((model: ActiveModelSelection | undefined) => {
     setMainModel((current) =>
-      current?.provider === model?.provider && current?.modelId === model?.modelId
+      current?.provider === model?.provider &&
+      current?.modelId === model?.modelId &&
+      current?.tabId === model?.tabId &&
+      current?.threadId === model?.threadId &&
+      current?.cloud === model?.cloud
         ? current
         : model,
     );

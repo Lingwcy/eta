@@ -95,6 +95,8 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
         inspectorOpen={shell.inspectorOpen}
         sidebar={
           <DesktopSidebar
+            model={desktop.mainModel}
+            conversation={conversation}
             scheduleView={shell.scheduleView}
             onScheduleView={shell.setScheduleView}
             schedules={shell.schedules}
