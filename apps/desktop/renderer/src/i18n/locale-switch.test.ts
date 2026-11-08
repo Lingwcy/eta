@@ -241,10 +241,16 @@ test("language changes format schedules and initial placeholders while preservin
   expect(threadTitle({ title: "用户第一条消息", titleSource: "temporary" })).toBe("用户第一条消息");
 });
 
+function modeRadio(container: HTMLElement, label: string) {
+  const radio = [...container.querySelectorAll<HTMLElement>('[role="radio"]')].find(
+    (node) => node.textContent === label,
+  );
+  if (!radio) throw new Error("Missing visual mode: " + label);
+  return radio;
+}
+
 async function chooseMode(container: HTMLElement, label: string) {
-  const radio = container.querySelector<HTMLElement>('[role="radio"][aria-label="' + label + '"]');
-  expect(radio).not.toBeNull();
-  await act(async () => radio!.click());
+  await act(async () => modeRadio(container, label).click());
 }
 
 test("visual mode is one existing appearance row; selection synchronizes windows without losing drafts", async () => {
@@ -253,29 +259,32 @@ test("visual mode is one existing appearance row; selection synchronizes windows
   const second = await mount(Window);
   const draft = first.querySelector("textarea")!;
   draft.value = "Keep the unsent draft";
-  expect(
-    first.querySelector('[role="radio"][aria-label="跟随系统"]')?.getAttribute("aria-checked"),
-  ).toBe("true");
+  expect(modeRadio(first, "跟随系统")?.getAttribute("aria-checked")).toBe("true");
   await chooseMode(first, "暗色");
   expect(bridge.updateSettings).toHaveBeenLastCalledWith({ theme: "dark" });
-  expect(
-    second.querySelector('[role="radio"][aria-label="暗色"]')?.getAttribute("aria-checked"),
-  ).toBe("true");
-  const light = first.querySelector<HTMLElement>('[role="radio"][aria-label="浅色"]')!;
+  expect(modeRadio(second, "暗色")?.getAttribute("aria-checked")).toBe("true");
+  const light = modeRadio(first, "浅色");
   await act(async () => {
     light.focus();
     light.dispatchEvent(new KeyboardEvent("keydown", { key: " ", code: "Space", bubbles: true }));
     light.dispatchEvent(new KeyboardEvent("keyup", { key: " ", code: "Space", bubbles: true }));
   });
   expect(bridge.updateSettings).toHaveBeenLastCalledWith({ theme: "light" });
+  await act(async () => {
+    light.focus();
+    light.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  });
+  expect(bridge.updateSettings).toHaveBeenLastCalledWith({ theme: "dark" });
+  expect(modeRadio(second, "暗色").getAttribute("aria-checked")).toBe("true");
   await chooseMode(second, "跟随系统");
-  expect(
-    first.querySelector('[role="radio"][aria-label="跟随系统"]')?.getAttribute("aria-checked"),
-  ).toBe("true");
+  expect(modeRadio(first, "跟随系统")?.getAttribute("aria-checked")).toBe("true");
   expect(first.querySelector("textarea")).toBe(draft);
   expect(draft.value).toBe("Keep the unsent draft");
   await choose(first, "English");
   expect(first.querySelector('[role="radiogroup"][aria-label="Visual mode"]')).not.toBeNull();
+  expect(modeRadio(first, "System").getAttribute("aria-checked")).toBe("true");
+  await chooseMode(first, "Dark");
+  expect(modeRadio(second, "Dark").getAttribute("aria-checked")).toBe("true");
   expect(
     first.querySelectorAll('[role="radiogroup"][aria-label="Visual mode"] [role="radio"]'),
   ).toHaveLength(3);
@@ -287,13 +296,9 @@ test("visual mode save failure keeps confirmed selection and retries through the
   await chooseMode(container, "暗色");
   fail();
   await chooseMode(container, "浅色");
-  expect(
-    container.querySelector('[role="radio"][aria-label="暗色"]')?.getAttribute("aria-checked"),
-  ).toBe("true");
+  expect(modeRadio(container, "暗色")?.getAttribute("aria-checked")).toBe("true");
   expect(document.body.textContent).toContain("Disk full");
   recover();
   await chooseMode(container, "浅色");
-  expect(
-    container.querySelector('[role="radio"][aria-label="浅色"]')?.getAttribute("aria-checked"),
-  ).toBe("true");
+  expect(modeRadio(container, "浅色")?.getAttribute("aria-checked")).toBe("true");
 });
