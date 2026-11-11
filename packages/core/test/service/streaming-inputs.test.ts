@@ -479,3 +479,84 @@ test("withdrawal racing the final boundary never reports a placed input as unexe
     second.response.resolve(fauxAssistantMessage("cleanup"));
   }
 }, 30000);
+
+test("stopping a run and submitting a follow-up places unwithdrawn queued inputs with images in order", async () => {
+  const { core, provider, thread } = await fixture();
+  const first = gate();
+  let nextMessages: unknown[] = [];
+  provider.setResponses([
+    first.step,
+    (request) => {
+      nextMessages = request.messages;
+      return fauxAssistantMessage("continued with rich text");
+    },
+  ]);
+  const image = {
+    type: "image" as const,
+    data: "AA==",
+    mimeType: "image/png",
+    name: "rich-text.png",
+  };
+  try {
+    await core.submit(thread.id, "original", "root");
+    await first.reached;
+    const withdrawn = await core.submit(
+      thread.id,
+      "discard me",
+      "withdrawn-req",
+      undefined,
+      "steer",
+    );
+    expect((await core.withdrawInput(thread.id, withdrawn.operationId)).status).toBe("withdrawn");
+    const steered = await core.submit(
+      thread.id,
+      "这块就不要了，改成富文本框就可以",
+      "steered-image",
+      [image],
+      "steer",
+    );
+    await core.stop(thread.id);
+    expect((await core.openThread(thread.id)).snapshot.queuedInputs).toContainEqual(
+      expect.objectContaining({
+        requestId: "steered-image",
+        operationId: steered.operationId,
+        status: "cancelled",
+      }),
+    );
+    const continued = await core.submit(thread.id, "继续", "continue-req");
+    await expect
+      .poll(async () => (await core.operation(thread.id, continued.operationId)).status, {
+        timeout: 10000,
+      })
+      .toBe("completed");
+    const snapshot = (await core.openThread(thread.id)).snapshot;
+    expect(snapshot.queuedInputs).toEqual([]);
+    const users = snapshot.transcript.filter((entry) => entry.message.role === "user");
+    expect(users.map((entry) => entry.requestId)).toEqual([
+      "root",
+      "steered-image",
+      "continue-req",
+    ]);
+    expect(users[1]?.message.content).toEqual([
+      { type: "text", text: "这块就不要了，改成富文本框就可以" },
+      { type: "image", data: "AA==", mimeType: "image/png" },
+    ]);
+    expect(users[2]?.message.content).toBe("继续");
+    expect((await core.withdrawInput(thread.id, steered.operationId)).status).toBe(
+      "already_placed",
+    );
+    expect(nextMessages.filter((message: any) => message.role === "user")).toMatchObject([
+      { role: "user", content: "original" },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "这块就不要了，改成富文本框就可以" },
+          { type: "image", data: "AA==", mimeType: "image/png" },
+        ],
+      },
+      { role: "user", content: "继续" },
+    ]);
+  } finally {
+    first.response.resolve(fauxAssistantMessage("cleanup"));
+  }
+}, 30000);

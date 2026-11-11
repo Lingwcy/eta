@@ -160,6 +160,10 @@ async function project(
       cursor = page.next;
     } while (cursor !== undefined);
   }
+  const inputMetadata = await inputRecords(runtime);
+  for (const record of inputMetadata) {
+    if (record.placedEntryId !== undefined) inputs.add(record.placedEntryId);
+  }
   const terminal = receipts.findLast(
     (receipt) =>
       receipt.type === "input" &&
@@ -167,13 +171,16 @@ async function project(
       ((receipt.status === "done" && history.some((entry) => entry.id === receipt.answer)) ||
         (receipt.status === "unanswered" && !live.run?.inputs.includes(receipt.id))),
   );
-  const requestIds = new Map(
+  const requestIds = new Map<number, string>(
     receipts.flatMap((receipt) =>
       receipt.type === "input" && receipt.entry !== undefined && receipt.requestId !== undefined
         ? [[receipt.entry, receipt.requestId] as const]
         : [],
     ),
   );
+  for (const record of inputMetadata) {
+    if (record.placedEntryId !== undefined) requestIds.set(record.placedEntryId, record.requestId);
+  }
   // Automatic reports remain model context, but are not messages authored by the user.
   const transcript = history
     .filter(
@@ -222,7 +229,6 @@ async function project(
     history.find((entry) => entry.id === id)?.model?.[0]?.timestamp ??
     runtime.ref.metadata.createdAt;
   const active = receipts.find((receipt) => receipt.id === live.run?.inputs[0]);
-  const inputMetadata = await inputRecords(runtime);
   const inputTime = (receipt: SubmissionRecord | undefined) =>
     (receipt &&
       inputMetadata.find(

@@ -135,17 +135,10 @@ export class MobileStore {
           entry.requestId === undefined ? [] : [entry.requestId],
         ),
       );
-      const settled = new Set(
-        thread.snapshot.queuedInputs?.flatMap((input) =>
-          input.status !== "queued" && input.requestId !== undefined ? [input.requestId] : [],
-        ),
-      );
       value = {
         ...value,
         submittedInputs: (value.submittedInputs ?? this.state.submittedInputs).filter(
-          (input) =>
-            input.threadId !== thread.id ||
-            (!placed.has(input.messageId) && !settled.has(input.messageId)),
+          (input) => input.threadId !== thread.id || !placed.has(input.messageId),
         ),
       };
     }

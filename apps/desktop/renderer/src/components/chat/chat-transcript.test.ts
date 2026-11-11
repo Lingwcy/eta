@@ -312,6 +312,12 @@ test("a queued user message appears below the live answer and keeps its row when
   expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
   expect(row?.textContent).toBe("Use a smaller patch");
   expect(row?.querySelector('[role="status"]')).toBeNull();
+  expect(row?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
+  current.queuedInputs = [{ ...current.queuedInputs[0]!, status: "cancelled" }];
+  await render(current, false, [input]);
+  expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
+  expect(row?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
+  current.queuedInputs = [];
   current.transcript.push({
     id: "42:0",
     requestId: "constructor",
@@ -329,4 +335,5 @@ test("a queued user message appears below the live answer and keeps its row when
   expect(container.querySelectorAll('[data-chat-message="input:constructor"]')).toHaveLength(1);
   expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
   expect(row?.textContent).toBe("Use a smaller patch");
+  expect(row?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
 });
