@@ -30,11 +30,13 @@ function fixture() {
     },
     accessibility: {
       assertHealthy: () => {},
+      waitUntil: async () => {
+        throw new Error("Unexpected conditional wait");
+      },
       checkOwnership: async () => {},
       observe: async () => state,
       execute: async (selected, operation, input) => {
         events.push([selected, operation, input]);
-        return {};
       },
       layout: async () => capture.layout,
       capture: async (selected, _signal, limits) => {

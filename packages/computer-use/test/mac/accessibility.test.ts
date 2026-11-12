@@ -30,6 +30,38 @@ async function fixture(
 }
 
 test.skipIf(process.platform === "win32")(
+  "native evidence survives JSONL and old helpers reject opt-in projections",
+  async () => {
+    const observation = {
+      scope: "region",
+      projection: "compact",
+      complete: false,
+      exhaustive: false,
+      boundaries: [{ index: 0, reason: "children_unknown" }],
+      unknown: [{ index: 0, fields: ["value"] }],
+      visitedNodes: 1,
+      axReads: 12,
+    };
+    const bridge = await fixture(`
+    console.log(JSON.stringify({ok:true,result:{
+      id:'one',app:r.app,windowTitle:'test',text:'[0] AXGroup',
+      ...(r.app==='old'?{}:{observation:${JSON.stringify(observation)}})
+    }}));`);
+    const state = await bridge.observe(
+      { app: "test", projection: "compact", previousId: "prior", rootIndex: 0 },
+      AbortSignal.timeout(5000),
+    );
+    expect(state.observation).toEqual(observation);
+    await expect(
+      bridge.observe({ app: "old", projection: "compact" }, AbortSignal.timeout(5000)),
+    ).rejects.toMatchObject({ code: "observation_failed", applied: "no" });
+    expect((await bridge.observe({ app: "old" }, AbortSignal.timeout(5000))).text).toBe(
+      "[0] AXGroup",
+    );
+  },
+);
+
+test.skipIf(process.platform === "win32")(
   "validates native observations and reports exact native non-execution failures",
   async () => {
     const bridge = await fixture(

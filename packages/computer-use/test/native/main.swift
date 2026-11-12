@@ -1,6 +1,9 @@
 import ApplicationServices
 import Foundation
 
+try testObservation()
+try testControlState()
+
 let active: [String: Any] = [
   kCGSessionOnConsoleKey as String: true,
   kCGSessionLoginDoneKey as String: true,

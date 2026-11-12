@@ -9,6 +9,11 @@ import type {
   ComputerInput,
   ComputerAccessibility,
   ComputerTarget,
+  ComputerVerification,
+  ComputerInputReceipt,
+  ComputerResult,
+  ComputerCondition,
+  ComputerWaitOutcome,
 } from "./protocol.ts";
 import { mapComputerInput } from "./input.ts";
 import { normalizeComputerKeys } from "./keys.ts";
@@ -120,6 +125,7 @@ export class ComputerService {
         (lease.accessibility && {
           app: lease.accessibility.state.app,
           previousId: lease.accessibility.state.id,
+          ...this.observationTarget(lease.accessibility.state),
           ...(lease.accessibility.surface ? { surface: lease.accessibility.surface } : {}),
         });
       return selected
@@ -179,14 +185,103 @@ export class ComputerService {
             {
               app: lease.accessibility.state.app,
               previousId: lease.accessibility.state.id,
+              ...this.observationTarget(lease.accessibility.state),
               ...(lease.accessibility.surface ? { surface: lease.accessibility.surface } : {}),
             },
             current,
             limits,
             lease.accessibility.screenshot,
-            lease.accessibility.state.text,
+            lease.accessibility.state,
           )
         : this.capture(lease, current, limits);
+    });
+  }
+
+  async waitUntil(
+    owner: ComputerOwner,
+    frameId: string,
+    condition: ComputerCondition,
+    timeoutMs: number,
+    signal: AbortSignal,
+  ): Promise<
+    Partial<ComputerResult> & { wait: ComputerWaitOutcome & { condition: ComputerCondition } }
+  > {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10000)
+      throw new ComputerError("invalid_input", "timeoutMs must be between 250 and 10000");
+    const valid =
+      "elementIndex" in condition
+        ? Number.isSafeInteger(condition.elementIndex) &&
+          condition.elementIndex >= 0 &&
+          condition.elementIndex <= 799 &&
+          (condition.kind === "enabled"
+            ? typeof condition.equals === "boolean"
+            : condition.kind === "value" &&
+              typeof condition.equals === "string" &&
+              condition.equals.length <= 1200)
+        : (condition.kind === "present" || condition.kind === "absent") &&
+          typeof condition.text === "string" &&
+          condition.text.length > 0 &&
+          condition.text.length <= 1200 &&
+          (condition.role === undefined || /^AX[A-Za-z0-9]{1,126}$/.test(condition.role));
+    if (!valid) throw new ComputerError("invalid_input", "Invalid wait condition");
+    return this.operate(owner, signal, async (lease, current) => {
+      const selected = lease.accessibility;
+      if (!selected || selected.frame.id !== frameId)
+        throw new ComputerError("stale_frame", "条件等待需要最新窗口观察");
+      const accessibility = this.adapter.accessibility;
+      if (selected.surface || !accessibility?.waitUntil)
+        throw new ComputerError("invalid_input", "条件等待需要支持条件探测的窗口或区域");
+      lease.frame = undefined;
+      lease.accessibility = undefined;
+      const { outcome, state } = await accessibility.waitUntil(
+        selected.state,
+        condition,
+        timeoutMs,
+        current,
+      );
+      this.check(lease, current);
+      if (
+        (outcome.status === "satisfied" && (!state || outcome.final !== "satisfied")) ||
+        (state &&
+          (state.id === selected.state.id ||
+            state.app !== selected.state.app ||
+            state.windowId !== selected.state.windowId ||
+            state.observation?.scope !== selected.state.observation?.scope))
+      )
+        throw new ComputerError("observation_failed", "条件等待返回的观察与原窗口或区域不一致");
+      const wait = { ...outcome, condition };
+      if (!state) {
+        if (outcome.status === "target_closed") {
+          lease.presented = undefined;
+          this.publish(lease, { type: "unavailable", id: lease.id });
+        }
+        return { wait };
+      }
+      const frame = {
+        id: randomUUID(),
+        displayId: "accessibility",
+        imageWidth: 0,
+        imageHeight: 0,
+        capturedAt: Date.now(),
+      };
+      lease.accessibility = { state, frame, screenshot: false };
+      const previousTarget = lease.presented;
+      lease.presented = state;
+      if (
+        previousTarget?.windowTitle !== state.windowTitle ||
+        JSON.stringify(previousTarget?.bounds) !== JSON.stringify(state.bounds)
+      ) {
+        this.publish(lease, { type: "target", id: lease.id, target: state });
+        this.publish(lease, { type: "unavailable", id: lease.id });
+      }
+      return {
+        wait,
+        frame,
+        accessibility: state.text,
+        app: state.app,
+        windowTitle: state.windowTitle,
+        ...(state.observation ? { observation: state.observation } : {}),
+      };
     });
   }
 
@@ -197,7 +292,35 @@ export class ComputerService {
     signal: AbortSignal,
     limits?: CaptureLimits,
     targetHint?: { app?: string; windowTitle?: string },
-  ) {
+  ): Promise<ComputerResult> {
+    const stateAction =
+      input.action === "set_checked" ||
+      input.action === "set_expanded" ||
+      input.action === "select";
+    if (
+      input.action === "select" &&
+      (!Number.isSafeInteger(input.elementIndex) ||
+        input.elementIndex < 0 ||
+        input.elementIndex > 799 ||
+        typeof input.name !== "string" ||
+        input.name.length === 0 ||
+        input.name.length > 256)
+    )
+      throw new ComputerError(
+        "invalid_input",
+        "select requires an elementIndex and an exact option name",
+      );
+    if (
+      (input.action === "set_checked" || input.action === "set_expanded") &&
+      (typeof input.state !== "boolean" ||
+        !Number.isSafeInteger(input.elementIndex) ||
+        input.elementIndex < 0 ||
+        input.elementIndex > 799)
+    )
+      throw new ComputerError(
+        "invalid_input",
+        "State actions require an elementIndex and a boolean state",
+      );
     if (
       input.action === "drag" &&
       ((input.durationMs !== undefined &&
@@ -211,7 +334,8 @@ export class ComputerService {
         "drag requires 2–256 path points and durationMs between 0 and 10000",
       );
     if (input.action === "key") input = { ...input, keys: normalizeComputerKeys(input.keys) };
-    return this.operate(owner, signal, async (lease, current) => {
+    let stateDelivery: Pick<ComputerError, "applied" | "verification"> | undefined;
+    return this.operate<ComputerResult>(owner, signal, async (lease, current) => {
       if (
         targetHint?.app !== undefined &&
         !lease.appAliases?.names.has(targetHint.app.trim().toLowerCase())
@@ -233,6 +357,11 @@ export class ComputerService {
           "windowTitle does not match the observed target; use observe(app,windowTitle) to select another window. This frame was not retargeted.",
         );
       if (accessibility?.frame.id === frameId) {
+        if (stateAction && accessibility.surface)
+          throw new ComputerError(
+            "invalid_input",
+            "State actions require a control in a window or region",
+          );
         let mapped = input;
         if (("point" in input && input.point) || input.action === "drag") {
           const capture = lease.frame?.capture;
@@ -249,11 +378,18 @@ export class ComputerService {
         }
         lease.frame = undefined;
         lease.accessibility = undefined;
+        let receipt: ComputerInputReceipt | void;
         try {
           this.check(lease, current);
-          await this.adapter.accessibility!.input(accessibility.state, mapped, current);
+          receipt = await this.adapter.accessibility!.input(accessibility.state, mapped, current);
+          if (stateAction && !receipt)
+            throw new ComputerError("input_failed", "Missing state action receipt", "unknown");
+          if (receipt) stateDelivery = receipt;
         } catch (error) {
-          if (error instanceof ComputerError) throw error;
+          if (error instanceof ComputerError) {
+            if (stateAction) stateDelivery = error;
+            throw error;
+          }
           throw new ComputerError(
             "input_failed",
             error instanceof Error ? error.message : String(error),
@@ -262,14 +398,25 @@ export class ComputerService {
         }
         try {
           this.check(lease, current);
-          return await this.observeApp(
+          const result = await this.observeApp(
             lease,
-            { app: accessibility.state.app, previousId: accessibility.state.id },
+            {
+              app: accessibility.state.app,
+              previousId: accessibility.state.id,
+              ...this.observationTarget(accessibility.state),
+              ...(accessibility.state.observation?.scope === "region"
+                ? { fallbackToWindow: true }
+                : {}),
+            },
             current,
             limits,
             input.action === "drag" || ("point" in input && input.point !== undefined),
-            accessibility.state.text,
+            accessibility.state,
           );
+          return {
+            ...result,
+            ...(receipt ?? { applied: "yes", verification: { status: "unverified" } }),
+          };
         } catch (error) {
           throw new ComputerError(
             error instanceof ComputerError &&
@@ -277,7 +424,8 @@ export class ComputerService {
               ? error.code
               : "observation_failed",
             error instanceof Error ? error.message : String(error),
-            "yes",
+            receipt?.applied ?? "yes",
+            receipt?.verification,
           );
         }
       }
@@ -311,7 +459,11 @@ export class ComputerService {
       }
       try {
         this.check(lease, current);
-        return await this.capture(lease, current, limits, true);
+        return {
+          ...(await this.capture(lease, current, limits, true)),
+          applied: "yes" as const,
+          verification: { status: "unverified" } satisfies ComputerVerification,
+        };
       } catch (error) {
         throw new ComputerError(
           error instanceof ComputerError &&
@@ -322,6 +474,21 @@ export class ComputerService {
           "yes",
         );
       }
+    }).catch((error: unknown) => {
+      // Cleanup can supersede the operation error, but cannot change known delivery.
+      if (
+        !stateDelivery ||
+        (error instanceof ComputerError &&
+          error.applied === stateDelivery.applied &&
+          error.verification === stateDelivery.verification)
+      )
+        throw error;
+      throw new ComputerError(
+        error instanceof ComputerError ? error.code : "input_failed",
+        error instanceof Error ? error.message : String(error),
+        stateDelivery.applied,
+        stateDelivery.verification,
+      );
     });
   }
 
@@ -333,9 +500,62 @@ export class ComputerService {
     screenshot = false,
   ) {
     if (!target.app.trim()) throw new ComputerError("invalid_input", "observe requires app");
-    return this.operate(owner, signal, (lease, current) =>
-      this.observeApp(lease, target, current, limits, screenshot),
-    );
+    if (
+      target.projection !== undefined &&
+      !["full", "compact", "overview"].includes(target.projection)
+    )
+      throw new ComputerError("invalid_input", "Invalid observation projection");
+    if (
+      (target.frameId !== undefined) !== (target.rootIndex !== undefined) ||
+      (target.rootIndex !== undefined &&
+        (!Number.isSafeInteger(target.rootIndex) ||
+          target.rootIndex < 0 ||
+          target.rootIndex > 799)) ||
+      (target.rootIndex !== undefined && target.surface)
+    )
+      throw new ComputerError(
+        "invalid_input",
+        "Region observation requires frameId and rootIndex, without surface",
+      );
+    return this.operate(owner, signal, (lease, current) => {
+      if (target.rootIndex !== undefined) {
+        const previous = lease.accessibility;
+        if (!previous || previous.frame.id !== target.frameId)
+          throw new ComputerError("stale_frame", "区域观察需要最新 frameId");
+        if (previous.surface === "menu_bar")
+          throw new ComputerError("invalid_input", "请先打开菜单栏面板，再观察窗口区域");
+        if (
+          !lease.appAliases?.names.has(target.app.trim().toLowerCase()) ||
+          (target.windowTitle !== undefined && target.windowTitle !== previous.state.windowTitle)
+        )
+          throw new ComputerError(
+            "invalid_input",
+            "Region observation must retain the observed app and window",
+          );
+        return this.observeApp(
+          lease,
+          {
+            app: previous.state.app,
+            previousId: previous.state.id,
+            rootIndex: target.rootIndex,
+            projection: target.projection ?? previous.state.observation?.projection,
+          },
+          current,
+          limits,
+          screenshot,
+        );
+      }
+      return this.observeApp(lease, target, current, limits, screenshot);
+    });
+  }
+
+  private observationTarget(
+    state: ComputerAccessibility,
+  ): Pick<ComputerTarget, "projection" | "rootIndex"> {
+    return {
+      ...(state.observation ? { projection: state.observation.projection } : {}),
+      ...(state.observation?.scope === "region" ? { rootIndex: 0 } : {}),
+    };
   }
 
   private async observeApp(
@@ -344,7 +564,7 @@ export class ComputerService {
     signal: AbortSignal,
     limits?: CaptureLimits,
     screenshot = false,
-    previousText?: string,
+    previousState?: ComputerAccessibility,
   ) {
     if (!this.adapter.accessibility)
       throw new ComputerError(
@@ -361,7 +581,7 @@ export class ComputerService {
     lease.appAliases.names.add(state.app.trim().toLowerCase());
     lease.presented = state;
     const captured = screenshot
-      ? await this.capture(lease, signal, limits, previousText !== undefined, state)
+      ? await this.capture(lease, signal, limits, previousState !== undefined, state)
       : undefined;
     this.check(lease, signal);
     const frame = captured?.frame ?? {
@@ -381,14 +601,21 @@ export class ComputerService {
       screenshot,
       ...(target.surface ? { surface: target.surface } : {}),
     };
+    const sameProjection =
+      previousState &&
+      previousState.observation?.scope === state.observation?.scope &&
+      previousState.observation?.projection === state.observation?.projection &&
+      !state.observation?.fallback;
     return {
       frame,
       ...(captured ? { image: captured.image } : {}),
-      accessibility:
-        previousText === undefined ? state.text : accessibilityDiff(previousText, state.text),
+      accessibility: sameProjection
+        ? accessibilityDiff(previousState.text, state.text)
+        : state.text,
       app: state.app,
       windowTitle: state.windowTitle,
       ...(state.cursor ? { cursor: state.cursor } : {}),
+      ...(state.observation ? { observation: state.observation } : {}),
     };
   }
 
