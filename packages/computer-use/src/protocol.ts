@@ -1,6 +1,55 @@
 export type ComputerImage = { type: "image"; data: string; mimeType: string };
 
 export type Point = { x: number; y: number };
+export type ComputerProjection = "full" | "compact" | "overview";
+export type ComputerObservation = {
+  scope: "window" | "region" | "menu_bar";
+  projection: ComputerProjection;
+  /** Intended projection was read without unknown fields or accidental clipping. */
+  complete: boolean;
+  /** All descendants and the fields requested by this projection were read within the scope. */
+  exhaustive: boolean;
+  boundaries: { index: number; reason: string; omittedChildren?: number }[];
+  unknown: { index: number; fields: string[] }[];
+  visitedNodes: number;
+  axReads: number;
+  fallback?: "root_unavailable" | "menu_opened";
+};
+export type ComputerVerification = {
+  status: "unverified" | "satisfied" | "unsatisfied" | "unknown";
+  noOp?: boolean;
+  reason?: string;
+};
+export type ComputerInputReceipt = {
+  applied: "no" | "yes";
+  verification: ComputerVerification;
+};
+export type ComputerCondition =
+  | { kind: "present" | "absent"; text: string; role?: string }
+  | { kind: "enabled"; elementIndex: number; equals: boolean }
+  | { kind: "value"; elementIndex: number; equals: string };
+
+export type ComputerWaitEvidence = "satisfied" | "unsatisfied" | "unknown" | "ambiguous";
+export type ComputerWaitOutcome = {
+  status: "satisfied" | "timeout" | "unconfirmed" | "ambiguous" | "target_closed";
+  last: ComputerWaitEvidence;
+  lastKnown?: ComputerWaitEvidence;
+  final?: ComputerWaitEvidence;
+  reason?: string;
+  samples: number;
+  probeReads: number;
+};
+export type ComputerResult = {
+  frame: ComputerFrame;
+  image?: ComputerImage;
+  accessibility?: string;
+  app?: string;
+  windowTitle?: string;
+  observation?: ComputerObservation;
+  cursor?: Point;
+  applied?: ComputerInputReceipt["applied"];
+  verification?: ComputerVerification;
+};
 export type ComputerInput =
   | {
       action: "click";
@@ -30,7 +79,9 @@ export type ComputerInput =
       suffix?: string;
       selectionType?: "text" | "cursor_before" | "cursor_after";
     }
-  | { action: "perform_action"; elementIndex: number; name: string };
+  | { action: "perform_action"; elementIndex: number; name: string }
+  | { action: "select"; elementIndex: number; name: string }
+  | { action: "set_checked" | "set_expanded"; elementIndex: number; state: boolean };
 
 /** Element indexes belong only to this native observation, never to an app name or a later tree. */
 export type ComputerAccessibility = {
@@ -41,6 +92,7 @@ export type ComputerAccessibility = {
   windowId?: number;
   bounds?: DisplayLayout["bounds"];
   cursor?: Point;
+  observation?: ComputerObservation;
 };
 
 export type ComputerTarget = {
@@ -48,6 +100,12 @@ export type ComputerTarget = {
   windowTitle?: string;
   surface?: "menu_bar";
   previousId?: string;
+  projection?: ComputerProjection;
+  /** Public frame identity is resolved to previousId by ComputerService. */
+  frameId?: string;
+  rootIndex?: number;
+  /** Internal post-input recovery, always pinned to the original window. */
+  fallbackToWindow?: boolean;
 };
 
 export type DisplayLayout = {
@@ -87,7 +145,17 @@ export interface ComputerAdapter {
   checkOwnership?(signal: AbortSignal): Promise<void>;
   accessibility?: {
     observe(target: ComputerTarget, signal: AbortSignal): Promise<ComputerAccessibility>;
-    input(state: ComputerAccessibility, input: ComputerInput, signal: AbortSignal): Promise<void>;
+    input(
+      state: ComputerAccessibility,
+      input: ComputerInput,
+      signal: AbortSignal,
+    ): Promise<ComputerInputReceipt | void>;
+    waitUntil?(
+      state: ComputerAccessibility,
+      condition: ComputerCondition,
+      timeoutMs: number,
+      signal: AbortSignal,
+    ): Promise<{ outcome: ComputerWaitOutcome; state?: ComputerAccessibility }>;
     reset(): Promise<void>;
   };
   releaseInputs(): Promise<void>;
@@ -116,6 +184,7 @@ export class ComputerError extends Error {
       | "observation_failed",
     message: string,
     readonly applied: "no" | "yes" | "unknown" = "no",
+    readonly verification?: ComputerVerification,
   ) {
     super(message);
     this.name = "ComputerError";

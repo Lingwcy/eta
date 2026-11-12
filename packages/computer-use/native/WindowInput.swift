@@ -391,16 +391,64 @@ extension Bridge {
         heldKeys.removeLast()
       }
     }
+    func selectOverwriteRange() throws -> Bool {
+      guard let field = try currentKeyboardTarget().element else {
+        throw BridgeError("无法确认要覆盖的文本控件")
+      }
+      let reader = ObservationTree(projection: "compact") { _ = try currentKeyboardTarget() }
+      reader.budget = ObservationBudget(seconds: 0.6)
+      let subrole = try reader.read(field, kAXSubroleAttribute)
+      guard !subrole.isUnknown, subrole.value != kAXSecureTextFieldSubrole,
+        try reader.prepare(field), let original = attribute(field, kAXValueAttribute) as? String
+      else { throw BridgeError("无法安全读取原文字以确认覆盖范围") }
+      let length = original.utf16.count
+      if length == 0 { return false }
+      var writable = DarwinBoolean(false)
+      let rangeName = kAXSelectedTextRangeAttribute as CFString
+      if try reader.prepare(field),
+        AXUIElementIsAttributeSettable(field, rangeName, &writable) == .success, writable.boolValue
+      {
+        var range = CFRange(location: 0, length: length)
+        guard let rangeValue = AXValueCreate(.cfRange, &range), try reader.prepare(field)
+        else { throw BridgeError("无法确认覆盖范围") }
+        // The readback below decides whether text may be sent even if this reply is uncertain.
+        _ = AXUIElementSetAttributeValue(field, rangeName, rangeValue)
+      } else {
+        try press(["cmd", "a"])
+      }
+      while try reader.prepare(field) {
+        guard let current = attribute(field, kAXValueAttribute) as? String,
+          current.utf16.elementsEqual(original.utf16)
+        else { throw BridgeError("确认覆盖范围时文字已变化；请重新观察") }
+        if try reader.prepare(field), let selected = attribute(field, kAXSelectedTextRangeAttribute),
+          CFGetTypeID(selected) == AXValueGetTypeID()
+        {
+          var range = CFRange()
+          if AXValueGetValue(selected as! AXValue, .cfRange, &range),
+            range.location == 0, range.length == length { return true }
+        } else if try reader.prepare(field),
+          let text = attribute(field, kAXSelectedTextAttribute) as? String,
+          text.utf16.elementsEqual(original.utf16)
+        {
+          return true
+        }
+        if reader.budget.remaining < 0.025 { break }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.025))
+      }
+      throw BridgeError("未确认已选中全部文字；未发送替换文字，请重新观察")
+    }
     switch operation {
     case "click":
       try click(target!, args["button"] as? String == "right", args["count"] as? Int ?? 1)
     case "key": try press(chord)
     case "type":
+      let text = args["text"] as! String
       if args["overwrite"] as? Bool == true {
-        try press(["cmd", "a"])
-        try press(["backspace"])
+        let selected = try selectOverwriteRange()
+        // A nonempty insertion replaces the verified selection in one step.
+        if text.isEmpty && selected { try press(["backspace"]) }
       }
-      let characters = Array(args["text"] as! String)
+      let characters = Array(text)
       for start in stride(from: 0, to: characters.count, by: 64) {
         let recipient = try currentKeyboardTarget().pid
         let text = String(characters[start..<min(start + 64, characters.count)])
@@ -480,7 +528,7 @@ extension Bridge {
     }
     var element: AXUIElement?
     if let index = args["elementIndex"] as? Int {
-      guard indexed.indices.contains(index) else { throw BridgeError("elementIndex 不属于当前观察") }
+      guard visibleIndexes.contains(index) else { throw BridgeError("elementIndex 不属于当前观察") }
       element = indexed[index]
       guard attribute(element!, kAXRoleAttribute) != nil else {
         throw BridgeError("目标控件已失效；请重新 observe")
@@ -493,6 +541,31 @@ extension Bridge {
     if operation == "capture" { return try capture(args) }
     guard try identifyWindow(app.processIdentifier, window) == windowID else {
       throw BridgeError("目标窗口身份已变化；请重新 observe")
+    }
+    if let regionRoot {
+      let reader = ObservationTree(projection: "compact") {
+        try checkCancellation()
+        try self.assertOwnership()
+      }
+      guard try reader.belongs(regionRoot, to: window),
+        try element.map({ try reader.belongs($0, to: regionRoot) }) != false
+      else {
+        snapshot = ""
+        throw BridgeError("目标控件或区域已离开原观察范围；请重新 observe", reason: "stale_frame")
+      }
+    }
+    if operation == "select" {
+      guard let element, let name = args["name"] as? String, !name.isEmpty, name.utf16.count <= 256
+      else { throw BridgeError("select requires an elementIndex and an exact option name") }
+      snapshot = ""
+      return try selectOption(name, container: element, app: app, window: window)
+    }
+    if let kind = ControlState(rawValue: operation) {
+      guard let element, let desired = args["state"] as? NSNumber,
+        CFGetTypeID(desired) == CFBooleanGetTypeID()
+      else { throw BridgeError("State actions require an elementIndex and a boolean state") }
+      snapshot = ""
+      return try setControlState(kind, desired: desired.boolValue, element: element, app: app, window: window)
     }
     if let element, string(element, kAXEnabledAttribute) == "0" { throw BridgeError("目标控件被禁用") }
     // Consume the observation before the first mutation, including AX focus changes.

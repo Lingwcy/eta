@@ -11,6 +11,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
+import type { Message } from "@earendil-works/pi-ai";
 import { getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { afterEach, expect, test } from "vite-plus/test";
 import { createCore } from "../../../src/client.ts";
@@ -21,7 +22,7 @@ import type { ImageProcessor } from "../../../src/images/types.ts";
 import type { CoreEnvironment } from "../../../src/service/environment.ts";
 import { ComputerService } from "@eta/computer-use/service";
 import { ComputerError } from "@eta/computer-use/protocol";
-import type { ComputerInput } from "@eta/computer-use/protocol";
+import type { ComputerInput, ComputerTarget } from "@eta/computer-use/protocol";
 
 const clients: CoreClient[] = [];
 const directories: string[] = [];
@@ -212,6 +213,147 @@ test("computer screenshots reach the main model, and a later run cannot reuse it
   expect(JSON.stringify(await f.run())).toContain("stale_frame");
   expect(inputs).toHaveLength(1);
 }, 30000);
+
+test.each(["standard", "codemode"] as const)(
+  "region, conditional wait and state action evidence reach the main agent across generations in %s",
+  async (mode) => {
+    const targets: ComputerTarget[] = [];
+    const inputs: ComputerInput[] = [];
+    const service = new ComputerService({
+      layout: async () => {
+        throw Error("Unexpected layout");
+      },
+      capture: async () => {
+        throw Error("Unexpected screenshot");
+      },
+      input: async () => {
+        throw Error("Unexpected global input");
+      },
+      releaseInputs: async () => {},
+      accessibility: {
+        observe: async (target) => {
+          targets.push(target);
+          return {
+            id: `native-${targets.length}`,
+            app: "test",
+            windowTitle: "window",
+            text: '[0] AXGroup AXTitle="Region 12"\n  [1] AXCheckBox AXTitle="Notifications" value="1"',
+            observation: {
+              scope: target.rootIndex === undefined ? "window" : "region",
+              projection: target.projection ?? "full",
+              complete: true,
+              exhaustive: false,
+              boundaries: [{ index: 0, reason: "projection" }],
+              unknown: [],
+              visitedNodes: 2,
+              axReads: 20,
+            },
+          };
+        },
+        input: async (_state, input) => {
+          inputs.push(input);
+          if (input.action === "set_checked")
+            return { applied: "no", verification: { status: "satisfied", noOp: true } };
+          if (input.action === "select")
+            return { applied: "yes", verification: { status: "satisfied" } };
+        },
+        waitUntil: async (state, condition, timeoutMs) => {
+          expect(state.id).toBe("native-2");
+          expect(condition).toEqual({ kind: "enabled", elementIndex: 1, equals: true });
+          expect(timeoutMs).toBe(5000);
+          return {
+            outcome: {
+              status: "satisfied",
+              last: "satisfied",
+              final: "satisfied",
+              samples: 1,
+              probeReads: 5,
+            },
+            state: { ...state, id: "native-wait" },
+          };
+        },
+        reset: async () => {},
+      },
+    });
+    const f = await fixture({ agentMode: mode }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    const call = (args: Record<string, JsonValue>) =>
+      mode === "codemode"
+        ? script(`const r=await tools.computer(${JSON.stringify(args)});text(r);`)
+        : fauxAssistantMessage(fauxToolCall("computer", args), { stopReason: "toolUse" });
+    const resultText = (messages: readonly Message[]) => {
+      const result = messages.findLast((message) => message.role === "toolResult");
+      if (result?.role !== "toolResult") throw Error("Missing computer result");
+      return result.content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("\n");
+    };
+    let previousFrame = "";
+    f.provider.setResponses([
+      call({ action: "observe", app: "test", projection: "overview" }),
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"overview"');
+        expect(text).toContain('"boundaries"');
+        previousFrame = /"id"\s*:\s*"([^"]+)"/.exec(text)![1]!;
+        return call({
+          action: "observe",
+          app: "test",
+          frameId: previousFrame,
+          rootIndex: 0,
+          projection: "compact",
+        });
+      },
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"region"');
+        const frame = /"id"\s*:\s*"([^"]+)"/.exec(text)![1]!;
+        expect(frame).not.toBe(previousFrame);
+        previousFrame = frame;
+        return call({
+          action: "wait",
+          frameId: frame,
+          condition: { kind: "enabled", elementIndex: 1, equals: true },
+        });
+      },
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"satisfied"');
+        const frame = /"id"\s*:\s*"([^"]+)"/.exec(text)![1]!;
+        expect(frame).not.toBe(previousFrame);
+        return call({ action: "set_checked", frameId: frame, elementIndex: 1, state: true });
+      },
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"satisfied"');
+        expect(text).toMatch(/"applied"\s*:\s*"no"/);
+        expect(text).toMatch(/"noOp"\s*:\s*true/);
+        const frame = /"id"\s*:\s*"([^"]+)"/.exec(text)![1]!;
+        return call({ action: "select", frameId: frame, elementIndex: 0, name: "Beta" });
+      },
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"satisfied"');
+        expect(text).toMatch(/"applied"\s*:\s*"yes"/);
+        return fauxAssistantMessage("Region inspected");
+      },
+    ]);
+    await f.run();
+    expect(inputs).toEqual([
+      { action: "set_checked", elementIndex: 1, state: true },
+      { action: "select", elementIndex: 0, name: "Beta" },
+    ]);
+    expect(targets[2]).toMatchObject({
+      previousId: "native-wait",
+      rootIndex: 0,
+      projection: "compact",
+      fallbackToWindow: true,
+    });
+  },
+  30000,
+);
 
 test.each([true, false])(
   "standard computer calls honor blockImages=%s before capturing",

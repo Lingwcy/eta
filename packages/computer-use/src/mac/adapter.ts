@@ -68,9 +68,22 @@ export function createMacComputerAdapter(host: MacComputerHost): ComputerAdapter
         check(signal);
         return host.accessibility.observe(selected, signal);
       },
+      waitUntil: async (state, condition, timeoutMs, signal) => {
+        check(signal);
+        try {
+          const result = await host.accessibility.waitUntil(state, condition, timeoutMs, signal);
+          check(signal);
+          return result;
+        } catch (error) {
+          if (error instanceof ComputerError)
+            throw new ComputerError(error.code, error.message, "no");
+          throw error;
+        }
+      },
       input: async (state, input, signal) => {
         check(signal);
-        await host.accessibility.execute(state, input.action, input, signal);
+        const receipt = await host.accessibility.execute(state, input.action, input, signal);
+        if (receipt) return receipt;
         check(signal);
       },
       reset: () => host.accessibility.reset(),

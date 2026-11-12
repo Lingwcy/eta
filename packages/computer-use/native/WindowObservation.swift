@@ -4,7 +4,31 @@ import Darwin
 import Foundation
 
 extension Bridge {
-  func observe(_ args: [String: Any]) throws -> [String: Any] {
+  func observe(
+    _ args: [String: Any], budget: ObservationBudget = ObservationBudget(),
+    inspect: ((ObservationTree) throws -> Void)? = nil
+  ) throws -> [String: Any] {
+    let projection = args["projection"] as? String ?? "full"
+    guard ["full", "compact", "overview"].contains(projection) else {
+      throw BridgeError("Invalid observation projection")
+    }
+    let tree = ObservationTree(projection: projection) {
+      try checkCancellation()
+      try self.assertOwnership()
+    }
+    tree.budget = budget
+    let previousHandles = indexed
+    let previousID = args["previousId"] as? String
+    let allowRootFallback = args["fallbackToWindow"] as? Bool == true
+    let pinnedWindowID = windowID
+    let requestedRoot = args["rootIndex"] as? Int
+    if args["rootIndex"] != nil
+      && (requestedRoot == nil || menuBarTarget != nil || args["surface"] != nil
+        || previousID != observedSnapshot || (snapshot.isEmpty && !allowRootFallback)
+        || !visibleIndexes.contains(requestedRoot!))
+    {
+      throw BridgeError("区域编号需要最新观察；请重新 observe", reason: "stale_frame")
+    }
     presentation = args["presentation"] as? Bool == true
     if let issue = DesktopSession.issue { throw BridgeError(issue) }
     // Looking at the target or interacting with it does not revoke the task. Retire
@@ -12,6 +36,12 @@ extension Bridge {
     if events.ownership.interrupted
       || (focusGuard != nil && focusGuard?.front != WindowServerFocus.shared?.frontPID())
     {
+      if requestedRoot != nil || inspect != nil {
+        snapshot = ""
+        indexed = []
+        visibleIndexes = []
+        throw BridgeError("区域观察已失效；请重新观察原窗口", reason: "stale_frame")
+      }
       releaseFocus()
       guard !cleanupFailed else { throw BridgeError("无法完成旧输入的清理；请重启 Eta", "unknown") }
       events.ownership.beginObservation()
@@ -19,9 +49,7 @@ extension Bridge {
     try assertOwnership()
     snapshot = ""
     indexed = []
-    seen = []
-    lines = []
-    textSize = 0
+    visibleIndexes = []
     guard AXIsProcessTrusted() else { throw BridgeError("请在 macOS 辅助功能中允许 Eta（包括其辅助程序），然后重试") }
     guard let name = args["app"] as? String, !name.isEmpty else {
       throw BridgeError("observe requires app")
@@ -64,26 +92,47 @@ extension Bridge {
       application = app
       menuBarTarget = target
       window = nil
+      regionRoot = nil
       windowID = target.windowID
       cursor = nil
-      deadline = Date().addingTimeInterval(8)
       // Index only the selected wrapper. Its embedded application root would expose
       // unrelated windows, and the rest of the host menu bar belongs to other apps.
-      indexed = [target.item]
-      lines = ["[0] AXMenuBarItem AXTitle=\(quoted(app.localizedName ?? name)) actions=AXPress",
+      let lines = ["[0] AXMenuBarItem AXTitle=\(quoted(app.localizedName ?? name)) actions=AXPress",
         "[Use click(elementIndex:0) to open this app's menu or popover; then inspect the returned state.]"]
+      try checkCancellation()
+      try assertOwnership()
+      indexed = [target.item]
+      visibleIndexes = [0]
       snapshot = UUID().uuidString
       observedSnapshot = snapshot
       return ["id": snapshot, "app": app.bundleIdentifier ?? name,
         "windowTitle": "\(app.localizedName ?? name) menu bar", "text": lines.joined(separator: "\n"),
-        "windowId": windowID, "bounds": boundsJSON(bounds)]
+        "windowId": windowID, "bounds": boundsJSON(bounds),
+        "observation": [
+          "scope": "menu_bar", "projection": projection, "complete": true, "exhaustive": false,
+          "boundaries": [], "unknown": [], "visitedNodes": 1, "axReads": 0,
+        ]]
     }
-    var windows = appWindows(root).filter { validWindowSurface($0, app.processIdentifier) && (try? rect($0)) != nil }
-    let ready = Date().addingTimeInterval(1.5)
-    while windows.isEmpty && Date() < ready && !app.isTerminated {
+    // Selection uses legacy identity helpers with several bounded AX calls each.
+    // Give the entire group a slice of the same monotonic observation deadline.
+    func admitSelection(_ element: AXUIElement, calls: Double) throws {
+      try checkCancellation()
+      guard tree.budget.exhausted == nil else { throw BridgeError("目标窗口读取超时；请重新 observe") }
+      AXUIElementSetMessagingTimeout(element, Float(min(0.4, tree.budget.remaining / calls)))
+    }
+    func readWindows() throws -> [AXUIElement] {
+      try admitSelection(root, calls: 4)
+      return try appWindows(root).filter {
+        try admitSelection($0, calls: 8)
+        return validWindowSurface($0, app.processIdentifier) && (try? rect($0)) != nil
+      }
+    }
+    var windows = try readWindows()
+    let ready = ProcessInfo.processInfo.systemUptime + 1.5
+    while windows.isEmpty && ProcessInfo.processInfo.systemUptime < ready && !app.isTerminated {
       try checkCancellation()
       RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-      windows = appWindows(root).filter { validWindowSurface($0, app.processIdentifier) && (try? rect($0)) != nil }
+      windows = try readWindows()
     }
     let selected: AXUIElement?
     if let previousId = args["previousId"] as? String, !previousMenuBar {
@@ -94,7 +143,11 @@ extension Bridge {
       }
       selected = previous
     } else if let title = args["windowTitle"] as? String {
-      let titles = windows.map { string($0, kAXTitleAttribute) }
+      let titles = try windows.map { element -> String in
+        let title = try tree.read(element, kAXTitleAttribute)
+        guard !title.isUnknown else { throw BridgeError("窗口标题读取未知；请重新 observe") }
+        return title.value ?? ""
+      }
       let matching = TargetSelection.matching(title, in: titles)
       guard matching.count == 1, let index = matching.first else {
         let choices = (matching.isEmpty ? titles : matching.map { titles[$0] })
@@ -114,6 +167,7 @@ extension Bridge {
     guard let selected else { throw BridgeError("应用没有可观察窗口；菜单栏应用请使用 observe(app,surface:'menu_bar') 打开图标") }
     // Some AX servers answer success with their application root in AXWindows. That is not
     // a window identity and must never be matched to a CGWindow by application-wide bounds.
+    try admitSelection(selected, calls: 8)
     guard validWindowSurface(selected, app.processIdentifier), !CFEqual(selected, root)
     else { throw BridgeError("应用返回了无效的辅助功能窗口；请关闭目标菜单并重新 observe") }
 
@@ -123,29 +177,87 @@ extension Bridge {
       releaseFocus()
       cursor = nil
     }
+    let selectedWindowID: UInt32
+    do {
+      selectedWindowID = try identifyWindow(app.processIdentifier, selected)
+    } catch {
+      guard previousID != nil && !previousMenuBar else { throw error }
+      throw BridgeError("无法确认原观察窗口身份；请重新观察原窗口", reason: "stale_frame")
+    }
+    if previousID != nil && !previousMenuBar && selectedWindowID != pinnedWindowID {
+      throw BridgeError("原观察窗口身份已变化；请重新 observe", reason: "stale_frame")
+    }
+    try admitSelection(selected, calls: 4)
+    let selectedBounds = try rect(selected)
+    let selectedTitle = try tree.read(selected, kAXTitleAttribute)
+    var scope = "window"
+    var fallback: String?
+    var observationRoot = selected
+    if let requestedRoot {
+      let candidate = previousHandles[requestedRoot]
+      if try tree.belongs(candidate, to: selected) {
+        observationRoot = candidate
+        scope = "region"
+      } else if allowRootFallback {
+        fallback = "root_unavailable"
+        tree.projection = "full"
+      } else {
+        throw BridgeError("原区域已失效或离开原窗口；请重新 observe", reason: "stale_frame")
+      }
+    }
+    var menus: [AXUIElement] = []
+    if syntheticTarget?.windowID == selectedWindowID {
+      try admitSelection(root, calls: 4)
+      menus = elements(root, kAXChildrenAttribute, 32).filter {
+        string($0, kAXRoleAttribute) == kAXMenuRole
+      }
+    }
+    if scope == "region" && !menus.isEmpty {
+      observationRoot = selected
+      scope = "window"
+      fallback = "menu_opened"
+      tree.projection = "full"
+    }
+    try tree.walk(observationRoot)
+    if scope == "region" && tree.nodes.contains(where: { $0.role.value == kAXMenuRole }) {
+      scope = "window"
+      fallback = "menu_opened"
+      tree.projection = "full"
+      tree.resetCandidate()
+      try tree.walk(selected)
+    }
+    if scope == "window" {
+      for menu in menus { try tree.walk(menu) }
+    }
+    guard !tree.nodes.isEmpty else {
+      throw BridgeError("观察预算内未能读取目标；请重新 observe")
+    }
+    if selectedTitle.isUnknown {
+      tree.unknown.append(["index": 0, "fields": ["windowTitle"]])
+    }
+    let id = UUID().uuidString
+    let result = try tree.response([
+      "id": id,
+      "app": explicitPID == nil ? (app.bundleIdentifier ?? name) : "pid:\(app.processIdentifier)",
+      "windowTitle": selectedTitle.value ?? "",
+      "windowId": selectedWindowID, "bounds": boundsJSON(selectedBounds),
+      "cursor": cursor.map { ["x": $0.x, "y": $0.y] } as Any? ?? NSNull(),
+    ], scope: scope, fallback: fallback)
+    try inspect?(tree)
+    try checkCancellation()
+    try assertOwnership()
+    guard !app.isTerminated else { throw BridgeError("原观察应用已退出；请重新 observe") }
+    // Publish the candidate atomically. Failed reads leave no usable old frame.
     menuBarTarget = nil
     application = app
     window = selected
-    windowID = try identifyWindow(app.processIdentifier, selected)
-    deadline = Date().addingTimeInterval(8)
-    walk(selected, 0)
-    if syntheticTarget?.windowID == windowID {
-      for menu in elements(root, kAXChildrenAttribute, 32)
-      where string(menu, kAXRoleAttribute) == kAXMenuRole { walk(menu, 0) }
-    }
-    if indexed.count >= 800 || textSize >= 48000 || Date() >= deadline {
-      lines.append(
-        "[Tree truncated; use a screenshot or a narrower window to inspect missing controls.]")
-    }
-    snapshot = UUID().uuidString
-    observedSnapshot = snapshot
-    return [
-      "id": snapshot,
-      "app": explicitPID == nil ? (app.bundleIdentifier ?? name) : "pid:\(app.processIdentifier)",
-      "windowTitle": string(selected, kAXTitleAttribute), "text": lines.joined(separator: "\n"),
-      "windowId": windowID, "bounds": boundsJSON(try rect(selected)),
-      "cursor": cursor.map { ["x": $0.x, "y": $0.y] } as Any? ?? NSNull(),
-    ]
+    regionRoot = scope == "region" ? observationRoot : nil
+    windowID = selectedWindowID
+    indexed = tree.nodes.map(\.element)
+    visibleIndexes = Set(tree.visibleNodes.map(\.index))
+    snapshot = id
+    observedSnapshot = id
+    return result
   }
 
   func identifyWindow(_ pid: pid_t, _ window: AXUIElement) throws -> UInt32 {
@@ -173,45 +285,4 @@ extension Bridge {
     }
     return number
   }
-  func walk(_ element: AXUIElement, _ depth: Int) {
-    guard terminating == 0, depth <= 24, indexed.count < 800, textSize < 48000, Date() < deadline
-    else { return }
-    let hash = CFHash(element)
-    // Hash is only a fast rejection filter; collisions must not hide different controls.
-    if seen.contains(hash) && indexed.contains(where: { CFEqual($0, element) }) { return }
-    seen.insert(hash)
-    let index = indexed.count
-    indexed.append(element)
-    let role = string(element, kAXRoleAttribute)
-    var parts = ["\(String(repeating: "  ", count: depth))[\(index)] \(role)"]
-    for name in [
-      kAXSubroleAttribute, kAXRoleDescriptionAttribute, kAXTitleAttribute, kAXDescriptionAttribute,
-      kAXHelpAttribute, kAXIdentifierAttribute, "AXPlaceholderValue",
-    ] {
-      let value = string(element, name)
-      if !value.isEmpty { parts.append("\(name)=\(quoted(value))") }
-    }
-    if string(element, kAXSubroleAttribute) != kAXSecureTextFieldSubrole {
-      let value = string(element, kAXValueAttribute)
-      if !value.isEmpty { parts.append("value=\(quoted(value))") }
-      let selected = string(element, kAXSelectedTextAttribute)
-      if !selected.isEmpty { parts.append("selected=\(quoted(selected))") }
-    }
-    if string(element, kAXEnabledAttribute) == "0" { parts.append("disabled") }
-    var writable = DarwinBoolean(false)
-    if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable) == .success
-      && writable.boolValue
-    {
-      parts.append("settable")
-    }
-    let available = actions(element)
-    if !available.isEmpty { parts.append("actions=\(available.joined(separator: ","))") }
-    let line = parts.joined(separator: " ")
-    lines.append(line)
-    textSize += line.count
-    for child in elements(element, kAXChildrenAttribute, max(0, 800 - indexed.count)) {
-      walk(child, depth + 1)
-    }
-  }
-
 }

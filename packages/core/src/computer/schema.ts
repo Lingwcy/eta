@@ -1,6 +1,88 @@
 import { Type } from "typebox";
 
 const Point = Type.Object({ x: Type.Number(), y: Type.Number() });
+const Projection = Type.Union([
+  Type.Literal("full"),
+  Type.Literal("compact"),
+  Type.Literal("overview"),
+]);
+const Verification = Type.Object({
+  status: Type.Union([
+    Type.Literal("unverified"),
+    Type.Literal("satisfied"),
+    Type.Literal("unsatisfied"),
+    Type.Literal("unknown"),
+  ]),
+  noOp: Type.Optional(Type.Boolean()),
+  reason: Type.Optional(Type.String()),
+});
+const Condition = Type.Union([
+  Type.Object(
+    {
+      kind: Type.Union([Type.Literal("present"), Type.Literal("absent")]),
+      text: Type.String({ minLength: 1, maxLength: 1200 }),
+      role: Type.Optional(Type.String({ pattern: "^AX[A-Za-z0-9]{1,126}$" })),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("enabled"),
+      elementIndex: Type.Integer({ minimum: 0, maximum: 799 }),
+      equals: Type.Boolean(),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("value"),
+      elementIndex: Type.Integer({ minimum: 0, maximum: 799 }),
+      equals: Type.String({ maxLength: 1200 }),
+    },
+    { additionalProperties: false },
+  ),
+]);
+const WaitEvidence = Type.Union([
+  Type.Literal("satisfied"),
+  Type.Literal("unsatisfied"),
+  Type.Literal("unknown"),
+  Type.Literal("ambiguous"),
+]);
+const WaitOutcome = Type.Object({
+  status: Type.Union([
+    Type.Literal("satisfied"),
+    Type.Literal("timeout"),
+    Type.Literal("unconfirmed"),
+    Type.Literal("ambiguous"),
+    Type.Literal("target_closed"),
+  ]),
+  condition: Condition,
+  last: WaitEvidence,
+  lastKnown: Type.Optional(WaitEvidence),
+  final: Type.Optional(WaitEvidence),
+  reason: Type.Optional(Type.String()),
+  samples: Type.Integer({ minimum: 0 }),
+  probeReads: Type.Integer({ minimum: 0 }),
+});
+const Observation = Type.Object({
+  scope: Type.Union([Type.Literal("window"), Type.Literal("region"), Type.Literal("menu_bar")]),
+  projection: Projection,
+  complete: Type.Boolean(),
+  exhaustive: Type.Boolean(),
+  boundaries: Type.Array(
+    Type.Object({
+      index: Type.Integer(),
+      reason: Type.String(),
+      omittedChildren: Type.Optional(Type.Integer()),
+    }),
+  ),
+  unknown: Type.Array(Type.Object({ index: Type.Integer(), fields: Type.Array(Type.String()) })),
+  visitedNodes: Type.Integer(),
+  axReads: Type.Integer(),
+  fallback: Type.Optional(
+    Type.Union([Type.Literal("root_unavailable"), Type.Literal("menu_opened")]),
+  ),
+});
 
 /**
  * 图片数据
@@ -39,6 +121,10 @@ export const computerResult = Type.Union([
     accessibility: Type.Optional(Type.String()), // 可选的无障碍控件树
     app: Type.Optional(Type.String()), // 可选的目标应用
     windowTitle: Type.Optional(Type.String()), // 可选的窗口标题
+    observation: Type.Optional(Observation),
+    applied: Type.Optional(Type.Union([Type.Literal("yes"), Type.Literal("no")])),
+    verification: Type.Optional(Verification),
+    wait: Type.Optional(WaitOutcome),
     notes: Type.Array(Type.String()), // 提供的附加信息
   }),
   // 失败结构
@@ -47,6 +133,8 @@ export const computerResult = Type.Union([
     error: Type.Object({ code: Type.String(), message: Type.String() }),
     // 是否实际应用到目标
     applied: Type.Union([Type.Literal("no"), Type.Literal("yes"), Type.Literal("unknown")]),
+    verification: Type.Optional(Verification),
+    recovery: Type.Optional(Type.String()),
   }),
 ]);
 
@@ -69,11 +157,28 @@ export const computerParameters = Type.Object(
       Type.Literal("set_value"), // 设置元素的值
       Type.Literal("select_text"), // 选择文本或者定位光标
       Type.Literal("perform_action"), // 执行元素暴露的无障碍操作
+      Type.Literal("set_checked"),
+      Type.Literal("set_expanded"),
+      Type.Literal("select"),
     ]),
     frameId: Type.Optional(
       Type.String({
         description:
-          "REQUIRED for click/type/key/scroll/drag/set_value/select_text/perform_action. Use the latest result.frame.id; all element indexes expire after input or a new observation.",
+          "Required for input, region observe and conditional wait. Use the latest result.frame.id; element indexes expire after input or a new observation.",
+      }),
+    ),
+    projection: Type.Optional(
+      Type.Union([Type.Literal("full"), Type.Literal("compact"), Type.Literal("overview")], {
+        description:
+          "observe: full is the compatible default. compact keeps names, values, states, actions and feedback. overview stops at major regions and exposes indexes for a subsequent rootIndex observation. Read observation boundaries and unknown fields before inferring absence.",
+      }),
+    ),
+    rootIndex: Type.Optional(
+      Type.Integer({
+        minimum: 0,
+        maximum: 799,
+        description:
+          "observe: read this region from the latest frameId. Requires app and frameId. Retains the original window and image coordinate system. Omit for a whole-window recovery observation.",
       }),
     ),
     // 应用名称或 bundle identifier
@@ -142,6 +247,11 @@ export const computerParameters = Type.Object(
       ),
     ),
     overwrite: Type.Optional(Type.Boolean()),
+    state: Type.Optional(
+      Type.Boolean({
+        description: "Desired checked or expanded state for set_checked/set_expanded.",
+      }),
+    ),
     // 是否按下enter
     enter: Type.Optional(Type.Boolean()),
     // 鼠标左右键
@@ -151,6 +261,15 @@ export const computerParameters = Type.Object(
     deltaX: Type.Optional(Type.Number({ multipleOf: 1, minimum: -1000, maximum: 1000 })),
     deltaY: Type.Optional(Type.Number({ multipleOf: 1, minimum: -1000, maximum: 1000 })),
     // 持续时间 对于 wait 是等待时间；对于 drag 是期望的整条轨迹时长，省略时默认根据路径长度决定
+    condition: Type.Optional(Condition),
+    timeoutMs: Type.Optional(
+      Type.Integer({
+        minimum: 250,
+        maximum: 10000,
+        description:
+          "Conditional wait only. Total native budget including the final AX observation. Default 5000.",
+      }),
+    ),
     durationMs: Type.Optional(
       Type.Number({
         multipleOf: 1,
@@ -163,9 +282,9 @@ export const computerParameters = Type.Object(
     // 执行无障碍操作的名称
     name: Type.Optional(
       Type.String({
-        maxLength: 128,
+        maxLength: 256,
         description:
-          "perform_action: exact action exposed by the current element, e.g. AXShowMenu. Never invent action names.",
+          "select: exact option label within the specified control. perform_action: exact action exposed by the current element, e.g. AXShowMenu.",
       }),
     ),
     prefix: Type.Optional(Type.String({ maxLength: 2000 })),

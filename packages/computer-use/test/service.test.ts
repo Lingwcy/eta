@@ -1,7 +1,13 @@
 import { expect, test } from "vite-plus/test";
 import { ComputerService } from "../src/service.ts";
 import { ComputerError } from "../src/protocol.ts";
-import type { ComputerAdapter, ComputerCapture, ComputerInput } from "../src/protocol.ts";
+import type {
+  ComputerAdapter,
+  ComputerCapture,
+  ComputerInput,
+  ComputerTarget,
+  ComputerObservation,
+} from "../src/protocol.ts";
 
 function gate() {
   let release!: () => void;
@@ -31,6 +37,413 @@ function fixture() {
   const signal = new AbortController().signal;
   return { capture, inputs, adapter, owner, signal, service: new ComputerService(adapter) };
 }
+
+test("an invalid select preserves the latest frame and a valid select delivers only to its bound container", async () => {
+  const f = fixture();
+  let reads = 0;
+  f.adapter.accessibility = {
+    observe: async () => ({
+      id: String(++reads),
+      app: "test",
+      windowTitle: "window",
+      text: "[0] AXPopUpButton",
+    }),
+    input: async (state, input) => {
+      expect(state.id).toBe("1");
+      f.inputs.push(input);
+      return { applied: "yes", verification: { status: "satisfied" } };
+    },
+    reset: async () => {},
+  };
+  const first = await f.service.observe(f.owner, { app: "test" }, f.signal);
+  const select = { action: "select", elementIndex: 0, name: "Beta" } as const;
+  for (const invalid of [
+    { ...select, name: "" },
+    { ...select, elementIndex: 0.5 },
+  ]) {
+    await expect(f.service.input(f.owner, first.frame.id, invalid, f.signal)).rejects.toMatchObject(
+      { code: "invalid_input", applied: "no" },
+    );
+  }
+  const result = await f.service.input(f.owner, first.frame.id, select, f.signal);
+  expect(result).toMatchObject({ applied: "yes", verification: { status: "satisfied" } });
+  expect(result.frame.id).not.toBe(first.frame.id);
+  expect(f.inputs).toEqual([select]);
+  await f.service.release(f.owner);
+});
+
+test.each([false, true])(
+  "state receipt preserves delivery and verification when follow-up observation fails (%s)",
+  async (sent) => {
+    const f = fixture();
+    const verification = sent
+      ? { status: "unknown" as const, reason: "state_unavailable" }
+      : { status: "satisfied" as const, noOp: true };
+    let observations = 0;
+    let deliveries = 0;
+    f.adapter.accessibility = {
+      observe: async () => {
+        if (observations++ > 0) throw new Error("Readback unavailable");
+        return { id: "one", app: "test", windowTitle: "window", text: '[0] AXCheckBox value="1"' };
+      },
+      input: async () => {
+        if (sent) deliveries++;
+        return { applied: sent ? "yes" : "no", verification };
+      },
+      reset: async () => {},
+    };
+    const first = await f.service.observe(f.owner, { app: "test" }, f.signal);
+    const input = { action: "set_checked", elementIndex: 0, state: true } as const;
+    await expect(f.service.input(f.owner, first.frame.id, input, f.signal)).rejects.toMatchObject({
+      code: "observation_failed",
+      applied: sent ? "yes" : "no",
+      verification,
+    });
+    await expect(f.service.input(f.owner, first.frame.id, input, f.signal)).rejects.toMatchObject({
+      code: "stale_frame",
+      applied: "no",
+    });
+    expect(deliveries).toBe(sent ? 1 : 0);
+    await f.service.release(f.owner);
+  },
+);
+
+test("cleanup failure preserves a completed state action's receipt", async () => {
+  const f = fixture();
+  let sent = 0;
+  let observations = 0;
+  f.adapter.accessibility = {
+    observe: async () => ({
+      id: String(++observations),
+      app: "test",
+      windowTitle: "window",
+      text: '[0] AXDisclosureTriangle expanded="0"',
+    }),
+    input: async () => {
+      sent++;
+      return { applied: "yes", verification: { status: "satisfied" } };
+    },
+    reset: async () => {},
+  };
+  const first = await f.service.observe(f.owner, { app: "test" }, f.signal);
+  f.adapter.releaseInputs = async () => {
+    throw new Error("Native cleanup failed");
+  };
+  await expect(
+    f.service.input(
+      f.owner,
+      first.frame.id,
+      { action: "set_expanded", elementIndex: 0, state: false },
+      f.signal,
+    ),
+  ).rejects.toMatchObject({
+    applied: "yes",
+    message: "Native cleanup failed",
+    verification: { status: "satisfied" },
+  });
+  expect(sent).toBe(1);
+  f.adapter.releaseInputs = async () => {};
+  await f.service.release(f.owner);
+});
+
+test("conditional wait returns a new AX frame on timeout without issuing input or capturing a screenshot", async () => {
+  const f = fixture();
+  const firstState = {
+    id: "original",
+    app: "test",
+    windowTitle: "window",
+    text: "[0] AXWindow",
+    windowId: 12,
+  };
+  const captures: string[] = [];
+  const observed: string[] = [];
+  f.adapter.capture = async () => {
+    captures.push("preview");
+    return f.capture;
+  };
+  f.adapter.accessibility = {
+    observe: async () => firstState,
+    input: async (_state, input) => {
+      f.inputs.push(input);
+    },
+    waitUntil: async (state, condition) => {
+      expect(condition).toEqual({ kind: "present", text: "Saved" });
+      observed.push(state.id);
+      return {
+        outcome: {
+          status: "timeout",
+          last: "unknown",
+          final: "unsatisfied",
+          samples: 2,
+          probeReads: 24,
+        },
+        state: { ...firstState, id: "final", text: '[0] AXWindow\n  [1] AXButton AXTitle="Save"' },
+      };
+    },
+    reset: async () => {},
+  };
+  const service = new ComputerService(f.adapter, () => {});
+  const first = await service.observe(f.owner, { app: "test" }, f.signal);
+  const result = await service.waitUntil(
+    f.owner,
+    first.frame.id,
+    { kind: "present", text: "Saved" },
+    1000,
+    f.signal,
+  );
+  expect(result.wait).toMatchObject({ status: "timeout", final: "unsatisfied" });
+  expect(result.frame?.id).not.toBe(first.frame.id);
+  expect(result.accessibility).toContain("AXButton");
+  expect(captures).toEqual(["preview"]);
+  expect(observed).toEqual(["original"]);
+  expect(f.inputs).toEqual([]);
+  await expect(
+    service.waitUntil(f.owner, first.frame.id, { kind: "absent", text: "Saved" }, 1000, f.signal),
+  ).rejects.toMatchObject({ code: "stale_frame", applied: "no" });
+  await service.release(f.owner);
+});
+
+test("stopping a pending conditional wait drains its owner and rejects the late frame", async () => {
+  const f = fixture();
+  const entered = gate();
+  const held = gate();
+  const state = { id: "original", app: "test", windowTitle: "window", text: "[0] AXWindow" };
+  f.adapter.accessibility = {
+    observe: async () => state,
+    input: async () => {
+      throw new Error("Unexpected input");
+    },
+    waitUntil: async () => {
+      entered.release();
+      await held.promise;
+      return {
+        outcome: {
+          status: "satisfied",
+          last: "satisfied",
+          final: "satisfied",
+          samples: 1,
+          probeReads: 8,
+        },
+        state: { ...state, id: "late" },
+      };
+    },
+    reset: async () => {},
+  };
+  let admission = "";
+  const service = new ComputerService(f.adapter, (event) => {
+    if (event.type === "start") admission = event.id;
+  });
+  const first = await service.observe(f.owner, { app: "test" }, f.signal);
+  const pending = service.waitUntil(
+    f.owner,
+    first.frame.id,
+    { kind: "absent", text: "Loading" },
+    1000,
+    f.signal,
+  );
+  const rejected = expect(pending).rejects.toMatchObject({ code: "cancelled" });
+  await entered.promise;
+  const stopped = service.stopPresentation(admission);
+  const replacement = { active: () => true };
+  try {
+    await expect(service.observe(replacement, { app: "test" }, f.signal)).rejects.toMatchObject({
+      code: "busy",
+    });
+  } finally {
+    held.release();
+    await stopped;
+  }
+  await rejected;
+  await expect(service.observe(f.owner, { app: "test" }, f.signal)).rejects.toMatchObject({
+    code: "user_interrupted",
+  });
+  await service.observe(replacement, { app: "test" }, f.signal);
+  await service.release(replacement);
+});
+
+test("region frames retain scope after input, invalidate old indexes and report window fallback without a cross-scope diff", async () => {
+  const f = fixture();
+  const targets: ComputerTarget[] = [];
+  let fallback = false;
+  let calls = 0;
+  const text = Array.from(
+    { length: 10 },
+    (_, index) => `[${index}] AXButton AXTitle="Same ${index}"`,
+  ).join("\n");
+  f.adapter.accessibility = {
+    observe: async (target) => {
+      targets.push(target);
+      const observation: ComputerObservation = {
+        scope: target.rootIndex === undefined || fallback ? "window" : "region",
+        projection: target.projection ?? "full",
+        complete: true,
+        exhaustive: target.projection !== "overview",
+        boundaries: [],
+        unknown: [],
+        visitedNodes: 10,
+        axReads: 100,
+        ...(fallback ? { fallback: "root_unavailable" } : {}),
+      };
+      return { id: `native-${++calls}`, app: "test", windowTitle: "window", text, observation };
+    },
+    input: async (_state, input) => {
+      f.inputs.push(input);
+    },
+    reset: async () => {},
+  };
+  const first = await f.service.observe(f.owner, { app: "test", projection: "overview" }, f.signal);
+  const region = await f.service.observe(
+    f.owner,
+    {
+      app: "test",
+      frameId: first.frame.id,
+      rootIndex: 6,
+      projection: "compact",
+    },
+    f.signal,
+  );
+  expect(targets[1]).toEqual({
+    app: "test",
+    previousId: "native-1",
+    rootIndex: 6,
+    projection: "compact",
+  });
+  expect(region.accessibility).toBe(text);
+  await expect(
+    f.service.input(
+      f.owner,
+      first.frame.id,
+      {
+        action: "click",
+        elementIndex: 6,
+        button: "left",
+        count: 1,
+      },
+      f.signal,
+    ),
+  ).rejects.toMatchObject({ code: "stale_frame", applied: "no" });
+  const next = await f.service.input(
+    f.owner,
+    region.frame.id,
+    {
+      action: "click",
+      elementIndex: 2,
+      button: "left",
+      count: 1,
+    },
+    f.signal,
+  );
+  expect(targets[2]).toEqual({
+    app: "test",
+    previousId: "native-2",
+    rootIndex: 0,
+    projection: "compact",
+    fallbackToWindow: true,
+  });
+  expect(next).toMatchObject({ applied: "yes", verification: { status: "unverified" } });
+  expect(next.accessibility).not.toBe(text);
+  fallback = true;
+  const recovered = await f.service.input(
+    f.owner,
+    next.frame.id,
+    {
+      action: "click",
+      elementIndex: 2,
+      button: "left",
+      count: 1,
+    },
+    f.signal,
+  );
+  expect(recovered.accessibility).toBe(text);
+  expect(recovered).toMatchObject({
+    observation: { scope: "window", fallback: "root_unavailable" },
+  });
+  expect(f.inputs).toHaveLength(2);
+  await f.service.release(f.owner);
+});
+
+test("region parameter and frame rejections preserve the current frame and never retarget another window", async () => {
+  const f = fixture();
+  let reads = 0;
+  f.adapter.accessibility = {
+    observe: async () => {
+      reads++;
+      return { id: "one", app: "test", windowTitle: "original", text: "[0] AXWindow" };
+    },
+    input: async (_state, input) => {
+      f.inputs.push(input);
+    },
+    reset: async () => {},
+  };
+  const first = await f.service.observe(f.owner, { app: "test" }, f.signal);
+  for (const target of [
+    { app: "test", rootIndex: 0 },
+    { app: "test", frameId: first.frame.id, rootIndex: -1 },
+    { app: "test", frameId: "old", rootIndex: 0 },
+    { app: "other", frameId: first.frame.id, rootIndex: 0 },
+    { app: "test", windowTitle: "another", frameId: first.frame.id, rootIndex: 0 },
+  ]) {
+    await expect(f.service.observe(f.owner, target, f.signal)).rejects.toBeDefined();
+  }
+  expect(reads).toBe(1);
+  await f.service.input(f.owner, first.frame.id, { action: "key", keys: ["Enter"] }, f.signal);
+  expect(f.inputs).toHaveLength(1);
+  await f.service.release(f.owner);
+});
+
+test("a cancelled region candidate cannot publish or restore the consumed frame", async () => {
+  const f = fixture();
+  const entered = gate();
+  const held = gate();
+  f.adapter.accessibility = {
+    observe: async (target) => {
+      if (target.rootIndex !== undefined) {
+        entered.release();
+        await held.promise;
+      }
+      return { id: "native", app: "test", windowTitle: "window", text: "[0] AXGroup" };
+    },
+    input: async (_state, input) => {
+      f.inputs.push(input);
+    },
+    reset: async () => {},
+  };
+  const first = await f.service.observe(f.owner, { app: "test" }, f.signal);
+  const controller = new AbortController();
+  const candidate = f.service.observe(
+    f.owner,
+    {
+      app: "test",
+      frameId: first.frame.id,
+      rootIndex: 0,
+      projection: "compact",
+    },
+    controller.signal,
+  );
+  const rejected = expect(candidate).rejects.toBeDefined();
+  await entered.promise;
+  try {
+    controller.abort();
+  } finally {
+    held.release();
+    await rejected;
+  }
+  await expect(
+    f.service.input(
+      f.owner,
+      first.frame.id,
+      {
+        action: "click",
+        elementIndex: 0,
+        button: "left",
+        count: 1,
+      },
+      f.signal,
+    ),
+  ).rejects.toMatchObject({ code: "stale_frame" });
+  expect(f.inputs).toEqual([]);
+  await f.service.release(f.owner);
+});
 
 test("maps delivered Retina pixels, returns a new observation and rejects reuse of the old frame", async () => {
   const f = fixture();

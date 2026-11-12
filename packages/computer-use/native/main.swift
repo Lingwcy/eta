@@ -32,11 +32,13 @@ while terminating == 0, let line = readLine() {
         let args = try JSONSerialization.jsonObject(with: data) as? [String: Any]
       else { throw BridgeError("Invalid request") }
       bridge.presentationPID = args["presentationPID"] as? pid_t ?? 0
-      response = [
-        "ok": true,
-        "result": try
-          (args["operation"] as? String == "observe" ? bridge.observe(args) : bridge.input(args)),
-      ]
+      let result: [String: Any]
+      switch args["operation"] as? String {
+      case "observe": result = try bridge.observe(args)
+      case "wait_until": result = try bridge.waitUntil(args)
+      default: result = try bridge.input(args)
+      }
+      response = ["ok": true, "result": result]
     } catch let error as BridgeError {
       response = ["ok": false, "message": error.message, "applied": error.applied]
       if let reason = error.reason { response["reason"] = reason }
@@ -44,7 +46,11 @@ while terminating == 0, let line = readLine() {
       response = ["ok": false, "message": error.localizedDescription, "applied": "unknown"]
     }
     if bridge.cleanupFailed {
-      response = ["ok": false, "message": "原生输入状态清理失败；请重启 Eta", "applied": "unknown"]
+      let receipt = response["result"] as? [String: Any]
+      response = [
+        "ok": false, "message": "原生输入状态清理失败；请重启 Eta",
+        "applied": receipt?["applied"] ?? response["applied"] ?? "unknown",
+      ]
       terminating = 1
     }
     if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
