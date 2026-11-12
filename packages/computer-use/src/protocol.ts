@@ -20,6 +20,9 @@ export type ComputerVerification = {
   noOp?: boolean;
   reason?: string;
 };
+/** A running instance selected by launch; this is not a window observation. */
+export type ComputerApplication = { app: string };
+
 export type ComputerInputReceipt = {
   applied: "no" | "yes";
   verification: ComputerVerification;
@@ -140,7 +143,7 @@ export interface ComputerAdapter {
     afterInput?: boolean,
     target?: ComputerAccessibility,
   ): Promise<ComputerCapture>;
-  input(input: ComputerInput, signal: AbortSignal): Promise<void>;
+  input(input: ComputerInput, signal: AbortSignal): Promise<ComputerApplication | void>;
   /** Read takeover state before disposing the live native admission; never starts a new helper. */
   checkOwnership?(signal: AbortSignal): Promise<void>;
   accessibility?: {

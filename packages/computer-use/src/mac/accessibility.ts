@@ -19,6 +19,9 @@ const Reply = Schema.Union([
     reason: Schema.optionalKey(Schema.Literals(["user_interrupted", "stale_frame"])),
   }),
 ]);
+const Application = Schema.Struct({
+  app: Schema.String.check(Schema.isPattern(/^pid:[1-9][0-9]*$/)),
+});
 const Point = Schema.Struct({ x: Schema.Number, y: Schema.Number });
 const Bounds = Schema.Struct({
   x: Schema.Number,
@@ -286,6 +289,8 @@ export function createAccessibilityBridge(
       if (existingOnly && (!child || stopping)) return;
       await request({ operation: "check_ownership" }, signal);
     },
+    openApplication: async (app: string, signal: AbortSignal) =>
+      Schema.decodeUnknownSync(Application)(await request({ operation: "open", app }, signal)),
     observe: async (
       target: ComputerTarget,
       signal: AbortSignal,

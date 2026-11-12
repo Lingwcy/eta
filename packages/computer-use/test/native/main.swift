@@ -1,6 +1,7 @@
 import ApplicationServices
 import Foundation
 
+testApplicationSelection()
 try testObservation()
 try testControlState()
 
