@@ -61,7 +61,7 @@ export function createComputerExtension(options: {
       "select uses the container's elementIndex and exact option name. For a dropdown, open it and observe its own options first. A duplicate name is rejected. Verify the selected value or row in the returned result before continuing.",
       "Background input support varies by app. Check the returned state to confirm the effect. Post-input screenshots settle for a bounded interval; quiet pixels do not prove loading or sending finished. On error inspect applied before retrying input or sending.",
       "Code mode: const r=await tools.computer({action:'observe',app:'TextEdit'});if(!r.ok)throw Error(r.error.message);text({frame:r.frame,accessibility:r.accessibility,observation:r.observation,verification:r.verification,applied:r.applied,notes:r.notes});if(r.image)image(r.image); End the script to inspect the result before choosing unknown targets. Output images with image(r.image), never print base64.",
-      "open(app) launches an app in the background without a frameId; observe it before input. release relinquishes control.",
+      "open(app) launches an app in the background without a frameId and returns its running-instance selector in app. Observe that returned app before input; launch success does not prove a window is ready. release relinquishes control.",
     ].join(" "),
     parameters: computerParameters,
     structuredOutputSchema: computerResult,
@@ -152,13 +152,15 @@ export function createComputerExtension(options: {
           AbortSignal.timeout(30000),
         ]);
         if (args.action === "open") {
-          await options.service.open(owner, args.app!, signal);
+          const application = await options.service.open(owner, args.app!, signal);
           const notes = [
-            "Application launched in the background. Use observe(app) to inspect its current window before input; launch completion does not prove the UI is ready.",
+            application
+              ? "Application launched in the background. Use observe with the returned app selector (not the launch name) before input; launch completion does not prove a window is ready."
+              : "Application launch requested. Use observe(app) before input; launch completion does not prove the UI is ready.",
           ];
           return {
-            structuredOutput: { ok: true, notes },
-            output: [{ type: "text", text: notes[0]! }],
+            structuredOutput: { ok: true, ...application, notes },
+            output: [{ type: "text", text: JSON.stringify({ ...application, notes }) }],
           };
         }
         let result;
@@ -357,12 +359,13 @@ export function createComputerExtension(options: {
               "The computer tool is available for local desktop UI, including existing browser windows. Native browser UI control requires no browser connector or browser skill.",
               "Menu-bar status apps: computer({action:'observe',app:'APP',surface:'menu_bar'}) selects only that app's icon. Click its numbered item to open the menu or popover on the current desktop, then inspect the returned state. A visible popover can also be observed directly by app.",
               "Start with computer({action:'observe',app:'APP'}); add windowTitle only to select a specific window. A unique partial title is accepted. Use the returned frame.id and numbered controls for input. Every input already returns an updated accessibility tree: inspect it before choosing the next target. Chain only already-decided steps with each preceding frame.id. If that state proves the task is complete, report the result; request a screenshot only when visual evidence is needed.",
+              "After open(app), use its returned app selector for observe rather than guessing the running name. Launch success is not window readiness.",
               "Common inputs: {action:'click',frameId,elementIndex}, {action:'set_value',frameId,elementIndex,text}, or {action:'drag',frameId,point:{x,y},to:{x,y}}. A frame already selects the app/window; optional target hints only validate that selection.",
               "For a clipped tree, start with overview and expand its numbered projection boundaries in overview until you see the named region. Then use compact on that region. After every expansion, print the new frame.id with the new indexes and boundaries. Use the new frame even when there is no screenshot. Check observation.scope, boundaries and unknown before inferring absence. Explicit full observe recovers the whole window.",
               "Use wait({frameId,condition,timeoutMs?}) for asynchronous UI changes. Continue when wait.status is 'satisfied' and use the returned frame for the next action. Timeout, ambiguous evidence and target closure are separate outcomes.",
               "Use set_checked and set_expanded with the latest frameId, elementIndex and desired state. Check applied and verification before deciding whether further input is needed.",
               "To select an option, use select with the container elementIndex and exact name. Open dropdowns first and inspect their associated options. Check the returned verification.",
-              "In Code mode, tools.computer is already callable; no ALL_TOOLS search or schema-discovery call is needed. First call: const r=await tools.computer({action:'observe',app:'APP'});text(r); For screenshots, output text({frame:r.frame,accessibility:r.accessibility,observation:r.observation,verification:r.verification,applied:r.applied,notes:r.notes});if(r.image)image(r.image); never print image base64. End the script to inspect unknown targets before input.",
+              "In Code mode, tools.computer is already callable; no ALL_TOOLS search or schema-discovery call is needed. First call: const r=await tools.computer({action:'observe',app:'APP'});text(r); For screenshots, first check r.ok; on failure print r and stop before choosing input. On success output text({frame:r.frame,accessibility:r.accessibility,observation:r.observation,verification:r.verification,applied:r.applied,notes:r.notes});if(r.image)image(r.image); never print image base64. End the script to inspect unknown targets before input.",
             ].join("\n")
           : undefined,
       ),

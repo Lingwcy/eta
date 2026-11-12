@@ -28,6 +28,7 @@ if (process.platform === "darwin") {
         fileURLToPath(new URL("../native/ObservationTree.swift", import.meta.url)),
         fileURLToPath(new URL("../native/WaitCondition.swift", import.meta.url)),
         fileURLToPath(new URL("../native/ControlState.swift", import.meta.url)),
+        fileURLToPath(new URL("../test/native/application-selection.swift", import.meta.url)),
         fileURLToPath(new URL("../test/native/observation.swift", import.meta.url)),
         fileURLToPath(new URL("../test/native/control-state.swift", import.meta.url)),
         fileURLToPath(new URL("../test/native/main.swift", import.meta.url)),

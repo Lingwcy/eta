@@ -187,7 +187,7 @@ export const computerParameters = Type.Object(
         minLength: 1,
         maxLength: 256,
         description:
-          "REQUIRED for observe/open; screenshot may omit app only after selecting a target. Application name or bundle identifier, e.g. TextEdit or com.apple.TextEdit. observe/screenshot also accept a unique case-insensitive application-name substring or pid:123 to select one running instance. open launches an app name or bundle identifier in the background; it does not accept pid selectors. On input actions, an optional app hint must match the already-observed app; it never retargets a frame.",
+          "REQUIRED for observe/open; screenshot may omit app only after selecting a target. Application name or bundle identifier, e.g. TextEdit or com.apple.TextEdit. observe/screenshot also accept a unique case-insensitive application-name substring or pid:123 to select one running instance. open launches an app name or bundle identifier in the background and returns the running-instance selector in app; use that returned app for observe. open does not accept pid selectors. On input actions, an optional app hint must match the already-observed app; it never retargets a frame.",
       }),
     ),
     // 窗口标题

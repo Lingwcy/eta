@@ -968,6 +968,57 @@ test("AX input that settles after stop does not publish or start a replacement o
   expect(f.counts().observations).toBe(1);
 });
 
+test("opening returns the running instance without inventing an actionable frame", async () => {
+  const f = accessibleFixture();
+  const observed: string[] = [];
+  const original = f.adapter.accessibility!.observe.bind(f.adapter.accessibility!);
+  f.adapter.accessibility!.observe = async (target, signal) => {
+    observed.push(target.app);
+    return original(target, signal);
+  };
+  f.adapter.input = async () => ({ app: "pid:123" });
+  try {
+    const before = await f.service.observe(f.owner, { app: "other" }, f.signal);
+    const application = await f.service.open(f.owner, "MCL", f.signal);
+    expect(application).toEqual({ app: "pid:123" });
+    expect(f.counts().captures).toBe(0);
+    await expect(
+      f.service.input(f.owner, before.frame.id, { action: "key", keys: ["Enter"] }, f.signal),
+    ).rejects.toMatchObject({ code: "stale_frame", applied: "no" });
+    const after = await f.service.observe(f.owner, application!, f.signal);
+    expect(after.frame.id).not.toBe(before.frame.id);
+    expect(observed).toEqual(["other", "pid:123"]);
+  } finally {
+    await f.service.release(f.owner);
+  }
+});
+
+test("a launch completing after stop cannot publish its instance or admit a replacement early", async () => {
+  const f = accessibleFixture();
+  const entered = gate();
+  const held = gate();
+  f.adapter.input = async () => {
+    entered.release();
+    await held.promise;
+    return { app: "pid:123" };
+  };
+  const pending = f.service.open(f.owner, "MCL", f.signal);
+  const rejected = expect(pending).rejects.toBeDefined();
+  let releasing: Promise<void> | undefined;
+  try {
+    await entered.promise;
+    releasing = f.service.release(f.owner);
+    await expect(f.service.open({ active: () => true }, "Other", f.signal)).rejects.toMatchObject({
+      code: "busy",
+    });
+  } finally {
+    held.release();
+    await rejected;
+    await releasing;
+  }
+  expect(f.counts().observations).toBe(0);
+});
+
 test("opening an app needs no frame or screenshot and rejects invalid application names before input", async () => {
   const f = accessibleFixture();
   try {

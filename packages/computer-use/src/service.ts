@@ -142,8 +142,9 @@ export class ComputerService {
       lease.accessibility = undefined;
       try {
         this.check(lease, current);
-        await this.adapter.input(input, current);
+        const application = await this.adapter.input(input, current);
         this.check(lease, current);
+        return application;
       } catch (error) {
         if (error instanceof ComputerError) throw error;
         throw new ComputerError(

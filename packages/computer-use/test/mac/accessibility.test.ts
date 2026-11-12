@@ -242,3 +242,34 @@ test.skipIf(process.platform === "win32")(
     );
   },
 );
+
+test.skipIf(process.platform === "win32")(
+  "a launch receipt observes the returned instance even when its running name differs",
+  async () => {
+    const bridge = await fixture(
+      'console.log(JSON.stringify(r.operation === "open" && r.app === "MCL" ? {ok:true,result:{app:"pid:123"}} : r.operation === "observe" && r.app === "pid:123" ? {ok:true,result:{id:"one",app:"dev.mcl.launcher",windowTitle:"Launcher",text:"[0] AXButton Download"}} : {ok:false,message:"wrong instance",applied:"no"}));',
+    );
+    const application = await bridge.openApplication("MCL", AbortSignal.timeout(5000));
+    const state = await bridge.observe(application, AbortSignal.timeout(5000));
+    expect(state.text).toBe("[0] AXButton Download");
+    expect(state.app).toBe("dev.mcl.launcher");
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "missing applications preserve non-delivery and invalid launch receipts cannot claim an instance",
+  async () => {
+    const bridge = await fixture(
+      'console.log(JSON.stringify(r.app === "missing" ? {ok:false,message:"Application not installed",applied:"no"} : {ok:true,result:{app:"MCL"}}));',
+    );
+    await expect(
+      bridge.openApplication("missing", AbortSignal.timeout(5000)),
+    ).rejects.toMatchObject({
+      applied: "no",
+      message: "Application not installed",
+    });
+    await expect(
+      bridge.openApplication("malformed", AbortSignal.timeout(5000)),
+    ).rejects.toBeDefined();
+  },
+);

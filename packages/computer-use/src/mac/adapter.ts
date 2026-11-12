@@ -4,10 +4,9 @@ import { ComputerError } from "../protocol.ts";
 import type { createAccessibilityBridge } from "./accessibility.ts";
 import type { ComputerAdapter, ComputerAccessibility } from "../protocol.ts";
 
-/** Platform permission checks and launch stay with the host; all input is window-scoped. */
+/** Platform permission checks stay with the host; native identity stays in the bridge. */
 export interface MacComputerHost {
   permissions(): { screen: boolean; accessibility: boolean };
-  openApplication(name: string, signal: AbortSignal): Promise<void>;
   accessibility: ReturnType<typeof createAccessibilityBridge>;
 }
 
@@ -60,8 +59,9 @@ export function createMacComputerAdapter(host: MacComputerHost): ComputerAdapter
         throw new ComputerError("invalid_input", "输入需要已观察的目标窗口；请先 observe(app)");
       await host.accessibility.checkOwnership(signal);
       check(signal);
-      await host.openApplication(input.app, signal);
+      const application = await host.accessibility.openApplication(input.app, signal);
       check(signal);
+      return application;
     },
     accessibility: {
       observe: async (selected, signal) => {

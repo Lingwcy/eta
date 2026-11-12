@@ -54,33 +54,40 @@ extension Bridge {
     guard let name = args["app"] as? String, !name.isEmpty else {
       throw BridgeError("observe requires app")
     }
-    let explicitPID: pid_t?
+    let running: [NSRunningApplication]
     if name.hasPrefix("pid:") {
       guard let pid = Int32(name.dropFirst(4)), pid > 0 else {
         throw BridgeError("Invalid process selector")
       }
-      explicitPID = pid
+      // A launch receipt already identifies the process. Do not require the
+      // notification-driven NSWorkspace list to have published it as well.
+      running = NSRunningApplication(processIdentifier: pid).map { $0.isTerminated ? [] : [$0] } ?? []
     } else {
-      explicitPID = nil
+      running = runningApplications()
     }
-    var candidates = NSWorkspace.shared.runningApplications.filter {
-      if let explicitPID { return $0.processIdentifier == explicitPID }
-      return $0.bundleIdentifier == name || $0.localizedName == name || $0.bundleURL?.path == name
-    }
-    if candidates.isEmpty && explicitPID == nil {
-      let running = NSWorkspace.shared.runningApplications
-      candidates = TargetSelection.applicationAliases(
-        name, in: running.map { (name: $0.localizedName ?? "", regular: $0.activationPolicy == .regular) }
-      ).map { running[$0] }
-    }
+    var candidates = TargetSelection.applications(
+      name,
+      in: running.map {
+        .init(pid: $0.processIdentifier, name: $0.localizedName ?? "",
+          bundleIdentifier: $0.bundleIdentifier, path: $0.bundleURL?.path,
+          regular: $0.activationPolicy == .regular)
+      },
+      installedPath: { installedApplicationURL(name)?.path }
+    ).map { running[$0] }
     if let previousId = args["previousId"] as? String {
       guard previousId == observedSnapshot, let previousApp = application, !previousApp.isTerminated
       else { throw BridgeError("原观察应用已失效；请重新 observe") }
       candidates = candidates.filter { $0.processIdentifier == previousApp.processIdentifier }
     }
+    guard !candidates.isEmpty else {
+      throw BridgeError(
+        "未找到运行中的应用 \(quoted(name))；若已 open，请使用 open 返回的 app 选择器；否则请先 open")
+    }
     guard candidates.count == 1, let app = candidates.first else {
-      let choices = candidates.map { "pid:\($0.processIdentifier)" }.joined(separator: ", ")
-      throw BridgeError("找不到唯一的运行中应用 \(name)；请先 open，或指定实例 \(choices)")
+      let choices = candidates.map {
+        "pid:\($0.processIdentifier) \(quoted($0.localizedName ?? ""))"
+      }.joined(separator: ", ")
+      throw BridgeError("运行中的应用匹配不唯一 \(quoted(name))；请指定实例：\(choices)")
     }
     let root = AXUIElementCreateApplication(app.processIdentifier)
     AXUIElementSetMessagingTimeout(root, 0.4)
@@ -164,7 +171,10 @@ extension Bridge {
     } else {
       selected = windows.first
     }
-    guard let selected else { throw BridgeError("应用没有可观察窗口；菜单栏应用请使用 observe(app,surface:'menu_bar') 打开图标") }
+    guard let selected else {
+      throw BridgeError(
+        "已找到运行中的应用 pid:\(app.processIdentifier)，但没有可观察窗口（可能仍在启动或尚未打开窗口）；请用该 PID 重新观察。仅菜单栏应用使用 surface:'menu_bar'")
+    }
     // Some AX servers answer success with their application root in AXWindows. That is not
     // a window identity and must never be matched to a CGWindow by application-wide bounds.
     try admitSelection(selected, calls: 8)
@@ -238,7 +248,7 @@ extension Bridge {
     let id = UUID().uuidString
     let result = try tree.response([
       "id": id,
-      "app": explicitPID == nil ? (app.bundleIdentifier ?? name) : "pid:\(app.processIdentifier)",
+      "app": !name.hasPrefix("pid:") ? (app.bundleIdentifier ?? name) : "pid:\(app.processIdentifier)",
       "windowTitle": selectedTitle.value ?? "",
       "windowId": selectedWindowID, "bounds": boundsJSON(selectedBounds),
       "cursor": cursor.map { ["x": $0.x, "y": $0.y] } as Any? ?? NSNull(),

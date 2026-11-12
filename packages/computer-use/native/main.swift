@@ -34,6 +34,7 @@ while terminating == 0, let line = readLine() {
       bridge.presentationPID = args["presentationPID"] as? pid_t ?? 0
       let result: [String: Any]
       switch args["operation"] as? String {
+      case "open": result = try bridge.openApplication(args)
       case "observe": result = try bridge.observe(args)
       case "wait_until": result = try bridge.waitUntil(args)
       default: result = try bridge.input(args)

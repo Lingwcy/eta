@@ -1419,7 +1419,7 @@ test.each(["standard", "codemode"] as const)(
       input: async (input) => {
         if (input.action === "open") {
           opened++;
-          return;
+          return { app: "pid:123" };
         }
         throw Error("AX input must not enter the global coordinate path");
       },
@@ -1452,10 +1452,20 @@ test.each(["standard", "codemode"] as const)(
         { action: "open", app: "TextEdit" },
         'const r=await tools.computer({action:"open",app:"TextEdit"});if(!r.ok)throw Error(r.error.message);text(r);',
       ),
-      call(
-        { action: "observe", app: "TextEdit", windowTitle: "test" },
-        'const r=await tools.computer({action:"observe",app:"TextEdit",windowTitle:"test"});if(!r.ok)throw Error(r.error.message);store("frame",r.frame.id);text(r);',
-      ),
+      (context) => {
+        const result = context.messages.at(-1)!;
+        const content = result.role === "toolResult" ? result.content : [];
+        const output = content
+          .filter((part) => part.type === "text")
+          .map((part) => part.text)
+          .join("");
+        expect(output).toContain('"app":"pid:123"');
+        expect(output).not.toContain('"frame"');
+        return call(
+          { action: "observe", app: "pid:123", windowTitle: "test" },
+          'const r=await tools.computer({action:"observe",app:"pid:123",windowTitle:"test"});if(!r.ok)throw Error(r.error.message);store("frame",r.frame.id);text(r);',
+        );
+      },
       (context) => {
         const result = context.messages.at(-1)!;
         expect(result.role).toBe("toolResult");
@@ -1466,6 +1476,7 @@ test.each(["standard", "codemode"] as const)(
           .map((part) => part.text)
           .join("\n");
         expect(output).toContain("AXTextField");
+        expect(output).toContain('"app":"pid:123"');
         if (mode === "standard") frameId = JSON.parse(output).frame.id;
         return call(
           { action: "set_value", frameId, elementIndex: 3, text: "中文" },

@@ -1,6 +1,35 @@
 import Foundation
 
 enum TargetSelection {
+  struct Application {
+    let pid: Int32
+    let name: String
+    let bundleIdentifier: String?
+    let path: String?
+    let regular: Bool
+  }
+
+  static func applications(
+    _ name: String, in applications: [Application], installedPath: () -> String?
+  ) -> [Int] {
+    if name.hasPrefix("pid:") {
+      guard let pid = Int32(name.dropFirst(4)), pid > 0 else { return [] }
+      return applications.indices.filter { applications[$0].pid == pid }
+    }
+    let exact = applications.indices.filter {
+      let app = applications[$0]
+      return app.bundleIdentifier == name || app.path == name
+        || app.name.compare(name, options: .caseInsensitive) == .orderedSame
+    }
+    if !exact.isEmpty { return exact }
+    // Resolve the same installed bundle as open before accepting a substring such
+    // as SJMCL for MCL. A localized process name need not match its .app filename.
+    if let path = installedPath() {
+      return applications.indices.filter { applications[$0].path == path }
+    }
+    return applicationAliases(name, in: applications.map { ($0.name, $0.regular) })
+  }
+
   static func applicationAliases(
     _ name: String, in applications: [(name: String, regular: Bool)]
   ) -> [Int] {
