@@ -164,7 +164,7 @@ export const computerParameters = Type.Object(
     frameId: Type.Optional(
       Type.String({
         description:
-          "Required for input, region observe and conditional wait. Use the latest result.frame.id; element indexes expire after input or a new observation.",
+          "Required for input, region observe and conditional wait. Optional for a fixed-duration wait; required whenever wait includes app/windowTitle hints. Wait validates this latest frame without retargeting. Element indexes expire after input or a new observation.",
       }),
     ),
     projection: Type.Optional(
@@ -187,7 +187,7 @@ export const computerParameters = Type.Object(
         minLength: 1,
         maxLength: 256,
         description:
-          "REQUIRED for observe/open; screenshot may omit app only after selecting a target. Application name or bundle identifier, e.g. TextEdit or com.apple.TextEdit. observe/screenshot also accept a unique case-insensitive application-name substring or pid:123 to select one running instance. open launches an app name or bundle identifier in the background and returns the running-instance selector in app; use that returned app for observe. open does not accept pid selectors. On input actions, an optional app hint must match the already-observed app; it never retargets a frame.",
+          "REQUIRED for observe/open; screenshot may omit app only after selecting a target. Application name or bundle identifier, e.g. TextEdit or com.apple.TextEdit. observe/screenshot also accept a unique case-insensitive application-name substring or pid:123 to select one running instance. open launches an app name or bundle identifier in the background and returns the running-instance selector in app; use that returned app for observe. open does not accept pid selectors. On input actions and framed waits, an optional app hint must match the already-observed app; it never retargets a frame. wait requires frameId when app is supplied.",
       }),
     ),
     // 窗口标题
@@ -195,7 +195,7 @@ export const computerParameters = Type.Object(
       Type.String({
         maxLength: 512,
         description:
-          "observe/screenshot: exact title or a unique case-insensitive substring. Exact matches take priority; ambiguous titles are rejected with candidate titles. Omit to use the app's focused window. On input, an optional title hint must match the observed window; it never retargets a frame.",
+          "observe/screenshot: exact title or a unique case-insensitive substring. Exact matches take priority; ambiguous titles are rejected with candidate titles. Omit to use the app's focused window. On input and framed waits, an optional title hint must match the observed window; it never retargets a frame. wait requires frameId when windowTitle is supplied.",
       }),
     ),
     surface: Type.Optional(

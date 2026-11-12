@@ -22,6 +22,7 @@ import { accessibilityDiff } from "./accessibility.ts";
 
 /** Identity is an instance per admitted run, never a reusable thread ID. */
 export type ComputerOwner = { readonly active: () => boolean };
+type TargetHint = { app?: string; windowTitle?: string };
 type Lease = {
   id: string;
   presented?: ComputerAccessibility;
@@ -175,11 +176,26 @@ export class ComputerService {
     durationMs: number,
     signal: AbortSignal,
     limits?: CaptureLimits,
+    target?: TargetHint & { frameId?: string },
   ) {
     if (!Number.isSafeInteger(durationMs) || durationMs < 0 || durationMs > 10000)
       throw new ComputerError("invalid_frame", "等待时长必须在 0–10000ms 范围内");
+    if (
+      target &&
+      (target.app !== undefined || target.windowTitle !== undefined) &&
+      target.frameId === undefined
+    )
+      throw new ComputerError("invalid_input", "wait target hints require the latest frameId");
     return this.operate(owner, signal, async (lease, current) => {
+      if (
+        target?.frameId !== undefined &&
+        target.frameId !== lease.accessibility?.frame.id &&
+        target.frameId !== lease.frame?.frame.id
+      )
+        throw new ComputerError("stale_frame", "等待需要最新窗口观察");
+      this.validateTargetHint(lease, target);
       await delay(durationMs, undefined, { signal: current });
+      this.check(lease, current);
       return lease.accessibility
         ? this.observeApp(
             lease,
@@ -204,6 +220,7 @@ export class ComputerService {
     condition: ComputerCondition,
     timeoutMs: number,
     signal: AbortSignal,
+    targetHint?: TargetHint,
   ): Promise<
     Partial<ComputerResult> & { wait: ComputerWaitOutcome & { condition: ComputerCondition } }
   > {
@@ -229,6 +246,7 @@ export class ComputerService {
       const selected = lease.accessibility;
       if (!selected || selected.frame.id !== frameId)
         throw new ComputerError("stale_frame", "条件等待需要最新窗口观察");
+      this.validateTargetHint(lease, targetHint);
       const accessibility = this.adapter.accessibility;
       if (selected.surface || !accessibility?.waitUntil)
         throw new ComputerError("invalid_input", "条件等待需要支持条件探测的窗口或区域");
@@ -286,13 +304,36 @@ export class ComputerService {
     });
   }
 
+  private validateTargetHint(lease: Lease, targetHint?: TargetHint) {
+    if (
+      targetHint?.app !== undefined &&
+      !lease.appAliases?.names.has(targetHint.app.trim().toLowerCase())
+    )
+      throw new ComputerError(
+        "invalid_input",
+        `app does not match the observed target; use observe(app:${JSON.stringify(targetHint.app)}) to select another application. This frame was not retargeted.`,
+      );
+    const accessibility = lease.accessibility;
+    if (
+      targetHint?.windowTitle !== undefined &&
+      (!targetHint.windowTitle.trim() ||
+        !accessibility?.state.windowTitle
+          .toLowerCase()
+          .includes(targetHint.windowTitle.toLowerCase()))
+    )
+      throw new ComputerError(
+        "invalid_input",
+        "windowTitle does not match the observed target; use observe(app,windowTitle) to select another window. This frame was not retargeted.",
+      );
+  }
+
   async input(
     owner: ComputerOwner,
     frameId: string,
     input: Exclude<ComputerInput, { action: "open" }>,
     signal: AbortSignal,
     limits?: CaptureLimits,
-    targetHint?: { app?: string; windowTitle?: string },
+    targetHint?: TargetHint,
   ): Promise<ComputerResult> {
     const stateAction =
       input.action === "set_checked" ||
@@ -337,26 +378,8 @@ export class ComputerService {
     if (input.action === "key") input = { ...input, keys: normalizeComputerKeys(input.keys) };
     let stateDelivery: Pick<ComputerError, "applied" | "verification"> | undefined;
     return this.operate<ComputerResult>(owner, signal, async (lease, current) => {
-      if (
-        targetHint?.app !== undefined &&
-        !lease.appAliases?.names.has(targetHint.app.trim().toLowerCase())
-      )
-        throw new ComputerError(
-          "invalid_input",
-          `app does not match the observed target; use observe(app:${JSON.stringify(targetHint.app)}) to select another application. This frame was not retargeted.`,
-        );
+      this.validateTargetHint(lease, targetHint);
       const accessibility = lease.accessibility;
-      if (
-        targetHint?.windowTitle !== undefined &&
-        (!targetHint.windowTitle.trim() ||
-          !accessibility?.state.windowTitle
-            .toLowerCase()
-            .includes(targetHint.windowTitle.toLowerCase()))
-      )
-        throw new ComputerError(
-          "invalid_input",
-          "windowTitle does not match the observed target; use observe(app,windowTitle) to select another window. This frame was not retargeted.",
-        );
       if (accessibility?.frame.id === frameId) {
         if (stateAction && accessibility.surface)
           throw new ComputerError(
