@@ -47,7 +47,6 @@ export function DesktopSidebar(props: Props) {
   useTranslation();
   const scheduleView = props.scheduleView;
   const setScheduleView = props.onScheduleView;
-  const [archived, setArchived] = useState(false);
   const [recent, setRecent] = useState(false);
   const scheduledThreadIds = useMemo(
     () =>
@@ -81,8 +80,7 @@ export function DesktopSidebar(props: Props) {
   const ungrouped =
     props.library?.threads.filter(
       (thread) =>
-        threadProjectId(thread, props.library!) === null &&
-        (thread.archivedAt !== undefined) === archived,
+        threadProjectId(thread, props.library!) === null && thread.archivedAt === undefined,
     ) ?? [];
   const groups =
     props.library?.workspaces
@@ -96,8 +94,7 @@ export function DesktopSidebar(props: Props) {
           props.library?.threads
             .filter(
               (thread) =>
-                sidebarWorkspace(thread) === workspace.id &&
-                (thread.archivedAt !== undefined) === archived,
+                sidebarWorkspace(thread) === workspace.id && thread.archivedAt === undefined,
             )
             .toSorted(
               (a, b) => b.sessionRef.metadata.modifiedAt - a.sessionRef.metadata.modifiedAt,
@@ -120,21 +117,11 @@ export function DesktopSidebar(props: Props) {
           setScheduleView(true);
           props.onExpand();
         }}
-        archived={archived}
-        busy={props.busy}
         onHome={() => {
           setScheduleView(false);
-          setArchived(false);
           setRecent(false);
           props.onExpand();
         }}
-        onArchive={() => {
-          setScheduleView(false);
-          setArchived((value) => !value);
-          setRecent(false);
-          props.onExpand();
-        }}
-        onChoose={props.onChoose}
         onSettings={props.onSettings}
       />
       <div
@@ -157,14 +144,14 @@ export function DesktopSidebar(props: Props) {
           <ProjectSidebar
             recent={recent}
             onRecent={() => setRecent((value) => !value)}
-            archived={archived}
-            canCreate={!props.busy && !!props.library}
+            archived={false}
+            canCreate={!!props.library}
             search={
               <ThreadSearchDialog
                 library={props.library}
-                archived={archived}
+                archived={false}
                 busy={props.busy}
-                canCreate={!props.busy && !!props.library}
+                canCreate={!!props.library}
                 runningThreadIds={props.runningThreadIds}
                 scheduledThreadIds={scheduledThreadIds}
                 onSelect={props.onSelect}
@@ -184,12 +171,11 @@ export function DesktopSidebar(props: Props) {
                 library={props.library}
                 visits={props.visits ?? []}
                 previews={props.previews}
-                archived={archived}
+                archived={false}
                 selected={props.threadId}
                 running={props.runningThreadIds}
                 scheduled={scheduledThreadIds}
                 worktrees={worktreeThreadIds}
-                busy={props.busy}
                 onSelect={props.onSelect}
               />
             ) : (
@@ -219,8 +205,7 @@ export function DesktopSidebar(props: Props) {
                           runningThreadIds={props.runningThreadIds}
                           scheduledThreadIds={scheduledThreadIds}
                           worktreeThreadIds={worktreeThreadIds}
-                          busy={props.busy}
-                          archived={archived}
+                          archived={false}
                           onSelect={props.onSelect}
                         />
                       ))}
@@ -237,7 +222,6 @@ export function DesktopSidebar(props: Props) {
                           variant="ghost"
                           size="row-compact"
                           selected={props.threadId === thread.id}
-                          disabled={props.busy}
                           onClick={() => props.onSelect(thread.id)}
                         >
                           <SlidingLabel text={threadTitle(thread)} />

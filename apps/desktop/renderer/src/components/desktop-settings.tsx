@@ -20,7 +20,6 @@ interface Props extends Omit<SettingsPanelProps, "active"> {
   initialCategory?: string;
   categoryRevision?: number;
   onSchedules?: () => void;
-  onChooseProject: () => void;
   error: Message | null;
   onClose: () => void;
 }
@@ -59,15 +58,9 @@ export function DesktopSettings(props: Props) {
         sidebar={
           <>
             <NavigationRail
-              archived={false}
               onSchedules={props.onSchedules}
               settingsActive
-              busy={props.busy}
               onHome={props.onClose}
-              onChoose={() => {
-                props.onClose();
-                props.onChooseProject();
-              }}
               onSettings={(next) => setCategory(chooseCategory(next ?? undefined, known, fallback))}
             />
             <SettingsSidebar query={query} onQuery={setQuery} onClose={props.onClose} />

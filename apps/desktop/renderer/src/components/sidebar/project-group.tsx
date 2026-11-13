@@ -21,7 +21,6 @@ interface Props {
   runningThreadIds: ReadonlySet<string>;
   scheduledThreadIds: ReadonlySet<string>;
   worktreeThreadIds: ReadonlySet<string>;
-  busy: boolean;
   archived: boolean;
   onSelect: (id: string) => void;
 }
@@ -35,7 +34,6 @@ export function ProjectGroup({
   runningThreadIds,
   scheduledThreadIds,
   worktreeThreadIds,
-  busy,
   archived,
   onSelect,
 }: Props) {
@@ -78,7 +76,6 @@ export function ProjectGroup({
               selected={threadId === thread.id}
               aria-current={threadId === thread.id ? "page" : undefined}
               title={thread.title}
-              disabled={busy}
               onClick={() => onSelect(thread.id)}
             >
               <SlidingLabel text={threadTitle(thread)} />

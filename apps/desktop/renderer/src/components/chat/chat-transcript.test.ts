@@ -330,3 +330,180 @@ test("a queued user message appears below the live answer and keeps its row when
   expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
   expect(row?.textContent).toBe("Use a smaller patch");
 });
+
+test("keeps compact spacing across thinking and tool boundaries even when a response also includes text", async () => {
+  const { container, render } = await setup();
+  const base: AgentSnapshot = {
+    configuration: { model: { provider: "test", modelId: "test" }, thinkingLevel: "high" },
+    transcript: [
+      {
+        id: "u1",
+        type: "message",
+        message: { role: "user", content: "Fix the failing tests", timestamp: 1 },
+      },
+      {
+        id: "a1",
+        type: "message",
+        message: fauxAssistantMessage(
+          [
+            { type: "thinking", thinking: "Refining stop-handling tests" },
+            fauxToolCall("codemode", { description: "Edit tests", code: "" }, { id: "c1" }),
+          ],
+          { timestamp: 2 },
+        ),
+      },
+      {
+        id: "r1",
+        type: "message",
+        message: {
+          role: "toolResult",
+          toolCallId: "c1",
+          toolName: "codemode",
+          content: [{ type: "text", text: "ok" }],
+          details: {
+            calls: [
+              {
+                id: 1,
+                name: "write",
+                args: "{}",
+                description: "测试失败摘要预算与原始执行证据",
+                status: "ok",
+              },
+            ],
+          },
+          isError: false,
+          timestamp: 3,
+        },
+      },
+      {
+        id: "a2",
+        type: "message",
+        message: fauxAssistantMessage(
+          [
+            { type: "thinking", thinking: "Testing preview error summaries" },
+            { type: "text", text: "Regression verified." },
+            fauxToolCall("codemode", { description: "Run tests", code: "" }, { id: "c2" }),
+          ],
+          { timestamp: 4 },
+        ),
+      },
+      {
+        id: "r2",
+        type: "message",
+        message: {
+          role: "toolResult",
+          toolCallId: "c2",
+          toolName: "codemode",
+          content: [{ type: "text", text: "ok" }],
+          isError: false,
+          timestamp: 5,
+        },
+      },
+      {
+        id: "a3",
+        type: "message",
+        message: fauxAssistantMessage(
+          [
+            { type: "thinking", thinking: "Refining summary defaults" },
+            fauxToolCall("bash", { description: "Check diff" }, { id: "c3" }),
+          ],
+          { timestamp: 6 },
+        ),
+      },
+      {
+        id: "r3",
+        type: "message",
+        message: {
+          role: "toolResult",
+          toolCallId: "c3",
+          toolName: "bash",
+          content: [{ type: "text", text: "clean" }],
+          isError: false,
+          timestamp: 7,
+        },
+      },
+      {
+        id: "a4",
+        type: "message",
+        message: fauxAssistantMessage(
+          [
+            { type: "thinking", thinking: "Summarizing changes" },
+            { type: "text", text: "All tests pass." },
+          ],
+          { timestamp: 8 },
+        ),
+      },
+      {
+        id: "a5",
+        type: "message",
+        message: fauxAssistantMessage([{ type: "thinking", thinking: "Follow-up check" }], {
+          timestamp: 9,
+        }),
+      },
+    ],
+    operation: null,
+    lastResult: null,
+    faulted: false,
+  };
+  await render(base);
+  const rowClass = (index: number) =>
+    container.querySelector<HTMLElement>(`[data-index="${index}"]`)?.className ?? "";
+  // user -> assistant activity starts with normal spacing
+  expect(rowClass(1)).toContain("pt-5");
+  // activity tool -> mixed [thinking, text, toolCall] stays compact at the thinking edge
+  expect(rowClass(2)).toContain("pt-0.5");
+  expect(rowClass(2)).not.toContain("pt-5");
+  // mixed [thinking, text, toolCall] -> next activity stays compact at the trailing tool edge
+  expect(rowClass(3)).toContain("pt-0.5");
+  expect(rowClass(3)).not.toContain("pt-5");
+  // mixed [thinking, text] (no tools) -> next thinking keeps narrative separation
+  expect(rowClass(4)).toContain("pt-0.5");
+  expect(rowClass(5)).toContain("pt-5");
+
+  // Streaming a response from thinking -> thinking+text -> thinking+text+tool keeps compact top spacing
+  const streamingBase: AgentSnapshot = {
+    ...base,
+    transcript: base.transcript.slice(0, 3),
+    operation: {
+      id: "run",
+      kind: "run",
+      startedAt: 4,
+      status: "running",
+      fromTipId: null,
+      runningTools: [],
+      streamingMessage: fauxAssistantMessage(
+        [{ type: "thinking", thinking: "Testing preview error summaries" }],
+        { timestamp: 4 },
+      ),
+    },
+  };
+  await render(streamingBase);
+  expect(rowClass(2)).toContain("pt-0.5");
+  await render({
+    ...streamingBase,
+    operation: {
+      ...streamingBase.operation!,
+      streamingMessage: fauxAssistantMessage(
+        [
+          { type: "thinking", thinking: "Testing preview error summaries" },
+          { type: "text", text: "Regression verified." },
+        ],
+        { timestamp: 4 },
+      ),
+    },
+  });
+  expect(rowClass(2)).toContain("pt-0.5");
+  expect(rowClass(2)).not.toContain("pt-5");
+
+  // Text-only final answer after an activity row keeps normal separation
+  await render({
+    ...streamingBase,
+    operation: {
+      ...streamingBase.operation!,
+      streamingMessage: fauxAssistantMessage("Final answer", {
+        timestamp: 4,
+      }),
+    },
+  });
+  expect(rowClass(2)).toContain("pt-5");
+});

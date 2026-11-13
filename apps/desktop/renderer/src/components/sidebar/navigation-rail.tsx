@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
-import { Clock, Archive, FolderPlus, Home, Settings } from "lucide-react";
+import { Clock, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NavigationQuota } from "./navigation-quota";
 import type { ConversationTab } from "@/agent/desktop-tabs";
@@ -13,12 +13,8 @@ interface Props {
   library?: DesktopLibraryController["library"];
   schedulesActive?: boolean;
   onSchedules?: () => void;
-  archived: boolean;
-  busy: boolean;
   onHome: () => void;
-  onArchive?: () => void;
   settingsActive?: boolean;
-  onChoose: () => void;
   /** Receives "about" when a downloaded update is waiting, so the badge leads to it. */
   onSettings: (category?: string) => void;
 }
@@ -26,13 +22,9 @@ export function NavigationRail({
   conversation,
   model,
   library,
-  archived,
   schedulesActive = false,
   onSchedules,
-  busy,
   onHome,
-  onArchive,
-  onChoose,
   onSettings,
   settingsActive = false,
 }: Props) {
@@ -47,25 +39,13 @@ export function NavigationRail({
       <Button
         variant="ghost-muted"
         size="icon"
-        selected={!archived && !settingsActive && !schedulesActive}
+        selected={!settingsActive && !schedulesActive}
         title={t("navigation:navigationRail.projectsAndChats")}
         aria-label={t("navigation:navigationRail.projectsAndChats")}
-        aria-pressed={!archived && !settingsActive && !schedulesActive}
+        aria-pressed={!settingsActive && !schedulesActive}
         onClick={onHome}
       >
         <Home size={21} aria-hidden="true" />
-      </Button>
-      <Button
-        variant="ghost-muted"
-        size="icon"
-        selected={archived && !settingsActive && !schedulesActive}
-        title={t("navigation:navigationRail.archivedChats")}
-        aria-label={t("navigation:navigationRail.archivedChats")}
-        aria-pressed={archived && !settingsActive && !schedulesActive}
-        disabled={!onArchive}
-        onClick={onArchive}
-      >
-        <Archive size={20} aria-hidden="true" />
       </Button>
       <Button
         variant="ghost-muted"
@@ -78,16 +58,6 @@ export function NavigationRail({
         onClick={onSchedules}
       >
         <Clock size={20} aria-hidden="true" />
-      </Button>
-      <Button
-        variant="ghost-muted"
-        size="icon"
-        title={t("navigation:navigationRail.openProjectFolder")}
-        aria-label={t("navigation:navigationRail.openProjectFolder")}
-        disabled={busy}
-        onClick={onChoose}
-      >
-        <FolderPlus size={21} aria-hidden="true" />
       </Button>
       <div className="flex-1" />
       <NavigationQuota model={model} library={library} conversation={conversation} />

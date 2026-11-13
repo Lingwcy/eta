@@ -172,10 +172,7 @@ test("current conversation model selects its account quota across retained chats
         model: desktop.mainModel,
         conversation,
         library: desktop.library,
-        archived: false,
-        busy: false,
         onHome: () => {},
-        onChoose: () => {},
         onSettings: () => {},
       }),
       ...state.tabs

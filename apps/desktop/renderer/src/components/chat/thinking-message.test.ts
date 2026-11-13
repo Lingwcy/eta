@@ -83,6 +83,8 @@ test("thinking starts as its first line and preserves expanded details across st
   await act(async () => trigger.click());
   const viewport = container.querySelector<HTMLElement>('[role="region"]')!;
   expect(viewport.textContent).toContain(text);
+  expect(viewport.className).toContain("overscroll-auto");
+  expect(viewport.className).not.toContain("overscroll-contain");
   expect(trigger.textContent).not.toContain("Check the concurrency configuration");
   expect(container.textContent!.split("Check the concurrency configuration")).toHaveLength(2);
   await act(async () => {

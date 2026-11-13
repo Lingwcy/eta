@@ -1,4 +1,5 @@
 import { inputMessageId, submittedMessages, type SubmittedInput } from "@/agent/submitted-inputs";
+import { messageText } from "@eta/core/agent/message-text";
 import type { AgentSnapshot } from "@eta/core/agent/protocol";
 
 /** Streaming and saved responses share a key so saving never replays their entrance. */
@@ -68,13 +69,52 @@ export function getChatMessages(
     });
 }
 
-/** Thinking and tool-only responses form one compact activity sequence. */
-export function isActivityMessage(message: AgentSnapshot["transcript"][number]["message"]) {
+type TranscriptMessage = AgentSnapshot["transcript"][number]["message"];
+
+export function messageToolCallIds(message: TranscriptMessage) {
+  return message.role === "assistant"
+    ? message.content.flatMap((part) => (part.type === "toolCall" ? [part.id] : []))
+    : [];
+}
+
+function hasThinking(message: TranscriptMessage) {
   return (
     message.role === "assistant" &&
-    message.content.some(
-      (part) => part.type === "toolCall" || (part.type === "thinking" && part.thinking.trim()),
-    ) &&
-    !message.content.some((part) => part.type === "text" && part.text.trim())
+    message.content.some((part) => part.type === "thinking" && part.thinking.trim())
   );
+}
+
+function hasNarrativeOrMedia(message: TranscriptMessage) {
+  const hasImages =
+    typeof message.content !== "string" && message.content.some((part) => part.type === "image");
+  return hasImages || messageText(message).trim().length > 0;
+}
+
+function hasToolCalls(message: TranscriptMessage) {
+  return message.role === "assistant" && message.content.some((part) => part.type === "toolCall");
+}
+
+/** Thinking and tool-only responses form one compact activity sequence. */
+export function isActivityMessage(message: TranscriptMessage) {
+  return (
+    message.role === "assistant" &&
+    (hasThinking(message) || hasToolCalls(message)) &&
+    !hasNarrativeOrMedia(message)
+  );
+}
+
+/** Matches `ChatMessage` render order (`thinking`, media/text, `tools`) at the top edge. */
+export function startsWithActivity(message: TranscriptMessage, hasTools = hasToolCalls(message)) {
+  if (message.role !== "assistant") return false;
+  if (hasThinking(message)) return true;
+  if (hasNarrativeOrMedia(message)) return false;
+  return hasToolCalls(message) && hasTools;
+}
+
+/** Matches `ChatMessage` render order (`thinking`, media/text, `tools`) at the bottom edge. */
+export function endsWithActivity(message: TranscriptMessage, hasTools = hasToolCalls(message)) {
+  if (message.role !== "assistant") return false;
+  if (hasToolCalls(message) && hasTools) return true;
+  if (hasNarrativeOrMedia(message)) return false;
+  return hasThinking(message);
 }

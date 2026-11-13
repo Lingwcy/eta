@@ -5,8 +5,10 @@ import { cn } from "@/lib/utils";
 type RootProps = Omit<ComponentProps<typeof BaseScrollArea.Root>, "className"> & {
   className?: string;
 };
+type ScrollOverscroll = "contain" | "auto";
 type ViewportProps = Omit<ComponentProps<typeof BaseScrollArea.Viewport>, "className"> & {
   className?: string;
+  overscroll?: ScrollOverscroll;
 };
 type ScrollGutter = "reserved" | "overlay";
 type ContentProps = Omit<ComponentProps<typeof BaseScrollArea.Content>, "className"> & {
@@ -22,11 +24,12 @@ export function ScrollAreaRoot({ className, ...props }: RootProps) {
     />
   );
 }
-export function ScrollAreaViewport({ className, ...props }: ViewportProps) {
+export function ScrollAreaViewport({ className, overscroll = "contain", ...props }: ViewportProps) {
   return (
     <BaseScrollArea.Viewport
       className={cn(
-        "h-full w-full overscroll-contain rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-border-strong",
+        "h-full w-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-border-strong",
+        overscroll === "contain" ? "overscroll-contain" : "overscroll-auto",
         className,
       )}
       {...props}
@@ -64,10 +67,15 @@ export function ScrollAreaFade({ edge }: { edge: "top" | "bottom" }) {
   );
 }
 
-export function ScrollArea({ children, gutter, ...props }: RootProps & { gutter?: ScrollGutter }) {
+export function ScrollArea({
+  children,
+  gutter,
+  overscroll,
+  ...props
+}: RootProps & { gutter?: ScrollGutter; overscroll?: ScrollOverscroll }) {
   return (
     <ScrollAreaRoot {...props}>
-      <ScrollAreaViewport>
+      <ScrollAreaViewport overscroll={overscroll}>
         <ScrollAreaContent gutter={gutter}>{children}</ScrollAreaContent>
       </ScrollAreaViewport>
       <ScrollAreaScrollbar />

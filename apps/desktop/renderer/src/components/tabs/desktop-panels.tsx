@@ -58,7 +58,6 @@ export function DesktopPanels({ shell }: { shell: DesktopShell }) {
                       inspectorOpen={shell.inspectorOpen}
                       library={shell.desktop.library}
                       onSchedules={shell.showSchedules}
-                      onChooseProject={shell.chooseProject}
                       busy={shell.desktop.busy}
                       act={shell.desktop.act}
                       error={shell.desktop.error}
