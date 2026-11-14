@@ -15,14 +15,14 @@ export function DesktopLayout({
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-shell">
       <div
         className={cn(
-          "flex min-h-0 flex-1 pb-[3.5px] transition-[padding-right] duration-180 ease-out motion-reduce:transition-none",
+          "flex min-h-0 flex-1 pb-[3.5px] transition-[padding-right] duration-(--eta-duration-panel) ease-(--eta-ease-out) motion-reduce:transition-none",
           !inspectorOpen && "pr-[3.5px]",
         )}
       >
         {sidebar}
         <main
           className={cn(
-            "flex min-w-0 flex-1 flex-col overflow-hidden bg-surface transition-[border-radius] duration-180 ease-out motion-reduce:transition-none",
+            "flex min-w-0 flex-1 flex-col overflow-hidden bg-surface transition-[border-radius] duration-(--eta-duration-panel) ease-(--eta-ease-out) motion-reduce:transition-none",
             !inspectorOpen && "rounded-r-[14px]",
             collapsed && "rounded-l-[14px]",
           )}

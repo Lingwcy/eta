@@ -9,7 +9,7 @@ export function Reveal({ children }: { children: ReactNode }) {
     <div
       className={
         animate
-          ? "min-w-0 transition-[opacity,transform] duration-200 ease-out starting:translate-y-1 starting:opacity-0 motion-reduce:transform-none motion-reduce:transition-none"
+          ? "min-w-0 transition-[opacity,translate] duration-(--eta-duration-panel) ease-(--eta-ease-out) motion-safe:starting:translate-y-1.5 starting:opacity-0 motion-reduce:duration-(--eta-duration-fast)"
           : "min-w-0"
       }
     >

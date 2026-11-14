@@ -49,6 +49,7 @@ function ThinkingOutput({ text }: { text: string }) {
         <ScrollAreaViewport
           ref={scroll.viewport}
           onScroll={scroll.onScroll}
+          overscroll="auto"
           className="max-h-60"
           role="region"
           aria-label={t("chat:thinkingMessage.thinkingContent2")}

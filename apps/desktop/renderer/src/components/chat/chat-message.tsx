@@ -24,7 +24,8 @@ export function ChatMessage({
 }) {
   useTranslation();
   if (message.role !== "user" && message.role !== "assistant") return null;
-  const text = messageText(message);
+  const rawText = messageText(message);
+  const text = rawText.trim() ? rawText : "";
   const images =
     typeof message.content === "string"
       ? []

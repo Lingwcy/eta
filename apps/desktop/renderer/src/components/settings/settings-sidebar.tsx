@@ -30,6 +30,7 @@ export function SettingsSidebar({
       </div>
       <ScrollArea className="-mr-2 flex-1">
         <TabsList
+          variant="sidebar"
           aria-label={t("settings:settingsSidebar.settingsCategories")}
           activateOnFocus={false}
           className="flex flex-col"

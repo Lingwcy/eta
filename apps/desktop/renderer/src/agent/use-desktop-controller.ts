@@ -33,6 +33,9 @@ export function useDesktopController(
   const agent = useThreadAgent(tab.threadId ?? null, version + localVersion, active);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Message>();
+  const modelChangeGeneration = useRef(0);
+  const modelChangeTail = useRef<Promise<void> | undefined>(undefined);
+  const threadId = tab.threadId;
   const [draft] = useState(
     () =>
       // The created thread is bound to the tab before its first admission settles, so stop works.
@@ -53,6 +56,12 @@ export function useDesktopController(
     tab.threadId || tab.workspaceId
       ? isCloudId(tab.threadId ?? tab.workspaceId)
       : tab.environment === "cloud";
+  useEffect(
+    () => () => {
+      modelChangeGeneration.current++;
+    },
+    [tab.id, threadId, cloud],
+  );
   const remote = desktop.library?.bot;
   // An established observation reconnects its own stream and keeps its last transcript.
   const liveObservation = Boolean(tab.threadId) && agent.connection === "connected";
@@ -160,7 +169,6 @@ export function useDesktopController(
               : desktop.busy || pending
                 ? t("chat:useDesktopController.savingChangesWaitBeforeChangingThePolicy")
                 : undefined;
-  const threadId = tab.threadId;
   const preferredSandboxMode =
     modelLibrary?.settings.defaultSandboxMode ??
     (cloud ? defaultSandboxMode : defaultDesktopSandboxMode);
@@ -323,22 +331,38 @@ export function useDesktopController(
         : (desktop.library?.providers ?? []),
       onModelChange: (model: InputModel, level: ThinkingLevel) => {
         if (running || backgroundWork) return;
-        void desktop.act(async () => {
-          if (threadId) await agent.configure(model.provider, model.id, level);
-          else if (cloud) setCloudSelection({ model, thinkingLevel: level });
-          else
-            await window.eta.updateSettings({
-              defaultProvider: model.provider,
-              defaultModel: model.id,
-              defaultThinkingLevel: level,
-            });
-          recents.record({
-            scope: recentScope,
-            provider: model.provider,
-            modelId: model.id,
-            thinkingLevel: level,
-          });
+        const change = ++modelChangeGeneration.current;
+        setError(undefined);
+        const apply = async () => {
+          if (modelChangeGeneration.current !== change) return;
+          try {
+            if (threadId) await agent.configure(model.provider, model.id, level);
+            else if (cloud) setCloudSelection({ model, thinkingLevel: level });
+            else {
+              await window.eta.updateSettings({
+                defaultProvider: model.provider,
+                defaultModel: model.id,
+                defaultThinkingLevel: level,
+              });
+              await desktop.refresh();
+            }
+            if (modelChangeGeneration.current === change)
+              recents.record({
+                scope: recentScope,
+                provider: model.provider,
+                modelId: model.id,
+                thinkingLevel: level,
+              });
+          } catch (cause) {
+            if (modelChangeGeneration.current === change)
+              setError(describeError(cause, String(cause)));
+          }
+        };
+        const prior = modelChangeTail.current;
+        const next = (prior ? prior.then(apply, apply) : apply()).finally(() => {
+          if (modelChangeTail.current === next) modelChangeTail.current = undefined;
         });
+        modelChangeTail.current = next;
       },
       thinkingLevel:
         snapshot?.configuration.thinkingLevel ??

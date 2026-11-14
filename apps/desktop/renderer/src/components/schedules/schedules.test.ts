@@ -1287,6 +1287,11 @@ test("the bell shows cross-project input priority and opening a row preserves th
     });
   }
   await act(async () => root.render(createElement(ToastProvider, null, createElement(Sidebar))));
+  expect(
+    [...document.querySelectorAll<HTMLButtonElement>('nav[aria-label="主导航"] button')].map(
+      (button) => button.getAttribute("aria-label"),
+    ),
+  ).toEqual(["项目与会话", "定时任务", "设置 / 模型与认证"]);
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[aria-label="最近聊天"]')!.click(),
   );
