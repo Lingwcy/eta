@@ -400,7 +400,7 @@ test.each([false, true])(
         threads: threads.map((value) => ({ id: value.id, workspaceId: value.workspaceId })),
         reusedFile: target ? await readFile(join(target.cwd, "private.txt"), "utf8") : undefined,
       }).toEqual({
-        failure: expect.stringContaining("选择项目"),
+        failure: expect.stringContaining("Select a project"),
         threads: [{ id: first.id, workspaceId: workspace.id }],
         reusedFile: undefined,
       });

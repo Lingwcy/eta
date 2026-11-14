@@ -1,529 +1,199 @@
-import { memo, useState } from "react";
-import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import Markdown from "react-native-markdown-display";
-import {
-  Brain,
-  ChevronDown,
-  ChevronRight,
-  CircleX,
-  FileCode2,
-  FilePenLine,
-  FileText,
-  Globe,
-  Search,
-  Terminal,
-  Wrench,
-} from "lucide-react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import type { BotMessage, BotSnapshot } from "../bot/contracts.ts";
-import {
-  getToolSummary,
-  textContent,
-  toolCallState,
-  toolDescription,
-  toolStateLabel,
-  nestedTools,
-  isActivityMessage,
-  type ToolIndex,
-} from "../conversation.ts";
-import { colors, ScrollArea } from "../ui.tsx";
+import { buildAssistantReplyView } from "../conversation.ts";
+import type { ToolIndex } from "../conversation.ts";
+import { FadeSlideIn } from "../motion.tsx";
+import { radii } from "../theme.ts";
+import { useI18n } from "../i18n/index.ts";
+import { colors } from "../ui.tsx";
+import { ThrottledMarkdown } from "./markdown.tsx";
+import { ReplyArea } from "./reply-area.tsx";
+import { ToolCard } from "./tool-card.tsx";
 
-function ToolIcon({ name, size = 14, color }: { name: string; size?: number; color: string }) {
-  const lower = name.toLowerCase();
-  if (lower === "bash" || lower === "shell" || lower === "exec") {
-    return <Terminal size={size} color={color} />;
-  }
-  if (lower === "edit" || lower.includes("edit")) {
-    return <FilePenLine size={size} color={color} />;
-  }
-  if (lower === "write" || lower.includes("write")) {
-    return <FileCode2 size={size} color={color} />;
-  }
-  if (lower === "read" || lower.includes("read") || lower === "view_file") {
-    return <FileText size={size} color={color} />;
-  }
-  if (lower.includes("search") || lower === "grep" || lower === "find") {
-    return <Search size={size} color={color} />;
-  }
-  if (lower.includes("url") || lower.includes("web") || lower.includes("browser")) {
-    return <Globe size={size} color={color} />;
-  }
-  return <Wrench size={size} color={color} />;
-}
+export { ToolCard } from "./tool-card.tsx";
 
-export function ToolCard({
-  name,
-  args,
-  result,
-  status,
-  description,
-}: {
-  name: string;
-  args?: Record<string, unknown>;
-  result?: BotMessage;
-  status?: string;
-  description?: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const summary = description ?? getToolSummary(name, args);
-  const isError = result?.isError ?? false;
-  const state = toolStateLabel(status, result);
-  const active = status === "running" || status === "generating" || status === "pending";
-
-  return (
-    <View style={styles.toolCard}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={`${name}${summary ? ` · ${summary}` : ""}，${state}，点击${expanded ? "收起" : "展开"}详情`}
-        onPress={() => setExpanded(!expanded)}
-        style={styles.toolRow}
-      >
-        {isError ? (
-          <CircleX size={14} color={colors.danger} />
-        ) : (
-          <ToolIcon name={name} size={14} color={colors.muted} />
-        )}
-        <Text
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          style={[styles.toolSummary, isError && styles.errorText]}
-        >
-          {description ?? (summary ? `${name} · ${summary}` : name)}
-        </Text>
-        {status !== "settled" && <Text style={styles.toolState}>{state}</Text>}
-        {expanded ? (
-          <ChevronDown size={14} color={colors.muted} />
-        ) : (
-          <ChevronRight size={14} color={colors.muted} />
-        )}
-      </Pressable>
-
-      {expanded && (
-        <ScrollArea maxHeight={240} contentContainerStyle={styles.toolScrollContent}>
-          {args && Object.keys(args).length > 0 && (
-            <View style={styles.toolSection}>
-              <Text style={styles.toolSectionTitle}>参数</Text>
-              <Text selectable style={styles.codeText}>
-                {JSON.stringify(args, null, 2)}
-              </Text>
-            </View>
-          )}
-          {result && (
-            <View style={styles.toolSection}>
-              <Text style={[styles.toolSectionTitle, isError && styles.errorText]}>
-                {isError ? "执行失败" : "执行结果"}
-              </Text>
-              <Text selectable style={[styles.codeText, isError && styles.errorText]}>
-                {textContent(result) || "（无文本输出）"}
-              </Text>
-              {typeof result.content !== "string" &&
-                result.content
-                  .filter((part) => part.type === "image" && part.data && part.mimeType)
-                  .map((part, index) => (
-                    <Image
-                      key={index}
-                      accessibilityLabel="工具返回的图片"
-                      source={{ uri: `data:${part.mimeType};base64,${part.data}` }}
-                      resizeMode="contain"
-                      style={styles.toolImage}
-                    />
-                  ))}
-            </View>
-          )}
-          {active && !result && <Text style={styles.runningHint}>{state}</Text>}
-        </ScrollArea>
-      )}
-    </View>
-  );
-}
-
-function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-  const preview = text.trim().split(/\r\n|\r|\n/, 1)[0] || "思考内容";
-  return (
-    <View style={styles.toolCard}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={`${expanded ? "思考内容" : preview}，${active ? "正在思考，" : ""}点击${expanded ? "收起" : "展开"}思考内容`}
-        onPress={() => setExpanded(!expanded)}
-        style={styles.toolRow}
-      >
-        <Brain size={14} color={colors.muted} />
-        <Text numberOfLines={1} ellipsizeMode="tail" style={styles.toolSummary}>
-          {expanded ? "思考内容" : preview}
-        </Text>
-        {active && <Text style={styles.toolState}>正在思考</Text>}
-        {expanded ? (
-          <ChevronDown size={14} color={colors.muted} />
-        ) : (
-          <ChevronRight size={14} color={colors.muted} />
-        )}
-      </Pressable>
-      {expanded && (
-        <ScrollArea maxHeight={240} contentContainerStyle={styles.toolScrollContent}>
-          <Text selectable style={styles.thinkingText}>
-            {text}
-          </Text>
-        </ScrollArea>
-      )}
-    </View>
-  );
-}
-
-export const MessageView = memo(function MessageView({
-  message,
-  snapshot,
-  tools,
-  compactAfter = false,
-}: {
-  message: BotMessage;
-  snapshot: BotSnapshot;
-  tools: ToolIndex;
-  compactAfter?: boolean;
-}) {
-  const user = message.role === "user";
-
-  if (message.role === "toolResult") {
-    return <ToolCard name={message.toolName ?? "工具结果"} result={message} />;
-  }
-
+function UserMessageView({ message }: { message: BotMessage }) {
+  const { m } = useI18n();
   const parts =
     typeof message.content === "string"
       ? [{ type: "text", text: message.content }]
       : message.content;
 
-  const isStreamingMessage =
-    snapshot.operation?.status === "running" &&
-    (message === snapshot.operation.streamingMessage ||
-      (!message.stopReason && message.role === "assistant"));
+  const images = parts.filter(
+    (part): part is { type: "image"; data: string; mimeType: string } =>
+      part.type === "image" && Boolean(part.data) && Boolean(part.mimeType),
+  );
+  const texts = parts.filter((part) => part.type === "text" && part.text);
+  const others = parts.filter(
+    (part) => part.type !== "text" && !(part.type === "image" && part.data && part.mimeType),
+  );
 
   return (
-    <View
-      style={[
-        styles.message,
-        isActivityMessage(message) && styles.activityMessage,
-        compactAfter && styles.compactAfter,
-        user && styles.userMessage,
-      ]}
-    >
-      {parts.map((part, index) => {
-        if (part.type === "text") {
-          return user ? (
-            <Text key={index} selectable style={styles.userText}>
-              {part.text}
-            </Text>
-          ) : (
-            <Markdown
-              key={index}
-              style={markdownStyles}
-              mergeStyle={false}
-              onLinkPress={(url) => {
-                if (/^https?:\/\//i.test(url)) void Linking.openURL(url).catch(() => {});
-                return false;
-              }}
-            >
-              {part.text ?? ""}
-            </Markdown>
-          );
-        }
-
-        if (part.type === "thinking") {
-          const isActive = Boolean(isStreamingMessage) && index === parts.length - 1;
-          return <ThinkingBlock key={index} text={part.thinking ?? ""} active={isActive} />;
-        }
-
-        if (part.type === "toolCall") {
-          const result = tools.results.get(part.id)?.message;
-          const running = part.id === undefined ? undefined : tools.running.get(part.id);
-          const stopped = tools.messages.get(message)?.toolStatus;
-          const nested = nestedTools(snapshot, part.id, tools);
-          const showOuter =
-            part.name !== "codemode" ||
-            !nested.length ||
-            result?.isError ||
-            running?.isError ||
-            running?.status === "waiting" ||
-            (Array.isArray(result?.content) &&
-              result.content.some((item) => item.type === "image")) ||
-            running?.result?.content.some((item) => item.type === "image");
-          return (
-            <View key={part.id ?? index}>
-              {showOuter && (
-                <ToolCard
-                  name={part.name ?? "工具"}
-                  args={part.arguments}
-                  result={result}
-                  description={toolDescription(snapshot, part.id, running?.description)}
-                  status={
-                    running?.status ?? stopped ?? toolCallState(snapshot, message, part.id, tools)
-                  }
-                />
-              )}
-              <View style={showOuter ? styles.nestedTools : undefined}>
-                {nested.map((tool) => (
-                  <ToolCard
-                    key={tool.id}
-                    name={tool.name}
-                    args={tool.args}
-                    description={tool.description}
-                    status={tool.status}
-                    result={tool.result}
-                  />
-                ))}
-              </View>
-            </View>
-          );
-        }
-
-        if (part.type === "image" && part.data && part.mimeType) {
-          return (
+    <FadeSlideIn offset={5} duration={160} style={styles.userContainer}>
+      {images.length > 0 && (
+        <View style={styles.userImages}>
+          {images.map((part, index) => (
             <Image
               key={index}
-              accessibilityLabel="消息中的图片"
+              accessibilityLabel={m.message.userImageAlt}
               source={{ uri: `data:${part.mimeType};base64,${part.data}` }}
-              resizeMode="contain"
-              style={styles.messageImage}
+              resizeMode="cover"
+              style={styles.userImage}
             />
-          );
-        }
-
-        return (
-          <Text key={index} style={styles.fallbackContent}>
-            [{part.type} 内容]
-          </Text>
-        );
-      })}
-
-      {message.errorMessage && (
-        <Text selectable style={styles.errorMessage}>
-          {message.errorMessage}
-        </Text>
+          ))}
+        </View>
       )}
+      {(texts.length > 0 || others.length > 0) && (
+        <View style={styles.userBubble}>
+          {texts.map((part, index) => (
+            <Text key={`t-${index}`} selectable style={styles.userText}>
+              {part.text}
+            </Text>
+          ))}
+          {others.map((part, index) => (
+            <Text key={`o-${index}`} style={styles.fallbackContent}>
+              {m.message.fallbackContent(part.type)}
+            </Text>
+          ))}
+        </View>
+      )}
+    </FadeSlideIn>
+  );
+}
+
+export function MessageView({
+  message,
+  messages,
+  snapshot,
+  tools,
+}: {
+  message?: BotMessage;
+  messages?: readonly BotMessage[];
+  snapshot: BotSnapshot;
+  tools: ToolIndex;
+}) {
+  const list = messages && messages.length > 0 ? messages : message ? [message] : [];
+  if (list.length === 0) return null;
+
+  const first = list[0]!;
+  if (first.role === "user") {
+    return <UserMessageView message={first} />;
+  }
+  if (first.role === "toolResult") {
+    return null;
+  }
+
+  const view = buildAssistantReplyView(list, snapshot, tools);
+  const { m } = useI18n();
+
+  if (
+    view.steps.length === 0 &&
+    !view.answer &&
+    view.errors.length === 0 &&
+    view.images.length === 0
+  ) {
+    return null;
+  }
+
+  return (
+    <View style={styles.assistantTurn}>
+      <ReplyArea view={view} />
+      {view.images.length > 0 && (
+        <View style={styles.assistantImages}>
+          {view.images.map((image, index) => (
+            <Image
+              key={index}
+              accessibilityLabel={m.message.assistantImageAlt}
+              source={{ uri: `data:${image.mimeType};base64,${image.data}` }}
+              resizeMode="contain"
+              style={styles.assistantImage}
+            />
+          ))}
+        </View>
+      )}
+      {view.answer !== null && (
+        <View style={styles.answerBody}>
+          <ThrottledMarkdown content={view.answer} streaming={view.streaming} />
+        </View>
+      )}
+      {view.errors.map((err, index) => (
+        <Text key={index} selectable style={styles.errorText}>
+          {err}
+        </Text>
+      ))}
     </View>
   );
-});
+}
 
 const styles = StyleSheet.create({
-  nestedTools: { marginLeft: 16 },
-  activityMessage: { gap: 2 },
-  compactAfter: { marginBottom: 2 },
-  message: {
-    marginBottom: 22,
-    gap: 6,
-    alignSelf: "stretch",
+  userContainer: {
+    alignItems: "flex-end",
+    marginBottom: 18,
+    gap: 8,
   },
-  userMessage: {
-    alignSelf: "flex-end",
-    maxWidth: "80%",
-    backgroundColor: "#F4F4F4",
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  userText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.text,
-  },
-  messageImage: {
-    width: 240,
-    maxWidth: "100%",
-    aspectRatio: 4 / 3,
-    borderRadius: 16,
-  },
-  fallbackContent: {
-    color: colors.muted,
-    fontSize: 14,
-  },
-  errorMessage: {
-    color: colors.danger,
-    fontSize: 14,
-    lineHeight: 20,
-    paddingTop: 4,
-  },
-  thinkingText: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  toolCard: { marginVertical: 1, overflow: "hidden" },
-  toolRow: {
-    height: 34,
+  userImages: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 2,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    gap: 8,
+    maxWidth: "85%",
   },
-  toolSummary: { flex: 1, fontSize: 14, color: colors.muted },
-  toolState: { fontSize: 13, color: colors.muted },
-  toolScrollContent: {
-    padding: 12,
-    gap: 10,
-  },
-  toolSection: {
-    gap: 4,
-  },
-  toolSectionTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.muted,
-  },
-  codeText: {
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.text,
-    backgroundColor: colors.surface,
-    padding: 8,
-    borderRadius: 8,
+  userImage: {
+    width: 210,
+    height: 150,
+    borderRadius: 16,
+    backgroundColor: colors.soft,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  errorText: {
-    color: colors.danger,
-    borderColor: colors.dangerSoft,
+  userBubble: {
+    maxWidth: "84%",
+    backgroundColor: colors.soft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.lg,
+    borderBottomRightRadius: 6,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    gap: 6,
   },
-  runningHint: {
-    fontSize: 12,
-    color: colors.muted,
-    fontStyle: "italic",
+  userText: {
+    fontSize: 15.5,
+    lineHeight: 23,
+    color: colors.text,
   },
-  toolImage: {
+  assistantTurn: {
+    marginBottom: 20,
+    paddingVertical: 2,
+  },
+  assistantImages: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
+  assistantImage: {
     width: 220,
     height: 160,
-    borderRadius: 8,
+    borderRadius: radii.md,
+    backgroundColor: colors.soft,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  answerBody: {
+    marginTop: 2,
+  },
+  fallbackContent: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.tertiary,
+  },
+  errorText: {
     marginTop: 6,
+    color: colors.danger,
+    fontSize: 13.5,
+    lineHeight: 20,
   },
 });
 
-const markdownStyles = StyleSheet.create({
-  body: {
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 26,
-  },
-  heading1: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 18,
-    marginBottom: 6,
-  },
-  heading2: {
-    fontSize: 19,
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 6,
-  },
-  heading3: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 14,
-    marginBottom: 4,
-  },
-  paragraph: {
-    marginTop: 0,
-    marginBottom: 12,
-    fontSize: 16,
-    lineHeight: 26,
-  },
-  strong: {
-    fontWeight: "600",
-    color: colors.text,
-  },
-  em: {
-    fontStyle: "italic",
-  },
-  link: {
-    color: colors.blue,
-  },
-  blockquote: {
-    backgroundColor: colors.soft,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    marginVertical: 6,
-  },
-  code_inline: {
-    backgroundColor: colors.soft,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 14,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    color: colors.text,
-  },
-  fence: {
-    backgroundColor: "#18181B",
-    borderRadius: 14,
-    padding: 14,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#F4F4F5",
-    marginVertical: 6,
-  },
-  code_block: {
-    backgroundColor: "#18181B",
-    borderRadius: 14,
-    padding: 14,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#F4F4F5",
-    marginVertical: 6,
-  },
-  bullet_list: {
-    marginBottom: 8,
-  },
-  ordered_list: {
-    marginBottom: 8,
-  },
-  list_item: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    marginVertical: 4,
-  },
-  bullet_list_icon: {
-    marginRight: 6,
-  },
-  ordered_list_icon: {
-    marginRight: 6,
-  },
-  bullet_list_content: {
-    flex: 1,
-  },
-  ordered_list_content: {
-    flex: 1,
-  },
-  table: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    marginVertical: 8,
-  },
-  tr: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderColor: colors.border,
-  },
-  th: {
-    flex: 1,
-    padding: 6,
-    fontWeight: "600",
-  },
-  td: {
-    flex: 1,
-    padding: 6,
-  },
-  hr: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 12,
-  },
-});
+export type { ToolCard as ToolCardComponent };
