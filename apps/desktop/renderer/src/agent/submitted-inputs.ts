@@ -22,16 +22,9 @@ export function unplacedInputs(snapshot: AgentSnapshot, inputs: readonly Submitt
     ),
   );
   const entries = new Set(snapshot.transcript.map((entry) => entry.id));
-  const settled = new Set(
-    snapshot.queuedInputs?.flatMap((input) =>
-      input.status === "queued" || input.requestId === undefined ? [] : [input.requestId],
-    ),
-  );
   return inputs.filter(
     (input) =>
-      !requests.has(input.requestId) &&
-      !settled.has(input.requestId) &&
-      (!input.inputEntryId || !entries.has(input.inputEntryId)),
+      !requests.has(input.requestId) && (!input.inputEntryId || !entries.has(input.inputEntryId)),
   );
 }
 

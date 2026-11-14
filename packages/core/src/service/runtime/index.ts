@@ -265,6 +265,7 @@ export class RuntimeRegistryService extends Context.Service<
               settings: {
                 afterFailedRun: "withdraw",
                 stream: {
+                  timeoutMs: 120_000,
                   headers: {
                     // Keep routing and prompt caching stable across requests and desktop restarts.
                     "x-opencode-session": ref.metadata.id,

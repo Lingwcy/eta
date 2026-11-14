@@ -751,6 +751,29 @@ describe("generation", () => {
 		await harness.close(context);
 	});
 
+	it("times out a stalled stream attempt and retries", async () => {
+		const setup = chatSetup();
+		const stalled = unanswered();
+		setup.faux.setResponses([stalled.step, fauxAssistantMessage("recovered after timeout")]);
+		setup.settings.stream = { timeoutMs: 25 };
+		setup.settings.retry = { enabled: true, maxRetries: 1, baseDelayMs: 1 };
+		const { harness, root } = await openChat(new MemoryStorage(), setup);
+		const values = livePublications(harness);
+		harness.resume();
+		const settled = await (await root.submit({ type: "input", content: "hi" }, context)).wait(context);
+		expect(settled.status).toBe("done");
+		const entries = await allEntries(root);
+		expect(entries.map((entry) => entry.kind)).toEqual(["pi.user", "pi.assistant", "pi.assistant"]);
+		expect(entries[1]!.model![0]).toMatchObject({
+			role: "assistant",
+			stopReason: "error",
+			errorMessage: "Request timed out after 25ms",
+		});
+		expect(textOf(entries[2]!.model![0])).toBe("recovered after timeout");
+		expect(values.some((value) => value.generation?.retry?.error === "Request timed out after 25ms")).toBe(true);
+		await harness.close(context);
+	});
+
 	it("rejects a registry without the built-in tasks", async () => {
 		const empty = createRegistry().snapshot();
 		const snapshot: RegistrySnapshot = {

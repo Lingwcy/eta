@@ -695,10 +695,35 @@ async function streamResponse(
 	context: Context,
 ): Promise<AssistantMessage> {
 	const interval = runtime.settings.progress.partialIntervalMs;
+	const timeoutMs =
+		options.timeoutMs !== undefined && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+			? options.timeoutMs
+			: undefined;
+	const controller = timeoutMs === undefined ? undefined : new AbortController();
+	let timedOut = false;
+	let clearIdle: (() => void) | undefined;
 	let pending: AssistantMessage | undefined;
 	let timer: (() => void) | undefined;
 	let inFlight: Promise<void> | undefined;
 	let stopped = false;
+	const onAbort = (): void => {
+		controller?.abort(runtime.signal.reason);
+	};
+	if (controller !== undefined) {
+		if (runtime.signal.aborted) controller.abort(runtime.signal.reason);
+		else runtime.signal.addEventListener("abort", onAbort, { once: true });
+	}
+	const resetIdle = (): void => {
+		if (timeoutMs === undefined || controller === undefined) return;
+		clearIdle?.();
+		if (stopped || timedOut || runtime.signal.aborted) return;
+		clearIdle = runtime.setTimer(() => {
+			clearIdle = undefined;
+			if (stopped || runtime.signal.aborted) return;
+			timedOut = true;
+			controller.abort(new Error(`Request timed out after ${timeoutMs}ms`));
+		}, timeoutMs);
+	};
 	const changes = new PartialChanges();
 	const flush = (): void => {
 		timer = undefined;
@@ -736,8 +761,27 @@ async function streamResponse(
 			});
 	};
 	try {
-		const events = runtime.models.streamSimple(model, { messages: [...messages] }, options);
+		resetIdle();
+		const events = runtime.models.streamSimple(
+			model,
+			{ messages: [...messages] },
+			controller === undefined
+				? options
+				: {
+						...options,
+						signal: controller.signal,
+						onResponse: (response, responseModel) => {
+							resetIdle();
+							return options.onResponse?.(response, responseModel);
+						},
+						onProviderStreamEvent: (event, eventModel) => {
+							resetIdle();
+							return options.onProviderStreamEvent?.(event, eventModel);
+						},
+					},
+		);
 		for await (const event of events) {
+			resetIdle();
 			// A partial without content, such as pi-ai's opening `start` event, shows nothing; a deferred response
 			// never gets past it, so it never leaves a partial.
 			if (event.type === "done" || event.type === "error" || event.partial.content.length === 0) continue;
@@ -745,9 +789,18 @@ async function streamResponse(
 			pending = event.partial;
 			if (timer === undefined && inFlight === undefined) timer = runtime.setTimer(flush, interval);
 		}
-		return await events.result();
+		const result = await events.result();
+		return timedOut && !runtime.signal.aborted
+			? {
+					...result,
+					stopReason: "error",
+					errorMessage: `Request timed out after ${timeoutMs}ms`,
+				}
+			: result;
 	} finally {
 		stopped = true;
+		clearIdle?.();
+		if (controller !== undefined) runtime.signal.removeEventListener("abort", onAbort);
 		timer?.();
 		await inFlight;
 	}

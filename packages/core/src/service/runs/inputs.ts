@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { JsonRepresentation } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { defineDoc, defineDocFamily, InboxDoc } from "@eta/agent";
+import { defineDoc, defineDocFamily, InboxDoc, UserEntry } from "@eta/agent";
 import type { InboxItem, SubmissionId, UserInput } from "@eta/agent";
 import type { InputMode, QueuedInput, WithdrawnInput } from "../../agent/protocol.ts";
 import type { ImageAttachment } from "../../images/types.ts";
@@ -19,6 +19,8 @@ type InputRecord = {
   images: { name?: string; mimeType: string; note?: string }[];
   id?: number;
   recoverable?: boolean;
+  withdrawn?: boolean;
+  placedEntryId?: number;
 };
 
 export const InputsDoc = defineDoc<{ records: InputRecord[] }>({
@@ -114,6 +116,9 @@ export async function rememberInput(
     else {
       doc.records[index] = { ...current!, ...preview };
       if (current?.skillsPrepared) doc.records[index]!.skillsPrepared = true;
+      if (current?.withdrawn) doc.records[index]!.withdrawn = true;
+      if (current?.placedEntryId !== undefined)
+        doc.records[index]!.placedEntryId = current.placedEntryId;
       if (current?.recoverable === false) {
         doc.records[index]!.recoverable = false;
         delete doc.records[index]!.prompt;
@@ -168,6 +173,7 @@ export function projectQueuedInputs(
     const item = pending.get(id);
     const content = item && item.mode !== "write" ? item.content : undefined;
     if (
+      record.placedEntryId !== undefined ||
       receipt?.entry !== undefined ||
       (content === undefined && !record.recoverable) ||
       (receipt?.status !== "queued" && receipt?.status !== "unanswered")
@@ -213,7 +219,8 @@ export async function withdrawInput(
   );
   if (!record) throw new CoreError({ code: "NotFound", message: "消息不支持撤回" });
   if (record.id === undefined) await rememberInput(runtime, { ...record, id });
-  if (receipt.entry !== undefined) return { status: "already_placed" };
+  if (receipt.entry !== undefined || record.placedEntryId !== undefined)
+    return { status: "already_placed" };
   const recovery = await runtime.harness.snapshot(
     RecoveryDoc,
     runtime.conversation.id,
@@ -227,6 +234,7 @@ export async function withdrawInput(
   );
   const latest = await runtime.storage.submission(id, BACKGROUND_CONTEXT);
   if (latest?.entry !== undefined) return { status: "already_placed" };
+  await rememberInput(runtime, { ...record, id, withdrawn: true });
   return {
     status:
       result === "aborted"
@@ -241,4 +249,88 @@ export async function withdrawInput(
         }
       : {}),
   };
+}
+
+/** Place unwithdrawn inputs whose earlier run stopped or failed before the next turn's input is appended. */
+export async function placeInterruptedInputs(runtime: ThreadRuntime) {
+  const candidates = (await inputRecords(runtime)).filter(
+    (record) => record.placedEntryId === undefined && (!record.withdrawn || record.recoverable),
+  );
+  if (candidates.length === 0) return;
+  let hasWork = false;
+  for (const record of candidates) {
+    if (record.withdrawn) {
+      hasWork = true;
+      continue;
+    }
+    const receipt =
+      record.id !== undefined
+        ? await runtime.storage.submission(record.id as SubmissionId, BACKGROUND_CONTEXT)
+        : await runtime.storage.submissionByRequest(
+            runtime.conversation.id,
+            record.requestId,
+            BACKGROUND_CONTEXT,
+          );
+    if (
+      !receipt ||
+      receipt.conversationId !== runtime.conversation.id ||
+      receipt.type !== "input" ||
+      receipt.entry !== undefined ||
+      receipt.status !== "unanswered"
+    )
+      continue;
+    hasWork = true;
+    if (!record.skillsPrepared) {
+      const recovery = await runtime.harness.snapshot(
+        RecoveryDoc,
+        runtime.conversation.id,
+        record.requestId,
+        BACKGROUND_CONTEXT,
+      );
+      const text = recovery?.prompt ?? record.prompt ?? "";
+      if (text) await runtime.prepareSkills(text);
+    }
+  }
+  if (!hasWork) return;
+  await runtime.conversation.commit(async (tx) => {
+    const doc = await tx.doc(InputsDoc, runtime.conversation.id);
+    const pending: { record: InputRecord; receiptId: number; content: UserInput }[] = [];
+    const retired: InputRecord[] = [];
+    for (const record of doc.records) {
+      if (record.placedEntryId !== undefined) continue;
+      if (record.withdrawn) {
+        if (record.recoverable || record.prompt !== undefined) retired.push(record);
+        continue;
+      }
+      const receipt = await tx.submissionByRequest(runtime.conversation.id, record.requestId);
+      if (
+        !receipt ||
+        receipt.conversationId !== runtime.conversation.id ||
+        receipt.type !== "input" ||
+        receipt.entry !== undefined ||
+        receipt.status !== "unanswered"
+      )
+        continue;
+      const recovery = await tx.doc(RecoveryDoc, runtime.conversation.id, record.requestId, null);
+      const content = (recovery.content as UserInput | null) ?? record.prompt;
+      if (content === undefined) continue;
+      pending.push({ record, receiptId: receipt.id, content });
+    }
+    for (const record of retired) {
+      delete record.prompt;
+      record.recoverable = false;
+      await tx.retireDoc(RecoveryDoc, runtime.conversation.id, record.requestId);
+    }
+    for (const { record, receiptId, content } of pending) {
+      const entry = await tx.appendEntry(UserEntry, runtime.conversation.id, {
+        model: [{ role: "user", content, timestamp: record.submittedAt }],
+      });
+      record.id = receiptId;
+      record.placedEntryId = entry.id;
+      record.skillsPrepared = true;
+      delete record.prompt;
+      record.recoverable = false;
+      await tx.retireDoc(RecoveryDoc, runtime.conversation.id, record.requestId);
+    }
+  }, BACKGROUND_CONTEXT);
 }

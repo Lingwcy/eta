@@ -12,6 +12,7 @@ import {
   checkQueueCapacity,
   inputFingerprint,
   inputRecords,
+  placeInterruptedInputs,
   rememberInput,
 } from "./inputs.ts";
 import type { InputMode, OperationAdmission } from "../../agent/protocol.ts";
@@ -346,6 +347,7 @@ export class RunSupervisorService extends Context.Service<
                 await checkQueueCapacity(runtime, input);
                 if (!append) await runtime.prepareMode();
                 if (!append) await runtime.prepareSkills(prompt);
+                if (!append) await placeInterruptedInputs(runtime);
                 if (
                   runtime.disposed ||
                   leases.get(runtime) !== admittedOwner ||

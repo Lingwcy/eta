@@ -909,13 +909,27 @@ test("Mobile shows a busy send before admission and reconciles the saved row by 
     const pending = store.getSnapshot();
     const optimistic = conversationRows(pending.thread!.snapshot, pending.submittedInputs);
     expect(optimistic.map((row) => textContent(row.message))).toContain("show now");
+    active.snapshot.queuedInputs = [
+      {
+        requestId,
+        operationId: "42",
+        prompt: "show now",
+        mode: "steer",
+        submittedAt: 2,
+        status: "cancelled",
+        images: [],
+      },
+    ];
+    response.resolve(json({ operationId: "42", kind: "run", startedAt: 2, status: "queued" }, 202));
+    await sending;
+    expect(store.getSnapshot().submittedInputs).toHaveLength(1);
+    active.snapshot.queuedInputs = [];
     active.snapshot.transcript.push({
       id: "42:0",
       requestId,
       message: { role: "user", content: "show now", timestamp: 2 },
     });
-    response.resolve(json({ operationId: "42", kind: "run", startedAt: 2, status: "queued" }, 202));
-    await sending;
+    await store.open(thread.id);
     const saved = store.getSnapshot();
     expect(saved.submittedInputs).toEqual([]);
     const rows = conversationRows(saved.thread!.snapshot, saved.submittedInputs);
