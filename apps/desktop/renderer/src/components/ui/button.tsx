@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-transparent text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-transparent text-sm font-medium outline-none transition-[color,background-color,border-color,scale,opacity] duration-(--eta-duration-fast) ease-(--eta-ease-out) focus-visible:ring-2 focus-visible:ring-focus-ring-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-[color,background-color,border-color,opacity] [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -41,6 +41,36 @@ const buttonVariants = cva(
       selected: { true: "bg-surface-hover/70 text-heading", false: "" },
       indent: { true: "pl-8", false: "" },
     },
+    compoundVariants: [
+      {
+        variant: [
+          "default",
+          "secondary",
+          "outline",
+          "ghost",
+          "ghost-muted",
+          "ghost-destructive",
+          "info",
+          "accent",
+        ],
+        size: ["default", "sm", "compact", "toolbar", "pill"],
+        className: "motion-safe:enabled:active:scale-[0.97]",
+      },
+      {
+        variant: [
+          "default",
+          "secondary",
+          "outline",
+          "ghost",
+          "ghost-muted",
+          "ghost-destructive",
+          "info",
+          "accent",
+        ],
+        size: ["icon", "icon-sm", "icon-xs", "icon-round", "icon-tiny"],
+        className: "motion-safe:enabled:active:scale-[0.94]",
+      },
+    ],
     defaultVariants: { variant: "default", size: "default", selected: false, indent: false },
   },
 );

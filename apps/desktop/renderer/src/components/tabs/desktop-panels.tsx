@@ -8,6 +8,7 @@ import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { BrowserPanel } from "@/components/browser/browser-panel";
 import { ConversationPanel } from "./conversation-panel";
 import { FileDiffActions } from "@/agent/file-diff-actions";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 const DesktopSettings = lazy(() =>
@@ -165,10 +166,16 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
 function SettingsLoading({ error }: { error?: Message | null }) {
   useTranslation();
   return (
-    <div className="flex flex-1 items-center justify-center text-sm text-muted">
-      {error
-        ? t("navigation:desktopPanels.settingsAreNotLoadedYet")
-        : t("navigation:desktopPanels.openingSettings")}
+    <div
+      role={!error ? "status" : "alert"}
+      className="flex flex-1 items-center justify-center gap-2 text-sm text-muted transition-opacity duration-(--eta-duration-panel) starting:opacity-0 motion-reduce:duration-(--eta-duration-fast)"
+    >
+      {!error && <Spinner size="sm" />}
+      <span>
+        {error
+          ? t("navigation:desktopPanels.settingsAreNotLoadedYet")
+          : t("navigation:desktopPanels.openingSettings")}
+      </span>
     </div>
   );
 }

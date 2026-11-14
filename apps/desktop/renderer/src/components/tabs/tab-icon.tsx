@@ -8,9 +8,15 @@ export function TabIcon({ item }: { item: TabPresentation }) {
   if (item.running)
     return (
       <span
-        className="size-2 shrink-0 rounded-full bg-[#ed714b]"
+        className="relative inline-flex size-2 shrink-0 items-center justify-center"
         aria-label={t("navigation:tabIcon.running")}
-      />
+      >
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-full bg-brand/60 motion-safe:animate-[eta-pulse-ring_1.8s_cubic-bezier(0,0,0.2,1)_infinite] motion-reduce:hidden"
+        />
+        <span aria-hidden="true" className="relative size-2 rounded-full bg-brand" />
+      </span>
     );
   if (item.kind === "browser" && item.favicon)
     return (

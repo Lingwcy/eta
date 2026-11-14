@@ -108,7 +108,7 @@ Most code changes do not need an internal documentation change. Agents can read 
 - `apps/desktop/renderer/src/components/ui` exports own their look. Pick a `variant` or `size`; do not restyle one with `className`. If none fits and the look is a generic concept, add a variant to the component; a look that belongs to one feature stays in that feature's own component, not in `components/ui`. Layout classes (width, flex, margin, position) belong on the parent. `shadcn/no-restyle` fails lint on violations.
 - Inferred types over annotations. `any` is the enemy.
 - Comments describe how a thing is used, and move when the code moves. To be used mostly to describe functions, not to annotate every line of behavior.
-- Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations; they peg the GPU on high-refresh displays.
+- Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. Keep resting UI idle and avoid heavy continuous repaints on high-refresh displays; continuous breathing or spinner animations are allowed for active loading states and running indicators (such as sidebar thread/project activity and tab running dots) as long as they animate only compositor-friendly properties (`transform`, `opacity`), pause or unmount when hidden/collapsed or inactive, and respect `prefers-reduced-motion`.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.
 - Do not make unauthorized additions to finalized UI components. If required by business needs, please consult the team before proceeding—especially for complex components such as input fields and utility function calls.
 

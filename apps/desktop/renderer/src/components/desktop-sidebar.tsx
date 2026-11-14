@@ -18,6 +18,7 @@ import { NavigationRail } from "./sidebar/navigation-rail";
 import { ProjectSidebar } from "./sidebar/project-sidebar";
 import { ProjectGroup } from "./sidebar/project-group";
 import { ThreadSearchDialog } from "./sidebar/thread-search-dialog";
+import { RunningAnimation } from "./ui/running-indicator";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -128,122 +129,133 @@ export function DesktopSidebar(props: Props) {
         inert={props.collapsed}
         aria-hidden={props.collapsed}
         className={cn(
-          "flex shrink-0 overflow-hidden transition-[width] duration-180 ease-out motion-reduce:transition-none",
+          "flex shrink-0 overflow-hidden transition-[width] duration-(--eta-duration-panel) ease-(--eta-ease-out) motion-reduce:transition-none",
           props.collapsed ? "w-0" : "w-[var(--sidebar-width)]",
         )}
       >
-        {scheduleView ? (
-          <ScheduleSidebar
-            selectedThreadId={props.threadId}
-            library={props.library}
-            controller={props.schedules}
-            onSelect={props.onSelect}
-            onSaved={props.onScheduleSaved}
-          />
-        ) : (
-          <ProjectSidebar
-            recent={recent}
-            onRecent={() => setRecent((value) => !value)}
-            archived={false}
-            canCreate={!!props.library}
-            search={
-              <ThreadSearchDialog
-                library={props.library}
-                archived={false}
-                busy={props.busy}
-                canCreate={!!props.library}
-                runningThreadIds={props.runningThreadIds}
-                scheduledThreadIds={scheduledThreadIds}
-                onSelect={props.onSelect}
-                onNew={props.onNew}
-                onChoose={props.onChoose}
-                onSkills={props.onSkills}
-                onSchedules={() => {
-                  setScheduleView(true);
-                  props.onExpand();
-                }}
-              />
-            }
-            onNew={props.onNew}
+        <RunningAnimation.Provider value={!props.collapsed}>
+          <div
+            className={cn(
+              "flex w-[var(--sidebar-width)] shrink-0 transition-[translate,opacity] duration-(--eta-duration-panel) ease-(--eta-ease-out) motion-reduce:duration-(--eta-duration-fast)",
+              props.collapsed
+                ? "motion-safe:-translate-x-3 opacity-0"
+                : "translate-x-0 opacity-100",
+            )}
           >
-            {recent ? (
-              <RecentThreads
+            {scheduleView ? (
+              <ScheduleSidebar
+                selectedThreadId={props.threadId}
                 library={props.library}
-                visits={props.visits ?? []}
-                previews={props.previews}
-                archived={false}
-                selected={props.threadId}
-                running={props.runningThreadIds}
-                scheduled={scheduledThreadIds}
-                worktrees={worktreeThreadIds}
+                controller={props.schedules}
                 onSelect={props.onSelect}
+                onSaved={props.onScheduleSaved}
               />
             ) : (
-              <>
-                {[false, true].map((cloud) => (
-                  <div key={String(cloud)}>
-                    {groups.some((group) => isCloudId(group.workspace.id) === cloud) && (
-                      <p className="px-2 pt-2 pb-1 text-xs font-medium text-subtle">
-                        {cloud
-                          ? t("navigation:desktopSidebar.cloudProjects", {
-                              value1:
-                                props.library?.bot?.status === "error"
-                                  ? t("navigation:desktopSidebar.offline")
-                                  : "",
-                            })
-                          : t("navigation:desktopSidebar.localProjects")}
+              <ProjectSidebar
+                recent={recent}
+                onRecent={() => setRecent((value) => !value)}
+                archived={false}
+                canCreate={!!props.library}
+                search={
+                  <ThreadSearchDialog
+                    library={props.library}
+                    archived={false}
+                    busy={props.busy}
+                    canCreate={!!props.library}
+                    runningThreadIds={props.runningThreadIds}
+                    scheduledThreadIds={scheduledThreadIds}
+                    onSelect={props.onSelect}
+                    onNew={props.onNew}
+                    onChoose={props.onChoose}
+                    onSkills={props.onSkills}
+                    onSchedules={() => {
+                      setScheduleView(true);
+                      props.onExpand();
+                    }}
+                  />
+                }
+                onNew={props.onNew}
+              >
+                {recent ? (
+                  <RecentThreads
+                    library={props.library}
+                    visits={props.visits ?? []}
+                    previews={props.previews}
+                    archived={false}
+                    selected={props.threadId}
+                    running={props.runningThreadIds}
+                    scheduled={scheduledThreadIds}
+                    worktrees={worktreeThreadIds}
+                    onSelect={props.onSelect}
+                  />
+                ) : (
+                  <>
+                    {[false, true].map((cloud) => (
+                      <div key={String(cloud)}>
+                        {groups.some((group) => isCloudId(group.workspace.id) === cloud) && (
+                          <p className="px-2 pt-2 pb-1 text-xs font-medium text-subtle">
+                            {cloud
+                              ? t("navigation:desktopSidebar.cloudProjects", {
+                                  value1:
+                                    props.library?.bot?.status === "error"
+                                      ? t("navigation:desktopSidebar.offline")
+                                      : "",
+                                })
+                              : t("navigation:desktopSidebar.localProjects")}
+                          </p>
+                        )}
+                        {groups
+                          .filter((group) => isCloudId(group.workspace.id) === cloud)
+                          .map((group) => (
+                            <ProjectGroup
+                              key={group.workspace.id}
+                              {...group}
+                              selected={props.workspaceId === group.workspace.id}
+                              threadId={props.threadId}
+                              runningThreadIds={props.runningThreadIds}
+                              scheduledThreadIds={scheduledThreadIds}
+                              worktreeThreadIds={worktreeThreadIds}
+                              archived={false}
+                              onSelect={props.onSelect}
+                            />
+                          ))}
+                      </div>
+                    ))}
+                    {ungrouped.length > 0 && (
+                      <>
+                        <p className="px-2 pt-2 pb-1 text-xs font-medium text-subtle">
+                          {t("navigation:desktopSidebar.ungrouped")}
+                        </p>
+                        {ungrouped.map((thread) => (
+                          <ThreadContextMenu key={thread.id} id={thread.id}>
+                            <Button
+                              variant="ghost"
+                              size="row-compact"
+                              selected={props.threadId === thread.id}
+                              onClick={() => props.onSelect(thread.id)}
+                            >
+                              <SlidingLabel text={threadTitle(thread)} />
+                              <ThreadItemStatus
+                                running={props.runningThreadIds.has(thread.id)}
+                                scheduled={scheduledThreadIds.has(thread.id)}
+                                worktree={worktreeThreadIds.has(thread.id)}
+                              />
+                            </Button>
+                          </ThreadContextMenu>
+                        ))}
+                      </>
+                    )}
+                    {!groups.length && (
+                      <p className="px-3 py-2 text-xs text-muted">
+                        {t("navigation:desktopSidebar.openAProjectToStartWorkingTogether")}
                       </p>
                     )}
-                    {groups
-                      .filter((group) => isCloudId(group.workspace.id) === cloud)
-                      .map((group) => (
-                        <ProjectGroup
-                          key={group.workspace.id}
-                          {...group}
-                          selected={props.workspaceId === group.workspace.id}
-                          threadId={props.threadId}
-                          runningThreadIds={props.runningThreadIds}
-                          scheduledThreadIds={scheduledThreadIds}
-                          worktreeThreadIds={worktreeThreadIds}
-                          archived={false}
-                          onSelect={props.onSelect}
-                        />
-                      ))}
-                  </div>
-                ))}
-                {ungrouped.length > 0 && (
-                  <>
-                    <p className="px-2 pt-2 pb-1 text-xs font-medium text-subtle">
-                      {t("navigation:desktopSidebar.ungrouped")}
-                    </p>
-                    {ungrouped.map((thread) => (
-                      <ThreadContextMenu key={thread.id} id={thread.id}>
-                        <Button
-                          variant="ghost"
-                          size="row-compact"
-                          selected={props.threadId === thread.id}
-                          onClick={() => props.onSelect(thread.id)}
-                        >
-                          <SlidingLabel text={threadTitle(thread)} />
-                          <ThreadItemStatus
-                            running={props.runningThreadIds.has(thread.id)}
-                            scheduled={scheduledThreadIds.has(thread.id)}
-                            worktree={worktreeThreadIds.has(thread.id)}
-                          />
-                        </Button>
-                      </ThreadContextMenu>
-                    ))}
                   </>
                 )}
-                {!groups.length && (
-                  <p className="px-3 py-2 text-xs text-muted">
-                    {t("navigation:desktopSidebar.openAProjectToStartWorkingTogether")}
-                  </p>
-                )}
-              </>
+              </ProjectSidebar>
             )}
-          </ProjectSidebar>
-        )}
+          </div>
+        </RunningAnimation.Provider>
       </div>
     </>
   );

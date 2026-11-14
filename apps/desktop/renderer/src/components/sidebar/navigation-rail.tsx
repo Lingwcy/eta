@@ -31,6 +31,7 @@ export function NavigationRail({
   useTranslation();
   const [update] = useUpdateState();
   const updateReady = update?.status === "downloaded";
+  const homeActive = !settingsActive && !schedulesActive;
   return (
     <nav
       className="flex w-[var(--rail-width)] shrink-0 flex-col items-center gap-3 py-2"
@@ -39,10 +40,10 @@ export function NavigationRail({
       <Button
         variant="ghost-muted"
         size="icon"
-        selected={!settingsActive && !schedulesActive}
+        selected={homeActive}
         title={t("navigation:navigationRail.projectsAndChats")}
         aria-label={t("navigation:navigationRail.projectsAndChats")}
-        aria-pressed={!settingsActive && !schedulesActive}
+        aria-pressed={homeActive}
         onClick={onHome}
       >
         <Home size={21} aria-hidden="true" />
@@ -84,7 +85,7 @@ export function NavigationRail({
         {updateReady && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute top-1.5 right-1.5 size-2 rounded-full bg-[#ed714b]"
+            className="pointer-events-none absolute top-1.5 right-1.5 size-2 rounded-full bg-brand transition-[scale,opacity] duration-(--eta-duration-normal) ease-(--eta-ease-out) motion-safe:starting:scale-0 starting:opacity-0 motion-reduce:duration-(--eta-duration-fast)"
           />
         )}
       </div>
