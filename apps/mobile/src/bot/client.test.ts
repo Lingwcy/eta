@@ -50,7 +50,9 @@ test("unauthorized SSE stops reconnecting and reports an actionable error", asyn
     (message, fatal) => errors.push({ message, fatal }),
   );
   expect(requests).toBe(1);
-  expect(errors).toEqual([{ fatal: true, message: "Bot 令牌无效，请修改连接设置" }]);
+  expect(errors).toEqual([
+    { fatal: true, message: "Invalid Bot token, update connection settings" },
+  ]);
 });
 
 test.each([
@@ -105,7 +107,10 @@ test.each([
     expect(outcome.kind).toBe("done");
     if (outcome.kind !== "done") throw new Error("The client waited for an unauthorized body");
     if (streaming)
-      expect(outcome.value).toEqual({ message: "Bot 令牌无效，请修改连接设置", fatal: true });
+      expect(outcome.value).toEqual({
+        message: "Invalid Bot token, update connection settings",
+        fatal: true,
+      });
     else expect(outcome.value).toMatchObject({ code: "Unauthorized", status: 401 });
     expect(cancelled).toBe(true);
   } finally {
@@ -168,7 +173,7 @@ test.each([false, true])(
     try {
       await cancelled.promise;
       await vi.advanceTimersByTimeAsync(0);
-      expect(statuses).toEqual([{ message: "Bot 实时数据格式不兼容", fatal: true }]);
+      expect(statuses).toEqual([{ message: "Incompatible Bot live stream format", fatal: true }]);
       expect(settled).toBe(true);
       expect(body.locked).toBe(false);
       expect(vi.getTimerCount()).toBe(0);
@@ -272,7 +277,7 @@ test("a silent stream is replaced after three missed heartbeats", async () => {
     expect(requests).toBe(1);
     await vi.advanceTimersByTimeAsync(20_000);
     expect(requests).toBe(2);
-    expect(statuses).toEqual([{ message: "实时连接中断，正在重连", fatal: false }]);
+    expect(statuses).toEqual([{ message: "Live connection lost, reconnecting", fatal: false }]);
     controller.abort();
     await vi.advanceTimersByTimeAsync(120_000);
     expect(requests).toBe(2);

@@ -259,7 +259,7 @@ test("a lost message response survives restart and retries the same request with
   const first = setup(fetcher, saved).store;
   await first.connect(connection);
   first.setDraft("Do the work");
-  await expect(first.send()).rejects.toThrow("无法连接 Bot");
+  await expect(first.send()).rejects.toThrow("Unable to reach Bot");
   const pending = first.getSnapshot().pending!;
   expect(pending.threadId).toBe("thread");
   expect(saved.caches.get(connection.url)?.pending).toEqual(pending);
@@ -814,7 +814,7 @@ test("Mobile streaming submission persists mode through an unknown-response retr
   await store.connect(connection);
   await store.open(thread.id);
   store.setDraft("do afterwards");
-  await expect(store.send("followUp")).rejects.toThrow("无法连接 Bot");
+  await expect(store.send("followUp")).rejects.toThrow("Unable to reach Bot");
   expect(saved.caches.get(connection.url)?.pending?.whenBusy).toBe("followUp");
   expect(store.getSnapshot().drafts[draftKey(store.getSnapshot())]).toBe("do afterwards");
   await store.retrySend();
@@ -838,7 +838,7 @@ test("Mobile does not downgrade a busy submission on a Bot without queue support
   await store.connect(connection);
   await store.open(thread.id);
   store.setDraft("keep this draft");
-  await expect(store.send()).rejects.toThrow("不支持运行中发送");
+  await expect(store.send()).rejects.toThrow("does not support sending while running");
   expect(sends).toBe(0);
   expect(store.getSnapshot().drafts[draftKey(store.getSnapshot())]).toBe("keep this draft");
 });
@@ -926,5 +926,30 @@ test("Mobile shows a busy send before admission and reconciles the saved row by 
   } finally {
     response.resolve(json({ operationId: "42", kind: "run", startedAt: 2, status: "queued" }, 202));
     await sending;
+  }
+});
+
+test("sending a message on an open thread keeps the transcript mounted without entering opening state", async () => {
+  const { store } = setup(async (url, init) => {
+    const path = new URL(requestUrl(url)).pathname;
+    if (path === "/v1/library") return json({ ...library, threads: [thread.thread] });
+    if (path.endsWith("/events")) return events(init?.signal);
+    if (path.endsWith("/messages"))
+      return json({ operationId: "op-1", kind: "run", startedAt: 2 }, 202);
+    return json(thread);
+  });
+  await store.connect(connection);
+  await store.open(thread.id);
+  const snapshots: Array<{ hasThread: boolean; opening: boolean }> = [];
+  const unsubscribe = store.subscribe(() => {
+    const s = store.getSnapshot();
+    snapshots.push({ hasThread: Boolean(s.thread), opening: s.opening });
+  });
+  try {
+    store.setDraft("follow up");
+    await store.send();
+    expect(snapshots.every((s) => s.hasThread && !s.opening)).toBe(true);
+  } finally {
+    unsubscribe();
   }
 });

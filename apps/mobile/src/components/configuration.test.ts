@@ -11,7 +11,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../provider.tsx", () => ({ useMobile: mocks.useMobile }));
 vi.mock("../ui.tsx", () => ({
-  colors: { muted: "#777", text: "#000" },
+  colors: {
+    border: "#e4e4e7",
+    borderSubtle: "#f4f4f5",
+    ink: "#09090b",
+    muted: "#777",
+    secondary: "#52525b",
+    soft: "#f4f4f5",
+    surface: "#ffffff",
+    text: "#000",
+  },
   useAction: () => ({
     busy: false,
     run: async (action: () => Promise<void>) => {
@@ -22,9 +31,14 @@ vi.mock("../ui.tsx", () => ({
 vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ bottom: 0, top: 0, left: 0, right: 0 }),
 }));
+vi.mock("react-native-svg", () => ({
+  SvgXml: ({ xml }: { xml: string }) =>
+    createElement("span", { "data-testid": "provider-svg", "data-xml": xml }),
+}));
 vi.mock("lucide-react-native", () => ({
+  Bot: () => createElement("span", { "data-testid": "fallback-bot" }),
   Check: () => null,
-  Cpu: () => null,
+  LayoutGrid: () => null,
   Search: () => null,
   Shield: () => null,
   X: () => null,
@@ -73,6 +87,7 @@ vi.mock("react-native", async () => {
   return {
     Animated,
     Easing: { in: () => () => 0, out: () => () => 0, cubic: () => 0 },
+    Image: View,
     KeyboardAvoidingView: View,
     Modal: ({ children, visible }: { children?: React.ReactNode; visible?: boolean }) =>
       visible === false ? null : React.createElement("div", {}, children),
@@ -150,8 +165,8 @@ async function open() {
 
 test("applying a sandbox change keeps the model that changed while the sheet was open", async () => {
   await open();
-  await act(async () => labelled("沙盒策略: 只读, 点击切换").click());
-  await act(async () => labelled("应用设置").click());
+  await act(async () => labelled("Sandbox policy: Read-only, tap to switch").click());
+  await act(async () => labelled("Apply settings").click());
   expect(mocks.configure).toHaveBeenCalledWith({
     provider: "p",
     modelId: "two",
@@ -162,6 +177,50 @@ test("applying a sandbox change keeps the model that changed while the sheet was
 
 test("applying without edits sends the live configuration unchanged", async () => {
   await open();
-  await act(async () => labelled("应用设置").click());
+  await act(async () => labelled("Apply settings").click());
   expect(mocks.configure).toHaveBeenCalledWith(latest);
+});
+
+test("renders provider icons in the split rail and filters visible models by provider tab", async () => {
+  const multiConfig: Configuration = {
+    provider: "openai",
+    modelId: "gpt-5",
+    thinkingLevel: "off",
+    sandboxMode: "read-only",
+  };
+  mocks.useMobile.mockReturnValue({
+    state: {
+      configuration: multiConfig,
+      library: {
+        models: [
+          { provider: "openai", id: "gpt-5", name: "GPT-5", thinkingLevels: ["off", "high"] },
+          { provider: "anthropic", id: "claude-4", name: "Claude 4", thinkingLevels: ["off"] },
+        ],
+        workspaces: [],
+        projects: [],
+        threads: [],
+        settings: {},
+      },
+      thread: { id: "thread", snapshot: {} },
+    },
+    store: { configure: mocks.configure },
+  });
+  await act(async () =>
+    root.render(
+      createElement(ConfigurationSheet, { configuration: multiConfig, onClose: () => {} }),
+    ),
+  );
+  // Active tab starts on "openai": 2 rail icons + 1 visible model icon = 3.
+  expect(document.querySelectorAll("[data-testid='provider-svg']").length).toBe(3);
+  expect(document.body.textContent).toContain("GPT-5");
+  expect(document.body.textContent).not.toContain("Claude 4");
+
+  await act(async () => labelled("All").click());
+  expect(document.querySelectorAll("[data-testid='provider-svg']").length).toBe(4);
+  expect(document.body.textContent).toContain("GPT-5");
+  expect(document.body.textContent).toContain("Claude 4");
+
+  await act(async () => labelled("anthropic").click());
+  expect(document.body.textContent).toContain("Claude 4");
+  expect(document.body.textContent).not.toContain("GPT-5");
 });

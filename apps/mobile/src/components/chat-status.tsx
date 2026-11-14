@@ -2,11 +2,12 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AlertTriangle, CloudOff, RefreshCw, SlidersHorizontal } from "lucide-react-native";
 import type { ReactNode } from "react";
 import type { BotSnapshot } from "../bot/contracts.ts";
+import { useI18n } from "../i18n/index.ts";
 import { colors } from "../ui.tsx";
 
-/** Muted grey designed for the app canvas (#f9f9f8), where colors.muted drops to 4.48:1. */
-const mutedOnCanvas = "#525252";
-/** colors.danger on dangerSoft is 3.95:1; this stays above 4.5:1. */
+/** Muted grey designed for the white canvas (#FFFFFF). */
+const mutedOnCanvas = "#71717A";
+/** colors.danger on dangerSoft stays high-contrast. */
 const errorTextColor = "#B91C1C";
 
 export type TaskTone = "running" | "warning" | "danger" | "done" | "idle";
@@ -36,7 +37,7 @@ export function taskTone(snapshot?: BotSnapshot): TaskTone {
 }
 
 const toneColors: Record<TaskTone, string> = {
-  running: colors.blue,
+  running: colors.ink ?? colors.text,
   warning: "#D97706",
   danger: colors.danger,
   done: colors.success,
@@ -90,18 +91,21 @@ export function ConnectionBanner({
   onReconnect: () => void;
   onSettings: () => void;
 }) {
+  const { m } = useI18n();
   return (
     <View role="alert" style={styles.banner}>
       <AlertTriangle size={16} color={toneColors.warning} />
       <View style={styles.bannerText}>
-        <Text style={styles.bannerTitle}>{reconnecting ? "正在重连 Bot" : "Bot 连接不可用"}</Text>
+        <Text style={styles.bannerTitle}>
+          {reconnecting ? m.status.reconnectingBot : m.status.botUnavailable}
+        </Text>
         <Text numberOfLines={1} style={styles.bannerDetail}>
-          {message || url || "检查手机网络或 Bot 服务"}
+          {message || url || m.status.checkNetworkFallback}
         </Text>
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="重新连接 Bot"
+        accessibilityLabel={m.status.reconnectLabel}
         hitSlop={6}
         disabled={busy}
         onPress={onReconnect}
@@ -111,11 +115,11 @@ export function ConnectionBanner({
           busy && styles.disabled,
         ]}
       >
-        <Text style={styles.bannerActionText}>重连</Text>
+        <Text style={styles.bannerActionText}>{m.status.reconnectAction}</Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="打开连接设置"
+        accessibilityLabel={m.status.openSettingsLabel}
         hitSlop={6}
         onPress={onSettings}
         style={({ pressed }) => [styles.bannerGhost, pressed && styles.pressed]}
@@ -154,21 +158,22 @@ export function PendingNotice({
   connected: boolean;
   onRetry: () => void;
 }) {
+  const { m } = useI18n();
   return (
     <View style={styles.pending}>
       <CloudOff size={16} color={colors.muted} />
       <View style={styles.pendingText}>
         <Text style={styles.pendingTitle}>
-          {sending ? "正在提交消息…" : "上次消息的接收状态待确认"}
+          {sending ? m.status.submittingPending : m.status.unconfirmedPending}
         </Text>
         <Text numberOfLines={1} style={styles.pendingDetail}>
-          {[prompt, imageCount ? `${imageCount} 张图片` : ""].filter(Boolean).join(" · ")}
+          {[prompt, imageCount ? m.status.imageCount(imageCount) : ""].filter(Boolean).join(" · ")}
         </Text>
       </View>
       {!sending && (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="重试并确认接收"
+          accessibilityLabel={m.status.retryLabel}
           hitSlop={6}
           disabled={!connected || busy}
           onPress={onRetry}
@@ -179,7 +184,7 @@ export function PendingNotice({
           ]}
         >
           <RefreshCw size={14} color={colors.text} />
-          <Text style={styles.pendingActionText}>重试</Text>
+          <Text style={styles.pendingActionText}>{m.common.retry}</Text>
         </Pressable>
       )}
     </View>
@@ -191,23 +196,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 12,
-    paddingBottom: 56,
+    gap: 10,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
   },
   emptyTitle: {
     maxWidth: 320,
     textAlign: "center",
-    fontSize: 26,
-    lineHeight: 34,
-    fontWeight: "600",
+    fontSize: 21,
+    lineHeight: 30,
+    fontWeight: "500",
     color: colors.text,
-    letterSpacing: -0.4,
+    letterSpacing: -0.2,
   },
   emptyHint: {
-    maxWidth: 330,
+    maxWidth: 320,
     textAlign: "center",
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 21,
     color: mutedOnCanvas,
   },
   task: {
