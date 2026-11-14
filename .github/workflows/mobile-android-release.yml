@@ -1,0 +1,147 @@
+name: Mobile Android release
+
+on:
+  push:
+    tags:
+      - "mobile-v*"
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: Optional Android versionCode override
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/mobile-tests.yml
+
+  package:
+    name: Build Android Release APK
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "24"
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+      - name: Resolve version metadata
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_VERSION=$(node -p "require('./apps/mobile/package.json').version")
+          APP_VERSION=$(node -p "require('./apps/mobile/app.json').expo.version")
+          if [ "$PKG_VERSION" != "$APP_VERSION" ]; then
+            echo "apps/mobile/package.json ($PKG_VERSION) != app.json ($APP_VERSION)" >&2
+            exit 1
+          fi
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+            TAG_VERSION="${TAG#mobile-v}"
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "Tag $TAG does not match mobile package version $PKG_VERSION" >&2
+              exit 1
+            fi
+          fi
+          if [ -n "${{ inputs.version_code }}" ]; then
+            VCODE="${{ inputs.version_code }}"
+          else
+            VCODE=$(node -e "const [maj,min,pat]=process.argv[1].split('.').map(Number); console.log(maj*1000000+min*1000+pat)" "$PKG_VERSION")
+          fi
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VCODE" >> "$GITHUB_OUTPUT"
+      - name: Configure signing keystore when available
+        id: signing
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ETA_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -n "$KEYSTORE_B64" ]; then
+            KEYSTORE_PATH="$RUNNER_TEMP/eta-release.keystore"
+            printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+            echo "keystore_path=$KEYSTORE_PATH" >> "$GITHUB_OUTPUT"
+          else
+            echo "keystore_path=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Prebuild Android native project
+        working-directory: apps/mobile
+        run: vp exec expo prebuild --platform android --no-install
+      - name: Build release APK
+        working-directory: apps/mobile
+        env:
+          ETA_MOBILE_VERSION_NAME: ${{ steps.version.outputs.version }}
+          ETA_MOBILE_VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          ETA_ANDROID_KEYSTORE_PATH: ${{ steps.signing.outputs.keystore_path }}
+          ETA_ANDROID_STORE_PASSWORD: ${{ secrets.ETA_ANDROID_STORE_PASSWORD }}
+          ETA_ANDROID_KEY_ALIAS: ${{ secrets.ETA_ANDROID_KEY_ALIAS }}
+          ETA_ANDROID_KEY_PASSWORD: ${{ secrets.ETA_ANDROID_KEY_PASSWORD }}
+        run: ./android/gradlew --no-daemon -p android app:assembleRelease
+      - name: Prepare APK & checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .mobile-release
+          APK_NAME="Eta-mobile-${{ steps.version.outputs.version }}-android.apk"
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk ".mobile-release/$APK_NAME"
+          (cd .mobile-release && sha256sum "$APK_NAME" > "$APK_NAME.sha256")
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Eta-mobile-android
+          path: |
+            .mobile-release/*.apk
+            .mobile-release/*.apk.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish Mobile Release
+    if: github.ref_type == 'tag'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: Eta-mobile-android
+          path: .mobile-release
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#mobile-v}"
+          APK_FILE=".mobile-release/Eta-mobile-${VERSION}-android.apk"
+          SHA_FILE="${APK_FILE}.sha256"
+          DIGEST=$(cut -d' ' -f1 "$SHA_FILE")
+          NOTES_FILE=".mobile-release/notes.md"
+          cat > "$NOTES_FILE" <<EOF
+          ### Android 安装包
+
+          - APK：\`Eta-mobile-${VERSION}-android.apk\`
+          - SHA-256：\`${DIGEST}\`
+
+          已在手机安装旧版 Eta 且开启自动检查更新的用户，可在应用内提示或「连接设置 -> 版本与更新」直接下载更新。
+          EOF
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK_FILE" "$SHA_FILE" --clobber
+          else
+            gh release create "$TAG" "$APK_FILE" "$SHA_FILE" --verify-tag --title "Eta Mobile $TAG" --notes-file "$NOTES_FILE"
+          fi

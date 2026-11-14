@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getMessages } from "../i18n/index.ts";
 import {
   AdmissionSchema,
   WithdrawnInputSchema,
@@ -30,7 +31,7 @@ export function normalizeConnection(input: Connection): Connection {
   try {
     url = new URL(parsed.url.trim());
   } catch {
-    throw new Error("请输入有效的 Bot HTTP 或 HTTPS 地址");
+    throw new Error(getMessages().errors.invalidUrl);
   }
   if (
     !["http:", "https:"].includes(url.protocol) ||
@@ -39,8 +40,8 @@ export function normalizeConnection(input: Connection): Connection {
     url.search ||
     url.hash
   )
-    throw new Error("请输入有效的 Bot HTTP 或 HTTPS 地址");
-  if (!parsed.token.trim()) throw new Error("请输入 Bot 访问令牌");
+    throw new Error(getMessages().errors.invalidUrl);
+  if (!parsed.token.trim()) throw new Error(getMessages().errors.missingToken);
   return { url: url.href.replace(/\/+$/, ""), token: parsed.token.trim() };
 }
 
@@ -73,13 +74,14 @@ export class BotClient {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (!response.ok) {
+        const { errors } = getMessages();
         if (response.status === 401) {
           void response.body?.cancel().catch(() => {});
-          throw new BotError("Bot 令牌无效，请修改连接设置", "Unauthorized", 401);
+          throw new BotError(errors.unauthorized, "Unauthorized", 401);
         }
         const error = ErrorSchema.safeParse(await response.json().catch(() => null));
         throw new BotError(
-          error.success ? error.data.error.message : `Bot 请求失败 (${response.status})`,
+          error.success ? error.data.error.message : errors.requestFailed(response.status),
           error.success ? error.data.error.code : "HttpError",
           response.status,
         );
@@ -87,7 +89,7 @@ export class BotClient {
       return response;
     } catch (error) {
       if (error instanceof BotError || signal.aborted) throw error;
-      throw new BotError("无法连接 Bot，请检查地址和网络", "NetworkError");
+      throw new BotError(getMessages().errors.networkError, "NetworkError");
     }
   }
 
@@ -106,11 +108,11 @@ export class BotClient {
       const response = await this.response(path, body, controller.signal);
       const parsed = schema.safeParse(await response.json());
       if (!parsed.success)
-        throw new BotError("Bot 返回的数据格式不兼容，请检查 Bot 版本", "InvalidResponse");
+        throw new BotError(getMessages().errors.invalidResponse, "InvalidResponse");
       return parsed.data;
     } catch (error) {
       if (controller.signal.aborted && !signal?.aborted)
-        throw new BotError("请求超时，接收状态尚未确认", "Timeout");
+        throw new BotError(getMessages().errors.timeout, "Timeout");
       throw error;
     } finally {
       clearTimeout(timer);
@@ -212,7 +214,10 @@ export class BotClient {
       let deadline: ReturnType<typeof setTimeout> | undefined;
       const arm = () => {
         clearTimeout(deadline);
-        deadline = setTimeout(() => alive.abort(new Error("实时连接中断，正在重连")), 45_000);
+        deadline = setTimeout(
+          () => alive.abort(new Error(getMessages().errors.streamLostReconnecting)),
+          45_000,
+        );
       };
       arm();
       try {
@@ -222,7 +227,7 @@ export class BotClient {
           alive.signal,
           true,
         );
-        if (!response.body) throw new Error("Bot 未提供实时消息流");
+        if (!response.body) throw new Error(getMessages().errors.streamMissingBody);
         await readEvents(
           response.body,
           ({ event, data }) => {
@@ -231,7 +236,8 @@ export class BotClient {
             arm();
             if (event === "snapshot") {
               const parsed = SnapshotResponseSchema.safeParse(JSON.parse(data));
-              if (!parsed.success) throw new BotError("Bot 实时数据格式不兼容", "InvalidResponse");
+              if (!parsed.success)
+                throw new BotError(getMessages().errors.streamIncompatible, "InvalidResponse");
               attempt = 0;
               snapshot(parsed.data);
               status();
@@ -243,7 +249,7 @@ export class BotClient {
           },
           alive.signal,
         );
-        if (!signal.aborted) throw new Error("实时连接中断，正在重连");
+        if (!signal.aborted) throw new Error(getMessages().errors.streamLostReconnecting);
       } catch (error) {
         if (signal.aborted) return;
         const fatal =
@@ -252,7 +258,10 @@ export class BotClient {
             error.status === 403 ||
             error.status === 404 ||
             error.code === "InvalidResponse");
-        status(error instanceof Error ? error.message : "实时连接中断", fatal);
+        status(
+          error instanceof Error ? error.message : getMessages().errors.streamInterrupted,
+          fatal,
+        );
         if (fatal) return;
       } finally {
         clearTimeout(deadline);

@@ -6,8 +6,66 @@ import { ConnectionSchema } from "./bot/contracts.ts";
 import { CacheSchema } from "./bot/store.ts";
 import type { MobileStorage } from "./bot/store.ts";
 
+import { parseLocale, type Locale } from "./i18n";
+
 const connectionKey = "eta-mobile.connection.v1";
 const cachePrefix = "eta-mobile.cache.v1:";
+const localeKey = "eta-mobile.locale.v1";
+const autoCheckUpdatesKey = "eta-mobile.auto-check-updates.v1";
+const dismissedUpdateVersionKey = "eta-mobile.dismissed-update-version.v1";
+
+export async function loadUpdatePreferences(): Promise<{
+  autoCheck: boolean;
+  dismissedVersion?: string;
+}> {
+  try {
+    const entries = await AsyncStorage.multiGet([autoCheckUpdatesKey, dismissedUpdateVersionKey]);
+    const map = new Map(entries);
+    const autoCheckRaw = map.get(autoCheckUpdatesKey);
+    const dismissedRaw = map.get(dismissedUpdateVersionKey)?.trim();
+    return {
+      autoCheck:
+        autoCheckRaw === null || autoCheckRaw === undefined ? true : autoCheckRaw !== "false",
+      dismissedVersion: dismissedRaw ? dismissedRaw : undefined,
+    };
+  } catch {
+    return { autoCheck: true };
+  }
+}
+
+export async function saveAutoCheckUpdates(enabled: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(autoCheckUpdatesKey, enabled ? "true" : "false");
+  } catch {
+    // Non-critical preference write.
+  }
+}
+
+export async function saveDismissedUpdateVersion(version?: string): Promise<void> {
+  try {
+    if (version?.trim()) await AsyncStorage.setItem(dismissedUpdateVersionKey, version.trim());
+    else await AsyncStorage.removeItem(dismissedUpdateVersionKey);
+  } catch {
+    // Non-critical preference write.
+  }
+}
+
+export async function loadSavedLocale(): Promise<Locale | undefined> {
+  try {
+    const raw = await AsyncStorage.getItem(localeKey);
+    return parseLocale(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+export async function saveSavedLocale(locale: Locale): Promise<void> {
+  try {
+    await AsyncStorage.setItem(localeKey, locale);
+  } catch {
+    // Ignore storage write errors for non-critical locale preference.
+  }
+}
 const cacheDirectory = new Directory(Paths.document, "eta-mobile-cache");
 const ManifestSchema = z.object({
   format: z.literal("eta-mobile-file-v1"),

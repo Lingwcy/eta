@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getMessages } from "./i18n/index.ts";
 import { MessageSchema } from "./bot/contracts.ts";
 import type { BotMessage, BotSnapshot } from "./bot/contracts.ts";
 
@@ -118,20 +119,22 @@ export function textContent(message: BotMessage) {
 export function taskLabel(snapshot?: BotSnapshot) {
   if (!snapshot) return "";
   if (snapshot.blockedReason) return snapshot.blockedReason;
-  if (snapshot.recoveryRequired) return "任务需要恢复";
-  if (snapshot.faulted) return "任务发生错误";
-  if (snapshot.compacting) return "正在压缩上下文";
+  const { conversation } = getMessages();
+  if (snapshot.recoveryRequired) return conversation.recoveryRequired;
+  if (snapshot.faulted) return conversation.faulted;
+  if (snapshot.compacting) return conversation.compacting;
   const operation = snapshot.operation;
-  if (operation?.status === "aborting") return "正在停止任务";
-  if (operation?.waitingForApproval) return "等待审批";
-  if (operation?.waitingForSubagents) return "等待子任务完成";
-  if (operation?.retry) return `正在重试 ${operation.retry.attempt}/${operation.retry.maxAttempts}`;
-  if (operation?.deferred) return "等待任务继续";
-  if (operation) return "任务进行中";
+  if (operation?.status === "aborting") return conversation.aborting;
+  if (operation?.waitingForApproval) return conversation.waitingForApproval;
+  if (operation?.waitingForSubagents) return conversation.waitingForSubagents;
+  if (operation?.retry)
+    return conversation.retrying(operation.retry.attempt, operation.retry.maxAttempts);
+  if (operation?.deferred) return conversation.deferred;
+  if (operation) return conversation.running;
   if (snapshot.lastResult?.status === "failed")
-    return snapshot.lastResult.error?.message ?? "任务失败";
-  if (snapshot.lastResult?.status === "aborted") return "任务已停止";
-  if (snapshot.lastResult?.status === "completed") return "任务已完成";
+    return snapshot.lastResult.error?.message ?? conversation.failed;
+  if (snapshot.lastResult?.status === "aborted") return conversation.aborted;
+  if (snapshot.lastResult?.status === "completed") return conversation.completed;
   return "";
 }
 
@@ -218,24 +221,25 @@ export function toolCallState(
 }
 
 export function toolStateLabel(status?: string, result?: Pick<BotMessage, "isError">): string {
-  if (result?.isError) return "执行失败";
+  const { toolState } = getMessages().conversation;
+  if (result?.isError) return toolState.error;
   switch (status) {
     case "generating":
-      return "准备执行";
+      return toolState.generating;
     case "pending":
-      return "等待执行";
+      return toolState.pending;
     case "running":
-      return "执行中";
+      return toolState.running;
     case "waiting":
-      return "等待批准";
+      return toolState.waiting;
     case "settled":
-      return "已完成";
+      return toolState.settled;
     case "stopped":
-      return "已停止";
+      return toolState.stopped;
     case "incomplete":
-      return "未完成";
+      return toolState.incomplete;
     default:
-      return result ? "已完成" : "未完成";
+      return result ? toolState.settled : toolState.incomplete;
   }
 }
 
@@ -363,4 +367,257 @@ export function isActivityMessage(message: BotMessage) {
       (part) => part.type === "image" || (part.type === "text" && part.text?.trim()),
     )
   );
+}
+
+export type NestedToolView = NestedTool;
+
+export type ThinkingStep = {
+  type: "thinking";
+  key: string;
+  thinking: string;
+  active: boolean;
+};
+
+export type PreambleStep = {
+  type: "text";
+  key: string;
+  text: string;
+};
+
+export type ToolStep = {
+  type: "tool";
+  key: string;
+  message: BotMessage;
+  part: {
+    id?: string;
+    name?: string;
+    arguments?: Record<string, unknown>;
+  };
+  result?: BotMessage;
+  running?: NonNullable<BotSnapshot["operation"]>["runningTools"][number];
+  status: string;
+  description?: string;
+  nested: NestedTool[];
+};
+
+export type FallbackStep = {
+  type: "fallback";
+  key: string;
+  partType: string;
+};
+
+export type AssistantStep = ThinkingStep | PreambleStep | ToolStep | FallbackStep;
+
+export type AssistantReplyView = {
+  steps: AssistantStep[];
+  answer: string | null;
+  images: { data: string; mimeType: string }[];
+  errors: string[];
+  hasThinking: boolean;
+  streaming: boolean;
+  stoppedWithoutAnswer: boolean;
+};
+
+export function isAssistantStreaming(message: BotMessage, snapshot: BotSnapshot): boolean {
+  return (
+    snapshot.operation?.status === "running" &&
+    (message === snapshot.operation.streamingMessage ||
+      (!message.stopReason && message.role === "assistant"))
+  );
+}
+
+function joinTextSegments(segments: { messageIndex: number; text: string }[]): string {
+  let result = "";
+  let prevMessageIndex: number | undefined;
+  for (const segment of segments) {
+    if (!segment.text) continue;
+    if (
+      prevMessageIndex !== undefined &&
+      prevMessageIndex !== segment.messageIndex &&
+      result &&
+      !result.endsWith("\n") &&
+      !segment.text.startsWith("\n")
+    ) {
+      result += "\n\n";
+    }
+    result += segment.text;
+    prevMessageIndex = segment.messageIndex;
+  }
+  return result;
+}
+
+/**
+ * Derive a unified chat-demo-style ReplyArea timeline + trailing answer
+ * from one or more consecutive assistant messages in a turn.
+ */
+export function buildAssistantReplyView(
+  messages: readonly BotMessage[],
+  snapshot: BotSnapshot,
+  tools: ToolIndex,
+): AssistantReplyView {
+  const steps: AssistantStep[] = [];
+  const images: { data: string; mimeType: string }[] = [];
+  const errors: string[] = [];
+  let mergedThinking: ThinkingStep | null = null;
+  let pendingText: { key: string; messageIndex: number; text: string }[] = [];
+  let turnStreaming = false;
+
+  const flushPreamble = () => {
+    if (pendingText.length === 0) return;
+    const joined = joinTextSegments(pendingText);
+    if (joined.trim()) {
+      steps.push({ type: "text", key: pendingText[0]!.key, text: joined });
+    }
+    pendingText = [];
+  };
+
+  messages.forEach((msg, messageIndex) => {
+    const msgStreaming = isAssistantStreaming(msg, snapshot);
+    if (msgStreaming) turnStreaming = true;
+    if (msg.errorMessage) errors.push(msg.errorMessage);
+
+    const parts =
+      typeof msg.content === "string" ? [{ type: "text", text: msg.content }] : msg.content;
+
+    parts.forEach((part, partIndex) => {
+      if (part.type !== "thinking") {
+        mergedThinking = null;
+      }
+
+      if (part.type === "text") {
+        if (part.text) {
+          pendingText.push({
+            key: `text-${messageIndex}-${partIndex}`,
+            messageIndex,
+            text: part.text,
+          });
+        }
+        return;
+      }
+
+      if (part.type === "thinking") {
+        const text = part.thinking ?? "";
+        if (!text.trim()) return;
+        const active = msgStreaming && partIndex === parts.length - 1;
+        if (mergedThinking) {
+          if (
+            mergedThinking.thinking &&
+            !mergedThinking.thinking.endsWith("\n") &&
+            !text.startsWith("\n")
+          ) {
+            mergedThinking.thinking += "\n\n";
+          }
+          mergedThinking.thinking += text;
+          mergedThinking.active = mergedThinking.active || active;
+        } else {
+          flushPreamble();
+          mergedThinking = {
+            type: "thinking",
+            key: `thinking-${messageIndex}-${partIndex}`,
+            thinking: text,
+            active,
+          };
+          steps.push(mergedThinking);
+        }
+        return;
+      }
+
+      if (part.type === "toolCall") {
+        flushPreamble();
+        const result = tools.results.get(part.id)?.message;
+        const running = part.id === undefined ? undefined : tools.running.get(part.id);
+        const stopped = tools.messages.get(msg)?.toolStatus;
+        const nested = nestedTools(snapshot, part.id, tools);
+        const status = running?.status ?? stopped ?? toolCallState(snapshot, msg, part.id, tools);
+        steps.push({
+          type: "tool",
+          key: part.id ?? `tool-${messageIndex}-${partIndex}`,
+          message: msg,
+          part,
+          result,
+          running,
+          status,
+          description: toolDescription(snapshot, part.id, running?.description),
+          nested,
+        });
+        return;
+      }
+
+      if (part.type === "image" && part.data && part.mimeType) {
+        flushPreamble();
+        images.push({ data: part.data, mimeType: part.mimeType });
+        return;
+      }
+
+      flushPreamble();
+      steps.push({
+        type: "fallback",
+        key: `fallback-${messageIndex}-${partIndex}`,
+        partType: part.type,
+      });
+    });
+  });
+
+  const answerText = pendingText.length > 0 ? joinTextSegments(pendingText) : "";
+  const answer = answerText.trim() ? answerText : null;
+  const hasThinking = steps.some((step) => step.type === "thinking");
+  const stoppedWithoutAnswer =
+    !turnStreaming &&
+    !answer &&
+    (snapshot.lastResult?.status === "aborted" ||
+      steps.some((step) => step.type === "tool" && step.status === "stopped"));
+
+  return {
+    steps,
+    answer,
+    images,
+    errors,
+    hasThinking,
+    streaming: turnStreaming,
+    stoppedWithoutAnswer,
+  };
+}
+
+export type ConversationTurn =
+  | { id: string; role: "user"; message: BotMessage }
+  | { id: string; role: "toolResult"; message: BotMessage }
+  | { id: string; role: "assistant"; messages: BotMessage[] };
+
+/** Group consecutive assistant activity/reply rows into a single turn like chat-demo. */
+export function conversationTurns(
+  snapshot: BotSnapshot,
+  submitted: readonly import("./bot/store.ts").SubmittedInput[] = [],
+): ConversationTurn[] {
+  const rows = conversationRows(snapshot, submitted);
+  const turns: ConversationTurn[] = [];
+  for (const row of rows) {
+    if (row.message.role === "assistant") {
+      const prev = turns.at(-1);
+      if (prev && prev.role === "assistant") {
+        prev.messages.push(row.message);
+      } else {
+        turns.push({ id: row.id, role: "assistant", messages: [row.message] });
+      }
+    } else if (row.message.role === "user") {
+      turns.push({ id: row.id, role: "user", message: row.message });
+    } else {
+      turns.push({ id: row.id, role: "toolResult", message: row.message });
+    }
+  }
+  return turns;
+}
+
+export function isWaitingForReply(snapshot?: BotSnapshot, turns: readonly ConversationTurn[] = []) {
+  if (!snapshot?.operation || snapshot.operation.status !== "running") return false;
+  if (
+    snapshot.operation.waitingForApproval ||
+    snapshot.operation.retry ||
+    snapshot.operation.deferred
+  ) {
+    return false;
+  }
+  const lastTurn = turns.at(-1);
+  if (!lastTurn) return false;
+  if (lastTurn.role !== "assistant") return true;
+  return false;
 }

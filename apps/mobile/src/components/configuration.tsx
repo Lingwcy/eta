@@ -12,28 +12,15 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Check, Cpu, Search, Shield, X } from "lucide-react-native";
+import { Check, LayoutGrid, Search, Shield, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Configuration } from "../bot/contracts.ts";
+import { useI18n } from "../i18n/index.ts";
 import { useMobile } from "../provider.tsx";
 import { applySelection } from "./configuration-projection.ts";
+import { ProviderMark } from "./provider-mark.tsx";
+import { SpringPressable } from "../motion.tsx";
 import { colors, useAction } from "../ui.tsx";
-
-export const thinkingLabels: Record<string, string> = {
-  off: "关",
-  minimal: "最低",
-  low: "低",
-  medium: "中",
-  high: "高",
-  xhigh: "极高",
-  max: "最高",
-};
-
-export const sandboxLabels: Record<string, string> = {
-  "read-only": "只读",
-  "workspace-write": "工作区",
-  "danger-full-access": "完全访问",
-};
 
 export function ConfigurationSheet({
   configuration,
@@ -42,6 +29,9 @@ export function ConfigurationSheet({
   configuration: Configuration;
   onClose: () => void;
 }) {
+  const { m } = useI18n();
+  const thinkingLabels = m.configuration.thinkingLevels;
+  const sandboxLabels = m.configuration.sandboxModes;
   const insets = useSafeAreaInsets();
   const { state, store } = useMobile();
   const [selected, setSelected] = useState(configuration);
@@ -61,12 +51,19 @@ export function ConfigurationSheet({
         duration: 200,
         useNativeDriver: true,
       }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 240,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
+      typeof Animated.spring === "function"
+        ? Animated.spring(slideAnim, {
+            toValue: 0,
+            tension: 270,
+            friction: 26,
+            useNativeDriver: true,
+          })
+        : Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
     ]).start();
   }, [backdropAnim, slideAnim]);
 
@@ -128,7 +125,7 @@ export function ConfigurationSheet({
           style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdropAnim }]}
         >
           <Pressable
-            accessibilityLabel="关闭面板"
+            accessibilityLabel={m.common.closePanel}
             onPress={handleClose}
             style={StyleSheet.absoluteFill}
           />
@@ -158,8 +155,8 @@ export function ConfigurationSheet({
               <View style={styles.searchBox}>
                 <Search size={13} color={colors.muted} />
                 <TextInput
-                  accessibilityLabel="搜索模型"
-                  placeholder="搜索模型或服务商…"
+                  accessibilityLabel={m.configuration.searchLabel}
+                  placeholder={m.configuration.searchPlaceholder}
                   placeholderTextColor={colors.muted}
                   value={query}
                   onChangeText={setQuery}
@@ -170,7 +167,7 @@ export function ConfigurationSheet({
                 {Boolean(query) && (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="清空搜索"
+                    accessibilityLabel={m.configuration.clearSearchLabel}
                     onPress={() => setQuery("")}
                     hitSlop={6}
                   >
@@ -180,7 +177,7 @@ export function ConfigurationSheet({
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="关闭"
+                accessibilityLabel={m.common.close}
                 onPress={handleClose}
                 hitSlop={6}
                 style={styles.closeButton}
@@ -189,117 +186,138 @@ export function ConfigurationSheet({
               </Pressable>
             </View>
 
-            {/* Provider 分类胶囊标签 (横向滚动，单行) */}
-            <View style={styles.providerRow}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.providerScroll}
-              >
-                <Pressable
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: activeProvider === null && !query }}
-                  hitSlop={6}
-                  onPress={() => {
-                    setActiveProvider(null);
-                    setQuery("");
-                  }}
-                  style={[
-                    styles.providerTab,
-                    activeProvider === null && !query && styles.providerTabActive,
-                  ]}
+            {/* 双栏模型选择器：左侧 Provider 图标栏 + 右侧模型列表 */}
+            <View style={styles.splitContainer}>
+              <View style={styles.providerRail}>
+                <ScrollView
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.providerRailContent}
                 >
-                  <Text
-                    style={[
-                      styles.providerTabText,
-                      activeProvider === null && !query && styles.providerTabTextActive,
+                  <Pressable
+                    accessibilityRole="tab"
+                    accessibilityLabel={m.configuration.allProviders}
+                    accessibilityState={{ selected: activeProvider === null && !query }}
+                    hitSlop={4}
+                    onPress={() => {
+                      setActiveProvider(null);
+                      setQuery("");
+                    }}
+                    style={({ pressed }) => [
+                      styles.providerRailItem,
+                      activeProvider === null && !query && styles.providerRailItemActive,
+                      pressed && styles.menuItemPressed,
                     ]}
                   >
-                    全部
-                  </Text>
-                </Pressable>
-                {providers.map((p) => {
-                  const isActive = activeProvider === p && !query;
-                  return (
-                    <Pressable
-                      key={p}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: isActive }}
-                      hitSlop={6}
-                      onPress={() => {
-                        setActiveProvider(p);
-                        setQuery("");
-                      }}
-                      style={[styles.providerTab, isActive && styles.providerTabActive]}
-                    >
-                      <Text
-                        style={[styles.providerTabText, isActive && styles.providerTabTextActive]}
+                    <LayoutGrid
+                      size={16}
+                      strokeWidth={1.9}
+                      color={activeProvider === null && !query ? colors.ink : colors.muted}
+                    />
+                  </Pressable>
+                  {providers.map((p) => {
+                    const isActive = activeProvider === p && !query;
+                    return (
+                      <Pressable
+                        key={p}
+                        accessibilityRole="tab"
+                        accessibilityLabel={p}
+                        accessibilityState={{ selected: isActive }}
+                        hitSlop={4}
+                        onPress={() => {
+                          setActiveProvider(p);
+                          setQuery("");
+                        }}
+                        style={({ pressed }) => [
+                          styles.providerRailItem,
+                          isActive && styles.providerRailItemActive,
+                          pressed && styles.menuItemPressed,
+                        ]}
                       >
-                        {p}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
+                        <ProviderMark
+                          id={p}
+                          size={17}
+                          color={isActive ? colors.ink : colors.muted}
+                        />
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
 
-            {/* 紧凑模型列表 (内部滚动容器，固定高度 ~128px) */}
-            <View style={styles.modelListWrapper}>
-              <ScrollView
-                style={styles.modelListScroll}
-                nestedScrollEnabled
-                showsVerticalScrollIndicator
-                keyboardShouldPersistTaps="handled"
-              >
-                {visibleModels.map((entry, idx) => {
-                  const isSelected =
-                    entry.id === selected.modelId && entry.provider === selected.provider;
-                  return (
-                    <Pressable
-                      key={`${entry.provider}:${entry.id}`}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: isSelected }}
-                      onPress={() =>
-                        setSelected({
-                          ...selected,
-                          provider: entry.provider,
-                          modelId: entry.id,
-                          thinkingLevel: entry.thinkingLevels.includes(selected.thinkingLevel)
-                            ? selected.thinkingLevel
-                            : (entry.thinkingLevels[0] ?? "off"),
-                        })
-                      }
-                      style={({ pressed }) => [
-                        styles.menuItem,
-                        isSelected && styles.menuItemSelected,
-                        pressed && styles.menuItemPressed,
-                        idx > 0 && styles.menuItemBorder,
-                      ]}
-                    >
-                      <Cpu size={13} color={isSelected ? colors.text : colors.muted} />
-                      <View style={styles.menuItemContent}>
-                        <Text
-                          numberOfLines={1}
-                          style={[styles.menuItemTitle, isSelected && styles.menuItemTitleSelected]}
-                        >
-                          {entry.name}
-                        </Text>
-                        {(activeProvider === null || Boolean(query.trim())) && (
-                          <Text numberOfLines={1} style={styles.menuItemProvider}>
-                            {entry.provider}
+              <View style={styles.modelListWrapper}>
+                <View style={styles.listHeader}>
+                  <Text numberOfLines={1} style={styles.listHeaderTitle}>
+                    {query.trim()
+                      ? m.configuration.allProviders
+                      : (activeProvider ?? m.configuration.allProviders)}
+                  </Text>
+                  <Text style={styles.listHeaderCount}>{visibleModels.length}</Text>
+                </View>
+                <ScrollView
+                  style={styles.modelListScroll}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {visibleModels.map((entry, idx) => {
+                    const isSelected =
+                      entry.id === selected.modelId && entry.provider === selected.provider;
+                    return (
+                      <Pressable
+                        key={`${entry.provider}:${entry.id}`}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: isSelected }}
+                        onPress={() =>
+                          setSelected({
+                            ...selected,
+                            provider: entry.provider,
+                            modelId: entry.id,
+                            thinkingLevel: entry.thinkingLevels.includes(selected.thinkingLevel)
+                              ? selected.thinkingLevel
+                              : (entry.thinkingLevels[0] ?? "off"),
+                          })
+                        }
+                        style={({ pressed }) => [
+                          styles.menuItem,
+                          isSelected && styles.menuItemSelected,
+                          pressed && styles.menuItemPressed,
+                          idx > 0 && styles.menuItemBorder,
+                        ]}
+                      >
+                        <ProviderMark
+                          id={entry.provider}
+                          size={16}
+                          color={isSelected ? colors.ink : colors.secondary}
+                        />
+                        <View style={styles.menuItemContent}>
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.menuItemTitle,
+                              isSelected && styles.menuItemTitleSelected,
+                            ]}
+                          >
+                            {entry.name}
                           </Text>
-                        )}
-                      </View>
-                      {isSelected && <Check size={13} strokeWidth={2.4} color={colors.text} />}
-                    </Pressable>
-                  );
-                })}
-                {!visibleModels.length && (
-                  <View style={styles.emptyBox}>
-                    <Text style={styles.emptyText}>未找到匹配的模型</Text>
-                  </View>
-                )}
-              </ScrollView>
+                          {(activeProvider === null || Boolean(query.trim())) && (
+                            <Text numberOfLines={1} style={styles.menuItemProvider}>
+                              {entry.provider}
+                            </Text>
+                          )}
+                        </View>
+                        {isSelected && <Check size={14} strokeWidth={2.4} color={colors.text} />}
+                      </Pressable>
+                    );
+                  })}
+                  {!visibleModels.length && (
+                    <View style={styles.emptyBox}>
+                      <Text style={styles.emptyText}>{m.configuration.noModelsFound}</Text>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
             </View>
 
             {/* 底部紧凑设置栏：思考等级 + 沙盒模式 + 确定按钮 (单行整合) */}
@@ -308,7 +326,7 @@ export function ConfigurationSheet({
                 {/* 思考级别 */}
                 {model && model.thinkingLevels.length > 1 && (
                   <View style={styles.thinkingGroup}>
-                    <Text style={styles.optionLabel}>思考:</Text>
+                    <Text style={styles.optionLabel}>{m.configuration.thinkingPrefix}</Text>
                     {model.thinkingLevels.map((lvl) => {
                       const isLvlSelected = selected.thinkingLevel === lvl;
                       return (
@@ -338,7 +356,9 @@ export function ConfigurationSheet({
                 {modes.length > 1 && selected.sandboxMode && (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`沙盒策略: ${sandboxLabels[selected.sandboxMode]}, 点击切换`}
+                    accessibilityLabel={m.configuration.sandboxLabel(
+                      sandboxLabels[selected.sandboxMode] ?? selected.sandboxMode,
+                    )}
                     hitSlop={6}
                     onPress={handleCycleSandbox}
                     style={styles.sandboxChip}
@@ -352,10 +372,11 @@ export function ConfigurationSheet({
               </View>
 
               {/* 确定应用按钮 */}
-              <Pressable
+              <SpringPressable
                 accessibilityRole="button"
-                accessibilityLabel="应用设置"
+                accessibilityLabel={m.configuration.applyLabel}
                 hitSlop={6}
+                scaleTo={0.95}
                 disabled={busy || !model}
                 onPress={() => {
                   void run(async () => {
@@ -371,8 +392,10 @@ export function ConfigurationSheet({
                   (busy || !model) && styles.buttonDisabled,
                 ]}
               >
-                <Text style={styles.confirmText}>{busy ? "保存中" : "确定"}</Text>
-              </Pressable>
+                <Text style={styles.confirmText}>
+                  {busy ? m.common.saving : m.configuration.applyText}
+                </Text>
+              </SpringPressable>
             </View>
           </Animated.View>
         </KeyboardAvoidingView>
@@ -442,53 +465,76 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  providerRow: {
-    marginBottom: 6,
-    height: 32,
-  },
-  providerScroll: {
+  splitContainer: {
     flexDirection: "row",
-    gap: 6,
+    gap: 8,
+    height: 256,
+  },
+  providerRail: {
+    width: 44,
+    borderRadius: 10,
+    backgroundColor: colors.soft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    overflow: "hidden",
+  },
+  providerRailContent: {
+    padding: 4,
+    gap: 4,
     alignItems: "center",
   },
-  providerTab: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+  providerRailItem: {
+    width: 34,
+    height: 34,
     borderRadius: 8,
-    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
+    borderColor: "transparent",
+  },
+  providerRailItemActive: {
+    backgroundColor: colors.surface,
     borderColor: colors.border,
   },
-  providerTabActive: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
-  },
-  providerTabText: {
-    fontSize: 11,
-    color: colors.muted,
-    fontWeight: "500",
-  },
-  providerTabTextActive: {
-    color: colors.surface,
-    fontWeight: "600",
-  },
   modelListWrapper: {
-    maxHeight: 246,
+    flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 10,
     backgroundColor: colors.surface,
     overflow: "hidden",
   },
+  listHeader: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle,
+    backgroundColor: colors.soft,
+  },
+  listHeaderTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.secondary,
+    flexShrink: 1,
+  },
+  listHeaderCount: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: colors.muted,
+  },
   modelListScroll: {
-    flexGrow: 0,
+    flex: 1,
   },
   menuItem: {
-    height: 32,
+    minHeight: 36,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: colors.surface,
   },
   menuItemBorder: {

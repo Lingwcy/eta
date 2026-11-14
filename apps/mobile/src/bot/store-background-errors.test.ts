@@ -71,7 +71,7 @@ test.each(cases)(
         expect(store.getSnapshot().error).toBe(
           fail
             ? source === "draft"
-              ? "无法保存草稿：Old cache write failed"
+              ? "Could not save draft: Old cache write failed"
               : "Old cache write failed"
             : undefined,
         );

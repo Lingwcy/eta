@@ -1,0 +1,40 @@
+{
+  "lobeIconsCommit": "82e641b4fece9d1028a127149af9ded00df5ac0c",
+  "assets": {
+    "bedrock-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/bedrock-color.svg",
+    "anthropic.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/anthropic.svg",
+    "azure-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/azure-color.svg",
+    "baseten.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/baseten.svg",
+    "cerebras-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/cerebras-color.svg",
+    "cloudflare-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/cloudflare-color.svg",
+    "deepseek-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/deepseek-color.svg",
+    "fireworks-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/fireworks-color.svg",
+    "google-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/google-color.svg",
+    "vertexai-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/vertexai-color.svg",
+    "groq.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/groq.svg",
+    "huggingface-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/huggingface-color.svg",
+    "meta-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/meta-color.svg",
+    "minimax-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/minimax-color.svg",
+    "mistral-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/mistral-color.svg",
+    "moonshot.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/moonshot.svg",
+    "nvidia-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/nvidia-color.svg",
+    "openai.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/openai.svg",
+    "opencode.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/opencode.svg",
+    "openrouter.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/openrouter.svg",
+    "qwen-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/qwen-color.svg",
+    "together-color.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/together-color.svg",
+    "vercel.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/vercel.svg",
+    "xai.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/xai.svg",
+    "xiaomimimo.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/xiaomimimo.svg",
+    "zai.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/zai.svg",
+    "radius.svg": "https://radius.earendil.com/assets/radius/favicon.svg",
+    "typesafe.png": "https://framerusercontent.com/images/aNFzSFxM4fjICmnibw7npfZjcQ.png",
+    "ant-ling.png": "https://gw.alipayobjects.com/render/p/yuyan/180020010001289651/favicon.ico",
+    "github.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/github.svg",
+    "kimi.svg": "https://raw.githubusercontent.com/lobehub/lobe-icons/82e641b4fece9d1028a127149af9ded00df5ac0c/packages/static-svg/icons/kimi.svg"
+  },
+  "modifications": {
+    "ant-ling.png": "Converted the official favicon from ICO to PNG.",
+    "radius.svg": "Removed the favicon dark-mode rule for use on a white avatar tile."
+  }
+}

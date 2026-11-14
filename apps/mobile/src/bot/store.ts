@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BotClient, BotError } from "./client.ts";
 import { ConfigurationSchema, ImageAttachmentSchema, LibrarySchema } from "./contracts.ts";
+import { getMessages } from "../i18n/index.ts";
 import type {
   BotLibrary,
   Configuration,
@@ -82,13 +83,17 @@ export function defaultConfiguration(library: BotLibrary): Configuration | undef
     thinkingLevel: model.thinkingLevels.includes(settings.defaultThinkingLevel)
       ? settings.defaultThinkingLevel
       : (model.thinkingLevels[0] ?? "off"),
-    sandboxMode: settings.defaultSandboxMode ?? "workspace-write",
+    sandboxMode:
+      !library.allowedSandboxModes || library.allowedSandboxModes.includes("danger-full-access")
+        ? "danger-full-access"
+        : (settings.defaultSandboxMode ?? library.allowedSandboxModes[0] ?? "danger-full-access"),
   };
 }
 
 export const draftKey = (state: Pick<MobileState, "threadId" | "workspaceId">) =>
   state.threadId ? `thread:${state.threadId}` : `workspace:${state.workspaceId ?? "none"}`;
-const message = (error: unknown) => (error instanceof Error ? error.message : "操作失败，请重试");
+const message = (error: unknown) =>
+  error instanceof Error ? error.message : getMessages().errors.actionFailed;
 
 /** Coordinates remote work. Leaving a view or disconnecting only cancels observation. */
 export class MobileStore {
@@ -192,7 +197,10 @@ export class MobileStore {
   }
   private saveLater() {
     clearTimeout(this.draftTimer);
-    this.draftTimer = setTimeout(() => this.persistInBackground("无法保存草稿："), 300);
+    this.draftTimer = setTimeout(
+      () => this.persistInBackground(getMessages().errors.draftSaveFailed),
+      300,
+    );
   }
   private stopObservation() {
     ++this.view;
@@ -299,7 +307,7 @@ export class MobileStore {
     }
   }
   async connect(connection: Connection) {
-    if (this.state.sending) throw new Error("请等待当前消息提交完成");
+    if (this.state.sending) throw new Error(getMessages().errors.waitSubmit);
     const candidate = this.makeClient(connection);
     ++this.draftIntent;
     // The old cache flush precedes the new epoch; preserve the latest call's intent.
@@ -443,12 +451,12 @@ export class MobileStore {
     }
   }
   async open(id: string) {
-    if (this.state.sending) throw new Error("请等待当前消息提交完成");
+    if (this.state.sending) throw new Error(getMessages().errors.waitSubmit);
     ++this.draftIntent;
     return this.loadThread(id);
   }
   private async loadThread(id: string) {
-    if (this.state.sending) throw new Error("请等待当前消息提交完成");
+    if (this.state.sending) throw new Error(getMessages().errors.waitSubmit);
     const client = this.requireClient();
     this.observer?.abort();
     this.opener?.abort();
@@ -457,10 +465,11 @@ export class MobileStore {
     const controller = new AbortController();
     this.opener = controller;
     const metadata = this.state.library?.threads.find((thread) => thread.id === id);
+    // Keep the currently visible transcript mounted when revalidating the same thread.
+    const preserve = this.state.thread?.id === id;
     this.update({
       threadId: id,
-      thread: undefined,
-      opening: true,
+      ...(!preserve ? { thread: undefined, opening: true } : {}),
       error: undefined,
       workspaceId: metadata?.workspaceId ?? this.state.workspaceId,
     });
@@ -475,6 +484,22 @@ export class MobileStore {
     } catch (error) {
       if (epoch !== this.epoch || view !== this.view) return;
       this.update({ opening: false, error: message(error) });
+    }
+  }
+  /** Reconciles the active thread in place without tearing down its view or live event stream. */
+  private async syncThread(id: string) {
+    const client = this.requireClient();
+    const epoch = this.epoch;
+    const view = this.view;
+    try {
+      const thread = await client.open(id);
+      if (epoch !== this.epoch || view !== this.view || this.state.threadId !== id) return;
+      this.useThread(thread);
+      await this.persist();
+      if (epoch === this.epoch && view === this.view && this.state.threadId === id) this.watch();
+    } catch (error) {
+      if (epoch === this.epoch && view === this.view && this.state.threadId === id)
+        this.update({ error: message(error) });
     }
   }
   private useThread(thread: OpenThread) {
@@ -492,7 +517,7 @@ export class MobileStore {
     });
   }
   newThread(workspaceId = this.state.workspaceId) {
-    if (this.state.sending) throw new Error("请等待当前消息提交完成");
+    if (this.state.sending) throw new Error(getMessages().errors.waitSubmit);
     if (
       this.state.library?.workspaces.find((value) => value.id === workspaceId)?.kind === "temporary"
     )
@@ -537,14 +562,14 @@ export class MobileStore {
     if (this.state.pending || this.state.sending || !images.length) return;
     const key = draftKey(this.state);
     const current = this.state.draftImages[key] ?? [];
+    const { errors } = getMessages();
     const added = images.map((image) => ImageAttachmentSchema.parse(image));
-    if (current.length + added.length > MAX_DRAFT_IMAGES)
-      throw new Error("最多添加 4 张图片，请先移除部分图片");
+    if (current.length + added.length > MAX_DRAFT_IMAGES) throw new Error(errors.maxImages);
     if (
       [...current, ...added].reduce((total, image) => total + image.data.length, 0) >
       MAX_IMAGE_BASE64_LENGTH
     )
-      throw new Error("图片总大小不能超过 24 MiB，请压缩图片或移除部分图片");
+      throw new Error(errors.totalImageSize);
     this.update({
       draftImages: {
         ...this.state.draftImages,
@@ -565,13 +590,15 @@ export class MobileStore {
     this.saveLater();
   }
   private requireClient() {
-    if (!this.client || this.state.status !== "connected") throw new Error("请先连接 Bot");
+    if (!this.client || this.state.status !== "connected")
+      throw new Error(getMessages().errors.connectFirst);
     return this.client;
   }
   async send(mode: "steer" | "followUp" = "steer") {
+    const { errors } = getMessages();
     if (this.state.sending) return;
     this.requireClient();
-    if (this.state.pending) throw new Error("请先确认上一次消息的接收状态");
+    if (this.state.pending) throw new Error(errors.confirmPendingFirst);
     const prompt = this.state.drafts[draftKey(this.state)] ?? "";
     const images = this.state.draftImages[draftKey(this.state)] ?? [];
     if (!prompt.trim() && !images.length) return;
@@ -582,18 +609,18 @@ export class MobileStore {
         this.state.library?.workspaces.find((value) => value.id === this.state.workspaceId)
           ?.kind === "temporary")
     )
-      throw new Error("请先选择项目和模型");
-    if (this.state.threadId && !this.state.thread) throw new Error("请先等待会话加载完成");
-    if (this.state.thread?.thread.archivedAt) throw new Error("请先取消归档再发送消息");
+      throw new Error(errors.selectProjectAndModel);
+    if (this.state.threadId && !this.state.thread) throw new Error(errors.waitThreadLoad);
+    if (this.state.thread?.thread.archivedAt) throw new Error(errors.unarchiveFirst);
     const streaming = !!this.state.thread?.snapshot.operation;
     if (streaming && !this.state.thread?.snapshot.inputQueueSupported)
-      throw new Error("当前 Bot 不支持运行中发送消息");
+      throw new Error(errors.noFollowUpSupport);
     if (
       this.state.thread?.snapshot.recoveryRequired ||
       this.state.thread?.snapshot.blockedReason ||
       this.state.thread?.snapshot.faulted
     )
-      throw new Error(this.state.thread.snapshot.blockedReason ?? "请先恢复当前任务");
+      throw new Error(this.state.thread.snapshot.blockedReason ?? errors.recoverTaskFirst);
     ++this.draftIntent;
     this.update({
       pending: {
@@ -709,7 +736,7 @@ export class MobileStore {
       if (epoch !== this.epoch) return;
       await this.refresh();
       if (epoch !== this.epoch) return;
-      if (this.state.threadId === pending.threadId) await this.open(pending.threadId!);
+      if (this.state.threadId === pending.threadId) await this.syncThread(pending.threadId!);
     } catch (error) {
       if (epoch !== this.epoch) return;
       // An explicit rejection means the server did not admit this input. A timeout stays unresolved.
@@ -739,15 +766,16 @@ export class MobileStore {
     const epoch = this.epoch;
     const view = this.view;
     const id = this.state.threadId;
-    if (!id || this.state.pending) throw new Error("请先确认当前消息的接收状态");
+    const { errors } = getMessages();
+    if (!id || this.state.pending) throw new Error(errors.confirmCurrentDelivery);
     const result = await client.withdrawInput(id, operationId);
     if (epoch !== this.epoch || view !== this.view) return false;
     if (result.status === "already_placed" || result.prompt === undefined)
-      throw new Error("消息已生效，无法取回");
+      throw new Error(errors.alreadyCommitted);
     const key = draftKey(this.state);
     const images = this.state.draftImages[key] ?? [];
     if (images.length + (result.images?.length ?? 0) > MAX_DRAFT_IMAGES)
-      throw new Error("消息已撤回，请先移除部分草稿图片再取回");
+      throw new Error(errors.retractRemoveImages);
     this.update({
       drafts: {
         ...this.state.drafts,
@@ -783,18 +811,19 @@ export class MobileStore {
     if (workspace) this.newThread(workspace.id);
   }
   async configure(configuration: Configuration) {
-    if (this.state.sending || this.state.pending) throw new Error("请先确认当前消息的接收状态");
+    const { errors } = getMessages();
+    if (this.state.sending || this.state.pending) throw new Error(errors.confirmCurrentDelivery);
     const client = this.requireClient();
     const epoch = this.epoch;
     const view = this.view;
     const id = this.state.threadId;
-    if (this.state.thread?.snapshot.operation) throw new Error("请等待当前任务结束再更改配置");
+    if (this.state.thread?.snapshot.operation) throw new Error(errors.waitTaskBeforeConfig);
     if (!id) {
       this.update({ configuration });
       await this.persist();
       return;
     }
-    if (!this.state.thread) throw new Error("请先等待会话加载完成");
+    if (!this.state.thread) throw new Error(errors.waitThreadLoad);
     let thread = await client.configure(id, configuration);
     if (epoch !== this.epoch || view !== this.view) return;
     this.useThread(thread);
@@ -812,7 +841,7 @@ export class MobileStore {
     const view = this.view;
     if (!id) return;
     await client[action](id);
-    if (epoch === this.epoch && view === this.view) await this.open(id);
+    if (epoch === this.epoch && view === this.view) await this.syncThread(id);
   }
   async approve(requestId: string, approved: boolean, reuse?: "call" | "run") {
     const client = this.requireClient();
