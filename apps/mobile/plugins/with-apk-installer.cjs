@@ -225,15 +225,15 @@ module.exports = function withApkInstaller(config) {
 
   config = withAppBuildGradle(config, (mod) => {
     let contents = mod.modResults.contents;
+    const versionName = `def etaVersionName = (findProperty('ETA_MOBILE_VERSION_NAME') ?: System.getenv('ETA_MOBILE_VERSION_NAME') ?: ${JSON.stringify(mod.version ?? "0.1.0")}).toString()`;
+    const versionCode = `def etaVersionCode = ((findProperty('ETA_MOBILE_VERSION_CODE') ?: System.getenv('ETA_MOBILE_VERSION_CODE') ?: '${mod.android?.versionCode ?? 1}').toString()).toInteger()`;
     if (!contents.includes("etaVersionName")) {
-      const header = `def etaVersionName = (findProperty('ETA_MOBILE_VERSION_NAME') ?: System.getenv('ETA_MOBILE_VERSION_NAME') ?: '0.1.0').toString()
-def etaVersionCode = ((findProperty('ETA_MOBILE_VERSION_CODE') ?: System.getenv('ETA_MOBILE_VERSION_CODE') ?: '1').toString()).toInteger()
+      const header = `${versionName}
+${versionCode}
 def etaKeystorePath = (findProperty('ETA_ANDROID_KEYSTORE_PATH') ?: System.getenv('ETA_ANDROID_KEYSTORE_PATH'))?.toString()
 
 `;
       contents = contents.replace("android {", `${header}android {`);
-      contents = contents.replace(/versionCode\s+\d+/, "versionCode etaVersionCode");
-      contents = contents.replace(/versionName\s+"[^"]+"/, "versionName etaVersionName");
       contents = contents.replace(
         "signingConfigs {",
         `signingConfigs {
@@ -254,8 +254,14 @@ def etaKeystorePath = (findProperty('ETA_ANDROID_KEYSTORE_PATH') ?: System.geten
             "signingConfig etaKeystorePath ? signingConfigs.release : signingConfigs.debug",
           ),
       );
-      mod.modResults.contents = contents;
+    } else {
+      contents = contents.replace(/^def etaVersionName = .*$/m, () => versionName);
+      contents = contents.replace(/^def etaVersionCode = .*$/m, () => versionCode);
     }
+    // Expo can rewrite the numeric versionCode on subsequent prebuilds.
+    contents = contents.replace(/versionCode\s+\d+/, "versionCode etaVersionCode");
+    contents = contents.replace(/versionName\s+"[^"]+"/, "versionName etaVersionName");
+    mod.modResults.contents = contents;
     return mod;
   });
 
