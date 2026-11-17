@@ -278,6 +278,48 @@ test.each([false, true])(
   },
 );
 
+test("synchronous download setup errors are observable and do not block a later retry", async () => {
+  let starts = 0;
+  const adapter = createAdapter({
+    fetchReleases: async () => [
+      {
+        tag_name: "mobile-v0.2.0",
+        html_url: "https://example.com/release",
+        assets: [
+          {
+            name: "Eta-mobile-0.2.0-android.apk",
+            browser_download_url: "https://example.com/update.apk",
+          },
+        ],
+      },
+    ],
+    startDownloadApk: () => {
+      if (starts++ === 0) throw new Error("cache unavailable");
+      return { promise: Promise.resolve({ fileUri: "file:///cache/retry.apk" }), cancel: () => {} };
+    },
+  });
+  const updater = createMobileUpdater({ adapter, initialVersion: "0.1.0" });
+  try {
+    await updater.check();
+    await expect(updater.downloadAndInstall()).resolves.toBeUndefined();
+    expect(updater.getSnapshot().state).toEqual({
+      status: "error",
+      message: "cache unavailable",
+      releaseUrl: "https://example.com/release",
+    });
+    expect(adapter.installApk).not.toHaveBeenCalled();
+    await updater.check();
+    await updater.downloadAndInstall();
+    expect(updater.getSnapshot().state).toMatchObject({
+      status: "downloaded",
+      fileUri: "file:///cache/retry.apk",
+    });
+    expect(adapter.installApk).toHaveBeenCalledOnce();
+  } finally {
+    updater.dispose();
+  }
+});
+
 test("auto-check runs on startup delay, throttles foreground re-checks, and iOS opens release page", async () => {
   vi.useFakeTimers();
   let clock = 1_000;
