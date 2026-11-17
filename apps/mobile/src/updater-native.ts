@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { randomUUID } from "expo-crypto";
 import { Directory, DownloadTask, File, Paths } from "expo-file-system";
 import * as Linking from "expo-linking";
 import { NativeModules, Platform } from "react-native";
@@ -79,7 +80,8 @@ export function createNativeUpdaterAdapter(): UpdaterAdapter {
           cancel: () => {},
         };
       }
-      const fileName = `eta-mobile-${candidate.version}.apk`;
+      // Cancelled native work may settle after a retry starts; never share its file.
+      const fileName = `eta-mobile-${candidate.version}-${randomUUID()}.apk`;
       const dir = cleanUpdatesDirectory();
       dir.create({ idempotent: true, intermediates: true });
       const destination = new File(dir, fileName);
