@@ -1,9 +1,12 @@
 import { expect, test } from "vite-plus/test";
 import {
+  buildAssistantReplyView,
   buildToolIndex,
   conversationRows,
+  conversationTurns,
   textContent,
   getToolSummary,
+  isWaitingForReply,
   taskLabel,
   toolCallState,
   toolDescription,
@@ -114,10 +117,10 @@ test("status distinguishes waiting for approval, recovery and cancellation", () 
       waitingForApproval: true,
     },
   };
-  expect(taskLabel(snapshot)).toBe("等待审批");
-  expect(taskLabel({ ...snapshot, recoveryRequired: true })).toBe("任务需要恢复");
+  expect(taskLabel(snapshot)).toBe("Waiting for approval");
+  expect(taskLabel({ ...snapshot, recoveryRequired: true })).toBe("Task needs recovery");
   expect(taskLabel({ ...snapshot, operation: { ...snapshot.operation, status: "aborting" } })).toBe(
-    "正在停止任务",
+    "Stopping task",
   );
   expect(taskLabel({ ...thread.snapshot, blockedReason: "Missing workspace" })).toBe(
     "Missing workspace",
@@ -215,8 +218,8 @@ test("mobile transport retains summaries and derives generating only from the cu
   const streaming = snapshot.operation!.streamingMessage!;
   expect(snapshot.toolIntents).toEqual({ call: "保存内容" });
   expect(toolCallState(snapshot, streaming, "call")).toBe("generating");
-  expect(toolStateLabel("generating")).toBe("准备执行");
-  expect(toolStateLabel("pending")).toBe("等待执行");
+  expect(toolStateLabel("generating")).toBe("Generating");
+  expect(toolStateLabel("pending")).toBe("Pending");
   expect(toolCallState({ ...snapshot, operation: null }, streaming, "call")).toBe("incomplete");
   expect(toolCallState({ ...snapshot, recoveryRequired: true }, streaming, "call")).toBe(
     "incomplete",
@@ -279,7 +282,7 @@ test("nested summaries survive truncated arguments and live results override sav
   expect(nestedTools(snapshot, "script")).toMatchObject([
     { id: "script/c1", description: "保存内容", status: "settled", result: { isError: true } },
   ]);
-  expect(toolStateLabel("settled", nestedTools(snapshot, "script")[0]!.result)).toBe("执行失败");
+  expect(toolStateLabel("settled", nestedTools(snapshot, "script")[0]!.result)).toBe("Failed");
   expect(nestedTools(snapshot, "script")[0]!.result!.content).toEqual([
     { type: "text", text: "Saved tool output" },
   ]);
@@ -403,4 +406,70 @@ test("shared tool queries do not revisit history or decode unseen nested preview
   }
   expect(visits).toBe(transcript.length);
   expect(decoded).toBe(30);
+});
+
+test("conversationTurns groups consecutive assistant messages and builds unified reply steps", () => {
+  const stepOne: BotMessage = {
+    role: "assistant",
+    content: [
+      { type: "thinking", thinking: "Step 1 reasoning" },
+      { type: "text", text: "Let me check that file." },
+      { type: "toolCall", id: "call-1", name: "read", arguments: { path: "a.ts" } },
+    ],
+  };
+  const toolResult: BotMessage = {
+    role: "toolResult",
+    toolCallId: "call-1",
+    toolName: "read",
+    content: [{ type: "text", text: "export const a = 1;" }],
+  };
+  const stepTwo: BotMessage = {
+    role: "assistant",
+    content: [
+      { type: "thinking", thinking: "Step 2 reasoning" },
+      { type: "text", text: "Final answer here." },
+    ],
+    stopReason: "stop",
+  };
+  const snap: BotSnapshot = {
+    ...thread.snapshot,
+    transcript: [
+      { id: "u1", message: { role: "user", content: "Inspect a.ts" } },
+      { id: "a1", message: stepOne },
+      { id: "r1", message: toolResult },
+      { id: "a2", message: stepTwo },
+    ],
+  };
+
+  const turns = conversationTurns(snap);
+  expect(turns).toHaveLength(2);
+  expect(turns[0]?.role).toBe("user");
+  expect(turns[1]?.role).toBe("assistant");
+  if (turns[1]?.role !== "assistant") throw new Error("Expected assistant turn");
+  expect(turns[1].messages).toHaveLength(2);
+
+  const view = buildAssistantReplyView(turns[1].messages, snap, buildToolIndex(snap));
+  expect(view.hasThinking).toBe(true);
+  expect(view.answer).toBe("Final answer here.");
+  expect(view.steps.map((step) => step.type)).toEqual(["thinking", "text", "tool", "thinking"]);
+});
+
+test("isWaitingForReply tracks active run before assistant output starts", () => {
+  const runningSnap: BotSnapshot = {
+    ...thread.snapshot,
+    transcript: [{ id: "u1", message: { role: "user", content: "Hi" } }],
+    operation: { id: "op", status: "running", runningTools: [] },
+  };
+  expect(isWaitingForReply(runningSnap, conversationTurns(runningSnap))).toBe(true);
+
+  const withStream: BotSnapshot = {
+    ...runningSnap,
+    operation: {
+      id: "op",
+      status: "running",
+      runningTools: [],
+      streamingMessage: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+    },
+  };
+  expect(isWaitingForReply(withStream, conversationTurns(withStream))).toBe(false);
 });

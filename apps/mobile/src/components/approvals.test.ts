@@ -176,31 +176,31 @@ async function press(target: HTMLButtonElement) {
 test("pending approval keeps its reason and scope visible while details and arguments default collapsed", async () => {
   await renderApprovals(snapshot());
   expect(document.body.textContent).toContain("The task needs to update a source file.");
-  expect(document.body.textContent).toContain("写入范围：/workspace/project");
+  expect(document.body.textContent).toContain("Write scope: /workspace/project");
   expect(document.body.textContent).not.toContain('"path"');
   expect(document.body.textContent).not.toContain("/workspace/project/.git");
 
-  const disclosure = button("权限详情与参数");
+  const disclosure = button("Permissions & arguments");
   expect(disclosure.getAttribute("aria-expanded")).toBe("false");
   await press(disclosure);
-  expect(document.body.textContent).toContain("Git 元数据：分支 main");
-  expect(document.body.textContent).toContain("审查意见：Check this write before it runs.");
-  expect(document.body.textContent).toContain("审查模型：test-provider/test-reviewer");
+  expect(document.body.textContent).toContain("Git metadata: branch main");
+  expect(document.body.textContent).toContain("Review note: Check this write before it runs.");
+  expect(document.body.textContent).toContain("Reviewer model: test-provider/test-reviewer");
   expect(document.body.textContent).toContain("Read package metadata");
   expect(document.body.textContent).toContain('"path": "src/secret.txt"');
-  expect(button("收起权限详情").getAttribute("aria-expanded")).toBe("true");
+  expect(button("Hide details").getAttribute("aria-expanded")).toBe("true");
 
-  await press(button("收起权限详情"));
+  await press(button("Hide details"));
   expect(document.body.textContent).not.toContain('"path"');
-  expect(button("权限详情与参数").getAttribute("aria-expanded")).toBe("false");
+  expect(button("Permissions & arguments").getAttribute("aria-expanded")).toBe("false");
 });
 
 test("deny, approve-once and reusable Git approval pass exact decisions; reuse is conditional", async () => {
   const approve = vi.fn();
   await renderApprovals(snapshot(), { approve });
-  await press(button("拒绝"));
-  await press(button("批准一次"));
-  await press(button("本次运行内允许此 Git 范围"));
+  await press(button("Deny"));
+  await press(button("Allow once"));
+  await press(button("Allow this Git scope for current run"));
   expect(approve.mock.calls).toEqual([
     ["approval-1", false, undefined],
     ["approval-1", true, undefined],
@@ -210,21 +210,21 @@ test("deny, approve-once and reusable Git approval pass exact decisions; reuse i
   await renderApprovals(snapshot({ approvals: [approval({ reusable: false })] }), { approve });
   expect(
     [...document.querySelectorAll("button")].some((element) =>
-      element.textContent?.includes("本次运行内允许此 Git 范围"),
+      element.textContent?.includes("Allow this Git scope for current run"),
     ),
   ).toBe(false);
 });
 
 test("approval actions are disabled while busy or disconnected", async () => {
   await renderApprovals(snapshot(), { busy: true });
-  for (const label of ["拒绝", "批准一次", "本次运行内允许此 Git 范围"])
+  for (const label of ["Deny", "Allow once", "Allow this Git scope for current run"])
     expect(button(label).disabled).toBe(true);
 
   const approve = vi.fn();
   await renderApprovals(snapshot(), { connected: false, approve });
-  for (const label of ["拒绝", "批准一次", "本次运行内允许此 Git 范围"])
+  for (const label of ["Deny", "Allow once", "Allow this Git scope for current run"])
     expect(button(label).disabled).toBe(true);
-  await press(button("批准一次"));
+  await press(button("Allow once"));
   expect(approve).not.toHaveBeenCalled();
 });
 
@@ -247,28 +247,32 @@ test("history appears only during an operation, keeps the newest 20 collapsed, a
   );
   const withHistory = snapshot({ approvals: [], approvalHistory: entries });
   await renderApprovals(snapshot({ operation: null, approvals: [], approvalHistory: entries }));
-  expect(document.body.textContent).not.toContain("自动审查记录");
+  expect(document.body.textContent).not.toContain("Auto-review history");
 
   await renderApprovals(withHistory);
-  const header = button("自动审查记录（20）");
+  const header = button("Auto-review history (20)");
   expect(header.getAttribute("aria-expanded")).toBe("false");
   expect(document.body.textContent).not.toContain("tool-24");
 
   await press(header);
-  expect(document.body.textContent).toContain("沿用本次运行的批准 · tool-7");
-  expect(document.body.textContent).toContain("已自动批准 · tool-6");
-  expect(document.body.textContent).toContain("已自动拒绝 · tool-5");
+  expect(document.body.textContent).toContain("Approved for this run · tool-7");
+  expect(document.body.textContent).toContain("Auto-approved · tool-6");
+  expect(document.body.textContent).toContain("Auto-denied · tool-5");
   expect(document.body.textContent).toContain("tool-24");
   expect(document.body.textContent).not.toContain("tool-4");
-  expect(document.body.textContent).not.toContain("审查模型：history-provider/history-reviewer");
+  expect(document.body.textContent).not.toContain(
+    "Reviewer model: history-provider/history-reviewer",
+  );
 
   const latest = buttonContaining("tool-24");
   expect(latest.getAttribute("aria-expanded")).toBe("false");
   await press(latest);
-  expect(document.body.textContent).toContain("审查模型：history-provider/history-reviewer");
+  expect(document.body.textContent).toContain("Reviewer model: history-provider/history-reviewer");
 
-  await press(button("自动审查记录（20）"));
-  expect(button("自动审查记录（20）").getAttribute("aria-expanded")).toBe("false");
-  await press(button("自动审查记录（20）"));
-  expect(document.body.textContent).not.toContain("审查模型：history-provider/history-reviewer");
+  await press(button("Auto-review history (20)"));
+  expect(button("Auto-review history (20)").getAttribute("aria-expanded")).toBe("false");
+  await press(button("Auto-review history (20)"));
+  expect(document.body.textContent).not.toContain(
+    "Reviewer model: history-provider/history-reviewer",
+  );
 });

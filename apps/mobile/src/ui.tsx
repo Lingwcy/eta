@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Alert,
+  Animated,
   KeyboardAvoidingView,
-  Platform,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleProp,
@@ -16,23 +17,11 @@ import {
 import type { LucideIcon } from "lucide-react-native";
 import { X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getMessages, useI18n } from "./i18n/index.ts";
+import { SpringPressable } from "./motion.tsx";
+import { colors, radii } from "./theme.ts";
 
-export const colors = {
-  background: "#F9F9F8",
-  surface: "#FFFFFF",
-  text: "#171717",
-  muted: "#737373",
-  border: "#E5E5E5",
-  borderSubtle: "#EEEEED",
-  blue: "#2563EB",
-  blueSoft: "#EFF6FF",
-  soft: "#F5F5F4",
-  softHover: "#EAEAE8",
-  danger: "#DC2626",
-  dangerSoft: "#FEE2E2",
-  success: "#16A34A",
-  successSoft: "#DCFCE7",
-};
+export { colors, radii } from "./theme.ts";
 
 export function IconButton({
   icon: Icon,
@@ -40,6 +29,7 @@ export function IconButton({
   onPress,
   disabled = false,
   primary = false,
+  ghost = false,
   size = 20,
 }: {
   icon: LucideIcon;
@@ -47,10 +37,12 @@ export function IconButton({
   onPress: () => void;
   disabled?: boolean;
   primary?: boolean;
+  ghost?: boolean;
   size?: number;
 }) {
   return (
-    <Pressable
+    <SpringPressable
+      scaleTo={0.93}
       accessibilityRole="button"
       accessibilityLabel={label}
       disabled={disabled}
@@ -58,12 +50,15 @@ export function IconButton({
       hitSlop={8}
       style={({ pressed }) => [
         styles.icon,
+        ghost && styles.iconGhost,
         primary && styles.primary,
-        (pressed || disabled) && styles.dim,
+        ghost && pressed && !disabled && styles.iconGhostPressed,
+        !ghost && pressed && !disabled && styles.pressedSoft,
+        disabled && styles.dim,
       ]}
     >
-      <Icon size={size} strokeWidth={2} color={primary ? colors.surface : colors.text} />
-    </Pressable>
+      <Icon size={size} strokeWidth={1.9} color={primary ? colors.surface : colors.text} />
+    </SpringPressable>
   );
 }
 
@@ -84,7 +79,8 @@ export function Button({
   compact?: boolean;
 }) {
   return (
-    <Pressable
+    <SpringPressable
+      scaleTo={0.97}
       accessibilityRole="button"
       disabled={disabled}
       hitSlop={compact ? 5 : undefined}
@@ -94,7 +90,8 @@ export function Button({
         compact && styles.compact,
         secondary && styles.secondary,
         destructive && styles.destructive,
-        (pressed || disabled) && styles.dim,
+        pressed && !disabled && styles.buttonPressed,
+        disabled && styles.dim,
       ]}
     >
       <Text
@@ -106,7 +103,7 @@ export function Button({
       >
         {children}
       </Text>
-    </Pressable>
+    </SpringPressable>
   );
 }
 
@@ -145,20 +142,48 @@ export function Sheet({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const slideAnim = useRef(new Animated.Value(280)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) return;
+    slideAnim.setValue?.(280);
+    backdropAnim.setValue?.(0);
+    Animated.parallel?.([
+      Animated.timing(backdropAnim, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 250,
+        friction: 26,
+        useNativeDriver: true,
+      }),
+    ]).start?.();
+  }, [backdropAnim, slideAnim, visible]);
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.overlay}
+        style={styles.overlayWrap}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Pressable
-          accessibilityLabel="关闭面板"
-          onPress={onClose}
-          style={StyleSheet.absoluteFill}
-        />
-        <SheetContent title={title} onClose={onClose}>
-          {children}
-        </SheetContent>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.overlayBackdrop, { opacity: backdropAnim }]}
+        >
+          <Pressable
+            accessibilityLabel={getMessages().common.closePanel}
+            onPress={onClose}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+        <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
+          <SheetContent title={title} onClose={onClose}>
+            {children}
+          </SheetContent>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -174,6 +199,7 @@ export function SheetContent({
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const { m } = useI18n();
   return (
     <View
       accessibilityViewIsModal
@@ -182,7 +208,7 @@ export function SheetContent({
       <View style={styles.sheetHandle} />
       <View style={styles.sheetHeader}>
         <Text style={styles.heading}>{title}</Text>
-        <IconButton icon={X} label="关闭" size={18} onPress={onClose} />
+        <IconButton ghost icon={X} label={m.common.close} size={18} onPress={onClose} />
       </View>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
         {children}
@@ -202,7 +228,11 @@ export function useAction() {
     try {
       await action();
     } catch (error) {
-      Alert.alert("操作未完成", error instanceof Error ? error.message : "请重试");
+      const { common } = getMessages();
+      Alert.alert(
+        common.actionFailedTitle,
+        error instanceof Error ? error.message : common.actionFailedFallback,
+      );
     } finally {
       running.current = false;
       setBusy(false);
@@ -213,15 +243,15 @@ export function useAction() {
 
 export const common = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  heading: { fontSize: 24, fontWeight: "600", color: colors.text, letterSpacing: -0.3 },
+  heading: { fontSize: 22, fontWeight: "600", color: colors.text, letterSpacing: -0.3 },
   label: { fontSize: 13, fontWeight: "500", color: colors.muted, marginBottom: 8 },
   body: { fontSize: 15, lineHeight: 23, color: colors.text },
   hint: { fontSize: 13, lineHeight: 20, color: colors.muted },
   field: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    borderRadius: radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 15,
     color: colors.text,
     borderWidth: 1,
@@ -234,53 +264,72 @@ export const common = StyleSheet.create({
 
 const styles = StyleSheet.create({
   icon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  primary: { backgroundColor: colors.text, borderColor: colors.text },
-  dim: { opacity: 0.45 },
+  iconGhost: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+  },
+  iconGhostPressed: {
+    backgroundColor: colors.interactiveHover,
+  },
+  pressedSoft: {
+    backgroundColor: colors.soft,
+  },
+  primary: { backgroundColor: colors.ink, borderColor: colors.ink },
+  dim: { opacity: 0.35 },
   button: {
-    minHeight: 44,
+    minHeight: 42,
     paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 22,
-    backgroundColor: colors.text,
+    paddingVertical: 10,
+    borderRadius: 21,
+    backgroundColor: colors.ink,
     alignItems: "center",
     justifyContent: "center",
   },
   compact: {
-    minHeight: 40,
+    minHeight: 36,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingVertical: 7,
+    borderRadius: 18,
   },
-  compactText: { fontSize: 14 },
+  compactText: { fontSize: 13 },
   secondary: {
     backgroundColor: colors.soft,
     borderWidth: 1,
     borderColor: colors.border,
   },
   destructive: { backgroundColor: colors.danger },
-  buttonText: { color: colors.surface, fontSize: 15, fontWeight: "600" },
+  buttonPressed: { opacity: 0.85 },
+  buttonText: { color: colors.surface, fontSize: 14, fontWeight: "600" },
   secondaryText: { color: colors.text },
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "#00000040" },
+  overlayWrap: { flex: 1, justifyContent: "flex-end" },
+  overlayBackdrop: {
+    backgroundColor: colors.overlay,
+  },
   sheet: {
     maxHeight: "85%",
     backgroundColor: colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   sheetHandle: {
-    width: 36,
+    width: 34,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#D4D4D4",
+    backgroundColor: colors.dimmed,
     alignSelf: "center",
     marginTop: 10,
     marginBottom: 4,
@@ -290,8 +339,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   sheetContent: { paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
-  heading: { fontSize: 18, fontWeight: "600", color: colors.text },
+  heading: { fontSize: 17, fontWeight: "600", color: colors.text, letterSpacing: -0.2 },
 });

@@ -5,6 +5,7 @@ import { ComputerError } from "../protocol.ts";
 import type {
   ComputerAccessibility,
   ComputerTarget,
+  ComputerCondition,
   CaptureLimits,
   ComputerCapture,
 } from "../protocol.ts";
@@ -18,6 +19,9 @@ const Reply = Schema.Union([
     reason: Schema.optionalKey(Schema.Literals(["user_interrupted", "stale_frame"])),
   }),
 ]);
+const Application = Schema.Struct({
+  app: Schema.String.check(Schema.isPattern(/^pid:[1-9][0-9]*$/)),
+});
 const Point = Schema.Struct({ x: Schema.Number, y: Schema.Number });
 const Bounds = Schema.Struct({
   x: Schema.Number,
@@ -26,6 +30,25 @@ const Bounds = Schema.Struct({
   height: Schema.Number,
 });
 const Layout = Schema.Struct({ id: Schema.String, revision: Schema.String, bounds: Bounds });
+const Observation = Schema.Struct({
+  scope: Schema.Literals(["window", "region", "menu_bar"]),
+  projection: Schema.Literals(["full", "compact", "overview"]),
+  complete: Schema.Boolean,
+  exhaustive: Schema.Boolean,
+  boundaries: Schema.Array(
+    Schema.Struct({
+      index: Schema.Number,
+      reason: Schema.String,
+      omittedChildren: Schema.optionalKey(Schema.Number),
+    }),
+  ),
+  unknown: Schema.Array(
+    Schema.Struct({ index: Schema.Number, fields: Schema.Array(Schema.String) }),
+  ),
+  visitedNodes: Schema.Number,
+  axReads: Schema.Number,
+  fallback: Schema.optionalKey(Schema.Literals(["root_unavailable", "menu_opened"])),
+});
 const State = Schema.Struct({
   id: Schema.String,
   app: Schema.String,
@@ -34,7 +57,57 @@ const State = Schema.Struct({
   windowId: Schema.optionalKey(Schema.Number),
   bounds: Schema.optionalKey(Bounds),
   cursor: Schema.optionalKey(Schema.NullOr(Point)),
+  observation: Schema.optionalKey(Observation),
 });
+const WaitEvidence = Schema.Literals(["satisfied", "unsatisfied", "unknown", "ambiguous"]);
+const WaitReply = Schema.Struct({
+  outcome: Schema.Struct({
+    status: Schema.Literals(["satisfied", "timeout", "unconfirmed", "ambiguous", "target_closed"]),
+    last: WaitEvidence,
+    lastKnown: Schema.optionalKey(WaitEvidence),
+    final: Schema.optionalKey(WaitEvidence),
+    reason: Schema.optionalKey(Schema.String),
+    samples: Schema.Number,
+    probeReads: Schema.Number,
+  }),
+  state: Schema.optionalKey(State),
+});
+const StateReceipt = Schema.Union([
+  Schema.Struct({
+    applied: Schema.Literal("no"),
+    verification: Schema.Struct({
+      status: Schema.Literal("satisfied"),
+      noOp: Schema.Literal(true),
+    }),
+  }),
+  Schema.Struct({
+    applied: Schema.Literal("yes"),
+    verification: Schema.Struct({
+      status: Schema.Literals(["satisfied", "unsatisfied", "unknown"]),
+      reason: Schema.optionalKey(Schema.String),
+    }),
+  }),
+]);
+
+function accessibilityState({
+  cursor,
+  observation,
+  ...state
+}: typeof State.Type): ComputerAccessibility {
+  return {
+    ...state,
+    ...(cursor ? { cursor } : {}),
+    ...(observation
+      ? {
+          observation: {
+            ...observation,
+            boundaries: observation.boundaries.map((item) => ({ ...item })),
+            unknown: observation.unknown.map((item) => ({ ...item, fields: [...item.fields] })),
+          },
+        }
+      : {}),
+  };
+}
 const Pointer = Schema.Struct({
   event: Schema.Literal("pointer"),
   snapshot: Schema.String,
@@ -216,17 +289,45 @@ export function createAccessibilityBridge(
       if (existingOnly && (!child || stopping)) return;
       await request({ operation: "check_ownership" }, signal);
     },
+    openApplication: async (app: string, signal: AbortSignal) =>
+      Schema.decodeUnknownSync(Application)(await request({ operation: "open", app }, signal)),
     observe: async (
       target: ComputerTarget,
       signal: AbortSignal,
     ): Promise<ComputerAccessibility> => {
-      const { cursor, ...state } = Schema.decodeUnknownSync(State)(
+      const state = Schema.decodeUnknownSync(State)(
         await request(
           { operation: "observe", ...target, presentation: Boolean(onPointer) },
           signal,
         ),
       );
-      return { ...state, ...(cursor ? { cursor } : {}) };
+      if ((target.projection || target.rootIndex !== undefined) && !state.observation)
+        throw new ComputerError(
+          "observation_failed",
+          "当前原生 helper 不支持分层观察；请重新构建并重启 Eta",
+        );
+      return accessibilityState(state);
+    },
+    waitUntil: async (
+      state: ComputerAccessibility,
+      condition: ComputerCondition,
+      timeoutMs: number,
+      signal: AbortSignal,
+    ) => {
+      const reply = Schema.decodeUnknownSync(WaitReply)(
+        await request(
+          {
+            operation: "wait_until",
+            id: state.id,
+            app: state.app,
+            projection: state.observation?.projection,
+            condition,
+            timeoutMs,
+          },
+          signal,
+        ),
+      );
+      return { outcome: reply.outcome, state: reply.state && accessibilityState(reply.state) };
     },
     layout: async (state: ComputerAccessibility, signal: AbortSignal) =>
       Schema.decodeUnknownSync(Layout)(
@@ -245,7 +346,14 @@ export function createAccessibilityBridge(
       operation: string,
       input: object,
       signal: AbortSignal,
-    ) => request({ ...input, id: state.id, operation, expectedBounds: state.bounds }, signal),
+    ) => {
+      const result = await request(
+        { ...input, id: state.id, operation, expectedBounds: state.bounds },
+        signal,
+      );
+      if (operation === "set_checked" || operation === "set_expanded" || operation === "select")
+        return Schema.decodeUnknownSync(StateReceipt)(result);
+    },
     reset,
     assertHealthy,
   };

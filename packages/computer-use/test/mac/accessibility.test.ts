@@ -30,6 +30,38 @@ async function fixture(
 }
 
 test.skipIf(process.platform === "win32")(
+  "native evidence survives JSONL and old helpers reject opt-in projections",
+  async () => {
+    const observation = {
+      scope: "region",
+      projection: "compact",
+      complete: false,
+      exhaustive: false,
+      boundaries: [{ index: 0, reason: "children_unknown" }],
+      unknown: [{ index: 0, fields: ["value"] }],
+      visitedNodes: 1,
+      axReads: 12,
+    };
+    const bridge = await fixture(`
+    console.log(JSON.stringify({ok:true,result:{
+      id:'one',app:r.app,windowTitle:'test',text:'[0] AXGroup',
+      ...(r.app==='old'?{}:{observation:${JSON.stringify(observation)}})
+    }}));`);
+    const state = await bridge.observe(
+      { app: "test", projection: "compact", previousId: "prior", rootIndex: 0 },
+      AbortSignal.timeout(5000),
+    );
+    expect(state.observation).toEqual(observation);
+    await expect(
+      bridge.observe({ app: "old", projection: "compact" }, AbortSignal.timeout(5000)),
+    ).rejects.toMatchObject({ code: "observation_failed", applied: "no" });
+    expect((await bridge.observe({ app: "old" }, AbortSignal.timeout(5000))).text).toBe(
+      "[0] AXGroup",
+    );
+  },
+);
+
+test.skipIf(process.platform === "win32")(
   "validates native observations and reports exact native non-execution failures",
   async () => {
     const bridge = await fixture(
@@ -208,5 +240,36 @@ test.skipIf(process.platform === "win32")(
     expect((await bridge.observe({ app: "TextEdit" }, AbortSignal.timeout(5000))).text).toBe(
       "ready",
     );
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a launch receipt observes the returned instance even when its running name differs",
+  async () => {
+    const bridge = await fixture(
+      'console.log(JSON.stringify(r.operation === "open" && r.app === "MCL" ? {ok:true,result:{app:"pid:123"}} : r.operation === "observe" && r.app === "pid:123" ? {ok:true,result:{id:"one",app:"dev.mcl.launcher",windowTitle:"Launcher",text:"[0] AXButton Download"}} : {ok:false,message:"wrong instance",applied:"no"}));',
+    );
+    const application = await bridge.openApplication("MCL", AbortSignal.timeout(5000));
+    const state = await bridge.observe(application, AbortSignal.timeout(5000));
+    expect(state.text).toBe("[0] AXButton Download");
+    expect(state.app).toBe("dev.mcl.launcher");
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "missing applications preserve non-delivery and invalid launch receipts cannot claim an instance",
+  async () => {
+    const bridge = await fixture(
+      'console.log(JSON.stringify(r.app === "missing" ? {ok:false,message:"Application not installed",applied:"no"} : {ok:true,result:{app:"MCL"}}));',
+    );
+    await expect(
+      bridge.openApplication("missing", AbortSignal.timeout(5000)),
+    ).rejects.toMatchObject({
+      applied: "no",
+      message: "Application not installed",
+    });
+    await expect(
+      bridge.openApplication("malformed", AbortSignal.timeout(5000)),
+    ).rejects.toBeDefined();
   },
 );

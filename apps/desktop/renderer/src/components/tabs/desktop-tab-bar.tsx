@@ -74,10 +74,10 @@ export function DesktopTabBar({
       {!browsing && (
         <div
           className={cn(
-            "relative flex h-full shrink-0 items-center pr-2 transition-[width] duration-180 ease-out motion-reduce:transition-none after:absolute after:top-3 after:right-0 after:bottom-3 after:border-r after:border-border after:opacity-0 after:transition-opacity after:duration-0 motion-reduce:after:delay-0",
+            "relative flex h-full shrink-0 items-center pr-2 transition-[width] duration-(--eta-duration-panel) ease-(--eta-ease-out) motion-reduce:transition-none after:absolute after:top-3 after:right-0 after:bottom-3 after:border-r after:border-border after:opacity-0 after:transition-opacity after:duration-0 motion-reduce:after:delay-0",
             mac ? "pl-[98px]" : "pl-2",
             sidebar
-              ? "w-[calc(var(--rail-width)+var(--sidebar-width))] after:opacity-100 after:delay-180"
+              ? "w-[calc(var(--rail-width)+var(--sidebar-width))] after:opacity-100 after:delay-(--eta-duration-panel)"
               : mac
                 ? "w-[194px]"
                 : "w-[104px]",
@@ -169,12 +169,12 @@ export function DesktopTabBar({
               >
                 <div
                   className={cn(
-                    "group/tab relative flex h-8 min-w-[120px] max-w-[280px] flex-[1_0_180px] items-center rounded-lg transition-colors [-webkit-app-region:no-drag]",
+                    "group/tab relative flex h-8 min-w-[120px] max-w-[280px] flex-[1_0_180px] items-center rounded-lg transition-[background-color,color,box-shadow] duration-(--eta-duration-fast) ease-(--eta-ease-out) [-webkit-app-region:no-drag]",
                     active
                       ? "bg-surface text-heading shadow-[0_1px_3px_#00000008]"
                       : "text-secondary hover:bg-surface-hover/60",
                     !active &&
-                      "after:absolute after:right-0 after:top-2 after:h-4 after:w-px after:bg-surface-active/70 after:content-[''] hover:after:opacity-0",
+                      "after:absolute after:right-0 after:top-2 after:h-4 after:w-px after:bg-surface-active/70 after:transition-opacity after:duration-(--eta-duration-fast) after:content-[''] hover:after:opacity-0",
                   )}
                   draggable
                   onDragStart={(event) => {
@@ -222,7 +222,7 @@ export function DesktopTabBar({
                   </PreviewCard.Trigger>
                   <div
                     className={cn(
-                      "absolute right-1.5 [-webkit-app-region:no-drag]",
+                      "absolute right-1.5 transition-opacity duration-(--eta-duration-fast) [-webkit-app-region:no-drag]",
                       !active &&
                         "opacity-0 group-hover/tab:opacity-100 group-focus-within/tab:opacity-100",
                     )}
@@ -236,7 +236,7 @@ export function DesktopTabBar({
                         setPreviewOpen(false);
                         tabs.close(item.id);
                       }}
-                      className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-surface-active/50 hover:text-strong"
+                      className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted transition-[color,background-color,scale] duration-(--eta-duration-fast) ease-(--eta-ease-out) hover:bg-surface-active/50 hover:text-strong motion-safe:active:scale-[0.92] motion-reduce:transition-[color,background-color]"
                     >
                       <X size={14} />
                     </button>
@@ -321,7 +321,7 @@ export function DesktopTabBar({
             payload && (
               <PreviewCard.Portal>
                 <PreviewCard.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-                  <PreviewCard.Popup className="w-64 max-w-[calc(100vw-32px)] overflow-hidden rounded-[10px] border border-contrast/12 bg-panel/95 p-2 text-xs text-heading shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl [-webkit-app-region:no-drag]">
+                  <PreviewCard.Popup className="w-64 max-w-[calc(100vw-32px)] origin-(--transform-origin) overflow-hidden rounded-[10px] border border-contrast/12 bg-panel/95 p-2 text-xs text-heading shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl transition-[opacity,translate,scale] duration-(--eta-duration-fast) ease-(--eta-ease-out) motion-safe:data-starting-style:translate-y-1 motion-safe:data-starting-style:scale-95 data-starting-style:opacity-0 motion-safe:data-ending-style:translate-y-1 motion-safe:data-ending-style:scale-95 data-ending-style:opacity-0 [-webkit-app-region:no-drag]">
                     <p className="truncate font-medium">{payload.title}</p>
                     <p className="mt-0.5 truncate text-[11px] text-muted">
                       {payload.running ? t("navigation:desktopTabBar.running") : ""}

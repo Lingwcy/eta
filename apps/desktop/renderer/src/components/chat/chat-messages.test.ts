@@ -1,7 +1,12 @@
 import { expect, test } from "vite-plus/test";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import type { AgentSnapshot } from "@eta/core/agent/protocol";
-import { getChatMessages, isActivityMessage } from "./chat-messages";
+import {
+  endsWithActivity,
+  getChatMessages,
+  isActivityMessage,
+  startsWithActivity,
+} from "./chat-messages";
 
 const message = { ...fauxAssistantMessage("Hello"), timestamp: 100 };
 function snapshot(): AgentSnapshot {
@@ -175,4 +180,34 @@ test("invisible assistant entries do not create empty transcript spacing", () =>
   expect(getChatMessages(value).map(({ message }) => message.content)).toEqual([
     fauxAssistantMessage("Visible reply").content,
   ]);
+});
+
+test("activity edge detection tracks thinking and tool boundaries across mixed messages", () => {
+  const thinking = { type: "thinking" as const, thinking: "Testing preview error summaries" };
+  const text = { type: "text" as const, text: "Regression verified." };
+  const call = fauxToolCall("codemode", { code: "text(1)" });
+
+  const mixed = fauxAssistantMessage([thinking, text, call]);
+  expect(isActivityMessage(mixed)).toBe(false);
+  expect(startsWithActivity(mixed)).toBe(true);
+  expect(endsWithActivity(mixed)).toBe(true);
+  expect(endsWithActivity(mixed, false)).toBe(false);
+
+  const thinkingThenText = fauxAssistantMessage([thinking, text]);
+  expect(startsWithActivity(thinkingThenText)).toBe(true);
+  expect(endsWithActivity(thinkingThenText)).toBe(false);
+
+  const textThenTool = fauxAssistantMessage([text, call]);
+  expect(startsWithActivity(textThenTool)).toBe(false);
+  expect(endsWithActivity(textThenTool)).toBe(true);
+
+  const blankTextAndThinking = fauxAssistantMessage([
+    { type: "thinking", thinking: "  " },
+    { type: "text", text: "  " },
+    call,
+  ]);
+  expect(isActivityMessage(blankTextAndThinking)).toBe(true);
+  expect(startsWithActivity(blankTextAndThinking)).toBe(true);
+  expect(startsWithActivity(blankTextAndThinking, false)).toBe(false);
+  expect(endsWithActivity(blankTextAndThinking)).toBe(true);
 });

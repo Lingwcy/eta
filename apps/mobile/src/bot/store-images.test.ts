@@ -141,10 +141,10 @@ test("repeated selections enforce combined count and size without partially addi
   const { store } = setup(admitted);
   await store.connect(connection);
   store.addImages([image, image, image]);
-  expect(() => store.addImages([image, image])).toThrow("最多添加 4 张图片");
+  expect(() => store.addImages([image, image])).toThrow("Up to 4 images allowed");
   expect(store.getSnapshot().draftImages[draftKey(store.getSnapshot())]).toHaveLength(3);
   expect(() => store.addImages([{ ...image, data: "a".repeat(MAX_IMAGE_BASE64_LENGTH) }])).toThrow(
-    "图片总大小不能超过 24 MiB",
+    "Total image size cannot exceed 24 MiB",
   );
   expect(store.getSnapshot().draftImages[draftKey(store.getSnapshot())]).toHaveLength(3);
 });

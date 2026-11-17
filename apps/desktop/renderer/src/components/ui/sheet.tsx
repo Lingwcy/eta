@@ -20,8 +20,8 @@ export function Sheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-30 bg-black/10" />
-        <Dialog.Popup className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-border bg-surface shadow-xl outline-none">
+        <Dialog.Backdrop className="fixed inset-0 z-30 bg-black/10 transition-opacity duration-(--eta-duration-panel) ease-(--eta-ease-out) data-starting-style:opacity-0 data-ending-style:opacity-0 motion-reduce:duration-(--eta-duration-fast)" />
+        <Dialog.Popup className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-border bg-surface shadow-xl outline-none transition-[translate,opacity] duration-(--eta-duration-panel) ease-(--eta-ease-out) motion-safe:data-starting-style:translate-x-full data-starting-style:opacity-0 motion-safe:data-ending-style:translate-x-full data-ending-style:opacity-0 motion-reduce:duration-(--eta-duration-fast)">
           <div className="flex items-center justify-between border-b border-border-soft px-6 py-4">
             <Dialog.Title className="font-semibold text-heading">{title}</Dialog.Title>
             <Dialog.Close

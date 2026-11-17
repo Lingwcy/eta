@@ -164,6 +164,12 @@
   --eta-warning-text-600: light-dark(var(--color-amber-600), #fbbf24);
   --eta-warning-text-900: light-dark(var(--color-amber-900), #fbbf24);
   --eta-warning-tint-50: light-dark(var(--color-amber-50), #3c3220);
+
+  --eta-duration-fast: 110ms;
+  --eta-duration-normal: 160ms;
+  --eta-duration-panel: 200ms;
+  --eta-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --eta-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -180,4 +186,59 @@ body {
 :root[data-theme="dark"] ::selection {
   background: #304d76;
   color: #eceef1;
+}
+
+@keyframes eta-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes eta-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  70%,
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes eta-delayed-fade-in {
+  0%,
+  40% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes eta-tab-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes eta-send-nudge {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-2px) scale(1.08);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
 }

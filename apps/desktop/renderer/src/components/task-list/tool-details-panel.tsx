@@ -16,6 +16,7 @@ export function ToolDetailsPanel({ tool }: { tool: SnapshotTool }) {
     <ScrollAreaRoot className="max-h-60">
       <ScrollAreaViewport
         className="max-h-60"
+        overscroll="auto"
         role="region"
         aria-label={t("chat:toolDetailsPanel.argumentsAndResult", { toolName: tool.toolName })}
       >

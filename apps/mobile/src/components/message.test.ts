@@ -18,7 +18,18 @@ vi.mock("react-native", async () => {
   const View = ({ children }: { children?: React.ReactNode }) =>
     React.createElement("div", {}, children);
   return {
+    Animated: {
+      Value: class {
+        constructor() {}
+      },
+      View,
+      loop: () => ({ start: () => {}, stop: () => {} }),
+      sequence: () => ({}),
+      timing: () => ({}),
+      delay: () => ({}),
+    },
     View,
+    ScrollView: View,
     Text: View,
     Image: () => null,
     Linking: { openURL: vi.fn() },
@@ -149,7 +160,7 @@ test("a live status overrides saved stopped state while expanded results refresh
     },
   });
   await renderMessage(message, value);
-  const disclosure = button("Read the original file，执行中");
+  const disclosure = button("Read the original file, Running");
   expect(document.body.textContent).not.toContain("Saved output");
   await press(disclosure);
   expect(document.body.textContent).toContain('"path": "original.txt"');
@@ -166,11 +177,11 @@ test("a live status overrides saved stopped state while expanded results refresh
     ],
     operation: null,
   });
-  expect(button("执行失败").getAttribute("aria-expanded")).toBe("true");
+  expect(button("Failed").getAttribute("aria-expanded")).toBe("true");
   expect(document.body.textContent).toContain("Current failure");
   expect(document.body.textContent).not.toContain("Saved output");
-  expect(document.body.textContent).not.toContain("执行中");
-  await press(button("执行失败"));
+  expect(document.body.textContent).not.toContain("Running");
+  await press(button("Failed"));
   expect(document.body.textContent).not.toContain("Current failure");
 });
 
@@ -182,7 +193,7 @@ test("saved stopped calls remain stopped and only the current streaming call is 
       transcript: [{ id: "assistant", message, toolStatus: "stopped" }],
     }),
   );
-  expect(button("已停止")).toBeDefined();
+  expect(button("Stopped")).toBeDefined();
 
   await renderMessage(
     message,
@@ -190,7 +201,7 @@ test("saved stopped calls remain stopped and only the current streaming call is 
       operation: { id: "operation", status: "running", runningTools: [] },
     }),
   );
-  expect(button("未完成")).toBeDefined();
+  expect(button("Incomplete")).toBeDefined();
 
   await renderMessage(
     message,
@@ -204,7 +215,7 @@ test("saved stopped calls remain stopped and only the current streaming call is 
       },
     }),
   );
-  expect(button("准备执行")).toBeDefined();
+  expect(button("Generating")).toBeDefined();
 });
 
 test("nested live previews replace saved children and a waiting outer call remains actionable", async () => {
@@ -260,9 +271,60 @@ test("nested live previews replace saved children and a waiting outer call remai
     },
   });
   expect(document.querySelectorAll("button")).toHaveLength(2);
-  expect(button("codemode · original.txt，等待批准")).toBeDefined();
-  expect(button("Update nested file，执行中").getAttribute("aria-expanded")).toBe("true");
+  expect(button("codemode · original.txt, Waiting approval")).toBeDefined();
+  expect(button("Update nested file, Running").getAttribute("aria-expanded")).toBe("true");
   expect(document.body.textContent).toContain('"path": "new.txt"');
   expect(document.body.textContent).toContain("New nested output");
   expect(document.body.textContent).not.toContain("Old nested output");
+});
+
+test("grouped assistant turn renders a collapsible ReplyArea timeline above the final answer", async () => {
+  const first: BotMessage = {
+    role: "assistant",
+    content: [
+      { type: "thinking", thinking: "Inspecting target file" },
+      { type: "text", text: "Checking file contents..." },
+      { type: "toolCall", id: "call-read", name: "read", arguments: { path: "app.tsx" } },
+    ],
+  };
+  const result: BotMessage = {
+    role: "toolResult",
+    toolCallId: "call-read",
+    toolName: "read",
+    content: [{ type: "text", text: "export default function App() {}" }],
+  };
+  const second: BotMessage = {
+    role: "assistant",
+    content: [{ type: "text", text: "Everything looks clean." }],
+    stopReason: "stop",
+  };
+  const value = snapshot(first, {
+    transcript: [
+      { id: "a1", message: first },
+      { id: "r1", message: result },
+      { id: "a2", message: second },
+    ],
+  });
+
+  await act(async () =>
+    root.render(
+      createElement(MessageView, {
+        messages: [first, second],
+        snapshot: value,
+        tools: buildToolIndex(value),
+      }),
+    ),
+  );
+
+  const areaToggle = button("Thinking");
+  expect(areaToggle.getAttribute("aria-expanded")).toBe("true");
+  expect(document.body.textContent).toContain("Inspecting target file");
+  expect(document.body.textContent).toContain("Checking file contents...");
+  expect(document.body.textContent).toContain("read · app.tsx");
+  expect(document.body.textContent).toContain("Everything looks clean.");
+
+  await press(areaToggle);
+  expect(button("Thinking").getAttribute("aria-expanded")).toBe("false");
+  expect(document.body.textContent).not.toContain("Inspecting target file");
+  expect(document.body.textContent).toContain("Everything looks clean.");
 });

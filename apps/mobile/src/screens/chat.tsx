@@ -13,11 +13,19 @@ import {
 } from "react-native";
 import { ArrowDown, Menu, SquarePen } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMobile } from "../provider.tsx";
+import { useMobile, useUpdater } from "../provider.tsx";
 import { draftKey } from "../bot/store.ts";
-import { buildToolIndex, conversationRows, taskLabel, isActivityMessage } from "../conversation.ts";
+import {
+  buildToolIndex,
+  conversationTurns,
+  isWaitingForReply,
+  taskLabel,
+  type ConversationTurn,
+} from "../conversation.ts";
 import { MessageView } from "../components/message.tsx";
+import { WaitingDots } from "../components/waiting-dots.tsx";
 import { Approvals } from "../components/approvals.tsx";
+import { getMessages, useI18n } from "../i18n/index.ts";
 import {
   ChatEmptyState,
   ConnectionBanner,
@@ -26,14 +34,19 @@ import {
   TaskStatus,
   taskTone,
 } from "../components/chat-status.tsx";
-import { ConfigurationSheet, sandboxLabels, thinkingLabels } from "../components/configuration.tsx";
+import { ConfigurationSheet } from "../components/configuration.tsx";
 import { ComposerInput } from "../components/composer-input.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
+import { BrandSplash } from "../components/splash.tsx";
+import { UpdateBanner } from "../components/update-banner.tsx";
+import { FadeSlideIn } from "../motion.tsx";
 import { Button, colors, common, IconButton, useAction } from "../ui.tsx";
 import { SettingsScreen } from "./settings.tsx";
 
 export function ChatScreen() {
   const { state, store } = useMobile();
+  const { updater, update } = useUpdater();
+  const { m } = useI18n();
   const router = useRouter();
   const [sidebar, setSidebar] = useState(false);
   const [configuration, setConfiguration] = useState(false);
@@ -70,7 +83,7 @@ export function ChatScreen() {
       owner.add(result.assets.map(pickedImage));
     } catch (error) {
       if (mounted.current && owner.isCurrent())
-        setImageError(error instanceof Error ? error.message : "无法选择图片，请重试");
+        setImageError(error instanceof Error ? error.message : getMessages().chat.imagePickFailed);
     } finally {
       pickerBusy.current = false;
       if (mounted.current) setPickingImages(false);
@@ -80,12 +93,12 @@ export function ChatScreen() {
   const { busy: stopping, run: stop } = useAction();
 
   const atBottom = useRef(true);
-  const list = useRef<FlatList<ReturnType<typeof conversationRows>[number]>>(null);
+  const list = useRef<FlatList<ConversationTurn>>(null);
   const snapshot = state.thread?.snapshot;
-  const rows = useMemo(
+  const turns = useMemo(
     () =>
       snapshot
-        ? conversationRows(
+        ? conversationTurns(
             snapshot,
             state.submittedInputs.filter((input) => input.threadId === state.threadId),
           )
@@ -93,6 +106,7 @@ export function ChatScreen() {
     [snapshot, state.submittedInputs, state.threadId],
   );
   const tools = useMemo(() => (snapshot ? buildToolIndex(snapshot) : undefined), [snapshot]);
+  const waitingForReply = isWaitingForReply(snapshot, turns);
   const workspace = state.library?.workspaces.find((value) => value.id === state.workspaceId);
   const project = state.library?.projects.find((value) => value.id === workspace?.projectId);
   const model = state.library?.models.find(
@@ -112,19 +126,29 @@ export function ChatScreen() {
   if (state.status === "loading")
     return (
       <SafeAreaView style={[common.screen, styles.loading]}>
-        <Text style={common.hint}>正在读取连接…</Text>
+        <BrandSplash label={m.splash.loadingConnection} />
       </SafeAreaView>
     );
   if (!state.url) return <SettingsScreen onboarding />;
 
+  const statusText = taskLabel(snapshot);
+  const statusTone = taskTone(snapshot);
+  const showTaskStatus =
+    Boolean(statusText) &&
+    statusTone !== "done" &&
+    !(statusTone === "running" && statusText === m.conversation.running);
+
   const footer = (
     <>
-      {snapshot && <Approvals snapshot={snapshot} />}
-      {!!taskLabel(snapshot) && (
-        <TaskStatus label={taskLabel(snapshot)} tone={taskTone(snapshot)} />
+      {waitingForReply && (
+        <View style={styles.waitingRow}>
+          <WaitingDots />
+        </View>
       )}
+      {snapshot && <Approvals snapshot={snapshot} />}
+      {showTaskStatus && <TaskStatus label={statusText} tone={statusTone} />}
       {snapshot?.sandbox && !snapshot.sandbox.available && (
-        <ErrorStrip message={snapshot.sandbox.reason ?? "Bot 沙盒不可用"} />
+        <ErrorStrip message={snapshot.sandbox.reason ?? m.chat.sandboxUnavailable} />
       )}
       {snapshot?.recoveryRequired && (
         <View style={styles.inlineAction}>
@@ -136,7 +160,7 @@ export function ChatScreen() {
               void run(() => store.control("resume"));
             }}
           >
-            恢复任务
+            {m.chat.resumeTask}
           </Button>
         </View>
       )}
@@ -150,12 +174,15 @@ export function ChatScreen() {
               void run(() => store.metadata(state.threadId!, { archived: false }));
             }}
           >
-            取消归档
+            {m.chat.unarchive}
           </Button>
         </View>
       )}
     </>
   );
+
+  const hasSessionHeader = Boolean(state.thread || turns.length > 0);
+
   return (
     <SafeAreaView style={common.screen}>
       <KeyboardAvoidingView
@@ -163,23 +190,33 @@ export function ChatScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.header}>
-          <IconButton icon={Menu} label="打开项目与会话" onPress={() => setSidebar(true)} />
+          <IconButton
+            ghost
+            icon={Menu}
+            label={m.chat.openSidebarLabel}
+            onPress={() => setSidebar(true)}
+          />
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="选择项目或会话"
+            accessibilityLabel={m.chat.selectProjectOrThreadLabel}
             onPress={() => setSidebar(true)}
             style={styles.title}
           >
             <Text numberOfLines={1} style={styles.titleText}>
-              {state.thread?.thread.title || "新会话"}
+              {hasSessionHeader
+                ? state.thread?.thread.title || m.chat.newThreadTitle
+                : (project?.name ?? m.chat.selectProjectFallback)}
             </Text>
-            <Text numberOfLines={1} style={styles.project}>
-              {project?.name ?? "选择 Bot 项目"}
-            </Text>
+            {hasSessionHeader && project?.name ? (
+              <Text numberOfLines={1} style={styles.project}>
+                {project.name}
+              </Text>
+            ) : null}
           </Pressable>
           <IconButton
+            ghost
             icon={SquarePen}
-            label="新建会话"
+            label={m.chat.newChatLabel}
             disabled={state.sending}
             onPress={() => {
               void run(() => store.newThread());
@@ -199,25 +236,23 @@ export function ChatScreen() {
           />
         )}
         {connected && state.error && <ErrorStrip message={state.error} />}
+        <UpdateBanner update={update} updater={updater} />
         <View style={styles.transcript}>
           <FlatList
             ref={list}
-            data={rows}
-            keyExtractor={(row) => row.id}
+            style={styles.list}
+            data={turns}
+            keyExtractor={(turn) => `${state.threadId ?? "draft"}:${turn.id}`}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-            contentContainerStyle={[styles.messages, !rows.length && styles.emptyList]}
-            renderItem={({ item, index }) =>
+            contentContainerStyle={[styles.messages, !turns.length && styles.emptyList]}
+            renderItem={({ item }) =>
               snapshot && tools ? (
-                <MessageView
-                  message={item.message}
-                  snapshot={snapshot}
-                  tools={tools}
-                  compactAfter={
-                    isActivityMessage(item.message) &&
-                    Boolean(rows[index + 1] && isActivityMessage(rows[index + 1]!.message))
-                  }
-                />
+                item.role === "assistant" ? (
+                  <MessageView messages={item.messages} snapshot={snapshot} tools={tools} />
+                ) : (
+                  <MessageView message={item.message} snapshot={snapshot} tools={tools} />
+                )
               ) : null
             }
             initialNumToRender={12}
@@ -228,7 +263,7 @@ export function ChatScreen() {
                 nativeEvent.contentSize.height -
                   nativeEvent.layoutMeasurement.height -
                   nativeEvent.contentOffset.y <
-                80;
+                60;
               atBottom.current = near;
               setAway(!near);
             }}
@@ -243,21 +278,21 @@ export function ChatScreen() {
               <ChatEmptyState
                 title={
                   state.opening
-                    ? "正在读取会话…"
+                    ? m.chat.loadingThreadTitle
                     : state.threadId && !state.thread
-                      ? "会话尚未加载"
-                      : "从这里开始工作"
+                      ? m.chat.unloadedThreadTitle
+                      : m.chat.welcomeTitle
                 }
                 hint={
                   !state.library?.models.length
-                    ? "Bot 尚未提供模型，请先在 Bot 配置模型凭据"
+                    ? m.chat.noModelsHint
                     : state.thread && !state.opening
-                      ? "这个会话还没有消息"
+                      ? m.chat.readyThreadHint
                       : state.threadId
-                        ? "连接 Bot 后查看会话内容"
+                        ? m.chat.unloadedThreadHint
                         : project
-                          ? `任务将在 ${project.name} 中运行`
-                          : "先选择或创建一个 Bot 项目"
+                          ? m.chat.projectTargetHint(project.name)
+                          : m.chat.selectProjectHint
                 }
               >
                 {state.threadId && !state.thread && !state.opening && (
@@ -269,7 +304,7 @@ export function ChatScreen() {
                       void run(() => store.open(state.threadId!));
                     }}
                   >
-                    重新加载会话
+                    {m.chat.reloadThread}
                   </Button>
                 )}
               </ChatEmptyState>
@@ -277,20 +312,21 @@ export function ChatScreen() {
             ListFooterComponent={footer}
           />
           {away && (
-            <View style={styles.jump}>
+            <FadeSlideIn offset={10} duration={160} style={styles.jump}>
               <IconButton
                 icon={ArrowDown}
-                label="滚动到最新消息"
+                size={18}
+                label={m.chat.scrollBottomLabel}
                 onPress={() => {
                   atBottom.current = true;
                   setAway(false);
                   list.current?.scrollToEnd({ animated: true });
                 }}
               />
-            </View>
+            </FadeSlideIn>
           )}
         </View>
-        {state.pending && (
+        {state.pending && !state.sending && (
           <PendingNotice
             sending={state.sending}
             prompt={state.pending.prompt}
@@ -341,17 +377,49 @@ export function ChatScreen() {
             }
             disabled={!connected || state.opening || !!state.pending}
             modelName={model?.name}
+            modelProvider={model?.provider ?? state.configuration?.provider}
             thinkingLevel={state.configuration?.thinkingLevel}
             thinkingLevelLabel={
-              state.configuration ? thinkingLabels[state.configuration.thinkingLevel] : undefined
+              state.configuration
+                ? m.configuration.thinkingLevels[state.configuration.thinkingLevel]
+                : undefined
             }
-            sandboxMode={state.configuration?.sandboxMode ?? snapshot?.sandbox?.mode}
+            sandboxMode={
+              state.configuration?.sandboxMode ?? snapshot?.sandbox?.mode ?? "danger-full-access"
+            }
             sandboxModeLabel={
-              state.configuration?.sandboxMode
-                ? sandboxLabels[state.configuration.sandboxMode]
-                : snapshot?.sandbox?.mode
-                  ? sandboxLabels[snapshot.sandbox.mode]
-                  : undefined
+              m.configuration.sandboxModes[
+                state.configuration?.sandboxMode ?? snapshot?.sandbox?.mode ?? "danger-full-access"
+              ]
+            }
+            onToggleSandbox={() => {
+              const currentConfig = state.configuration;
+              if (!currentConfig) {
+                setConfiguration(true);
+                return;
+              }
+              const allowed = snapshot?.sandbox?.allowedModes ??
+                state.library?.allowedSandboxModes ?? [
+                  "danger-full-access",
+                  "workspace-write",
+                  "read-only",
+                ];
+              if (allowed.length <= 1) {
+                setConfiguration(true);
+                return;
+              }
+              const currentMode =
+                currentConfig.sandboxMode ?? snapshot?.sandbox?.mode ?? "danger-full-access";
+              const index = allowed.indexOf(currentMode);
+              const nextMode = allowed[(index + 1) % allowed.length]!;
+              void run(() => store.configure({ ...currentConfig, sandboxMode: nextMode }));
+            }}
+            placeholder={
+              state.status !== "connected"
+                ? m.chat.disconnectedPlaceholder
+                : running
+                  ? m.chat.runningPlaceholder
+                  : m.chat.defaultPlaceholder
             }
             contextTokens={state.thread?.contextTokens}
           />
@@ -373,37 +441,70 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    height: 54,
+    paddingHorizontal: 8,
+    backgroundColor: colors.background,
   },
-  title: { flex: 1, alignItems: "center", gap: 2 },
-  titleText: { fontSize: 17, fontWeight: "600", color: colors.text, letterSpacing: -0.2 },
-  project: { fontSize: 12, color: colors.muted },
-  transcript: { flex: 1 },
+  title: {
+    flex: 1,
+    minWidth: 0,
+    marginHorizontal: 6,
+    justifyContent: "center",
+  },
+  titleText: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+    color: colors.text,
+  },
+  project: {
+    fontSize: 11.5,
+    lineHeight: 15,
+    color: colors.muted,
+  },
+  transcript: { flex: 1, minHeight: 0 },
+  list: { flex: 1 },
   messages: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 20,
     maxWidth: 760,
     width: "100%",
     alignSelf: "center",
   },
   emptyList: { flexGrow: 1 },
+  waitingRow: {
+    marginBottom: 12,
+  },
   inlineAction: { alignItems: "flex-start", marginVertical: 8 },
   jump: {
     position: "absolute",
     bottom: 14,
-    right: 20,
+    right: 18,
     borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   composerArea: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 4 : 8,
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: Platform.OS === "ios" ? 6 : 10,
     maxWidth: 760,
     width: "100%",
     alignSelf: "center",
+    backgroundColor: colors.background,
   },
 });

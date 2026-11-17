@@ -22,10 +22,7 @@ final class Bridge {
   var observedSnapshot = ""
   var application: NSRunningApplication?
   var window: AXUIElement?
+  var regionRoot: AXUIElement?
   var indexed: [AXUIElement] = []
-  var seen = Set<CFHashCode>()
-  var lines: [String] = []
-  var textSize = 0
-  var deadline = Date()
-
+  var visibleIndexes = Set<Int>()
 }

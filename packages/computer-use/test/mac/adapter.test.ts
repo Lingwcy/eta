@@ -25,16 +25,19 @@ function fixture() {
   const signal = new AbortController().signal;
   const host: MacComputerHost = {
     permissions: () => ({ screen: true, accessibility: true }),
-    openApplication: async (name) => {
-      events.push(["open", name]);
-    },
     accessibility: {
+      openApplication: async (name) => {
+        events.push(["open", name]);
+        return { app: "pid:123" };
+      },
       assertHealthy: () => {},
+      waitUntil: async () => {
+        throw new Error("Unexpected conditional wait");
+      },
       checkOwnership: async () => {},
       observe: async () => state,
       execute: async (selected, operation, input) => {
         events.push([selected, operation, input]);
-        return {};
       },
       layout: async () => capture.layout,
       capture: async (selected, _signal, limits) => {
@@ -104,8 +107,9 @@ test("abort prevents starting a targeted native operation", async () => {
 test("launch completion still observes cancellation", async () => {
   const f = fixture();
   const controller = new AbortController();
-  f.host.openApplication = async () => {
+  f.host.accessibility.openApplication = async () => {
     controller.abort();
+    return { app: "pid:123" };
   };
   await expect(
     f.adapter.input({ action: "open", app: "TextEdit" }, controller.signal),

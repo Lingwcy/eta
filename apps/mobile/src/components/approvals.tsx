@@ -2,6 +2,8 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useState } from "react";
 import { Bot, ChevronRight, ShieldQuestion } from "lucide-react-native";
 import type { BotSnapshot } from "../bot/contracts.ts";
+import { getMessages, useI18n } from "../i18n/index.ts";
+import { FadeSlideIn } from "../motion.tsx";
 import { useMobile } from "../provider.tsx";
 import { Button, colors, common, ScrollArea, useAction } from "../ui.tsx";
 
@@ -9,40 +11,35 @@ type Approval = NonNullable<BotSnapshot["approvals"]>[number];
 
 type Reuse = "call" | "run";
 
-const skipped: Record<string, string> = {
-  "requires-user": "此范围只能由你批准",
-  "reviewer-unavailable": "审查模型不可用，已转交给你",
-  timeout: "自动审查超时，已转交给你",
-  "invalid-output": "审查结果无法解析，已转交给你",
-  "circuit-breaker": "连续被自动拒绝，已转交给你",
-  "tool-budget": "审查超出工具调用上限，已转交给你",
-  interrupted: "审查被中断，已转交给你",
-};
-
 /** Mirrors the desktop card: what automatic review said about a request still waiting for the user. */
 function reviewNote(approval: Approval) {
   const review = approval.review;
   if (!review) return undefined;
+  const { approvals } = getMessages();
   if (review.status === "reviewing")
     return review.toolCalls?.length
-      ? `自动审查中（已查看 ${review.toolCalls.length} 项）`
-      : "自动审查中";
+      ? approvals.reviewingWithCount(review.toolCalls.length)
+      : approvals.reviewing;
   if (review.status === "escalated")
-    return `自动审查建议你确认${review.risk === "high" ? "（高风险）" : ""}：${review.rationale ?? ""}`;
-  if (review.status === "skipped" && review.skippedReason) return skipped[review.skippedReason];
+    return approvals.escalated(review.risk === "high", review.rationale ?? "");
+  if (review.status === "skipped" && review.skippedReason)
+    return approvals.skipped[review.skippedReason];
   return undefined;
 }
 
 function historyLabel(approval: Approval) {
-  if (approval.decidedBy === "reuse") return "沿用本次运行的批准";
-  return approval.status === "denied" ? "已自动拒绝" : "已自动批准";
+  const { approvals } = getMessages();
+  if (approval.decidedBy === "reuse") return approvals.reuseApproved;
+  return approval.status === "denied" ? approvals.autoDenied : approvals.autoApproved;
 }
 
 function accessSummary(approval: Approval) {
-  if (approval.writableRoots.length) return `写入范围：${approval.writableRoots.join("、")}`;
-  if (approval.readableRoots.length) return `可读路径：${approval.readableRoots.join("、")}`;
+  const { approvals } = getMessages();
+  const sep = approvals.listSeparator;
+  if (approval.writableRoots.length) return approvals.writeScope(approval.writableRoots.join(sep));
+  if (approval.readableRoots.length) return approvals.readScope(approval.readableRoots.join(sep));
   if (approval.gitMetadata)
-    return `Git 范围：${approval.gitMetadata.branch ?? approval.gitMetadata.commonDir}`;
+    return approvals.gitScope(approval.gitMetadata.branch ?? approval.gitMetadata.commonDir);
   return undefined;
 }
 
@@ -53,38 +50,53 @@ function ApprovalDetails({
   approval: Approval;
   includeArguments?: boolean;
 }) {
+  const { m } = useI18n();
+  const sep = m.approvals.listSeparator;
   return (
     <View style={styles.details}>
       {approval.review?.rationale && (
         <Text selectable style={styles.detailText}>
-          审查意见：{approval.review.rationale}
+          {m.approvals.rationalePrefix}
+          {approval.review.rationale}
         </Text>
       )}
       {approval.gitMetadata && (
         <Text selectable style={styles.detailText}>
-          Git 元数据：{approval.gitMetadata.branch ? `分支 ${approval.gitMetadata.branch}，` : ""}
-          仓库 {approval.gitMetadata.commonDir}
+          {m.approvals.gitMetadataPrefix}
+          {approval.gitMetadata.branch
+            ? m.approvals.gitBranchPrefix(approval.gitMetadata.branch)
+            : ""}
+          {m.approvals.gitRepoPrefix(approval.gitMetadata.commonDir)}
         </Text>
       )}
       {!!approval.readableRoots.length && (
         <Text selectable style={styles.detailText}>
-          可读路径：{approval.readableRoots.join("、")}
+          {m.approvals.readablePathsPrefix}
+          {approval.readableRoots.join(sep)}
         </Text>
       )}
       {!!approval.writableRoots.length && (
         <Text selectable style={styles.detailText}>
-          可写路径：{approval.writableRoots.join("、")}
+          {m.approvals.writablePathsPrefix}
+          {approval.writableRoots.join(sep)}
         </Text>
       )}
-      {approval.networkAccess && <Text style={styles.detailText}>请求网络访问</Text>}
+      {approval.networkAccess && (
+        <Text style={styles.detailText}>{m.approvals.networkRequest}</Text>
+      )}
       {approval.review?.reviewer && (
         <Text style={styles.detailText}>
-          审查模型：{approval.review.reviewer.provider}/{approval.review.reviewer.modelId}
+          {m.approvals.reviewerModelPrefix(
+            approval.review.reviewer.provider,
+            approval.review.reviewer.modelId,
+          )}
         </Text>
       )}
       {!!approval.review?.toolCalls?.length && (
         <Text selectable style={styles.detailText}>
-          审查器查看了：{approval.review.toolCalls.map((call) => call.summary).join("、")}
+          {m.approvals.reviewerCheckedPrefix(
+            approval.review.toolCalls.map((call) => call.summary).join(sep),
+          )}
         </Text>
       )}
       {includeArguments && (
@@ -109,17 +121,21 @@ function PendingApproval({
   connected: boolean;
   onDecision: (id: string, approved: boolean, reuse?: Reuse) => void;
 }) {
+  const { m } = useI18n();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const note = reviewNote(approval);
   const summary = accessSummary(approval);
+  const target = approval.gitMetadata ? m.approvals.gitWriteTarget : approval.tool;
   return (
-    <View style={styles.card}>
+    <FadeSlideIn offset={6} duration={170} style={styles.card}>
       <View style={styles.headingRow}>
         <ShieldQuestion size={15} strokeWidth={1.8} color={colors.muted} />
         <Text numberOfLines={1} style={styles.title}>
-          需要审批 · {approval.gitMetadata ? "Git 写入" : approval.tool}
+          {m.approvals.approvalHeading(target)}
         </Text>
-        {approval.networkAccess && <Text style={styles.networkBadge}>联网</Text>}
+        {approval.networkAccess && (
+          <Text style={styles.networkBadge}>{m.approvals.networkBadge}</Text>
+        )}
       </View>
       {note && (
         <Text numberOfLines={2} style={styles.note}>
@@ -145,9 +161,15 @@ function PendingApproval({
           color={colors.muted}
           style={[styles.disclosureIcon, detailsOpen && styles.disclosureIconOpen]}
         />
-        <Text style={styles.disclosureText}>{detailsOpen ? "收起权限详情" : "权限详情与参数"}</Text>
+        <Text style={styles.disclosureText}>
+          {detailsOpen ? m.approvals.collapseDetails : m.approvals.expandDetails}
+        </Text>
       </Pressable>
-      {detailsOpen && <ApprovalDetails approval={approval} includeArguments />}
+      {detailsOpen && (
+        <FadeSlideIn offset={4} duration={150}>
+          <ApprovalDetails approval={approval} includeArguments />
+        </FadeSlideIn>
+      )}
       <View style={common.row}>
         <View style={styles.action}>
           <Button
@@ -155,12 +177,12 @@ function PendingApproval({
             disabled={busy || !connected}
             onPress={() => onDecision(approval.id, false)}
           >
-            拒绝
+            {m.approvals.deny}
           </Button>
         </View>
         <View style={styles.action}>
           <Button disabled={busy || !connected} onPress={() => onDecision(approval.id, true)}>
-            批准一次
+            {m.approvals.approveOnce}
           </Button>
         </View>
       </View>
@@ -171,19 +193,18 @@ function PendingApproval({
             disabled={busy || !connected}
             onPress={() => onDecision(approval.id, true, "run")}
           >
-            本次运行内允许此 Git 范围
+            {m.approvals.allowForRun}
           </Button>
-          <Text style={styles.reuseHint}>
-            同范围的命令都可写入这些 Git 目录，包括共享对象库；不含 config 与 hooks。
-          </Text>
+          <Text style={styles.reuseHint}>{m.approvals.reuseHint}</Text>
         </>
       )}
-    </View>
+    </FadeSlideIn>
   );
 }
 
 export function Approvals({ snapshot }: { snapshot: BotSnapshot }) {
   const { state, store } = useMobile();
+  const { m } = useI18n();
   const { busy, run } = useAction();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [expandedHistory, setExpandedHistory] = useState<string>();
@@ -218,7 +239,7 @@ export function Approvals({ snapshot }: { snapshot: BotSnapshot }) {
             style={styles.historyHeader}
           >
             <Bot size={14} color={colors.muted} />
-            <Text style={styles.historyTitle}>自动审查记录（{history.length}）</Text>
+            <Text style={styles.historyTitle}>{m.approvals.historyTitle(history.length)}</Text>
             <ChevronRight
               size={14}
               color={colors.muted}
@@ -243,9 +264,12 @@ export function Approvals({ snapshot }: { snapshot: BotSnapshot }) {
                         style={[styles.disclosureIcon, expanded && styles.disclosureIconOpen]}
                       />
                       <Text numberOfLines={1} style={styles.historyRowText}>
-                        {historyLabel(approval)} ·{" "}
-                        {approval.gitMetadata ? "Git 写入" : approval.tool}
-                        {approval.review?.rationale ? ` · ${approval.review.rationale}` : ""}
+                        {historyLabel(approval)}
+                        {m.approvals.historySeparator}
+                        {approval.gitMetadata ? m.approvals.gitWriteTarget : approval.tool}
+                        {approval.review?.rationale
+                          ? `${m.approvals.historySeparator}${approval.review.rationale}`
+                          : ""}
                       </Text>
                     </Pressable>
                     {expanded && <ApprovalDetails approval={approval} />}

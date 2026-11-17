@@ -58,6 +58,7 @@ export function InspectorTabs({
       >
         <div ref={setToolbar} className="flex min-w-0 flex-1 items-center gap-0.5" />
         <TabsList
+          variant="inspector"
           aria-label={t("inspector:inspectorTabs.sidebarFeatures")}
           className="flex items-center gap-1"
         >

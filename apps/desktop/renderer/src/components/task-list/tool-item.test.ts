@@ -182,6 +182,8 @@ test("Code mode lists individual calls directly and keeps script failures inspec
   await act(async () => trigger.click());
   const viewport = container.querySelector<HTMLElement>('[role="region"]')!;
   expect(viewport.textContent).toContain("Last line");
+  expect(viewport.className).toContain("overscroll-auto");
+  expect(viewport.className).not.toContain("overscroll-contain");
   await act(async () =>
     root!.render(
       createElement(TaskList, {

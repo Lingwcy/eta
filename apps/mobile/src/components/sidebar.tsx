@@ -27,11 +27,14 @@ import {
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BotThread } from "../bot/contracts.ts";
+import { FadeSlideIn } from "../motion.tsx";
+import { useI18n } from "../i18n/index.ts";
 import { useMobile } from "../provider.tsx";
 import { colors, useAction } from "../ui.tsx";
 
 export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { state, store } = useMobile();
+  const { m } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [archived, setArchived] = useState(false);
@@ -54,12 +57,19 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
           duration: 200,
           useNativeDriver: true,
         }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 240,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
+        typeof Animated.spring === "function"
+          ? Animated.spring(slideAnim, {
+              toValue: 0,
+              tension: 270,
+              friction: 26,
+              useNativeDriver: true,
+            })
+          : Animated.timing(slideAnim, {
+              toValue: 0,
+              duration: 220,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
       ]).start();
     }
   }, [visible, backdropAnim, slideAnim]);
@@ -112,7 +122,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
         >
           <Pressable
             style={StyleSheet.absoluteFill}
-            accessibilityLabel="关闭侧栏"
+            accessibilityLabel={m.sidebar.closeSidebarLabel}
             onPress={closePanel}
           />
         </Animated.View>
@@ -148,7 +158,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="关闭侧栏"
+              accessibilityLabel={m.sidebar.closeSidebarLabel}
               onPress={handleClose}
               hitSlop={8}
               style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
@@ -161,7 +171,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
           <View style={styles.newChat}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="新建会话"
+              accessibilityLabel={m.sidebar.newChat}
               disabled={!available}
               onPress={() => {
                 void run(() => {
@@ -176,7 +186,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
               ]}
             >
               <SquarePen size={16} color={colors.text} />
-              <Text style={styles.newChatText}>新建会话</Text>
+              <Text style={styles.newChatText}>{m.sidebar.newChat}</Text>
             </Pressable>
           </View>
 
@@ -188,10 +198,10 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
           >
             {/* 项目区域标题 */}
             <View style={styles.sectionHeading}>
-              <Text style={styles.sectionLabel}>项目</Text>
+              <Text style={styles.sectionLabel}>{m.sidebar.projects}</Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="新建项目"
+                accessibilityLabel={m.sidebar.newProjectLabel}
                 disabled={!available}
                 hitSlop={6}
                 onPress={() => edit()}
@@ -202,7 +212,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                 ]}
               >
                 <Plus size={12} color={colors.muted} />
-                <Text style={styles.sectionActionText}>新建</Text>
+                <Text style={styles.sectionActionText}>{m.sidebar.newAction}</Text>
               </Pressable>
             </View>
 
@@ -234,20 +244,22 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                       numberOfLines={1}
                       style={[styles.projectTitle, isSelected && styles.projectTitleSelected]}
                     >
-                      {project?.name ?? "项目"}
-                      {workspace.kind === "worktree" ? " · 工作树" : ""}
+                      {project?.name ?? m.sidebar.projectFallback}
+                      {workspace.kind === "worktree" ? m.sidebar.worktreeSuffix : ""}
                     </Text>
-                    {isSelected && <Check size={13} color={colors.blue} />}
+                    {isSelected && <Check size={13} strokeWidth={2.2} color={colors.text} />}
                   </Pressable>
                 );
               })}
             {!state.library?.workspaces.length && (
-              <Text style={styles.emptyHint}>还没有项目，点击上方新建。</Text>
+              <Text style={styles.emptyHint}>{m.sidebar.noProjectsHint}</Text>
             )}
 
             {/* 会话区域标题 */}
             <View style={[styles.sectionHeading, { marginTop: 12 }]}>
-              <Text style={styles.sectionLabel}>{archived ? "已归档会话" : "会话"}</Text>
+              <Text style={styles.sectionLabel}>
+                {archived ? m.sidebar.archivedThreads : m.sidebar.threads}
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 hitSlop={6}
@@ -258,7 +270,9 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                 ]}
               >
                 <Archive size={12} color={colors.muted} />
-                <Text style={styles.sectionActionText}>{archived ? "返回会话" : "归档"}</Text>
+                <Text style={styles.sectionActionText}>
+                  {archived ? m.sidebar.backToThreads : m.sidebar.archiveView}
+                </Text>
               </Pressable>
             </View>
 
@@ -282,12 +296,12 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                       numberOfLines={1}
                       style={[styles.threadTitle, isSelected && styles.threadTitleSelected]}
                     >
-                      {thread.title || "未命名会话"}
+                      {thread.title || m.sidebar.untitledThread}
                     </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`管理会话：${thread.title}`}
+                    accessibilityLabel={m.sidebar.manageThreadLabel(thread.title)}
                     disabled={!available}
                     hitSlop={6}
                     onPress={() => setMenu(thread)}
@@ -303,7 +317,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
             })}
             {!threads.length && (
               <Text style={styles.emptyHint}>
-                {archived ? "没有已归档会话" : "这个项目还没有会话"}
+                {archived ? m.sidebar.noArchivedHint : m.sidebar.noThreadsHint}
               </Text>
             )}
           </ScrollView>
@@ -321,7 +335,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
               <View style={styles.footerRow}>
                 <View style={styles.footerLeft}>
                   <Settings size={14} color={colors.muted} />
-                  <Text style={styles.footerTitle}>连接与设置</Text>
+                  <Text style={styles.footerTitle}>{m.sidebar.connectionSettings}</Text>
                 </View>
                 <ChevronRight size={13} color={colors.muted} />
               </View>
@@ -337,7 +351,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                   ]}
                 />
                 <Text numberOfLines={1} style={styles.footerUrl}>
-                  {state.url || "未配置服务器"}
+                  {state.url || m.sidebar.unconfiguredServer}
                 </Text>
               </View>
             </Pressable>
@@ -351,10 +365,14 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
               style={[StyleSheet.absoluteFill, styles.subBackdrop]}
               onPress={() => setMenu(undefined)}
             />
-            <View style={[styles.menuSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <FadeSlideIn
+              offset={14}
+              duration={160}
+              style={[styles.menuSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+            >
               <View style={styles.menuHandle} />
               <Text numberOfLines={1} style={styles.menuHeaderTitle}>
-                {menu?.title || "未命名会话"}
+                {menu?.title || m.sidebar.untitledThread}
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -363,7 +381,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                 style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
               >
                 <Pencil size={15} color={colors.text} />
-                <Text style={styles.menuItemText}>重命名</Text>
+                <Text style={styles.menuItemText}>{m.sidebar.rename}</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -379,7 +397,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
               >
                 <Archive size={15} color={colors.text} />
                 <Text style={styles.menuItemText}>
-                  {menu?.archivedAt ? "取消归档" : "归档会话"}
+                  {menu?.archivedAt ? m.sidebar.unarchiveThread : m.sidebar.archiveThread}
                 </Text>
               </Pressable>
               <Pressable
@@ -392,9 +410,9 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                 ]}
               >
                 <X size={15} color={colors.muted} />
-                <Text style={styles.menuCancelText}>取消</Text>
+                <Text style={styles.menuCancelText}>{m.common.cancel}</Text>
               </Pressable>
-            </View>
+            </FadeSlideIn>
           </View>
         )}
 
@@ -409,18 +427,24 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
               behavior={Platform.OS === "ios" ? "padding" : "height"}
               style={styles.editCenter}
             >
-              <View style={styles.editDialog}>
+              <FadeSlideIn offset={8} duration={160} style={styles.editDialog}>
                 <Text style={styles.editTitle}>
-                  {editing?.thread ? "重命名会话" : "新建 Bot 项目"}
+                  {editing?.thread ? m.sidebar.renameThreadTitle : m.sidebar.newProjectTitle}
                 </Text>
                 {!editing?.thread && (
-                  <Text style={styles.editHint}>项目会创建在 Bot 配置的工作空间根目录内。</Text>
+                  <Text style={styles.editHint}>{m.sidebar.newProjectHint}</Text>
                 )}
                 <TextInput
-                  accessibilityLabel={editing?.thread ? "会话名称" : "项目名称"}
+                  accessibilityLabel={
+                    editing?.thread ? m.sidebar.threadNameLabel : m.sidebar.projectNameLabel
+                  }
                   value={name}
                   onChangeText={setName}
-                  placeholder={editing?.thread ? "输入会话名称…" : "输入项目名称…"}
+                  placeholder={
+                    editing?.thread
+                      ? m.sidebar.threadNamePlaceholder
+                      : m.sidebar.projectNamePlaceholder
+                  }
                   placeholderTextColor={colors.muted}
                   style={styles.editInput}
                   autoFocus
@@ -436,7 +460,7 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                       pressed && styles.buttonPressed,
                     ]}
                   >
-                    <Text style={styles.editCancelText}>取消</Text>
+                    <Text style={styles.editCancelText}>{m.common.cancel}</Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
@@ -455,10 +479,12 @@ export function Sidebar({ visible, onClose }: { visible: boolean; onClose: () =>
                       (busy || !name.trim()) && styles.buttonDisabled,
                     ]}
                   >
-                    <Text style={styles.editSaveText}>{busy ? "保存中" : "保存"}</Text>
+                    <Text style={styles.editSaveText}>
+                      {busy ? m.common.saving : m.common.save}
+                    </Text>
                   </Pressable>
                 </View>
-              </View>
+              </FadeSlideIn>
             </KeyboardAvoidingView>
           </View>
         )}
@@ -619,7 +645,7 @@ const styles = StyleSheet.create({
   projectTitle: {
     flex: 1,
     fontSize: 15,
-    color: "#3F3F3E",
+    color: "#3F3F46",
   },
   projectTitleSelected: {
     fontWeight: "600",
@@ -647,7 +673,7 @@ const styles = StyleSheet.create({
   },
   threadTitle: {
     fontSize: 15,
-    color: "#3F3F3E",
+    color: "#3F3F46",
   },
   threadTitleSelected: {
     fontWeight: "600",
@@ -661,7 +687,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   threadMoreButtonPressed: {
-    backgroundColor: "#DCDCDA",
+    backgroundColor: "#E4E4E7",
   },
   footer: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -733,7 +759,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 3,
     borderRadius: 2,
-    backgroundColor: "#D4D4D4",
+    backgroundColor: "#D4D4D8",
     alignSelf: "center",
     marginBottom: 8,
   },

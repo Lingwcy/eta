@@ -18,7 +18,7 @@ describe("pickedImage", () => {
     expect(pickedImage({ base64 }).mimeType).toBe(mimeType);
   });
   it("rejects missing, unsupported and oversized data before upload", () => {
-    expect(() => pickedImage({})).toThrow("无法读取");
+    expect(() => pickedImage({})).toThrow("Could not read image");
     expect(() => pickedImage({ base64: "AAAA" })).toThrow("JPEG");
     expect(() => pickedImage({ base64: "/9j/" + "A".repeat(12 * 1024 * 1024) })).toThrow("8 MB");
   });

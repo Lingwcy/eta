@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
 import { ArrowUp, Square, Paperclip } from "lucide-react";
@@ -37,6 +38,9 @@ export function ActionToolbar({
   className,
 }: ActionToolbarProps) {
   useTranslation();
+  const [sendPulse, setSendPulse] = useState(false);
+  const pulseTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(pulseTimer.current), []);
   const percentage = contextWindow
     ? Math.min(100, Math.round((contextTokens / contextWindow) * 100))
     : 0;
@@ -44,6 +48,18 @@ export function ActionToolbar({
   const actionLabel = showStop
     ? t("chat:actionToolbar.stopGeneration")
     : t("chat:actionToolbar.sendMessage");
+  const handlePrimaryClick = () => {
+    if (showStop) {
+      onStop?.();
+      return;
+    }
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+      setSendPulse(true);
+      window.clearTimeout(pulseTimer.current);
+      pulseTimer.current = window.setTimeout(() => setSendPulse(false), 160);
+    }
+    onSubmit?.();
+  };
   return (
     <footer
       className={cn("flex items-center justify-between gap-2 select-none", className)}
@@ -97,16 +113,30 @@ export function ActionToolbar({
         <Button
           type="button"
           disabled={showStop ? !onStop || isStopping : disabled || !canSubmit || isStopping}
-          onClick={showStop ? onStop : onSubmit}
+          onClick={handlePrimaryClick}
           variant="default"
           size="icon-round"
           aria-label={actionLabel}
           title={actionLabel}
         >
           {showStop ? (
-            <Square size={14} fill="currentColor" aria-hidden="true" />
+            <Square
+              size={14}
+              fill="currentColor"
+              aria-hidden="true"
+              className="motion-safe:transition-transform duration-(--eta-duration-fast) ease-(--eta-ease-out) motion-safe:starting:scale-75"
+            />
           ) : (
-            <ArrowUp size={20} strokeWidth={2} aria-hidden="true" />
+            <ArrowUp
+              size={20}
+              strokeWidth={2}
+              aria-hidden="true"
+              className={cn(
+                "motion-safe:transition-transform duration-(--eta-duration-fast) ease-(--eta-ease-out) motion-safe:starting:scale-75",
+                sendPulse &&
+                  "motion-safe:animate-[eta-send-nudge_var(--eta-duration-normal)_var(--eta-ease-out)]",
+              )}
+            />
           )}
         </Button>
       </div>

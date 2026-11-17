@@ -1,21 +1,21 @@
 import { useState } from "react";
+import { Image, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
-  Image,
-  ScrollView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from "react-native";
-import { ArrowUp, ChevronDown, Cpu, ImagePlus, Shield, Square, X } from "lucide-react-native";
-import { colors } from "../ui.tsx";
+  ArrowUp,
+  ChevronDown,
+  Lock,
+  Plus,
+  Shield,
+  ShieldCheck,
+  Square,
+  X,
+} from "lucide-react-native";
+import type { BotSnapshot, Configuration } from "../bot/contracts.ts";
 import type { DraftImage } from "../bot/store.ts";
-
-/** Chip labels sit on the soft grey chip background; muted drops them to 4.35:1 there. */
-const chipText = "#525252";
+import { SpringPressable } from "../motion.tsx";
+import { useI18n } from "../i18n/index.ts";
+import { colors } from "../ui.tsx";
+import { ProviderMark } from "./provider-mark.tsx";
 
 export interface ComposerInputProps {
   images?: readonly DraftImage[];
@@ -23,28 +23,34 @@ export interface ComposerInputProps {
   onRemoveImage?: (id: string) => void;
   pickingImages?: boolean;
   value: string;
-  onChangeText: (text: string) => void;
+  onChangeText: (value: string) => void;
   onSubmit: () => void;
-  onStop: () => void;
   allowSubmitWhileRunning?: boolean;
+  onStop: () => void;
   onOpenConfiguration: () => void;
+  onToggleSandbox?: () => void;
   running: boolean;
   canSend: boolean;
   canStop: boolean;
   disabled?: boolean;
   modelName?: string;
-  thinkingLevel?: string;
+  modelProvider?: string;
+  thinkingLevel?: Configuration["thinkingLevel"];
   thinkingLevelLabel?: string;
-  sandboxMode?: string;
+  sandboxMode?: NonNullable<BotSnapshot["sandbox"]>["mode"];
   sandboxModeLabel?: string;
   contextTokens?: number;
   placeholder?: string;
 }
 
-function formatTokens(tokens: number): string {
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
-  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`;
-  return `${tokens}`;
+function PermissionIcon({ mode }: { mode?: NonNullable<BotSnapshot["sandbox"]>["mode"] }) {
+  if (mode === "read-only") {
+    return <Lock size={15} strokeWidth={1.9} color={colors.tertiary} />;
+  }
+  if (mode === "workspace-write") {
+    return <Shield size={16} strokeWidth={1.9} color={colors.secondary} />;
+  }
+  return <ShieldCheck size={16} strokeWidth={2} color={colors.ink} />;
 }
 
 export function ComposerInput({
@@ -55,162 +61,178 @@ export function ComposerInput({
   value,
   onChangeText,
   onSubmit,
-  onStop,
   allowSubmitWhileRunning = false,
+  onStop,
   onOpenConfiguration,
+  onToggleSandbox,
   running,
   canSend,
   canStop,
   disabled = false,
   modelName,
-  thinkingLevel,
-  thinkingLevelLabel,
-  sandboxMode,
+  modelProvider,
+  sandboxMode = "danger-full-access",
   sandboxModeLabel,
-  contextTokens,
-  placeholder = "交给 Eta Bot…",
+  placeholder,
 }: ComposerInputProps) {
-  const [inputHeight, setInputHeight] = useState(44);
-  const { width } = useWindowDimensions();
-  /** Small phones cannot fit the sandbox label and token count beside the model picker. */
-  const compactToolbar = width < 360;
+  const { m } = useI18n();
+  const resolvedSandboxLabel =
+    sandboxModeLabel ?? m.configuration.sandboxModes["danger-full-access"];
+  const resolvedPlaceholder = placeholder ?? m.composer.defaultPlaceholder;
+  const [inputHeight, setInputHeight] = useState(36);
   const showStop = running && (!allowSubmitWhileRunning || (!value.trim() && !images.length));
-  const showThinkingBadge = thinkingLevel && thinkingLevel !== "off" && thinkingLevelLabel;
+  const expanded = value.length > 0 || images.length > 0 || inputHeight > 42;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.wrapper}>
       {!!images.length && (
-        <ScrollView horizontal contentContainerStyle={styles.attachments}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.attachments}
+        >
           {images.map((image, index) => (
             <View key={image.id} style={styles.attachment}>
               <Image
-                accessibilityLabel={image.name ?? "图片 " + (index + 1)}
+                accessibilityLabel={image.name ?? m.composer.imageItemLabel(index)}
                 source={{ uri: "data:" + image.mimeType + ";base64," + image.data }}
                 style={styles.preview}
               />
-              <Pressable
+              <SpringPressable
+                scaleTo={0.9}
                 accessibilityRole="button"
-                accessibilityLabel={"移除图片 " + (index + 1)}
+                accessibilityLabel={m.composer.removeImageLabel(index)}
                 disabled={disabled}
                 onPress={() => onRemoveImage?.(image.id)}
+                containerStyle={styles.removeImageWrap}
                 style={styles.removeImage}
                 hitSlop={6}
               >
-                <X size={14} color={colors.text} />
-              </Pressable>
+                <X size={11} strokeWidth={2.5} color={colors.surface} />
+              </SpringPressable>
             </View>
           ))}
         </ScrollView>
       )}
-      <TextInput
-        accessibilityLabel="消息输入框"
-        value={value}
-        onChangeText={onChangeText}
-        multiline
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        style={[styles.input, { height: inputHeight }]}
-        onContentSizeChange={({ nativeEvent }) =>
-          setInputHeight(Math.max(44, Math.min(140, nativeEvent.contentSize.height)))
-        }
-        editable={!disabled}
-        textAlignVertical="top"
-      />
-      <View style={styles.toolbar}>
-        <View style={styles.toolbarLeft}>
-          {onAddImages && (
-            <Pressable
+
+      <View style={styles.inputHost}>
+        {/* Keep TextInput at a stable node position so expanding from 1-row pill to full-width never dismisses the keyboard. */}
+        <TextInput
+          accessibilityLabel={m.composer.inputLabel}
+          value={value}
+          onChangeText={onChangeText}
+          multiline
+          placeholder={resolvedPlaceholder}
+          placeholderTextColor={colors.caption}
+          selectionColor={colors.ink}
+          style={[
+            styles.textarea,
+            expanded ? styles.textareaExpanded : styles.textareaCompact,
+            { height: Math.max(expanded ? 40 : 36, inputHeight) },
+          ]}
+          onContentSizeChange={({ nativeEvent }) =>
+            setInputHeight(Math.max(36, Math.min(132, nativeEvent.contentSize.height)))
+          }
+          editable={!disabled}
+          textAlignVertical={expanded ? "top" : "center"}
+        />
+
+        <View pointerEvents="box-none" style={styles.controlsOverlay}>
+          <View style={styles.left}>
+            {onAddImages && (
+              <SpringPressable
+                scaleTo={0.92}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  pickingImages ? m.composer.readingImagesLabel : m.composer.addImageLabel
+                }
+                disabled={disabled || pickingImages || images.length >= 4}
+                onPress={onAddImages}
+                hitSlop={4}
+                style={({ pressed }) => [
+                  styles.plusButton,
+                  pressed && styles.plusButtonPressed,
+                  (disabled || pickingImages || images.length >= 4) && styles.disabled,
+                ]}
+              >
+                <Plus size={18} strokeWidth={2} color={colors.text} />
+              </SpringPressable>
+            )}
+          </View>
+
+          <View style={styles.right}>
+            <SpringPressable
               accessibilityRole="button"
-              accessibilityLabel={pickingImages ? "正在读取图片" : "添加图片"}
-              disabled={disabled || pickingImages || images.length >= 4}
-              onPress={onAddImages}
-              hitSlop={6}
-              style={({ pressed }) => [
-                styles.imageButton,
-                pressed && styles.chipPressed,
-                (disabled || pickingImages || images.length >= 4) && styles.buttonDisabled,
-              ]}
-            >
-              <ImagePlus size={18} color={colors.muted} />
-            </Pressable>
-          )}
-          {!!sandboxMode && !!sandboxModeLabel && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`当前沙盒策略：${sandboxModeLabel}，点击修改`}
-              hitSlop={6}
+              accessibilityLabel={m.composer.modelAndThinkingLabel}
+              hitSlop={4}
               disabled={disabled || running}
               onPress={onOpenConfiguration}
-              style={({ pressed }) => [styles.sandboxChip, pressed && styles.chipPressed]}
-            >
-              <Shield size={12} color={colors.muted} />
-              {!compactToolbar && (
-                <Text numberOfLines={1} style={styles.sandboxText}>
-                  {sandboxModeLabel}
-                </Text>
-              )}
-            </Pressable>
-          )}
-        </View>
-
-        <View style={styles.toolbarRight}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="选择模型与思考等级"
-            hitSlop={6}
-            disabled={disabled || running}
-            onPress={onOpenConfiguration}
-            style={({ pressed }) => [styles.modelButton, pressed && styles.chipPressed]}
-          >
-            <Cpu size={13} color={colors.muted} />
-            <Text numberOfLines={1} style={styles.modelText}>
-              {modelName ?? "选择模型"}
-            </Text>
-            {showThinkingBadge && <Text style={styles.thinkingBadge}>{thinkingLevelLabel}</Text>}
-            <ChevronDown size={13} color={colors.muted} />
-          </Pressable>
-
-          {!compactToolbar && typeof contextTokens === "number" && contextTokens > 0 && (
-            <View
-              accessibilityLabel={`已用 token: ${formatTokens(contextTokens)}`}
-              style={styles.tokensChip}
-            >
-              <Text style={styles.tokensText}>{formatTokens(contextTokens)}</Text>
-            </View>
-          )}
-
-          {showStop ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="停止任务"
-              hitSlop={2}
-              disabled={!canStop}
-              onPress={onStop}
               style={({ pressed }) => [
-                styles.actionButton,
-                styles.stopButton,
-                pressed && styles.buttonPressed,
-                !canStop && styles.buttonDisabled,
+                styles.modelTrigger,
+                pressed && !disabled && !running && styles.modelTriggerPressed,
+                (disabled || running) && styles.disabled,
               ]}
             >
-              <Square size={13} color="#FFFFFF" fill="#FFFFFF" />
-            </Pressable>
-          ) : (
-            <Pressable
+              {modelProvider ? (
+                <ProviderMark id={modelProvider} size={13} color={colors.secondary} />
+              ) : null}
+              <Text numberOfLines={1} ellipsizeMode="tail" style={styles.modelLabel}>
+                {modelName ?? m.composer.selectModel}
+              </Text>
+              <ChevronDown size={13} strokeWidth={2} color={colors.tertiary} />
+            </SpringPressable>
+
+            <SpringPressable
+              scaleTo={0.92}
               accessibilityRole="button"
-              accessibilityLabel={running ? "补充指令" : "发送消息"}
-              hitSlop={2}
-              disabled={!canSend}
-              onPress={onSubmit}
+              accessibilityLabel={m.composer.permissionLabel(resolvedSandboxLabel)}
+              hitSlop={4}
+              disabled={disabled || running}
+              onPress={onToggleSandbox ?? onOpenConfiguration}
+              onLongPress={onOpenConfiguration}
               style={({ pressed }) => [
-                styles.actionButton,
-                canSend ? styles.sendActive : styles.sendInactive,
-                pressed && canSend && styles.buttonPressed,
+                styles.permissionButton,
+                pressed && !disabled && !running && styles.permissionButtonPressed,
+                (disabled || running) && styles.disabled,
               ]}
             >
-              <ArrowUp size={18} strokeWidth={2.2} color={canSend ? "#FFFFFF" : colors.muted} />
-            </Pressable>
-          )}
+              <PermissionIcon mode={sandboxMode} />
+            </SpringPressable>
+
+            {showStop ? (
+              <SpringPressable
+                scaleTo={0.91}
+                accessibilityRole="button"
+                accessibilityLabel={m.composer.stopTaskLabel}
+                hitSlop={4}
+                disabled={!canStop}
+                onPress={onStop}
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  pressed && canStop && styles.sendButtonPressed,
+                  !canStop && styles.sendDisabled,
+                ]}
+              >
+                <Square size={11} color={colors.surface} fill={colors.surface} />
+              </SpringPressable>
+            ) : (
+              <SpringPressable
+                scaleTo={0.91}
+                accessibilityRole="button"
+                accessibilityLabel={running ? m.composer.followUpLabel : m.composer.sendLabel}
+                hitSlop={4}
+                disabled={!canSend}
+                onPress={onSubmit}
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  pressed && canSend && styles.sendButtonPressed,
+                  !canSend && styles.sendDisabled,
+                ]}
+              >
+                <ArrowUp size={17} strokeWidth={2.2} color={colors.surface} />
+              </SpringPressable>
+            )}
+          </View>
         </View>
       </View>
     </View>
@@ -218,135 +240,152 @@ export function ComposerInput({
 }
 
 const styles = StyleSheet.create({
-  attachments: { gap: 10, paddingVertical: 6, paddingHorizontal: 6 },
-  attachment: { width: 64, height: 64 },
-  preview: { width: 64, height: 64, borderRadius: 10 },
-  removeImage: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+  wrapper: {
     backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: "#E8E8EC",
+    padding: 7,
+  },
+  attachments: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    paddingHorizontal: 5,
+    paddingTop: 5,
+    paddingBottom: 6,
+  },
+  attachment: {
+    position: "relative",
+    width: 60,
+    height: 60,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.soft,
+    overflow: "hidden",
   },
-  imageButton: { width: 28, minHeight: 32, alignItems: "center", justifyContent: "center" },
-  container: {
-    backgroundColor: "#F4F4F4",
-    borderRadius: 24,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 8,
+  preview: {
+    width: "100%",
+    height: "100%",
   },
-  input: {
-    minHeight: 44,
-    maxHeight: 140,
-    fontSize: 16,
-    lineHeight: 24,
-    paddingHorizontal: 6,
-    paddingTop: 4,
-    paddingBottom: 6,
+  removeImageWrap: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+  },
+  removeImage: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(9, 9, 11, 0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inputHost: {
+    position: "relative",
+    minHeight: 36,
+    justifyContent: "center",
+  },
+  textarea: {
+    width: "100%",
+    maxHeight: 132,
+    fontSize: 15.5,
+    lineHeight: 21,
     color: colors.text,
   },
-  toolbar: {
+  textareaCompact: {
+    minHeight: 36,
+    paddingLeft: 44,
+    paddingRight: 204,
+    paddingTop: 7,
+    paddingBottom: 7,
+  },
+  textareaExpanded: {
+    minHeight: 40,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 4,
+    marginBottom: 42,
+  },
+  controlsOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 36,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
-    paddingTop: 6,
   },
-  toolbarLeft: {
+  left: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    flexShrink: 0,
   },
-  toolbarRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  sandboxChip: {
-    minHeight: 32,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-  },
-  sandboxText: {
-    color: chipText,
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  modelButton: {
-    minHeight: 32,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    maxWidth: 160,
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  modelText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "500",
-    flexShrink: 1,
-  },
-  thinkingBadge: {
-    color: chipText,
-    fontSize: 12,
-  },
-  tokensChip: {
-    flexShrink: 0,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-  },
-  tokensText: {
-    color: chipText,
-    fontSize: 12,
-    fontWeight: "500",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  chipPressed: {
-    opacity: 0.7,
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    flexShrink: 0,
+  plusButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.soft,
     alignItems: "center",
     justifyContent: "center",
   },
-  sendActive: {
-    backgroundColor: colors.text,
+  plusButtonPressed: {
+    backgroundColor: colors.softHover,
   },
-  sendInactive: {
-    backgroundColor: "#E7E7E7",
+  right: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    flexShrink: 0,
   },
-  stopButton: {
-    backgroundColor: colors.text,
+  modelTrigger: {
+    height: 34,
+    maxWidth: 128,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 5,
+    borderRadius: 14,
   },
-  buttonPressed: {
-    opacity: 0.75,
+  modelTriggerPressed: {
+    backgroundColor: colors.soft,
   },
-  buttonDisabled: {
-    opacity: 0.45,
+  modelLabel: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    fontWeight: "500",
+    color: colors.secondary,
+    flexShrink: 1,
+  },
+  permissionButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: "#E8E8EC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  permissionButtonPressed: {
+    backgroundColor: colors.soft,
+  },
+  sendButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.ink,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sendButtonPressed: {
+    backgroundColor: colors.inkSoft,
+  },
+  sendDisabled: {
+    backgroundColor: "#D4D4D8",
+  },
+  disabled: {
+    opacity: 0.4,
   },
 });

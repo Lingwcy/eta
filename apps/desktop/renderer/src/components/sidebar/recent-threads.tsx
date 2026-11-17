@@ -30,7 +30,6 @@ export function RecentThreads({
   running,
   scheduled,
   worktrees,
-  busy,
   onSelect,
 }: {
   library: DesktopLibrary | null;
@@ -41,7 +40,6 @@ export function RecentThreads({
   running: ReadonlySet<string>;
   scheduled: ReadonlySet<string>;
   worktrees: ReadonlySet<string>;
-  busy: boolean;
   onSelect: (id: string) => void;
 }) {
   useTranslation();
@@ -73,7 +71,6 @@ export function RecentThreads({
                     selected={selected === thread.id}
                     aria-current={selected === thread.id ? "page" : undefined}
                     title={thread.title}
-                    disabled={busy}
                     onClick={() => onSelect(thread.id)}
                   >
                     <span className="flex min-w-0 flex-1 flex-col gap-1">

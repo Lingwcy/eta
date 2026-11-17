@@ -11,6 +11,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
+import type { Message } from "@earendil-works/pi-ai";
 import { getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { afterEach, expect, test } from "vite-plus/test";
 import { createCore } from "../../../src/client.ts";
@@ -21,7 +22,7 @@ import type { ImageProcessor } from "../../../src/images/types.ts";
 import type { CoreEnvironment } from "../../../src/service/environment.ts";
 import { ComputerService } from "@eta/computer-use/service";
 import { ComputerError } from "@eta/computer-use/protocol";
-import type { ComputerInput } from "@eta/computer-use/protocol";
+import type { ComputerInput, ComputerTarget } from "@eta/computer-use/protocol";
 
 const clients: CoreClient[] = [];
 const directories: string[] = [];
@@ -212,6 +213,147 @@ test("computer screenshots reach the main model, and a later run cannot reuse it
   expect(JSON.stringify(await f.run())).toContain("stale_frame");
   expect(inputs).toHaveLength(1);
 }, 30000);
+
+test.each(["standard", "codemode"] as const)(
+  "region, conditional wait and state action evidence reach the main agent across generations in %s",
+  async (mode) => {
+    const targets: ComputerTarget[] = [];
+    const inputs: ComputerInput[] = [];
+    const service = new ComputerService({
+      layout: async () => {
+        throw Error("Unexpected layout");
+      },
+      capture: async () => {
+        throw Error("Unexpected screenshot");
+      },
+      input: async () => {
+        throw Error("Unexpected global input");
+      },
+      releaseInputs: async () => {},
+      accessibility: {
+        observe: async (target) => {
+          targets.push(target);
+          return {
+            id: `native-${targets.length}`,
+            app: "test",
+            windowTitle: "window",
+            text: '[0] AXGroup AXTitle="Region 12"\n  [1] AXCheckBox AXTitle="Notifications" value="1"',
+            observation: {
+              scope: target.rootIndex === undefined ? "window" : "region",
+              projection: target.projection ?? "full",
+              complete: true,
+              exhaustive: false,
+              boundaries: [{ index: 0, reason: "projection" }],
+              unknown: [],
+              visitedNodes: 2,
+              axReads: 20,
+            },
+          };
+        },
+        input: async (_state, input) => {
+          inputs.push(input);
+          if (input.action === "set_checked")
+            return { applied: "no", verification: { status: "satisfied", noOp: true } };
+          if (input.action === "select")
+            return { applied: "yes", verification: { status: "satisfied" } };
+        },
+        waitUntil: async (state, condition, timeoutMs) => {
+          expect(state.id).toBe("native-2");
+          expect(condition).toEqual({ kind: "enabled", elementIndex: 1, equals: true });
+          expect(timeoutMs).toBe(5000);
+          return {
+            outcome: {
+              status: "satisfied",
+              last: "satisfied",
+              final: "satisfied",
+              samples: 1,
+              probeReads: 5,
+            },
+            state: { ...state, id: "native-wait" },
+          };
+        },
+        reset: async () => {},
+      },
+    });
+    const f = await fixture({ agentMode: mode }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    const call = (args: Record<string, JsonValue>) =>
+      mode === "codemode"
+        ? script(`const r=await tools.computer(${JSON.stringify(args)});text(r);`)
+        : fauxAssistantMessage(fauxToolCall("computer", args), { stopReason: "toolUse" });
+    const resultText = (messages: readonly Message[]) => {
+      const result = messages.findLast((message) => message.role === "toolResult");
+      if (result?.role !== "toolResult") throw Error("Missing computer result");
+      return result.content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("\n");
+    };
+    let previousFrame = "";
+    f.provider.setResponses([
+      call({ action: "observe", app: "test", projection: "overview" }),
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"overview"');
+        expect(text).toContain('"boundaries"');
+        previousFrame = /"id"\s*:\s*"([^"]+)"/.exec(text)![1]!;
+        return call({
+          action: "observe",
+          app: "test",
+          frameId: previousFrame,
+          rootIndex: 0,
+          projection: "compact",
+        });
+      },
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"region"');
+        const frame = /"id"\s*:\s*"([^"]+)"/.exec(text)![1]!;
+        expect(frame).not.toBe(previousFrame);
+        previousFrame = frame;
+        return call({
+          action: "wait",
+          frameId: frame,
+          condition: { kind: "enabled", elementIndex: 1, equals: true },
+        });
+      },
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"satisfied"');
+        const frame = /"id"\s*:\s*"([^"]+)"/.exec(text)![1]!;
+        expect(frame).not.toBe(previousFrame);
+        return call({ action: "set_checked", frameId: frame, elementIndex: 1, state: true });
+      },
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"satisfied"');
+        expect(text).toMatch(/"applied"\s*:\s*"no"/);
+        expect(text).toMatch(/"noOp"\s*:\s*true/);
+        const frame = /"id"\s*:\s*"([^"]+)"/.exec(text)![1]!;
+        return call({ action: "select", frameId: frame, elementIndex: 0, name: "Beta" });
+      },
+      (context) => {
+        const text = resultText(context.messages);
+        expect(text).toContain('"satisfied"');
+        expect(text).toMatch(/"applied"\s*:\s*"yes"/);
+        return fauxAssistantMessage("Region inspected");
+      },
+    ]);
+    await f.run();
+    expect(inputs).toEqual([
+      { action: "set_checked", elementIndex: 1, state: true },
+      { action: "select", elementIndex: 0, name: "Beta" },
+    ]);
+    expect(targets[2]).toMatchObject({
+      previousId: "native-wait",
+      rootIndex: 0,
+      projection: "compact",
+      fallbackToWindow: true,
+    });
+  },
+  30000,
+);
 
 test.each([true, false])(
   "standard computer calls honor blockImages=%s before capturing",
@@ -1277,7 +1419,7 @@ test.each(["standard", "codemode"] as const)(
       input: async (input) => {
         if (input.action === "open") {
           opened++;
-          return;
+          return { app: "pid:123" };
         }
         throw Error("AX input must not enter the global coordinate path");
       },
@@ -1310,10 +1452,20 @@ test.each(["standard", "codemode"] as const)(
         { action: "open", app: "TextEdit" },
         'const r=await tools.computer({action:"open",app:"TextEdit"});if(!r.ok)throw Error(r.error.message);text(r);',
       ),
-      call(
-        { action: "observe", app: "TextEdit", windowTitle: "test" },
-        'const r=await tools.computer({action:"observe",app:"TextEdit",windowTitle:"test"});if(!r.ok)throw Error(r.error.message);store("frame",r.frame.id);text(r);',
-      ),
+      (context) => {
+        const result = context.messages.at(-1)!;
+        const content = result.role === "toolResult" ? result.content : [];
+        const output = content
+          .filter((part) => part.type === "text")
+          .map((part) => part.text)
+          .join("");
+        expect(output).toContain('"app":"pid:123"');
+        expect(output).not.toContain('"frame"');
+        return call(
+          { action: "observe", app: "pid:123", windowTitle: "test" },
+          'const r=await tools.computer({action:"observe",app:"pid:123",windowTitle:"test"});if(!r.ok)throw Error(r.error.message);store("frame",r.frame.id);text(r);',
+        );
+      },
       (context) => {
         const result = context.messages.at(-1)!;
         expect(result.role).toBe("toolResult");
@@ -1324,6 +1476,7 @@ test.each(["standard", "codemode"] as const)(
           .map((part) => part.text)
           .join("\n");
         expect(output).toContain("AXTextField");
+        expect(output).toContain('"app":"pid:123"');
         if (mode === "standard") frameId = JSON.parse(output).frame.id;
         return call(
           { action: "set_value", frameId, elementIndex: 3, text: "中文" },
@@ -1566,3 +1719,302 @@ test("Code mode nested tools use automatic review by default", async () => {
     { tool: "write", decidedBy: "auto", review: { status: "approved" } },
   ]);
 }, 20000);
+
+function latestComputerText(messages: readonly Message[]) {
+  const result = messages.findLast((message) => message.role === "toolResult");
+  if (result?.role !== "toolResult") throw Error("Missing tool result");
+  return result.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+}
+
+test.each(["standard", "codemode"] as const)(
+  "%s validates wait hints and continues fixed and conditional waits on the original frame",
+  async (mode) => {
+    let reads = 0;
+    let probes = 0;
+    const inputs: ComputerInput[] = [];
+    const service = new ComputerService({
+      layout: async () => {
+        throw Error("Unexpected layout");
+      },
+      capture: async () => {
+        throw Error("Unexpected screenshot");
+      },
+      input: async () => {
+        throw Error("Unexpected input");
+      },
+      releaseInputs: async () => {},
+      accessibility: {
+        observe: async () => ({
+          id: String(++reads),
+          app: "dev.mcl.launcher",
+          windowTitle: "Launcher window",
+          text: "[0] AXTextField",
+        }),
+        waitUntil: async (state) => {
+          probes++;
+          return {
+            outcome: {
+              status: "satisfied",
+              last: "satisfied",
+              final: "satisfied",
+              samples: 1,
+              probeReads: 1,
+            },
+            state: { ...state, id: String(++reads) },
+          };
+        },
+        input: async (_state, input) => {
+          inputs.push(input);
+        },
+        reset: async () => {},
+      },
+    });
+    const f = await fixture({ agentMode: mode }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    const call = (args: Record<string, JsonValue>) =>
+      mode === "codemode"
+        ? script(
+            "const r=await tools.computer(" +
+              JSON.stringify(args) +
+              ');if(r.frame)store("frame",r.frame.id);text(r);',
+          )
+        : fauxAssistantMessage(fauxToolCall("computer", args), { stopReason: "toolUse" });
+    let frameId = "";
+    const frame = (messages: readonly Message[]) => {
+      const text = latestComputerText(messages);
+      const found = /"id"\s*:\s*"([^"]+)"/.exec(text);
+      expect(found, text).not.toBeNull();
+      return found![1]!;
+    };
+    f.provider.setResponses([
+      call({ action: "observe", app: "MCL" }),
+      (context) => {
+        frameId = frame(context.messages);
+        return call({ action: "wait", app: "Other", frameId, durationMs: 0 });
+      },
+      (context) => {
+        expect(latestComputerText(context.messages)).toContain("app does not match");
+        return call({
+          action: "wait",
+          app: "MCL",
+          windowTitle: "Launcher",
+          frameId,
+          durationMs: 0,
+        });
+      },
+      (context) => {
+        const next = frame(context.messages);
+        expect(next).not.toBe(frameId);
+        frameId = next;
+        return call({
+          action: "wait",
+          app: "MCL",
+          windowTitle: "window",
+          frameId,
+          condition: { kind: "absent", text: "正在处理…" },
+          timeoutMs: 10000,
+        });
+      },
+      (context) => {
+        expect(latestComputerText(context.messages)).toContain('"satisfied"');
+        frameId = frame(context.messages);
+        return call({ action: "set_value", frameId, elementIndex: 0, text: "Done" });
+      },
+      () => fauxAssistantMessage("Wait recovered and work continued"),
+    ]);
+    await f.run();
+    expect(probes).toBe(1);
+    expect(inputs).toEqual([{ action: "set_value", elementIndex: 0, text: "Done" }]);
+  },
+  30000,
+);
+
+test.each(["filtered", "silent", "recovered", "throw"] as const)(
+  "Code mode exposes computer failures even when the script output is %s",
+  async (output) => {
+    let reads = 0;
+    const service = new ComputerService({
+      layout: async () => {
+        throw Error("Unexpected layout");
+      },
+      capture: async () => {
+        throw Error("Unexpected screenshot");
+      },
+      input: async () => {
+        throw Error("Unexpected input");
+      },
+      releaseInputs: async () => {},
+      accessibility: {
+        observe: async () => ({
+          id: String(++reads),
+          app: "test",
+          windowTitle: "window",
+          text: "[0] AXWindow Recovered",
+        }),
+        input: async () => {
+          throw Error("Unexpected AX input");
+        },
+        reset: async () => {},
+      },
+    });
+    const f = await fixture({ agentMode: "codemode" }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    const ending = {
+      filtered: "text({wait:r.wait,frame:r.frame,accessibility:r.accessibility});",
+      silent: "",
+      recovered: 'text(await tools.computer({action:"observe",app:"test"}));',
+      throw: 'throw Error("script stopped");',
+    }[output];
+    let checked = false;
+    f.provider.setResponses([
+      script('const r=await tools.computer({action:"type",text:"no frame"});' + ending),
+      (context) => {
+        const result = context.messages.findLast((message) => message.role === "toolResult");
+        const text = latestComputerText(context.messages);
+        expect(text).toContain("type requires frameId");
+        expect(text).toContain("invalid_input");
+        expect(text).toContain('"applied":"no"');
+        expect(text).not.toContain("切换普通模式");
+        if (result?.role === "toolResult") expect(result.isError).toBe(output === "throw");
+        if (output === "recovered") expect(text).toContain("Recovered");
+        checked = true;
+        return fauxAssistantMessage("Failure acknowledged; no successful action replayed");
+      },
+    ]);
+    await f.run();
+    expect(checked).toBe(true);
+    expect(reads).toBe(output === "recovered" ? 1 : 0);
+  },
+  30000,
+);
+
+test.each(["yes", "unknown"] as const)(
+  "Code mode retains applied=%s and verification when a computer failure is filtered out",
+  async (applied) => {
+    let inputs = 0;
+    const service = new ComputerService({
+      layout: async () => {
+        throw Error("Unexpected layout");
+      },
+      capture: async () => {
+        throw Error("Unexpected screenshot");
+      },
+      input: async () => {
+        throw Error("Unexpected input");
+      },
+      releaseInputs: async () => {},
+      accessibility: {
+        observe: async () => ({
+          id: "one",
+          app: "test",
+          windowTitle: "window",
+          text: "[0] AXTextField",
+        }),
+        input: async () => {
+          inputs++;
+          throw new ComputerError("input_failed", "Readback unavailable", applied, {
+            status: "unknown",
+            reason: "state_unavailable",
+          });
+        },
+        reset: async () => {},
+      },
+    });
+    const f = await fixture({ agentMode: "codemode" }, undefined, {
+      computer: { service, enabled: () => true },
+    });
+    f.provider.setResponses([
+      script(
+        'const first=await tools.computer({action:"observe",app:"test"});const r=await tools.computer({action:"type",frameId:first.frame.id,text:"once"});text({frame:r.frame});',
+      ),
+      (context) => {
+        const text = latestComputerText(context.messages);
+        expect(text).toContain('"applied":"' + applied + '"');
+        expect(text).toContain('"status":"unknown"');
+        expect(text).toContain("state_unavailable");
+        expect(text).toContain("Readback unavailable");
+        expect(text).toContain("Do not blindly replay");
+        return fauxAssistantMessage("No blind replay");
+      },
+    ]);
+    await f.run();
+    expect(inputs).toBe(1);
+  },
+  30000,
+);
+
+test("Code mode surfaces caught harness validation failures without replacing script success", async () => {
+  const service = new ComputerService({
+    layout: async () => {
+      throw Error("Unexpected layout");
+    },
+    capture: async () => {
+      throw Error("Unexpected screenshot");
+    },
+    input: async () => {
+      throw Error("Unexpected input");
+    },
+    releaseInputs: async () => {},
+  });
+  const f = await fixture({ agentMode: "codemode" }, undefined, {
+    computer: { service, enabled: () => true },
+  });
+  f.provider.setResponses([
+    script(
+      'try{await tools.computer({action:"click",frameId:"unused",elementIndex:"not-an-index"});}catch{}text({});',
+    ),
+    (context) => {
+      const text = latestComputerText(context.messages);
+      expect(text).toContain("Nested computer call failures");
+      expect(text).toContain("elementIndex");
+      return fauxAssistantMessage("Validation error visible");
+    },
+  ]);
+  await f.run();
+}, 30000);
+
+test("computer failures retain their own output budget after successful nested previews fill up", async () => {
+  let reads = 0;
+  const service = new ComputerService({
+    layout: async () => {
+      throw Error("Unexpected layout");
+    },
+    capture: async () => {
+      throw Error("Unexpected screenshot");
+    },
+    input: async () => {
+      throw Error("Unexpected input");
+    },
+    releaseInputs: async () => {},
+    accessibility: {
+      observe: async () => ({
+        id: String(++reads),
+        app: "test",
+        windowTitle: "window",
+        text: "Preview filler".repeat(600),
+      }),
+      input: async () => {
+        throw Error("Unexpected AX input");
+      },
+      reset: async () => {},
+    },
+  });
+  const f = await fixture({ agentMode: "codemode" }, undefined, {
+    computer: { service, enabled: () => true },
+  });
+  f.provider.setResponses([
+    script(
+      'for(let i=0;i<9;i++)await tools.computer({action:"observe",app:"test"});await tools.computer({action:"type",text:"missing frame"});text({});',
+    ),
+    (context) => {
+      const text = latestComputerText(context.messages);
+      expect(text).toContain("type requires frameId");
+      expect(text).toContain('"applied":"no"');
+      return fauxAssistantMessage("Diagnostic budget retained");
+    },
+  ]);
+  await f.run();
+  expect(reads).toBe(9);
+}, 30000);

@@ -4,8 +4,6 @@ import { join } from "node:path";
 import { ComputerService } from "@eta/computer-use/service";
 import { createMacComputerAdapter } from "@eta/computer-use/mac/adapter";
 import type { DesktopComputer } from "./capability.ts";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { accessSync, constants } from "node:fs";
 import { createComputerOverlayProcess } from "./overlay-process.ts";
 import { createAccessibilityBridge } from "@eta/computer-use/mac/accessibility";
@@ -24,7 +22,6 @@ export function createElectronComputer(): DesktopComputer | undefined {
       screen: systemPreferences.getMediaAccessStatus("screen") === "granted",
       accessibility: systemPreferences.isTrustedAccessibilityClient(false),
     }),
-    openApplication: openMacApplication,
     accessibility: createAccessibilityBridge(
       accessibilityBinary,
       (event) => service.presentPointer(event),
@@ -66,14 +63,4 @@ export function createElectronComputer(): DesktopComputer | undefined {
       );
     },
   };
-}
-
-export async function openMacApplication(name: string, signal: AbortSignal) {
-  signal.throwIfAborted();
-  const bundleIdentifier = !name.endsWith(".app") && /^[\w-]+(?:\.[\w-]+)+$/.test(name);
-  await promisify(execFile)("/usr/bin/open", ["-g", bundleIdentifier ? "-b" : "-a", name], {
-    signal,
-    timeout: 15000,
-  });
-  signal.throwIfAborted();
 }

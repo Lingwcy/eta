@@ -9,6 +9,7 @@ import { useDesktopLibrary } from "@/agent/use-desktop-library";
 import { useDesktopTabs } from "@/agent/use-desktop-tabs";
 import { useSchedules } from "@/agent/use-schedules";
 import { ToastProvider } from "@/components/ui/toast";
+import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { i18n } from "@/i18n";
 import { ConversationPanel } from "./conversation-panel";
 
@@ -402,3 +403,308 @@ test.each(["quota", "faulted", "blocked", "recovery"] as const)(
     }
   },
 );
+
+test("switching model and thinking level keeps sidebar entries and toolbar controls enabled and queues rapid updates", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  Object.defineProperty(HTMLElement.prototype, "getAnimations", {
+    configurable: true,
+    value: () => [],
+  });
+  const firstModel = {
+    provider: "provider-b",
+    id: "alpha",
+    name: "Model Alpha",
+    contextWindow: 64000,
+    thinkingLevels: ["off", "low", "high"] as const,
+  };
+  const secondModel = {
+    provider: "provider-b",
+    id: "beta",
+    name: "Model Beta",
+    contextWindow: 64000,
+    thinkingLevels: ["off", "low", "high"] as const,
+  };
+  const session: SessionResponse = {
+    id: "created-thread",
+    model: { ...firstModel, thinkingLevels: [...firstModel.thinkingLevels] },
+    contextTokens: 0,
+    snapshot: {
+      configuration: { model: { provider: "provider-b", modelId: "alpha" }, thinkingLevel: "low" },
+      transcript: [],
+      lastResult: null,
+      faulted: false,
+      operation: null,
+    },
+  };
+  let library: DesktopLibrary = {
+    projects: [
+      { id: "project", environmentId: "local", name: "Eta", rootPath: "/test", createdAt: 0 },
+    ],
+    workspaces: [
+      { id: "workspace", projectId: "project", cwd: "/test", kind: "project-root", createdAt: 0 },
+    ],
+    providers: [{ id: "provider-b", name: "Provider B", methods: ["api_key"] }],
+    credentials: [],
+    models: [
+      { ...firstModel, thinkingLevels: [...firstModel.thinkingLevels] },
+      { ...secondModel, thinkingLevels: [...secondModel.thinkingLevels] },
+    ],
+    settings: {
+      defaultProvider: "provider-b",
+      defaultModel: "alpha",
+      defaultThinkingLevel: "low",
+    },
+    threads: [
+      {
+        id: session.id,
+        projectId: "project",
+        workspaceId: "workspace",
+        title: "Saved thread",
+        createdAt: 0,
+        sessionRef: {
+          backendId: "eta",
+          metadata: {
+            id: session.id,
+            cwd: "/test",
+            path: "/test/thread",
+            createdAt: 0,
+            modifiedAt: 0,
+            storageVersion: 1,
+          },
+        },
+      },
+    ],
+  };
+  const pendingSettings = Promise.withResolvers<void>();
+  const pendingConfigures = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+  let configureCalls = 0;
+  const listeners = new Set<(event: AgentEvent) => void>();
+  const bridge = {
+    library: async () => library,
+    subscribeLibrary: () => () => {},
+    openThread: async () => session,
+    subscribe: (_id: string, listener: (event: AgentEvent) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    updateSettings: vi.fn(async (patch: Partial<DesktopLibrary["settings"]>) => {
+      await pendingSettings.promise;
+      library = { ...library, settings: { ...library.settings, ...patch } };
+      return library.settings;
+    }),
+    configureThread: vi.fn(
+      async (
+        _id: string,
+        provider: string,
+        modelId: string,
+        thinkingLevel: "off" | "low" | "high",
+      ) => {
+        const gate = pendingConfigures[configureCalls++];
+        if (gate) await gate.promise;
+        session.model = library.models.find(
+          (model) => model.provider === provider && model.id === modelId,
+        )!;
+        session.snapshot = {
+          ...session.snapshot,
+          configuration: { model: { provider, modelId }, thinkingLevel },
+        };
+        for (const listener of listeners)
+          listener({ type: "snapshot", value: { snapshot: session.snapshot, contextTokens: 0 } });
+        return session;
+      },
+    ),
+    scheduleSnapshot: async () => ({ snapshots: [] }),
+    subscribeSchedules: () => () => {},
+    updateState: async () => ({ status: "idle" }),
+    subscribeUpdate: () => () => {},
+  };
+  vi.stubGlobal("eta", bridge);
+  let desktopRef: ReturnType<typeof useDesktopLibrary> | undefined;
+  let navigationRef: ReturnType<typeof useDesktopTabs> | undefined;
+  function Harness() {
+    const desktop = useDesktopLibrary();
+    const navigation = useDesktopTabs(desktop.library);
+    desktopRef = desktop;
+    navigationRef = navigation;
+    const schedules = useSchedules();
+    const tab = navigation.tabs.activeTab;
+    if (tab.kind !== "conversation") throw Error("Expected a conversation");
+    return createElement(
+      ToastProvider,
+      null,
+      createElement(DesktopSidebar, {
+        model: desktop.mainModel,
+        conversation: tab,
+        scheduleView: false,
+        onScheduleView: () => {},
+        schedules,
+        onScheduleSaved: () => {},
+        library: desktop.library,
+        runningThreadIds: navigation.runningThreadIds,
+        visits: navigation.visits,
+        workspaceId: tab.workspaceId,
+        threadId: tab.threadId ?? null,
+        busy: desktop.busy,
+        collapsed: false,
+        onExpand: () => {},
+        onSelect: (id) => navigation.tabs.openThread(id, "workspace"),
+        onNew: () => navigation.tabs.newConversation(),
+        onChoose: () => {},
+        onSettings: () => {},
+        onSkills: () => {},
+      }),
+      createElement(ConversationPanel, {
+        key: tab.id,
+        tab,
+        desktop,
+        navigation,
+        schedules,
+        active: true,
+        version: 0,
+        onPreview: () => {},
+        onRoot: () => {},
+      }),
+    );
+  }
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  try {
+    await act(async () => root!.render(createElement(Harness)));
+    const newChatButton = () =>
+      [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
+        button.textContent?.includes(i18n.t("navigation:projectSidebar.newChat")),
+      )!;
+    const projectButton = () =>
+      [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+        (button) => button.title === "/test",
+      )!;
+    const threadButton = () =>
+      [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
+        button.textContent?.includes("Saved thread"),
+      )!;
+    const attachButton = () =>
+      document.querySelector<HTMLButtonElement>(
+        '[aria-label="' + i18n.t("chat:actionToolbar.addImages") + '"]',
+      )!;
+    const picker = () =>
+      document.querySelector<HTMLButtonElement>(
+        '[aria-label="' + i18n.t("chat:modelPicker.chooseAModelAndThinkingLevel") + '"]',
+      )!;
+    await act(async () => projectButton().click());
+    await expect.poll(() => threadButton()).toBeDefined();
+    // Even while another desktop.act() makes desktop.busy=true, sidebar navigation entries stay enabled.
+    const heldAction = Promise.withResolvers<void>();
+    let actionPromise: Promise<void> | undefined;
+    await act(async () => {
+      actionPromise = desktopRef!.act(() => heldAction.promise);
+    });
+    expect(desktopRef!.busy).toBe(true);
+    expect(newChatButton().disabled).toBe(false);
+    expect(threadButton().disabled).toBe(false);
+    await act(async () => {
+      heldAction.resolve();
+      await actionPromise;
+    });
+
+    // 1. Unsent draft: switching model holds updateSettings without toggling busy or disabling controls.
+    await act(async () => picker().click());
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="' + i18n.t("chat:modelPicker.allModels") + '"]',
+        )!
+        .click(),
+    );
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[aria-pressed][title="provider-b/beta"]')!.click(),
+    );
+    expect(bridge.updateSettings).toHaveBeenCalledWith({
+      defaultProvider: "provider-b",
+      defaultModel: "beta",
+      defaultThinkingLevel: "low",
+    });
+    expect(desktopRef!.busy).toBe(false);
+    expect(newChatButton().disabled).toBe(false);
+    expect(threadButton().disabled).toBe(false);
+    expect(attachButton().disabled).toBe(false);
+    expect(picker().disabled).toBe(false);
+    expect(
+      document.querySelector<HTMLButtonElement>('[aria-pressed][title="provider-b/beta"]')!
+        .disabled,
+    ).toBe(false);
+    await act(async () => {
+      pendingSettings.resolve();
+    });
+    await act(async () => picker().click());
+
+    // 2. Existing thread: rapid thinking-level switches keep controls enabled and commit in order.
+    await act(async () => navigationRef!.tabs.openThread(session.id, "workspace"));
+    await expect.poll(() => picker().disabled).toBe(false);
+    await expect.poll(() => picker().textContent).toContain("Model Alpha");
+    await act(async () => picker().click());
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[title="' + i18n.t("chat:thinkingLevelControl.adjustThinkingLevel") + '"]',
+        )!
+        .click(),
+    );
+    await expect
+      .poll(() => document.querySelector<HTMLInputElement>('input[type="range"]'))
+      .not.toBeNull();
+    const slider = document.querySelector<HTMLInputElement>('input[type="range"]')!;
+    await act(async () => {
+      slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    });
+    expect(bridge.configureThread).toHaveBeenCalledTimes(1);
+    expect(bridge.configureThread).toHaveBeenLastCalledWith(
+      session.id,
+      "provider-b",
+      "alpha",
+      "high",
+    );
+    expect(desktopRef!.busy).toBe(false);
+    expect(newChatButton().disabled).toBe(false);
+    expect(threadButton().disabled).toBe(false);
+    expect(attachButton().disabled).toBe(false);
+    await act(async () => {
+      slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    });
+    await act(async () => {
+      slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    });
+    // Second rapid change queues cleanly behind the first without dropping or disabling controls.
+    expect(bridge.configureThread).toHaveBeenCalledTimes(1);
+    expect(desktopRef!.busy).toBe(false);
+    await act(async () => {
+      pendingConfigures[0]!.resolve();
+    });
+    await expect.poll(() => bridge.configureThread.mock.calls.length).toBe(2);
+    expect(bridge.configureThread).toHaveBeenLastCalledWith(
+      session.id,
+      "provider-b",
+      "alpha",
+      "off",
+    );
+    await act(async () => {
+      pendingConfigures[1]!.resolve();
+    });
+  } finally {
+    pendingSettings.resolve();
+    for (const gate of pendingConfigures) gate.resolve();
+  }
+});

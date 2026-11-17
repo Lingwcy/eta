@@ -111,25 +111,25 @@ test("task tone tracks running, waiting, failure and completion states", () => {
 
 test("task status renders its label as a live status line", async () => {
   await act(async () =>
-    root.render(createElement(TaskStatus, { label: "等待审批", tone: "warning" })),
+    root.render(createElement(TaskStatus, { label: "Waiting for approval", tone: "warning" })),
   );
   const status = container.querySelector('[role="status"]')!;
-  expect(status.textContent).toContain("等待审批");
+  expect(status.textContent).toContain("Waiting for approval");
 });
 
 test("empty state keeps the title, hint and inline action in one centered column", async () => {
   await act(async () =>
     root.render(
       createElement(ChatEmptyState, {
-        title: "从这里开始工作",
-        hint: "任务将在 eta 中运行",
-        children: createElement("button", { type: "button" }, "重新加载会话"),
+        title: "Start working here",
+        hint: "Task will run in eta",
+        children: createElement("button", { type: "button" }, "Reload thread"),
       }),
     ),
   );
-  expect(container.textContent).toContain("从这里开始工作");
-  expect(container.textContent).toContain("任务将在 eta 中运行");
-  expect(container.querySelector("button")!.textContent).toBe("重新加载会话");
+  expect(container.textContent).toContain("Start working here");
+  expect(container.textContent).toContain("Task will run in eta");
+  expect(container.querySelector("button")!.textContent).toBe("Reload thread");
 });
 
 test("pending notice keeps the prompt visible and only offers retry after sending", async () => {
@@ -138,22 +138,22 @@ test("pending notice keeps the prompt visible and only offers retry after sendin
     root.render(
       createElement(PendingNotice, {
         sending: true,
-        prompt: "继续处理这个任务",
+        prompt: "Continue working on this task",
         busy: false,
         connected: true,
         onRetry: retry,
       }),
     ),
   );
-  expect(container.textContent).toContain("正在提交消息…");
-  expect(container.textContent).toContain("继续处理这个任务");
+  expect(container.textContent).toContain("Submitting message…");
+  expect(container.textContent).toContain("Continue working on this task");
   expect(container.querySelector("button")).toBeNull();
 
   await act(async () =>
     root.render(
       createElement(PendingNotice, {
         sending: false,
-        prompt: "继续处理这个任务",
+        prompt: "Continue working on this task",
         busy: false,
         connected: false,
         onRetry: retry,

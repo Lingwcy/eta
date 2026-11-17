@@ -7,6 +7,7 @@ import type { AgentMode } from "../../shared/runtime-settings.ts";
 import { Predicate } from "effect";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import { computerImageDigests } from "../../computer/images.ts";
+import { computerFailureReport } from "../../computer/failures.ts";
 
 /** Missing records belong to executions started before Code mode was introduced. */
 export const AgentModeDoc = defineDoc<{ mode: AgentMode }>({
@@ -91,6 +92,7 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
         const enrichedCalls = [];
         const computerImages: string[] = [];
         let computerFailure = false;
+        const failures = computerFailureReport();
         let remainingPreview = 32_000;
         for (const call of calls) {
           if (!Predicate.isObject(call) || typeof call.id !== "number") continue;
@@ -98,7 +100,10 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
           const value = nested?.result?.structuredOutput;
           if (call.name === "computer")
             computerImages.push(...computerImageDigests(nested?.result?.details));
-          if (call.name === "computer" && nested?.result?.isError) computerFailure = true;
+          if (call.name === "computer" && nested?.result?.isError) {
+            computerFailure = true;
+            failures.add(call.id, nested.result);
+          }
           const content = Array.isArray(value) ? value : [value];
           const structured = typeof call.name === "string" && structuredTools.has(call.name);
           const source = structured
@@ -183,6 +188,7 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
         );
         const omittedImages =
           Math.max(0, imageCount - maximumImages) + Math.max(0, deliveredImages - maximumImages);
+        const failureText = failures.text();
         return {
           ...result,
           ...(Predicate.isObject(result.details)
@@ -204,6 +210,7 @@ export function runtimeCodemode(sandbox: RuntimeCodemodeSandbox) {
                   },
                 ]
               : []),
+            ...(failureText ? [{ type: "text" as const, text: failureText }] : []),
             ...(result.isError
               ? [
                   {

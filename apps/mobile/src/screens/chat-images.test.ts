@@ -21,6 +21,25 @@ vi.mock("../provider.tsx", async () => {
         state: React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot),
       };
     },
+    useUpdater: () => ({
+      updater: {
+        check: async () => ({ status: "idle" }),
+        downloadAndInstall: async () => {},
+        cancelDownload: () => {},
+        install: async () => {},
+        requestInstallPermission: async () => {},
+        openReleasePage: async () => {},
+        dismissBanner: () => {},
+        setAutoCheck: () => {},
+      },
+      update: {
+        currentVersion: "0.1.0",
+        platform: "android",
+        supportsInAppInstall: true,
+        autoCheck: true,
+        state: { status: "idle" },
+      },
+    }),
   };
 });
 // Keep unrelated sheets out of the fixture; exercise the real screen, composer and status UI.
@@ -28,22 +47,30 @@ vi.mock("../components/sidebar.tsx", () => ({ Sidebar: () => null }));
 vi.mock("./settings.tsx", () => ({ SettingsScreen: () => null }));
 vi.mock("../components/configuration.tsx", () => ({
   ConfigurationSheet: () => null,
-  sandboxLabels: { "workspace-write": "工作区写入", "read-only": "只读" },
-  thinkingLabels: { off: "关闭" },
 }));
 vi.mock("../components/approvals.tsx", () => ({ Approvals: () => null }));
 vi.mock("../components/message.tsx", () => ({ MessageView: () => null }));
+vi.mock("react-native-svg", () => ({
+  SvgXml: () => null,
+}));
 vi.mock("lucide-react-native", () =>
   Object.fromEntries(
     [
       "ArrowDown",
+      "ArrowDownToLine",
+      "Bot",
       "Menu",
       "SquarePen",
       "ArrowUp",
       "ChevronDown",
       "Cpu",
       "ImagePlus",
+      "Lock",
+      "Paperclip",
+      "Plus",
       "Shield",
+      "ShieldCheck",
+      "Sparkles",
       "Square",
       "X",
       "AlertTriangle",
@@ -91,6 +118,16 @@ vi.mock("react-native", async () => {
     );
   return {
     Alert: { alert: vi.fn() },
+    Animated: {
+      Value: class {
+        constructor() {}
+      },
+      View,
+      loop: () => ({ start: () => {}, stop: () => {} }),
+      sequence: () => ({}),
+      timing: () => ({}),
+      delay: () => ({}),
+    },
     View,
     Text,
     Pressable,
@@ -219,17 +256,17 @@ afterEach(async () => {
 });
 
 test("selecting, previewing and removing images updates the real draft, and image-only send admits its bytes", async () => {
-  expect(button("发送消息").disabled).toBe(true);
+  expect(button("Send message").disabled).toBe(true);
   mocks.pick.mockResolvedValue(picked);
-  await click("添加图片");
+  await click("Add image");
   expect(previews().map((image) => image.src)).toEqual(["data:image/png;base64," + bytes]);
   expect(store.getSnapshot().draftImages[draftKey(store.getSnapshot())]).toHaveLength(1);
-  expect(button("发送消息").disabled).toBe(false);
-  await click("移除图片 1");
+  expect(button("Send message").disabled).toBe(false);
+  await click("Remove image 1");
   expect(previews()).toHaveLength(0);
-  expect(button("发送消息").disabled).toBe(true);
-  await click("添加图片");
-  await click("发送消息");
+  expect(button("Send message").disabled).toBe(true);
+  await click("Add image");
+  await click("Send message");
   expect(messages).toHaveLength(1);
   expect(messages[0]).toEqual({
     prompt: "",
@@ -244,27 +281,27 @@ test("returning from a backgrounded system picker retains the selected image", a
   await act(async () => store.open("thread"));
   const selection = deferred<ImagePickerResult>();
   mocks.pick.mockReturnValue(selection.promise);
-  await click("添加图片");
+  await click("Add image");
   await act(async () => store.setForeground(false));
   await act(async () => store.setForeground(true));
   await act(async () => selection.resolve(picked));
   expect(previews().map((image) => image.src)).toEqual(["data:image/png;base64," + bytes]);
   expect(store.getSnapshot().draftImages["thread:thread"]).toHaveLength(1);
-  expect(button("发送消息").disabled).toBe(false);
+  expect(button("Send message").disabled).toBe(false);
 });
 
 test("cancel and picker failure preserve the existing image draft and text", async () => {
   mocks.pick.mockResolvedValue(picked);
-  await click("添加图片");
+  await click("Add image");
   await act(async () => store.setDraft("keep this text"));
   const original = store.getSnapshot().draftImages[draftKey(store.getSnapshot())];
   mocks.pick.mockResolvedValue({ canceled: true, assets: null });
-  await click("添加图片");
+  await click("Add image");
   expect(previews()).toHaveLength(1);
   expect(store.getSnapshot().draftImages[draftKey(store.getSnapshot())]).toEqual(original);
-  mocks.pick.mockRejectedValue(new Error("无法访问相册"));
-  await click("添加图片");
-  expect(document.body.textContent).toContain("无法访问相册");
+  mocks.pick.mockRejectedValue(new Error("Photo library unavailable"));
+  await click("Add image");
+  expect(document.body.textContent).toContain("Photo library unavailable");
   expect(previews()).toHaveLength(1);
   expect(store.getSnapshot().drafts[draftKey(store.getSnapshot())]).toBe("keep this text");
   expect(store.getSnapshot().draftImages[draftKey(store.getSnapshot())]).toEqual(original);
@@ -273,15 +310,15 @@ test("cancel and picker failure preserve the existing image draft and text", asy
 test("late selection and errors cannot modify a replacement conversation", async () => {
   const selection = deferred<ImagePickerResult>();
   mocks.pick.mockReturnValue(selection.promise);
-  await click("添加图片");
-  expect(button("正在读取图片").disabled).toBe(true);
+  await click("Add image");
+  expect(button("Reading images").disabled).toBe(true);
   await act(async () => store.open("thread"));
   await act(async () => selection.resolve(picked));
   expect(previews()).toHaveLength(0);
   expect(store.getSnapshot().draftImages).toEqual({});
   const failure = deferred<ImagePickerResult>();
   mocks.pick.mockReturnValue(failure.promise);
-  await click("添加图片");
+  await click("Add image");
   await act(async () => store.newThread());
   await act(async () => failure.reject(new Error("obsolete picker failure")));
   expect(document.body.textContent).not.toContain("obsolete picker failure");

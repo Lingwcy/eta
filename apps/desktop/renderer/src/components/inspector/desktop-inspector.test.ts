@@ -492,3 +492,19 @@ test("a parent width change with a stationary right edge preserves the admitted 
   expect(width()).toBe(920);
   expect(localStorage.getItem(STORAGE_KEY)).toBe("920");
 });
+
+test("width transition applies on open toggle and disables immediately on drag or key resize", async () => {
+  await render(false);
+  expect(sidebar().className).not.toContain("transition-[width]");
+  await render(true);
+  expect(sidebar().className).toContain("transition-[width]");
+  const separator = divider();
+  await dispatch(separator, pointer("pointerdown", 880));
+  expect(sidebar().className).not.toContain("transition-[width]");
+  await dispatch(separator, pointer("pointermove", 760));
+  await flushFrame();
+  await dispatch(separator, pointer("pointerup", 760));
+  expect(sidebar().className).not.toContain("transition-[width]");
+  await render(false);
+  expect(sidebar().className).toContain("transition-[width]");
+});

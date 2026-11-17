@@ -71,7 +71,7 @@ test.each(["line", "frame"])("oversized %s is rejected and releases the stream",
     },
   });
   await expect(readEvents(body, () => deliveries++, new AbortController().signal)).rejects.toThrow(
-    "Bot 实时消息过大",
+    "Bot live event exceeded size limit",
   );
   expect(deliveries).toBe(0);
   expect(cancelled).toBe(true);

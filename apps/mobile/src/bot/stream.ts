@@ -1,3 +1,5 @@
+import { getMessages } from "../i18n/index.ts";
+
 export interface ServerEvent {
   event: string;
   data: string;
@@ -30,14 +32,14 @@ export async function readEvents(
       event = value.slice(6).replace(/^ /, "");
     } else if (value.startsWith("data:")) {
       frameSize += value.length;
-      if (frameSize > MAX_EVENT_CHARS) throw new Error("Bot 实时消息过大，请重新打开会话");
+      if (frameSize > MAX_EVENT_CHARS) throw new Error(getMessages().errors.streamTooLarge);
       data.push(value.slice(5).replace(/^ /, ""));
     }
   };
   const append = (fragment: string) => {
     if (!fragment) return;
     lineSize += fragment.length;
-    if (lineSize > MAX_EVENT_CHARS) throw new Error("Bot 实时消息过大，请重新打开会话");
+    if (lineSize > MAX_EVENT_CHARS) throw new Error(getMessages().errors.streamTooLarge);
     fragments.push(fragment);
     // Bound tiny-read metadata without repeatedly joining the growing line prefix.
     if (fragments.length === 1024) {

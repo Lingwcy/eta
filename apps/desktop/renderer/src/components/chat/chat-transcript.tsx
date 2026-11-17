@@ -5,7 +5,13 @@ import type { AgentSnapshot } from "@eta/core/agent/protocol";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "./chat-message";
 import { ChatMessageState } from "./chat-message-state";
-import { getChatMessages, isActivityMessage } from "./chat-messages";
+import {
+  endsWithActivity,
+  getChatMessages,
+  isActivityMessage,
+  messageToolCallIds,
+  startsWithActivity,
+} from "./chat-messages";
 import { ChatNavigation } from "./chat-navigation";
 import { getChatTurns } from "./chat-turns";
 import {
@@ -114,11 +120,17 @@ export function ChatTranscript({
             {rows.map((row) => {
               const entry = messages[row.index];
               const previous = messages[row.index - 1];
+              const entryTools = entry
+                ? toolsForMessage(tools, messageToolCallIds(entry.message))
+                : [];
+              const previousTools = previous
+                ? toolsForMessage(tools, messageToolCallIds(previous.message))
+                : [];
               const compact =
                 entry &&
                 previous &&
-                isActivityMessage(entry.message) &&
-                isActivityMessage(previous.message);
+                startsWithActivity(entry.message, entryTools.length > 0) &&
+                endsWithActivity(previous.message, previousTools.length > 0);
               return (
                 <div
                   key={row.key}
@@ -142,14 +154,7 @@ export function ChatTranscript({
                       )}
                       <ChatMessage
                         message={entry.message}
-                        tools={toolsForMessage(
-                          tools,
-                          entry.message.role === "assistant"
-                            ? entry.message.content.flatMap((part) =>
-                                part.type === "toolCall" ? [part.id] : [],
-                              )
-                            : [],
-                        )}
+                        tools={entryTools}
                         streaming={entry.streaming}
                         animate={Boolean(seen.current && !seen.current.has(entry.id))}
                       />
