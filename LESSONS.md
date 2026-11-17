@@ -431,8 +431,9 @@ that the rest of the history has been reviewed or that those fixes pass today.
 
 - Why: a fixture can bypass an incompatible product default and make a feature appear usable.
 - Evidence: the 2026-10-13 Core Git continuation found Desktop's default worktree directory inside the protected data root, while existing worktree fixtures overrode it with an unprotected sibling directory. The native worktree test now uses the default management root and verifies an agent can edit and commit there. The maintainer approved moving new worktrees beside the data directory while retaining its protection.
-- Check: cover the actual default root and sandbox policy together; keep existing thread execution directories stable when changing future defaults.
-- Seen 1× (2026-10-13).
+- Additional evidence: on 2026-11-17, #638 runs the actual Expo Android prebuild with no release-CI version overrides. The APK plugin replaces configured 0.1.1 with a 0.1.0 Gradle fallback and a custom versionCode with 1; CI overrides hide both defects. Defaults must follow the current Expo config on initial and repeated prebuilds, retaining override bindings without duplicating signing configuration. Actual mod controls and isolated CLI prebuilds verify generated Gradle, not compiled APK metadata or device installation.
+- Check: cover the actual default root and sandbox policy together; keep existing thread execution directories stable when changing future defaults. Verify native build defaults without CI overrides and after configuration changes, through the generated consumer artifact as well as the transform.
+- Seen: 2026-10-13, 2026-11-17.
 
 **Test a new setting through the IPC decoder and persistence, including its reset path.**
 
