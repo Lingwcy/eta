@@ -392,42 +392,43 @@ export function createMobileUpdater(options: {
       },
     });
 
-    const handle = adapter.startDownloadApk(release, (bytesWritten, reportedTotal) => {
-      if (
-        disposed ||
-        !activeDownload ||
-        activeDownload.handle !== handle ||
-        activeDownload.cancelled
-      ) {
-        return;
-      }
-      const total = reportedTotal > 0 ? reportedTotal : totalHint;
-      const percent =
-        total > 0 ? Math.max(0, Math.min(100, Math.floor((bytesWritten / total) * 100))) : 0;
-      const current = snapshot.state;
-      if (
-        current.status === "downloading" &&
-        current.percent === percent &&
-        percent > 0 &&
-        percent < 100
-      ) {
-        return;
-      }
-      setSnapshot({
-        state: {
-          status: "downloading",
-          release,
-          percent,
-          bytesWritten,
-          totalBytes: total,
-        },
-      });
-    });
-
-    const downloadEntry = { handle, cancelled: false, version: release.version };
-    activeDownload = downloadEntry;
-
+    let downloadEntry: typeof activeDownload;
     try {
+      const handle = adapter.startDownloadApk(release, (bytesWritten, reportedTotal) => {
+        if (
+          disposed ||
+          !activeDownload ||
+          activeDownload.handle !== handle ||
+          activeDownload.cancelled
+        ) {
+          return;
+        }
+        const total = reportedTotal > 0 ? reportedTotal : totalHint;
+        const percent =
+          total > 0 ? Math.max(0, Math.min(100, Math.floor((bytesWritten / total) * 100))) : 0;
+        const current = snapshot.state;
+        if (
+          current.status === "downloading" &&
+          current.percent === percent &&
+          percent > 0 &&
+          percent < 100
+        ) {
+          return;
+        }
+        setSnapshot({
+          state: {
+            status: "downloading",
+            release,
+            percent,
+            bytesWritten,
+            totalBytes: total,
+          },
+        });
+      });
+
+      downloadEntry = { handle, cancelled: false, version: release.version };
+      activeDownload = downloadEntry;
+
       const { fileUri } = await handle.promise;
       if (disposed || downloadEntry.cancelled) {
         await adapter.deleteFile(fileUri).catch(() => {});
@@ -472,7 +473,7 @@ export function createMobileUpdater(options: {
       await adapter.installApk(fileUri);
     } catch (error) {
       if (activeDownload === downloadEntry) activeDownload = undefined;
-      if (disposed || downloadEntry.cancelled) return;
+      if (disposed || downloadEntry?.cancelled) return;
       if (error instanceof CancelledDownloadError) {
         setSnapshot({ state: { status: "available", release } });
         return;

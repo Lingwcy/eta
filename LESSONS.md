@@ -535,8 +535,9 @@ and inspect every build configuration that derives those keys.**
 **Acquire optional capabilities inside the same guarded operation that uses them.**
 
 - Evidence: on 2026-11-06, #581 makes browser Storage accessors throw SecurityError. Main-window tab initialization, detached-window persistence effects and the recent-model factory fail before reaching their existing getItem/setItem guards. Lazy adapters move acquisition inside those operations; actual Hook edits and input history stay in memory, and restoring storage allows drafts and model choices to persist and reopen again.
-- Check: fault the property getter, not only methods on an already acquired object. Preserve existing diagnostics and retry acquisition on later operations; a permanent no-op fallback can silently discard data even after permission recovers. These are DOM controls, not native policy or production-outage proof.
-- Seen: 2026-11-06.
+- Additional evidence: on 2026-11-17, #636 makes Mobile APK cache preparation fail before a download handle exists. The actual updater/native-adapter with a mocked Expo boundary and a real ENOTDIR temporary-file error rejects outside its existing catch and remains downloading, with no cancellable handle. Guard resource acquisition along with awaiting completion; two regressions retain the original error and blocking file, then verify a repaired cache can download again. These are adapter/filesystem controls, not Android disk-full or installer acceptance.
+- Check: fault property getters and resource factories/constructors, not only methods on an already acquired object. Preserve existing diagnostics and retry acquisition on later operations; a permanent no-op fallback can silently discard data even after permission recovers. Distinguish controlled failure/recovery from native policy or production-outage proof.
+- Seen: 2026-11-06, 2026-11-17.
 
 **Merge shared bounded histories before replacing them from long-lived views.**
 

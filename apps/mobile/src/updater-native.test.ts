@@ -90,6 +90,63 @@ vi.mock("expo-file-system", () => {
 import { createNativeUpdaterAdapter } from "./updater-native.ts";
 import { createMobileUpdater } from "./updater.ts";
 
+test("native cache preparation failure is reported and retry works after repair", async () => {
+  const root = mkdtempSync(join(tmpdir(), "eta-updater-setup-"));
+  const cache = join(root, "cache");
+  writeFileSync(cache, "preserve blocking file");
+  runtime.cacheUri = pathToFileURL(cache).href;
+  runtime.tasks = [];
+  const adapter = {
+    ...createNativeUpdaterAdapter(),
+    fetchReleases: async () => [
+      {
+        tag_name: "mobile-v0.2.0",
+        html_url: "https://example.com/release",
+        assets: [
+          {
+            name: "Eta-mobile-0.2.0-android.apk",
+            browser_download_url: "https://example.com/update.apk",
+          },
+        ],
+      },
+    ],
+  };
+  const updater = createMobileUpdater({ adapter, initialVersion: "0.1.0" });
+  let pending: Promise<void> | undefined;
+  try {
+    await updater.check();
+    const setup = updater.downloadAndInstall();
+    await setup.catch(() => {});
+    expect(updater.getSnapshot().state).toMatchObject({
+      status: "error",
+      releaseUrl: "https://example.com/release",
+    });
+    await expect(setup).resolves.toBeUndefined();
+    expect(runtime.tasks).toHaveLength(0);
+    expect(readFileSync(cache, "utf8")).toBe("preserve blocking file");
+    updater.cancelDownload();
+    expect(updater.getSnapshot().state.status).toBe("error");
+    unlinkSync(cache);
+    mkdirSync(cache);
+    await updater.check();
+    expect(updater.getSnapshot().state.status).toBe("available");
+    pending = updater.downloadAndInstall();
+    expect(runtime.tasks).toHaveLength(1);
+    runtime.tasks[0]!.complete("recovered APK bytes");
+    await pending;
+    expect(updater.getSnapshot().state).toMatchObject({
+      status: "downloaded",
+      fileUri: runtime.tasks[0]!.uri,
+    });
+    expect(readFileSync(new URL(runtime.tasks[0]!.uri), "utf8")).toBe("recovered APK bytes");
+  } finally {
+    for (const task of runtime.tasks) task.complete("cleanup fixture");
+    if (pending) await Promise.allSettled([pending]);
+    updater.dispose();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("late cancelled native download cannot overwrite or delete the replacement APK", async () => {
   const root = mkdtempSync(join(tmpdir(), "eta-updater-ownership-"));
   runtime.cacheUri = pathToFileURL(root).href;
