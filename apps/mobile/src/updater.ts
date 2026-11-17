@@ -472,7 +472,8 @@ export function createMobileUpdater(options: {
       await adapter.installApk(fileUri);
     } catch (error) {
       if (activeDownload === downloadEntry) activeDownload = undefined;
-      if (disposed || downloadEntry.cancelled || error instanceof CancelledDownloadError) {
+      if (disposed || downloadEntry.cancelled) return;
+      if (error instanceof CancelledDownloadError) {
         setSnapshot({ state: { status: "available", release } });
         return;
       }

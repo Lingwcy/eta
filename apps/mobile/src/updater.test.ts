@@ -219,6 +219,65 @@ test("rejects SHA-256 mismatch, deletes downloaded APK, and supports cancelling 
   expect(cancellable.getSnapshot().state.status).toBe("available");
 });
 
+test.each([false, true])(
+  "late cancelled download failure cannot reset its replacement (replacement finished=%s)",
+  async (finished) => {
+    const first = Promise.withResolvers<{ fileUri: string }>();
+    const second = Promise.withResolvers<{ fileUri: string }>();
+    let starts = 0;
+    const adapter = createAdapter({
+      fetchReleases: async () => [
+        {
+          tag_name: "mobile-v0.2.0",
+          html_url: "https://github.com/Lingwcy/eta/releases/tag/mobile-v0.2.0",
+          assets: [
+            {
+              name: "Eta-mobile-0.2.0-android.apk",
+              browser_download_url: "https://example.com/020.apk",
+            },
+          ],
+        },
+      ],
+      startDownloadApk: () => ({
+        promise: starts++ === 0 ? first.promise : second.promise,
+        cancel: () => {},
+      }),
+    });
+    const updater = createMobileUpdater({ adapter, initialVersion: "0.1.0" });
+    await updater.check();
+    const old = updater.downloadAndInstall();
+    updater.cancelDownload();
+    const replacement = updater.downloadAndInstall();
+    try {
+      if (finished) {
+        second.resolve({ fileUri: "file:///cache/new.apk" });
+        await replacement;
+      }
+      first.reject(new Error("Late cancelled task failure"));
+      await old;
+      expect(updater.getSnapshot().state).toMatchObject(
+        finished
+          ? { status: "downloaded", fileUri: "file:///cache/new.apk" }
+          : { status: "downloading" },
+      );
+      if (!finished) {
+        second.resolve({ fileUri: "file:///cache/new.apk" });
+        await replacement;
+      }
+      expect(updater.getSnapshot().state).toMatchObject({
+        status: "downloaded",
+        fileUri: "file:///cache/new.apk",
+      });
+      expect(adapter.installApk).toHaveBeenCalledOnce();
+    } finally {
+      first.resolve({ fileUri: "file:///cache/old.apk" });
+      second.resolve({ fileUri: "file:///cache/new.apk" });
+      await Promise.allSettled([old, replacement]);
+      updater.dispose();
+    }
+  },
+);
+
 test("auto-check runs on startup delay, throttles foreground re-checks, and iOS opens release page", async () => {
   vi.useFakeTimers();
   let clock = 1_000;
