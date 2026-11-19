@@ -174,6 +174,12 @@ export function getToolSummary(name: string, args?: Record<string, unknown>): st
     const q = args.query ?? args.pattern ?? args.q ?? args.path;
     if (typeof q === "string") return q.trim();
   }
+  if (lower === "computer") {
+    const action = typeof args.action === "string" ? args.action.trim() : "";
+    const app = typeof args.app === "string" ? args.app.trim() : "";
+    if (action && app) return `${action} · ${app}`;
+    if (action) return action;
+  }
   if (lower.includes("url") || lower.includes("fetch") || lower.includes("http")) {
     const url = args.Url ?? args.url ?? args.uri;
     if (typeof url === "string") return url.trim();

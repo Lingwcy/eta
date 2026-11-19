@@ -209,6 +209,8 @@ export default {
   "toolDetails.file": "文件",
   "toolDetails.arguments": "参数",
   "toolDetails.imageResult": "{{toolName}} 图片结果",
+  "toolScreenshot.preview": "查看完整截图",
+  "toolScreenshot.close": "关闭截图预览",
   "toolItem.processingScheduledTask": "正在处理定时任务",
   "toolItem.failed": "{{toolName}} · 失败",
   "toolItem.awaitingApproval": "{{toolName}} · 等待批准",

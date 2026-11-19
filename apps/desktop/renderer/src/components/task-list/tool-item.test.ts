@@ -203,3 +203,107 @@ test("Code mode lists individual calls directly and keeps script failures inspec
   expect(container.querySelectorAll("button[aria-expanded]")[1]).toBe(trigger);
   expect(viewport.textContent).toContain("Last line");
 });
+
+test("computer tool displays description and surfaces recorded screenshots at the top by default with preview dialog", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  Object.defineProperty(HTMLElement.prototype, "getAnimations", {
+    configurable: true,
+    value: () => [],
+  });
+  await i18n.changeLanguage("en");
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+
+  const tools = [
+    {
+      toolCallId: "computer-1",
+      toolName: "computer",
+      description: "Check Minecraft game menu",
+      args: { description: "Check Minecraft game menu", action: "screenshot" },
+      status: "settled" as const,
+      result: {
+        content: [
+          { type: "text" as const, text: '{"frame":{"id":"f1"}}' },
+          { type: "image" as const, data: "AA==", mimeType: "image/png" },
+        ],
+      },
+    },
+    {
+      toolCallId: "codemode-computer",
+      toolName: "codemode",
+      description: "Inspect game screen in Code mode",
+      args: { code: "image((await tools.computer({action:'screenshot'})).image)" },
+      status: "settled" as const,
+      result: {
+        content: [
+          { type: "text" as const, text: "captured" },
+          { type: "image" as const, data: "AQ==", mimeType: "image/png" },
+        ],
+        details: { computerImages: ["a".repeat(64)] },
+      },
+    },
+    {
+      toolCallId: "read-image",
+      toolName: "read",
+      description: "Read local asset image",
+      args: { path: "icon.png" },
+      status: "settled" as const,
+      result: {
+        content: [{ type: "image" as const, data: "Ag==", mimeType: "image/png" }],
+      },
+    },
+  ];
+
+  await act(async () => root!.render(createElement(TaskList, { tools })));
+
+  const triggers = container.querySelectorAll<HTMLButtonElement>("button[aria-expanded]");
+  expect(triggers).toHaveLength(3);
+  expect(triggers[0]!.textContent).toBe("Check Minecraft game menu");
+  expect(triggers[0]!.getAttribute("aria-expanded")).toBe("false");
+  expect(triggers[1]!.textContent).toBe("Inspect game screen in Code mode");
+  expect(triggers[1]!.getAttribute("aria-expanded")).toBe("false");
+  expect(triggers[2]!.textContent).toBe("Read local asset image");
+  expect(triggers[2]!.getAttribute("aria-expanded")).toBe("false");
+
+  // Collapsed state renders computer + codemode-computer screenshots at the top, but keeps read image collapsed.
+  const previewBlocks = container.querySelectorAll("[data-computer-screenshots]");
+  expect(previewBlocks).toHaveLength(2);
+  expect(container.querySelectorAll("img")).toHaveLength(2);
+  expect(container.querySelectorAll("img")[0]!.src).toBe("data:image/png;base64,AA==");
+  expect(container.querySelectorAll("img")[1]!.src).toBe("data:image/png;base64,AQ==");
+  expect(container.textContent).not.toContain('"action": "screenshot"');
+
+  // Clicking the screenshot opens the real preview dialog and close dismisses it.
+  const previewButton = previewBlocks[0]!.querySelector<HTMLButtonElement>("button")!;
+  await act(async () => previewButton.click());
+  const dialog = document.querySelector('[role="dialog"]');
+  expect(dialog).not.toBeNull();
+  expect(dialog?.textContent).toContain("Check Minecraft game menu");
+  expect(dialog?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
+  const closeButton = dialog!.querySelector<HTMLButtonElement>(
+    'button[aria-label="Close screenshot preview"]',
+  )!;
+  await act(async () => closeButton.click());
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+  // Expanding the computer tool shows args/text below the screenshot without duplicating the screenshot.
+  await act(async () => triggers[0]!.click());
+  expect(triggers[0]!.getAttribute("aria-expanded")).toBe("true");
+  expect(container.textContent).toContain('"action": "screenshot"');
+  expect(container.textContent).toContain('"frame":{"id":"f1"}');
+  expect(container.querySelectorAll("img")).toHaveLength(2);
+
+  // Expanding the non-computer read tool reveals its image inside ToolDetailsPanel.
+  await act(async () => triggers[2]!.click());
+  expect(container.querySelectorAll("img")).toHaveLength(3);
+  expect(container.querySelectorAll("img")[2]!.src).toBe("data:image/png;base64,Ag==");
+});

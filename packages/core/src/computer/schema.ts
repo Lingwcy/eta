@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { intentParameter, TOOL_INTENT } from "@eta/agent/tools";
 
 const Point = Type.Object({ x: Type.Number(), y: Type.Number() });
 const Projection = Type.Union([
@@ -143,6 +144,7 @@ export const computerResult = Type.Union([
  */
 export const computerParameters = Type.Object(
   {
+    description: intentParameter,
     action: Type.Union([
       Type.Literal("observe"), // 默认拿取 ax 控件树，按需带 screenshoot
       Type.Literal("screenshot"), // 获取目标窗口截图
@@ -297,5 +299,5 @@ export const computerParameters = Type.Object(
       ]),
     ),
   },
-  { additionalProperties: false },
+  { additionalProperties: false, [TOOL_INTENT]: true },
 );

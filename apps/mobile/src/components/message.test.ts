@@ -31,7 +31,13 @@ vi.mock("react-native", async () => {
     View,
     ScrollView: View,
     Text: View,
-    Image: () => null,
+    Image: ({
+      source,
+      accessibilityLabel,
+    }: {
+      source?: { uri?: string };
+      accessibilityLabel?: string;
+    }) => React.createElement("img", { src: source?.uri, alt: accessibilityLabel }),
     Linking: { openURL: vi.fn() },
     Platform: { OS: "web" },
     StyleSheet: { create: (styles: unknown) => styles },
@@ -74,6 +80,7 @@ vi.mock("lucide-react-native", () => ({
   FilePenLine: () => null,
   FileText: () => null,
   Globe: () => null,
+  Monitor: () => null,
   Search: () => null,
   Terminal: () => null,
   Wrench: () => null,
@@ -327,4 +334,63 @@ test("grouped assistant turn renders a collapsible ReplyArea timeline above the 
   expect(button("Thinking").getAttribute("aria-expanded")).toBe("false");
   expect(document.body.textContent).not.toContain("Inspecting target file");
   expect(document.body.textContent).toContain("Everything looks clean.");
+});
+
+test("computer tool displays description and renders its screenshot by default while collapsed without duplicating when expanded", async () => {
+  const message: BotMessage = {
+    role: "assistant",
+    content: [
+      {
+        type: "toolCall",
+        id: "call-computer",
+        name: "computer",
+        arguments: { description: "Inspect game menu", action: "screenshot" },
+      },
+      {
+        type: "toolCall",
+        id: "call-read",
+        name: "read",
+        arguments: { path: "logo.png" },
+      },
+    ],
+  };
+  const computerResult: BotMessage = {
+    role: "toolResult",
+    toolCallId: "call-computer",
+    toolName: "computer",
+    content: [
+      { type: "text", text: '{"frame":{"id":"f1"}}' },
+      { type: "image", data: "AA==", mimeType: "image/png" },
+    ],
+  };
+  const readResult: BotMessage = {
+    role: "toolResult",
+    toolCallId: "call-read",
+    toolName: "read",
+    content: [{ type: "image", data: "AQ==", mimeType: "image/png" }],
+  };
+  const value = snapshot(message, {
+    toolIntents: { "call-computer": "Inspect game menu" },
+    transcript: [
+      { id: "a1", message },
+      { id: "r1", message: computerResult },
+      { id: "r2", message: readResult },
+    ],
+  });
+
+  await renderMessage(message, value);
+
+  const computerButton = button("Inspect game menu");
+  expect(computerButton.getAttribute("aria-expanded")).toBe("false");
+  expect(document.querySelectorAll("img")).toHaveLength(1);
+  expect(document.querySelector("img")?.getAttribute("src")).toBe("data:image/png;base64,AA==");
+  expect(document.body.textContent).not.toContain('"action": "screenshot"');
+
+  await press(computerButton);
+  expect(computerButton.getAttribute("aria-expanded")).toBe("true");
+  expect(document.body.textContent).toContain('"action": "screenshot"');
+  expect(document.querySelectorAll("img")).toHaveLength(1);
+
+  await press(button("read"));
+  expect(document.querySelectorAll("img")).toHaveLength(2);
 });

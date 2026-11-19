@@ -75,7 +75,7 @@ export function createComputerExtension(options: {
         const { required, optional } = actions[args.action]!;
         const allowed = [...required, ...optional];
         const unexpected = Object.keys(args).filter(
-          (key) => key !== "action" && !allowed.includes(key),
+          (key) => key !== "action" && key !== "description" && !allowed.includes(key),
         );
         if (unexpected.length)
           throw new ComputerError(

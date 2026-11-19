@@ -21,7 +21,7 @@ export { createEditTool, type EditToolDetails, type EditToolInput } from "./edit
 export { DEFAULT_IMAGE_LIMITS, type ImageLimits, type ImageProcessor, type PreparedImage } from "./image-processor.ts";
 export { createReadTool, type ReadToolDetails, type ReadToolInput, type ReadToolOptions } from "./read.ts";
 export { createWriteTool, type WriteToolInput, type WriteToolDetails } from "./write.ts";
-export { toolIntents } from "../harness/tool-intent.ts";
+export { intentParameter, TOOL_INTENT, toolIntents } from "../harness/tool-intent.ts";
 
 /**
  * The `coding-tools` extension: `read`, `write`, `edit`, and `bash`; nothing installs it automatically.
