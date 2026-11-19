@@ -360,6 +360,7 @@ export class RunSupervisorService extends Context.Service<
                 const identity = requestId ?? randomUUID();
                 const record = {
                   requestId: identity,
+                  withdrawn: false,
                   fingerprint,
                   ...(canonicalFingerprint === undefined ? {} : { canonicalFingerprint }),
                   prompt,

@@ -1,4 +1,7 @@
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rm } from "node:fs/promises";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { ROOT_CONVERSATION_ID } from "@eta/agent";
+import { openNodeJsonlStorage } from "@eta/agent/storage/jsonl/node";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
@@ -52,7 +55,7 @@ async function fixture() {
     sandboxMode: "danger-full-access",
   });
   await core.renameThread(thread.id, "Queue test");
-  return { core, open, provider, thread };
+  return { core, open, provider, thread, root };
 }
 function gate() {
   const reached = Promise.withResolvers<void>();
@@ -480,96 +483,202 @@ test("withdrawal racing the final boundary never reports a placed input as unexe
   }
 }, 30000);
 
-test("stopping a run and submitting a follow-up places unwithdrawn queued inputs with images in order", async () => {
-  const { core, provider, thread } = await fixture();
-  const first = gate();
-  let nextMessages: unknown[] = [];
-  let nextOptions: Record<string, unknown> | undefined;
-  provider.setResponses([
-    first.step,
-    (request, options) => {
-      nextMessages = request.messages;
-      nextOptions = options as Record<string, unknown> | undefined;
-      return fauxAssistantMessage("continued with rich text");
-    },
-  ]);
-  const image = {
-    type: "image" as const,
-    data: "AA==",
-    mimeType: "image/png",
-    name: "rich-text.png",
-  };
-  try {
-    await core.submit(thread.id, "original", "root");
-    await first.reached;
-    const withdrawn = await core.submit(
-      thread.id,
-      "discard me",
-      "withdrawn-req",
-      undefined,
-      "steer",
-    );
-    expect((await core.withdrawInput(thread.id, withdrawn.operationId)).status).toBe("withdrawn");
-    const steered = await core.submit(
-      thread.id,
-      "这块就不要了，改成富文本框就可以",
-      "steered-image",
-      [image],
-      "steer",
-    );
-    await core.stop(thread.id);
-    const stoppedQueue = (await core.openThread(thread.id)).snapshot.queuedInputs;
-    expect(stoppedQueue).toContainEqual(
-      expect.objectContaining({
-        requestId: "withdrawn-req",
-        operationId: withdrawn.operationId,
-        status: "cancelled",
-        withdrawn: true,
-      }),
-    );
-    const steeredItem = stoppedQueue?.find((item) => item.requestId === "steered-image");
-    expect(steeredItem).toMatchObject({
-      requestId: "steered-image",
-      operationId: steered.operationId,
-      status: "cancelled",
-    });
-    expect(steeredItem?.withdrawn).toBeUndefined();
-    const continued = await core.submit(thread.id, "继续", "continue-req");
-    await expect
-      .poll(async () => (await core.operation(thread.id, continued.operationId)).status, {
-        timeout: 10000,
-      })
-      .toBe("completed");
-    expect(nextOptions?.timeoutMs).toBeUndefined();
-    expect("idleTimeoutMs" in (nextOptions ?? {})).toBe(false);
-    const snapshot = (await core.openThread(thread.id)).snapshot;
-    expect(snapshot.queuedInputs).toEqual([]);
-    const users = snapshot.transcript.filter((entry) => entry.message.role === "user");
-    expect(users.map((entry) => entry.requestId)).toEqual([
-      "root",
-      "steered-image",
-      "continue-req",
-    ]);
-    expect(users[1]?.message.content).toEqual([
-      { type: "text", text: "这块就不要了，改成富文本框就可以" },
-      { type: "image", data: "AA==", mimeType: "image/png" },
-    ]);
-    expect(users[2]?.message.content).toBe("继续");
-    expect((await core.withdrawInput(thread.id, steered.operationId)).status).toBe(
-      "already_placed",
-    );
-    expect(nextMessages.filter((message: any) => message.role === "user")).toMatchObject([
-      { role: "user", content: "original" },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "这块就不要了，改成富文本框就可以" },
-          { type: "image", data: "AA==", mimeType: "image/png" },
-        ],
+test.each(["live", "reopen"] as const)(
+  "stopping a run and submitting a follow-up places unwithdrawn queued inputs with images in order: %s",
+  async (mode) => {
+    const { core, open, provider, thread } = await fixture();
+    let active = core;
+    const first = gate();
+    let nextMessages: unknown[] = [];
+    let nextOptions: Record<string, unknown> | undefined;
+    provider.setResponses([
+      first.step,
+      (request, options) => {
+        nextMessages = request.messages;
+        nextOptions = options as Record<string, unknown> | undefined;
+        return fauxAssistantMessage("continued with rich text");
       },
-      { role: "user", content: "继续" },
     ]);
-  } finally {
-    first.response.resolve(fauxAssistantMessage("cleanup"));
-  }
-}, 30000);
+    const image = {
+      type: "image" as const,
+      data: "AA==",
+      mimeType: "image/png",
+      name: "rich-text.png",
+    };
+    try {
+      await core.submit(thread.id, "original", "root");
+      await first.reached;
+      const withdrawn = await core.submit(
+        thread.id,
+        "discard me",
+        "withdrawn-req",
+        undefined,
+        "steer",
+      );
+      expect((await core.withdrawInput(thread.id, withdrawn.operationId)).status).toBe("withdrawn");
+      const steered = await core.submit(
+        thread.id,
+        "这块就不要了，改成富文本框就可以",
+        "steered-image",
+        [image],
+        "steer",
+      );
+      await core.stop(thread.id);
+      const stoppedQueue = (await core.openThread(thread.id)).snapshot.queuedInputs;
+      expect(stoppedQueue).toContainEqual(
+        expect.objectContaining({
+          requestId: "withdrawn-req",
+          operationId: withdrawn.operationId,
+          status: "cancelled",
+          withdrawn: true,
+        }),
+      );
+      const steeredItem = stoppedQueue?.find((item) => item.requestId === "steered-image");
+      expect(steeredItem).toMatchObject({
+        requestId: "steered-image",
+        operationId: steered.operationId,
+        status: "cancelled",
+      });
+      expect(steeredItem?.withdrawn).toBeUndefined();
+      if (mode === "reopen") {
+        await core.close();
+        active = await open();
+      }
+      const continued = await active.submit(thread.id, "继续", "continue-req");
+      await expect
+        .poll(async () => (await active.operation(thread.id, continued.operationId)).status, {
+          timeout: 10000,
+        })
+        .toBe("completed");
+      expect(nextOptions?.timeoutMs).toBeUndefined();
+      expect("idleTimeoutMs" in (nextOptions ?? {})).toBe(false);
+      const snapshot = (await active.openThread(thread.id)).snapshot;
+      expect(snapshot.queuedInputs).toEqual([]);
+      const users = snapshot.transcript.filter((entry) => entry.message.role === "user");
+      expect(users.map((entry) => entry.requestId)).toEqual([
+        "root",
+        "steered-image",
+        "continue-req",
+      ]);
+      expect(users[1]?.message.content).toEqual([
+        { type: "text", text: "这块就不要了，改成富文本框就可以" },
+        { type: "image", data: "AA==", mimeType: "image/png" },
+      ]);
+      expect(users[2]?.message.content).toBe("继续");
+      expect((await active.withdrawInput(thread.id, steered.operationId)).status).toBe(
+        "already_placed",
+      );
+      expect(nextMessages.filter((message: any) => message.role === "user")).toMatchObject([
+        { role: "user", content: "original" },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "这块就不要了，改成富文本框就可以" },
+            { type: "image", data: "AA==", mimeType: "image/png" },
+          ],
+        },
+        { role: "user", content: "继续" },
+      ]);
+    } finally {
+      first.response.resolve(fauxAssistantMessage("cleanup"));
+    }
+  },
+  30000,
+);
+
+test.each([false, true])(
+  "upgrading an unmarked legacy withdrawn input must not replay it into the next model request (mixed=%s)",
+  async (mixed) => {
+    const { core, open, provider, thread, root } = await fixture();
+    const first = gate();
+    let messages: unknown[] = [];
+    provider.setResponses([
+      first.step,
+      (request) => {
+        messages = request.messages.filter((message) => message.role === "user");
+        return fauxAssistantMessage("continued");
+      },
+    ]);
+    try {
+      await core.submit(thread.id, "original", "legacy-root");
+      await first.reached;
+      const queued = await core.submit(
+        thread.id,
+        "withdrawn legacy instruction",
+        "legacy-withdrawn",
+        undefined,
+        "followUp",
+      );
+      expect((await core.withdrawInput(thread.id, queued.operationId)).status).toBe("withdrawn");
+      if (mixed)
+        await core.submit(
+          thread.id,
+          "known current input",
+          "current-stopped",
+          undefined,
+          "followUp",
+        );
+      await core.stop(thread.id);
+      await core.close();
+      const sessions = join(root, "data", "sessions");
+      const paths = await readdir(sessions);
+      expect(paths).toHaveLength(1);
+      const storage = await openNodeJsonlStorage(join(sessions, paths[0]!), BACKGROUND_CONTEXT);
+      try {
+        const record = await storage.findDocument(
+          {
+            kind: "eta.inputs",
+            scope: { kind: "conversation", conversationId: ROOT_CONVERSATION_ID },
+          },
+          "current",
+          BACKGROUND_CONTEXT,
+        );
+        expect(record).toBeDefined();
+        const document = await storage.document(record!.id, "current", BACKGROUND_CONTEXT);
+        expect(document).toBeDefined();
+        const value = document!.value;
+        const inputs = value.records as { requestId: string; withdrawn?: boolean }[];
+        const old = inputs.find((input) => input.requestId === "legacy-withdrawn")!;
+        expect(old.withdrawn).toBe(true);
+        // v0.1.169 persisted this receipt/recovery content, but had no withdrawn field.
+        delete old.withdrawn;
+        const committed = await storage.commit(
+          [
+            [
+              {
+                type: "document.change",
+                id: record!.id,
+                content: { kind: "base", version: document!.version, value },
+              },
+            ],
+          ],
+          () => {},
+          BACKGROUND_CONTEXT,
+        );
+        expect(committed.stored).toBe(1);
+      } finally {
+        await storage.close(BACKGROUND_CONTEXT);
+      }
+      const upgraded = await open();
+      const next = await upgraded.submit(thread.id, "continue safely", "upgraded-followup");
+      await expect
+        .poll(async () => (await upgraded.operation(thread.id, next.operationId)).status, {
+          timeout: 10000,
+        })
+        .toBe("completed");
+      expect(JSON.stringify(messages)).not.toContain("withdrawn legacy instruction");
+      if (mixed) expect(JSON.stringify(messages)).toContain("known current input");
+      const snapshot = (await upgraded.openThread(thread.id)).snapshot;
+      expect(snapshot.transcript.some((entry) => entry.requestId === "legacy-withdrawn")).toBe(
+        false,
+      );
+      const retained = await upgraded.withdrawInput(thread.id, queued.operationId);
+      expect("prompt" in retained ? retained.prompt : undefined).toBe(
+        "withdrawn legacy instruction",
+      );
+    } finally {
+      first.response.resolve(fauxAssistantMessage("cleanup"));
+    }
+  },
+  30000,
+);
