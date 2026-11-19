@@ -19,6 +19,7 @@ type InputRecord = {
   images: { name?: string; mimeType: string; note?: string }[];
   id?: number;
   recoverable?: boolean;
+  /** Absent on legacy records, whose withdrawal intent cannot be inferred. */
   withdrawn?: boolean;
   placedEntryId?: number;
 };
@@ -252,10 +253,13 @@ export async function withdrawInput(
   };
 }
 
-/** Place unwithdrawn inputs whose earlier run stopped or failed before the next turn's input is appended. */
+/** Place tracked unwithdrawn inputs before the next turn; unmarked legacy drafts require explicit recovery. */
 export async function placeInterruptedInputs(runtime: ThreadRuntime) {
   const candidates = (await inputRecords(runtime)).filter(
-    (record) => record.placedEntryId === undefined && (!record.withdrawn || record.recoverable),
+    (record) =>
+      record.placedEntryId === undefined &&
+      record.withdrawn !== undefined &&
+      (!record.withdrawn || record.recoverable),
   );
   if (candidates.length === 0) return;
   let hasWork = false;
@@ -298,7 +302,7 @@ export async function placeInterruptedInputs(runtime: ThreadRuntime) {
     const pending: { record: InputRecord; receiptId: number; content: UserInput }[] = [];
     const retired: InputRecord[] = [];
     for (const record of doc.records) {
-      if (record.placedEntryId !== undefined) continue;
+      if (record.placedEntryId !== undefined || record.withdrawn === undefined) continue;
       if (record.withdrawn) {
         if (record.recoverable || record.prompt !== undefined) retired.push(record);
         continue;
