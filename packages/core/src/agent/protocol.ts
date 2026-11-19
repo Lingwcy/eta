@@ -37,6 +37,8 @@ export interface QueuedInput {
   prompt: string;
   images: readonly { name?: string; mimeType: string }[];
   status: "queued" | "cancelled" | "failed";
+  /** True when the user explicitly withdrew this queued input. */
+  withdrawn?: boolean;
 }
 
 export interface WithdrawnInput {

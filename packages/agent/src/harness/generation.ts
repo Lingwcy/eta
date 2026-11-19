@@ -287,15 +287,16 @@ export const GenerationTask = defineTask<GenerationInput, GenerationCheckpoint, 
 				const replaced = await hook({ messages }, runtime, context);
 				if (replaced !== undefined) messages = replaced.messages;
 			});
+			const { idleTimeoutMs, ...forwardedStreamOptions } = streamOptions;
 			const options: SimpleStreamOptions = {
-				...streamOptions,
+				...forwardedStreamOptions,
 				signal: runtime.signal,
 				telemetry: context.telemetry,
 				sessionId: await ensureProviderSessionId(runtime, context),
 				...(thinkingLevel === "off" ? {} : { reasoning: thinkingLevel }),
 				onPayload: (payload) => providerPayload(runtime, model, payload, context),
 			};
-			const message = await streamResponse(runtime, model, messages, options, attempt, context);
+			const message = await streamResponse(runtime, model, messages, options, idleTimeoutMs, attempt, context);
 			const request = { attempt, compacted, model: ref, thinkingLevel, cutoff, messages: view.messages };
 			await classify(runtime, request, message, context);
 		},
@@ -691,14 +692,43 @@ async function streamResponse(
 	model: Model<Api>,
 	messages: readonly Message[],
 	options: SimpleStreamOptions,
+	idleTimeoutMs: number | undefined,
 	attempt: number,
 	context: Context,
 ): Promise<AssistantMessage> {
 	const interval = runtime.settings.progress.partialIntervalMs;
+	const idleMs =
+		idleTimeoutMs !== undefined && Number.isFinite(idleTimeoutMs) && idleTimeoutMs > 0
+			? idleTimeoutMs
+			: undefined;
+	const controller = idleMs === undefined ? undefined : new AbortController();
+	let timedOut = false;
+	let clearIdle: (() => void) | undefined;
 	let pending: AssistantMessage | undefined;
 	let timer: (() => void) | undefined;
 	let inFlight: Promise<void> | undefined;
 	let stopped = false;
+	const onAbort = (): void => {
+		clearIdle?.();
+		clearIdle = undefined;
+		controller?.abort(runtime.signal.reason);
+	};
+	if (controller !== undefined) {
+		if (runtime.signal.aborted) controller.abort(runtime.signal.reason);
+		else runtime.signal.addEventListener("abort", onAbort, { once: true });
+	}
+	const resetIdle = (): void => {
+		if (idleMs === undefined || controller === undefined) return;
+		clearIdle?.();
+		clearIdle = undefined;
+		if (stopped || timedOut || runtime.signal.aborted) return;
+		clearIdle = runtime.setTimer(() => {
+			clearIdle = undefined;
+			if (stopped || runtime.signal.aborted) return;
+			timedOut = true;
+			controller.abort(new Error(`Request timed out after ${idleMs}ms`));
+		}, idleMs);
+	};
 	const changes = new PartialChanges();
 	const flush = (): void => {
 		timer = undefined;
@@ -736,18 +766,53 @@ async function streamResponse(
 			});
 	};
 	try {
-		const events = runtime.models.streamSimple(model, { messages: [...messages] }, options);
+		resetIdle();
+		const events = runtime.models.streamSimple(
+			model,
+			{ messages: [...messages] },
+			controller === undefined
+				? options
+				: {
+						...options,
+						signal: controller.signal,
+						onResponse: (response, responseModel) => {
+							resetIdle();
+							return options.onResponse?.(response, responseModel);
+						},
+						onProviderStreamEvent: (event, eventModel) => {
+							resetIdle();
+							return options.onProviderStreamEvent?.(event, eventModel);
+						},
+					},
+		);
 		for await (const event of events) {
 			// A partial without content, such as pi-ai's opening `start` event, shows nothing; a deferred response
 			// never gets past it, so it never leaves a partial.
-			if (event.type === "done" || event.type === "error" || event.partial.content.length === 0) continue;
+			if (event.type === "done" || event.type === "error") {
+				clearIdle?.();
+				clearIdle = undefined;
+				continue;
+			}
+			resetIdle();
+			if (event.partial.content.length === 0) continue;
 			changes.observe(event);
 			pending = event.partial;
 			if (timer === undefined && inFlight === undefined) timer = runtime.setTimer(flush, interval);
 		}
-		return await events.result();
+		const result = await events.result();
+		return timedOut &&
+			!runtime.signal.aborted &&
+			(result.stopReason === "aborted" || result.stopReason === "error")
+			? {
+					...result,
+					stopReason: "error",
+					errorMessage: `Request timed out after ${idleMs}ms`,
+				}
+			: result;
 	} finally {
 		stopped = true;
+		clearIdle?.();
+		if (controller !== undefined) runtime.signal.removeEventListener("abort", onAbort);
 		timer?.();
 		await inFlight;
 	}

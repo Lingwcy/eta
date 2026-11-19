@@ -7,6 +7,7 @@ import {
 	type SimpleStreamOptions,
 	type SystemMessage,
 } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import {
 	AssistantEntry,
 	type Conversation,
@@ -748,6 +749,202 @@ describe("generation", () => {
 		expect(await live(harness, root)).toEqual({
 			runFailure: { taskId, inputs: [submissionId], reason: "orphaned", detail: "task_too_old" },
 		});
+		await harness.close(context);
+	});
+
+	it("times out a stalled stream attempt and retries without forwarding idleTimeoutMs as timeoutMs", async () => {
+		const setup = chatSetup();
+		const stalled = unanswered();
+		const seen: (SimpleStreamOptions | undefined)[] = [];
+		setup.faux.setResponses([
+			(request, options) => {
+				seen.push(options);
+				return stalled.step(request, options);
+			},
+			(_request, options) => {
+				seen.push(options);
+				return fauxAssistantMessage("recovered after timeout");
+			},
+		]);
+		setup.settings.stream = { idleTimeoutMs: 25 };
+		setup.settings.retry = { enabled: true, maxRetries: 1, baseDelayMs: 1 };
+		const { harness, root } = await openChat(new MemoryStorage(), setup);
+		const values = livePublications(harness);
+		harness.resume();
+		const settled = await (await root.submit({ type: "input", content: "hi" }, context)).wait(context);
+		expect(settled.status).toBe("done");
+		expect(seen).toHaveLength(2);
+		for (const options of seen) {
+			expect(options?.timeoutMs).toBeUndefined();
+			expect("idleTimeoutMs" in (options ?? {})).toBe(false);
+		}
+		const entries = await allEntries(root);
+		expect(entries.map((entry) => entry.kind)).toEqual(["pi.user", "pi.assistant", "pi.assistant"]);
+		expect(entries[1]!.model![0]).toMatchObject({
+			role: "assistant",
+			stopReason: "error",
+			errorMessage: "Request timed out after 25ms",
+		});
+		expect(textOf(entries[2]!.model![0])).toBe("recovered after timeout");
+		expect(values.some((value) => value.generation?.retry?.error === "Request timed out after 25ms")).toBe(true);
+		await harness.close(context);
+	});
+
+	it("keeps an active stream alive beyond idleTimeoutMs while preserving any configured request timeoutMs", async () => {
+		const seen: (SimpleStreamOptions | undefined)[] = [];
+		let calls = 0;
+		const activeStream: Models["streamSimple"] = (_model, _context, options) => {
+			calls++;
+			seen.push(options);
+			const stream = createAssistantMessageEventStream();
+			const partial = fauxAssistantMessage("", { stopReason: "pending" });
+			const chunks = ["one ", "two ", "three ", "four ", "five ", "six"];
+			let done = false;
+			let totalTimer: ReturnType<typeof setTimeout> | undefined;
+			let stepTimer: ReturnType<typeof setTimeout> | undefined;
+			const finishError = (stopReason: "aborted" | "error", errorMessage: string) => {
+				if (done) return;
+				done = true;
+				clearTimeout(totalTimer);
+				clearTimeout(stepTimer);
+				const error = fauxAssistantMessage([], { stopReason, errorMessage });
+				stream.push({ type: "error", reason: stopReason, error });
+				stream.end(error);
+			};
+			const onAbort = () => finishError("aborted", "aborted");
+			options?.signal?.addEventListener("abort", onAbort, { once: true });
+			// Simulate an SDK-backed provider that enforces options.timeoutMs as a total request deadline.
+			if (options?.timeoutMs !== undefined) {
+				totalTimer = setTimeout(
+					() => finishError("error", `SDK total request timeout after ${options.timeoutMs}ms`),
+					options.timeoutMs,
+				);
+			}
+			let text = "";
+			let index = 0;
+			const emitNext = () => {
+				if (done) return;
+				if (index === 0) {
+					stream.push({ type: "start", partial });
+					stream.push({ type: "text_start", contentIndex: 0, partial });
+				}
+				if (index < chunks.length) {
+					const delta = chunks[index++]!;
+					text += delta;
+					partial.content = [{ type: "text", text }];
+					stream.push({ type: "text_delta", contentIndex: 0, delta, partial });
+					stepTimer = setTimeout(emitNext, 15);
+					return;
+				}
+				done = true;
+				clearTimeout(totalTimer);
+				options?.signal?.removeEventListener("abort", onAbort);
+				const message = fauxAssistantMessage(text);
+				stream.push({ type: "text_end", contentIndex: 0, content: text, partial: message });
+				stream.push({ type: "done", reason: "stop", message });
+				stream.end(message);
+			};
+			stepTimer = setTimeout(emitNext, 15);
+			return stream;
+		};
+
+		const base = chatSetup();
+		const setup: ChatSetup = {
+			...base,
+			models: withStream(base.models, activeStream),
+			settings: {
+				stream: { idleTimeoutMs: 45, timeoutMs: 5_000 },
+				retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
+			},
+		};
+		const { harness, root } = await openChat(new MemoryStorage(), setup);
+		harness.resume();
+		const firstStarted = Date.now();
+		const first = await (await root.submit({ type: "input", content: "first" }, context)).wait(context);
+		expect(Date.now() - firstStarted).toBeGreaterThanOrEqual(45);
+		expect(first.status).toBe("done");
+		expect(calls).toBe(1);
+		expect(seen[0]?.timeoutMs).toBe(5_000);
+		expect("idleTimeoutMs" in (seen[0] ?? {})).toBe(false);
+
+		setup.settings.stream = { idleTimeoutMs: 45 };
+		const secondStarted = Date.now();
+		const second = await (await root.submit({ type: "input", content: "second" }, context)).wait(context);
+		expect(Date.now() - secondStarted).toBeGreaterThanOrEqual(45);
+		expect(second.status).toBe("done");
+		expect(calls).toBe(2);
+		expect(seen[1]?.timeoutMs).toBeUndefined();
+		expect("idleTimeoutMs" in (seen[1] ?? {})).toBe(false);
+
+		const entries = await allEntries(root);
+		expect(entries.filter((entry) => entry.kind === "pi.assistant").map((entry) => textOf(entry.model![0]))).toEqual([
+			"one two three four five six",
+			"one two three four five six",
+		]);
+		await harness.close(context);
+	});
+
+	it("times out after genuine silence following initial stream activity and retries", async () => {
+		let attempt = 0;
+		const midStallStream: Models["streamSimple"] = (_model, _context, options) => {
+			attempt++;
+			const stream = createAssistantMessageEventStream();
+			if (attempt === 1) {
+				const partial = fauxAssistantMessage("", { stopReason: "pending" });
+				let stopped = false;
+				let stepTimer: ReturnType<typeof setTimeout> | undefined;
+				const onAbort = () => {
+					if (stopped) return;
+					stopped = true;
+					clearTimeout(stepTimer);
+					const error = fauxAssistantMessage([], { stopReason: "aborted", errorMessage: "aborted" });
+					stream.push({ type: "error", reason: "aborted", error });
+					stream.end(error);
+				};
+				options?.signal?.addEventListener("abort", onAbort, { once: true });
+				stepTimer = setTimeout(() => {
+					if (stopped) return;
+					stream.push({ type: "start", partial });
+					stream.push({ type: "text_start", contentIndex: 0, partial });
+					partial.content = [{ type: "text", text: "partial " }];
+					stream.push({ type: "text_delta", contentIndex: 0, delta: "partial ", partial });
+					stepTimer = setTimeout(() => {
+						if (stopped) return;
+						partial.content = [{ type: "text", text: "partial progress" }];
+						stream.push({ type: "text_delta", contentIndex: 0, delta: "progress", partial });
+						// Go silent after emitting partial progress until the idle watchdog aborts.
+					}, 15);
+				}, 15);
+				return stream;
+			}
+			const message = fauxAssistantMessage("recovered after mid-stream stall");
+			stream.push({ type: "done", reason: "stop", message });
+			stream.end(message);
+			return stream;
+		};
+
+		const base = chatSetup();
+		const setup: ChatSetup = {
+			...base,
+			models: withStream(base.models, midStallStream),
+			settings: {
+				stream: { idleTimeoutMs: 40 },
+				retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
+			},
+		};
+		const { harness, root } = await openChat(new MemoryStorage(), setup);
+		harness.resume();
+		const settled = await (await root.submit({ type: "input", content: "hi" }, context)).wait(context);
+		expect(settled.status).toBe("done");
+		expect(attempt).toBe(2);
+		const entries = await allEntries(root);
+		expect(entries.map((entry) => entry.kind)).toEqual(["pi.user", "pi.assistant", "pi.assistant"]);
+		expect(entries[1]!.model![0]).toMatchObject({
+			role: "assistant",
+			stopReason: "error",
+			errorMessage: "Request timed out after 40ms",
+		});
+		expect(textOf(entries[2]!.model![0])).toBe("recovered after mid-stream stall");
 		await harness.close(context);
 	});
 

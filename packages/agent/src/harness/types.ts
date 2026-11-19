@@ -541,10 +541,15 @@ export type ConversationCreateOptions = {
 	readonly init?: ConversationInit;
 };
 
-/** Curated pi-ai request options; absent fields use pi-ai defaults. */
+/** Curated pi-ai request options plus harness stream controls; absent fields use pi-ai defaults. */
 export type ConversationStreamOptions = {
 	transport?: Transport;
 	timeoutMs?: number;
+	/**
+	 * Maximum silence in milliseconds while waiting for response headers or the next stream event before
+	 * aborting the attempt as a retryable timeout. Kept separate from pi-ai's `timeoutMs` HTTP request timeout.
+	 */
+	idleTimeoutMs?: number;
 	/** Provider/SDK retries inside one request attempt. */
 	maxRetries?: number;
 	maxRetryDelayMs?: number;

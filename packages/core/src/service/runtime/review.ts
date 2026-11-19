@@ -336,13 +336,17 @@ export function createReviewTask(options: ReviewOptions) {
         try {
           for (;;) {
             try {
+              const {
+                deferred: _deferred,
+                idleTimeoutMs: _idleTimeoutMs,
+                ...streamOptions
+              } = runtime.settings.stream;
               reply = await wait(
                 runtime.models.completeSimple(
                   model,
                   { messages, ...(tools ? { tools: reviewTools } : {}) },
                   {
-                    ...runtime.settings.stream,
-                    deferred: undefined,
+                    ...streamOptions,
                     maxTokens: Math.min(model.maxTokens, thinking === "off" ? 1024 : 4096),
                     cacheRetention: "none",
                     sessionId: `${String(runtime.conversationId)}:review`,

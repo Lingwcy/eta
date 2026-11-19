@@ -312,6 +312,21 @@ test("a queued user message appears below the live answer and keeps its row when
   expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
   expect(row?.textContent).toBe("Use a smaller patch");
   expect(row?.querySelector('[role="status"]')).toBeNull();
+  expect(row?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
+  current.queuedInputs = [{ ...current.queuedInputs[0]!, status: "cancelled" }];
+  await render(current, false, [input]);
+  expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
+  expect(row?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
+  current.queuedInputs = [{ ...current.queuedInputs[0]!, status: "cancelled", withdrawn: true }];
+  await render(current, false, [input]);
+  expect(container.querySelector('[data-chat-message="input:constructor"]')).toBeNull();
+  current.queuedInputs = [
+    { ...current.queuedInputs[0]!, status: "cancelled", withdrawn: undefined },
+  ];
+  await render(current, false, [input]);
+  const restoredRow = container.querySelector('[data-chat-message="input:constructor"]');
+  expect(restoredRow?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
+  current.queuedInputs = [];
   current.transcript.push({
     id: "42:0",
     requestId: "constructor",
@@ -327,8 +342,9 @@ test("a queued user message appears below the live answer and keeps its row when
   });
   await render(current, true, [input]);
   expect(container.querySelectorAll('[data-chat-message="input:constructor"]')).toHaveLength(1);
-  expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(row);
-  expect(row?.textContent).toBe("Use a smaller patch");
+  expect(container.querySelector('[data-chat-message="input:constructor"]')).toBe(restoredRow);
+  expect(restoredRow?.textContent).toBe("Use a smaller patch");
+  expect(restoredRow?.querySelector("img")?.src).toBe("data:image/png;base64,AA==");
 });
 
 test("keeps compact spacing across thinking and tool boundaries even when a response also includes text", async () => {

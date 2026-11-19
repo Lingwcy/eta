@@ -76,12 +76,16 @@ export function createTitleTask(
             messages.push({ ...message, content });
           }
           const thinking = clampThinkingLevel(model, "off");
+          const {
+            deferred: _deferred,
+            idleTimeoutMs: _idleTimeoutMs,
+            ...streamOptions
+          } = runtime.settings.stream;
           const message = await runtime.models.completeSimple(
             model,
             { messages },
             {
-              ...runtime.settings.stream,
-              deferred: undefined,
+              ...streamOptions,
               maxTokens: Math.min(model.maxTokens, thinking === "off" ? 256 : 2048),
               cacheRetention: "none",
               sessionId: `${task.input.sessionId}:title`,
