@@ -140,10 +140,24 @@ export class MobileStore {
           entry.requestId === undefined ? [] : [entry.requestId],
         ),
       );
+      const withdrawnRequests = new Set(
+        thread.snapshot.queuedInputs?.flatMap((input) =>
+          input.withdrawn && input.requestId !== undefined ? [input.requestId] : [],
+        ),
+      );
+      const withdrawnOperations = new Set(
+        thread.snapshot.queuedInputs?.flatMap((input) =>
+          input.withdrawn ? [input.operationId] : [],
+        ),
+      );
       value = {
         ...value,
         submittedInputs: (value.submittedInputs ?? this.state.submittedInputs).filter(
-          (input) => input.threadId !== thread.id || !placed.has(input.messageId),
+          (input) =>
+            input.threadId !== thread.id ||
+            (!placed.has(input.messageId) &&
+              !withdrawnRequests.has(input.messageId) &&
+              (input.operationId === undefined || !withdrawnOperations.has(input.operationId))),
         ),
       };
     }
@@ -761,15 +775,42 @@ export class MobileStore {
     const id = this.state.threadId;
     const { errors } = getMessages();
     if (!id || this.state.pending) throw new Error(errors.confirmCurrentDelivery);
+    const restoredRequestId = this.state.thread?.snapshot.queuedInputs?.find(
+      (input) => input.operationId === operationId,
+    )?.requestId;
     const result = await client.withdrawInput(id, operationId);
-    if (epoch !== this.epoch || view !== this.view) return false;
-    if (result.status === "already_placed" || result.prompt === undefined)
+    if (epoch !== this.epoch) return false;
+    const remainingSubmittedInputs =
+      result.status === "already_placed"
+        ? this.state.submittedInputs
+        : this.state.submittedInputs.filter(
+            (input) =>
+              input.threadId !== id ||
+              (input.operationId !== operationId &&
+                (restoredRequestId === undefined || input.messageId !== restoredRequestId)),
+          );
+    if (view !== this.view) {
+      if (remainingSubmittedInputs.length !== this.state.submittedInputs.length) {
+        this.update({ submittedInputs: remainingSubmittedInputs });
+      }
+      return false;
+    }
+    if (result.status === "already_placed" || result.prompt === undefined) {
+      if (remainingSubmittedInputs.length !== this.state.submittedInputs.length) {
+        this.update({ submittedInputs: remainingSubmittedInputs });
+      }
       throw new Error(errors.alreadyCommitted);
+    }
     const key = draftKey(this.state);
     const images = this.state.draftImages[key] ?? [];
-    if (images.length + (result.images?.length ?? 0) > MAX_DRAFT_IMAGES)
+    if (images.length + (result.images?.length ?? 0) > MAX_DRAFT_IMAGES) {
+      if (remainingSubmittedInputs.length !== this.state.submittedInputs.length) {
+        this.update({ submittedInputs: remainingSubmittedInputs });
+      }
       throw new Error(errors.retractRemoveImages);
+    }
     this.update({
+      submittedInputs: remainingSubmittedInputs,
       drafts: {
         ...this.state.drafts,
         [key]: [this.state.drafts[key], result.prompt].filter(Boolean).join("\n\n"),

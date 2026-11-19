@@ -39,6 +39,7 @@ class TestBridge implements AgentBridge {
     },
   });
   submit: AgentBridge["submit"] = async (_sessionId, _prompt) => admission;
+  withdrawInput?: AgentBridge["withdrawInput"];
   operation = vi.fn(async (_id: string, operationId: string): Promise<OperationResult> => ({
     ...admission,
     operationId,
@@ -978,4 +979,60 @@ test("a rejected streaming send removes its optimistic row but an uncertain retr
   await expect(client.submit("retry me", undefined, "steer")).rejects.toThrow("unknown");
   expect(client.getSnapshot().submittedInputs).toMatchObject([{ requestId, status: "uncertain" }]);
   expect(client.getSnapshot().submittedInputs).toHaveLength(1);
+});
+
+test("withdrawing a queued input retires its optimistic row while a stopped input stays until placed", async () => {
+  session.snapshot.inputQueueSupported = true;
+  const sent: string[] = [];
+  let nextOp = 41;
+  bridge.submit = async (_id, _prompt, _images, requestId) => {
+    sent.push(requestId!);
+    return { ...admission, operationId: String(++nextOp), status: "queued" };
+  };
+  bridge.withdrawInput = async () => ({ status: "withdrawn", prompt: "withdraw me", images: [] });
+  const client = await connectedClient();
+
+  await client.submit("withdraw me", undefined, "steer");
+  await client.submit("keep after stop", undefined, "steer");
+  const [withdrawnId, stoppedId] = sent as [string, string];
+  expect(client.getSnapshot().submittedInputs.map((input) => input.requestId)).toEqual([
+    withdrawnId,
+    stoppedId,
+  ]);
+
+  await client.withdrawInput("42");
+  expect(client.getSnapshot().submittedInputs.map((input) => input.requestId)).toEqual([stoppedId]);
+
+  const afterStop = structuredClone(session.snapshot);
+  afterStop.queuedInputs = [
+    {
+      requestId: withdrawnId,
+      operationId: "42",
+      mode: "steer",
+      submittedAt: 1,
+      prompt: "withdraw me",
+      images: [],
+      status: "cancelled",
+      withdrawn: true,
+    },
+    {
+      requestId: stoppedId,
+      operationId: "43",
+      mode: "steer",
+      submittedAt: 2,
+      prompt: "keep after stop",
+      images: [],
+      status: "cancelled",
+    },
+  ];
+  bridge.emit({ snapshot: afterStop, contextTokens: 0 });
+  expect(client.getSnapshot().submittedInputs.map((input) => input.requestId)).toEqual([stoppedId]);
+
+  // A cross-client withdrawal reported through the snapshot also retires the local optimistic row.
+  const crossClientWithdrawn = structuredClone(afterStop);
+  crossClientWithdrawn.queuedInputs = [
+    { ...afterStop.queuedInputs[1]!, status: "cancelled", withdrawn: true },
+  ];
+  bridge.emit({ snapshot: crossClientWithdrawn, contextTokens: 0 });
+  expect(client.getSnapshot().submittedInputs).toEqual([]);
 });

@@ -198,6 +198,7 @@ export function projectQueuedInputs(
             : receipt.reason === "aborted"
               ? "cancelled"
               : "failed",
+        ...(record.withdrawn ? { withdrawn: true } : {}),
       },
     ];
   });

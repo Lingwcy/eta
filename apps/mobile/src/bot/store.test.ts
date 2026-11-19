@@ -943,6 +943,139 @@ test("Mobile shows a busy send before admission and reconciles the saved row by 
   }
 });
 
+test("Mobile restore → resend → retire removes the original optimistic row without leaving a ghost bubble", async () => {
+  const active = structuredClone(thread);
+  active.snapshot.inputQueueSupported = true;
+  active.snapshot.operation = { id: "root", status: "running", runningTools: [] };
+  const requestIds: string[] = [];
+  const { store } = setup(async (url, init) => {
+    const path = new URL(requestUrl(url)).pathname;
+    if (path.endsWith("/messages")) {
+      const body = requestBody(init);
+      const requestId = String(body.requestId);
+      requestIds.push(requestId);
+      if (requestIds.length === 1) {
+        active.snapshot.queuedInputs = [
+          {
+            requestId,
+            operationId: "42",
+            prompt: String(body.prompt),
+            mode: "steer",
+            submittedAt: 2,
+            status: "queued",
+            images: [{ name: "draft.png", mimeType: "image/png" }],
+          },
+        ];
+        return json({ operationId: "42", kind: "run", startedAt: 2, status: "queued" }, 202);
+      }
+      // On resend, Core retires the withdrawn input without placing it and places only the resent message.
+      active.snapshot.queuedInputs = [];
+      active.snapshot.transcript.push({
+        id: "43:0",
+        requestId,
+        message: {
+          role: "user",
+          content: [
+            { type: "text", text: String(body.prompt) },
+            { type: "image", data: "AA==", mimeType: "image/png" },
+          ],
+          timestamp: 3,
+        },
+      });
+      return json({ operationId: "43", kind: "run", startedAt: 3, status: "queued" }, 202);
+    }
+    if (path.endsWith("/inputs/withdraw")) {
+      active.snapshot.queuedInputs = active.snapshot.queuedInputs?.map((input) => ({
+        ...input,
+        status: "cancelled" as const,
+        withdrawn: true,
+      }));
+      return json({
+        status: "withdrawn",
+        prompt: "retract and resend",
+        images: [{ type: "image", data: "AA==", mimeType: "image/png", name: "draft.png" }],
+      });
+    }
+    if (path.endsWith("/events")) return events(init?.signal);
+    return json(path === "/v1/library" ? { ...library, threads: [active.thread] } : active);
+  });
+  await store.connect(connection);
+  await store.open(thread.id);
+  store.setDraft("retract and resend");
+  store.addImages([{ type: "image", data: "AA==", mimeType: "image/png", name: "draft.png" }]);
+  await store.send();
+  expect(store.getSnapshot().submittedInputs).toHaveLength(1);
+  expect(await store.restoreInput("42")).toBe(true);
+  const restored = store.getSnapshot();
+  expect(restored.submittedInputs).toEqual([]);
+  expect(restored.drafts[draftKey(restored)]).toBe("retract and resend");
+  expect(restored.draftImages[draftKey(restored)]).toHaveLength(1);
+  expect(conversationRows(restored.thread!.snapshot, restored.submittedInputs)).toEqual([]);
+
+  await store.send();
+  const final = store.getSnapshot();
+  expect(requestIds).toHaveLength(2);
+  expect(requestIds[1]).not.toBe(requestIds[0]);
+  expect(final.submittedInputs).toEqual([]);
+  const rows = conversationRows(final.thread!.snapshot, final.submittedInputs);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.id).toBe(`input:${requestIds[1]}`);
+  expect(textContent(rows[0]!.message)).toBe("retract and resend");
+});
+
+test("Mobile retires a local optimistic row when a snapshot reports it withdrawn by another client", async () => {
+  const active = structuredClone(thread);
+  active.snapshot.inputQueueSupported = true;
+  active.snapshot.operation = { id: "root", status: "running", runningTools: [] };
+  let requestId = "";
+  const { store } = setup(async (url, init) => {
+    const path = new URL(requestUrl(url)).pathname;
+    if (path.endsWith("/messages")) {
+      requestId = String(requestBody(init).requestId);
+      active.snapshot.queuedInputs = [
+        {
+          requestId,
+          operationId: "42",
+          prompt: "withdrawn elsewhere",
+          mode: "steer",
+          submittedAt: 2,
+          status: "queued",
+          images: [],
+        },
+      ];
+      return json({ operationId: "42", kind: "run", startedAt: 2, status: "queued" }, 202);
+    }
+    if (path.endsWith("/events")) return events(init?.signal);
+    return json(path === "/v1/library" ? { ...library, threads: [active.thread] } : active);
+  });
+  await store.connect(connection);
+  await store.open(thread.id);
+  store.setDraft("withdrawn elsewhere");
+  await store.send();
+  expect(store.getSnapshot().submittedInputs).toHaveLength(1);
+
+  active.snapshot.queuedInputs = [
+    {
+      requestId,
+      operationId: "42",
+      prompt: "withdrawn elsewhere",
+      mode: "steer",
+      submittedAt: 2,
+      status: "cancelled",
+      images: [],
+      withdrawn: true,
+    },
+  ];
+  await store.open(thread.id);
+  const afterWithdraw = store.getSnapshot();
+  expect(afterWithdraw.error).toBeUndefined();
+  expect(afterWithdraw.thread?.snapshot.queuedInputs).toMatchObject([{ withdrawn: true }]);
+  expect(afterWithdraw.submittedInputs).toEqual([]);
+  expect(conversationRows(afterWithdraw.thread!.snapshot, afterWithdraw.submittedInputs)).toEqual(
+    [],
+  );
+});
+
 test("sending a message on an open thread keeps the transcript mounted without entering opening state", async () => {
   const { store } = setup(async (url, init) => {
     const path = new URL(requestUrl(url)).pathname;

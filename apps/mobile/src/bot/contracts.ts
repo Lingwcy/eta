@@ -126,6 +126,7 @@ export const QueuedInputSchema = z.object({
   prompt: z.string(),
   images: z.array(z.object({ name: z.string().optional(), mimeType: z.string() })),
   status: z.enum(["queued", "cancelled", "failed"]),
+  withdrawn: z.boolean().optional(),
 });
 export const WithdrawnInputSchema = z.object({
   status: z.enum(["withdrawn", "already_placed", "settled"]),

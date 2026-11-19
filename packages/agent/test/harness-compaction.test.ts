@@ -841,7 +841,7 @@ describe("compaction outcomes", () => {
 		const chat = await open();
 		await history(chat);
 		await chat.root.configure({ thinkingLevel: "high" }, context);
-		chat.setup.settings.stream = { timeoutMs: 1234, deferred: true };
+		chat.setup.settings.stream = { timeoutMs: 1234, idleTimeoutMs: 5678, deferred: true };
 		chat.faux.summaries.push(async () => {
 			// Changed during the attempt: the retry still uses the pinned request.
 			await chat.root.configure({ thinkingLevel: "low" }, context);
@@ -863,6 +863,7 @@ describe("compaction outcomes", () => {
 				sessionId,
 			});
 			expect(request.options?.deferred).toBeUndefined();
+			expect("idleTimeoutMs" in (request.options ?? {})).toBe(false);
 		}
 		await chat.harness.close(context);
 	});

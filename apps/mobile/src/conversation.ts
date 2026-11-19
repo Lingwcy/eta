@@ -39,13 +39,27 @@ export function conversationRows(
   const placed = new Set(
     entries.flatMap((entry) => (entry.requestId === undefined ? [] : [entry.requestId])),
   );
+  const withdrawnRequests = new Set(
+    snapshot.queuedInputs?.flatMap((input) =>
+      input.withdrawn && input.requestId !== undefined ? [input.requestId] : [],
+    ),
+  );
+  const withdrawnOperations = new Set(
+    snapshot.queuedInputs?.flatMap((input) => (input.withdrawn ? [input.operationId] : [])),
+  );
   const local = new Map(
     submitted
-      .filter((input) => !placed.has(input.messageId))
+      .filter(
+        (input) =>
+          !placed.has(input.messageId) &&
+          !withdrawnRequests.has(input.messageId) &&
+          (input.operationId === undefined || !withdrawnOperations.has(input.operationId)),
+      )
       .map((input) => [input.messageId, input]),
   );
   const shown = new Set<string>();
   for (const input of snapshot.queuedInputs ?? []) {
+    if (input.withdrawn) continue;
     if (input.requestId !== undefined && placed.has(input.requestId)) continue;
     const own = input.requestId === undefined ? undefined : local.get(input.requestId);
     if (input.requestId !== undefined) shown.add(input.requestId);

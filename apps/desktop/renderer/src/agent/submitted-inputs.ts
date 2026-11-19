@@ -22,9 +22,20 @@ export function unplacedInputs(snapshot: AgentSnapshot, inputs: readonly Submitt
     ),
   );
   const entries = new Set(snapshot.transcript.map((entry) => entry.id));
+  const withdrawnRequests = new Set(
+    snapshot.queuedInputs?.flatMap((input) =>
+      input.withdrawn && input.requestId !== undefined ? [input.requestId] : [],
+    ),
+  );
+  const withdrawnOperations = new Set(
+    snapshot.queuedInputs?.flatMap((input) => (input.withdrawn ? [input.operationId] : [])),
+  );
   return inputs.filter(
     (input) =>
-      !requests.has(input.requestId) && (!input.inputEntryId || !entries.has(input.inputEntryId)),
+      !requests.has(input.requestId) &&
+      !withdrawnRequests.has(input.requestId) &&
+      (!input.operationId || !withdrawnOperations.has(input.operationId)) &&
+      (!input.inputEntryId || !entries.has(input.inputEntryId)),
   );
 }
 
@@ -41,6 +52,7 @@ export function submittedMessages(snapshot: AgentSnapshot, inputs: readonly Subm
   );
   const shown = new Set<string>();
   const queued = (snapshot.queuedInputs ?? []).flatMap((input) => {
+    if (input.withdrawn) return [];
     if (input.requestId !== undefined && requests.has(input.requestId)) return [];
     const own =
       (input.requestId === undefined ? undefined : byRequest.get(input.requestId)) ??

@@ -256,7 +256,25 @@ export class ThreadAgentClient {
     const sessionId = this.state.session?.id;
     if (!sessionId || !this.bridge.withdrawInput)
       throw new LocalizedError("chat:client.theAgentIsNotReadyYet");
-    return this.bridge.withdrawInput(sessionId, operationId);
+    const withdrawnRequestId = this.state.observation?.snapshot.queuedInputs?.find(
+      (input) => input.operationId === operationId,
+    )?.requestId;
+    const result = await this.bridge.withdrawInput(sessionId, operationId);
+    if (
+      !this.disposed &&
+      this.state.session?.id === sessionId &&
+      result.status !== "already_placed"
+    ) {
+      const submittedInputs = this.state.submittedInputs.filter(
+        (input) =>
+          input.operationId !== operationId &&
+          (withdrawnRequestId === undefined || input.requestId !== withdrawnRequestId),
+      );
+      if (submittedInputs.length !== this.state.submittedInputs.length) {
+        this.update({ submittedInputs });
+      }
+    }
+    return result;
   }
 
   async stop() {

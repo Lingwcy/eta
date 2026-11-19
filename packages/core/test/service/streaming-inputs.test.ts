@@ -484,10 +484,12 @@ test("stopping a run and submitting a follow-up places unwithdrawn queued inputs
   const { core, provider, thread } = await fixture();
   const first = gate();
   let nextMessages: unknown[] = [];
+  let nextOptions: Record<string, unknown> | undefined;
   provider.setResponses([
     first.step,
-    (request) => {
+    (request, options) => {
       nextMessages = request.messages;
+      nextOptions = options as Record<string, unknown> | undefined;
       return fauxAssistantMessage("continued with rich text");
     },
   ]);
@@ -516,19 +518,30 @@ test("stopping a run and submitting a follow-up places unwithdrawn queued inputs
       "steer",
     );
     await core.stop(thread.id);
-    expect((await core.openThread(thread.id)).snapshot.queuedInputs).toContainEqual(
+    const stoppedQueue = (await core.openThread(thread.id)).snapshot.queuedInputs;
+    expect(stoppedQueue).toContainEqual(
       expect.objectContaining({
-        requestId: "steered-image",
-        operationId: steered.operationId,
+        requestId: "withdrawn-req",
+        operationId: withdrawn.operationId,
         status: "cancelled",
+        withdrawn: true,
       }),
     );
+    const steeredItem = stoppedQueue?.find((item) => item.requestId === "steered-image");
+    expect(steeredItem).toMatchObject({
+      requestId: "steered-image",
+      operationId: steered.operationId,
+      status: "cancelled",
+    });
+    expect(steeredItem?.withdrawn).toBeUndefined();
     const continued = await core.submit(thread.id, "继续", "continue-req");
     await expect
       .poll(async () => (await core.operation(thread.id, continued.operationId)).status, {
         timeout: 10000,
       })
       .toBe("completed");
+    expect(nextOptions?.timeoutMs).toBeUndefined();
+    expect("idleTimeoutMs" in (nextOptions ?? {})).toBe(false);
     const snapshot = (await core.openThread(thread.id)).snapshot;
     expect(snapshot.queuedInputs).toEqual([]);
     const users = snapshot.transcript.filter((entry) => entry.message.role === "user");

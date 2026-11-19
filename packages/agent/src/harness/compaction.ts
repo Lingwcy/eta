@@ -175,7 +175,7 @@ export const CompactionTask = defineTask<CompactionInput, CompactionCheckpoint, 
 					timestamp: now,
 				},
 			];
-			const { deferred: _deferred, ...forwarded } = streamOptions;
+			const { deferred: _deferred, idleTimeoutMs: _idleTimeoutMs, ...forwarded } = streamOptions;
 			const options: SimpleStreamOptions = {
 				...forwarded,
 				cacheRetention: "none",
