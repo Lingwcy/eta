@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { LiveDoc, ROOT_CONVERSATION_ID, configure } from "@eta/agent";
 import type { ConversationId, TaskId } from "@eta/agent";
 import { imageInput } from "../../../images/content.ts";

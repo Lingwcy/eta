@@ -1,7 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { defineDoc } from "@eta/agent";
 import type { Task, TaskId } from "@eta/agent";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { Schema } from "effect";
 import { CoreError } from "../errors.ts";
 import type { ThreadRuntime } from "../runtime/index.ts";

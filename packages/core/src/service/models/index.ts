@@ -1,10 +1,12 @@
 import type { Models, CredentialStore } from "@earendil-works/pi-ai";
-import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { Context, Effect, Layer } from "effect";
 import type { AgentModel } from "../../agent/protocol.ts";
 import { toAgentModel } from "../../agent/model.ts";
 import { adapter, CoreError } from "../errors.ts";
 import type { RuntimeSettings } from "../../shared/runtime-settings.ts";
+import { createBuiltinModels } from "./builtin.ts";
+
+export { createBuiltinModels, supplementBuiltinModels } from "./builtin.ts";
 
 export class ModelCatalogService extends Context.Service<
   ModelCatalogService,
@@ -16,7 +18,7 @@ export class ModelCatalogService extends Context.Service<
   }
 >()("eta/core/service/models/ModelCatalogService") {
   static readonly layerWithCredentials = (credentials: CredentialStore) =>
-    ModelCatalogService.layerWith(builtinModels({ credentials }));
+    ModelCatalogService.layerWith(createBuiltinModels({ credentials }));
   /** Models is the provider boundary; tests inject a faux catalog, not a second runtime implementation. */
   static readonly layerWith = (models: Models) => Layer.succeed(ModelCatalogService, make(models));
 }

@@ -1,7 +1,7 @@
 import type { CreateThreadConfiguration } from "./agent/protocol.ts";
 import type { SandboxMode } from "./shared/sandbox.ts";
 import { Effect, ManagedRuntime } from "effect";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import type { ImageAttachment } from "./images/types.ts";
 import type { ThinkingLevel } from "./agent/protocol.ts";
 import type { SubagentCommand } from "./shared/subagents.ts";

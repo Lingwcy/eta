@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { AgentDoc, GenerationTask, ToolTask, ROOT_CONVERSATION_ID, hook } from "@eta/agent";
 import type { ConversationId } from "@eta/agent";
 import { SubagentsDoc, isDescendant } from "./state.ts";

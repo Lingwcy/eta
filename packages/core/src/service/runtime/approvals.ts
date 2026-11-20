@@ -3,7 +3,7 @@ import { access } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { defineTask, hook, LiveDoc, ROOT_CONVERSATION_ID, ToolTask } from "@eta/agent";
 import type { ConversationId, Harness, JsonObject, TaskId, Tx } from "@eta/agent";

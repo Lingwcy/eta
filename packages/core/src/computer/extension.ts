@@ -1,6 +1,6 @@
 import { defineTool, ROOT_CONVERSATION_ID, section } from "@eta/agent";
 import type { Extension, ToolExecutionApi, ToolExecutionResult } from "@eta/agent";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { ComputerService, ComputerOwner } from "@eta/computer-use/service";
 import { ComputerError } from "@eta/computer-use/protocol";
 import type { ComputerInput } from "@eta/computer-use/protocol";

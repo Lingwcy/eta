@@ -32,7 +32,7 @@ import { startTitle } from "./title.ts";
 import { SkillsDoc } from "../skills/extension.ts";
 import type { OperationResult, RecoveryState } from "../../agent/protocol.ts";
 import { readOperation, readRecovery } from "./operations.ts";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { enqueueTask, readTask } from "./tasks.ts";
 import { SandboxModeSchema } from "../../shared/sandbox.ts";
 import type { SandboxMode } from "../../shared/sandbox.ts";

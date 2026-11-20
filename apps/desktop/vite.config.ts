@@ -25,11 +25,14 @@ export default defineConfig({
         "@earendil-works/chord/delta": fileURLToPath(
           new URL("./node_modules/@earendil-works/chord/dist/delta/index.js", import.meta.url),
         ),
+        "@earendil-works/chord/json": fileURLToPath(
+          new URL("./node_modules/@earendil-works/chord/dist/json.js", import.meta.url),
+        ),
+        "@earendil-works/chord/watch": fileURLToPath(
+          new URL("./node_modules/@earendil-works/chord/dist/watch.js", import.meta.url),
+        ),
         "@earendil-works/chord/output": fileURLToPath(
           new URL("./node_modules/@earendil-works/chord/dist/output.js", import.meta.url),
-        ),
-        "@earendil-works/chord/node": fileURLToPath(
-          new URL("./node_modules/@earendil-works/chord/dist/node.js", import.meta.url),
         ),
         "@earendil-works/chord": fileURLToPath(
           new URL("./node_modules/@earendil-works/chord/dist/index.js", import.meta.url),
