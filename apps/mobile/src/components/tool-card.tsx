@@ -8,6 +8,7 @@ import {
   FilePenLine,
   FileText,
   Globe,
+  Monitor,
   Search,
   Terminal,
   Wrench,
@@ -49,6 +50,9 @@ export function ToolIcon({ name, size, color }: { name: string; size: number; co
   if (lower === "codemode") {
     return <FileCode2 size={size} strokeWidth={1.85} color={color} />;
   }
+  if (lower === "computer") {
+    return <Monitor size={size} strokeWidth={1.85} color={color} />;
+  }
   return <Wrench size={size} strokeWidth={1.85} color={color} />;
 }
 
@@ -59,6 +63,7 @@ export function ToolCard({
   result,
   status,
   showIcon = true,
+  inlineImages = name === "computer",
 }: {
   name: string;
   args?: Record<string, unknown>;
@@ -69,6 +74,7 @@ export function ToolCard({
   };
   status: string;
   showIcon?: boolean;
+  inlineImages?: boolean;
 }) {
   const { m } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -80,6 +86,14 @@ export function ToolCard({
   const displayTitle = description ?? (summaryText ? `${name} · ${summaryText}` : name);
   const hasArgs = Boolean(args && Object.keys(args).length > 0);
   const hasDetails = hasArgs || Boolean(result) || (active && !result);
+  const images =
+    result && typeof result.content !== "string"
+      ? result.content.filter(
+          (part): part is { type: "image"; data: string; mimeType: string } =>
+            part.type === "image" && Boolean(part.data) && Boolean(part.mimeType),
+        )
+      : [];
+  const showTopImages = inlineImages && images.length > 0;
 
   return (
     <View style={styles.card}>
@@ -137,6 +151,20 @@ export function ToolCard({
         </View>
       </Pressable>
 
+      {showTopImages && (
+        <View style={styles.inlineImages}>
+          {images.map((part, index) => (
+            <Image
+              key={index}
+              accessibilityLabel={m.toolCard.imageAlt}
+              source={{ uri: `data:${part.mimeType};base64,${part.data}` }}
+              resizeMode="contain"
+              style={styles.inlineImage}
+            />
+          ))}
+        </View>
+      )}
+
       {expanded && hasDetails && (
         <FadeSlideIn offset={4} duration={150} style={styles.detailsPanel}>
           <ScrollArea maxHeight={220} contentContainerStyle={styles.detailsScroll}>
@@ -172,18 +200,16 @@ export function ToolCard({
                     isError: result.isError,
                   }) || m.toolCard.emptyOutput}
                 </Text>
-                {typeof result.content !== "string" &&
-                  result.content
-                    .filter((part) => part.type === "image" && part.data && part.mimeType)
-                    .map((part, index) => (
-                      <Image
-                        key={index}
-                        accessibilityLabel={m.toolCard.imageAlt}
-                        source={{ uri: `data:${part.mimeType};base64,${part.data}` }}
-                        resizeMode="contain"
-                        style={styles.toolImage}
-                      />
-                    ))}
+                {!showTopImages &&
+                  images.map((part, index) => (
+                    <Image
+                      key={index}
+                      accessibilityLabel={m.toolCard.imageAlt}
+                      source={{ uri: `data:${part.mimeType};base64,${part.data}` }}
+                      resizeMode="contain"
+                      style={styles.toolImage}
+                    />
+                  ))}
               </View>
             )}
             {active && !result && (
@@ -331,6 +357,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     color: colors.tertiary,
+  },
+  inlineImages: {
+    marginTop: 6,
+    marginBottom: 4,
+    gap: 8,
+  },
+  inlineImage: {
+    height: 188,
+    width: "100%",
+    borderRadius: 12,
+    backgroundColor: colors.soft,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   toolImage: {
     marginTop: 6,

@@ -13,7 +13,7 @@ export function DialogContent({
   ...props
 }: Omit<ComponentProps<typeof BaseDialog.Popup>, "className"> & {
   className?: string;
-  variant?: "default" | "form" | "dense-form" | "compact-form";
+  variant?: "default" | "form" | "dense-form" | "compact-form" | "media";
 }) {
   return (
     <BaseDialog.Portal>
@@ -26,6 +26,8 @@ export function DialogContent({
           variant === "dense-form" && "top-1/2 max-w-[600px] -translate-y-1/2 bg-surface-soft p-4",
           variant === "compact-form" &&
             "top-1/2 max-w-[420px] -translate-y-1/2 overflow-y-auto rounded-xl border border-contrast/12 bg-panel p-4 shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] ring-0",
+          variant === "media" &&
+            "top-1/2 max-h-[90dvh] w-auto max-w-[min(92vw,1120px)] -translate-y-1/2 border border-border/80 bg-panel p-2 shadow-2xl ring-0",
         )}
         {...props}
       />

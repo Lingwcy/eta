@@ -174,6 +174,10 @@ test("getToolSummary extracts concise rough info for compact single-row display"
   expect(getToolSummary("read_url_content", { Url: "https://example.com" })).toBe(
     "https://example.com",
   );
+  expect(getToolSummary("computer", { action: "observe", app: "TextEdit" })).toBe(
+    "observe · TextEdit",
+  );
+  expect(getToolSummary("computer", { action: "screenshot" })).toBe("screenshot");
 
   // generic tool fallback
   expect(getToolSummary("custom_tool", { prompt: "summarize this" })).toBe("summarize this");

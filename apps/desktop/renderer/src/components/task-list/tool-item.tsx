@@ -5,17 +5,33 @@ import {
   scheduleToolResult,
 } from "@/components/schedules/schedule-tool-notice";
 import { useMessageExpansion } from "@/components/chat/chat-message-state";
-import { Clock3, CircleX, FileCode2, FilePenLine, Search, Terminal, Wrench } from "lucide-react";
+import {
+  Clock3,
+  CircleX,
+  FileCode2,
+  FilePenLine,
+  Monitor,
+  Search,
+  Terminal,
+  Wrench,
+} from "lucide-react";
 import type { SnapshotTool } from "@eta/core/agent/protocol";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Reveal } from "@/components/ui/reveal";
 import { ToolDetailsPanel } from "./tool-details-panel";
+import { computerScreenshotImages, ToolScreenshotPreview } from "./tool-screenshot-preview";
 import { useFileChangeAction } from "@/agent/file-diff-actions";
 import { Button } from "@/components/ui/button";
 import { FileDiff } from "lucide-react";
 
-const toolIcons = { read: Search, edit: FilePenLine, write: FileCode2, bash: Terminal };
+const toolIcons = {
+  read: Search,
+  edit: FilePenLine,
+  write: FileCode2,
+  bash: Terminal,
+  computer: Monitor,
+};
 
 /** Tool details start collapsed; result updates preserve the chosen display mode. */
 export function ToolItem({ tool }: { tool: SnapshotTool }) {
@@ -60,6 +76,7 @@ function GenericToolItem({ tool }: { tool: SnapshotTool }) {
               ? t("chat:toolItem.stopped", { toolName: tool.toolName })
               : t("chat:toolItem.noResultRecorded", { toolName: tool.toolName });
   const stateLabel = t(`chat:toolItem.state.${failed ? "failed" : tool.status}`);
+  const screenshots = computerScreenshotImages(tool);
   return (
     <Reveal>
       <Collapsible open={open} onOpenChange={setOpen}>
@@ -101,8 +118,9 @@ function GenericToolItem({ tool }: { tool: SnapshotTool }) {
             </Button>
           )}
         </div>
+        {screenshots.length > 0 && <ToolScreenshotPreview tool={tool} images={screenshots} />}
         <CollapsibleContent>
-          <ToolDetailsPanel tool={tool} />
+          <ToolDetailsPanel tool={tool} hideImages={screenshots.length > 0} />
         </CollapsibleContent>
       </Collapsible>
     </Reveal>

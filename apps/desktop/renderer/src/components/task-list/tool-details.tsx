@@ -28,14 +28,22 @@ function ToolBranch({ children, continued = false }: { children: ReactNode; cont
   );
 }
 
-export function ToolDetails({ tool }: { tool: SnapshotTool }) {
+export function ToolDetails({
+  tool,
+  hideImages = false,
+}: {
+  tool: SnapshotTool;
+  hideImages?: boolean;
+}) {
   useTranslation();
   const resource = typeof tool.args.path === "string" ? tool.args.path : undefined;
   const output = tool.result?.content
     .filter((part) => part.type === "text")
     .map((part) => part.text)
     .join("\n");
-  const images = tool.result?.content.filter((part) => part.type === "image") ?? [];
+  const images = hideImages
+    ? []
+    : (tool.result?.content.filter((part) => part.type === "image") ?? []);
   const hasOutput = Boolean(output || images.length);
   return (
     <ul className="mt-0.5 ml-2 flex min-w-0 list-none flex-col p-0">

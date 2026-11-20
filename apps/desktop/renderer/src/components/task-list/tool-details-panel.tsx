@@ -10,7 +10,13 @@ import {
 import { ToolDetails } from "./tool-details";
 
 /** Opening a tool always reveals its complete details in a height-limited scroll area. */
-export function ToolDetailsPanel({ tool }: { tool: SnapshotTool }) {
+export function ToolDetailsPanel({
+  tool,
+  hideImages = false,
+}: {
+  tool: SnapshotTool;
+  hideImages?: boolean;
+}) {
   useTranslation();
   return (
     <ScrollAreaRoot className="max-h-60">
@@ -21,7 +27,7 @@ export function ToolDetailsPanel({ tool }: { tool: SnapshotTool }) {
         aria-label={t("chat:toolDetailsPanel.argumentsAndResult", { toolName: tool.toolName })}
       >
         <ScrollAreaContent>
-          <ToolDetails tool={tool} />
+          <ToolDetails tool={tool} hideImages={hideImages} />
         </ScrollAreaContent>
       </ScrollAreaViewport>
       <ScrollAreaScrollbar />

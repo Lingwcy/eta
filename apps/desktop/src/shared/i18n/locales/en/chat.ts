@@ -228,6 +228,8 @@ export default {
   "toolDetails.file": "File",
   "toolDetails.arguments": "Arguments",
   "toolDetails.imageResult": "{{toolName}} image result",
+  "toolScreenshot.preview": "View full screenshot",
+  "toolScreenshot.close": "Close screenshot preview",
   "toolItem.processingScheduledTask": "Processing scheduled task",
   "toolItem.failed": "{{toolName}} · Failed",
   "toolItem.awaitingApproval": "{{toolName}} · Awaiting approval",

@@ -158,6 +158,10 @@ function ToolStepRow({ step, isLast }: { step: ToolStep; isLast: boolean }) {
             result={result}
             status={status}
             showIcon={false}
+            inlineImages={
+              part.name === "computer" ||
+              (part.name === "codemode" && nested.some((call) => call.name === "computer"))
+            }
           />
         )}
         {nested.length > 0 && (
