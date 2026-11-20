@@ -1,6 +1,6 @@
 import { AgentDoc, ROOT_CONVERSATION_ID } from "@eta/agent";
 import type { ConversationId, Tx } from "@eta/agent";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { defaultSubagentSettings } from "../../../shared/subagents.ts";
 import type { SubagentSettings } from "../../../shared/subagents.ts";
 import { SubagentsDoc, SubagentEventEntry, isDescendant } from "./state.ts";

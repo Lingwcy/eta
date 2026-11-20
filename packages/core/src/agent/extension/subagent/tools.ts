@@ -1,7 +1,7 @@
 import { defineTool } from "@eta/agent";
 import type { ConversationId } from "@eta/agent";
 import { Type } from "typebox";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { SubagentCommand, SubagentSummary } from "../../../shared/subagents.ts";
 import type { SubagentRuntime } from "./runtime.ts";
 

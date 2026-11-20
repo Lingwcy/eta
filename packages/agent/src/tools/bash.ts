@@ -1,7 +1,6 @@
 import { Type } from "typebox";
-import type { Static } from "@earendil-works/pi-schema";
-import type { Context } from "@earendil-works/chord";
-import { bool, num, obj, opt, str } from "@earendil-works/pi-schema";
+import type { Context } from "@earendil-works/chord/context";
+import { bool, num, obj, opt, type Static, str } from "@earendil-works/pi-schema";
 import { defineTool } from "../harness/define.ts";
 import { intentParameter, TOOL_INTENT } from "../harness/tool-intent.ts";
 import type { ToolExecutionApi, ToolExecutionResult, ToolRegistration } from "../harness/types.ts";

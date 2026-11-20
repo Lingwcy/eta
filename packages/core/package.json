@@ -23,9 +23,9 @@
   },
   "dependencies": {
     "@cf-wasm/photon": "catalog:",
-    "@earendil-works/chord": "1.5.0",
-    "@earendil-works/pi-ai": "1.5.0",
-    "@earendil-works/pi-codemode": "1.5.0",
+    "@earendil-works/chord": "1.5.2",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-codemode": "1.5.2",
     "@eta/agent": "workspace:*",
     "@eta/computer-use": "workspace:*",
     "effect": "catalog:",

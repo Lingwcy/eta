@@ -4,8 +4,8 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { Effect, Layer, ManagedRuntime } from "effect";
-import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { Models } from "@earendil-works/pi-ai";
+import { createBuiltinModels } from "@eta/core/service/models/index";
 import { botScheduleAdapter } from "./schedules.ts";
 import { createCore, CoreError } from "@eta/core";
 import type { CoreEnvironment } from "@eta/core";
@@ -56,7 +56,7 @@ export async function createBotApplication(
       : undefined;
     extensions = new BotExtensions(discord ? [discord] : []);
     const registered = extensions;
-    const models = dependencies.models ?? builtinModels({ credentials: credentials.store });
+    const models = dependencies.models ?? createBuiltinModels({ credentials: credentials.store });
     // A typo should fail fast; a known model without credentials yet is handled per review.
     const reviewer = config.runtime.approvalReviewer?.model;
     if (reviewer && !models.getModel(reviewer.provider, reviewer.modelId))

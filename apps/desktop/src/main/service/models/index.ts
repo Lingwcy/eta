@@ -1,6 +1,8 @@
 import { Effect, Layer } from "effect";
-import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import { ModelCatalogService as CoreModelCatalogService } from "@eta/core/service/models/index";
+import {
+  createBuiltinModels,
+  ModelCatalogService as CoreModelCatalogService,
+} from "@eta/core/service/models/index";
 import { CredentialService } from "@eta/core/service/credentials/index";
 import { loadMagpieProvider } from "@eta/core/service/models/magpie";
 
@@ -8,7 +10,7 @@ export class ModelCatalogService extends CoreModelCatalogService {
   static readonly layer = Layer.unwrap(
     Effect.gen(function* () {
       const { store } = yield* CredentialService;
-      const models = builtinModels({ credentials: store });
+      const models = createBuiltinModels({ credentials: store });
       // Magpie owns this opt-in file. A broken integration must not prevent normal startup.
       const magpie = yield* Effect.tryPromise(() => loadMagpieProvider()).pipe(
         Effect.catch(() =>

@@ -39,6 +39,7 @@ const files: Record<string, string> = {
   "qwen-token-plan": "qwen-color.svg",
   "qwen-token-plan-cn": "qwen-color.svg",
   "qwen-token-plan-individual": "qwen-color.svg",
+  "qwen-token-plan-individual-cn": "qwen-color.svg",
   radius: "radius.svg",
   together: "together-color.svg",
   typesafe: "typesafe.png",

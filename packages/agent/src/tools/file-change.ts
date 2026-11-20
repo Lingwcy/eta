@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from "diff";
 import type { ExecutionEnv } from "../env/index.ts";

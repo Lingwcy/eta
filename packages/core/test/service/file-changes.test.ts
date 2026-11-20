@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { closeSync, constants, openSync } from "node:fs";
 import { promisify } from "node:util";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { join } from "node:path";
 import { Effect, Predicate } from "effect";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";

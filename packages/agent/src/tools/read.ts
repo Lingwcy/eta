@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import type { Static } from "@earendil-works/pi-schema";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { characterEnd } from "@earendil-works/chord/output";
 import { lit, num, obj, opt, str, union } from "@earendil-works/pi-schema";
 import {

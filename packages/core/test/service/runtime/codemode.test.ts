@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect, Schema } from "effect";
 import { defineTool } from "@eta/agent";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { Type } from "typebox";
 import {
   createModels,

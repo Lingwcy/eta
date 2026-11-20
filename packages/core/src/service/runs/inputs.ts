@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { JsonRepresentation } from "@earendil-works/chord";
+import type { JsonRepresentation } from "@earendil-works/chord/json";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { defineDoc, defineDocFamily, InboxDoc, UserEntry } from "@eta/agent";
 import type { InboxItem, SubmissionId, UserInput } from "@eta/agent";
