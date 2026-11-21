@@ -9,7 +9,9 @@ import { GitHubPanel } from "@/components/projects/github-panel";
 import { InspectorTabs } from "@/components/inspector/inspector-tabs";
 import { ToastNotice } from "@/components/ui/toast";
 import { useTranslation } from "react-i18next";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useMemo } from "react";
+import { FileViewerPanel } from "@/components/files/file-viewer-panel";
+import { isCloudId } from "../../src/shared/bot.ts";
 
 const DiffPanel = lazy(() =>
   import("@/components/diff/diff-panel").then((module) => ({ default: module.DiffPanel })),
@@ -19,13 +21,18 @@ export function App() {
   useTranslation();
   const shell = useDesktopShell();
   const conversation = shell.inspectorConversation;
+  const changedPaths = useMemo(() => {
+    const list = shell.diff.workspace;
+    if (list.status !== "ready" || list.value.status !== "ready") return undefined;
+    return new Set(list.value.files.map((entry) => entry.path));
+  }, [shell.diff.workspace]);
   return (
     <ThreadActionsProvider
       desktop={shell.desktop}
       onOverlay={shell.setThreadOverlay}
       onSchedule={shell.addSchedule}
     >
-      <ToastNotice message={shell.desktop.error} />
+      <ToastNotice message={shell.desktop.error ?? shell.actionError} />
       {shell.creatingSchedule && shell.desktop.library && (
         <ScheduleForm
           key={shell.creatingSchedule}
@@ -62,12 +69,29 @@ export function App() {
               <InspectorTabs
                 value={shell.inspectorContent}
                 onChange={shell.selectInspectorContent}
+                files={
+                  shell.fileViewer.available && shell.fileViewer.active ? (
+                    <FileViewerPanel
+                      tabs={shell.fileViewer.tabs}
+                      active={shell.fileViewer.active}
+                      refreshRevision={shell.fileViewer.refreshRevision}
+                      onSelect={shell.fileViewer.select}
+                      onClose={shell.fileViewer.close}
+                      onRefresh={shell.fileViewer.refresh}
+                      changedPaths={changedPaths}
+                      onOpenDiff={shell.diff.openWorkspaceFile}
+                      editors={shell.editors}
+                      cloud={isCloudId(shell.contextWorkspace?.id ?? conversation?.threadId)}
+                    />
+                  ) : undefined
+                }
                 diff={
                   shell.diff.available ? (
                     <Suspense fallback={null}>
                       <DiffPanel
                         workspaceId={shell.diff.workspaceId}
                         history={shell.diff.history}
+                        workspaceTarget={shell.diff.workspaceTarget}
                         active={shell.inspectorOpen && shell.inspectorContent === "diff"}
                         revision={shell.diff.revision}
                         workspace={shell.diff.workspace}

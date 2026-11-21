@@ -49,6 +49,7 @@ import type {
   WorkspaceChangesInput,
   WorkspaceFileDiffInput,
 } from "@eta/core/shared/diff";
+import type { WorkspaceFilePreviewInput } from "../shared/workspace-files.ts";
 
 interface ThreadObserver {
   delivery?: Promise<void>;
@@ -1268,6 +1269,18 @@ export function withBot(local: LocalDesktopApplication, bot: DesktopBot) {
       isCloudId(id)
         ? Promise.reject(new LocalizedError("errors:bot.cloudChatFilesAreStoredOnTheBot"))
         : local.threadFile(id),
+    readWorkspaceFile: (input: WorkspaceFilePreviewInput) =>
+      isCloudId(input.workspaceId)
+        ? Promise.resolve({
+            status: "unavailable" as const,
+            reason: "cloud-unsupported" as const,
+            displayPath: input.path,
+          })
+        : local.readWorkspaceFile(input),
+    resolveWorkspaceFilePath: (path: string, workspaceId?: string) =>
+      isCloudId(workspaceId)
+        ? Promise.reject(new LocalizedError("errors:bot.cloudFilesCannotBeOpenedLocally"))
+        : local.resolveWorkspaceFilePath(path, workspaceId),
     subagent: (...args: Parameters<LocalDesktopApplication["subagent"]>) =>
       isCloudId(args[0])
         ? bot.command<Awaited<ReturnType<LocalDesktopApplication["subagent"]>>>(

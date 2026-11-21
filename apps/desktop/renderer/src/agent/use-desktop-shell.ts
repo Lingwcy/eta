@@ -3,6 +3,9 @@ import { projectRootWorkspace } from "@/desktop/selectors";
 import { useSubagents } from "./use-subagents";
 import { inspectedConversation, inspectedWorkspace, showScheduledTasks } from "./inspector";
 import { useCallback, useState, useEffect, useRef } from "react";
+import { describeError, type Message } from "@/i18n/messages";
+import type { FileEditorOption } from "../../../src/shared/workspace-files.ts";
+import { useFileViewer } from "./use-file-viewer";
 import { useProjectGit } from "./use-project-git";
 import { GitHubClient } from "./github-client";
 import { isCloudId } from "../../../src/shared/bot.ts";
@@ -61,6 +64,38 @@ export function useDesktopShell() {
   ]);
   const [inspectorContent, setInspectorContent] = useState<InspectorContent>("subagents");
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
+  const [editors, setEditors] = useState<readonly FileEditorOption[]>([]);
+  const [actionError, setActionError] = useState<Message | null>(null);
+  const reportError = useCallback((error: unknown) => {
+    setActionError(describeError(error, String(error)));
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void window.eta.availableEditors?.().then(
+      (list) => {
+        if (!cancelled) setEditors(list);
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const fileConnectionKey = JSON.stringify([
+    diffRemote ? desktop.library?.bot?.url : "local",
+    diffRemote ? desktop.library?.bot?.status : "connected",
+    inspectorConversation?.id,
+    version,
+  ]);
+  const openFileInspector = useCallback(() => {
+    setInspectorContent("files");
+    setInspectorExpanded(true);
+  }, []);
+  const fileViewer = useFileViewer({
+    workspaceId: contextWorkspace?.id,
+    connectionKey: fileConnectionKey,
+    onOpen: openFileInspector,
+  });
   const diff = useCodeDiff({
     workspaceId: contextWorkspace?.id,
     threadId: inspectorConversation?.threadId ?? undefined,
@@ -73,28 +108,47 @@ export function useDesktopShell() {
     },
   });
   const diffAvailable = diff.available;
+  const fileViewerAvailable = fileViewer.available;
   const activeInspectorContent: InspectorContent =
-    inspectorContent === "diff" && diffAvailable
-      ? "diff"
-      : inspectorContent === "github" && githubAvailable
-        ? "github"
-        : inspectorContent === "subagents" && subagents.length
-          ? "subagents"
-          : subagents.length
+    inspectorContent === "files" && fileViewerAvailable
+      ? "files"
+      : inspectorContent === "diff" && diffAvailable
+        ? "diff"
+        : inspectorContent === "github" && githubAvailable
+          ? "github"
+          : inspectorContent === "subagents" && subagents.length
             ? "subagents"
-            : githubAvailable
-              ? "github"
-              : "diff";
-  const inspectorAvailable = subagents.length > 0 || githubAvailable || diffAvailable;
+            : fileViewerAvailable
+              ? "files"
+              : subagents.length
+                ? "subagents"
+                : githubAvailable
+                  ? "github"
+                  : "diff";
+  const inspectorAvailable =
+    fileViewerAvailable || subagents.length > 0 || githubAvailable || diffAvailable;
   const inspectorOpen = inspectorAvailable && inspectorExpanded;
   useEffect(() => {
     githubClient.clear();
   }, [githubClient, desktop.library?.bot?.url, desktop.library?.bot?.status]);
   const selectInspectorContent = (next: InspectorContent) => {
-    if (next === "diff" ? !diffAvailable : next === "github" ? !githubAvailable : !subagents.length)
+    if (
+      next === "files"
+        ? !fileViewerAvailable
+        : next === "diff"
+          ? !diffAvailable
+          : next === "github"
+            ? !githubAvailable
+            : !subagents.length
+    )
       return;
     setInspectorContent(next);
   };
+  const openGitHubPanel = useCallback(() => {
+    if (!githubAvailable) return;
+    setInspectorContent("github");
+    setInspectorExpanded(true);
+  }, [githubAvailable]);
   const toggleInspector = useCallback(() => {
     if (inspectorAvailable) setInspectorExpanded((value) => !value);
   }, [inspectorAvailable]);
@@ -179,6 +233,11 @@ export function useDesktopShell() {
     toggleInspector,
     inspectorContent: activeInspectorContent,
     selectInspectorContent,
+    editors,
+    fileViewer,
+    openGitHubPanel,
+    actionError,
+    reportError,
     diff: {
       ...diff,
       connectionKey: diffConnectionKey,

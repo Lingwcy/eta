@@ -62,4 +62,10 @@ export default {
   "index.invalidConfigurationFile": "Invalid configuration file",
   "index.theStorageItemIsOutsideTheApplicationData":
     "The storage item is outside the application data directory",
+  "bot.cloudFilesCannotBeOpenedLocally": "Cloud workspace files cannot be opened locally",
+  "handlers.fileNotFound": "File not found",
+  "handlers.editorUnavailable": "The selected editor is not available",
+  "handlers.invalidExternalUrl": "Only HTTP, HTTPS, and mailto links can be opened",
+  "workspaceFile.workspaceRequiredForRelativePath":
+    "Select a local workspace to open relative file paths",
 } as const;

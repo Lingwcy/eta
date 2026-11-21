@@ -6,8 +6,13 @@ export const ContextMenu = BaseMenu.Root;
 export const ContextMenuTrigger = BaseMenu.Trigger;
 export const ContextMenuSubmenu = BaseMenu.SubmenuRoot;
 
+const popupWidthStyles = {
+  default: "w-40",
+  auto: "min-w-44 w-max max-w-64",
+} as const;
+
 export const menuPopupStyle =
-  "max-h-[var(--available-height)] w-40 origin-(--transform-origin) overflow-y-auto rounded-[10px] border border-contrast/12 bg-panel/95 p-1 text-xs font-normal text-heading shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl select-none transition-[opacity,scale] duration-(--eta-duration-fast) ease-(--eta-ease-out) motion-safe:data-starting-style:scale-95 data-starting-style:opacity-0 motion-safe:data-ending-style:scale-95 data-ending-style:opacity-0";
+  "max-h-[var(--available-height)] origin-(--transform-origin) overflow-y-auto rounded-[10px] border border-contrast/12 bg-panel/95 p-1 text-xs font-normal text-heading shadow-[0_6px_20px_#00000018,0_0_0_1px_#00000004] outline-none backdrop-blur-xl select-none transition-[opacity,scale] duration-(--eta-duration-fast) ease-(--eta-ease-out) motion-safe:data-starting-style:scale-95 data-starting-style:opacity-0 motion-safe:data-ending-style:scale-95 data-ending-style:opacity-0";
 
 const itemStyle =
   "flex h-[26px] cursor-default items-center gap-1.5 rounded-[5px] px-2 outline-none transition-colors duration-75 data-highlighted:bg-menu-selected data-highlighted:text-white data-disabled:opacity-35 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:stroke-[1.7]";
@@ -15,9 +20,11 @@ const itemStyle =
 export function ContextMenuContent({
   children,
   submenu = false,
+  size = "default",
 }: {
   children: ReactNode;
   submenu?: boolean;
+  size?: keyof typeof popupWidthStyles;
 }) {
   return (
     <BaseMenu.Portal>
@@ -33,7 +40,9 @@ export function ContextMenuContent({
         }
         className="z-50"
       >
-        <BaseMenu.Popup className={menuPopupStyle}>{children}</BaseMenu.Popup>
+        <BaseMenu.Popup className={`${menuPopupStyle} ${popupWidthStyles[size]}`}>
+          {children}
+        </BaseMenu.Popup>
       </BaseMenu.Positioner>
     </BaseMenu.Portal>
   );
