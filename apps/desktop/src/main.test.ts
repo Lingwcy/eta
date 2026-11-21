@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   libraryListener: undefined as (() => void) | undefined,
   service: {
     threadFile: vi.fn(),
+    resolveWorkspaceFilePath: vi.fn(),
     renameThread: vi.fn(),
     subscribeLibrary: vi.fn(),
     subscribeSettings: vi.fn(() => () => {}),
@@ -110,6 +111,8 @@ beforeEach(async () => {
   state.handlers.clear();
   state.managers.clear();
   state.service.threadFile.mockReset().mockResolvedValue("/eta/data/sessions/one/main.jsonl");
+  state.service.resolveWorkspaceFilePath.mockReset().mockResolvedValue("/eta/workspace/main.ts");
+  state.shell.showItemInFolder.mockReset();
   state.service.subscribeLibrary.mockReset().mockImplementation((listener: () => void) => {
     state.libraryListener = listener;
     return () => {
@@ -272,4 +275,79 @@ test("background title publication refreshes all windows without an IPC mutation
   state.libraryListener?.();
   expect(first.webContents.send).toHaveBeenCalledWith("eta:library-changed");
   expect(second.webContents.send).toHaveBeenCalledWith("eta:library-changed");
+});
+
+test("eta:open-external-url allows only http, https, and mailto protocols", async () => {
+  const window = state.windows[0]!;
+  expect(
+    await call("eta:open-external-url", window, "https://github.com/Lingwcy/eta/pull/648"),
+  ).toEqual({
+    ok: true,
+    value: undefined,
+  });
+  expect(state.shell.openExternal).toHaveBeenLastCalledWith(
+    "https://github.com/Lingwcy/eta/pull/648",
+  );
+
+  state.shell.openExternal.mockClear();
+  for (const unsafe of ["file:///etc/passwd", "javascript:alert(1)", "not a url", ""]) {
+    expect(await call("eta:open-external-url", window, unsafe)).toMatchObject({ ok: false });
+  }
+  expect(state.shell.openExternal).not.toHaveBeenCalled();
+});
+
+test("eta:open-file-target validates inputs, checks existence, and invokes reveal/default handlers", async () => {
+  const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const dir = await mkdtemp(path.join(tmpdir(), "eta-open-file-"));
+  const file = path.join(dir, "sample.ts");
+  await writeFile(file, "export const ok = true;\n", "utf8");
+  try {
+    const window = state.windows[0]!;
+    state.service.resolveWorkspaceFilePath.mockResolvedValue(file);
+
+    expect(
+      await call("eta:open-file-target", window, {
+        workspaceId: "ws-1",
+        path: "sample.ts",
+        mode: { kind: "reveal" },
+      }),
+    ).toEqual({ ok: true, value: undefined });
+    expect(state.service.resolveWorkspaceFilePath).toHaveBeenLastCalledWith("sample.ts", "ws-1");
+    expect(state.shell.showItemInFolder).toHaveBeenCalledWith(file);
+
+    expect(
+      await call("eta:open-file-target", window, {
+        path: "sample.ts",
+        mode: { kind: "default" },
+      }),
+    ).toEqual({ ok: true, value: undefined });
+    expect(state.shell.openPath).toHaveBeenCalledWith(file);
+
+    expect(
+      await call("eta:open-file-target", window, {
+        path: "sample.ts",
+        mode: { kind: "editor", editorId: "constructor" },
+      }),
+    ).toMatchObject({ ok: false });
+
+    expect(
+      await call("eta:open-file-target", window, {
+        path: "sample.ts",
+        line: 0,
+        mode: { kind: "reveal" },
+      }),
+    ).toMatchObject({ ok: false, error: { code: "InvalidInput" } });
+
+    state.service.resolveWorkspaceFilePath.mockResolvedValueOnce(path.join(dir, "missing.ts"));
+    expect(
+      await call("eta:open-file-target", window, {
+        path: "missing.ts",
+        mode: { kind: "reveal" },
+      }),
+    ).toMatchObject({ ok: false });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

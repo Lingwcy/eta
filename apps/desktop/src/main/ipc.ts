@@ -127,6 +127,10 @@ const Command = Schema.Union([
     input: Schema.Struct({ threadId: Id, changeId: Id }),
   }),
   Schema.Struct({
+    type: Schema.Literal("read-workspace-file"),
+    input: Schema.Struct({ workspaceId: Schema.optional(Id), path: Id }),
+  }),
+  Schema.Struct({
     type: Schema.Literal("select-github-remote"),
     projectId: Id,
     remoteName: Schema.NullOr(Id),
@@ -333,6 +337,8 @@ export async function dispatchCommand(application: DesktopApplication, raw: unkn
       return application.workspaceFileDiff(command.input);
     case "file-change-diff":
       return application.fileChangeDiff(command.input);
+    case "read-workspace-file":
+      return application.readWorkspaceFile(command.input);
     case "select-github-remote":
       return application.selectGitHubRemote(
         command.projectId,

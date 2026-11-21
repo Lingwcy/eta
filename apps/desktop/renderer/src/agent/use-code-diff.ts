@@ -75,6 +75,12 @@ export function useCodeDiff({
   const [selection, setSelection] = useState<
     FileDiffSelection & { connectionKey: string; requestId: string }
   >();
+  const [workspaceTargetState, setWorkspaceTargetState] = useState<{
+    path: string;
+    threadId?: string;
+    connectionKey: string;
+    requestId: string;
+  }>();
   const canOpenHistory = supported && Boolean(threadId);
   const history =
     canOpenHistory &&
@@ -82,6 +88,13 @@ export function useCodeDiff({
     selection.threadId === threadId &&
     selection.connectionKey === connectionKey
       ? selection
+      : undefined;
+  const workspaceTarget =
+    supported &&
+    workspaceTargetState &&
+    workspaceTargetState.connectionKey === connectionKey &&
+    workspaceTargetState.threadId === threadId
+      ? { path: workspaceTargetState.path, requestId: workspaceTargetState.requestId }
       : undefined;
   const workspace = useWorkspaceDiff({
     workspaceId: history?.workspaceId ?? workspaceId,
@@ -94,10 +107,18 @@ export function useCodeDiff({
     canOpenHistory,
     workspaceId: history?.workspaceId ?? workspaceId,
     history,
+    workspaceTarget,
     workspace,
     showWorkspace: () => setSelection(undefined),
+    openWorkspaceFile: (path: string) => {
+      if (!supported) return;
+      setSelection(undefined);
+      setWorkspaceTargetState({ path, threadId, connectionKey, requestId: crypto.randomUUID() });
+      onOpen();
+    },
     open: (target: FileDiffSelection) => {
       if (!canOpenHistory || target.threadId !== threadId) return;
+      setWorkspaceTargetState(undefined);
       setSelection({ ...target, connectionKey, requestId: crypto.randomUUID() });
       onOpen();
     },

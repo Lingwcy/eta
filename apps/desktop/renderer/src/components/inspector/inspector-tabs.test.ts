@@ -87,3 +87,30 @@ test("only available capabilities appear and removing the selected capability re
   expect(tab("子智能体")).toBeNull();
   expect(activeContent()).toBe("Other repository");
 });
+
+test("files capability integrates into inspector tabs and falls back when closed", async () => {
+  await act(async () =>
+    root.render(
+      createElement(InspectorTabs, {
+        value: "files",
+        onChange: () => {},
+        files: "Source preview",
+        github: "Pulls",
+      }),
+    ),
+  );
+  expect(tab("文件")).not.toBeNull();
+  expect(activeContent()).toBe("Source preview");
+
+  await act(async () =>
+    root.render(
+      createElement(InspectorTabs, {
+        value: "files",
+        onChange: () => {},
+        github: "Pulls",
+      }),
+    ),
+  );
+  expect(tab("文件")).toBeNull();
+  expect(activeContent()).toBe("Pulls");
+});
