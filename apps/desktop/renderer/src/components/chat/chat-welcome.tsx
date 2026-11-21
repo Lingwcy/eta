@@ -1,41 +1,54 @@
-import { Trans, useTranslation } from "react-i18next";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
-import { TerminalSquare } from "lucide-react";
+import { EtaWelcomeLogo } from "./eta-welcome-logo";
 
-export function ChatWelcome({
-  projectName,
-  connecting,
-}: {
-  projectName?: string;
-  connecting: boolean;
-}) {
+export const welcomeGreetingKeys = [
+  "chat:chatWelcome.greeting.followYourLead",
+  "chat:chatWelcome.greeting.letsGetStarted",
+  "chat:chatWelcome.greeting.howCanIHelp",
+  "chat:chatWelcome.greeting.whatsNext",
+  "chat:chatWelcome.greeting.readyWhenYouAre",
+  "chat:chatWelcome.greeting.newIdea",
+  "chat:chatWelcome.greeting.createTogether",
+  "chat:chatWelcome.greeting.whereToBegin",
+] as const;
+
+export type WelcomeGreetingKey = (typeof welcomeGreetingKeys)[number];
+
+let lastGreetingKey: WelcomeGreetingKey | undefined;
+
+/** Picks a welcome greeting key at random, avoiding an immediate back-to-back repeat. */
+export function selectWelcomeGreetingKey(options?: {
+  exclude?: WelcomeGreetingKey;
+  random?: () => number;
+}): WelcomeGreetingKey {
+  const candidates =
+    options?.exclude && welcomeGreetingKeys.length > 1
+      ? welcomeGreetingKeys.filter((key) => key !== options.exclude)
+      : welcomeGreetingKeys;
+  const raw = (options?.random ?? Math.random)();
+  const unit = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 0.999999999999) : 0;
+  return candidates[Math.floor(unit * candidates.length)]!;
+}
+
+function nextWelcomeGreetingKey(): WelcomeGreetingKey {
+  const selected = selectWelcomeGreetingKey({ exclude: lastGreetingKey });
+  lastGreetingKey = selected;
+  return selected;
+}
+
+export function ChatWelcome({ connecting }: { connecting: boolean }) {
   useTranslation();
+  const [greetingKey] = useState(nextWelcomeGreetingKey);
   return (
-    <div className="flex flex-1 flex-col items-center justify-center pt-8 pb-11 text-center">
-      <TerminalSquare
-        className="mb-4 text-disabled"
-        size={38}
-        strokeWidth={1.4}
-        aria-hidden="true"
-      />
-      <h2 className="text-[19px]/normal font-normal tracking-tight text-balance min-[901px]:text-[clamp(19px,1.5vw,21px)]">
-        {projectName ? (
-          <Trans
-            ns="chat"
-            i18nKey="chatWelcome.project"
-            values={{ projectName }}
-            components={{
-              project: (
-                <span className="underline decoration-border-strong decoration-dotted decoration-1 underline-offset-4" />
-              ),
-            }}
-          />
-        ) : (
-          t("chat:chatWelcome.whatWouldYouLikeToBuildToday")
-        )}
+    <div className="flex flex-1 flex-col items-center justify-center px-4 pt-8 pb-12 text-center">
+      <EtaWelcomeLogo className="mb-6" />
+      <h2 className="text-[22px]/snug font-normal tracking-tight text-balance text-foreground min-[901px]:text-[clamp(23px,1.9vw,27px)]">
+        {t(greetingKey)}
       </h2>
       {connecting && (
-        <output className="mt-2 text-xs text-subtle">
+        <output className="mt-2.5 text-xs text-subtle">
           {t("chat:chatWelcome.preparingTheAgent")}
         </output>
       )}
