@@ -188,6 +188,12 @@ body {
   color: #eceef1;
 }
 
+@media (forced-colors: active) {
+  .eta-welcome-logo-path {
+    fill: GrayText;
+  }
+}
+
 @keyframes eta-breathe {
   0%,
   100% {

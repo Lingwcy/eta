@@ -206,7 +206,6 @@ export function useDesktopController(
     welcome:
       !hasMessages && !running && (!threadId || !!snapshot)
         ? {
-            projectName: project?.name,
             connecting: !!threadId && agent.connection === "connecting",
           }
         : null,
