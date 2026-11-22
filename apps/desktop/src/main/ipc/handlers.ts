@@ -1,9 +1,13 @@
+import { stat } from "node:fs/promises";
+import { Schema } from "effect";
+import { CoreError } from "@eta/core/service/errors";
 import type { createAppearanceController } from "../platform/appearance.ts";
 import { LocalizedError } from "../../shared/i18n/messages.ts";
 import { isCloudId } from "../../shared/bot.ts";
 import { app, dialog, ipcMain, shell } from "electron";
 import type { DesktopApplication } from "../bootstrap.ts";
 import { commandReply, dispatchCommand } from "../ipc.ts";
+import { detectInstalledEditors, openFileWithEditor } from "../platform/external-editors.ts";
 import { openWithApplication } from "../platform/thread-file.ts";
 import { releaseUrl } from "../platform/updater.ts";
 import type { Updater } from "../platform/updater.ts";
@@ -13,6 +17,39 @@ import type { createDesktopWindows } from "../windows.ts";
 import { sessionId } from "./validation.ts";
 import { mainI18n, t } from "../i18n.ts";
 import { defaultLocale } from "../../shared/i18n/locales.ts";
+
+const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0));
+const OpenFileTargetSchema = Schema.Struct({
+  workspaceId: Schema.optional(Schema.NonEmptyString),
+  path: Schema.NonEmptyString,
+  line: Schema.optional(PositiveInt),
+  column: Schema.optional(PositiveInt),
+  mode: Schema.Union([
+    Schema.Struct({ kind: Schema.Literal("reveal") }),
+    Schema.Struct({ kind: Schema.Literal("default") }),
+    Schema.Struct({ kind: Schema.Literal("choose") }),
+    Schema.Struct({ kind: Schema.Literal("editor"), editorId: Schema.NonEmptyString }),
+  ]),
+});
+const decodeOpenFileTarget = Schema.decodeUnknownSync(OpenFileTargetSchema, {
+  onExcessProperty: "error",
+});
+
+async function chooseAndOpenWithApplication(file: string) {
+  const result = await dialog.showOpenDialog({
+    title: t("native:dialog.chooseApplication"),
+    ...(process.platform === "darwin"
+      ? {
+          defaultPath: "/Applications",
+          filters: [{ name: t("native:dialog.application"), extensions: ["app"] }],
+        }
+      : process.platform === "win32"
+        ? { filters: [{ name: t("native:dialog.application"), extensions: ["exe"] }] }
+        : {}),
+    properties: ["openFile"],
+  });
+  if (!result.canceled && result.filePaths[0]) await openWithApplication(file, result.filePaths[0]);
+}
 
 export function registerDesktopIpc({
   service,
@@ -90,21 +127,59 @@ export function registerDesktopIpc({
       }
       // 弹出文件选择框，让用户选择一个应用来打开文件
       if (mode !== "choose") throw new LocalizedError("errors:handlers.invalidOpenMethod");
-      const result = await dialog.showOpenDialog({
-        title: t("native:dialog.chooseApplication"),
-        ...(process.platform === "darwin"
-          ? {
-              defaultPath: "/Applications",
-              filters: [{ name: t("native:dialog.application"), extensions: ["app"] }],
-            }
-          : process.platform === "win32"
-            ? { filters: [{ name: t("native:dialog.application"), extensions: ["exe"] }] }
-            : {}),
-        properties: ["openFile"],
-      });
-      // 抛出打开方式无效错误
-      if (!result.canceled && result.filePaths[0])
-        await openWithApplication(file, result.filePaths[0]);
+      await chooseAndOpenWithApplication(file);
+    }),
+  );
+  ipcMain.handle("eta:available-editors", () => commandReply(() => detectInstalledEditors()));
+  ipcMain.handle("eta:open-external-url", (_event, rawUrl: unknown) =>
+    commandReply(async () => {
+      if (typeof rawUrl !== "string" || !rawUrl.trim())
+        throw new CoreError({ code: "InvalidInput", message: "请求参数无效" });
+      let parsed: URL;
+      try {
+        parsed = new URL(rawUrl);
+      } catch {
+        throw new CoreError({ code: "InvalidInput", message: "请求参数无效" });
+      }
+      if (
+        parsed.protocol !== "http:" &&
+        parsed.protocol !== "https:" &&
+        parsed.protocol !== "mailto:"
+      )
+        throw new LocalizedError("errors:handlers.invalidExternalUrl");
+      await shell.openExternal(parsed.href);
+    }),
+  );
+  ipcMain.handle("eta:open-file-target", (_event, rawInput: unknown) =>
+    commandReply(async () => {
+      let input: typeof OpenFileTargetSchema.Type;
+      try {
+        input = decodeOpenFileTarget(rawInput);
+      } catch {
+        throw new CoreError({ code: "InvalidInput", message: "请求参数无效" });
+      }
+      const file = await service().resolveWorkspaceFilePath(input.path, input.workspaceId);
+      try {
+        await stat(file);
+      } catch {
+        throw new LocalizedError("errors:handlers.fileNotFound");
+      }
+      switch (input.mode.kind) {
+        case "reveal":
+          shell.showItemInFolder(file);
+          return;
+        case "default": {
+          const error = await shell.openPath(file);
+          if (error) throw new Error(error);
+          return;
+        }
+        case "choose":
+          await chooseAndOpenWithApplication(file);
+          return;
+        case "editor":
+          await openFileWithEditor(file, input.mode.editorId, input.line, input.column);
+          return;
+      }
     }),
   );
   ipcMain.handle("browser:command", (event, raw: unknown) =>

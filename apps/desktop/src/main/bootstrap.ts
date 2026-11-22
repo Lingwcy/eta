@@ -58,6 +58,8 @@ import { makeAppPaths } from "@eta/core/platform/app-paths";
 import type { StorageTarget } from "../shared/storage.ts";
 import type { DesktopComputer } from "./computer/capability.ts";
 import type { ComputerPermission, ComputerStatus } from "../shared/computer.ts";
+import type { WorkspaceFilePreviewInput } from "../shared/workspace-files.ts";
+import { readWorkspaceFilePreview, resolveWorkspaceFilePath } from "./platform/workspace-file.ts";
 
 async function createLocalDesktopApplication(
   root: string,
@@ -132,14 +134,17 @@ async function createLocalDesktopApplication(
       await runtime.runPromise(projects.register({ rootPath: cwd }));
     const cwdDefault = cwd;
     const run = <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect);
+    const workspaces = await runtime.runPromise(WorkspaceService);
     const schedules = await runtime.runPromise(ScheduleService);
     const stopScheduler = await startDesktopScheduler({
       threads,
-      workspaces: await runtime.runPromise(WorkspaceService),
+      workspaces,
       dispatcher: await runtime.runPromise(ScheduleDispatcherService),
       runs: await runtime.runPromise(RunSupervisorService),
       run,
     });
+    const workspaceCwdFor = async (workspaceId?: string) =>
+      workspaceId ? (await run(workspaces.get(workspaceId))).cwd : undefined;
     let closing: Promise<void> | undefined;
     const selectThread = async (action: ReturnType<typeof threads.open>) => {
       const opened = await run(action);
@@ -259,6 +264,10 @@ async function createLocalDesktopApplication(
           "main.jsonl",
         );
       },
+      readWorkspaceFile: async (input: WorkspaceFilePreviewInput) =>
+        readWorkspaceFilePreview(input.path, await workspaceCwdFor(input.workspaceId)),
+      resolveWorkspaceFilePath: async (path: string, workspaceId?: string) =>
+        resolveWorkspaceFilePath(path, await workspaceCwdFor(workspaceId)),
       moveThread: (id: string, projectId: string | null) => run(threads.move(id, projectId)),
       deleteThread: (id: string) => run(threads.remove(id)),
       renameThread: (id: string, title: string) => run(threads.rename(id, title)),

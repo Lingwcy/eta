@@ -38,6 +38,12 @@ import type { SandboxMode } from "@eta/core/shared/sandbox";
 import type { MessageReference } from "./shared/i18n/messages.ts";
 import type { AppLocale } from "./shared/i18n/locales.ts";
 import type { ComputerPermission, ComputerStatus } from "./shared/computer.ts";
+import type {
+  FileEditorOption,
+  OpenFileTargetInput,
+  WorkspaceFilePreviewInput,
+  WorkspaceFilePreviewResult,
+} from "./shared/workspace-files.ts";
 
 export type AgentEvent =
   | { type: "snapshot"; value: SnapshotResponse }
@@ -162,6 +168,10 @@ export interface DesktopBridge extends AgentBridge {
   subscribeLibrary(listener: (reason?: "credentials") => void): () => void;
   openThreadWindow(id: string): Promise<void>;
   openThreadFile(id: string, mode: "default" | "reveal" | "choose"): Promise<void>;
+  readWorkspaceFile(input: WorkspaceFilePreviewInput): Promise<WorkspaceFilePreviewResult>;
+  availableEditors(): Promise<readonly FileEditorOption[]>;
+  openFileTarget(input: OpenFileTargetInput): Promise<void>;
+  openExternalUrl(url: string): Promise<void>;
   moveThread(id: string, projectId: string | null): Promise<ThreadMetadata>;
   deleteThread(id: string): Promise<void>;
   storage(): Promise<StorageReport>;

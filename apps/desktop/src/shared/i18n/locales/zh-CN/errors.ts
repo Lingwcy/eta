@@ -52,4 +52,9 @@ export default {
   "index.invalidStorageItem": "存储条目无效",
   "index.invalidConfigurationFile": "配置文件无效",
   "index.theStorageItemIsOutsideTheApplicationData": "存储条目不在应用数据目录中",
+  "bot.cloudFilesCannotBeOpenedLocally": "云端工作区文件无法在本地打开",
+  "handlers.fileNotFound": "找不到该文件",
+  "handlers.editorUnavailable": "所选编辑器不可用",
+  "handlers.invalidExternalUrl": "仅支持打开 HTTP、HTTPS 和 mailto 链接",
+  "workspaceFile.workspaceRequiredForRelativePath": "请先选择本地工作区后再打开相对路径文件",
 } as const;

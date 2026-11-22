@@ -97,6 +97,9 @@ test.each([
   { type: "reveal-storage", target: { kind: "configuration", id: "" } },
   { type: "reveal-storage", target: { kind: "sessions", path: "/arbitrary-path" } },
   { type: "reveal-storage", target: { kind: "unknown" } },
+  { type: "read-workspace-file", input: { path: "" } },
+  { type: "read-workspace-file", input: { path: "src/main.ts", workspaceId: "" } },
+  { type: "read-workspace-file", input: { path: "src/main.ts", extra: true } },
 ])(
   "untrusted command payloads fail before reaching application services: $type",
   async (command) => {
@@ -260,4 +263,29 @@ test("IPC withdrawal returns the authoritative already-placed result", async () 
   expect(
     await dispatchCommand(application, { type: "withdraw-input", id: "thread", operationId: "42" }),
   ).toEqual({ status: "already_placed" });
+});
+
+test("IPC dispatches read-workspace-file inputs to the application service", async () => {
+  const preview = {
+    status: "ready",
+    absolutePath: "/repo/src/main.ts",
+    displayPath: "src/main.ts",
+    name: "main.ts",
+    content: "export {};",
+    truncated: false,
+    totalLines: 1,
+    size: 10,
+  };
+  const application = {
+    readWorkspaceFile: async (input: { workspaceId?: string; path: string }) => {
+      expect(input).toEqual({ workspaceId: "ws-1", path: "src/main.ts" });
+      return preview;
+    },
+  } as unknown as DesktopApplication;
+  expect(
+    await dispatchCommand(application, {
+      type: "read-workspace-file",
+      input: { workspaceId: "ws-1", path: "src/main.ts" },
+    }),
+  ).toEqual(preview);
 });

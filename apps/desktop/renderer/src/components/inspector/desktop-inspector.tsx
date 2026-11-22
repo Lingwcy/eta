@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useInspectorWidth } from "./use-inspector-width";
 import type { InspectorContent } from "./inspector-tabs";
 
-const defaults = { diff: 800, github: 360, subagents: 320 } as const;
+const defaults = { files: 560, diff: 800, github: 360, subagents: 320 } as const;
 
 const MinimumWidthContext = createContext<((width: number) => () => void) | null>(null);
 

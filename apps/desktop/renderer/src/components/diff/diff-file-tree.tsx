@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { Atom, ChevronDown, ChevronRight, FileText } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { DiffFile } from "@eta/core/shared/diff";
+import { FileTypeIcon } from "@/components/files/file-type-icon";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -51,48 +52,6 @@ export function buildDiffTree(files: readonly DiffFile[]): TreeNode[] {
     ];
   }
   return children(root);
-}
-
-function FileTypeIcon({ name }: { name: string }) {
-  const extension = name.split(".").at(-1)?.toLowerCase();
-  if (extension === "tsx" || extension === "jsx")
-    return (
-      <Atom
-        size={15}
-        className="shrink-0 text-sky-text-500 dark:text-sky-text-300"
-        aria-hidden="true"
-      />
-    );
-  const badge =
-    extension === "ts" || extension === "mts" || extension === "cts"
-      ? { text: "TS", color: "text-info-text-500 dark:text-info-text-300" }
-      : extension === "js" || extension === "mjs" || extension === "cjs"
-        ? { text: "JS", color: "text-warning-text-600 dark:text-warning-text-300" }
-        : extension === "css" || extension === "scss"
-          ? { text: "CSS", color: "text-violet-text-500 dark:text-violet-text-400" }
-          : undefined;
-  if (!badge) return <FileText size={15} className="shrink-0 text-muted" aria-hidden="true" />;
-  return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 18 18"
-      className={cn("shrink-0", badge.color)}
-      aria-hidden="true"
-    >
-      <rect width="18" height="18" rx="4" fill="currentColor" fillOpacity="0.16" />
-      <text
-        x="9"
-        y="12.5"
-        textAnchor="middle"
-        fill="currentColor"
-        fontSize={badge.text.length === 3 ? "8" : "10"}
-        fontWeight="600"
-      >
-        {badge.text}
-      </text>
-    </svg>
-  );
 }
 
 const statuses = {
