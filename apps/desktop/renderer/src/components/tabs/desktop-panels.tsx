@@ -1,8 +1,11 @@
 import type { Message } from "@/i18n/messages";
 import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useMemo, type ReactNode } from "react";
+import type { ConversationTab } from "@/agent/desktop-tabs";
+import { MarkdownActionsProvider, type MarkdownActions } from "@/agent/markdown-actions";
 import type { DesktopShell } from "@/agent/use-desktop-shell";
+import { isCloudId } from "../../../../src/shared/bot.ts";
 import { DesktopLayout } from "@/components/desktop-layout";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { BrowserPanel } from "@/components/browser/browser-panel";
@@ -140,27 +143,68 @@ function ConversationWorkspace({ shell }: { shell: DesktopShell }) {
                   active.id === tab.id && shell.diff.canOpenHistory ? shell.diff.open : undefined
                 }
               >
-                <ConversationPanel
-                  tab={tab}
-                  desktop={desktop}
-                  schedules={shell.schedules}
-                  navigation={navigation}
-                  active={active.id === tab.id}
-                  selectedSubagent={
-                    tab.threadId ? shell.selectedSubagents[tab.threadId] : undefined
-                  }
-                  onRoot={() => {
-                    if (tab.threadId) shell.selectSubagent(tab.threadId);
-                  }}
-                  version={version}
-                  onPreview={savePreview}
-                />
+                <ConversationMarkdownScope tab={tab} active={active.id === tab.id} shell={shell}>
+                  <ConversationPanel
+                    tab={tab}
+                    desktop={desktop}
+                    schedules={shell.schedules}
+                    navigation={navigation}
+                    active={active.id === tab.id}
+                    selectedSubagent={
+                      tab.threadId ? shell.selectedSubagents[tab.threadId] : undefined
+                    }
+                    onRoot={() => {
+                      if (tab.threadId) shell.selectSubagent(tab.threadId);
+                    }}
+                    version={version}
+                    onPreview={savePreview}
+                  />
+                </ConversationMarkdownScope>
               </FileDiffActions>
             </section>
           ))}
       </DesktopLayout>
     </div>
   );
+}
+
+function ConversationMarkdownScope({
+  tab,
+  active,
+  shell,
+  children,
+}: {
+  tab: ConversationTab;
+  active: boolean;
+  shell: DesktopShell;
+  children: ReactNode;
+}) {
+  const workspaceId =
+    shell.desktop.library?.threads.find((thread) => thread.id === tab.threadId)?.workspaceId ??
+    tab.workspaceId ??
+    undefined;
+  const cloud =
+    tab.threadId || workspaceId
+      ? isCloudId(tab.threadId ?? workspaceId)
+      : tab.environment === "cloud";
+  const openFile = shell.fileViewer.open;
+  const openGitHubPanel = active && shell.github.available ? shell.openGitHubPanel : undefined;
+  const tabs = shell.navigation.tabs;
+  const value = useMemo<MarkdownActions>(
+    () => ({
+      workspaceId,
+      cloud,
+      editors: shell.editors,
+      openFile,
+      openFileExternal: (input) => window.eta.openFileTarget({ workspaceId, ...input }),
+      openWebInBrowser: (url) => tabs.newBrowser(url),
+      openWebExternal: (url) => window.eta.openExternalUrl(url),
+      ...(openGitHubPanel ? { openGitHubPanel } : {}),
+      onError: shell.reportError,
+    }),
+    [workspaceId, cloud, shell.editors, openFile, tabs, openGitHubPanel, shell.reportError],
+  );
+  return <MarkdownActionsProvider value={value}>{children}</MarkdownActionsProvider>;
 }
 
 function SettingsLoading({ error }: { error?: Message | null }) {

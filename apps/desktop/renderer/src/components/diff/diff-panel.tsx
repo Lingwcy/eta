@@ -20,6 +20,7 @@ export interface DiffHistorySelection {
 interface DiffPanelProps {
   workspaceId?: string;
   history?: DiffHistorySelection;
+  workspaceTarget?: { path: string; requestId: string };
   active: boolean;
   /** A completed modification or turn, not each streamed token. */
   revision?: number;
@@ -41,6 +42,7 @@ function Notice({ children }: { children: React.ReactNode }) {
 export function DiffPanel({
   workspaceId,
   history,
+  workspaceTarget,
   active,
   revision = 0,
   connectionKey = "local",
@@ -68,11 +70,20 @@ export function DiffPanel({
     );
   }, [navigationKey, Boolean(history)]);
   const scope = "all";
-  const [selectedPaths, setSelectedPaths] = useState<Record<string, string>>({});
+  const workspaceKey = JSON.stringify([connectionKey, workspaceId, scope]);
+  const [selectedPaths, setSelectedPaths] = useState<Record<string, string>>(() =>
+    workspaceTarget ? { [workspaceKey]: workspaceTarget.path } : {},
+  );
+  const handledWorkspaceTarget = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!workspaceTarget || handledWorkspaceTarget.current === workspaceTarget.requestId) return;
+    handledWorkspaceTarget.current = workspaceTarget.requestId;
+    setSelectedPaths((previous) => ({ ...previous, [workspaceKey]: workspaceTarget.path }));
+    setSelection({ navigationKey, source: "workspace" });
+  }, [workspaceTarget, workspaceKey, navigationKey]);
   const [collapsedPaths, setCollapsedPaths] = useState<Record<string, ReadonlySet<string>>>({});
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const positions = useRef(new Map<string, number>());
-  const workspaceKey = JSON.stringify([connectionKey, workspaceId, scope]);
   // The shell probes availability even while closed; reuse that admission when present.
   const localWorkspace = useWorkspaceDiff({
     workspaceId,

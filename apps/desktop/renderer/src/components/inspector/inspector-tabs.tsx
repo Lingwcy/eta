@@ -2,9 +2,9 @@ import { useTranslation } from "react-i18next";
 import { t } from "@/i18n";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Github, FileDiff } from "lucide-react";
+import { Bot, FileCode2, FileDiff, Github } from "lucide-react";
 
-export type InspectorContent = "github" | "subagents" | "diff";
+export type InspectorContent = "files" | "github" | "subagents" | "diff";
 import { Tabs, TabsList, TabsTrigger, TabsPanel } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
@@ -18,12 +18,14 @@ export function InspectorToolbar({ children }: { children: ReactNode }) {
 export function InspectorTabs({
   value,
   onChange,
+  files,
   github,
   subagents,
   diff,
 }: {
   value: InspectorContent;
   onChange: (value: InspectorContent) => void;
+  files?: ReactNode;
   github?: ReactNode;
   subagents?: ReactNode;
   diff?: ReactNode;
@@ -31,22 +33,27 @@ export function InspectorTabs({
   useTranslation();
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const active =
-    value === "github" && github
-      ? "github"
-      : value === "subagents" && subagents
-        ? "subagents"
-        : value === "diff" && diff
-          ? "diff"
-          : subagents
-            ? "subagents"
-            : github
-              ? "github"
-              : "diff";
+    value === "files" && files
+      ? "files"
+      : value === "github" && github
+        ? "github"
+        : value === "subagents" && subagents
+          ? "subagents"
+          : value === "diff" && diff
+            ? "diff"
+            : files
+              ? "files"
+              : subagents
+                ? "subagents"
+                : github
+                  ? "github"
+                  : "diff";
   return (
     <Tabs
       value={active}
       onValueChange={(next) => {
-        if (next === "github" || next === "subagents" || next === "diff") onChange(next);
+        if (next === "files" || next === "github" || next === "subagents" || next === "diff")
+          onChange(next);
       }}
       render={<div className="relative flex min-h-0 flex-1 flex-col" />}
     >
@@ -62,6 +69,16 @@ export function InspectorTabs({
           aria-label={t("inspector:inspectorTabs.sidebarFeatures")}
           className="flex items-center gap-1"
         >
+          {files && (
+            <TabsTrigger
+              variant="inspector"
+              value="files"
+              aria-label={t("inspector:inspectorTabs.files")}
+              title={t("inspector:inspectorTabs.files")}
+            >
+              <FileCode2 aria-hidden="true" />
+            </TabsTrigger>
+          )}
           {diff && (
             <TabsTrigger
               variant="inspector"
@@ -89,6 +106,13 @@ export function InspectorTabs({
           )}
         </TabsList>
       </div>
+      {files && (
+        <TabsPanel value="files" keepMounted className="flex min-h-0 flex-1 flex-col">
+          <ToolbarContext.Provider value={active === "files" ? toolbar : null}>
+            {files}
+          </ToolbarContext.Provider>
+        </TabsPanel>
+      )}
       {diff && (
         <TabsPanel value="diff" keepMounted className="flex min-h-0 flex-1 flex-col">
           <ToolbarContext.Provider value={active === "diff" ? toolbar : null}>
